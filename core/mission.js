@@ -47,10 +47,15 @@ export async function loadMission(missionPath, aircraftPath) {
 }
 
 export async function fetchMetar(icao) {
-  const url = `https://aviationweather.gov/api/data/metar?ids=${icao}&format=json`;
-  const res  = await fetch(url);
-  const data = await res.json();
-  if (data && data[0]) {
-    setState({ metar: data[0] });
+  /* Try direct first, fall back to CORS proxy for static hosting (e.g. GitHub Pages) */
+  const direct = `https://aviationweather.gov/api/data/metar?ids=${icao}&format=json`;
+  const proxy  = `https://corsproxy.io/?${encodeURIComponent(direct)}`;
+
+  for (const url of [direct, proxy]) {
+    try {
+      const res  = await fetch(url);
+      const data = await res.json();
+      if (data && data[0]) { setState({ metar: data[0] }); return; }
+    } catch { /* try next */ }
   }
 }
