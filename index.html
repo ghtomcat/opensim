@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenSim — ILS Approach LSZH</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --cyan:   #4dc5dc;
+      --green:  #5dd47e;
+      --amber:  #ffb74d;
+      --red:    #ff4444;
+      --white:  #e8edf2;
+      --bg:     #030609;
+      --tape:   rgba(3,6,10,0.82);
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--bg);
+      color: var(--white);
+      font-family: "Syne", sans-serif;
+      overflow: hidden;
+    }
+
+    /* ── Display canvases — full viewport ── */
+    #pfd, #ecam {
+      position: fixed; top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* ── FMA strip ── */
+    #fma {
+      position: fixed;
+      top: 12px; left: 50%;
+      transform: translateX(-50%);
+      z-index: 20;
+      display: flex; gap: 3px;
+      pointer-events: none;
+    }
+
+    .fma-box {
+      width: 110px; min-height: 42px;
+      background: rgba(3,6,10,0.88);
+      border: 1px solid rgba(255,255,255,0.15);
+      padding: 3px 6px;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 1px;
+    }
+
+    .fma-box.flash { border-color: rgba(255,255,255,0.85); }
+
+    .fma-sub {
+      font-family: "Syne", sans-serif;
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: rgba(232,237,242,0.45);
+      text-transform: uppercase;
+    }
+
+    .fma-val {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Instrument panel (bottom bar) ── */
+    #panel {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      z-index: 20;
+      background: rgba(3,6,10,0.92);
+      border-top: 1px solid rgba(255,255,255,0.1);
+      display: flex; align-items: stretch;
+      height: 80px;
+      font-family: "IBM Plex Mono", monospace;
+    }
+
+    .panel-section {
+      flex: 1; padding: 8px 14px;
+      display: flex; flex-direction: column; justify-content: center; gap: 4px;
+      border-right: 1px solid rgba(255,255,255,0.08);
+    }
+    .panel-section:last-child { border-right: none; }
+
+    .panel-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: rgba(232,237,242,0.4);
+      text-transform: uppercase;
+    }
+
+    .panel-value {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--amber);
+    }
+
+    .panel-value.green  { color: var(--green); }
+    .panel-value.cyan   { color: var(--cyan); }
+    .panel-value.red    { color: var(--red); }
+    .panel-value.white  { color: var(--white); }
+
+    /* ── Checklist overlay ── */
+    #checklist {
+      position: fixed; top: 70px; right: 20px;
+      z-index: 25;
+      width: 280px;
+      background: rgba(3,6,10,0.92);
+      border: 1px solid rgba(77,197,220,0.3);
+      padding: 12px 16px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      display: none;
+    }
+
+    #checklist.visible { display: block; }
+
+    .cl-title {
+      color: var(--cyan);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .cl-item {
+      display: flex; justify-content: space-between;
+      padding: 3px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      color: rgba(232,237,242,0.6);
+    }
+
+    .cl-item.active  { color: var(--amber); }
+    .cl-item.done    { color: var(--green); }
+
+    /* ── METAR strip ── */
+    #metar-strip {
+      position: fixed; top: 12px; right: 16px;
+      z-index: 20;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      color: rgba(77,197,220,0.7);
+      text-align: right;
+      pointer-events: none;
+      line-height: 1.5;
+    }
+
+    /* ── PTT indicator ── */
+    #ptt-indicator {
+      position: fixed; bottom: 90px; left: 20px;
+      z-index: 25;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      color: var(--green);
+      background: rgba(3,6,10,0.88);
+      border: 1px solid var(--green);
+      padding: 4px 10px;
+      opacity: 0;
+      transition: opacity 0.1s;
+    }
+
+    #ptt-indicator.active { opacity: 1; }
+
+    /* ── Mission title ── */
+    #mission-title {
+      position: fixed; top: 70px; left: 20px;
+      z-index: 20;
+      font-family: "Syne", sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(232,237,242,0.35);
+      pointer-events: none;
+    }
+
+    /* ── Debrief overlay ── */
+    #debrief {
+      position: fixed; inset: 0;
+      z-index: 100;
+      background: rgba(3,6,10,0.96);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 20px;
+      display: none;
+    }
+
+    #debrief.visible { display: flex; }
+
+    .debrief-title {
+      font-family: "Syne", sans-serif;
+      font-size: 28px; font-weight: 800;
+      color: var(--cyan);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .debrief-item {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 14px;
+      color: var(--white);
+      max-width: 560px;
+      padding: 10px 16px;
+      border-left: 2px solid var(--green);
+      opacity: 0;
+      transform: translateY(8px);
+      transition: all 0.4s ease;
+    }
+
+    .debrief-item.show {
+      opacity: 1; transform: none;
+    }
+
+    /* ── COM panel ── */
+    #com-container {
+      position: fixed; bottom: 90px; left: 20px;
+      z-index: 25; width: 320px;
+    }
+
+    .com-panel {
+      background: rgba(3,6,10,0.94);
+      border: 1px solid rgba(255,255,255,0.1);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+    }
+
+    .com-section, .xpdr-section {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+    .xpdr-section { border-bottom: none; }
+
+    .com-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .com-title {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.1em;
+      color: rgba(232,237,242,0.4); text-transform: uppercase;
+    }
+
+    .com-ptt { font-size: 10px; color: var(--green); }
+
+    .com-row {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+    }
+
+    .com-freq-block { flex: 1; }
+
+    .com-freq-label {
+      font-size: 8px; letter-spacing: 0.08em;
+      color: rgba(232,237,242,0.3); text-transform: uppercase; margin-bottom: 2px;
+    }
+
+    .com-freq {
+      font-size: 20px; font-weight: 700; letter-spacing: 0.04em;
+    }
+
+    .com-freq.active       { color: var(--green); }
+    .com-freq.active.transmitting { color: var(--amber); text-shadow: 0 0 8px rgba(255,183,77,0.6); }
+    .com-freq.standby      { color: rgba(232,237,242,0.5); font-size: 16px; }
+
+    .com-station {
+      font-size: 9px; color: var(--cyan); letter-spacing: 0.06em;
+      text-transform: uppercase; margin-top: 2px;
+    }
+
+    .com-freq-tuner { display: flex; gap: 4px; margin-top: 4px; }
+
+    .com-tune {
+      background: none; border: 1px solid rgba(255,255,255,0.15);
+      color: var(--white); cursor: pointer; padding: 2px 8px;
+      font-family: "IBM Plex Mono", monospace; font-size: 13px;
+    }
+    .com-tune:hover { border-color: var(--cyan); color: var(--cyan); }
+
+    .com-xfer {
+      background: none; border: 1px solid rgba(255,255,255,0.2);
+      color: var(--amber); font-size: 18px; cursor: pointer;
+      padding: 6px 10px; flex-shrink: 0;
+    }
+    .com-xfer:hover { border-color: var(--amber); }
+
+    .com-presets {
+      display: flex; flex-direction: column; gap: 2px;
+    }
+
+    .com-preset-btn {
+      background: none; border: none;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 3px 0; cursor: pointer; width: 100%;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .com-preset-btn:hover .preset-freq { color: var(--cyan); }
+
+    .preset-freq {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px; color: var(--amber);
+    }
+
+    .preset-label {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 9px; color: rgba(232,237,242,0.35);
+      letter-spacing: 0.06em; text-transform: uppercase;
+    }
+
+    /* Transponder */
+    .xpdr-mode {
+      font-size: 9px; color: var(--amber);
+      letter-spacing: 0.08em; text-transform: uppercase;
+    }
+
+    .xpdr-row { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+
+    .xpdr-digits { display: flex; gap: 4px; }
+
+    .xpdr-digit {
+      font-size: 22px; font-weight: 700; color: var(--amber);
+      cursor: ns-resize; width: 22px; text-align: center;
+      user-select: none;
+    }
+    .xpdr-digit:hover { color: #fff; }
+
+    .xpdr-ident {
+      background: none; border: 1px solid var(--amber);
+      color: var(--amber); font-family: "IBM Plex Mono", monospace;
+      font-size: 11px; letter-spacing: 0.08em;
+      padding: 4px 10px; cursor: pointer;
+    }
+    .xpdr-ident:hover, .xpdr-ident.active {
+      background: var(--amber); color: var(--bg);
+      box-shadow: 0 0 10px rgba(255,183,77,0.5);
+    }
+
+    .xpdr-status {
+      font-size: 18px; font-weight: 700; color: var(--amber);
+      letter-spacing: 0.15em;
+    }
+
+    /* ATIS modal */
+    #atis-modal {
+      position: fixed; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 50;
+      background: rgba(3,6,10,0.97);
+      border: 1px solid var(--cyan);
+      padding: 20px 24px; min-width: 340px;
+      font-family: "IBM Plex Mono", monospace;
+    }
+
+    .atis-title {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+      color: var(--cyan); text-transform: uppercase; margin-bottom: 12px;
+    }
+
+    .atis-line {
+      font-size: 12px; color: var(--white);
+      padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .atis-close {
+      position: absolute; top: 8px; right: 12px;
+      background: none; border: none; color: rgba(232,237,242,0.4);
+      font-size: 18px; cursor: pointer;
+    }
+
+    /* ── Keybind help ── */
+    #keys {
+      position: fixed; bottom: 90px; right: 16px;
+      z-index: 20;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 9px;
+      color: rgba(232,237,242,0.25);
+      text-align: right;
+      line-height: 1.8;
+      pointer-events: none;
+    }
+
+    /* ── Loading screen ── */
+    #loading {
+      position: fixed; inset: 0; z-index: 200;
+      background: var(--bg);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 16px;
+      font-family: "Syne", sans-serif;
+    }
+
+    .loading-title {
+      font-size: 32px; font-weight: 800;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--cyan);
+    }
+
+    .loading-sub {
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      color: rgba(232,237,242,0.4);
+      text-transform: uppercase;
+    }
+
+    .loading-bar-outer {
+      width: 260px; height: 2px;
+      background: rgba(255,255,255,0.1);
+    }
+
+    .loading-bar-inner {
+      height: 100%; width: 0;
+      background: var(--cyan);
+      transition: width 0.6s ease;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Loading screen -->
+<div id="loading">
+  <div class="loading-title">OpenSim</div>
+  <div class="loading-sub">ILS Approach — LSZH RWY 28</div>
+  <div class="loading-bar-outer"><div class="loading-bar-inner" id="loadBar"></div></div>
+  <div class="loading-sub" id="loadStatus">initialising…</div>
+</div>
+
+<!-- PFD canvas -->
+<canvas id="pfd"></canvas>
+
+<!-- ECAM canvas -->
+<canvas id="ecam" style="display:none"></canvas>
+
+<!-- FMA strip -->
+<div id="fma"></div>
+
+<!-- Mission title -->
+<div id="mission-title"></div>
+
+<!-- METAR strip -->
+<div id="metar-strip"></div>
+
+<!-- Instrument panel (bottom) -->
+<div id="panel">
+  <div class="panel-section">
+    <div class="panel-label">Airspeed</div>
+    <div class="panel-value" id="pv-spd">---</div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-label">Altitude</div>
+    <div class="panel-value" id="pv-alt">---</div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-label">V/S</div>
+    <div class="panel-value white" id="pv-vs">---</div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-label">Heading</div>
+    <div class="panel-value cyan" id="pv-hdg">---</div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-label">Flaps / Gear</div>
+    <div class="panel-value" id="pv-cfg">F0 · UP</div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-label">Display</div>
+    <div class="panel-value cyan" id="pv-mode">PFD</div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-label">Role</div>
+    <div class="panel-value cyan" id="pv-role">PF</div>
+  </div>
+</div>
+
+<!-- COM + Transponder -->
+<div id="com-container"></div>
+
+<!-- PTT -->
+<div id="ptt-indicator">● TRANSMITTING</div>
+
+<!-- Keybinds -->
+<div id="keys">
+  ↑↓ ALT ±500 · ←→ HDG ±5<br>
+  + / − SPD ±5 · F1–F4 DETENT<br>
+  F flaps · G gear<br>
+  TAB display · P pause · R role<br>
+  SPACE PTT
+</div>
+
+<!-- Checklist panel -->
+<div id="checklist">
+  <div class="cl-title">Approach Checklist</div>
+  <div id="cl-items"></div>
+</div>
+
+<!-- Debrief -->
+<div id="debrief">
+  <div class="debrief-title">Debrief</div>
+  <div id="debrief-items"></div>
+  <button onclick="hideDebrief()" style="margin-top:20px;padding:10px 28px;background:none;border:1px solid rgba(255,255,255,0.3);color:#e8edf2;font-family:'Syne',sans-serif;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase;">Reset</button>
+</div>
+
+<script type="module">
+  import { S, setState }  from './core/state.js';
+  import { loadMission }  from './core/mission.js';
+  import { tickPhysics }  from './core/physics.js';
+  import { initCrew, tickCrew, resetCrew } from './core/crew.js';
+  import { initInput, isPTTActive }        from './core/input.js';
+  import { startLoop }    from './core/loop.js';
+  import { renderPFD }    from './display/pfd.js';
+  import { renderECAM }   from './display/ecam.js';
+  import { initFMA, renderFMA } from './display/fma.js';
+  import { initCOM }           from './display/com.js';
+
+  /* ── DOM refs ── */
+  const canvas     = document.getElementById('pfd');
+  const ecamCanvas = document.getElementById('ecam');
+  const fmaEl      = document.getElementById('fma');
+  const loadEl     = document.getElementById('loading');
+  const loadBar    = document.getElementById('loadBar');
+  const loadStatus = document.getElementById('loadStatus');
+  const pttEl      = document.getElementById('ptt-indicator');
+
+  /* ── Init ── */
+  async function init() {
+    loadBar.style.width = '20%';
+    loadStatus.textContent = 'loading aircraft…';
+
+    await loadMission(
+      'missions/lszh-approach.json',
+      'aircraft/a350.json'
+    );
+
+    loadBar.style.width = '60%';
+    loadStatus.textContent = 'loading voices…';
+
+    initCrew();
+    initInput();
+    initFMA(fmaEl);
+    initCOM(document.getElementById('com-container'));
+
+    loadBar.style.width = '90%';
+    loadStatus.textContent = 'ready';
+
+    /* Populate mission title */
+    document.getElementById('mission-title').textContent = S.mission?.title ?? '';
+
+    /* Populate debrief */
+    if (S.mission?.debrief) {
+      const db = document.getElementById('debrief-items');
+      S.mission.debrief.forEach(q => {
+        const d = document.createElement('div');
+        d.className = 'debrief-item';
+        d.textContent = q;
+        db.appendChild(d);
+      });
+    }
+
+    await sleep(400);
+    loadBar.style.width = '100%';
+    await sleep(300);
+    loadEl.style.opacity = '0';
+    loadEl.style.transition = 'opacity 0.5s';
+    await sleep(500);
+    loadEl.style.display = 'none';
+
+    /* Start loop */
+    startLoop([
+      () => {
+        const ecam = S.mode === 'ECAM';
+        canvas.style.display     = ecam ? 'none' : '';
+        ecamCanvas.style.display = ecam ? '' : 'none';
+        if (ecam) renderECAM(ecamCanvas);
+        else      renderPFD(canvas);
+      },
+      () => renderFMA(),
+      () => updatePanel(),
+      () => updateMetar(),
+      () => checkDebrief(),
+    ]);
+  }
+
+  /* ── Panel updater ── */
+  function updatePanel() {
+    document.getElementById('pv-spd').textContent  = Math.round(S.spd) + ' kt';
+    document.getElementById('pv-alt').textContent  = Math.round(S.alt).toLocaleString() + ' ft';
+    const vsSign = S.vs >= 0 ? '+' : '';
+    document.getElementById('pv-vs').textContent   = vsSign + Math.round(S.vs / 10) * 10 + ' fpm';
+    document.getElementById('pv-hdg').textContent  = String(Math.round(S.hdg)).padStart(3, '0') + '°';
+    document.getElementById('pv-cfg').textContent  = `F${S.flaps} · ${S.gear ? 'DN' : 'UP'}`;
+    document.getElementById('pv-mode').textContent = S.mode;
+    document.getElementById('pv-role').textContent = S.role;
+    pttEl.classList.toggle('active', isPTTActive());
+  }
+
+  /* ── METAR ── */
+  function updateMetar() {
+    const m = S.metar;
+    if (!m) return;
+    const el = document.getElementById('metar-strip');
+    const rwy = _rwyFromWind(m.wdir ?? 270);
+    el.innerHTML =
+      `LSZH ${m.reportTime?.substring(11,16) ?? ''}Z<br>` +
+      `RWY ${rwy} · ${m.wdir ?? '---'}/${m.wspd ?? '--'}kt<br>` +
+      `QNH ${m.altim ?? '----'} hPa · ${m.temp ?? '--'}°C`;
+  }
+
+  function _rwyFromWind(wdir) {
+    if (wdir >= 240 && wdir <= 300) return '28';
+    if (wdir >= 60  && wdir <= 120) return '10';
+    if (wdir >= 300 || wdir <= 30)  return '34';
+    return '16';
+  }
+
+  /* ── Debrief trigger (< 50ft altitude) ── */
+  let _debriefShown = false;
+  function checkDebrief() {
+    if (!_debriefShown && S.alt < 50 && S.vs < -100) {
+      _debriefShown = true;
+      setTimeout(showDebrief, 2000);
+    }
+  }
+
+  function showDebrief() {
+    const el = document.getElementById('debrief');
+    el.classList.add('visible');
+    const items = el.querySelectorAll('.debrief-item');
+    items.forEach((item, i) => {
+      setTimeout(() => item.classList.add('show'), i * 400 + 200);
+    });
+  }
+
+  window.hideDebrief = function () {
+    document.getElementById('debrief').classList.remove('visible');
+    _debriefShown = false;
+    resetCrew();
+    /* Reload mission to reset state */
+    loadMission('missions/lszh-approach.json', 'aircraft/a350.json');
+  };
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  init().catch(console.error);
+</script>
+</body>
+</html>

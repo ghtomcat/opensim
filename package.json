@@ -1,0 +1,12 @@
+{
+  "name": "opensim",
+  "version": "0.1.0",
+  "description": "Open-source browser flight simulator",
+  "type": "module",
+  "scripts": {
+    "hub": "node server/hub.js"
+  },
+  "dependencies": {
+    "ws": "^8.17.1"
+  }
+}

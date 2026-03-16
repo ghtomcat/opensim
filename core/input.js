@@ -1,0 +1,165 @@
+/* ═══════════════════════════════════════════════════════════════
+   OpenSim — core/input.js
+   Keyboard, mouse, and (future) gamepad input.
+   Writes to S via setState(). Never reads displays.
+   ═══════════════════════════════════════════════════════════════ */
+
+import { S, setState } from './state.js';
+
+let _mouseLast = null;
+let _pttActive = false;
+
+/* ── Gamepad config — Logitech Extreme 3D Pro ── */
+const GP = {
+  ROLL:     0,   // axes[0]  left/right
+  PITCH:    1,   // axes[1]  forward/back
+  RUDDER:   2,   // axes[2]  twist
+  THROTTLE: 5,   // axes[5]  slider
+  TRIGGER:  0,   // buttons[0]
+  BTN_FLAP: 1,   // buttons[1]  flaps up
+  BTN_GEAR: 2,   // buttons[2]  gear toggle
+  DEADZONE: 0.08,
+};
+
+let _gpPrevButtons = [];
+
+export function initInput() {
+  window.addEventListener('keydown',   _onKeyDown);
+  window.addEventListener('keyup',     _onKeyUp);
+  window.addEventListener('mousemove', _onMouseMove);
+}
+
+export function isPTTActive() { return _pttActive; }
+
+/* Called every frame by loop.js */
+export function tickGamepad() {
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  const gp   = pads[0];
+  if (!gp) return;
+
+  const ax = gp.axes;
+  const btn = gp.buttons;
+
+  /* Axes with deadzone */
+  const roll     = _dz(ax[GP.ROLL]);
+  const pitch    = _dz(ax[GP.PITCH]);
+  const throttleRaw = ax[GP.THROTTLE] ?? 0;  // -1 = full fwd, +1 = full back
+
+  /* Roll → bankT, Pitch → pitchT (disable AP for manual flight) */
+  if (Math.abs(roll) > 0 || Math.abs(pitch) > 0) {
+    setState({
+      ap:     false,
+      rollT:  roll  * 30,           // ±30°
+      pitchT: -pitch * 15,          // ±15° (invert Y)
+    });
+  }
+
+  /* Throttle slider: -1=full fwd → max speed, +1=full back → idle */
+  const spdT = Math.round(((1 - throttleRaw) / 2) * (S.aircraft?.envelope.maxSpd ?? 350));
+  setState({ spdT });
+
+  /* PTT — trigger */
+  const trigNow = btn[GP.TRIGGER]?.pressed ?? false;
+  if (trigNow !== (_gpPrevButtons[GP.TRIGGER] ?? false)) {
+    _pttActive = trigNow;
+    document.dispatchEvent(new CustomEvent('ptt', { detail: { active: trigNow } }));
+  }
+
+  /* Flaps — button 1 */
+  if (_btnPressed(btn, GP.BTN_FLAP))
+    setState({ prevFlaps: S.flaps, flaps: Math.min(3, S.flaps + 1) });
+
+  /* Gear — button 2 */
+  if (_btnPressed(btn, GP.BTN_GEAR))
+    setState({ prevGear: S.gear, gear: !S.gear });
+
+  _gpPrevButtons = btn.map(b => b.pressed);
+}
+
+function _dz(v) {
+  return Math.abs(v) < GP.DEADZONE ? 0 : v;
+}
+
+function _btnPressed(buttons, idx) {
+  return (buttons[idx]?.pressed ?? false) && !(_gpPrevButtons[idx] ?? false);
+}
+
+/* ── Keyboard ── */
+function _onKeyDown(e) {
+  /* Don't steal input from text fields */
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+  /* PTT */
+  if (e.code === 'Space' && !e.repeat) {
+    e.preventDefault();
+    _pttActive = true;
+    document.dispatchEvent(new CustomEvent('ptt', { detail: { active: true } }));
+    return;
+  }
+
+  /* Pause */
+  if (e.key === 'p' || e.key === 'P') {
+    setState({ paused: !S.paused });
+    return;
+  }
+
+  /* Cycle display mode: Tab */
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const modes = ['PFD', 'ECAM'];
+    const i = modes.indexOf(S.mode);
+    setState({ mode: modes[(i + 1) % modes.length] });
+    return;
+  }
+
+  /* Throttle / speed */
+  if (e.key === '=' || e.key === '+') setState({ spdT: Math.min(S.aircraft?.envelope.maxSpd ?? 350, S.spdT + 5) });
+  if (e.key === '-' || e.key === '_') setState({ spdT: Math.max(0, S.spdT - 5) });
+
+  /* Thrust detents */
+  if (e.key === 'F1') { e.preventDefault(); setState({ spdT: 0   }); }   // IDLE
+  if (e.key === 'F2') { e.preventDefault(); setState({ spdT: 180 }); }   // CLB
+  if (e.key === 'F3') { e.preventDefault(); setState({ spdT: 280 }); }   // MCT
+  if (e.key === 'F4') { e.preventDefault(); setState({ spdT: 350 }); }   // TOGA
+
+  /* Altitude */
+  if (e.key === 'ArrowUp')   setState({ altT: Math.min(43000, S.altT + 500) });
+  if (e.key === 'ArrowDown') setState({ altT: Math.max(0,     S.altT - 500) });
+
+  /* Heading */
+  if (e.key === 'ArrowLeft')  setState({ hdgT: (S.hdgT - 5 + 360) % 360 });
+  if (e.key === 'ArrowRight') setState({ hdgT: (S.hdgT + 5) % 360 });
+
+  /* Flaps */
+  if (e.key === 'f') setState({ prevFlaps: S.flaps, flaps: Math.min(3, S.flaps + 1) });
+  if (e.key === 'g') setState({ prevGear: S.gear, gear: !S.gear });
+
+  /* Role toggle (for solo sim) */
+  if (e.key === 'r') {
+    const roles = ['PF', 'PM', 'INSTRUCTOR'];
+    const i = roles.indexOf(S.role);
+    setState({ role: roles[(i + 1) % roles.length] });
+  }
+}
+
+function _onKeyUp(e) {
+  if (e.code === 'Space') {
+    _pttActive = false;
+    document.dispatchEvent(new CustomEvent('ptt', { detail: { active: false } }));
+  }
+}
+
+/* ── Mouse — controls bank and pitch in desktop mode ── */
+function _onMouseMove(e) {
+  if (!_mouseLast) { _mouseLast = { x: e.clientX, y: e.clientY }; return; }
+
+  const dx = e.clientX - _mouseLast.x;
+  const dy = e.clientY - _mouseLast.y;
+  _mouseLast = { x: e.clientX, y: e.clientY };
+
+  if (!S.ap) {
+    const newRoll  = Math.max(-30, Math.min(30, S.rollT  + dx * 0.15));
+    const newPitch = Math.max(-15, Math.min(20, S.pitchT - dy * 0.08));
+    setState({ rollT: newRoll, pitchT: newPitch });
+  }
+}
