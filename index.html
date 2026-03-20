@@ -381,11 +381,60 @@
       position: fixed; bottom: 90px; right: 16px;
       z-index: 20;
       font-family: "IBM Plex Mono", monospace;
-      font-size: 9px;
-      color: rgba(232,237,242,0.25);
+      font-size: 11px;
+      color: rgba(232,237,242,0.55);
       text-align: right;
-      line-height: 1.8;
+      line-height: 2;
       pointer-events: none;
+    }
+
+    /* ── Onboarding overlay ── */
+    #onboarding {
+      position: fixed; inset: 0; z-index: 190;
+      background: rgba(3,6,10,0.92);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 32px;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      pointer-events: none;
+    }
+    #onboarding.visible {
+      opacity: 1;
+      pointer-events: all;
+    }
+    .ob-title {
+      font-family: "Syne", sans-serif;
+      font-size: 13px; font-weight: 700;
+      letter-spacing: 0.2em; text-transform: uppercase;
+      color: var(--cyan);
+    }
+    .ob-grid {
+      display: grid;
+      grid-template-columns: auto auto;
+      gap: 6px 28px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 13px;
+    }
+    .ob-key {
+      color: var(--amber);
+      text-align: right;
+      font-weight: 700;
+    }
+    .ob-desc {
+      color: rgba(232,237,242,0.7);
+    }
+    .ob-hint {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      color: rgba(232,237,242,0.3);
+      text-transform: uppercase;
+      animation: ob-blink 1.4s ease-in-out infinite;
+    }
+    @keyframes ob-blink {
+      0%, 100% { opacity: 0.3; }
+      50%       { opacity: 0.8; }
     }
 
     /* ── Loading screen ── */
@@ -432,6 +481,24 @@
   <div class="loading-sub">ILS Approach — LSZH RWY 28</div>
   <div class="loading-bar-outer"><div class="loading-bar-inner" id="loadBar"></div></div>
   <div class="loading-sub" id="loadStatus">initialising…</div>
+</div>
+
+<!-- Onboarding overlay -->
+<div id="onboarding">
+  <div class="ob-title">ILS Approach — LSZH RWY 28</div>
+  <div class="ob-grid">
+    <span class="ob-key">↑ ↓</span><span class="ob-desc">Altitude target ±500 ft</span>
+    <span class="ob-key">← →</span><span class="ob-desc">Heading target ±5°</span>
+    <span class="ob-key">+ −</span><span class="ob-desc">Speed ±5 kt</span>
+    <span class="ob-key">F1–F4</span><span class="ob-desc">Thrust: IDLE · CLB · MCT · TOGA</span>
+    <span class="ob-key">F</span><span class="ob-desc">Flaps (cycle up)</span>
+    <span class="ob-key">G</span><span class="ob-desc">Gear toggle</span>
+    <span class="ob-key">Tab</span><span class="ob-desc">Display: PFD ↔ ECAM</span>
+    <span class="ob-key">P</span><span class="ob-desc">Pause</span>
+    <span class="ob-key">R</span><span class="ob-desc">Role: PF → PM → INSTRUCTOR</span>
+    <span class="ob-key">Space</span><span class="ob-desc">PTT — Push to Talk</span>
+  </div>
+  <div class="ob-hint">Press any key or click to begin</div>
 </div>
 
 <!-- PFD canvas -->
@@ -572,6 +639,18 @@
     loadEl.style.transition = 'opacity 0.5s';
     await sleep(500);
     loadEl.style.display = 'none';
+
+    /* Show onboarding */
+    const obEl = document.getElementById('onboarding');
+    obEl.classList.add('visible');
+    const dismissOnboarding = () => {
+      obEl.classList.remove('visible');
+      setTimeout(() => { obEl.style.display = 'none'; }, 500);
+      window.removeEventListener('keydown', dismissOnboarding);
+      obEl.removeEventListener('click', dismissOnboarding);
+    };
+    window.addEventListener('keydown', dismissOnboarding);
+    obEl.addEventListener('click', dismissOnboarding);
 
     /* Start loop */
     startLoop([
