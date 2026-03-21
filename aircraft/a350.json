@@ -19,6 +19,14 @@
     }
   },
 
+  "situations": [
+    { "label": "GROUND",   "alt": 1450, "spd": 0,   "hdg": 280, "altT": 1450, "spdT": 0   },
+    { "label": "TAKEOFF",  "alt": 1450, "spd": 160,  "hdg": 280, "altT": 10000,"spdT": 350 },
+    { "label": "CLIMB",    "alt": 10000,"spd": 250,  "hdg": 280, "altT": 35000,"spdT": 280 },
+    { "label": "CRUISE",   "alt": 35000,"spd": 312,  "hdg": 280, "altT": 35000,"spdT": 280 },
+    { "label": "APPROACH", "alt": 3000, "spd": 180,  "hdg": 280, "altT": 2000, "spdT": 180 }
+  ],
+
   "thrustProfiles": [
     { "label": "IDLE", "spdT": 0   },
     { "label": "CLB",  "spdT": 180 },

@@ -22,6 +22,14 @@
     "engineType": "v12-supercharged"
   },
 
+  "situations": [
+    { "label": "GROUND",   "alt": 1450, "spd": 0,   "hdg": 280, "altT": 1450, "spdT": 0   },
+    { "label": "TAKEOFF",  "alt": 1450, "spd": 120,  "hdg": 280, "altT": 8000, "spdT": 335 },
+    { "label": "CLIMB",    "alt": 8000, "spd": 220,  "hdg": 280, "altT": 20000,"spdT": 270 },
+    { "label": "CRUISE",   "alt": 20000,"spd": 280,  "hdg": 280, "altT": 20000,"spdT": 270 },
+    { "label": "APPROACH", "alt": 3000, "spd": 180,  "hdg": 280, "altT": 1500, "spdT": 150 }
+  ],
+
   "thrustProfiles": [
     { "label": "IDLE",      "spdT": 0   },
     { "label": "TAKEOFF",   "spdT": 200 },

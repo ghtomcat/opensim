@@ -44,6 +44,7 @@ No build step. No framework. Open `index.html` and fly.
 | `↑` / `↓` | Altitude target ±500 ft |
 | `←` / `→` | Heading target ±5° |
 | `+` / `−` | Speed ±5 kt |
+| `1`–`5` | Situation: Ground / Takeoff / Climb / Cruise / Approach |
 | `F1` | IDLE |
 | `F2` | CLB |
 | `F3` | MCT |

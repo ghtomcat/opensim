@@ -125,6 +125,13 @@ function _onKeyDown(e) {
     setState({ spdT });
   }
 
+  /* Situation presets — number keys 1–5 */
+  const _si = parseInt(e.key) - 1;
+  if (!isNaN(_si) && _si >= 0 && _si <= 4) {
+    const sit = S.aircraft?.situations?.[_si];
+    if (sit) setState({ alt: sit.alt, spd: sit.spd, hdg: sit.hdg, altT: sit.altT, spdT: sit.spdT });
+  }
+
   /* Altitude */
   if (e.key === 'ArrowUp')   setState({ altT: Math.min(43000, S.altT + 500) });
   if (e.key === 'ArrowDown') setState({ altT: Math.max(0,     S.altT - 500) });
