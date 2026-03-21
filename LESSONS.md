@@ -60,6 +60,18 @@ Different physics, different character, different starting point.
 Copying parameters from the wrong model costs hours.
 Start from the physics of the thing you're building.
 
+**How to model any engine — the method:**
+1. Listen to the original. Find three words that describe it.
+2. Deconstruct the physics. What actually makes that sound?
+3. Find the simplest predecessor. (Rotary → steam engine. DB 605 → single cylinder.)
+4. Model that predecessor first. One cylinder. One sound event.
+5. Verify with your ear. Does it have the right character?
+6. Then scale. Add cylinders. Add RPM dynamics. Add variation.
+7. Each addition: one change, one listen.
+
+The Le Rhône took 4 hours. The DB 605 took 8.
+The difference was the method.
+
 ---
 
 ## Audio Synthesis
