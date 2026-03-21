@@ -516,6 +516,7 @@
     <span class="ob-key">G</span><span class="ob-desc">Gear toggle</span>
     <span class="ob-key">Tab</span><span class="ob-desc">Display: PFD ↔ ECAM</span>
     <span class="ob-key">P</span><span class="ob-desc">Pause</span>
+    <span class="ob-key">M</span><span class="ob-desc">Audio on/off</span>
     <span class="ob-key">R</span><span class="ob-desc">Role: PF → PM → INSTRUCTOR</span>
     <span class="ob-key">Space</span><span class="ob-desc">PTT — Push to Talk</span>
   </div>
@@ -571,6 +572,10 @@
     <div class="panel-label">RPM</div>
     <div class="panel-value green" id="pv-rpm">---</div>
   </div>
+  <div class="panel-section">
+    <div class="panel-label">Audio</div>
+    <div class="panel-value green" id="pv-audio">ON</div>
+  </div>
 </div>
 
 <!-- COM + Transponder -->
@@ -620,7 +625,7 @@
   import { renderECAM }   from './display/ecam.js';
   import { initFMA, renderFMA } from './display/fma.js';
   import { initCOM }           from './display/com.js';
-  import { initSound, startSound, switchEngine, tickSound, getCurrentRpm } from './core/sound.js';
+  import { initSound, startSound, stopSound, switchEngine, tickSound, getCurrentRpm } from './core/sound.js';
 
   /* ── DOM refs ── */
   const canvas     = document.getElementById('pfd');
@@ -681,6 +686,9 @@
     const engineType = S.aircraft?.sound?.engineType ?? 'geared-turbofan';
     initSound(engineType);
 
+    let _audioOn = true;
+    const audioEl = document.getElementById('pv-audio');
+
     const dismissOnboarding = () => {
       obEl.classList.remove('visible');
       setTimeout(() => { obEl.style.display = 'none'; }, 500);
@@ -690,6 +698,14 @@
     };
     window.addEventListener('keydown', dismissOnboarding);
     obEl.addEventListener('click', dismissOnboarding);
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'm' || e.key === 'M') {
+        _audioOn = !_audioOn;
+        if (_audioOn) { startSound(engineType); audioEl.textContent = 'ON';  audioEl.className = 'panel-value green'; }
+        else          { stopSound();            audioEl.textContent = 'OFF'; audioEl.className = 'panel-value'; }
+      }
+    });
 
     /* Engine switcher buttons */
     document.querySelectorAll('.eng-btn').forEach(btn => {

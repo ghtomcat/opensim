@@ -52,6 +52,7 @@ No build step. No framework. Open `index.html` and fly.
 | `g` | Gear toggle |
 | `Tab` | Cycle display: PFD → ECAM |
 | `p` | Pause |
+| `m` | Toggle audio on/off |
 | `r` | Cycle role: PF → PM → INSTRUCTOR |
 | `Space` | PTT (push to talk) |
 
