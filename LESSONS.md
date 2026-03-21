@@ -45,6 +45,23 @@ Or better: demand it upfront. "Write this to a file, then we continue."
 
 ---
 
+## Physical Modelling
+
+**Reduce to the most basic. Model that. Then add more.**
+Don't start with a complex model and simplify.
+Start with one cylinder, one pffft, one parameter.
+Get that right. Then add the second cylinder.
+The Le Rhône 9J started as a steam engine — one piston, one exhaust puff.
+That's what made it real.
+
+**Don't derive a new engine from an existing one.**
+The DB 605 model was built for a V12. The Le Rhône is a rotary.
+Different physics, different character, different starting point.
+Copying parameters from the wrong model costs hours.
+Start from the physics of the thing you're building.
+
+---
+
 ## Audio Synthesis
 
 **Physical modelling: noise IS the character.**

@@ -1,0 +1,80 @@
+{
+  "id": "avro504",
+  "name": "Avro 504K",
+  "callsign": "Wolfskopf",
+  "icaoType": "AV04",
+  "era": "WWI / 1918",
+  "engine": "Le Rhône 9J rotary, 110hp",
+
+  "envelope": {
+    "cruiseAlt":  5000,
+    "maxAlt":    16000,
+    "cruiseSpd":  72,
+    "maxSpd":     83,
+    "spdProfile": {
+      "16000": 72,
+      "3000":  72,
+      "500":   65,
+      "0":     50
+    }
+  },
+
+  "situations": [
+    { "label": "GROUND",   "alt": 100,  "spd": 0,  "hdg": 045, "altT": 100,  "spdT": 0  },
+    { "label": "TAKEOFF",  "alt": 100,  "spd": 50, "hdg": 045, "altT": 3000, "spdT": 83 },
+    { "label": "CLIMB",    "alt": 1500, "spd": 72, "hdg": 045, "altT": 5000, "spdT": 72 },
+    { "label": "CRUISE",   "alt": 5000, "spd": 72, "hdg": 045, "altT": 5000, "spdT": 72 },
+    { "label": "APPROACH", "alt": 500,  "spd": 55, "hdg": 045, "altT": 100,  "spdT": 50 }
+  ],
+
+  "thrustProfiles": [
+    { "label": "OFF",  "spdT": 0  },
+    { "label": "BLIP", "spdT": 50 },
+    { "label": "FULL", "spdT": 83 }
+  ],
+
+  "rotaryEngine": {
+    "note": "Blip switch only — no conventional throttle. Full power or ignition cut.",
+    "gyroscopicTorque": true,
+    "leftTurnFaster": true,
+    "castoroilRange": "limited"
+  },
+
+  "sound": {
+    "engineType": "rotary-9"
+  },
+
+  "fmaPhases": [
+    { "minAlt": 3000, "vals": ["BLIP", "",  "VISUAL", "ALT",    ""], "cols": ["white","white","green","cyan", "white"] },
+    { "minAlt": 500,  "vals": ["BLIP", "",  "VISUAL", "CRUISE", ""], "cols": ["white","white","green","cyan", "white"] },
+    { "minAlt": 0,    "vals": ["FULL", "",  "VISUAL", "CLIMB",  ""], "cols": ["white","white","green","cyan", "white"] }
+  ],
+
+  "gpws": [
+    { "alt": 1000, "text": "1 0 0 0",   "speech": "one thousand",  "red": false },
+    { "alt": 500,  "text": "5 0 0",     "speech": "five hundred",  "red": false },
+    { "alt": 200,  "text": "2 0 0",     "speech": "two hundred",   "red": true  },
+    { "alt": 50,   "text": "F I F T Y", "speech": "fifty",         "red": false }
+  ],
+
+  "pmCallouts": [
+    { "alt": 3000, "speech": "passing three thousand" },
+    { "alt": 2000, "speech": "passing two thousand"   },
+    { "alt": 1000, "speech": "passing one thousand"   },
+    { "alt": 500,  "speech": "five hundred"           }
+  ],
+
+  "crewCallouts": {
+    "instructor": "Watch your rudder — she pulls left on climb.",
+    "atc": "Avro 504, clear to land, wind calm."
+  },
+
+  "externalSensor": {
+    "note": "Future HIL integration — Severin Bengs 4-Zylinder via WebSerial",
+    "type": "webserial",
+    "mapping": {
+      "rpm":  "state.engineRPM",
+      "temp": "state.engineTemp"
+    }
+  }
+}

@@ -50,6 +50,17 @@ const ENGINES = {
     masterGain:      0.20,
     attackTime:      0.4,
   },
+  'rotary-9': {
+    // Le Rhône 9J — 9-cylinder rotary, 110hp, WWI
+    // Physical model via AudioWorklet — lerh9-processor.js
+    impulse:          true,
+    workletFile:      './core/lerh9-processor.js',
+    workletName:      'lerh9-processor',
+    rpmIdle:          400,
+    rpmMax:           1200,
+    masterGain:       3.5,
+    supercharger:     false,
+  },
   'v12-supercharged': {
     // Daimler-Benz DB 605 — impulse-based synthesis
     // Calibrated from Audacity spectrum of D-FEML ground run (Hangelar)
@@ -82,7 +93,7 @@ export function getCurrentRpm() {
   if (!_cfg) return null;
   const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 350;
   const throttle = Math.max(0, Math.min(1, S.spdT / maxSpd));
-  if (_cfg.impulse) {
+  if (_cfg.impulse || _cfg.showRpm) {
     const rpm = Math.round(_cfg.rpmIdle + (_cfg.rpmMax - _cfg.rpmIdle) * throttle);
     return rpm + ' RPM';
   } else {
@@ -159,7 +170,7 @@ export function tickSound() {
     const lFreq = _cfg.superchargerFreqIdle + (_cfg.superchargerFreqMax - _cfg.superchargerFreqIdle) * throttle;
     const lGain = _cfg.superchargerGain * (0.15 + 0.85 * throttle);
 
-    _workletNode.port.postMessage({ rpm, masterGain: gain, laderGain: lGain, laderFreq: lFreq });
+    _workletNode.port.postMessage({ rpm, masterGain: gain, laderGain: lGain, laderFreq: lFreq, throttle });
   } else if (!_cfg.impulse) {
     const freq = _cfg.fundamentalIdle + (_cfg.fundamentalMax - _cfg.fundamentalIdle) * throttle;
     _oscs.forEach(({ osc, mult }) => osc.frequency.setTargetAtTime(freq * mult, now, 0.12));
@@ -190,10 +201,12 @@ export function tickSound() {
    ══════════════════════════════════════════════════ */
 
 async function _startWorkletEngine() {
+  const workletFile = _cfg.workletFile ?? './core/db605-processor.js';
+  const workletName = _cfg.workletName ?? 'db605-processor';
   try {
-    await _ctx.audioWorklet.addModule('./core/db605-processor.js');
+    await _ctx.audioWorklet.addModule(workletFile);
 
-    _workletNode = new AudioWorkletNode(_ctx, 'db605-processor');
+    _workletNode = new AudioWorkletNode(_ctx, workletName);
     _workletNode.connect(_master);
 
     _master.gain.setValueAtTime(0, _ctx.currentTime);

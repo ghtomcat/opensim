@@ -1,0 +1,48 @@
+{
+  "id": "wolfskopf-1942",
+  "title": "Wolfskopf — Murmansk 24.01.1942",
+  "description": "Titovka. Arctic winter. The wolf on your fuselage is blue. You have been flying since dawn.",
+  "author": "Markus Leutwyler",
+  "book": "Zeitanker — Band IV",
+  "aircraft": "aircraft/avro504.json",
+
+  "weather": {
+    "source": "manual",
+    "manual": {
+      "temp":       -22,
+      "wind":       180,
+      "wspd":       18,
+      "visibility": 3000,
+      "snow":       true,
+      "altim":      1013
+    }
+  },
+
+  "initialState": {
+    "alt":   100,
+    "spd":   65,
+    "hdg":   45,
+    "pitch": 2,
+    "roll":  0
+  },
+
+  "narrative": [
+    "Titovka. Arctic winter.",
+    "The wolf on your fuselage is blue.",
+    "You have been flying since dawn.",
+    "You do not know her name. You know her handwriting.",
+    "End the war."
+  ],
+
+  "atcClearances": [],
+
+  "approachBrief": [],
+
+  "debrief": [
+    "Did you maintain heading in the crosswind?",
+    "Did you feel the gyroscopic pull on left turns?",
+    "Did you land?"
+  ],
+
+  "failures": []
+}
