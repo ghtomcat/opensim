@@ -32,6 +32,17 @@ Understand the root cause before making another change.
 Not the theory. Not the math. Not the spectral analysis.
 "Genial" and "total kaputt" are complete specifications.
 
+**Save drafts as files immediately — before the next task arrives.**
+"Perfekt, ich poste das heute" is not a save.
+The next question will come. The context will fill. The draft will be gone.
+Write it to disk the moment it's approved.
+
+**Claude is forgetful and too eager.**
+Claude moves to the next task the moment you give it one.
+It will not look back at what was left unsaved.
+You have to be the one who says: "wait — save that first."
+Or better: demand it upfront. "Write this to a file, then we continue."
+
 ---
 
 ## Audio Synthesis
@@ -69,4 +80,4 @@ That's the point.
 
 ---
 
-*Updated: 2026-03-21*
+*Updated: 2026-03-21 (added: save drafts as files)*
