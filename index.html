@@ -569,7 +569,7 @@
     <div class="panel-value cyan" id="pv-role">PF</div>
   </div>
   <div class="panel-section">
-    <div class="panel-label">RPM</div>
+    <div class="panel-label">Engine</div>
     <div class="panel-value green" id="pv-rpm">---</div>
   </div>
   <div class="panel-section">
@@ -746,7 +746,7 @@
     document.getElementById('pv-role').textContent = S.role;
     /* RPM — only meaningful for piston engines */
     const rpm = getCurrentRpm();
-    document.getElementById('pv-rpm').textContent = rpm != null ? rpm + ' RPM' : '---';
+    document.getElementById('pv-rpm').textContent = rpm ?? '---';
     pttEl.classList.toggle('active', isPTTActive());
   }
 
