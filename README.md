@@ -177,6 +177,53 @@ OpenSim does not use audio samples or pitch-shifting. The DB 605 sound is synthe
 - ✅ Smooth RPM transition from idle to cruise
 - ✅ Cockpit RPM display shows real engine RPM (400–2800)
 
+### How to add your own engine (e.g. the Merlin)
+
+Every engine is a preset in `core/sound.js`. Two synthesis paths exist:
+
+**Oscillator path** — fast to set up, good for turbines:
+```json
+"your-engine": {
+  "fundamentalIdle": 60,
+  "fundamentalMax":  200,
+  "harmonics":       [1, 2, 3, 4],
+  "harmonicGains":   [1.0, 0.4, 0.2, 0.1],
+  "oscType":         "sawtooth",
+  "filterType":      "lowpass",
+  "filterFreq":      400,
+  "filterQ":         1.0,
+  "noiseGain":       0.08,
+  "noiseFilterFreq": 800,
+  "masterGain":      0.18,
+  "attackTime":      0.6
+}
+```
+
+**Impulse path** — physical modelling, for piston engines:
+```json
+"your-engine": {
+  "impulse":            true,
+  "rpmIdle":            600,
+  "rpmMax":             3000,
+  "cylinders":          12,
+  "exhaustResonance":   55,
+  "masterGain":         0.75,
+  "supercharger":       false
+}
+```
+Then point `core/db605-processor.js` to your parameters, or duplicate it for a different firing pattern.
+
+**The Rolls-Royce Merlin** (Spitfire, Hurricane, Lancaster, Mustang) would be:
+- V12, same 6 firings/rev as the DB 605
+- `exhaustResonance` slightly higher (~55–65 Hz) — the Merlin is slightly more "nasal"
+- No supercharger whine at 663 Hz — the Merlin's supercharger has a different character
+- Famous crackle on throttle-off — not yet implemented in the engine
+
+Point your aircraft JSON to the engine:
+```json
+"sound": { "engineType": "your-engine" }
+```
+
 ### What doesn't work yet
 
 - ⚠️ 1500–2800 RPM — some residual noise, character thins out
