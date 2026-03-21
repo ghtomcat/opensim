@@ -51,44 +51,57 @@ const ENGINES = {
     attackTime:      0.4,
   },
   'v12-supercharged': {
-    // Daimler-Benz DB 605 — V12, 4-stroke, 6 power strokes per revolution
-    // Idle ~600 RPM → 60 Hz · Max ~2800 RPM → 280 Hz
-    // Strong odd harmonics, rough character, supercharger whine overlay
-    fundamentalIdle: 58,
-    fundamentalMax:  270,
-    harmonics:       [1, 2, 3, 4, 5, 6, 7],
-    harmonicGains:   [1.0, 0.35, 0.65, 0.20, 0.45, 0.15, 0.30], // odd stronger
-    oscType:         'sawtooth',
-    filterType:      'lowpass',
-    filterFreq:      700,
-    filterQ:         2.5,
-    noiseGain:       0.04,
-    noiseFilterFreq: 350,
-    masterGain:      0.18,
-    attackTime:      0.3,
-    // DB 605 specific
-    hasStartup:            true,
+    // Daimler-Benz DB 605 — impulse-based synthesis
+    // Calibrated from Audacity spectrum of D-FEML ground run (Hangelar)
+    // Fundamental idle: ~110 Hz · power: ~210 Hz
+    // Supercharger: 663 Hz idle, 740 Hz power, 2nd at 1097 Hz
+    impulse:         true,          // use impulse engine, not oscillators
+    rpmIdle:         400,
+    rpmMax:          2800,
+    cylinders:       12,            // V12 — 6 firings per revolution
+    impulseDecay:    8,             // very slow decay — long exhaust puff
+    impulseVariance: 0.22,          // cylinder-to-cylinder variation
+    exhaustResonance: 110,          // matches measured fundamental ~110 Hz
+    exhaustQ:        8.0,           // high Q = strong resonance, exhaust "rings"
+    masterGain:      0.80,
+    // Supercharger
     supercharger:          true,
-    superchargerOnset:     0.0,    // mechanically coupled — always spinning
-    superchargerFreqIdle:  900,
-    superchargerFreqMax:   3400,
-    superchargerGain:      0.032,
+    superchargerFreqIdle:  663,
+    superchargerFreqMax:   1100,
+    superchargerGain:      0.45,
+    supercharger2:         true,
+    supercharger2FreqIdle: 1097,
+    supercharger2FreqMax:  1400,
+    supercharger2Gain:     0.18,
   },
 };
 
 export const ENGINE_TYPES = Object.keys(ENGINES);
 
-/* ── Internal state ── */
+export function getCurrentRpm() {
+  if (!_cfg?.impulse && !_cfg) return null;
+  const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 350;
+  const throttle = Math.max(0, Math.min(1, S.spdT / maxSpd));
+  return Math.round(_cfg.rpmIdle + ((_cfg.rpmMax ?? _cfg.fundamentalMax ?? 100) - _cfg.rpmIdle) * throttle);
+}
+
+/* ── Internal state — oscillator path ── */
 let _ctx          = null;
 let _master       = null;
 let _oscs         = [];
 let _noise        = null;
 let _noiseGain    = null;
-let _lader        = null;   // supercharger oscillator
+let _lader        = null;
 let _laderGain    = null;
+let _lader2       = null;
+let _lader2Gain   = null;
 let _started      = false;
 let _cfg          = null;
 let _inStartup    = false;
+
+/* ── Internal state — AudioWorklet path (V12) ── */
+let _workletNode  = null;   // AudioWorkletNode
+let _workletReady = false;
 
 /* ── Public API ── */
 
@@ -106,7 +119,107 @@ export function startSound(engineType) {
   _master.gain.value = 0;
   _master.connect(_ctx.destination);
 
-  /* Harmonic oscillators */
+  if (_cfg.impulse) {
+    _startWorkletEngine();   /* async — sets _started when ready */
+  } else {
+    _startOscEngine();
+    _started = true;
+    _inStartup = false;
+    _master.gain.setTargetAtTime(_cfg.masterGain, _ctx.currentTime, 0.4);
+  }
+}
+
+export function stopSound()  { _teardown(); }
+
+export function switchEngine(type) {
+  const wasRunning = _started;
+  _teardown();
+  _cfg = ENGINES[type] ?? ENGINES['geared-turbofan'];
+  if (wasRunning) startSound();
+}
+
+export function tickSound() {
+  if (!_ctx || !_started || !_cfg) return;
+
+  const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 350;
+  const throttle = Math.max(0, Math.min(1, S.spdT / maxSpd));
+  const now      = _ctx.currentTime;
+
+  if (_cfg.impulse && _workletNode && _workletReady) {
+    const rpm   = _cfg.rpmIdle + (_cfg.rpmMax - _cfg.rpmIdle) * throttle;
+    const gain  = _cfg.masterGain * (0.4 + 0.6 * throttle);
+
+    /* Supercharger — mechanically coupled, linear with RPM */
+    const lFreq = _cfg.superchargerFreqIdle + (_cfg.superchargerFreqMax - _cfg.superchargerFreqIdle) * throttle;
+    const lGain = _cfg.superchargerGain * (0.15 + 0.85 * throttle);
+
+    _workletNode.port.postMessage({ rpm, masterGain: gain, laderGain: lGain, laderFreq: lFreq });
+  } else if (!_cfg.impulse) {
+    const freq = _cfg.fundamentalIdle + (_cfg.fundamentalMax - _cfg.fundamentalIdle) * throttle;
+    _oscs.forEach(({ osc, mult }) => osc.frequency.setTargetAtTime(freq * mult, now, 0.12));
+    const gain = _cfg.masterGain * (0.35 + 0.65 * throttle);
+    _master.gain.setTargetAtTime(gain, now, 0.15);
+    _noiseGain?.gain.setTargetAtTime(_cfg.noiseGain * throttle, now, 0.2);
+  }
+
+  /* Supercharger — shared by both paths */
+  if (_cfg.supercharger && _lader && _laderGain) {
+    const lFreq = _cfg.superchargerFreqIdle + (_cfg.superchargerFreqMax - _cfg.superchargerFreqIdle) * throttle;
+    const lGain = _cfg.superchargerGain * (0.15 + 0.85 * throttle);
+    _lader.frequency.setTargetAtTime(lFreq, now, 0.3);
+    _laderGain.gain.setTargetAtTime(lGain, now, 0.5);
+
+    if (_cfg.supercharger2 && _lader2 && _lader2Gain) {
+      const l2Freq = _cfg.supercharger2FreqIdle + (_cfg.supercharger2FreqMax - _cfg.supercharger2FreqIdle) * throttle;
+      const l2Gain = _cfg.supercharger2Gain * (0.12 + 0.88 * throttle * throttle);
+      _lader2.frequency.setTargetAtTime(l2Freq, now, 0.3);
+      _lader2Gain.gain.setTargetAtTime(l2Gain, now, 0.5);
+    }
+  }
+}
+
+/* ══════════════════════════════════════════════════
+   AUDIOWORKLET ENGINE — DB 605 V12 physical model
+   Karplus-Strong exhaust resonator, sample-by-sample
+   ══════════════════════════════════════════════════ */
+
+async function _startWorkletEngine() {
+  try {
+    await _ctx.audioWorklet.addModule('./core/db605-processor.js');
+
+    _workletNode = new AudioWorkletNode(_ctx, 'db605-processor');
+    _workletNode.connect(_master);
+
+    _master.gain.setValueAtTime(0, _ctx.currentTime);
+    _master.gain.setTargetAtTime(_cfg.masterGain * 0.4, _ctx.currentTime, 0.5);
+
+    /* Send initial parameters */
+    _workletNode.port.postMessage({
+      rpm:        _cfg.rpmIdle,
+      masterGain: _cfg.masterGain * 0.4,
+      laderGain:  0,
+      laderFreq:  _cfg.superchargerFreqIdle,
+    });
+
+    _buildSupercharger();
+
+    _started      = true;
+    _workletReady = true;
+    _inStartup    = false;
+  } catch (err) {
+    console.warn('AudioWorklet failed, falling back to oscillator:', err);
+    _startOscEngine();
+    _started   = true;
+    _inStartup = false;
+    _master.gain.setTargetAtTime(_cfg.masterGain * 0.4, _ctx.currentTime, 0.4);
+  }
+}
+
+/* ══════════════════════════════════════════════════
+   OSCILLATOR ENGINE — turbofan / turbine
+   ══════════════════════════════════════════════════ */
+
+function _startOscEngine() {
   _cfg.harmonics.forEach((mult, i) => {
     const osc  = _ctx.createOscillator();
     const gain = _ctx.createGain();
@@ -148,182 +261,66 @@ export function startSound(engineType) {
   _noiseGain.connect(_master);
   _noise.start();
 
-  /* Supercharger (DB 605 Lader) */
-  if (_cfg.supercharger) {
-    _lader = _ctx.createOscillator();
-    _lader.type            = 'sine';
-    _lader.frequency.value = _cfg.superchargerFreqIdle;
-
-    const lFilt = _ctx.createBiquadFilter();
-    lFilt.type             = 'bandpass';
-    lFilt.frequency.value  = _cfg.superchargerFreqIdle;
-    lFilt.Q.value          = 4.0;   // narrow → pure whine
-
-    _laderGain = _ctx.createGain();
-    _laderGain.gain.value = 0;
-
-    _lader.connect(lFilt);
-    lFilt.connect(_laderGain);
-    _laderGain.connect(_master);
-    _lader.start();
-  }
-
-  _started = true;
-
-  if (_cfg.hasStartup) {
-    _db605Startup();
-  } else {
-    _master.gain.setTargetAtTime(_cfg.masterGain * 0.4, _ctx.currentTime, _cfg.attackTime);
-  }
+  _buildSupercharger();
 }
 
-export function stopSound()  { _teardown(); }
+function _buildSupercharger() {
+  if (!_cfg.supercharger) return;
 
-export function switchEngine(type) {
-  const wasRunning = _started;
-  _teardown();
-  _cfg = ENGINES[type] ?? ENGINES['geared-turbofan'];
-  if (wasRunning) startSound();
-}
+  _lader = _ctx.createOscillator();
+  _lader.type            = 'sine';
+  _lader.frequency.value = _cfg.superchargerFreqIdle;
 
-export function tickSound() {
-  if (!_ctx || !_started || !_cfg || _inStartup) return;
+  const lFilt = _ctx.createBiquadFilter();
+  lFilt.type             = 'bandpass';
+  lFilt.frequency.value  = _cfg.superchargerFreqIdle;
+  lFilt.Q.value          = 5.0;
 
-  const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 350;
-  const throttle = Math.max(0, Math.min(1, S.spdT / maxSpd));
-  const now      = _ctx.currentTime;
+  _laderGain = _ctx.createGain();
+  _laderGain.gain.value = 0;
 
-  const freq = _cfg.fundamentalIdle + (_cfg.fundamentalMax - _cfg.fundamentalIdle) * throttle;
-  _oscs.forEach(({ osc, mult }) => {
-    osc.frequency.setTargetAtTime(freq * mult, now, 0.12);
-  });
+  _lader.connect(lFilt);
+  lFilt.connect(_laderGain);
+  _laderGain.connect(_master);
+  _lader.start();
 
-  const gain = _cfg.masterGain * (0.35 + 0.65 * throttle);
-  _master.gain.setTargetAtTime(gain, now, 0.15);
-  _noiseGain.gain.setTargetAtTime(_cfg.noiseGain * throttle, now, 0.2);
+  if (_cfg.supercharger2) {
+    _lader2 = _ctx.createOscillator();
+    _lader2.type            = 'sine';
+    _lader2.frequency.value = _cfg.supercharger2FreqIdle;
 
-  /* Supercharger: onset above threshold, rises with throttle squared */
-  if (_cfg.supercharger && _lader && _laderGain) {
-    const onset   = _cfg.superchargerOnset;
-    const laderT  = Math.max(0, (throttle - onset) / Math.max(0.01, 1 - onset));
-    const lFreq   = _cfg.superchargerFreqIdle + (_cfg.superchargerFreqMax - _cfg.superchargerFreqIdle) * throttle;
-    const lGain   = _cfg.superchargerGain * (0.08 + 0.92 * laderT * laderT);  // whisper at idle
-    _lader.frequency.setTargetAtTime(lFreq, now, 0.2);
-    _laderGain.gain.setTargetAtTime(lGain, now, 0.6);
+    const l2Filt = _ctx.createBiquadFilter();
+    l2Filt.type             = 'bandpass';
+    l2Filt.frequency.value  = _cfg.supercharger2FreqIdle;
+    l2Filt.Q.value          = 6.0;
+
+    _lader2Gain = _ctx.createGain();
+    _lader2Gain.gain.value = 0;
+
+    _lader2.connect(l2Filt);
+    l2Filt.connect(_lader2Gain);
+    _lader2Gain.connect(_master);
+    _lader2.start();
   }
-}
-
-/* ── DB 605 Startup Sequence ── */
-async function _db605Startup() {
-  _inStartup = true;
-  const ctx  = _ctx;
-  const now  = ctx.currentTime;
-
-  /* 1. Inertia starter — rising whine 100→520 Hz over 7s */
-  const starter     = ctx.createOscillator();
-  const starterGain = ctx.createGain();
-  const starterFilt = ctx.createBiquadFilter();
-
-  starter.type            = 'sine';
-  starter.frequency.value = 100;
-  starterGain.gain.value  = 0.12;
-  starterFilt.type        = 'bandpass';
-  starterFilt.frequency.value = 300;
-  starterFilt.Q.value     = 3.0;
-
-  starter.connect(starterFilt);
-  starterFilt.connect(starterGain);
-  starterGain.connect(_master);
-  starter.start(now);
-
-  /* Master low during startup — only starter audible */
-  _master.gain.setTargetAtTime(0.04, now, 0.3);
-  /* Keep harmonic oscs silent */
-  _oscs.forEach(({ gain }) => gain.gain.setValueAtTime(0, now));
-
-  /* Flywheel accelerates */
-  starter.frequency.linearRampToValueAtTime(520, now + 7);
-  starterFilt.frequency.linearRampToValueAtTime(520, now + 7);
-
-  await _sleep(7000);
-  if (!_started) return;
-
-  /* 2. Engagement — brief noise burst (clunk) */
-  const clunkBuf  = ctx.createBuffer(1, ctx.sampleRate * 0.15, ctx.sampleRate);
-  const clunkData = clunkBuf.getChannelData(0);
-  for (let i = 0; i < clunkData.length; i++) clunkData[i] = (Math.random() * 2 - 1) * (1 - i / clunkData.length);
-  const clunk     = ctx.createBufferSource();
-  clunk.buffer    = clunkBuf;
-  const clunkGain = ctx.createGain();
-  clunkGain.gain.value = 0.3;
-  clunk.connect(clunkGain);
-  clunkGain.connect(_master);
-  clunk.start();
-
-  /* Starter fades */
-  starterGain.gain.setTargetAtTime(0, ctx.currentTime, 0.4);
-  setTimeout(() => { try { starter.stop(); } catch {} }, 1500);
-
-  await _sleep(300);
-  if (!_started) return;
-
-  /* 3. Rough start — fundamental sweeps 4→58 Hz over 3.5s (cylinders catching) */
-  _oscs.forEach(({ osc, mult }) => osc.frequency.setValueAtTime(4 * mult, ctx.currentTime));
-  /* Now bring harmonics back in — engine firing */
-  _oscs.forEach(({ gain }, i) => gain.gain.setTargetAtTime(_cfg.harmonicGains[i] ?? 0.05, ctx.currentTime, 0.3));
-  _master.gain.setTargetAtTime(_cfg.masterGain * 0.5, ctx.currentTime, 0.2);
-
-  const rampEnd = ctx.currentTime + 3.5;
-  _oscs.forEach(({ osc, mult }) => {
-    osc.frequency.linearRampToValueAtTime(_cfg.fundamentalIdle * mult, rampEnd);
-  });
-
-  /* Add a low-frequency AM tremolo during rough idle (firing rhythm) */
-  const tremolo     = ctx.createOscillator();
-  const tremoloGain = ctx.createGain();
-  tremolo.frequency.value = 4;   // ~4 Hz = rough cylinder rhythm
-  tremolo.type            = 'sine';
-  tremoloGain.gain.value  = 0.3;
-  tremolo.connect(tremoloGain);
-  tremoloGain.connect(_master.gain); // modulate master gain directly...
-  // Actually connect to a separate gain node
-  const amGain = ctx.createGain();
-  amGain.gain.value = 0;
-  tremolo.connect(amGain);  // dummy connect to keep it running
-  tremolo.start();
-
-  /* Sweep tremolo frequency up as engine catches (4→0 Hz as it smooths out) */
-  tremolo.frequency.linearRampToValueAtTime(0.3, rampEnd);
-  tremoloGain.gain.linearRampToValueAtTime(0, rampEnd);
-
-  await _sleep(3500);
-  if (!_started) return;
-
-  try { tremolo.stop(); } catch {}
-
-  /* 4. Settle to idle — smooth */
-  _oscs.forEach(({ osc, mult }) => {
-    osc.frequency.setTargetAtTime(_cfg.fundamentalIdle * mult, ctx.currentTime, 0.5);
-  });
-  _master.gain.setTargetAtTime(_cfg.masterGain * 0.4, ctx.currentTime, 0.8);
-  _noiseGain.gain.setTargetAtTime(_cfg.noiseGain * 0.3, ctx.currentTime, 1.0);
-
-  await _sleep(1000);
-  _inStartup = false;   /* Hand off to tickSound() */
 }
 
 function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-/* ── Internal ── */
+/* ── Teardown ── */
 function _teardown() {
   if (!_ctx) return;
   _inStartup = false;
+  _workletReady = false;
+  try { _workletNode?.disconnect(); } catch {}
   _oscs.forEach(({ osc }) => { try { osc.stop(); } catch {} });
   try { _noise?.stop();  } catch {}
   try { _lader?.stop();  } catch {}
+  try { _lader2?.stop(); } catch {}
   _ctx.close();
   _ctx = null; _master = null; _oscs = [];
   _noise = null; _noiseGain = null;
   _lader = null; _laderGain = null;
+  _lader2 = null; _lader2Gain = null;
+  _workletNode = null;
   _started = false;
 }

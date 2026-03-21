@@ -567,6 +567,10 @@
     <div class="panel-label">Role</div>
     <div class="panel-value cyan" id="pv-role">PF</div>
   </div>
+  <div class="panel-section">
+    <div class="panel-label">RPM</div>
+    <div class="panel-value green" id="pv-rpm">---</div>
+  </div>
 </div>
 
 <!-- COM + Transponder -->
@@ -589,7 +593,7 @@
   <button class="eng-btn active" data-engine="geared-turbofan">GTF · A350</button>
   <button class="eng-btn" data-engine="high-bypass">HBF · CFM56</button>
   <button class="eng-btn" data-engine="low-bypass-military">LBF · F/A-18</button>
-  <!-- <button class="eng-btn" data-engine="v12-supercharged">V12 · DB 605</button> -->
+  <button class="eng-btn" data-engine="v12-supercharged">V12 · DB 605</button>
 </div>
 
 <!-- Checklist panel -->
@@ -616,7 +620,7 @@
   import { renderECAM }   from './display/ecam.js';
   import { initFMA, renderFMA } from './display/fma.js';
   import { initCOM }           from './display/com.js';
-  import { initSound, startSound, switchEngine, tickSound } from './core/sound.js';
+  import { initSound, startSound, switchEngine, tickSound, getCurrentRpm } from './core/sound.js';
 
   /* ── DOM refs ── */
   const canvas     = document.getElementById('pfd');
@@ -724,6 +728,9 @@
     document.getElementById('pv-cfg').textContent  = `F${S.flaps} · ${S.gear ? 'DN' : 'UP'}`;
     document.getElementById('pv-mode').textContent = S.mode;
     document.getElementById('pv-role').textContent = S.role;
+    /* RPM — only meaningful for piston engines */
+    const rpm = getCurrentRpm();
+    document.getElementById('pv-rpm').textContent = rpm != null ? rpm + ' RPM' : '---';
     pttEl.classList.toggle('active', isPTTActive());
   }
 
