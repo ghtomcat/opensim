@@ -79,10 +79,10 @@ const ENGINES = {
 export const ENGINE_TYPES = Object.keys(ENGINES);
 
 export function getCurrentRpm() {
-  if (!_cfg?.impulse && !_cfg) return null;
+  if (!_cfg?.impulse) return null;
   const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 350;
   const throttle = Math.max(0, Math.min(1, S.spdT / maxSpd));
-  return Math.round(_cfg.rpmIdle + ((_cfg.rpmMax ?? _cfg.fundamentalMax ?? 100) - _cfg.rpmIdle) * throttle);
+  return Math.round(_cfg.rpmIdle + (_cfg.rpmMax - _cfg.rpmIdle) * throttle);
 }
 
 /* ── Internal state — oscillator path ── */
