@@ -1,0 +1,45 @@
+{
+  "id": "bf109",
+  "name": "Messerschmitt Bf 109 G-6",
+  "callsign": "Yellow 1",
+  "icaoType": "ME09",
+
+  "envelope": {
+    "cruiseAlt": 20000,
+    "maxAlt": 37000,
+    "cruiseSpd": 280,
+    "maxSpd": 335,
+    "spdProfile": {
+      "20000": 280,
+      "10000": 260,
+      "5000":  220,
+      "1000":  180,
+      "0":     120
+    }
+  },
+
+  "sound": {
+    "engineType": "v12-supercharged"
+  },
+
+  "thrustProfiles": [
+    { "label": "IDLE",      "spdT": 0   },
+    { "label": "TAKEOFF",   "spdT": 200 },
+    { "label": "CLIMB",     "spdT": 270 },
+    { "label": "EMERGENCY", "spdT": 335 }
+  ],
+
+  "fmaPhases": [
+    { "minAlt": 5000, "vals": ["MAN",  "", "HDG", "CLB", ""],     "cols": ["white","white","green","cyan","white"] },
+    { "minAlt": 1000, "vals": ["MAN",  "", "HDG", "DES", ""],     "cols": ["white","white","green","cyan","white"] },
+    { "minAlt": 0,    "vals": ["MAN",  "", "HDG", "APP", ""],     "cols": ["white","white","green","green","white"] }
+  ],
+
+  "gpws": [
+    { "alt": 1000, "text": "1 0 0 0",   "speech": "one thousand", "red": false },
+    { "alt": 500,  "text": "5 0 0",     "speech": "five hundred", "red": false },
+    { "alt": 100,  "text": "1 0 0",     "speech": "one hundred",  "red": true  }
+  ],
+
+  "pmCallouts": []
+}

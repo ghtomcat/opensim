@@ -19,6 +19,13 @@
     }
   },
 
+  "thrustProfiles": [
+    { "label": "IDLE", "spdT": 0   },
+    { "label": "CLB",  "spdT": 180 },
+    { "label": "MCT",  "spdT": 280 },
+    { "label": "TOGA", "spdT": 350 }
+  ],
+
   "ambient": {
     "type": "turbofan",
     "freqMin": 180,

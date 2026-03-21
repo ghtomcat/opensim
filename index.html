@@ -561,6 +561,10 @@
     <div class="panel-value" id="pv-cfg">F0 · UP</div>
   </div>
   <div class="panel-section">
+    <div class="panel-label">Thrust</div>
+    <div class="panel-value cyan" id="pv-thrust">---</div>
+  </div>
+  <div class="panel-section">
     <div class="panel-label">Display</div>
     <div class="panel-value cyan" id="pv-mode">PFD</div>
   </div>
@@ -742,6 +746,9 @@
     document.getElementById('pv-vs').textContent   = vsSign + Math.round(S.vs / 10) * 10 + ' fpm';
     document.getElementById('pv-hdg').textContent  = String(Math.round(S.hdg)).padStart(3, '0') + '°';
     document.getElementById('pv-cfg').textContent  = `F${S.flaps} · ${S.gear ? 'DN' : 'UP'}`;
+    const _profiles = S.aircraft?.thrustProfiles;
+    const _active   = _profiles?.find(p => p.spdT === S.spdT)?.label ?? '---';
+    document.getElementById('pv-thrust').textContent = _active;
     document.getElementById('pv-mode').textContent = S.mode;
     document.getElementById('pv-role').textContent = S.role;
     /* RPM — only meaningful for piston engines */

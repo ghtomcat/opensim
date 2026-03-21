@@ -116,11 +116,14 @@ function _onKeyDown(e) {
   if (e.key === '=' || e.key === '+') setState({ spdT: Math.min(S.aircraft?.envelope.maxSpd ?? 350, S.spdT + 5) });
   if (e.key === '-' || e.key === '_') setState({ spdT: Math.max(0, S.spdT - 5) });
 
-  /* Thrust detents */
-  if (e.key === 'F1') { e.preventDefault(); setState({ spdT: 0   }); }   // IDLE
-  if (e.key === 'F2') { e.preventDefault(); setState({ spdT: 180 }); }   // CLB
-  if (e.key === 'F3') { e.preventDefault(); setState({ spdT: 280 }); }   // MCT
-  if (e.key === 'F4') { e.preventDefault(); setState({ spdT: 350 }); }   // TOGA
+  /* Thrust detents — aircraft-specific profiles or hardcoded fallback */
+  const _fi = ['F1','F2','F3','F4'].indexOf(e.key);
+  if (_fi >= 0) {
+    e.preventDefault();
+    const profiles = S.aircraft?.thrustProfiles;
+    const spdT = profiles ? (profiles[_fi]?.spdT ?? 0) : [0, 180, 280, 350][_fi];
+    setState({ spdT });
+  }
 
   /* Altitude */
   if (e.key === 'ArrowUp')   setState({ altT: Math.min(43000, S.altT + 500) });
