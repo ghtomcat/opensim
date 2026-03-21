@@ -148,6 +148,43 @@ Create `missions/your-mission.json`:
 
 ---
 
+## DB 605 — Physical Engine Sound
+
+### What is the DB 605?
+
+The Daimler-Benz DB 605 is the V12 supercharged engine that powered the Messerschmitt Bf 109G and K. It produces one of the most distinctive sounds in aviation history — a deep, raw growl at idle, a mechanical supercharger whine that rises with RPM, and a crackling snarl at full throttle. Airshow veterans never forget it.
+
+### What is an AudioWorklet?
+
+Most browser audio runs on the main thread, which introduces latency and interruptions. An [AudioWorklet](https://developer.mozilla.org/en-US/docs/Web/API/AudioWorklet) runs audio processing in a dedicated real-time thread, with access to every individual sample at 44,100 Hz. This is what makes physical modelling possible — you can simulate the physics of each combustion event sample-by-sample, the same way a real engine produces sound microsecond by microsecond.
+
+### How it works
+
+OpenSim does not use audio samples or pitch-shifting. The DB 605 sound is synthesised entirely from physics:
+
+- **12 cylinders** each fire at their own crankshaft angle (every 60°, ±8° jitter)
+- **Each firing** generates a transient impulse + noise burst that decays exponentially
+- **A resonator** models the exhaust pipe, resonating at ~45 Hz — the fundamental of the DB 605 exhaust note
+- **Dynamic decay** — the noise burst duration scales with RPM so pulses stay clean and separated from idle to full throttle
+- **Supercharger** — two sine oscillators (663 Hz + 1097 Hz harmonic) mechanically coupled to RPM, linear with throttle
+
+### What works
+
+- ✅ Engine character at 400–1200 RPM — kernig, recognisable DB 605 growl
+- ✅ Supercharger whine on throttle-up, two harmonics
+- ✅ Cylinder-to-cylinder variation (random gain per cylinder)
+- ✅ Smooth RPM transition from idle to cruise
+- ✅ Cockpit RPM display shows real engine RPM (400–2800)
+
+### What doesn't work yet
+
+- ⚠️ 1500–2800 RPM — some residual noise, character thins out
+- ⚠️ No exhaust crackle on throttle-off
+- ⚠️ No propeller wash / wind layer
+- ⚠️ Supercharger attack/release not tuned (snaps rather than spools)
+
+---
+
 ## Vision
 
 - **Time machine** — WWII aircraft, Apollo 11, Demo-2, Challenger, Inspiration5
