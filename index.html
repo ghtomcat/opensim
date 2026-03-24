@@ -35,9 +35,13 @@
     }
     #outside.visible  { display: block; }
     #outside.combined { height: 50vh; }
+
     #outside-canvas {
+      position: absolute; top: 0; left: 0;
       width: 100%; height: 100%;
+      z-index: 1;
       display: block;
+      pointer-events: none;
     }
 
     /* ── Display canvases — full viewport ── */
@@ -690,8 +694,9 @@
 
 <!-- Keybinds -->
 <div id="keys">
-  ↑↓ ALT ±500 · ←→ HDG ±5<br>
-  + / − SPD ±5 · F1–F4 DETENT<br>
+  ↑↓ ALT ±500 · ←→ HDG ±5 &nbsp;<span id="keys-ap">(AP)</span><br>
+  ↑↓ PITCH · ←→ BANK <span id="keys-manual" style="display:none">(MANUAL)</span><br>
+  + / − SPD · F1–F4 DETENT<br>
   F flaps · G gear<br>
   TAB display · V outside · P pause · R role<br>
   SPACE PTT
@@ -910,6 +915,11 @@
     const rpm = getCurrentRpm();
     document.getElementById('pv-rpm').textContent = rpm ?? '---';
     pttEl.classList.toggle('active', isPTTActive());
+
+    /* Keybind hint: AP vs manual */
+    const isManual = !!S.aircraft?.manualControl;
+    document.getElementById('keys-ap').style.display     = isManual ? 'none'   : '';
+    document.getElementById('keys-manual').style.display = isManual ? 'inline' : 'none';
   }
 
   /* ── METAR ── */

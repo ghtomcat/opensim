@@ -8,6 +8,7 @@ import { S, setState } from './state.js';
 
 let _mouseLast = null;
 let _pttActive = false;
+const _held    = new Set();   /* currently held keys (for continuous manual input) */
 
 /* ── Gamepad config — Logitech Extreme 3D Pro ── */
 const GP = {
@@ -27,6 +28,27 @@ export function initInput() {
   window.addEventListener('keydown',   _onKeyDown);
   window.addEventListener('keyup',     _onKeyUp);
   window.addEventListener('mousemove', _onMouseMove);
+}
+
+/* Called every physics frame — continuous control input for manual aircraft */
+export function tickControls(dt) {
+  if (!S.aircraft?.manualControl) return;
+
+  const h = S.aircraft.handling ?? {};
+  const maxBank  = h.maxBank  ?? 60;
+  const maxPitch = h.maxPitch ?? 20;
+  const rollRate = (h.rollRate  ?? 30) * dt;
+  const pitchRate= (h.pitchRate ?? 5)  * dt;
+
+  const aileronIn  = (_held.has('ArrowRight') ? 1 : 0) - (_held.has('ArrowLeft')  ? 1 : 0);
+  const elevatorIn = (_held.has('ArrowUp')    ? 1 : 0) - (_held.has('ArrowDown')  ? 1 : 0);
+
+  if (aileronIn !== 0 || elevatorIn !== 0) {
+    setState({
+      rollT:  Math.max(-maxBank,  Math.min(maxBank,  S.rollT  + aileronIn  * rollRate)),
+      pitchT: Math.max(-maxPitch, Math.min(maxPitch, S.pitchT + elevatorIn * pitchRate)),
+    });
+  }
 }
 
 export function isPTTActive() { return _pttActive; }
@@ -88,6 +110,7 @@ function _btnPressed(buttons, idx) {
 function _onKeyDown(e) {
   /* Don't steal input from text fields */
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  _held.add(e.key);
 
   /* PTT */
   if (e.code === 'Space' && !e.repeat) {
@@ -132,13 +155,13 @@ function _onKeyDown(e) {
     if (sit) setState({ alt: sit.alt, spd: sit.spd, hdg: sit.hdg, altT: sit.altT, spdT: sit.spdT });
   }
 
-  /* Altitude */
-  if (e.key === 'ArrowUp')   setState({ altT: Math.min(43000, S.altT + 500) });
-  if (e.key === 'ArrowDown') setState({ altT: Math.max(0,     S.altT - 500) });
-
-  /* Heading */
-  if (e.key === 'ArrowLeft')  setState({ hdgT: (S.hdgT - 5 + 360) % 360 });
-  if (e.key === 'ArrowRight') setState({ hdgT: (S.hdgT + 5) % 360 });
+  /* Altitude / heading — AP mode only (manual mode uses held keys in tickControls) */
+  if (!S.aircraft?.manualControl) {
+    if (e.key === 'ArrowUp')    setState({ altT: Math.min(43000, S.altT + 500) });
+    if (e.key === 'ArrowDown')  setState({ altT: Math.max(0,     S.altT - 500) });
+    if (e.key === 'ArrowLeft')  setState({ hdgT: (S.hdgT - 5 + 360) % 360 });
+    if (e.key === 'ArrowRight') setState({ hdgT: (S.hdgT + 5) % 360 });
+  }
 
   /* Flaps */
   if (e.key === 'f') setState({ prevFlaps: S.flaps, flaps: Math.min(3, S.flaps + 1) });
@@ -153,6 +176,7 @@ function _onKeyDown(e) {
 }
 
 function _onKeyUp(e) {
+  _held.delete(e.key);
   if (e.code === 'Space') {
     _pttActive = false;
     document.dispatchEvent(new CustomEvent('ptt', { detail: { active: false } }));

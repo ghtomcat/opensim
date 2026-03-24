@@ -35,6 +35,16 @@
     { "label": "FULL",    "spdT": 122 }
   ],
 
+  "manualControl": true,
+
+  "handling": {
+    "rollRate":  30,
+    "pitchRate":  5,
+    "spdRate":    2,
+    "maxBank":   60,
+    "maxPitch":  20
+  },
+
   "sound": {
     "engineType": "lycoming-o360"
   },

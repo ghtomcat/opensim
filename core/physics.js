@@ -26,21 +26,42 @@ export function tickPhysics(dt) {
   }
   const spdTarget = Math.min(S.spdT, spdLimit);
 
-  /* ── Convergence rates ── */
-  const altRate   = Math.min(Math.abs(S.altT - S.alt), 2400 * dt / 60);  // max 2400fpm
-  const spdRate   = 8  * dt;   // kts/s
-  const hdgRate   = 3  * dt;   // deg/s
-  const pitchRate = 1.5 * dt;
-  const rollRate  = 3  * dt;
+  let newAlt, newSpd, newHdg, newPitch, newRoll, vs;
 
-  const newAlt   = converge(S.alt,   S.altT,   altRate);
-  const newSpd   = converge(S.spd,   spdTarget, spdRate);
-  const newHdg   = convergeHdg(S.hdg, S.hdgT,  hdgRate);
-  const newPitch = converge(S.pitch, S.pitchT, pitchRate);
-  const newRoll  = converge(S.roll,  S.rollT,  rollRate);
+  if (ac.manualControl) {
+    /* ── Manual flight model ── */
+    const rollRate  = (ac.handling?.rollRate  ?? 30) * dt;
+    const pitchRate = (ac.handling?.pitchRate ?? 5)  * dt;
+    const spdRate   = (ac.handling?.spdRate   ?? 2)  * dt;
 
-  /* ── Vertical speed (ft/min) ── */
-  const vs = (newAlt - prevAlt) / dt * 60;
+    newRoll  = converge(S.roll,  S.rollT,  rollRate);
+    newPitch = converge(S.pitch, S.pitchT, pitchRate);
+    newSpd   = converge(S.spd,   spdTarget, spdRate);
+
+    /* Coordinated turn: ω = g·tan(φ) / TAS */
+    const tasMs     = Math.max(10, newSpd) * 0.5144;    // kt → m/s
+    const turnRate  = 9.81 * Math.tan(newRoll * Math.PI / 180) / tasMs;  // rad/s
+    newHdg = (S.hdg + turnRate * dt * 180 / Math.PI + 360) % 360;
+
+    /* Climb rate: VS = TAS · sin(pitch) */
+    vs     = newSpd * Math.sin(newPitch * Math.PI / 180) * 101.27;   // fpm
+    newAlt = Math.max(0, S.alt + vs * dt / 60);
+
+  } else {
+    /* ── Autopilot convergence ── */
+    const altRate   = Math.min(Math.abs(S.altT - S.alt), 2400 * dt / 60);
+    const spdRate   = 8  * dt;
+    const hdgRate   = 3  * dt;
+    const pitchRate = 1.5 * dt;
+    const rollRate  = 3  * dt;
+
+    newAlt   = converge(S.alt,   S.altT,    altRate);
+    newSpd   = converge(S.spd,   spdTarget, spdRate);
+    newHdg   = convergeHdg(S.hdg, S.hdgT,  hdgRate);
+    newPitch = converge(S.pitch, S.pitchT,  pitchRate);
+    newRoll  = converge(S.roll,  S.rollT,   rollRate);
+    vs       = (newAlt - prevAlt) / dt * 60;
+  }
 
   /* ── ILS tracking ── */
   let ilsLoc = S.ilsLoc;

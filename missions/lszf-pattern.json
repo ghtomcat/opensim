@@ -11,7 +11,12 @@
     "name": "Speck-Fehraltorf",
     "runway": "26",
     "ils": null,
-    "elevation": 1788
+    "elevation": 1788,
+    "rwyLat":     47.3851,
+    "rwyLon":      8.7827,
+    "rwyHdg":    260,
+    "rwyLengthM": 700,
+    "rwyWidthM":   18
   },
 
   "initialState": {

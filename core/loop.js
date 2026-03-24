@@ -7,7 +7,7 @@
 import { S } from './state.js';
 import { tickPhysics } from './physics.js';
 import { tickCrew }    from './crew.js';
-import { tickGamepad } from './input.js';
+import { tickGamepad, tickControls } from './input.js';
 
 let _prevTime = null;
 let _renderers = [];
@@ -28,7 +28,8 @@ function _tick(now) {
   const dt = Math.min((now - _prevTime) / 1000, 0.1);   // cap at 100ms
   _prevTime = now;
 
-  tickGamepad();   // always — gamepad input feeds targets, not state directly
+  tickGamepad();
+  if (!S.paused) tickControls(dt);
 
   if (!S.paused) {
     const prevAlt = S.alt;
