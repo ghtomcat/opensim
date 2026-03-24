@@ -61,6 +61,20 @@ const ENGINES = {
     masterGain:       3.5,
     supercharger:     false,
   },
+  'lycoming-o360': {
+    // Lycoming IO-360 — 4-cylinder, 180hp, C172 engine
+    // Same impulse model as DB 605, 4 cylinders, no supercharger
+    impulse:          true,
+    workletFile:      './core/lycoming-processor.js',
+    workletName:      'lycoming-processor',
+    rpmIdle:          700,
+    rpmMax:           2700,
+    cylinders:        4,
+    exhaustResonance: 95,
+    exhaustQ:         5.0,
+    masterGain:       0.70,
+    supercharger:     false,
+  },
   'v12-supercharged': {
     // Daimler-Benz DB 605 — impulse-based synthesis
     // Calibrated from Audacity spectrum of D-FEML ground run (Hangelar)
