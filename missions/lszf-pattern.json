@@ -1,0 +1,45 @@
+{
+  "id": "lszf-pattern",
+  "title": "VFR Pattern — Speck-Fehraltorf LSZF",
+  "description": "VFR traffic pattern at home base LSZF. Cessna 172. PPL training.",
+  "author": "Markus Leutwyler",
+  "aircraft": "c172",
+
+  "departure": null,
+  "arrival": {
+    "icao": "LSZF",
+    "name": "Speck-Fehraltorf",
+    "runway": "26",
+    "ils": null,
+    "elevation": 1788
+  },
+
+  "initialState": {
+    "lat":   47.385,
+    "lon":   8.782,
+    "alt":   1788,
+    "spd":   0,
+    "hdg":   260,
+    "pitch": 0,
+    "roll":  0
+  },
+
+  "weather": {
+    "source": "live",
+    "icao": "LSZH",
+    "fallback": {
+      "wdir": 260, "wspd": 6, "altim": 1018,
+      "temp": 12, "dewp": 4, "visib": "6+",
+      "clouds": [{ "cover": "FEW", "base": 5000 }]
+    }
+  },
+
+  "debrief": [
+    "Was the circuit altitude maintained at pattern altitude (2800ft)?",
+    "Was the downwind leg flown at 90kt?",
+    "Was the turn to final stabilised?",
+    "Speed on final: 65kt?"
+  ],
+
+  "failures": []
+}

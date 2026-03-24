@@ -58,15 +58,17 @@ export function tickPhysics(dt) {
       const gsKts = newSpd;
       _dmeNm = Math.max(0, _dmeNm - (gsKts / 3600) * dt);
 
-      /* LOC: 2 dots per degree off course (positive = right of centre) */
-      const course = S.mission.arrival.ils.course;
-      let hdgDiff = ((newHdg - course + 540) % 360) - 180;
-      ilsLoc = Math.max(-2.5, Math.min(2.5, hdgDiff * -2));
+      /* LOC: 2 dots per degree off course — only if ILS exists */
+      if (S.mission.arrival.ils) {
+        const course = S.mission.arrival.ils.course;
+        let hdgDiff = ((newHdg - course + 540) % 360) - 180;
+        ilsLoc = Math.max(-2.5, Math.min(2.5, hdgDiff * -2));
 
-      /* GS: expected alt on 3° slope = dme × 318 ft */
-      const altExpected = _dmeNm * 318;
-      const gsErr = newAlt - altExpected;
-      ilsGs = Math.max(-2.5, Math.min(2.5, gsErr / 80));   // ~80ft per dot
+        /* GS: expected alt on 3° slope = dme × 318 ft */
+        const altExpected = _dmeNm * 318;
+        const gsErr = newAlt - altExpected;
+        ilsGs = Math.max(-2.5, Math.min(2.5, gsErr / 80));
+      }
     }
   }
 
@@ -84,8 +86,15 @@ export function tickPhysics(dt) {
     }
   }
 
+  /* ── Dead reckoning — geographic position ── */
+  const distNm = newSpd * (dt / 3600);
+  const hdgRad = newHdg * Math.PI / 180;
+  const cosLat = Math.cos(S.lat * Math.PI / 180);
+  const newLat = S.lat + distNm / 60 * Math.cos(hdgRad);
+  const newLon = S.lon + distNm / 60 * Math.sin(hdgRad) / cosLat;
+
   setState({ alt: newAlt, spd: newSpd, hdg: newHdg, pitch: newPitch, roll: newRoll,
-             vs, ilsLoc, ilsGs, fma,
+             vs, ilsLoc, ilsGs, fma, lat: newLat, lon: newLon,
              prevAlt: S.alt, time: S.time + dt });
 }
 

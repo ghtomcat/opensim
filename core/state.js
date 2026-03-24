@@ -37,6 +37,9 @@ export const S = {
   /* ── Display mode ── */
   mode:  'PFD',   // 'PFD' | 'ND' | 'ECAM'
 
+  /* ── Geographic position (dead reckoning from mission start) ── */
+  lat:   48.13,   lon:   8.55,    // degrees
+
   /* ── Timing ── */
   time:    0,     // accumulated seconds
   prevAlt: 35000,

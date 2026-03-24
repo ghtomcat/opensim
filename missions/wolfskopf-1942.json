@@ -4,7 +4,7 @@
   "description": "Titovka. Arctic winter. The wolf on your fuselage is blue. You have been flying since dawn.",
   "author": "Markus Leutwyler",
   "book": "Zeitanker — Band IV",
-  "aircraft": "aircraft/avro504.json",
+  "aircraft": "aircraft/bf109.json",
 
   "weather": {
     "source": "manual",
@@ -19,6 +19,8 @@
   },
 
   "initialState": {
+    "lat":   69.40,
+    "lon":   29.05,
     "alt":   100,
     "spd":   65,
     "hdg":   45,

@@ -17,7 +17,7 @@ export async function loadMission(missionPath, aircraftPath) {
   ]);
 
   /* Apply initial state from mission */
-  const { alt, spd, hdg, pitch, roll } = mission.initialState;
+  const { alt, spd, hdg, pitch, roll, lat, lon } = mission.initialState;
 
   setState({
     aircraft,
@@ -28,6 +28,8 @@ export async function loadMission(missionPath, aircraftPath) {
     pitch, pitchT: pitch,
     roll,  rollT:  roll,
     vs:    0,
+    lat:   lat ?? 48.13,
+    lon:   lon ?? 8.55,
     flaps: 0, prevFlaps: 0,
     gear:  false, prevGear: false,
     ap:    true,

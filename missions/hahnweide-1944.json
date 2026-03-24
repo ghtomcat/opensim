@@ -1,0 +1,44 @@
+{
+  "id": "hahnweide-1944",
+  "title": "Airshow Ground Run — Hahnweide 2025",
+  "description": "DB 605 startup and ground run at Hahnweide. The sound that started it all.",
+  "author": "Markus Leutwyler",
+  "aircraft": "bf109",
+
+  "departure": null,
+  "arrival": {
+    "icao": "EDST",
+    "name": "Kirchheim/Teck-Hahnweide",
+    "runway": "26",
+    "ils": null,
+    "elevation": 1312
+  },
+
+  "initialState": {
+    "lat":   48.634,
+    "lon":   9.577,
+    "alt":   1312,
+    "spd":   0,
+    "hdg":   260,
+    "pitch": 0,
+    "roll":  0
+  },
+
+  "weather": {
+    "source": "live",
+    "icao": "EDDS",
+    "fallback": {
+      "wdir": 260, "wspd": 8, "altim": 1018,
+      "temp": 18, "dewp": 6, "visib": "6+",
+      "clouds": [{ "cover": "FEW", "base": 6000 }]
+    }
+  },
+
+  "debrief": [
+    "DB 605 — 1175hp at idle, 1800hp at full power.",
+    "Calibrated from D-FEML ground run, Hangelar.",
+    "Fundamental idle: ~110 Hz. Supercharger: 663 Hz."
+  ],
+
+  "failures": []
+}
