@@ -153,6 +153,9 @@ let _hissGain     = null;
 let _knackenActive  = false;
 let _knackenTimeout = null;
 
+/* ── Hiss decay — steam dies after coolant fully bleeds off ── */
+let _hissDeadAt = null;   /* S.time when engine first reached full death */
+
 /* ── Public API ── */
 
 export function initSound(engineType) {
@@ -307,20 +310,29 @@ export function tickSound() {
     _flapGain.gain.setTargetAtTime(0.20 * flaps * sf, now, 0.4);       // rumble: flaps × speed
   }
 
-  /* Coolant hiss — rises as engine power drops toward 0 */
+  /* Coolant hiss — rises as engine dies, then fades as steam bleeds off */
   if (_hissGain) {
     const ePow   = S.enginePower ?? 1.0;
-    const damage = Math.max(0, 1 - ePow);          // 0 = healthy, 1 = dead
-    const hissG  = damage > 0.1 ? 0.18 * damage : 0;
+    const damage = Math.max(0, 1 - ePow);
+    /* Track when engine first fully died */
+    if (ePow < 0.05) {
+      if (_hissDeadAt === null) _hissDeadAt = S.time ?? 0;
+    } else {
+      _hissDeadAt = null;
+    }
+    /* Decay: steam gone after ~90s of dead engine */
+    const deadSec = _hissDeadAt !== null ? Math.max(0, (S.time ?? 0) - _hissDeadAt) : 0;
+    const decay   = Math.max(0, 1 - deadSec / 90);
+    const hissG   = damage > 0.1 ? 0.18 * damage * decay : 0;
     _hissGain.gain.setTargetAtTime(hissG, now, 0.8);
   }
 
-  /* Knacken — cooling metal ticks, dead engine */
+  /* Knacken — cooling metal ticks, severely damaged or dead engine */
   const ePowK = S.enginePower ?? 1.0;
-  if (ePowK < 0.05 && !_knackenActive) {
+  if (ePowK < 0.15 && !_knackenActive) {
     _knackenActive = true;
     _scheduleKnacken();
-  } else if (ePowK >= 0.05 && _knackenActive) {
+  } else if (ePowK >= 0.15 && _knackenActive) {
     _knackenActive = false;
     clearTimeout(_knackenTimeout);
     _knackenTimeout = null;
@@ -335,16 +347,17 @@ export function tickSound() {
     _groundFilt.frequency.setTargetAtTime(80 + 60 * gsf, now, 0.2);  // pitch rises with speed
   }
 
-  /* Supercharger — shared by both paths */
+  /* Supercharger — dies with the engine */
   if (_cfg.supercharger && _lader && _laderGain) {
+    const ePow  = S.enginePower ?? 1.0;
     const lFreq = _cfg.superchargerFreqIdle + (_cfg.superchargerFreqMax - _cfg.superchargerFreqIdle) * throttle;
-    const lGain = _cfg.superchargerGain * (0.15 + 0.85 * throttle);
+    const lGain = _cfg.superchargerGain * (0.15 + 0.85 * throttle) * ePow;
     _lader.frequency.setTargetAtTime(lFreq, now, 0.3);
     _laderGain.gain.setTargetAtTime(lGain, now, 0.5);
 
     if (_cfg.supercharger2 && _lader2 && _lader2Gain) {
       const l2Freq = _cfg.supercharger2FreqIdle + (_cfg.supercharger2FreqMax - _cfg.supercharger2FreqIdle) * throttle;
-      const l2Gain = _cfg.supercharger2Gain * (0.12 + 0.88 * throttle * throttle);
+      const l2Gain = _cfg.supercharger2Gain * (0.12 + 0.88 * throttle * throttle) * ePow;
       _lader2.frequency.setTargetAtTime(l2Freq, now, 0.3);
       _lader2Gain.gain.setTargetAtTime(l2Gain, now, 0.5);
     }
@@ -600,5 +613,6 @@ function _teardown() {
   _knackenActive = false;
   clearTimeout(_knackenTimeout);
   _knackenTimeout = null;
+  _hissDeadAt = null;
   _started = false;
 }
