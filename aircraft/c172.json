@@ -38,12 +38,14 @@
   "manualControl": true,
 
   "performance": {
-    "thrustAccel":  1.8,
-    "dragCoeff":    0.00015,
-    "levelThrottle": 0.60,
-    "rocFull":      700,
-    "rocIdle":      600,
-    "stallSpd":     47
+    "mass":       1157,
+    "wingArea":   16.2,
+    "thrustMax":  1800,
+    "CL_0":       0.2,
+    "CL_alpha":   5.0,
+    "CL_max":     1.9,
+    "CD_0":       0.028,
+    "inducedK":   0.055
   },
 
   "handling": {

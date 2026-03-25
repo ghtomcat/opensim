@@ -6,6 +6,8 @@
 
 import { S, setState } from './state.js';
 
+const DEG = Math.PI / 180;
+
 /* ── ILS approach tracking ── */
 let _approachInit  = false;
 let _dmeNm         = 0;        // estimated distance to threshold (nm)
@@ -29,7 +31,9 @@ export function tickPhysics(dt) {
   let newAlt, newSpd, newHdg, newPitch, newRoll, vs;
 
   if (ac.manualControl) {
-    /* ── Manual flight model ── */
+    /* ── Aerodynamic force-balance flight model ──
+       Point-mass, wind axes. Forces in SI, converted at output.
+       State: spd (kt), vs (fpm) — both integrated across frames.     */
     const perf     = ac.performance ?? {};
     const rollRate  = (ac.handling?.rollRate  ?? 30) * dt;
     const pitchRate = (ac.handling?.pitchRate ?? 5)  * dt;
@@ -37,39 +41,69 @@ export function tickPhysics(dt) {
     newRoll  = converge(S.roll,  S.rollT,  rollRate);
     newPitch = converge(S.pitch, S.pitchT, pitchRate);
 
-    /* Throttle 0–1 from thrust profile selection */
-    const throttle = Math.min(1, Math.max(0, spdTarget / (ac.envelope.cruiseSpd ?? 122)));
+    /* ISA density: ρ drops with altitude */
+    const alt_m = S.alt * 0.3048;
+    const rho   = 1.225 * Math.pow(Math.max(0, 1 - 2.2558e-5 * alt_m), 4.2559);
 
-    /* Longitudinal: thrust – drag  →  Δspd (kt/s) */
-    const thrustAccel = throttle * (perf.thrustAccel ?? 1.8);
-    const dragAccel   = (perf.dragCoeff  ?? 0.00015) * S.spd * S.spd;
-    newSpd = Math.max(0, S.spd + (thrustAccel - dragAccel) * dt);
+    /* Dynamic pressure */
+    const spd_ms = Math.max(1, S.spd) * 0.5144;       // kt → m/s
+    const q      = 0.5 * rho * spd_ms * spd_ms;       // Pa
 
-    /* Coordinated turn: ω = g·tan(φ) / TAS */
-    const tasMs    = Math.max(10, newSpd) * 0.5144;
-    const turnRate = 9.81 * Math.tan(newRoll * Math.PI / 180) / tasMs;
-    newHdg = (S.hdg + turnRate * dt * 180 / Math.PI + 360) % 360;
+    /* Throttle 0–1 from thrust profile */
+    const throttle = Math.min(1, Math.max(0, S.spdT / (ac.envelope.cruiseSpd ?? 122)));
 
-    /* Vertical: pitch kinematic + power contribution
-       levelThrottle = throttle that gives zero net climb at level pitch.
-       Below it → sink; above it → climb.                               */
-    const pitchVS = newSpd * Math.sin(newPitch * Math.PI / 180) * 101.27;  // fpm
-    const lT      = perf.levelThrottle ?? 0.60;
-    const powerVS = throttle >= lT
-      ? (throttle - lT) / (1 - lT) * (perf.rocFull ?? 700)
-      : -(1 - throttle / lT)       * (perf.rocIdle ?? 600);
+    /* Aircraft constants (all in SI) */
+    const S_wing   = perf.wingArea  ?? 16.2;    // m²
+    const mass     = perf.mass      ?? 1157;    // kg
+    const T_max    = perf.thrustMax ?? 1800;    // N (sea level)
+    const CL_0     = perf.CL_0     ?? 0.2;     // lift at zero AoA
+    const CL_alpha = perf.CL_alpha ?? 5.0;     // lift slope, rad⁻¹
+    const CL_max   = perf.CL_max   ?? 1.9;     // stall
+    const CD_0     = perf.CD_0     ?? 0.028;   // parasite drag
+    const k_ind    = perf.inducedK ?? 0.055;   // induced drag factor
 
-    /* Stall: below stallSpd lift collapses, nose drops */
-    const stallSpd = perf.stallSpd ?? 47;
-    let stallVS = 0;
-    if (newSpd < stallSpd) {
-      const sf = 1 - newSpd / stallSpd;
-      stallVS  = -sf * 2000;
-      newPitch = Math.max(newPitch - 5 * dt, -20);
+    /* Angle of attack (simplified: α ≈ pitch attitude) */
+    const alpha = newPitch * DEG;
+
+    /* Lift and drag */
+    const CL = Math.min(CL_max, Math.max(-0.5, CL_0 + CL_alpha * alpha));
+    const CD = CD_0 + k_ind * CL * CL;
+    const L  = q * S_wing * CL;
+    const D  = q * S_wing * CD;
+
+    /* Thrust drops proportionally with density (normally-aspirated engine) */
+    const T = throttle * T_max * (rho / 1.225);
+    const W = mass * 9.81;
+
+    /* Current flight path angle γ from previous frame's VS */
+    const vz_ms = (S.vs ?? 0) / 196.85;       // fpm → m/s
+    const gamma  = Math.asin(Math.max(-0.5, Math.min(0.5, vz_ms / spd_ms)));
+
+    /* Equations of motion (point-mass, wind axes)
+         dv/dt  = (T·cos(α) − D − W·sin(γ)) / m
+         dγ/dt  = (L − W·cos(γ))             / (m·v)              */
+    const a_long = (T * Math.cos(alpha) - D - W * Math.sin(gamma)) / mass;
+    const dGamma = (L - W * Math.cos(gamma)) / (mass * Math.max(10, spd_ms));
+
+    /* Integrate */
+    const newSpd_ms = Math.max(0, spd_ms + a_long * dt);
+    const newGamma  = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, gamma + dGamma * dt));
+
+    newSpd = newSpd_ms / 0.5144;                        // m/s → kt
+    vs     = newSpd_ms * Math.sin(newGamma) * 196.85;   // m/s → fpm
+
+    /* Stall: CL near CL_max → buffet, nose drops */
+    if (CL > CL_max * 0.95) {
+      const sf = Math.min(1, (CL / CL_max - 0.95) / 0.05);
+      vs      -= sf * 800;
+      newPitch = Math.max(newPitch - 3 * sf * dt, -15);
     }
 
-    vs     = pitchVS + powerVS + stallVS;
     newAlt = Math.max(0, S.alt + vs * dt / 60);
+
+    /* Coordinated turn: ω = g·tan(φ) / TAS */
+    const turnRate = 9.81 * Math.tan(newRoll * DEG) / Math.max(10, newSpd_ms);
+    newHdg = (S.hdg + turnRate * dt * 180 / Math.PI + 360) % 360;
 
   } else {
     /* ── Autopilot convergence ── */
