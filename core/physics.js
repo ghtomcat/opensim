@@ -30,21 +30,45 @@ export function tickPhysics(dt) {
 
   if (ac.manualControl) {
     /* ── Manual flight model ── */
+    const perf     = ac.performance ?? {};
     const rollRate  = (ac.handling?.rollRate  ?? 30) * dt;
     const pitchRate = (ac.handling?.pitchRate ?? 5)  * dt;
-    const spdRate   = (ac.handling?.spdRate   ?? 2)  * dt;
 
     newRoll  = converge(S.roll,  S.rollT,  rollRate);
     newPitch = converge(S.pitch, S.pitchT, pitchRate);
-    newSpd   = converge(S.spd,   spdTarget, spdRate);
+
+    /* Throttle 0–1 from thrust profile selection */
+    const throttle = Math.min(1, Math.max(0, spdTarget / (ac.envelope.cruiseSpd ?? 122)));
+
+    /* Longitudinal: thrust – drag  →  Δspd (kt/s) */
+    const thrustAccel = throttle * (perf.thrustAccel ?? 1.8);
+    const dragAccel   = (perf.dragCoeff  ?? 0.00015) * S.spd * S.spd;
+    newSpd = Math.max(0, S.spd + (thrustAccel - dragAccel) * dt);
 
     /* Coordinated turn: ω = g·tan(φ) / TAS */
-    const tasMs     = Math.max(10, newSpd) * 0.5144;    // kt → m/s
-    const turnRate  = 9.81 * Math.tan(newRoll * Math.PI / 180) / tasMs;  // rad/s
+    const tasMs    = Math.max(10, newSpd) * 0.5144;
+    const turnRate = 9.81 * Math.tan(newRoll * Math.PI / 180) / tasMs;
     newHdg = (S.hdg + turnRate * dt * 180 / Math.PI + 360) % 360;
 
-    /* Climb rate: VS = TAS · sin(pitch) */
-    vs     = newSpd * Math.sin(newPitch * Math.PI / 180) * 101.27;   // fpm
+    /* Vertical: pitch kinematic + power contribution
+       levelThrottle = throttle that gives zero net climb at level pitch.
+       Below it → sink; above it → climb.                               */
+    const pitchVS = newSpd * Math.sin(newPitch * Math.PI / 180) * 101.27;  // fpm
+    const lT      = perf.levelThrottle ?? 0.60;
+    const powerVS = throttle >= lT
+      ? (throttle - lT) / (1 - lT) * (perf.rocFull ?? 700)
+      : -(1 - throttle / lT)       * (perf.rocIdle ?? 600);
+
+    /* Stall: below stallSpd lift collapses, nose drops */
+    const stallSpd = perf.stallSpd ?? 47;
+    let stallVS = 0;
+    if (newSpd < stallSpd) {
+      const sf = 1 - newSpd / stallSpd;
+      stallVS  = -sf * 2000;
+      newPitch = Math.max(newPitch - 5 * dt, -20);
+    }
+
+    vs     = pitchVS + powerVS + stallVS;
     newAlt = Math.max(0, S.alt + vs * dt / 60);
 
   } else {

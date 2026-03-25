@@ -37,6 +37,15 @@
 
   "manualControl": true,
 
+  "performance": {
+    "thrustAccel":  1.8,
+    "dragCoeff":    0.00015,
+    "levelThrottle": 0.60,
+    "rocFull":      700,
+    "rocIdle":      600,
+    "stallSpd":     47
+  },
+
   "handling": {
     "rollRate":  30,
     "pitchRate":  5,
