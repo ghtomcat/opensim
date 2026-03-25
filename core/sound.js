@@ -161,6 +161,11 @@ let _heartActive    = false;
 let _heartTimeout   = null;
 let _heartStartedAt = null;   /* Date.now() when heartbeat first started */
 
+/* ── NIFLHEIM presence sound — three inharmonic drones, vast and deep ── */
+let _niflheimOscs = [];   /* { osc, gain } */
+let _niflheimGain = null;
+let _niflheimOn   = false;
+
 /* ── Public API ── */
 
 export function initSound(engineType) {
@@ -288,6 +293,70 @@ function _scheduleHeartbeat() {
   }, interval);
 }
 
+function _niflheimStart() {
+  if (!_ctx || _niflheimOn) return;
+  _niflheimOn = true;
+  const now = _ctx.currentTime;
+
+  _niflheimGain = _ctx.createGain();
+  _niflheimGain.gain.setValueAtTime(0, now);
+  _niflheimGain.gain.setValueAtTime(0, now);
+  _niflheimGain.gain.setTargetAtTime(0.45, now, 3.0);
+  _niflheimGain.connect(_ctx.destination);
+
+  /* 4Hz LFO — tremolo that reads as something breathing, something wrong */
+  const lfo     = _ctx.createOscillator();
+  const lfoGain = _ctx.createGain();
+  lfo.frequency.value  = 4.1;
+  lfoGain.gain.value   = 0.18;
+  lfo.connect(lfoGain);
+  lfoGain.connect(_niflheimGain.gain);
+  lfo.start(now);
+  _niflheimOscs.push({ osc: lfo, g: lfoGain });
+
+  /* Low beating pair — 5Hz beat between them, heard as slow pulse in the chest */
+  [{ f: 83, gv: 0.55 }, { f: 88, gv: 0.50 }].forEach(({ f, gv }, i) => {
+    const osc = _ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(f, now);
+    osc.frequency.setTargetAtTime(f * 1.004, now + 4 + i * 2, 6);
+    const g = _ctx.createGain(); g.gain.value = gv;
+    osc.connect(g); g.connect(_niflheimGain); osc.start(now);
+    _niflheimOscs.push({ osc, g });
+  });
+
+  /* High rising tone — starts low, climbs toward something unbearable */
+  const highOsc = _ctx.createOscillator();
+  highOsc.type = 'sine';
+  highOsc.frequency.setValueAtTime(520, now);
+  highOsc.frequency.setTargetAtTime(980, now + 2, 8);   /* rises over 8s */
+  const highG = _ctx.createGain(); highG.gain.value = 0.22;
+  highOsc.connect(highG); highG.connect(_niflheimGain); highOsc.start(now);
+  _niflheimOscs.push({ osc: highOsc, g: highG });
+
+  /* Very high thin tone — 2300Hz, barely there, like something ancient resonating */
+  const shrillOsc = _ctx.createOscillator();
+  shrillOsc.type = 'sine';
+  shrillOsc.frequency.setValueAtTime(2310, now);
+  shrillOsc.frequency.setTargetAtTime(2290, now + 5, 4);
+  const shrillG = _ctx.createGain(); shrillG.gain.value = 0.08;
+  shrillOsc.connect(shrillG); shrillG.connect(_niflheimGain); shrillOsc.start(now);
+  _niflheimOscs.push({ osc: shrillOsc, g: shrillG });
+}
+
+function _niflheimStop() {
+  if (!_ctx || !_niflheimOn) return;
+  _niflheimOn = false;
+  const now = _ctx.currentTime;
+  _niflheimGain?.gain.setTargetAtTime(0, now, 2.0);   /* slow fade — it descends */
+  setTimeout(() => {
+    _niflheimOscs.forEach(({ osc }) => { try { osc.stop(); } catch {} });
+    _niflheimOscs = [];
+    try { _niflheimGain?.disconnect(); } catch {}
+    _niflheimGain = null;
+  }, 8000);
+}
+
 export function startSound(engineType) {
   if (engineType) _cfg = ENGINES[engineType] ?? ENGINES['geared-turbofan'];
   if (!_cfg) _cfg = ENGINES['geared-turbofan'];
@@ -324,6 +393,7 @@ export function silenceAll() {
   _heartActive  = false;
   clearTimeout(_heartTimeout);
   _heartTimeout = null;
+  _niflheimStop();
 }
 
 export function switchEngine(type) {
@@ -398,6 +468,11 @@ export function tickSound() {
     clearTimeout(_knackenTimeout);
     _knackenTimeout = null;
   }
+
+  /* NIFLHEIM presence — inharmonic drones while creature is visible */
+  const niflheimNow = S.niflheimVisible ?? false;
+  if (niflheimNow && !_niflheimOn) _niflheimStart();
+  else if (!niflheimNow && _niflheimOn) _niflheimStop();
 
   /* Heartbeat — Friedrich's pulse, only Wolfskopf, starts when engine fully dead */
   const isWolfskopf = S.mission?.id === 'wolfskopf-1942';
@@ -691,6 +766,11 @@ function _teardown() {
   clearTimeout(_heartTimeout);
   _heartTimeout   = null;
   _heartStartedAt = null;
+  _niflheimOscs.forEach(({ osc }) => { try { osc.stop(); } catch {} });
+  _niflheimOscs = [];
+  try { _niflheimGain?.disconnect(); } catch {}
+  _niflheimGain = null;
+  _niflheimOn   = false;
   _hissDeadAt = null;
   _started = false;
 }
