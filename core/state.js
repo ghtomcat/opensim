@@ -20,6 +20,8 @@ export const S = {
   gear:     false, prevGear: false,
   ap:       true,                 // autopilot engaged
   athr:     true,                 // autothrust
+  wow:      false,                // weight on wheels (squat switch)
+  touchdownVS: 0,                 // VS at last touchdown (fpm, negative)
 
   /* ── ILS ── */
   ilsLoc:   1.2,  ilsLocT: 1.2,  // deviation dots

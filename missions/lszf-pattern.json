@@ -16,7 +16,8 @@
     "rwyLon":      8.7827,
     "rwyHdg":    260,
     "rwyLengthM": 700,
-    "rwyWidthM":   18
+    "rwyWidthM":   18,
+    "surface":    "grass"
   },
 
   "initialState": {

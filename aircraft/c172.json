@@ -45,7 +45,10 @@
     "CL_alpha":   5.0,
     "CL_max":     1.9,
     "CD_0":       0.028,
-    "inducedK":   0.055
+    "inducedK":   0.055,
+    "Vr":         55,
+    "muRoll":     0.05,
+    "muBrake":    0.35
   },
 
   "handling": {
