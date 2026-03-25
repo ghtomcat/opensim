@@ -6,19 +6,18 @@ Any vehicle is a JSON file. Any mission is a JSON file.
 ![OpenSim PFD — ILS Approach LSZH](opensim.png)
 
 Born 05:32, Sunday 15 March 2026, Zürich. Built with Claude Code.
-First mission: ILS approach into LSZH RWY 28, live METAR, four crew voices, full ECAM.
 
 ---
 
 ## What it is
 
-OpenSim is not a game. It is a modular simulation engine that runs entirely in the browser with zero dependencies.
+OpenSim is not a game. It is a modular simulation engine that runs entirely in the browser with zero dependencies and no build step.
 
-- **Any aircraft** — define envelope, FMA phases, crew callouts, GPWS in one JSON file
-- **Any mission** — weather, ATC clearances, approach brief, failures, debrief in one JSON file
-- **Any vehicle** — the engine doesn't care if it's an A350, an F1 car, or a spacecraft
-- **Multi-crew** — PF on one screen, PM on another, INSTRUCTOR on a third via WebSocket
-- **Runs anywhere** — laptop, tablet, Raspberry Pi, six round GC9A01 displays on a DIY panel
+- **Real aerodynamic physics** — lift, drag, thrust, weight from first principles. Not kinematic approximations.
+- **Procedural sound** — every sound synthesised from physics. No samples. Wind rises with airspeed. Flaps change the airflow character. The DB 605 fires 12 cylinders.
+- **Any aircraft** — envelope, performance, handling, sound, checklists in one JSON file
+- **Any mission** — weather, ATC clearances, approach brief, scripted failures, crew voices in one JSON file
+- **Runs anywhere** — laptop, tablet, Raspberry Pi, custom cockpit panels
 
 ---
 
@@ -28,12 +27,9 @@ OpenSim is not a game. It is a modular simulation engine that runs entirely in t
 # Any static server works
 python3 -m http.server 8080
 open http://localhost:8080
-
-# Multi-crew WebSocket hub (Node.js)
-npm install && npm run hub
 ```
 
-No build step. No framework. Open `index.html` and fly.
+No build step. No framework. No dependencies. Open `index.html` and fly.
 
 ---
 
@@ -41,25 +37,107 @@ No build step. No framework. Open `index.html` and fly.
 
 | Key | Action |
 |-----|--------|
-| `↑` / `↓` | Altitude target ±500 ft |
-| `←` / `→` | Heading target ±5° |
-| `+` / `−` | Speed ±5 kt |
-| `1`–`5` | Situation: Ground / Takeoff / Climb / Cruise / Approach |
-| `F1` | IDLE |
-| `F2` | CLB |
-| `F3` | MCT |
-| `F4` | TOGA |
-| `f` | Flaps up one stage |
+| `↑` / `↓` | Pitch up/down (manual) · Altitude target ±500ft (AP) |
+| `←` / `→` | Roll left/right (manual) · Heading target ±5° (AP) |
+| `+` / `−` | Throttle ±5 kt |
+| `t` / `T` | Trim nose up / nose down |
+| `f` / `F` | Flaps extend / retract |
 | `g` | Gear toggle |
-| `Tab` | Cycle display: PFD → ECAM |
+| `1`–`5` | Situation presets: Ground / Takeoff / Climb / Cruise / Approach |
+| `F1`–`F4` | Thrust detents (aircraft-specific) |
+| `k` | Kneeboard (briefings + checklists) |
+| `n` | Mini map (heading, track made good, wind) |
+| `v` | Cycle view: instruments / combined / outside |
+| `Tab` | Cycle display mode |
 | `p` | Pause |
-| `m` | Toggle audio on/off |
+| `m` | Audio on/off |
 | `r` | Cycle role: PF → PM → INSTRUCTOR |
 | `Space` | PTT (push to talk) |
 
-**Gamepad:** Logitech Extreme 3D Pro wired up out of the box.
-axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle
-buttons[0]=PTT · buttons[1]=flaps · buttons[2]=gear
+**Gamepad:** Logitech Extreme 3D Pro out of the box.
+axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1]=flaps · buttons[2]=gear
+
+---
+
+## Aircraft included
+
+| Aircraft | Engine | Physics |
+|----------|--------|---------|
+| Airbus A350-900 | Rolls-Royce Trent XWB | Autopilot convergence |
+| Cessna 172S | Lycoming IO-360 180hp | Full aerodynamic model |
+| Messerschmitt Bf 109 G-6 | Daimler-Benz DB 605 1800hp | Full aerodynamic model |
+| Avro 504K | Le Rhône 9J 110hp | Full aerodynamic model |
+
+---
+
+## Missions included
+
+| Mission | Aircraft | Where | What |
+|---------|----------|-------|------|
+| ILS Approach RWY 28 | A350 | Zürich LSZH | Live METAR, ATC clearances, approach brief |
+| VFR Pattern | C172 | Speck-Fehraltorf LSZF | Grass strip, takeoff callouts, kneeboard |
+| Airshow Ground Run | Bf 109 | Hahnweide EDST | DB 605 start, ground roll |
+| Patrol — Marne 1918 | Avro 504K | Melun-Villaroche | WWI rotary engine |
+| Operation Wolfskopf | Bf 109 | Titovka, Arctic 1942 | Scripted engine failure: gunfire → bang → dead engine |
+
+---
+
+## Physics model
+
+OpenSim uses a real aerodynamic force balance — point-mass wind axes:
+
+```
+L = q × S × CL(α, flaps)
+D = q × S × (CD₀(flaps) + k × CL²)
+T = throttle × Tmax × ρ/ρ₀ × enginePower
+W = mass × g
+
+dv/dt  = (T·cos(α) − D − W·sin(γ)) / m
+dγ/dt  = (L − W·cos(γ)) / (m·v) − 0.4·γ + trim × 0.0015
+```
+
+ISA density: `ρ = 1.225 × (1 − 2.2558e⁻⁵ × alt_m)^4.2559`
+
+Ground roll uses rolling friction and brakes. Liftoff triggers when L ≥ W.
+Stall occurs when CL → CL_max — lift collapses, nose drops.
+Wind drift: dead reckoning uses ground velocity = TAS vector + wind vector.
+
+---
+
+## Sound layers
+
+All sound is synthesised. No samples.
+
+| Layer | How |
+|-------|-----|
+| Engine | AudioWorklet impulse model or oscillator harmonics |
+| Wind | White noise → bandpass, gain ∝ speed², filter softens with flaps |
+| Flap rumble | Low-frequency turbulence noise, rises with flap angle |
+| Ground creak | Lowpass rumble, WoW × speed — grass strip character |
+| Coolant hiss | Highpass steam noise, rises as `enginePower` drops |
+| Engine bang | Single impulse event — damage hit |
+| Engine gunfire | 5 rapid irregular impacts — enemy burst |
+
+Engine RPM displayed live. Oil temp warms over 4 minutes. EGT and CHT track throttle.
+
+---
+
+## Failure system
+
+Missions can script mechanical failures in the mission JSON:
+
+```json
+"failures": [
+  { "trigger": { "type": "time", "t": 115 }, "type": "engine_gunfire" },
+  { "trigger": { "type": "time", "t": 120 }, "type": "engine_bang" },
+  { "trigger": { "type": "time", "t": 120 }, "type": "engine_power", "value": 0.35, "rampTime": 20 },
+  { "trigger": { "type": "time", "t": 160 }, "type": "engine_power", "value": 0.0,  "rampTime": 30 }
+]
+```
+
+`enginePower` multiplies thrust and engine sound gain simultaneously. The coolant hiss rises automatically as the engine dies.
+
+Trigger types: `time` (seconds elapsed) · `alt` (altitude in feet)
 
 ---
 
@@ -68,55 +146,75 @@ buttons[0]=PTT · buttons[1]=flaps · buttons[2]=gear
 ```
 core/
   state.js       — single source of truth, all sim state
-  physics.js     — flight model, ILS LOC+GS tracking (DME-based)
+  physics.js     — aerodynamic force balance, wind drift, turbulence
   crew.js        — four voices: PF · PM · ATC · GPWS, data-driven
+  failures.js    — scripted failure event processor
   mission.js     — loads aircraft + mission JSON, live METAR fetch
   input.js       — keyboard · mouse · Gamepad API
-  loop.js        — rAF loop, tickPhysics + tickCrew + renders
+  loop.js        — rAF loop: tickFailures → tickPhysics → tickCrew → renders
+  sound.js       — procedural audio: engine + wind + all layers
 
 display/
   pfd.js         — Primary Flight Display (canvas)
-  fma.js         — 5-box Flight Mode Annunciator (HTML overlay)
-  ecam.js        — Engine + Warning Display (canvas)
+  g1000.js       — Garmin G1000: PFD + MFD engine strip
+  fma.js         — 5-box Flight Mode Annunciator
+  ecam.js        — Engine + Warning Display
+  kneeboard.js   — HTML overlay kneeboard: briefings + checklists
+  map.js         — Mini moving map: heading/track/wind/stopwatch
+  terrain.js     — 3D outside view: pinhole projection, ground grid
+  outside.js     — outside view shell
   com.js         — COM panel + transponder
 
 aircraft/
   a350.json      — Airbus A350-900
+  c172.json      — Cessna 172S (full performance + kneeboard)
+  bf109.json     — Messerschmitt Bf 109 G-6 (manualControl, DB 605)
+  avro504.json   — Avro 504K (Le Rhône 9J rotary)
 
 missions/
-  lszh-approach.json  — ILS RWY 28 LSZH, live METAR
+  lszh-approach.json   — ILS RWY 28, live METAR, ATC clearances
+  lszf-pattern.json    — VFR circuit, grass, C172
+  wolfskopf-1942.json  — Arctic 1942, scripted engine failure
+  hahnweide-1944.json  — Airshow ground run
+  melun-1918.json      — WWI patrol
 
 server/
-  hub.js         — WebSocket hub (50 lines, Node.js, runs on Pi)
+  hub.js         — WebSocket hub (Node.js, runs on Pi)
 ```
 
 ---
 
 ## Add an aircraft
 
-Create `aircraft/your-aircraft.json`:
-
 ```json
 {
+  "id": "your-aircraft",
   "name": "Your Aircraft",
+  "manualControl": true,
+
   "envelope": {
-    "maxSpd": 350,
-    "climbRate": 2800,
-    "descentRate": 2000,
-    "turnRate": 3,
-    "stallSpd": 120,
-    "maxAlt": 43000
+    "cruiseSpd": 122, "maxSpd": 163,
+    "spdProfile": { "8000": 122, "3000": 100, "0": 55 }
   },
-  "fmaPhases": [
-    { "minAlt": 0,     "maxAlt": 1000,  "lat": "SRS",    "vert": "SRS",   "thrust": "MAN TOGA" },
-    { "minAlt": 1000,  "maxAlt": 10000, "lat": "HDG",    "vert": "OP CLB","thrust": "CLB"      },
-    { "minAlt": 10000, "maxAlt": 99999, "lat": "NAV",    "vert": "ALT",   "thrust": "CLB"      }
+
+  "performance": {
+    "mass": 1157, "wingArea": 16.2, "thrustMax": 1800,
+    "CL_0": 0.2, "CL_alpha": 5.0, "CL_max": 1.9,
+    "CD_0": 0.028, "inducedK": 0.055,
+    "Vr": 55, "muRoll": 0.05, "muBrake": 0.35
+  },
+
+  "handling": {
+    "rollRate": 30, "pitchRate": 5, "maxBank": 60, "maxPitch": 20
+  },
+
+  "flaps": [
+    { "deg":  0, "dCL_max": 0.0, "dCD_0": 0.000 },
+    { "deg": 10, "dCL_max": 0.3, "dCD_0": 0.010 },
+    { "deg": 30, "dCL_max": 0.7, "dCD_0": 0.035 }
   ],
-  "pmCallouts": [1000, 2000, 3000, 4000, 5000, 10000],
-  "gpws": {
-    "sinkRate": -1500,
-    "pullUpAlt": 1000
-  }
+
+  "sound": { "engineType": "lycoming-o360" }
 }
 ```
 
@@ -124,27 +222,34 @@ Create `aircraft/your-aircraft.json`:
 
 ## Add a mission
 
-Create `missions/your-mission.json`:
-
 ```json
 {
+  "id": "your-mission",
   "title": "Your Mission",
-  "aircraft": "aircraft/your-aircraft.json",
-  "weather": { "icao": "LSZH" },
+  "aircraft": "your-aircraft",
+
+  "departure": null,
+  "arrival": {
+    "icao": "LSZF", "runway": "26", "elevation": 1788,
+    "ils": { "freq": "109.900", "course": 260 }
+  },
+
+  "weather": {
+    "source": "manual",
+    "manual": { "wdir": 270, "wspd": 12, "turbulence": 0.2, "altim": 1013 }
+  },
+
   "initialState": {
-    "alt": 8000, "spd": 250, "hdg": 280,
-    "altT": 4000, "spdT": 180
+    "lat": 47.39, "lon": 8.78,
+    "alt": 1788, "spd": 0, "hdg": 260, "pitch": 0, "roll": 0
   },
-  "approach": {
-    "course": 281, "threshold": { "lat": 47.458, "lon": 8.548 }
-  },
-  "atcClearances": [
-    { "alt": 4000, "hdg": 280, "spd": 180, "text": "Descend 4000, heading 280" }
+
+  "failures": [
+    { "trigger": { "type": "time", "t": 120 }, "type": "engine_bang" },
+    { "trigger": { "type": "time", "t": 120 }, "type": "engine_power", "value": 0.0, "rampTime": 60 }
   ],
-  "debrief": [
-    "Was the approach stabilized at 1000 ft?",
-    "Did you call out V/S and energy at the gate?"
-  ]
+
+  "debrief": ["Did you find the field?", "Did you walk away?"]
 }
 ```
 
@@ -152,95 +257,25 @@ Create `missions/your-mission.json`:
 
 ## DB 605 — Physical Engine Sound
 
-### What is the DB 605?
+The Daimler-Benz DB 605 is the V12 that powered the Bf 109G. OpenSim synthesises it sample-by-sample via AudioWorklet:
 
-The Daimler-Benz DB 605 is the V12 supercharged engine that powered the Messerschmitt Bf 109G and K. It produces one of the most distinctive sounds in aviation history — a deep, raw growl at idle, a mechanical supercharger whine that rises with RPM, and a crackling snarl at full throttle. Airshow veterans never forget it.
+- **12 cylinders** fire at their own crankshaft angle (every 60°, ±8° jitter)
+- **Each firing** generates an impulse + noise burst with exponential decay
+- **Exhaust resonator** at ~110 Hz — the fundamental of the DB 605 note
+- **Supercharger** — two sine oscillators (663 Hz + 1097 Hz) mechanically coupled to RPM
+- **No samples** — every sound is computed from physics
 
-### What is an AudioWorklet?
-
-Most browser audio runs on the main thread, which introduces latency and interruptions. An [AudioWorklet](https://developer.mozilla.org/en-US/docs/Web/API/AudioWorklet) runs audio processing in a dedicated real-time thread, with access to every individual sample at 44,100 Hz. This is what makes physical modelling possible — you can simulate the physics of each combustion event sample-by-sample, the same way a real engine produces sound microsecond by microsecond.
-
-### How it works
-
-OpenSim does not use audio samples or pitch-shifting. The DB 605 sound is synthesised entirely from physics:
-
-- **12 cylinders** each fire at their own crankshaft angle (every 60°, ±8° jitter)
-- **Each firing** generates a transient impulse + noise burst that decays exponentially
-- **A resonator** models the exhaust pipe, resonating at ~45 Hz — the fundamental of the DB 605 exhaust note
-- **Dynamic decay** — the noise burst duration scales with RPM so pulses stay clean and separated from idle to full throttle
-- **Supercharger** — two sine oscillators (663 Hz + 1097 Hz harmonic) mechanically coupled to RPM, linear with throttle
-
-### What works
-
-- ✅ Engine character at 400–1200 RPM — kernig, recognisable DB 605 growl
-- ✅ Supercharger whine on throttle-up, two harmonics
-- ✅ Cylinder-to-cylinder variation (random gain per cylinder)
-- ✅ Smooth RPM transition from idle to cruise
-- ✅ Cockpit RPM display shows real engine RPM (400–2800)
-
-### How to add your own engine (e.g. the Merlin)
-
-Every engine is a preset in `core/sound.js`. Two synthesis paths exist:
-
-**Oscillator path** — fast to set up, good for turbines:
-```json
-"your-engine": {
-  "fundamentalIdle": 60,
-  "fundamentalMax":  200,
-  "harmonics":       [1, 2, 3, 4],
-  "harmonicGains":   [1.0, 0.4, 0.2, 0.1],
-  "oscType":         "sawtooth",
-  "filterType":      "lowpass",
-  "filterFreq":      400,
-  "filterQ":         1.0,
-  "noiseGain":       0.08,
-  "noiseFilterFreq": 800,
-  "masterGain":      0.18,
-  "attackTime":      0.6
-}
-```
-
-**Impulse path** — physical modelling, for piston engines:
-```json
-"your-engine": {
-  "impulse":            true,
-  "rpmIdle":            600,
-  "rpmMax":             3000,
-  "cylinders":          12,
-  "exhaustResonance":   55,
-  "masterGain":         0.75,
-  "supercharger":       false
-}
-```
-Then point `core/db605-processor.js` to your parameters, or duplicate it for a different firing pattern.
-
-**The Rolls-Royce Merlin** (Spitfire, Hurricane, Lancaster, Mustang) would be:
-- V12, same 6 firings/rev as the DB 605
-- `exhaustResonance` slightly higher (~55–65 Hz) — the Merlin is slightly more "nasal"
-- No supercharger whine at 663 Hz — the Merlin's supercharger has a different character
-- Famous crackle on throttle-off — not yet implemented in the engine
-
-Point your aircraft JSON to the engine:
-```json
-"sound": { "engineType": "your-engine" }
-```
-
-### What doesn't work yet
-
-- ⚠️ 1500–2800 RPM — some residual noise, character thins out
-- ⚠️ No exhaust crackle on throttle-off
-- ⚠️ No propeller wash / wind layer
-- ⚠️ Supercharger attack/release not tuned (snaps rather than spools)
+The same impulse model drives the Lycoming IO-360 (4 cylinders) and Le Rhône 9J (9-cylinder rotary).
 
 ---
 
 ## Vision
 
-- **Time machine** — WWII aircraft, Apollo 11, Demo-2, Challenger, Inspiration5
-- **CRM protocol engine** — not just a sim, a crew resource management trainer
-- **Natural language → mission** — describe a scenario in plain text, get a JSON mission file (Claude API)
-- **Rwanda aviation academy** — runs on three Raspberry Pis and a browser
-- **WebSerial** — six GC9A01 round displays behind a 3D-printed bezel, driven by the same state
+- **PPL(A) training** — Markus flying circuits at LSZF, target: licence end of 2026
+- **Kitfox electric digital twin** — the sim IS the avionics. Tune the sim, tune the aircraft.
+- **Time machine** — WWII, Apollo 11, Demo-2, Challenger, Inspiration5
+- **Rwanda aviation academy** — three Raspberry Pis and a browser
+- **Hardware cockpit** — RPi WebSocket bridge, force-feedback controls, physical panels
 
 ---
 
@@ -248,7 +283,7 @@ Point your aircraft JSON to the engine:
 
 Because a 40-million-franc simulator should not be the only way to train crew.
 Because anyone on earth with a browser should be able to fly.
-Because my family wants to fly Inspiration5 together.
+Because somewhere in the permafrost near Titovka, a man is still waiting to be found.
 
 ---
 
