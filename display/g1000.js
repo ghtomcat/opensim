@@ -490,7 +490,8 @@ function _engineStrip(ctx, x, y, w, h) {
   /* RPM */
   const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 163;
   const throttle = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
-  const rpm      = Math.round(700 + 2000 * throttle);
+  const ePow     = Math.max(0.05, S.enginePower ?? 1.0);
+  const rpm      = Math.round((700 + 2000 * throttle) * ePow);
 
   const arcCx = x + w / 2;
   const arcCy = y + h * 0.18;

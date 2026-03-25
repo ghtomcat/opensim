@@ -107,8 +107,9 @@ export function getCurrentRpm() {
   if (!_cfg) return null;
   const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 350;
   const throttle = Math.max(0, Math.min(1, S.spdT / maxSpd));
+  const ePow     = Math.max(0.05, S.enginePower ?? 1.0);
   if (_cfg.impulse || _cfg.showRpm) {
-    const rpm = Math.round(_cfg.rpmIdle + (_cfg.rpmMax - _cfg.rpmIdle) * throttle);
+    const rpm = Math.round((_cfg.rpmIdle + (_cfg.rpmMax - _cfg.rpmIdle) * throttle) * ePow);
     return rpm + ' RPM';
   } else {
     const n1 = Math.round(20 + 80 * throttle);
@@ -148,6 +149,10 @@ let _hissNoise    = null;
 let _hissFilt     = null;
 let _hissGain     = null;
 
+/* ── Knacken — cooling metal ticks, dead engine in arctic air ── */
+let _knackenActive  = false;
+let _knackenTimeout = null;
+
 /* ── Public API ── */
 
 export function initSound(engineType) {
@@ -174,7 +179,7 @@ export function engineGunfire() {
       filt.frequency.value = 400;
       filt.Q.value         = 0.8;
       const gain = _ctx.createGain();
-      gain.gain.value = 1.2 + Math.random() * 0.6;
+      gain.gain.value = 3.5 + Math.random() * 1.5;
       src.connect(filt); filt.connect(gain); gain.connect(_ctx.destination);
       src.start();
     }, i * 90 + Math.random() * 30);   // irregular ~90ms spacing
@@ -207,6 +212,32 @@ export function engineBang() {
   filt.connect(gain);
   gain.connect(_ctx.destination);
   src.start();
+}
+
+function _scheduleKnacken() {
+  if (!_knackenActive || !_ctx) return;
+  const interval = 400 + Math.random() * 1800;   // 0.4–2.2s between ticks
+  _knackenTimeout = setTimeout(() => {
+    if (!_knackenActive || !_ctx) return;
+    /* Single metal tick — short noise, lowpass ~250Hz */
+    const dur  = Math.floor(_ctx.sampleRate * 0.012);   // 12ms
+    const buf  = _ctx.createBuffer(1, dur, _ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < dur; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (dur * 0.3));
+    }
+    const src  = _ctx.createBufferSource();
+    src.buffer = buf;
+    const filt = _ctx.createBiquadFilter();
+    filt.type            = 'lowpass';
+    filt.frequency.value = 250;
+    filt.Q.value         = 2.5;
+    const gain = _ctx.createGain();
+    gain.gain.value = 0.55 + Math.random() * 0.25;
+    src.connect(filt); filt.connect(gain); gain.connect(_ctx.destination);
+    src.start();
+    _scheduleKnacken();   // chain next tick
+  }, interval);
 }
 
 export function startSound(engineType) {
@@ -282,6 +313,17 @@ export function tickSound() {
     const damage = Math.max(0, 1 - ePow);          // 0 = healthy, 1 = dead
     const hissG  = damage > 0.1 ? 0.18 * damage : 0;
     _hissGain.gain.setTargetAtTime(hissG, now, 0.8);
+  }
+
+  /* Knacken — cooling metal ticks, dead engine */
+  const ePowK = S.enginePower ?? 1.0;
+  if (ePowK < 0.05 && !_knackenActive) {
+    _knackenActive = true;
+    _scheduleKnacken();
+  } else if (ePowK >= 0.05 && _knackenActive) {
+    _knackenActive = false;
+    clearTimeout(_knackenTimeout);
+    _knackenTimeout = null;
   }
 
   /* Ground roll — creak and gear rumble, only while WoW */
@@ -555,5 +597,8 @@ function _teardown() {
   _groundNoise = null; _groundFilt = null; _groundGain = null;
   try { _hissNoise?.stop(); } catch {}
   _hissNoise = null; _hissFilt = null; _hissGain = null;
+  _knackenActive = false;
+  clearTimeout(_knackenTimeout);
+  _knackenTimeout = null;
   _started = false;
 }
