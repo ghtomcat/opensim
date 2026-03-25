@@ -29,26 +29,34 @@ async function fetchAdsbFi(url) {
  * Returns normalised flight state or throws.
  */
 export async function lookupFlight(query) {
-  const q = query.trim().toUpperCase().replace(/\s+/g, '');
+  const q    = query.trim().toUpperCase().replace(/\s+/g, '');
+  const bare = q.replace(/-/g, '');   // strip hyphens for API calls
   if (!q) throw new Error('empty query');
 
-  let ac = null;
-
-  // Heuristic: looks like registration if it matches XX-XXX / XXXXX pattern
+  // 1. Try adsb.fi registration lookup (best data: type, reg, vs)
   const looksLikeReg = /^[A-Z]{1,2}-?[A-Z0-9]{2,5}$/.test(q);
-
   if (looksLikeReg) {
-    const reg = q.replace(/-/g, '');
     try {
-      ac = await fetchAdsbFi(`${ADSB_FI}/registration?reg=${encodeURIComponent(reg)}`);
-    } catch { /* fall through to callsign */ }
+      const ac = await fetchAdsbFi(`${ADSB_FI}/registration?reg=${encodeURIComponent(bare)}`);
+      return normaliseAdsbFi(ac);
+    } catch { /* fall through */ }
   }
 
-  if (!ac) {
-    ac = await fetchAdsbFi(`${ADSB_FI}/callsign?callsign=${encodeURIComponent(q)}`);
-  }
+  // 2. Try adsb.fi callsign lookup
+  try {
+    const ac = await fetchAdsbFi(`${ADSB_FI}/callsign?callsign=${encodeURIComponent(bare)}`);
+    return normaliseAdsbFi(ac);
+  } catch { /* fall through */ }
 
-  return normaliseAdsbFi(ac);
+  // 3. Fall back to OpenSky callsign search (CORS-native, no proxy needed)
+  const r = await fetch(`${OPENSKY}/states/all?callsign=${encodeURIComponent(bare)}`);
+  if (!r.ok) throw new Error('not found');
+  const d = await r.json();
+  if (!d.states || d.states.length === 0) throw new Error('not found');
+
+  const state = d.states.find(s => (s[1] ?? '').trim().replace(/-/g,'') === bare)
+             ?? d.states[0];
+  return { ...normaliseOpenSky(state), reg: q };  // put the queried reg back
 }
 
 function normaliseAdsbFi(ac) {
