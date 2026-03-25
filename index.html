@@ -648,6 +648,19 @@
       filter: grayscale(100%) contrast(1.1);
       border: 1px solid rgba(255,255,255,0.08);
     }
+    .mb-doc-layout {
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      gap: 48px;
+      align-items: center;
+      max-width: 860px;
+    }
+    .mb-document {
+      width: 100%;
+      opacity: 0.88;
+      filter: sepia(0.15) contrast(1.05);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
 
     /* ── Engine switcher (dev/demo) ── */
 
@@ -919,6 +932,7 @@
         orders: 'Freie Jagd. Sektor 7-Nord, Kola-Halbinsel.\nFeindlicher Luftverkehr über Titovka gemeldet.\nRückkehr bis 14:00. Nach eigenem Ermessen.\n\nWetter: −22°C · Wind 180/18kt · Sicht 8km\nBewölkung 2000ft · kein Instrumentenflug möglich.',
         atmosphere: 'Er wusste, dass er zurückkommen würde.\nEr kannte die Felder dort unten nicht.',
         image: 'images/friedrich.png',
+        document: 'images/gkdos-wolfskopf.png',
       },
     },
   ];
@@ -974,7 +988,20 @@
     }
     textHtml += `<div class="mb-fly">Press any key to fly</div>`;
 
-    if (b.image) {
+    if (b.document && b.image) {
+      /* Document left, portrait right — orders speak for themselves */
+      const atmHtml = b.atmosphere
+        ? `<div class="mb-atmosphere" style="margin-top:20px">${b.atmosphere.replace(/\n/g, '<br>')}</div>` : '';
+      content.className = 'mb-inner';
+      content.style.maxWidth = '860px';
+      content.innerHTML = `
+        <div class="mb-doc-layout">
+          <img class="mb-document" src="${b.document}" alt="Geheime Kommandosache">
+          <img class="mb-portrait" src="${b.image}" alt="">
+        </div>
+        ${atmHtml}
+        <div class="mb-fly">Press any key to fly</div>`;
+    } else if (b.image) {
       content.className = 'mb-inner mb-with-image';
       content.innerHTML = `<div>${textHtml}</div><img class="mb-portrait" src="${b.image}" alt="">`;
     } else {
