@@ -102,22 +102,143 @@
       "items": [
         "Runway 26, tarmac, 900m",
         "Departure: straight out, left crosswind at 800ft AGL",
-        "Vr 65kt · Vy 80kt · Vx 70kt",
+        "Vr 61kt · Best angle 68kt · Best rate 78kt",
         "Engine failure < 200ft AGL: land ahead",
-        "Engine failure > 200ft AGL: best glide 75kt, field ahead",
-        "Abort if not airborne by mid-field"
+        "Engine failure > 200ft AGL: best glide 78kt, field ahead",
+        "Abort if not airborne by mid-field",
+        "Max demonstrated crosswind: 22kt"
+      ]
+    },
+    {
+      "title": "BEFORE ENGINE START",
+      "type": "checklist",
+      "items": [
+        "Parking brake — SET",
+        "Ignition — OFF",
+        "Seats — ADJUSTED & LOCKED",
+        "Harnesses — FASTENED",
+        "Alternate air — CLOSED",
+        "Flaps selector — CONFIRMED WITH INDICATOR",
+        "Battery — ON",
+        "Flaps — CYCLE FULL RANGE, THEN UP",
+        "Trim — TAKEOFF",
+        "Fuel quantity — CHECK ENDURANCE",
+        "Fuel selector — MAIN ON",
+        "Warnings — CLEAR",
+        "Avionics master — OFF"
+      ]
+    },
+    {
+      "title": "ENGINE START",
+      "type": "checklist",
+      "items": [
+        "Propeller arc — CLEAR",
+        "Start engine — per procedure",
+        "Alternator — ON, charging confirmed"
+      ]
+    },
+    {
+      "title": "AFTER ENGINE START",
+      "type": "checklist",
+      "items": [
+        "Oil pressure — rising, within limits",
+        "Fuel pump — OFF",
+        "Warning lights — clear",
+        "Avionics master — ON",
+        "Altimeter — set QNH",
+        "Radios & nav — preselected"
+      ]
+    },
+    {
+      "title": "ENGINE WARM UP",
+      "type": "checklist",
+      "items": [
+        "Idle — 2 min at idle",
+        "Low power — 5 min at low power",
+        "All engine indications — green",
+        "Power — reduce to idle before taxi"
       ]
     },
     {
       "title": "BEFORE TAKEOFF",
       "type": "checklist",
       "items": [
-        "Fuel — sufficient, correct tank",
-        "Trim — neutral / takeoff",
-        "Flaps — 0° (or 15° short field)",
-        "Controls — full and free",
-        "Instruments — set, ALT 1411ft",
-        "Transponder — ALT"
+        "Seats — locked",
+        "Harnesses — fastened",
+        "Fuel pump — ON",
+        "Fuel — quantity confirmed, main tank selected",
+        "Throttle friction — released",
+        "Flight controls — full and free",
+        "Trim — takeoff setting",
+        "Flaps — takeoff setting",
+        "Instruments — set, QNH confirmed",
+        "Avionics — set",
+        "Transponder — squawk set, ALT",
+        "Departure briefing — complete",
+        "Canopy — closed and locked"
+      ]
+    },
+    {
+      "title": "CLIMB",
+      "type": "checklist",
+      "items": [
+        "Flaps — retract on schedule",
+        "Power — confirm within limits"
+      ]
+    },
+    {
+      "title": "CRUISE",
+      "type": "checklist",
+      "items": [
+        "Engine instruments — within limits",
+        "Fuel quantity — check endurance",
+        "Fuel selector — as required",
+        "Fuel pump — OFF",
+        "Power — set cruise"
+      ]
+    },
+    {
+      "title": "APPROACH",
+      "type": "checklist",
+      "items": [
+        "Briefing — complete",
+        "Seats — locked",
+        "Harnesses — fastened",
+        "Instruments — set",
+        "Fuel pump — ON",
+        "Fuel — quantity confirmed, main tank selected"
+      ]
+    },
+    {
+      "title": "BEFORE LANDING",
+      "type": "checklist",
+      "items": [
+        "Flaps — set for landing",
+        "Brakes — pressure check, pedals free"
+      ]
+    },
+    {
+      "title": "AFTER LANDING",
+      "type": "checklist",
+      "items": [
+        "Flaps — UP",
+        "Electrics — as required",
+        "FLARM — OFF"
+      ]
+    },
+    {
+      "title": "PARKING & SHUTDOWN",
+      "type": "checklist",
+      "items": [
+        "Block time — noted",
+        "Non-essential electrics — OFF",
+        "Flaps — down, indicator confirmed",
+        "Avionics master — OFF",
+        "Engine — cool-down at idle, then shutdown",
+        "Ignition — OFF, key removed",
+        "Battery — OFF",
+        "Logbook — completed",
+        "Aircraft — chocked and secured"
       ]
     },
     {
@@ -126,21 +247,28 @@
       "items": [
         "Runway 26, tarmac, 900m",
         "Circuit: left hand",
-        "Final approach: 70kt, flaps 30°",
-        "Threshold: 65kt, idle",
-        "Go-around: full power, flaps 15°, climb 80kt",
+        "Intermediate approach: Flaps 1 · 75kt",
+        "Final approach: Flaps 2 · 65kt",
+        "Go-around: full power, before Flaps UP · 67kt",
         "Divert: LSZN Olten (15nm NE)"
       ]
     },
     {
-      "title": "BEFORE LANDING",
-      "type": "checklist",
+      "title": "SPEEDS (MTOM)",
+      "type": "briefing",
       "items": [
-        "Fuel — sufficient",
-        "Speed — below 100kt",
-        "Flaps — 15° base, 30° final",
-        "Trim — approach",
-        "Harness — secure"
+        "Rotate (Vr) .............. Flaps 1 · 61kt",
+        "Best angle (Vx) .......... Flaps UP · 68kt",
+        "Best rate (Vy) ........... Flaps UP · 78kt",
+        "Vy above 2000ft AGL ...... Flaps UP · 90kt",
+        "Intermediate approach .... Flaps 2 · 75kt",
+        "Final approach ........... Flaps 2 · 65kt",
+        "Go-around ................ before Flaps UP · 67kt",
+        "Best glide ............... Flaps UP · 78kt",
+        "Max crosswind ............ 22kt",
+        "Max speed Flaps 1 ........ 92kt",
+        "Max speed Flaps 2 ........ 81kt",
+        "Power: Takeoff/Climb — Throttle full (min 94% / 2240 RPM)"
       ]
     }
   ]
