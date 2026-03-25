@@ -897,12 +897,12 @@
       acName: 'Messerschmitt Bf 109 G-6', engine: 'Daimler-Benz DB 605 · 1800hp',
       location: 'Hahnweide EDST', title: 'Airshow Ground Run', era: '2025', accent: '#ffb74d',
       briefing: {
-        date: 'Hahnweide · 2025 · Airshow',
-        pilot: 'Display Pilot',
+        date: 'Hahnweide · EDST · 2025',
+        pilot: 'Charlie Brown · Display Pilot',
         unit: 'Historic Flight Germany',
         aircraft: 'D-FEML · Bf 109 E-4 · WkNr. 1983',
         orders: 'Ground run and low pass. Display axis: runway centreline.\nDB 605 warm-up: 3 minutes at 800 RPM minimum.\nMax RPM display pass: 2400. Gear stays down.\nTaxi back via delta. Crowds left of runway.',
-        atmosphere: 'This aircraft last flew in combat on 24 January 1942,\nnear Titovka, Russian Arctic.\nPilot: unbekannt.',
+        atmosphere: 'This aircraft last flew in combat on 24 January 1942,\nnear Titovka, Russian Arctic.\nThe pilot was never found.\n\nAn Englishman is flying her home.',
       },
     },
     {
@@ -1082,8 +1082,8 @@
 
     let _audioOn  = true;
     let _viewMode     = 0;   /* 0=PFD · 1=Combined · 2=Outside */
-    let _yrrWasActive = false;
-    let _viewBeforeYrr = 0;
+    let _niflheimActive = false;
+    let _viewBeforeNiflheim = 0;
     const audioEl = document.getElementById('pv-audio');
 
     const dismissOnboarding = () => {
@@ -1156,15 +1156,15 @@
       () => tickSound(),
       () => {
         /* Yrr — auto-switch to outside view for the moment of contact */
-        if (S.yrrVisible && !_yrrWasActive) {
-          _viewBeforeYrr = _viewMode;
+        if (S.niflheimVisible && !_niflheimActive) {
+          _viewBeforeNiflheim = _viewMode;
           _viewMode = 2;
           _applyViewMode(2);
-          _yrrWasActive = true;
-        } else if (!S.yrrVisible && _yrrWasActive) {
-          _viewMode = _viewBeforeYrr;
-          _applyViewMode(_viewBeforeYrr);
-          _yrrWasActive = false;
+          _niflheimActive = true;
+        } else if (!S.niflheimVisible && _niflheimActive) {
+          _viewMode = _viewBeforeNiflheim;
+          _applyViewMode(_viewBeforeNiflheim);
+          _niflheimActive = false;
         }
       },
       () => tickOutside(),

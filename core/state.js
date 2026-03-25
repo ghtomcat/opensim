@@ -50,7 +50,7 @@ export const S = {
   calloutTimer: 0,
 
   /* ── Scripted events ── */
-  yrrVisible: false,              // T+112–116, Wolfskopf only
+  niflheimVisible: false,              // T+112–116, Wolfskopf only
 
   /* ── Sim meta ── */
   role:    'PF',  // 'PF' | 'PM' | 'INSTRUCTOR'

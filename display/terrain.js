@@ -198,7 +198,7 @@ export function renderTerrain(canvas) {
     }
   }
 
-  /* ── The Yrr — Wolfskopf T+113 to T+115 ── */
+  /* ── NIFLHEIM — das Tiefenwesen, Wolfskopf T+113 to T+115 ── */
   if (isArctic) {
     const mT = S.time ?? 0;
     if (mT >= 113 && mT < 115) {
