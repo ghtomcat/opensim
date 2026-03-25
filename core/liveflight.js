@@ -48,15 +48,36 @@ export async function lookupFlight(query) {
     return normaliseAdsbFi(ac);
   } catch { /* fall through */ }
 
-  // 3. Fall back to OpenSky callsign search (CORS-native, no proxy needed)
-  const r = await fetch(`${OPENSKY}/states/all?callsign=${encodeURIComponent(bare)}`);
-  if (!r.ok) throw new Error('not found');
-  const d = await r.json();
-  if (!d.states || d.states.length === 0) throw new Error('not found');
+  // 3. OpenSky callsign search (CORS-native, no proxy needed)
+  try {
+    const r = await fetch(`${OPENSKY}/states/all?callsign=${encodeURIComponent(bare)}`);
+    if (r.ok) {
+      const d = await r.json();
+      if (d.states && d.states.length > 0) {
+        const state = d.states.find(s => (s[1] ?? '').trim().replace(/-/g,'') === bare)
+                   ?? d.states[0];
+        return { ...normaliseOpenSky(state), reg: q };
+      }
+    }
+  } catch { /* fall through */ }
 
-  const state = d.states.find(s => (s[1] ?? '').trim().replace(/-/g,'') === bare)
-             ?? d.states[0];
-  return { ...normaliseOpenSky(state), reg: q };  // put the queried reg back
+  // 4. Geo fallback — if browser has location, scan nearby and match
+  if (navigator.geolocation) {
+    const pos = await new Promise((res, rej) =>
+      navigator.geolocation.getCurrentPosition(res, rej, { timeout: 6000 })
+    ).catch(() => null);
+
+    if (pos) {
+      const { latitude: lat, longitude: lon } = pos.coords;
+      const nearby = await nearbyFlights(lat, lon, 150);
+      const match  = nearby.find(f =>
+        f.callsign.replace(/-/g,'') === bare || f.reg.replace(/-/g,'') === bare
+      );
+      if (match) return match;
+    }
+  }
+
+  throw new Error('not found — aircraft may be outside ADS-B coverage');
 }
 
 function normaliseAdsbFi(ac) {
