@@ -67,11 +67,20 @@ export function renderTerrain(canvas) {
     return proj(dN * cosH + dE * sinH, dE * cosH - dN * sinH, upAdd);
   }
 
+  /* ── Arctic terrain for Wolfskopf ── */
+  const isArctic = S.mission?.id === 'wolfskopf-1942';
+
   /* ── Sky gradient ── */
   const t   = Math.min(1, (S.alt ?? 1000) / 35000);
   const sky = ctx.createLinearGradient(0, 0, 0, H);
-  sky.addColorStop(0, `rgb(${_c(8,  100, t)},${_c(18, 180, t)},${_c(38, 230, t)})`);
-  sky.addColorStop(1, `rgb(${_c(32, 165, t)},${_c(90, 210, t)},${_c(145,245, t)})`);
+  if (isArctic) {
+    /* Overcast Arctic sky — flat grey-white */
+    sky.addColorStop(0, `rgb(${_c(70, 120, t)},${_c(80, 130, t)},${_c(90, 140, t)})`);
+    sky.addColorStop(1, `rgb(${_c(140,170, t)},${_c(150,180, t)},${_c(160,190, t)})`);
+  } else {
+    sky.addColorStop(0, `rgb(${_c(8,  100, t)},${_c(18, 180, t)},${_c(38, 230, t)})`);
+    sky.addColorStop(1, `rgb(${_c(32, 165, t)},${_c(90, 210, t)},${_c(145,245, t)})`);
+  }
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, H);
 
@@ -89,7 +98,7 @@ export function renderTerrain(canvas) {
   }
 
   /* Draw all quads in one path fill */
-  ctx.fillStyle = '#3d6e30';
+  ctx.fillStyle = isArctic ? '#cdd4d8' : '#3d6e30';
   ctx.beginPath();
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
@@ -116,7 +125,7 @@ export function renderTerrain(canvas) {
   const acLatNm = (S.lat ?? 0) * 60;
   const acLonNm = (S.lon ?? 0) * 60 * Math.cos((S.lat ?? 0) * DEG);
 
-  ctx.strokeStyle = '#2d5a22';
+  ctx.strokeStyle = isArctic ? '#b0bcc4' : '#2d5a22';
   ctx.lineWidth   = 1 * devicePixelRatio;
   ctx.setLineDash([]);
 
@@ -185,6 +194,60 @@ export function renderTerrain(canvas) {
         ctx.lineTo(p2[0], p2[1]);
         ctx.stroke();
         ctx.setLineDash([]);
+      }
+    }
+  }
+}
+
+  /* ── The Yrr — Wolfskopf T+113 to T+115 ── */
+  if (isArctic) {
+    const mT = S.time ?? 0;
+    if (mT >= 113 && mT < 115) {
+      const phase = (mT - 113) / 2;   /* 0 → 1 over 2 seconds */
+
+      /* Alpha: rises fast, holds briefly, gone before the hit */
+      let alpha;
+      if      (phase < 0.25) alpha = phase / 0.25;
+      else if (phase < 0.65) alpha = 1.0;
+      else                   alpha = 1 - (phase - 0.65) / 0.35;
+
+      /* Height: rises from ground, maximum at phase 0.5 */
+      const rise    = Math.min(1, phase / 0.5);
+      const maxH    = 380 * FT_NM;            /* ~380ft above ground */
+      const dist    = 1.8;                    /* nm ahead */
+      const offR    = 0.18;                   /* nm to the right */
+
+      /* Project anchor points — base on ground, top rising */
+      const b1 = projNE(dist - 0.12, offR - 0.08);
+      const b2 = projNE(dist + 0.10, offR + 0.16);
+      const m1 = projNE(dist - 0.06, offR - 0.02, maxH * rise * 0.45);
+      const m2 = projNE(dist + 0.08, offR + 0.12, maxH * rise * 0.60);
+      const t1 = projNE(dist + 0.02, offR + 0.04, maxH * rise);
+      const t2 = projNE(dist - 0.04, offR - 0.01, maxH * rise * 0.85);
+
+      if (b1 && b2 && t1) {
+        ctx.save();
+        ctx.globalAlpha = alpha * 0.82;
+
+        /* Body — deep near-black, slightly cold */
+        ctx.fillStyle = 'rgba(6, 14, 20, 0.95)';
+        ctx.beginPath();
+        ctx.moveTo(b1[0], b1[1]);
+        if (m1)  ctx.bezierCurveTo(b1[0], b1[1] - 10, m1[0] - 8, m1[1] + 6, m1[0], m1[1]);
+        if (t2)  ctx.bezierCurveTo(m1[0] + 4, m1[1] - 8, t2[0] - 6, t2[1] + 4, t2[0], t2[1]);
+        ctx.bezierCurveTo(t2 ? t2[0] + 5 : t1[0] - 5, (t2 ? t2[1] : t1[1]) - 4, t1[0] - 4, t1[1] + 3, t1[0], t1[1]);
+        if (m2)  ctx.bezierCurveTo(t1[0] + 6, t1[1] + 5, m2[0] + 4, m2[1] - 6, m2[0], m2[1]);
+        ctx.bezierCurveTo(m2 ? m2[0] + 2 : b2[0], (m2 ? m2[1] : b2[1]) + 8, b2[0] + 4, b2[1] - 4, b2[0], b2[1]);
+        ctx.closePath();
+        ctx.fill();
+
+        /* Bioluminescent edge — faint cold teal, barely there */
+        ctx.globalAlpha = alpha * 0.18;
+        ctx.strokeStyle = 'rgba(40, 200, 180, 1.0)';
+        ctx.lineWidth   = 1.5 * devicePixelRatio;
+        ctx.stroke();
+
+        ctx.restore();
       }
     }
   }
