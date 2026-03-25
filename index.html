@@ -658,11 +658,11 @@
       min-height: 18px;
     }
     .ms-live-status.error { color: #e05a5a; }
-    .ms-live-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-      gap: 10px;
-      margin-top: 16px;
+    .ms-live-grid { margin-top: 16px; }
+    #ms-radar {
+      display: block;
+      cursor: crosshair;
+      background: transparent;
     }
     .ms-live-card {
       background: rgba(77,197,220,0.04);
@@ -1191,22 +1191,90 @@
     });
   }
 
-  function renderLiveCards(flights) {
-    const grid = document.getElementById('ms-live-grid');
-    grid.innerHTML = '';
+  function renderRadarMap(flights, userLat, userLon) {
+    const grid  = document.getElementById('ms-live-grid');
+    const SIZE  = Math.min(window.innerWidth - 40, 600);
+    const R     = SIZE / 2 - 24;
+    const CX    = SIZE / 2, CY = SIZE / 2;
+    const MAXNM = 120;
+
+    grid.innerHTML = `<canvas id="ms-radar" width="${SIZE}" height="${SIZE}"></canvas>`;
+    const canvas = document.getElementById('ms-radar');
+    const ctx    = canvas.getContext('2d');
+
+    function nmToR(nm) { return (nm / MAXNM) * R; }
+    function project(lat, lon) {
+      const dLat = (lat - userLat) * 111320;
+      const dLon = (lon - userLon) * 111320 * Math.cos(userLat * Math.PI / 180);
+      const nm   = Math.sqrt(dLat**2 + dLon**2) / 1852;
+      const ang  = Math.atan2(dLon, dLat);
+      const r    = Math.min(nmToR(nm), R - 4);
+      return { x: CX + r * Math.sin(ang), y: CY - r * Math.cos(ang), nm };
+    }
+
+    // Background
+    ctx.fillStyle = '#030609';
+    ctx.fillRect(0, 0, SIZE, SIZE);
+
+    // Range rings
+    ctx.strokeStyle = 'rgba(77,197,220,0.12)';
+    ctx.lineWidth = 1;
+    ctx.font = '9px "IBM Plex Mono", monospace';
+    ctx.fillStyle = 'rgba(77,197,220,0.3)';
+    ctx.textAlign = 'center';
+    for (const nm of [25, 50, 100]) {
+      ctx.beginPath();
+      ctx.arc(CX, CY, nmToR(nm), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillText(`${nm}nm`, CX, CY - nmToR(nm) + 11);
+    }
+
+    // North tick
+    ctx.strokeStyle = 'rgba(77,197,220,0.25)';
+    ctx.beginPath(); ctx.moveTo(CX, CY - R); ctx.lineTo(CX, CY); ctx.stroke();
+
+    // User dot
+    ctx.fillStyle = '#4dc5dc';
+    ctx.beginPath(); ctx.arc(CX, CY, 4, 0, Math.PI*2); ctx.fill();
+
+    // Aircraft
+    const hits = [];
     flights.forEach(f => {
-      const card = document.createElement('div');
-      card.className = 'ms-live-card';
-      const fl = f.alt > 0 ? `FL${String(Math.round(f.alt / 100)).padStart(3,'0')}` : 'GND';
-      const dist = f._dist ? `${Math.round(f._dist)}nm` : '';
-      card.innerHTML = `
-        <div class="ms-live-card-cs">${f.callsign !== '—' ? f.callsign : f.reg}</div>
-        ${(f.reg !== '—' || f.icaoType !== '—') ? `<div class="ms-live-card-reg">${[f.reg, f.icaoType].filter(v => v !== '—').join(' · ')}</div>` : ''}
-        <div class="ms-live-card-state">${fl} · ${Math.round(f.spd)}kt · ${Math.round(f.hdg)}° ${dist}</div>
-      `;
-      card.addEventListener('click', () => flyWithFlight(f));
-      grid.appendChild(card);
+      const { x, y, nm } = project(f.lat, f.lon);
+      if (nm > MAXNM) return;
+      const fl  = f.alt > 0 ? `FL${String(Math.round(f.alt/100)).padStart(3,'0')}` : 'GND';
+      const cs  = f.callsign !== '—' ? f.callsign : f.reg;
+
+      // Heading tick
+      const hdgR = f.hdg * Math.PI / 180;
+      const tLen = 10;
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + tLen * Math.sin(hdgR), y - tLen * Math.cos(hdgR));
+      ctx.stroke();
+
+      // Dot
+      ctx.fillStyle = '#e8e8e8';
+      ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI*2); ctx.fill();
+
+      // Label
+      ctx.fillStyle = 'rgba(232,237,242,0.75)';
+      ctx.font = '9px "IBM Plex Mono", monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(`${cs} ${fl}`, x + 6, y + 3);
+
+      hits.push({ f, x, y });
     });
+
+    // Click handling
+    canvas.onclick = e => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      const hit = hits.find(h => Math.hypot(h.x - mx, h.y - my) < 12);
+      if (hit) flyWithFlight(hit.f);
+    };
   }
 
   document.getElementById('ms-live-btn').addEventListener('click', async () => {
@@ -1245,8 +1313,8 @@
       if (flights.length === 0) {
         liveStatus('no flights found nearby');
       } else {
-        liveStatus(`${flights.length} flights within 100nm`);
-        renderLiveCards(flights);
+        liveStatus(`${flights.length} flights within 100nm · click to fly`);
+        renderRadarMap(flights, lat, lon);
       }
     } catch (e) {
       liveStatus(`error — ${e.message}`, true);
