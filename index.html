@@ -1193,7 +1193,7 @@
 
   function renderRadarMap(flights, userLat, userLon) {
     const grid  = document.getElementById('ms-live-grid');
-    const SIZE  = Math.min(window.innerWidth - 40, 600);
+    const SIZE  = Math.min(window.innerWidth - 40, 900);
     const R     = SIZE / 2 - 24;
     const CX    = SIZE / 2, CY = SIZE / 2;
     const MAXNM = 120;
@@ -1219,14 +1219,14 @@
     // Range rings
     ctx.strokeStyle = 'rgba(77,197,220,0.12)';
     ctx.lineWidth = 1;
-    ctx.font = '9px "IBM Plex Mono", monospace';
-    ctx.fillStyle = 'rgba(77,197,220,0.3)';
+    ctx.font = '11px "IBM Plex Mono", monospace';
+    ctx.fillStyle = 'rgba(77,197,220,0.4)';
     ctx.textAlign = 'center';
     for (const nm of [25, 50, 100]) {
       ctx.beginPath();
       ctx.arc(CX, CY, nmToR(nm), 0, Math.PI * 2);
       ctx.stroke();
-      ctx.fillText(`${nm}nm`, CX, CY - nmToR(nm) + 11);
+      ctx.fillText(`${nm}nm`, CX, CY - nmToR(nm) + 13);
     }
 
     // North tick
@@ -1257,13 +1257,16 @@
 
       // Dot
       ctx.fillStyle = '#e8e8e8';
-      ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI*2); ctx.fill();
 
-      // Label
-      ctx.fillStyle = 'rgba(232,237,242,0.75)';
-      ctx.font = '9px "IBM Plex Mono", monospace';
+      // Label — callsign on one line, FL on next
+      ctx.fillStyle = 'rgba(232,237,242,0.9)';
+      ctx.font = 'bold 11px "IBM Plex Mono", monospace';
       ctx.textAlign = 'left';
-      ctx.fillText(`${cs} ${fl}`, x + 6, y + 3);
+      ctx.fillText(cs, x + 8, y + 4);
+      ctx.fillStyle = 'rgba(77,197,220,0.7)';
+      ctx.font = '10px "IBM Plex Mono", monospace';
+      ctx.fillText(fl, x + 8, y + 15);
 
       hits.push({ f, x, y });
     });
