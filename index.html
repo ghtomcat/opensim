@@ -675,6 +675,22 @@
       background: none; border: none;
     }
     #radar-close:hover { color: rgba(232,237,242,0.9); }
+    #radar-filter {
+      position: absolute; top: 20px; left: 24px;
+      display: flex; gap: 8px;
+    }
+    .radar-filter-btn {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px; letter-spacing: 0.12em;
+      text-transform: uppercase; cursor: pointer;
+      background: none; border: 1px solid rgba(77,197,220,0.25);
+      color: rgba(77,197,220,0.5); padding: 4px 10px;
+    }
+    .radar-filter-btn.active {
+      border-color: rgba(77,197,220,0.8);
+      color: rgba(77,197,220,1);
+      background: rgba(77,197,220,0.08);
+    }
     #ms-radar { display: block; cursor: crosshair; }
     .ms-live-card {
       background: rgba(77,197,220,0.04);
@@ -946,6 +962,10 @@
 
 <!-- Radar overlay -->
 <div id="radar-overlay" class="hidden">
+  <div id="radar-filter">
+    <button class="radar-filter-btn active" data-max="99999">ALL</button>
+    <button class="radar-filter-btn" data-max="15000">LOCAL &lt;FL150</button>
+  </div>
   <button id="radar-close">✕ close</button>
   <canvas id="ms-radar"></canvas>
 </div>
@@ -1215,6 +1235,16 @@
     overlay.classList.remove('hidden');
     document.getElementById('radar-close').onclick = () => overlay.classList.add('hidden');
 
+    let maxAlt = 99999;
+    document.querySelectorAll('.radar-filter-btn').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.radar-filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        maxAlt = parseInt(btn.dataset.max);
+        draw(null);
+      };
+    });
+
     const SIZE  = Math.min(window.innerWidth, window.innerHeight) - 40;
     const R     = SIZE / 2 - 32;
     const CX    = SIZE / 2, CY = SIZE / 2;
@@ -1290,7 +1320,7 @@
       ctx.fillStyle = '#4dc5dc';
       ctx.beginPath(); ctx.arc(CX, CY, 4, 0, Math.PI*2); ctx.fill();
 
-      hits.forEach(h => {
+      hits.filter(h => h.f.alt <= maxAlt).forEach(h => {
         const isHov = h === hovered;
         // Heading tick
         const hdgR = h.f.hdg * Math.PI / 180;
@@ -1332,7 +1362,7 @@
     canvas.onmousemove = e => {
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-      const hov = hits.find(h => Math.hypot(h.x - mx, h.y - my) < 10) ?? null;
+      const hov = hits.filter(h => h.f.alt <= maxAlt).find(h => Math.hypot(h.x - mx, h.y - my) < 10) ?? null;
       canvas.style.cursor = hov ? 'pointer' : 'crosshair';
       draw(hov);
     };
@@ -1340,7 +1370,7 @@
     canvas.onclick = e => {
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-      const hit = hits.find(h => Math.hypot(h.x - mx, h.y - my) < 10);
+      const hit = hits.filter(h => h.f.alt <= maxAlt).find(h => Math.hypot(h.x - mx, h.y - my) < 10);
       if (hit) flyWithFlight(hit.f);
     };
   }
