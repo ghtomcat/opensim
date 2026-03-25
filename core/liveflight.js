@@ -4,14 +4,31 @@
    Uses adsb.fi — free, no auth, CORS-open.
    ═══════════════════════════════════════════════════════════════ */
 
-const BASE = 'https://api.adsb.fi/v1';
+const BASE  = 'https://api.adsb.fi/v1';
+const PROXY = 'https://corsproxy.io/?';
 
 async function fetchAc(url) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  const d = await r.json();
-  if (!d.ac || d.ac.length === 0) throw new Error('not found');
-  return d.ac[0];
+  for (const u of [url, PROXY + encodeURIComponent(url)]) {
+    try {
+      const r = await fetch(u);
+      if (!r.ok) continue;
+      const d = await r.json();
+      if (d.ac && d.ac.length > 0) return d.ac[0];
+    } catch { /* try proxy */ }
+  }
+  throw new Error('not found');
+}
+
+async function fetchList(url) {
+  for (const u of [url, PROXY + encodeURIComponent(url)]) {
+    try {
+      const r = await fetch(u);
+      if (!r.ok) continue;
+      const d = await r.json();
+      if (d.ac) return d.ac;
+    } catch { /* try proxy */ }
+  }
+  throw new Error('fetch failed');
 }
 
 /**
@@ -68,12 +85,10 @@ function normalise(ac) {
  */
 export async function nearbyFlights(lat, lon, distNm = 50) {
   const url = `${BASE}/lat/${lat.toFixed(4)}/lon/${lon.toFixed(4)}/dist/${distNm}`;
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  const d = await r.json();
-  if (!d.ac || d.ac.length === 0) return [];
+  const acs = await fetchList(url);
+  if (!acs || acs.length === 0) return [];
 
-  return d.ac
+  return acs
     .filter(ac => ac.lat && ac.lon && ac.alt_baro > 500)   // airborne only
     .map(ac => ({ ...normalise(ac), _dist: haversine(lat, lon, ac.lat, ac.lon) }))
     .sort((a, b) => a._dist - b._dist)
