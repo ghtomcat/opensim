@@ -27,8 +27,8 @@ export function tickFailures(dt) {
   const t   = S.time ?? 0;
   const alt = S.alt  ?? 0;
 
-  /* NIFLHEIM — das Tiefenwesen, T+112 to T+116 */
-  const niflheimNow = S.mission?.id === 'wolfskopf-1942' && t >= 112 && t < 116;
+  /* NIFLHEIM — das Tiefenwesen, T+108 to T+124 */
+  const niflheimNow = S.mission?.id === 'wolfskopf-1942' && t >= 108 && t < 124;
   if (niflheimNow !== (S.niflheimVisible ?? false)) setState({ niflheimVisible: niflheimNow });
 
   /* Check triggers */

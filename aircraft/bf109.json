@@ -73,5 +73,18 @@
     { "alt": 100,  "text": "1 0 0",     "speech": "one hundred",  "red": true  }
   ],
 
-  "pmCallouts": []
+  "pmCallouts": [],
+
+  "onboarding": [
+    { "key": "Maus (gedrückt) / Pfeiltasten", "desc": "Steuerknüppel · Seitenruder" },
+    { "key": "F",               "desc": "Landeklappen (hochfahren)" },
+    { "key": "G",               "desc": "Fahrwerk (ein/aus)" },
+    { "key": "B (halten)",      "desc": "Bremsen" },
+    { "key": "T / Shift+T",     "desc": "Vollgas · Gemisch" },
+    { "key": "V",               "desc": "Außenansicht" },
+    { "key": "K",               "desc": "Kniebeinkarte" },
+    { "key": "N",               "desc": "Karte" },
+    { "key": "M",               "desc": "Ton ein/aus" },
+    { "key": "P",               "desc": "Pause" }
+  ]
 }

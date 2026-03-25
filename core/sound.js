@@ -156,6 +156,11 @@ let _knackenTimeout = null;
 /* ── Hiss decay — steam dies after coolant fully bleeds off ── */
 let _hissDeadAt = null;   /* S.time when engine first reached full death */
 
+/* ── Heartbeat — Friedrich's pulse slowing in the arctic cold ── */
+let _heartActive    = false;
+let _heartTimeout   = null;
+let _heartStartedAt = null;   /* Date.now() when heartbeat first started */
+
 /* ── Public API ── */
 
 export function initSound(engineType) {
@@ -243,6 +248,46 @@ function _scheduleKnacken() {
   }, interval);
 }
 
+function _playHeartbeat() {
+  if (!_ctx) return;
+  const now     = _ctx.currentTime;
+  const elapsed = _heartStartedAt ? (Date.now() - _heartStartedAt) / 1000 : 0;
+  /* Gain fades gently — starts at 0.20, gone after ~120s */
+  const gain    = Math.max(0, 0.20 - elapsed * 0.0014);
+  if (gain <= 0) return;
+
+  /* Single low thump — 80ms noise burst through bandpass ~65Hz */
+  const dur  = Math.floor(_ctx.sampleRate * 0.08);
+  const buf  = _ctx.createBuffer(1, dur, _ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < dur; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (dur * 0.25));
+  }
+  const src   = _ctx.createBufferSource();
+  src.buffer  = buf;
+  const filt  = _ctx.createBiquadFilter();
+  filt.type            = 'bandpass';
+  filt.frequency.value = 65;
+  filt.Q.value         = 1.2;
+  const gNode = _ctx.createGain();
+  gNode.gain.setValueAtTime(gain, now);
+  gNode.gain.setTargetAtTime(0, now + 0.04, 0.02);
+  src.connect(filt); filt.connect(gNode); gNode.connect(_ctx.destination);
+  src.start(now);
+}
+
+function _scheduleHeartbeat() {
+  if (!_heartActive || !_ctx) return;
+  const elapsed  = _heartStartedAt ? (Date.now() - _heartStartedAt) / 1000 : 0;
+  /* Slows from 75bpm (800ms) to 45bpm (1333ms) over 90s */
+  const interval = Math.min(1333, 800 + elapsed * 5.9);
+  _heartTimeout  = setTimeout(() => {
+    if (!_heartActive || !_ctx) return;
+    _playHeartbeat();
+    _scheduleHeartbeat();
+  }, interval);
+}
+
 export function startSound(engineType) {
   if (engineType) _cfg = ENGINES[engineType] ?? ENGINES['geared-turbofan'];
   if (!_cfg) _cfg = ENGINES['geared-turbofan'];
@@ -264,6 +309,22 @@ export function startSound(engineType) {
 }
 
 export function stopSound()  { _teardown(); }
+
+export function silenceAll() {
+  if (!_ctx) return;
+  const now = _ctx.currentTime;
+  _master?.gain.setTargetAtTime(0, now, 0.5);
+  _windGain?.gain.setTargetAtTime(0, now, 0.5);
+  _flapGain?.gain.setTargetAtTime(0, now, 0.5);
+  _groundGain?.gain.setTargetAtTime(0, now, 0.5);
+  _hissGain?.gain.setTargetAtTime(0, now, 0.5);
+  _knackenActive = false;
+  clearTimeout(_knackenTimeout);
+  _knackenTimeout = null;
+  _heartActive  = false;
+  clearTimeout(_heartTimeout);
+  _heartTimeout = null;
+}
 
 export function switchEngine(type) {
   const wasRunning = _started;
@@ -336,6 +397,19 @@ export function tickSound() {
     _knackenActive = false;
     clearTimeout(_knackenTimeout);
     _knackenTimeout = null;
+  }
+
+  /* Heartbeat — Friedrich's pulse, only Wolfskopf, starts when engine fully dead */
+  const isWolfskopf = S.mission?.id === 'wolfskopf-1942';
+  const ePowH = S.enginePower ?? 1.0;
+  if (isWolfskopf && ePowH < 0.05 && !_heartActive) {
+    _heartActive    = true;
+    _heartStartedAt = Date.now();
+    _scheduleHeartbeat();
+  } else if ((!isWolfskopf || ePowH >= 0.05) && _heartActive) {
+    _heartActive  = false;
+    clearTimeout(_heartTimeout);
+    _heartTimeout = null;
   }
 
   /* Ground roll — creak and gear rumble, only while WoW */
@@ -613,6 +687,10 @@ function _teardown() {
   _knackenActive = false;
   clearTimeout(_knackenTimeout);
   _knackenTimeout = null;
+  _heartActive  = false;
+  clearTimeout(_heartTimeout);
+  _heartTimeout   = null;
+  _heartStartedAt = null;
   _hissDeadAt = null;
   _started = false;
 }

@@ -88,7 +88,8 @@ export function tickPhysics(dt) {
          Heading via nose wheel steering.                              */
       const muRoll  = perf.muRoll  ?? 0.05;   // grass ≈ 0.05, tarmac ≈ 0.02
       const muBrake = perf.muBrake ?? 0.35;
-      const braking = (S.spdT === 0 && spd_ms > 0.5) ? 1 : 0;
+      const engineDead = (S.enginePower ?? 1.0) < 0.05;
+      const braking = ((S.spdT === 0 || engineDead || S.braking) && spd_ms > 0.5) ? 1 : 0;
 
       const F_net     = T - D - (muRoll + braking * muBrake) * W;
       const newSpd_ms = Math.max(0, spd_ms + F_net / mass * dt);

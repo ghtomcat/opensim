@@ -129,6 +129,9 @@ function _onKeyDown(e) {
     return;
   }
 
+  /* Brakes — hold B */
+  if (e.key === 'b' || e.key === 'B') { setState({ braking: true }); return; }
+
   /* Cycle display mode: Tab */
   if (e.key === 'Tab') {
     e.preventDefault();
@@ -151,11 +154,13 @@ function _onKeyDown(e) {
     setState({ spdT });
   }
 
-  /* Situation presets — number keys 1–5 */
-  const _si = parseInt(e.key) - 1;
-  if (!isNaN(_si) && _si >= 0 && _si <= 4) {
-    const sit = S.aircraft?.situations?.[_si];
-    if (sit) setState({ alt: sit.alt, spd: sit.spd, hdg: sit.hdg, altT: sit.altT, spdT: sit.spdT });
+  /* Situation presets — number keys 1–5 (disabled when a mission is active) */
+  if (!S.mission) {
+    const _si = parseInt(e.key) - 1;
+    if (!isNaN(_si) && _si >= 0 && _si <= 4) {
+      const sit = S.aircraft?.situations?.[_si];
+      if (sit) setState({ alt: sit.alt, spd: sit.spd, hdg: sit.hdg, altT: sit.altT, spdT: sit.spdT });
+    }
   }
 
   /* Altitude / heading — AP mode only (manual mode uses held keys in tickControls) */
@@ -189,6 +194,7 @@ function _onKeyUp(e) {
     _pttActive = false;
     document.dispatchEvent(new CustomEvent('ptt', { detail: { active: false } }));
   }
+  if (e.key === 'b' || e.key === 'B') setState({ braking: false });
 }
 
 /* ── Mouse — controls bank and pitch only while button held ── */

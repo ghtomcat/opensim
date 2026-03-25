@@ -198,11 +198,11 @@ export function renderTerrain(canvas) {
     }
   }
 
-  /* ── NIFLHEIM — das Tiefenwesen, Wolfskopf T+113 to T+115 ── */
+  /* ── NIFLHEIM — das Tiefenwesen, Wolfskopf T+108 to T+124 ── */
   if (isArctic) {
     const mT = S.time ?? 0;
-    if (mT >= 113 && mT < 115) {
-      const phase = (mT - 113) / 2;   /* 0 → 1 over 2 seconds */
+    if (mT >= 108 && mT < 124) {
+      const phase = (mT - 108) / 16;   /* 0 → 1 over 16 seconds */
 
       /* Alpha: rises fast, holds briefly, gone before the hit */
       let alpha;

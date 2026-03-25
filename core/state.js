@@ -19,6 +19,7 @@ export const S = {
   flaps:    0,    prevFlaps: 0,   // 0-3 (config)
   trim:     0,                    // pitch trim (-10 nose down … +10 nose up)
   gear:     false, prevGear: false,
+  braking:  false,                   // ground brakes held
   enginePower: 1.0,               // 0 = dead engine, 1 = full power
   ap:       true,                 // autopilot engaged
   athr:     true,                 // autothrust

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>OpenSim — ILS Approach LSZH</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=Kalam:wght@400;700&family=Syne:wght@400;700;800&display=swap">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -240,6 +240,116 @@
 
     .debrief-item.show {
       opacity: 1; transform: none;
+    }
+
+    /* ── Wolfskopf diary debrief ── */
+    #wolfskopf-diary {
+      position: fixed; inset: 0;
+      z-index: 110;
+      background: rgba(4, 7, 11, 0.97);
+      display: none;
+      align-items: center; justify-content: center;
+      overflow-y: auto;
+      padding: 40px 20px;
+    }
+    #wolfskopf-diary.visible { display: flex; }
+
+    .diary-page {
+      background: #f0e6c5;
+      color: #1e1508;
+      font-family: 'Kalam', cursive;
+      max-width: 600px;
+      width: 100%;
+      padding: 52px 56px 48px;
+      border-radius: 1px;
+      transform: rotate(-1.1deg);
+      box-shadow: 0 12px 80px rgba(0,0,0,0.75), inset 0 0 100px rgba(0,0,0,0.05);
+      position: relative;
+    }
+
+    .diary-meta {
+      margin-bottom: 8px;
+    }
+    .diary-title {
+      font-size: 17px; font-weight: 700;
+      color: #12100a;
+      margin-bottom: 3px;
+    }
+    .diary-date {
+      font-size: 14px;
+      color: #4a3518;
+    }
+    .diary-loc {
+      font-size: 13px;
+      color: #7a6040;
+      font-style: italic;
+      margin-top: 2px;
+    }
+    .diary-rule {
+      border: none;
+      border-top: 1px solid rgba(35,25,10,0.22);
+      margin: 18px 0 20px;
+    }
+    .diary-body {
+      font-size: 17px;
+      line-height: 1.9;
+      color: #1a1208;
+    }
+    .diary-line {
+      opacity: 0;
+      transition: opacity 0.9s ease;
+    }
+    .diary-line.show { opacity: 1; }
+    .diary-line.p { margin-top: 14px; }
+    .diary-dismiss {
+      display: block;
+      margin: 40px auto 0;
+      background: none;
+      border: 1px solid rgba(35,25,10,0.28);
+      color: #5a4020;
+      font-family: 'Kalam', cursive;
+      font-size: 15px;
+      padding: 9px 28px;
+      cursor: pointer;
+      letter-spacing: 0.05em;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      border-radius: 1px;
+    }
+    .diary-dismiss:hover { background: rgba(35,25,10,0.07); }
+    .diary-dismiss.show { opacity: 1; }
+
+    /* Teardrop stains — Friedrich's (bottom, near the last line) and Karin's (top right, 83 years later) */
+    .diary-tear {
+      position: absolute;
+      border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+      background: rgba(180, 155, 100, 0.16);
+      filter: blur(1.2px);
+      pointer-events: none;
+    }
+    /* Friedrich — two drops near the unfinished last line, bottom of page */
+    .diary-tear.f1 {
+      width: 18px; height: 24px;
+      bottom: 118px; left: 62px;
+      transform: rotate(-8deg);
+    }
+    .diary-tear.f2 {
+      width: 11px; height: 15px;
+      bottom: 108px; left: 76px;
+      transform: rotate(5deg);
+      opacity: 0.55;
+    }
+    /* Karin — two drops upper right, where she first read his name */
+    .diary-tear.k1 {
+      width: 20px; height: 26px;
+      top: 52px; right: 68px;
+      transform: rotate(14deg);
+    }
+    .diary-tear.k2 {
+      width: 13px; height: 17px;
+      top: 66px; right: 62px;
+      transform: rotate(-4deg);
+      opacity: 0.5;
     }
 
     /* ── COM panel ── */
@@ -713,20 +823,7 @@
 <!-- Onboarding overlay -->
 <div id="onboarding">
   <div class="ob-title" id="ob-title"></div>
-  <div class="ob-grid">
-    <span class="ob-key">↑ ↓</span><span class="ob-desc">Altitude target ±500 ft</span>
-    <span class="ob-key">← →</span><span class="ob-desc">Heading target ±5°</span>
-    <span class="ob-key">+ −</span><span class="ob-desc">Speed ±5 kt</span>
-    <span class="ob-key">1–5</span><span class="ob-desc">Situation: Ground · Takeoff · Climb · Cruise · Approach</span>
-    <span class="ob-key">F1–F4</span><span class="ob-desc">Thrust: IDLE · CLB · MCT · TOGA</span>
-    <span class="ob-key">F</span><span class="ob-desc">Flaps (cycle up)</span>
-    <span class="ob-key">G</span><span class="ob-desc">Gear toggle</span>
-    <span class="ob-key">Tab</span><span class="ob-desc">Display: PFD ↔ ECAM</span>
-    <span class="ob-key">P</span><span class="ob-desc">Pause</span>
-    <span class="ob-key">M</span><span class="ob-desc">Audio on/off</span>
-    <span class="ob-key">R</span><span class="ob-desc">Role: PF → PM → INSTRUCTOR</span>
-    <span class="ob-key">Space</span><span class="ob-desc">PTT — Push to Talk</span>
-  </div>
+  <div class="ob-grid" id="ob-grid"></div>
   <div class="ob-hint">Press any key or click to begin</div>
 </div>
 
@@ -838,6 +935,24 @@
   <button onclick="hideDebrief()" style="margin-top:20px;padding:10px 28px;background:none;border:1px solid rgba(255,255,255,0.3);color:#e8edf2;font-family:'Syne',sans-serif;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase;">Reset</button>
 </div>
 
+<!-- Wolfskopf diary debrief -->
+<div id="wolfskopf-diary">
+  <div class="diary-page">
+    <div class="diary-tear f1"></div>
+    <div class="diary-tear f2"></div>
+    <div class="diary-tear k1"></div>
+    <div class="diary-tear k2"></div>
+    <div class="diary-meta">
+      <div class="diary-title">Tagebuch — Friedreich Hundertwasser von Kämpf</div>
+      <div class="diary-date">24. Januar 1942 — 11:42 Uhr</div>
+      <div class="diary-loc">Titovka, arktisches Eis</div>
+    </div>
+    <hr class="diary-rule">
+    <div class="diary-body" id="diary-body"></div>
+    <button class="diary-dismiss" id="diary-dismiss" onclick="hideWolfskopfDebrief()">— Überallhin —</button>
+  </div>
+</div>
+
 <script type="module">
   import { S, setState }  from './core/state.js';
   import { loadMission }  from './core/mission.js';
@@ -850,7 +965,7 @@
   import { renderECAM }   from './display/ecam.js';
   import { initFMA, renderFMA } from './display/fma.js';
   import { initCOM }           from './display/com.js';
-  import { initSound, startSound, stopSound, switchEngine, tickSound, getCurrentRpm } from './core/sound.js';
+  import { initSound, startSound, stopSound, switchEngine, tickSound, getCurrentRpm, silenceAll } from './core/sound.js';
   import { initOutside, tickOutside, outsideInvalidate } from './display/outside.js';
   import { initKneeboard, toggleKneeboard, tickKneeboard } from './display/kneeboard.js';
   import { initMap, renderMap, toggleMap } from './display/map.js';
@@ -926,7 +1041,7 @@
       briefing: {
         classification: 'GEHEIME KOMMANDOSACHE',
         date: '24. Januar 1942 · 11:40 Ortszeit · Titovka-Sektor',
-        pilot: 'Leutnant Friedrich W.',
+        pilot: 'Leutnant Friedreich Hundertwasser von Kämpf',
         unit: 'II./JG 5 "Eismeer" · Petsamo',
         aircraft: 'Bf 109 E-4 · WkNr. 1983',
         orders: 'Freie Jagd. Sektor 7-Nord, Kola-Halbinsel.\nFeindlicher Luftverkehr über Titovka gemeldet.\nRückkehr bis 14:00. Nach eigenem Ermessen.\n\nWetter: −22°C · Wind 180/18kt · Sicht 8km\nBewölkung 2000ft · kein Instrumentenflug möglich.',
@@ -1051,6 +1166,29 @@
 
     /* Populate mission title */
     document.getElementById('mission-title').textContent = S.mission?.title ?? '';
+
+    /* Populate onboarding key grid — from aircraft JSON or default English set */
+    const _DEFAULT_OB = [
+      { key: '↑ ↓',    desc: 'Altitude target ±500 ft' },
+      { key: '← →',    desc: 'Heading target ±5°' },
+      { key: '+ −',    desc: 'Speed ±5 kt' },
+      { key: '1–5',    desc: 'Situation: Ground · Takeoff · Climb · Cruise · Approach' },
+      { key: 'F1–F4',  desc: 'Thrust: IDLE · CLB · MCT · TOGA' },
+      { key: 'F',      desc: 'Flaps (cycle up)' },
+      { key: 'G',      desc: 'Gear toggle' },
+      { key: 'Tab',    desc: 'Display: PFD ↔ ECAM' },
+      { key: 'P',      desc: 'Pause' },
+      { key: 'M',      desc: 'Audio on/off' },
+      { key: 'R',      desc: 'Role: PF → PM → INSTRUCTOR' },
+      { key: 'Space',  desc: 'PTT — Push to Talk' },
+    ];
+    const obGrid = document.getElementById('ob-grid');
+    obGrid.innerHTML = '';
+    (S.aircraft?.onboarding ?? _DEFAULT_OB).forEach(({ key, desc }) => {
+      const k = document.createElement('span'); k.className = 'ob-key'; k.textContent = key;
+      const d = document.createElement('span'); d.className = 'ob-desc'; d.textContent = desc;
+      obGrid.appendChild(k); obGrid.appendChild(d);
+    });
 
     /* Populate debrief */
     if (S.mission?.debrief) {
@@ -1216,12 +1354,25 @@
     return '16';
   }
 
-  /* ── Debrief trigger (< 50ft altitude) ── */
+  /* ── Debrief trigger ── */
   let _debriefShown = false;
   function checkDebrief() {
-    if (!_debriefShown && S.alt < 50 && S.vs < -100) {
-      _debriefShown = true;
-      setTimeout(showDebrief, 2000);
+    if (_debriefShown) return;
+
+    if (S.mission?.id === 'wolfskopf-1942') {
+      const ePow    = S.enginePower ?? 1;
+      const spd     = S.spd ?? 999;
+      const crashed = S.alt < 80 && (S.vs ?? 0) < -150;
+      const landed  = S.wow && spd < 15 && ePow < 0.08;
+      if (crashed || landed) {
+        _debriefShown = true;
+        setTimeout(showWolfskopfDebrief, crashed ? 1500 : 3000);
+      }
+    } else {
+      if (S.alt < 50 && (S.vs ?? 0) < -100) {
+        _debriefShown = true;
+        setTimeout(showDebrief, 2000);
+      }
     }
   }
 
@@ -1238,8 +1389,53 @@
     document.getElementById('debrief').classList.remove('visible');
     _debriefShown = false;
     resetCrew();
-    /* Reload mission to reset state */
     loadMission('missions/lszh-approach.json', 'aircraft/a350.json');
+  };
+
+  /* ── Wolfskopf diary debrief ── */
+  const _DIARY_LINES = [
+    { text: 'Es ist kalt. Aber ruhig.' },
+    { text: 'Es kam aus der Tiefe. Langsam. Ohne Hast.', p: true },
+    { text: 'Es sah mich an.' },
+    { text: 'Ich wusste sofort.', p: true },
+    { text: 'Zwei Kriege. Ich habe genug gesehen.', p: true },
+    { text: 'Es hat mich sanft abgesetzt. Drei Meter vom Flügel.', p: true },
+    { text: 'Als wäre ich etwas Zerbrechliches.' },
+    { text: 'Ich werde hier bleiben.', p: true },
+    { text: 'Die Stille hat ein Gewicht. Sie atmet.', p: true },
+    { text: 'Georges lernte Deutsch für mich.', p: true },
+    { text: 'Er wird warten. Er wartet immer.' },
+    { text: 'Ich wünschte, ich könnte ihm sagen, dass', p: true, unfinished: true },
+  ];
+
+  function showWolfskopfDebrief() {
+    silenceAll();
+    const el   = document.getElementById('wolfskopf-diary');
+    const body = document.getElementById('diary-body');
+    const btn  = document.getElementById('diary-dismiss');
+    body.innerHTML = '';
+    btn.classList.remove('show');
+    el.classList.add('visible');
+
+    /* Delay grows as fingers stiffen — starts ~2.5s apart, ends ~5s apart */
+    let _t = 800;
+    _DIARY_LINES.forEach((l, i) => {
+      const div = document.createElement('div');
+      div.className = 'diary-line' + (l.p ? ' p' : '');
+      div.textContent = l.text + (l.unfinished ? ' \u2014' : '');
+      body.appendChild(div);
+      setTimeout(() => div.classList.add('show'), _t);
+      _t += 2500 + i * 120;   /* 2500ms → ~3900ms over 12 lines */
+    });
+
+    setTimeout(() => btn.classList.add('show'), _t + 6000);
+  }
+
+  window.hideWolfskopfDebrief = function () {
+    document.getElementById('wolfskopf-diary').classList.remove('visible');
+    _debriefShown = false;
+    resetCrew();
+    showSelect();
   };
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
