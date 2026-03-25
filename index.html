@@ -607,6 +607,90 @@
       text-transform: uppercase;
     }
 
+    /* ── Live flight section ── */
+    .ms-live-section {
+      width: 100%; max-width: 1200px;
+      margin-top: 40px;
+      border-top: 1px solid rgba(255,255,255,0.07);
+      padding-top: 32px;
+    }
+    .ms-live-label {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px; letter-spacing: 0.18em;
+      color: rgba(77,197,220,0.6);
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    .ms-live-row {
+      display: flex; gap: 10px; align-items: center;
+      margin-bottom: 12px;
+    }
+    .ms-live-input {
+      flex: 1; max-width: 320px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: var(--white);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 14px; letter-spacing: 0.06em;
+      padding: 10px 14px;
+      outline: none;
+      text-transform: uppercase;
+    }
+    .ms-live-input::placeholder { color: rgba(255,255,255,0.2); }
+    .ms-live-input:focus { border-color: rgba(77,197,220,0.5); }
+    .ms-live-btn {
+      background: transparent;
+      border: 1px solid rgba(77,197,220,0.4);
+      color: rgba(77,197,220,0.9);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px; letter-spacing: 0.14em;
+      padding: 10px 20px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .ms-live-btn:hover { background: rgba(77,197,220,0.08); border-color: rgba(77,197,220,0.7); }
+    .ms-live-btn:disabled { opacity: 0.35; cursor: default; }
+    .ms-live-status {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px; letter-spacing: 0.05em;
+      color: rgba(232,237,242,0.4);
+      min-height: 18px;
+    }
+    .ms-live-status.error { color: #e05a5a; }
+    .ms-live-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .ms-live-card {
+      background: rgba(77,197,220,0.04);
+      border: 1px solid rgba(77,197,220,0.12);
+      border-left: 3px solid rgba(77,197,220,0.5);
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: background 0.12s;
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .ms-live-card:hover { background: rgba(77,197,220,0.1); }
+    .ms-live-card-cs {
+      font-family: "Syne", sans-serif;
+      font-size: 15px; font-weight: 700;
+      color: var(--white);
+    }
+    .ms-live-card-reg {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px; letter-spacing: 0.1em;
+      color: rgba(77,197,220,0.8);
+    }
+    .ms-live-card-state {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      color: rgba(232,237,242,0.4);
+      margin-top: 4px;
+    }
+
     /* ── Onboarding overlay ── */
     #onboarding {
       position: fixed; inset: 0; z-index: 190;
@@ -832,6 +916,19 @@
   <div class="ms-wordmark">OPENSIM</div>
   <div class="ms-sub">open-source flight simulation engine</div>
   <div class="ms-grid" id="ms-grid"></div>
+
+  <div class="ms-live-section">
+    <div class="ms-live-label">Live Flight</div>
+    <div class="ms-live-row">
+      <input id="ms-live-input" class="ms-live-input" type="text"
+             placeholder="LX038 or HB-JMD" autocomplete="off" spellcheck="false">
+      <button id="ms-live-btn" class="ms-live-btn">Fly</button>
+      <button id="ms-near-btn" class="ms-live-btn">Near me</button>
+    </div>
+    <div id="ms-live-status" class="ms-live-status"></div>
+    <div id="ms-live-grid" class="ms-live-grid"></div>
+  </div>
+
   <div class="ms-footer">v0.2 · MIT · github.com/ghtomcat/opensim</div>
 </div>
 
@@ -971,6 +1068,7 @@
   import { initOutside, tickOutside, outsideInvalidate } from './display/outside.js';
   import { initKneeboard, toggleKneeboard, tickKneeboard } from './display/kneeboard.js';
   import { initMap, renderMap, toggleMap } from './display/map.js';
+  import { lookupFlight, nearbyFlights, pickAircraft } from './core/liveflight.js';
 
   /* ── DOM refs ── */
   const canvas     = document.getElementById('pfd');
@@ -1066,6 +1164,96 @@
       },
     },
   ];
+
+  /* ── Live flight helpers ── */
+  function liveStatus(msg, isError = false) {
+    const el = document.getElementById('ms-live-status');
+    el.textContent = msg;
+    el.className = 'ms-live-status' + (isError ? ' error' : '');
+  }
+
+  async function flyWithFlight(flight) {
+    document.getElementById('mission-select').classList.add('hidden');
+    const aircraftId = pickAircraft(flight.icaoType);
+    await init('live-flight', aircraftId);
+    setState({
+      lat:    flight.lat,
+      lon:    flight.lon,
+      alt:    Math.max(flight.alt, 200),
+      altT:   flight.alt,
+      spd:    flight.spd,
+      spdT:   flight.spd,
+      hdg:    flight.hdg,
+      hdgT:   flight.hdg,
+      vs:     flight.vs,
+      pitch:  0, roll: 0,
+      wow:    false,
+    });
+  }
+
+  function renderLiveCards(flights) {
+    const grid = document.getElementById('ms-live-grid');
+    grid.innerHTML = '';
+    flights.forEach(f => {
+      const card = document.createElement('div');
+      card.className = 'ms-live-card';
+      const fl = f.alt > 0 ? `FL${String(Math.round(f.alt / 100)).padStart(3,'0')}` : 'GND';
+      const dist = f._dist ? `${Math.round(f._dist)}nm` : '';
+      card.innerHTML = `
+        <div class="ms-live-card-cs">${f.callsign !== '—' ? f.callsign : f.reg}</div>
+        <div class="ms-live-card-reg">${f.reg} · ${f.icaoType}</div>
+        <div class="ms-live-card-state">${fl} · ${Math.round(f.spd)}kt · ${Math.round(f.hdg)}° ${dist}</div>
+      `;
+      card.addEventListener('click', () => flyWithFlight(f));
+      grid.appendChild(card);
+    });
+  }
+
+  document.getElementById('ms-live-btn').addEventListener('click', async () => {
+    const q = document.getElementById('ms-live-input').value.trim();
+    if (!q) return;
+    const btn = document.getElementById('ms-live-btn');
+    btn.disabled = true;
+    liveStatus('looking up…');
+    try {
+      const flight = await lookupFlight(q);
+      const fl = `FL${String(Math.round(flight.alt / 100)).padStart(3,'0')}`;
+      liveStatus(`${flight.reg} · ${flight.callsign} · ${flight.icaoType} · ${fl} · ${Math.round(flight.spd)}kt`);
+      await flyWithFlight(flight);
+    } catch (e) {
+      liveStatus(`not found — ${e.message}`, true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById('ms-live-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('ms-live-btn').click();
+  });
+
+  document.getElementById('ms-near-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('ms-near-btn');
+    btn.disabled = true;
+    liveStatus('getting location…');
+    document.getElementById('ms-live-grid').innerHTML = '';
+    try {
+      const pos = await new Promise((res, rej) =>
+        navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000 }));
+      const { latitude: lat, longitude: lon } = pos.coords;
+      liveStatus('fetching nearby flights…');
+      const flights = await nearbyFlights(lat, lon, 100);
+      if (flights.length === 0) {
+        liveStatus('no flights found nearby');
+      } else {
+        liveStatus(`${flights.length} flights within 100nm`);
+        renderLiveCards(flights);
+      }
+    } catch (e) {
+      liveStatus(`error — ${e.message}`, true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   /* ── Selection screen ── */
   function showSelect() {
