@@ -1237,45 +1237,88 @@
     ctx.fillStyle = '#4dc5dc';
     ctx.beginPath(); ctx.arc(CX, CY, 4, 0, Math.PI*2); ctx.fill();
 
-    // Aircraft
+    // Aircraft — collect projected positions
     const hits = [];
     flights.forEach(f => {
       const { x, y, nm } = project(f.lat, f.lon);
       if (nm > MAXNM) return;
-      const fl  = f.alt > 0 ? `FL${String(Math.round(f.alt/100)).padStart(3,'0')}` : 'GND';
-      const cs  = f.callsign !== '—' ? f.callsign : f.reg;
-
-      // Heading tick
-      const hdgR = f.hdg * Math.PI / 180;
-      const tLen = 10;
-      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x + tLen * Math.sin(hdgR), y - tLen * Math.cos(hdgR));
-      ctx.stroke();
-
-      // Dot
-      ctx.fillStyle = '#e8e8e8';
-      ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI*2); ctx.fill();
-
-      // Label — callsign on one line, FL on next
-      ctx.fillStyle = 'rgba(232,237,242,0.9)';
-      ctx.font = 'bold 11px "IBM Plex Mono", monospace';
-      ctx.textAlign = 'left';
-      ctx.fillText(cs, x + 8, y + 4);
-      ctx.fillStyle = 'rgba(77,197,220,0.7)';
-      ctx.font = '10px "IBM Plex Mono", monospace';
-      ctx.fillText(fl, x + 8, y + 15);
-
-      hits.push({ f, x, y });
+      const fl = f.alt > 0 ? `FL${String(Math.round(f.alt/100)).padStart(3,'0')}` : 'GND';
+      const cs = f.callsign !== '—' ? f.callsign : f.reg;
+      hits.push({ f, x, y, fl, cs });
     });
 
-    // Click handling
+    function draw(hovered) {
+      // Clear aircraft layer
+      ctx.clearRect(0, 0, SIZE, SIZE);
+      ctx.fillStyle = '#030609';
+      ctx.fillRect(0, 0, SIZE, SIZE);
+
+      // Re-draw rings
+      ctx.strokeStyle = 'rgba(77,197,220,0.12)';
+      ctx.lineWidth = 1;
+      ctx.font = '11px "IBM Plex Mono", monospace';
+      ctx.fillStyle = 'rgba(77,197,220,0.4)';
+      ctx.textAlign = 'center';
+      for (const nm of [25, 50, 100]) {
+        ctx.beginPath(); ctx.arc(CX, CY, nmToR(nm), 0, Math.PI*2); ctx.stroke();
+        ctx.fillText(`${nm}nm`, CX, CY - nmToR(nm) + 13);
+      }
+      ctx.strokeStyle = 'rgba(77,197,220,0.25)';
+      ctx.beginPath(); ctx.moveTo(CX, CY - R); ctx.lineTo(CX, CY); ctx.stroke();
+      ctx.fillStyle = '#4dc5dc';
+      ctx.beginPath(); ctx.arc(CX, CY, 4, 0, Math.PI*2); ctx.fill();
+
+      hits.forEach(h => {
+        const isHov = h === hovered;
+        // Heading tick
+        const hdgR = h.f.hdg * Math.PI / 180;
+        ctx.strokeStyle = isHov ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(h.x, h.y);
+        ctx.lineTo(h.x + 12*Math.sin(hdgR), h.y - 12*Math.cos(hdgR)); ctx.stroke();
+
+        // Dot
+        ctx.fillStyle = isHov ? '#ffffff' : 'rgba(232,237,242,0.6)';
+        ctx.beginPath(); ctx.arc(h.x, h.y, isHov ? 5 : 3, 0, Math.PI*2); ctx.fill();
+
+        // Label only on hover
+        if (isHov) {
+          const pad = 8, lh = 14;
+          const lines = [h.cs, `${h.fl} · ${Math.round(h.f.spd)}kt · ${Math.round(h.f.hdg)}°`];
+          const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + pad*2;
+          const bh = lines.length * lh + pad;
+          let lx = h.x + 10, ly = h.y - bh / 2;
+          if (lx + w > SIZE - 4) lx = h.x - w - 10;
+          if (ly < 4) ly = 4;
+          ctx.fillStyle = 'rgba(3,6,9,0.88)';
+          ctx.fillRect(lx, ly, w, bh);
+          ctx.strokeStyle = 'rgba(77,197,220,0.4)';
+          ctx.strokeRect(lx, ly, w, bh);
+          ctx.textAlign = 'left';
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 12px "IBM Plex Mono", monospace';
+          ctx.fillText(lines[0], lx + pad, ly + lh);
+          ctx.fillStyle = 'rgba(77,197,220,0.9)';
+          ctx.font = '11px "IBM Plex Mono", monospace';
+          ctx.fillText(lines[1], lx + pad, ly + lh*2);
+        }
+      });
+    }
+
+    draw(null);
+
+    canvas.onmousemove = e => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      const hov = hits.find(h => Math.hypot(h.x - mx, h.y - my) < 10) ?? null;
+      canvas.style.cursor = hov ? 'pointer' : 'crosshair';
+      draw(hov);
+    };
+    canvas.onmouseleave = () => draw(null);
     canvas.onclick = e => {
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-      const hit = hits.find(h => Math.hypot(h.x - mx, h.y - my) < 12);
+      const hit = hits.find(h => Math.hypot(h.x - mx, h.y - my) < 10);
       if (hit) flyWithFlight(hit.f);
     };
   }
