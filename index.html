@@ -705,14 +705,14 @@
 <!-- Loading screen -->
 <div id="loading">
   <div class="loading-title">OpenSim</div>
-  <div class="loading-sub">ILS Approach — LSZH RWY 28</div>
+  <div class="loading-sub" id="loadMissionTitle"></div>
   <div class="loading-bar-outer"><div class="loading-bar-inner" id="loadBar"></div></div>
   <div class="loading-sub" id="loadStatus">initialising…</div>
 </div>
 
 <!-- Onboarding overlay -->
 <div id="onboarding">
-  <div class="ob-title">ILS Approach — LSZH RWY 28</div>
+  <div class="ob-title" id="ob-title"></div>
   <div class="ob-grid">
     <span class="ob-key">↑ ↓</span><span class="ob-desc">Altitude target ±500 ft</span>
     <span class="ob-key">← →</span><span class="ob-desc">Heading target ±5°</span>
@@ -1026,6 +1026,12 @@
 
   /* ── Init ── */
   async function init(missionId, aircraftId) {
+    const mData = MISSIONS.find(m => m.id === missionId);
+    const mLabel = mData ? `${mData.acName} · ${mData.title}` : missionId;
+    document.title = `OpenSim — ${mLabel}`;
+    document.getElementById('loadMissionTitle').textContent = mLabel;
+    document.getElementById('ob-title').textContent = mLabel;
+
     loadBar.style.width = '20%';
     loadStatus.textContent = 'loading aircraft…';
 
