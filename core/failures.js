@@ -27,6 +27,10 @@ export function tickFailures(dt) {
   const t   = S.time ?? 0;
   const alt = S.alt  ?? 0;
 
+  /* Yrr window — T+112 to T+116 */
+  const yrrNow = S.mission?.id === 'wolfskopf-1942' && t >= 112 && t < 116;
+  if (yrrNow !== (S.yrrVisible ?? false)) setState({ yrrVisible: yrrNow });
+
   /* Check triggers */
   failures.forEach((f, i) => {
     if (_fired.has(i)) return;

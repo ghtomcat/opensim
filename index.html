@@ -1081,7 +1081,9 @@
     initMap();
 
     let _audioOn  = true;
-    let _viewMode = 0;   /* 0=PFD · 1=Combined · 2=Outside */
+    let _viewMode     = 0;   /* 0=PFD · 1=Combined · 2=Outside */
+    let _yrrWasActive = false;
+    let _viewBeforeYrr = 0;
     const audioEl = document.getElementById('pv-audio');
 
     const dismissOnboarding = () => {
@@ -1103,43 +1105,38 @@
         else          { stopSound();            audioEl.textContent = 'OFF'; audioEl.className = 'panel-value'; }
       }
       if (e.key === 'v' || e.key === 'V') {
-        /* Cycle: 0=PFD only → 1=Combined → 2=Outside only → 0 */
         _viewMode = (_viewMode + 1) % 3;
-        const outside = document.getElementById('outside');
-        const pfd     = document.getElementById('pfd');
-        const ecam    = document.getElementById('ecam');
-        const uiEls   = ['fma','panel','keys','ptt-indicator','com-container','checklist'];
-
-        if (_viewMode === 0) {
-          /* Instruments only */
-          outside.classList.remove('visible', 'combined');
-          pfd.classList.remove('combined');
-          pfd.style.display = '';
-          ecam.style.display = '';
-          document.body.classList.remove('outside-active');
-          uiEls.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = ''; });
-        } else if (_viewMode === 1) {
-          /* Combined — outside top half, instruments bottom half */
-          outside.classList.add('visible', 'combined');
-          pfd.classList.add('combined');
-          pfd.style.display = '';
-          ecam.style.display = 'none';
-          document.body.classList.add('outside-active');
-          uiEls.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = ''; });
-          outsideInvalidate();
-        } else {
-          /* Outside only */
-          outside.classList.add('visible');
-          outside.classList.remove('combined');
-          pfd.classList.remove('combined');
-          pfd.style.display = 'none';
-          ecam.style.display = 'none';
-          document.body.classList.remove('outside-active');
-          uiEls.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
-          outsideInvalidate();
-        }
+        _applyViewMode(_viewMode);
       }
     });
+
+    function _applyViewMode(mode) {
+      const outside = document.getElementById('outside');
+      const pfd     = document.getElementById('pfd');
+      const ecam    = document.getElementById('ecam');
+      const uiEls   = ['fma','panel','keys','ptt-indicator','com-container','checklist'];
+      if (mode === 0) {
+        outside.classList.remove('visible', 'combined');
+        pfd.classList.remove('combined');
+        pfd.style.display = ''; ecam.style.display = '';
+        document.body.classList.remove('outside-active');
+        uiEls.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = ''; });
+      } else if (mode === 1) {
+        outside.classList.add('visible', 'combined');
+        pfd.classList.add('combined');
+        pfd.style.display = ''; ecam.style.display = 'none';
+        document.body.classList.add('outside-active');
+        uiEls.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = ''; });
+        outsideInvalidate();
+      } else {
+        outside.classList.add('visible'); outside.classList.remove('combined');
+        pfd.classList.remove('combined');
+        pfd.style.display = 'none'; ecam.style.display = 'none';
+        document.body.classList.remove('outside-active');
+        uiEls.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+        outsideInvalidate();
+      }
+    }
 
     /* Start loop */
     startLoop([
@@ -1157,6 +1154,19 @@
       () => updateMetar(),
       () => checkDebrief(),
       () => tickSound(),
+      () => {
+        /* Yrr — auto-switch to outside view for the moment of contact */
+        if (S.yrrVisible && !_yrrWasActive) {
+          _viewBeforeYrr = _viewMode;
+          _viewMode = 2;
+          _applyViewMode(2);
+          _yrrWasActive = true;
+        } else if (!S.yrrVisible && _yrrWasActive) {
+          _viewMode = _viewBeforeYrr;
+          _applyViewMode(_viewBeforeYrr);
+          _yrrWasActive = false;
+        }
+      },
       () => tickOutside(),
       () => tickKneeboard(),
       () => renderMap(),

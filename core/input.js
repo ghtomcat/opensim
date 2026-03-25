@@ -6,8 +6,9 @@
 
 import { S, setState } from './state.js';
 
-let _mouseLast = null;
-let _pttActive = false;
+let _mouseLast  = null;
+let _mouseDown  = false;
+let _pttActive  = false;
 const _held    = new Set();   /* currently held keys (for continuous manual input) */
 
 /* ── Gamepad config — Logitech Extreme 3D Pro ── */
@@ -28,6 +29,8 @@ export function initInput() {
   window.addEventListener('keydown',   _onKeyDown);
   window.addEventListener('keyup',     _onKeyUp);
   window.addEventListener('mousemove', _onMouseMove);
+  window.addEventListener('mousedown', () => { _mouseDown = true;  _mouseLast = null; });
+  window.addEventListener('mouseup',   () => { _mouseDown = false; _mouseLast = null; });
 }
 
 /* Called every physics frame — continuous control input for manual aircraft */
@@ -188,17 +191,20 @@ function _onKeyUp(e) {
   }
 }
 
-/* ── Mouse — controls bank and pitch in desktop mode ── */
+/* ── Mouse — controls bank and pitch only while button held ── */
 function _onMouseMove(e) {
+  if (!_mouseDown || !S.aircraft?.manualControl) return;
   if (!_mouseLast) { _mouseLast = { x: e.clientX, y: e.clientY }; return; }
 
   const dx = e.clientX - _mouseLast.x;
   const dy = e.clientY - _mouseLast.y;
   _mouseLast = { x: e.clientX, y: e.clientY };
 
-  if (!S.ap) {
-    const newRoll  = Math.max(-30, Math.min(30, S.rollT  + dx * 0.15));
-    const newPitch = Math.max(-15, Math.min(20, S.pitchT - dy * 0.08));
-    setState({ rollT: newRoll, pitchT: newPitch });
-  }
+  const h = S.aircraft?.handling ?? {};
+  const maxBank  = h.maxBank  ?? 60;
+  const maxPitch = h.maxPitch ?? 20;
+  setState({
+    rollT:  Math.max(-maxBank,  Math.min(maxBank,  S.rollT  + dx * 0.15)),
+    pitchT: Math.max(-maxPitch, Math.min(maxPitch, S.pitchT - dy * 0.08)),
+  });
 }

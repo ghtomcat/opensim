@@ -49,6 +49,9 @@ export const S = {
   prevAlt: 35000,
   calloutTimer: 0,
 
+  /* ── Scripted events ── */
+  yrrVisible: false,              // T+112–116, Wolfskopf only
+
   /* ── Sim meta ── */
   role:    'PF',  // 'PF' | 'PM' | 'INSTRUCTOR'
   paused:  false,
