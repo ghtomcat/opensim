@@ -1201,7 +1201,7 @@
       const dist = f._dist ? `${Math.round(f._dist)}nm` : '';
       card.innerHTML = `
         <div class="ms-live-card-cs">${f.callsign !== '—' ? f.callsign : f.reg}</div>
-        <div class="ms-live-card-reg">${f.reg} · ${f.icaoType}</div>
+        ${(f.reg !== '—' || f.icaoType !== '—') ? `<div class="ms-live-card-reg">${[f.reg, f.icaoType].filter(v => v !== '—').join(' · ')}</div>` : ''}
         <div class="ms-live-card-state">${fl} · ${Math.round(f.spd)}kt · ${Math.round(f.hdg)}° ${dist}</div>
       `;
       card.addEventListener('click', () => flyWithFlight(f));

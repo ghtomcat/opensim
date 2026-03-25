@@ -84,25 +84,36 @@ export async function nearbyFlights(lat, lon, distNm = 100) {
   if (!d.states || d.states.length === 0) return [];
 
   return d.states
-    .filter(s => s[6] && s[5] && !s[8] && s[7] > 150)   // lat, lon, not on ground, alt > 150m
+    .filter(s => s[6] != null && s[5] != null   // has position
+              && !s[8]                           // not on ground
+              && s[7] != null && s[7] > 150)     // has altitude > 150m
     .map(s => normaliseOpenSky(s))
     .map(f => ({ ...f, _dist: haversine(lat, lon, f.lat, f.lon) }))
     .sort((a, b) => a._dist - b._dist)
     .slice(0, 20);
 }
 
-/* OpenSky state vector: indices per API spec */
+/* OpenSky state vector indices per API spec.
+   s[0]  icao24 hex
+   s[1]  callsign (may be empty or registration for GA)
+   s[5]  longitude
+   s[6]  latitude
+   s[7]  baro_altitude metres (null = unknown)
+   s[9]  velocity m/s (null = unknown)
+   s[10] true_track degrees (null = unknown)
+   s[11] vertical_rate m/s (null = unknown)              */
 function normaliseOpenSky(s) {
+  const callsign = (s[1] ?? '').trim();
   return {
-    reg:      '—',
-    callsign: (s[1] ?? '').trim() || '—',
+    reg:      s[0] ?? '—',                           // icao24 hex as identifier
+    callsign: callsign || s[0] || '—',
     icaoType: '—',
-    lat:  s[6]  ?? 0,
-    lon:  s[5]  ?? 0,
-    alt:  (s[7]  ?? 0) * 3.28084,          // metres → feet
-    spd:  (s[9]  ?? 0) * 1.94384,          // m/s → kt
-    hdg:  s[10] ?? 0,
-    vs:   (s[11] ?? 0) * 196.85,           // m/s → fpm
+    lat:  s[6],
+    lon:  s[5],
+    alt:  s[7]  != null ? s[7]  * 3.28084  : 0,     // metres → feet
+    spd:  s[9]  != null ? s[9]  * 1.94384  : 0,     // m/s → kt
+    hdg:  s[10] != null ? s[10]            : 0,
+    vs:   s[11] != null ? s[11] * 196.85   : 0,     // m/s → fpm
   };
 }
 
