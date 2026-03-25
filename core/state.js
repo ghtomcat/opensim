@@ -14,6 +14,7 @@ export const S = {
   vs:    0,                       // ft/min
   pitch: 2,       pitchT: 2,      // degrees
   roll:  0,       rollT:  0,      // degrees
+  rollRate:  0,   pitchRate: 0,   // deg/s — angular momentum
 
   /* ── Systems ── */
   flaps:    0,    prevFlaps: 0,   // 0-3 (config)

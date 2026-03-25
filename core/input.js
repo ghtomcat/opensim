@@ -150,7 +150,7 @@ function _onKeyDown(e) {
   if (_fi >= 0) {
     e.preventDefault();
     const profiles = S.aircraft?.thrustProfiles;
-    const spdT = profiles ? (profiles[_fi]?.spdT ?? 0) : [0, 180, 280, 350][_fi];
+    const spdT = profiles ? (profiles[Math.min(_fi, profiles.length - 1)]?.spdT ?? 0) : [0, 180, 280, 350][_fi];
     setState({ spdT });
   }
 

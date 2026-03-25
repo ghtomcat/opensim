@@ -42,6 +42,12 @@
     "maxPitch":  30
   },
 
+  "flaps": [
+    { "label": "0°",  "dCL_max": 0.0,  "dCD_0": 0.000 },
+    { "label": "20°", "dCL_max": 0.3,  "dCD_0": 0.025 },
+    { "label": "40°", "dCL_max": 0.5,  "dCD_0": 0.070 }
+  ],
+
   "sound": {
     "engineType": "v12-supercharged"
   },
@@ -75,12 +81,60 @@
 
   "pmCallouts": [],
 
+  "kneeboard": [
+    {
+      "title": "TRIEBWERKSAUSFALL",
+      "type": "checklist",
+      "items": [
+        "Gashebel ............... LEERLAUF (F1)",
+        "Gemischhebel ........... MAGER",
+        "Kraftstoffhahn ......... ZU",
+        "Notlandeplatz .......... WÄHLEN",
+        "Funk ................... NOTMELDUNG",
+        "Fahrwerk ............... AUSFAHREN",
+        "Klappen ................ 20°",
+        "Fahrt .................. 165 km/h",
+        "Gurt ................... FESTZIEHEN"
+      ]
+    },
+    {
+      "title": "NOTLANDUNG",
+      "type": "checklist",
+      "items": [
+        "Kabinendach ............ SICHERN",
+        "Kraftstoffhahn ......... ZU",
+        "Gemischhebel ........... ABSCHALTEN",
+        "Fahrt .................. 165 km/h",
+        "Klappen ................ 40° (2× F)",
+        "Aufsetzen .............. QUER ZUM WIND",
+        "Bremsen ................ NACH AUFSETZEN"
+      ]
+    },
+    {
+      "title": "LAGEBEURTEILUNG",
+      "type": "briefing",
+      "items": [
+        "Titovka-Sektor. Arktischer Winter.",
+        "Außentemperatur: -22°C",
+        "Wind: 180° / 18 kt",
+        "Sicht: 3000 m",
+        "Platz: Titovka Notfeld, Piste 45",
+        "Platzhöhe: 100 ft",
+        "—",
+        "Der Wolf auf dem Rumpf ist blau.",
+        "Du fliegst seit Tagesanbruch."
+      ]
+    }
+  ],
+
   "onboarding": [
     { "key": "Maus (gedrückt) / Pfeiltasten", "desc": "Steuerknüppel · Seitenruder" },
     { "key": "F",               "desc": "Landeklappen (hochfahren)" },
     { "key": "G",               "desc": "Fahrwerk (ein/aus)" },
+    { "key": "F1",               "desc": "Leerlauf (Gashebel zu)" },
+    { "key": "+ / −",           "desc": "Gashebel ±" },
+    { "key": "t / T",           "desc": "Höhenrudertrimm" },
     { "key": "B (halten)",      "desc": "Bremsen" },
-    { "key": "T / Shift+T",     "desc": "Vollgas · Gemisch" },
     { "key": "V",               "desc": "Außenansicht" },
     { "key": "K",               "desc": "Kniebeinkarte" },
     { "key": "N",               "desc": "Karte" },

@@ -10,8 +10,8 @@
     "source": "manual",
     "manual": {
       "temp":       -22,
-      "wdir":       180,
-      "wspd":       18,
+      "wdir":       45,
+      "wspd":       0,
       "visibility": 3000,
       "snow":       true,
       "altim":      1013,

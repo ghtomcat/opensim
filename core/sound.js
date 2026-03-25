@@ -434,7 +434,9 @@ export function tickSound() {
     const sf    = Math.min(1, spd / 120);          // linear — full at 120kt
     const flaps = (S.flaps ?? 0) / 3;             // 0 → 1
 
-    _windGain.gain.setTargetAtTime(0.32 * sf, now, 0.3);
+    /* Prop drag adds airframe turbulence noise as engine dies */
+    const propTurb = 1 + (1 - (S.enginePower ?? 1.0)) * 0.5;
+    _windGain.gain.setTargetAtTime(0.32 * sf * propTurb, now, 0.3);
     _windFilt.frequency.setTargetAtTime(300 - 100 * flaps, now, 0.3);  // 300Hz clean → 200Hz full flaps
     _windFilt.Q.setTargetAtTime(0.7 - 0.3 * flaps, now, 0.3);          // broader with flaps
 

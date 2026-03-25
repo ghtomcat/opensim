@@ -20,17 +20,45 @@
   },
 
   "situations": [
-    { "label": "GROUND",   "alt": 100,  "spd": 0,  "hdg": 045, "altT": 100,  "spdT": 0  },
-    { "label": "TAKEOFF",  "alt": 100,  "spd": 50, "hdg": 045, "altT": 3000, "spdT": 83 },
-    { "label": "CLIMB",    "alt": 1500, "spd": 72, "hdg": 045, "altT": 5000, "spdT": 72 },
-    { "label": "CRUISE",   "alt": 5000, "spd": 72, "hdg": 045, "altT": 5000, "spdT": 72 },
-    { "label": "APPROACH", "alt": 500,  "spd": 55, "hdg": 045, "altT": 100,  "spdT": 50 }
+    { "label": "GROUND",   "alt": 100,  "spd": 0,  "hdg": 45, "altT": 100,  "spdT": 0  },
+    { "label": "TAKEOFF",  "alt": 100,  "spd": 50, "hdg": 45, "altT": 3000, "spdT": 83 },
+    { "label": "CLIMB",    "alt": 1500, "spd": 72, "hdg": 45, "altT": 5000, "spdT": 72 },
+    { "label": "CRUISE",   "alt": 5000, "spd": 72, "hdg": 45, "altT": 5000, "spdT": 72 },
+    { "label": "APPROACH", "alt": 500,  "spd": 55, "hdg": 45, "altT": 100,  "spdT": 50 }
   ],
 
   "thrustProfiles": [
     { "label": "OFF",  "spdT": 0  },
     { "label": "BLIP", "spdT": 50 },
     { "label": "FULL", "spdT": 83 }
+  ],
+
+  "manualControl": true,
+
+  "performance": {
+    "mass":       830,
+    "wingArea":   32.5,
+    "thrustMax":  2200,
+    "CL_0":       0.25,
+    "CL_alpha":   4.8,
+    "CL_max":     1.5,
+    "CD_0":       0.048,
+    "inducedK":   0.065,
+    "Vr":         40,
+    "muRoll":     0.07,
+    "muBrake":    0.30
+  },
+
+  "handling": {
+    "rollRate":  20,
+    "pitchRate":  4,
+    "spdRate":    2,
+    "maxBank":   45,
+    "maxPitch":  25
+  },
+
+  "flaps": [
+    { "deg": 0, "dCL_max": 0.0, "dCD_0": 0.000 }
   ],
 
   "rotaryEngine": {

@@ -9,6 +9,7 @@ import { tickPhysics } from './physics.js';
 import { tickCrew }    from './crew.js';
 import { tickGamepad, tickControls } from './input.js';
 import { tickFailures }              from './failures.js';
+import { tickTelemetry }            from './telemetry.js';
 
 let _prevTime = null;
 let _renderers = [];
@@ -37,6 +38,7 @@ function _tick(now) {
     tickFailures(dt);
     tickPhysics(dt);
     tickCrew(prevAlt, S.alt);
+    tickTelemetry(dt);
   }
 
   for (const render of _renderers) render();

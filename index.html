@@ -960,6 +960,7 @@
   import { initCrew, tickCrew, resetCrew } from './core/crew.js';
   import { initInput, isPTTActive }        from './core/input.js';
   import { startLoop }    from './core/loop.js';
+  import { startTelemetry, downloadTelemetry } from './core/telemetry.js';
   import { renderPFD }    from './display/pfd.js';
   import { renderG1000 }  from './display/g1000.js';
   import { renderECAM }   from './display/ecam.js';
@@ -1151,6 +1152,7 @@
     loadStatus.textContent = 'loading aircraft…';
 
     await loadMission(`missions/${missionId}.json`, `aircraft/${aircraftId}.json`);
+    startTelemetry();
 
     loadBar.style.width = '60%';
     loadStatus.textContent = 'loading voices…';
@@ -1235,6 +1237,7 @@
     obEl.addEventListener('click', dismissOnboarding);
 
     window.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'T') { e.preventDefault(); downloadTelemetry(); return; }
       if (e.key === 'k' || e.key === 'K') { toggleKneeboard(); return; }
       if (e.key === 'n' || e.key === 'N') { toggleMap(); return; }
       if (e.key === 'm' || e.key === 'M') {

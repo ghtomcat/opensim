@@ -34,13 +34,11 @@ export function tickPhysics(dt) {
 
   if (ac.manualControl) {
     /* ── Shared setup ── */
-    const perf      = ac.performance ?? {};
-    const rollRate  = (ac.handling?.rollRate  ?? 30) * dt;
-    const pitchRate = (ac.handling?.pitchRate ?? 5)  * dt;
+    const perf = ac.performance ?? {};
 
     /* Ground elevation from mission */
     const groundFt = S.mission?.arrival?.elevation ?? S.mission?.departure?.elevation ?? 0;
-    const onGround = S.alt <= groundFt + 0.5;   // within oleo strut travel
+    const onGround = S.alt <= groundFt + 0.5;
 
     /* ISA density */
     const alt_m  = S.alt * 0.3048;
@@ -54,29 +52,57 @@ export function tickPhysics(dt) {
     const throttle = Math.min(1, Math.max(0, S.spdT / (ac.envelope.cruiseSpd ?? 122)));
 
     /* Aircraft constants */
-    const S_wing   = perf.wingArea  ?? 16.2;   // m²
-    const mass     = perf.mass      ?? 1157;   // kg
-    const T_max    = perf.thrustMax ?? 1800;   // N
+    const S_wing   = perf.wingArea  ?? 16.2;
+    const mass     = perf.mass      ?? 1157;
+    const T_max    = perf.thrustMax ?? 1800;
     const CL_0     = perf.CL_0     ?? 0.2;
-    const CL_alpha = perf.CL_alpha ?? 5.0;    // rad⁻¹
+    const CL_alpha = perf.CL_alpha ?? 5.0;
     const CL_max   = perf.CL_max   ?? 1.9;
     const CD_0     = perf.CD_0     ?? 0.028;
     const k_ind    = perf.inducedK ?? 0.055;
+    const Vr       = perf.Vr ?? 55;
 
-    /* Pitch: locked at 0 below rotation speed on ground */
-    const Vr = perf.Vr ?? 55;
-    newPitch = converge(S.pitch, (onGround && S.spd < Vr) ? 0 : S.pitchT, pitchRate);
-    newRoll  = converge(S.roll,  onGround ? 0 : S.rollT,  rollRate);
+    /* ── Angular inertia — roll and pitch rates have momentum ── */
+    const maxRollRate  = ac.handling?.rollRate  ?? 30;   // deg/s
+    const maxPitchRate = ac.handling?.pitchRate ?? 5;    // deg/s
 
-    /* Flap effects — ΔCL_max and ΔCD_0 from aircraft JSON */
+    /* On ground: snap back to level; in flight: fight inertia */
+    const rollTarget  = onGround ? 0 : S.rollT;
+    const pitchTarget = (onGround && S.spd < Vr) ? 0 : S.pitchT;
+    const maxBank     = ac.handling?.maxBank  ?? 60;
+    const maxPitch    = ac.handling?.maxPitch ?? 30;
+
+    /* PD controller — proportional (attitude error) + derivative (damps oscillation)
+       Without the D term the rate overshoots and the aircraft jitters.            */
+    const curRollRate  = S.rollRate  ?? 0;
+    const curPitchRate = S.pitchRate ?? 0;
+    const desiredRollRate  = Math.max(-maxRollRate,  Math.min(maxRollRate,
+      4.0 * (rollTarget  - S.roll)  - 0.7 * curRollRate));
+    const desiredPitchRate = Math.max(-maxPitchRate, Math.min(maxPitchRate,
+      2.5 * (pitchTarget - S.pitch) - 0.8 * curPitchRate));
+
+    const tauRoll  = onGround ? 0.05 : 0.18;
+    const tauPitch = onGround ? 0.05 : 0.30;
+    const newRollRateVal  = curRollRate  + ((desiredRollRate  - curRollRate)  / tauRoll)  * dt;
+    const newPitchRateVal = curPitchRate + ((desiredPitchRate - curPitchRate) / tauPitch) * dt;
+
+    newRoll  = Math.max(-maxBank,  Math.min(maxBank,  S.roll  + newRollRateVal  * dt));
+    newPitch = Math.max(-maxPitch, Math.min(maxPitch, S.pitch + newPitchRateVal * dt));
+
+    /* Flap effects */
     const flapCfg  = (ac.flaps ?? [])[S.flaps] ?? {};
     const CL_max_e = CL_max + (flapCfg.dCL_max ?? 0);
     const CD_0_e   = CD_0   + (flapCfg.dCD_0   ?? 0);
 
-    /* Aerodynamics — computed always for both ground and flight */
+    /* Prop/damage drag — seized propeller + battle damage as engine dies */
+    const ePow     = S.enginePower ?? 1.0;
+    const propDrag = (1 - ePow) * 0.022;
+    const CD_0_eff = CD_0_e + propDrag;
+
+    /* Aerodynamics */
     const alpha = newPitch * DEG;
     const CL    = Math.min(CL_max_e, Math.max(-0.5, CL_0 + CL_alpha * alpha));
-    const CD    = CD_0_e + k_ind * CL * CL;
+    const CD    = CD_0_eff + k_ind * CL * CL;
     const L     = q * S_wing * CL;
     const D     = q * S_wing * CD;
     const T     = throttle * T_max * (rho / 1.225) * (S.enginePower ?? 1.0);
@@ -116,11 +142,17 @@ export function tickPhysics(dt) {
       newSpd = newSpd_ms / 0.5144;
       vs     = newSpd_ms * Math.sin(newGamma) * 196.85;
 
-      /* Stall: CL → CL_max_e (flap-adjusted), lift collapses, nose drops */
+      /* High-alpha stall: CL hits CL_max — sudden snap, nose drops */
       if (CL > CL_max_e * 0.95) {
         const sf = Math.min(1, (CL / CL_max_e - 0.95) / 0.05);
         vs      -= sf * 800;
         newPitch = Math.max(newPitch - 3 * sf * dt, -15);
+      }
+
+      /* Energy stall: L < W at low speed — gentle progressive sink, no snap */
+      const liftDeficit = Math.max(0, W - L) / W;              // 0 = flying, 1 = no lift
+      if (liftDeficit > 0.05) {
+        vs -= liftDeficit * 120;                                // gentle fpm nudge per frame
       }
 
       /* Liftoff: bump clear of ground to release WoW next frame */
@@ -129,6 +161,17 @@ export function tickPhysics(dt) {
       /* Coordinated turn */
       const turnRate = 9.81 * Math.tan(newRoll * DEG) / Math.max(10, newSpd_ms);
       newHdg = (S.hdg + turnRate * dt * 180 / Math.PI + 360) % 360;
+
+      /* ── Rotary engine gyroscopic precession ──
+         Le Rhône spins clockwise seen from pilot.
+         Pitch-up → yaw right. Left bank → pitch-down assist. Right bank → pitch-up resistance.
+         All effects scale with throttle (engine spin speed).                                  */
+      if (ac.rotaryEngine?.gyroscopicTorque) {
+        const gyro = throttle * 0.6;                          // strength scales with power
+        newHdg  = (newHdg  + newPitchRateVal * gyro * dt * 1.5 + 360) % 360;  // pitch → yaw
+        newPitch = Math.max(-maxPitch, Math.min(maxPitch,
+          newPitch - newRollRateVal * gyro * dt * 0.4));       // roll → pitch couple
+      }
     }
 
     /* WoW — weight on wheels (squat switch) */
@@ -203,11 +246,10 @@ export function tickPhysics(dt) {
   const windN_ms = windSpd_ms * Math.cos(windDir_rad + Math.PI);
   const windE_ms = windSpd_ms * Math.sin(windDir_rad + Math.PI);
 
-  /* ── Turbulence ── */
+  /* ── Turbulence — vertical buffeting only; roll noise causes terrain jitter ── */
   const turb = wx.turbulence ?? 0;
   if (turb > 0 && !newWow) {
-    vs       += (Math.random() - 0.5) * turb * 300;
-    newRoll  += (Math.random() - 0.5) * turb * 4;
+    vs += (Math.random() - 0.5) * turb * 300;
   }
 
   /* ── Dead reckoning — ground velocity = TAS vector + wind ── */
@@ -220,7 +262,11 @@ export function tickPhysics(dt) {
   const newLat  = S.lat + gndN_ms / 1852 / 60 * dt;
   const newLon  = S.lon + gndE_ms / 1852 / 60 / cosLat * dt;
 
+  const newRollRate  = ac?.manualControl ? (typeof newRollRateVal  !== 'undefined' ? newRollRateVal  : S.rollRate)  : 0;
+  const newPitchRate = ac?.manualControl ? (typeof newPitchRateVal !== 'undefined' ? newPitchRateVal : S.pitchRate) : 0;
+
   setState({ alt: newAlt, spd: newSpd, hdg: newHdg, pitch: newPitch, roll: newRoll,
+             rollRate: newRollRate, pitchRate: newPitchRate,
              vs, ilsLoc, ilsGs, fma, lat: newLat, lon: newLon,
              prevAlt: S.alt, time: S.time + dt,
              wow: newWow, touchdownVS: newTouchdownVS });

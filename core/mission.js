@@ -28,6 +28,7 @@ export async function loadMission(missionPath, aircraftPath) {
     hdg,   hdgT:  hdg,
     pitch, pitchT: pitch,
     roll,  rollT:  roll,
+    rollRate: 0, pitchRate: 0,
     vs:    0,
     lat:   lat ?? 48.13,
     lon:   lon ?? 8.55,
