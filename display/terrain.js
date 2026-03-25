@@ -33,8 +33,9 @@ export function renderTerrain(canvas) {
   const pitch = (S.pitch ?? 0) * DEG;
   const roll  = (S.roll  ?? 0) * DEG;
   const hdg   = (S.hdg   ?? 0) * DEG;
-  const alt   = Math.max(1, S.alt ?? 1000);
-  const altNm = alt * FT_NM;
+  const elevFt = S.mission?.arrival?.elevation ?? S.mission?.departure?.elevation ?? 0;
+  const agl    = Math.max(1, (S.alt ?? 1000) - elevFt);   // height above ground (ft)
+  const altNm  = agl * FT_NM;
 
   const focal = (W / 2) / Math.tan(FOV_H / 2 * DEG);
   const cosP  = Math.cos(pitch), sinP = Math.sin(pitch);

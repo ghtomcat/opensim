@@ -22,8 +22,8 @@
   },
 
   "situations": [
-    { "label": "GROUND",   "alt": 1450, "spd": 0,   "hdg": 280, "altT": 1450, "spdT": 0   },
-    { "label": "TAKEOFF",  "alt": 1450, "spd": 55,  "hdg": 280, "altT": 3000, "spdT": 122 },
+    { "label": "GROUND",   "alt": 1788, "spd": 0,   "hdg": 260, "altT": 1788, "spdT": 0   },
+    { "label": "TAKEOFF",  "alt": 1788, "spd": 55,  "hdg": 260, "altT": 3000, "spdT": 122 },
     { "label": "CLIMB",    "alt": 3000, "spd": 90,  "hdg": 280, "altT": 8000, "spdT": 100 },
     { "label": "CRUISE",   "alt": 8000, "spd": 122, "hdg": 280, "altT": 8000, "spdT": 122 },
     { "label": "APPROACH", "alt": 1000, "spd": 65,  "hdg": 280, "altT": 500,  "spdT": 65  }

@@ -99,7 +99,8 @@ export function tickPhysics(dt) {
       newPitch = Math.max(newPitch - 3 * sf * dt, -15);
     }
 
-    newAlt = Math.max(0, S.alt + vs * dt / 60);
+    const groundFt = S.mission?.arrival?.elevation ?? S.mission?.departure?.elevation ?? 0;
+    newAlt = Math.max(groundFt, S.alt + vs * dt / 60);
 
     /* Coordinated turn: ω = g·tan(φ) / TAS */
     const turnRate = 9.81 * Math.tan(newRoll * DEG) / Math.max(10, newSpd_ms);
