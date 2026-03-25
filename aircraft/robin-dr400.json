@@ -1,0 +1,147 @@
+{
+  "id": "robin-dr400",
+  "name": "Robin DR400/140B Dauphin",
+  "callsign": "HB-KFG",
+  "icaoType": "DR40",
+  "era": "VFR / PPL(A)",
+  "engine": "Lycoming O-320-D2A, 160hp",
+
+  "envelope": {
+    "cruiseAlt":  8000,
+    "maxAlt":    14000,
+    "cruiseSpd":  120,
+    "maxSpd":     174,
+    "spdProfile": {
+      "14000": 115,
+      "8000":  120,
+      "3000":   95,
+      "1000":   80,
+      "500":    65,
+      "0":      55
+    }
+  },
+
+  "manualControl": true,
+
+  "performance": {
+    "mass":       1000,
+    "wingArea":   14.2,
+    "thrustMax":  2200,
+    "CL_0":       0.20,
+    "CL_alpha":   5.5,
+    "CL_max":     1.40,
+    "CD_0":       0.030,
+    "inducedK":   0.060,
+    "Vr":         65,
+    "muRoll":     0.04,
+    "muBrake":    0.35
+  },
+
+  "handling": {
+    "rollRate":  25,
+    "pitchRate":  5,
+    "spdRate":    2,
+    "maxBank":   60,
+    "maxPitch":  25
+  },
+
+  "flaps": [
+    { "deg":  0, "dCL_max": 0.00, "dCD_0": 0.000 },
+    { "deg": 15, "dCL_max": 0.20, "dCD_0": 0.008 },
+    { "deg": 30, "dCL_max": 0.45, "dCD_0": 0.022 }
+  ],
+
+  "situations": [
+    { "label": "GROUND",   "alt": 1411, "spd": 0,   "hdg": 260, "altT": 1411, "spdT": 0   },
+    { "label": "TAKEOFF",  "alt": 1411, "spd": 65,  "hdg": 260, "altT": 3000, "spdT": 120 },
+    { "label": "CLIMB",    "alt": 3000, "spd": 80,  "hdg": 260, "altT": 8000, "spdT": 100 },
+    { "label": "CRUISE",   "alt": 8000, "spd": 120, "hdg": 260, "altT": 8000, "spdT": 120 },
+    { "label": "APPROACH", "alt": 1000, "spd": 70,  "hdg": 260, "altT": 500,  "spdT": 65  }
+  ],
+
+  "thrustProfiles": [
+    { "label": "IDLE",   "spdT": 0   },
+    { "label": "CRUISE", "spdT": 100 },
+    { "label": "FULL",   "spdT": 120 }
+  ],
+
+  "sound": {
+    "engineType": "lycoming-o360"
+  },
+
+  "fmaPhases": [
+    { "minAlt": 3000, "vals": ["MAN", "", "HDG", "ALT",   ""], "cols": ["white","white","green","cyan","white"] },
+    { "minAlt": 1000, "vals": ["MAN", "", "HDG", "CLB",   ""], "cols": ["white","white","green","cyan","white"] },
+    { "minAlt": 0,    "vals": ["MAN", "", "HDG", "CLIMB", ""], "cols": ["white","white","green","cyan","white"] }
+  ],
+
+  "takeoffCallouts": [
+    { "spd": 65, "speech": "rotate",    "voice": "pm" },
+    { "spd": 80, "speech": "best rate", "voice": "pm" }
+  ],
+
+  "gpws": [
+    { "alt": 1000, "text": "1 0 0 0",   "speech": "one thousand",  "red": false },
+    { "alt": 500,  "text": "5 0 0",     "speech": "five hundred",  "red": false },
+    { "alt": 200,  "text": "2 0 0",     "speech": "two hundred",   "red": true  },
+    { "alt": 50,   "text": "F I F T Y", "speech": "fifty",         "red": false }
+  ],
+
+  "pmCallouts": [
+    { "alt": 5000, "speech": "passing five thousand"  },
+    { "alt": 3000, "speech": "passing three thousand" },
+    { "alt": 2000, "speech": "passing two thousand"   },
+    { "alt": 1000, "speech": "one thousand"           },
+    { "alt": 500,  "speech": "five hundred"           }
+  ],
+
+  "kneeboard": [
+    {
+      "title": "DEPARTURE BRIEFING",
+      "type": "briefing",
+      "items": [
+        "Runway 26, tarmac, 900m",
+        "Departure: straight out, left crosswind at 800ft AGL",
+        "Vr 65kt · Vy 80kt · Vx 70kt",
+        "Engine failure < 200ft AGL: land ahead",
+        "Engine failure > 200ft AGL: best glide 75kt, field ahead",
+        "Abort if not airborne by mid-field"
+      ]
+    },
+    {
+      "title": "BEFORE TAKEOFF",
+      "type": "checklist",
+      "items": [
+        "Fuel — sufficient, correct tank",
+        "Trim — neutral / takeoff",
+        "Flaps — 0° (or 15° short field)",
+        "Controls — full and free",
+        "Instruments — set, ALT 1411ft",
+        "Transponder — ALT"
+      ]
+    },
+    {
+      "title": "APPROACH BRIEFING",
+      "type": "briefing",
+      "items": [
+        "Runway 26, tarmac, 900m",
+        "Circuit: left hand",
+        "Final approach: 70kt, flaps 30°",
+        "Threshold: 65kt, idle",
+        "Go-around: full power, flaps 15°, climb 80kt",
+        "Divert: LSZN Olten (15nm NE)"
+      ]
+    },
+    {
+      "title": "BEFORE LANDING",
+      "type": "checklist",
+      "items": [
+        "Fuel — sufficient",
+        "Speed — below 100kt",
+        "Flaps — 15° base, 30° final",
+        "Trim — approach",
+        "Harness — secure"
+      ]
+    }
+  ]
+}

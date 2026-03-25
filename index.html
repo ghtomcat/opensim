@@ -957,6 +957,7 @@
   import { S, setState }  from './core/state.js';
   import { loadMission }  from './core/mission.js';
   import { tickPhysics }  from './core/physics.js';
+  import { tickFailures } from './core/failures.js';
   import { initCrew, tickCrew, resetCrew } from './core/crew.js';
   import { initInput, isPTTActive }        from './core/input.js';
   import { startLoop }    from './core/loop.js';
@@ -993,6 +994,19 @@
         aircraft: 'Airbus A350-900 · FMGS engaged',
         orders: 'Cleared ILS 28. Descend 4000ft.\nExpect vectors from LOBEP. Speed 250kt below FL100.\nGear down abeam threshold. Full flaps by FAP.\nDecision height: 700ft. Go-around: climb 5000ft, track 283°.',
         atmosphere: 'Live METAR active. Weather may differ from brief.\nOpen kneeboard (K) for full approach plate.',
+      },
+    },
+    {
+      id: 'grenchen-circuit', aircraft: 'robin-dr400',
+      acName: 'Robin DR400/140B', engine: 'Lycoming O-320 · 160hp',
+      location: 'Grenchen LSZG', title: 'VFR Circuit', era: 'PPL', accent: '#e8a838',
+      briefing: {
+        date: 'LSZG · Piste 26 · CTAF 122.275',
+        pilot: 'Student Pilot',
+        unit: 'Flugschule Grenchen',
+        aircraft: 'HB-KFG · Robin DR400/140B · O-320 160hp',
+        orders: 'Platzrunde links. Platzhöhe 2200ft QNH.\nPiste 26 · Asphalt · 900m.\nCrosswind bei 800ft AGL links eindrehen.\nEndanflug 70kt, Klappen 30°. Aufsetzen bei den Zahlen.',
+        atmosphere: 'Low wing. Stick, not yoke.\nYou flew this aircraft already.',
       },
     },
     {
@@ -1279,6 +1293,12 @@
       }
     }
 
+    /* Notify test harness that sim is ready */
+    if (window.simReady !== undefined) {
+      window.simReady = true;
+      window.dispatchEvent(new Event('simready'));
+    }
+
     /* Start loop */
     startLoop([
       () => {
@@ -1456,6 +1476,22 @@
   } else {
     showSelect();
   }
+
+  /* ── Test API — only active when ?test=1 ── */
+  if (new URLSearchParams(location.search).get('test') === '1') {
+    window.simGetState = () => ({ ...S });
+    window.simSetState = (patch) => setState(patch);
+    window.simStep     = (n = 1, dt = 1/60) => {
+      for (let i = 0; i < n; i++) { tickFailures(dt); tickPhysics(dt); }
+    };
+    window.simLoad     = (missionId) => {
+      const m = MISSIONS.find(m => m.id === missionId);
+      if (!m) throw new Error(`Mission not found: ${missionId}`);
+      return init(m.id, m.aircraft);
+    };
+    window.simReady    = false;
+  }
+
 </script>
 </body>
 </html>

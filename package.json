@@ -4,9 +4,13 @@
   "description": "Open-source browser flight simulator",
   "type": "module",
   "scripts": {
-    "hub": "node server/hub.js"
+    "hub":  "node server/hub.js",
+    "test": "playwright test"
   },
   "dependencies": {
     "ws": "^8.17.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
   }
 }

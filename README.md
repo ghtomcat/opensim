@@ -67,8 +67,9 @@ axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1
 |----------|--------|---------|
 | Airbus A350-900 | Rolls-Royce Trent XWB | Autopilot convergence |
 | Cessna 172S | Lycoming IO-360 180hp | Full aerodynamic model |
+| Robin DR400/140B | Lycoming O-320 160hp | Full aerodynamic model |
 | Messerschmitt Bf 109 G-6 | Daimler-Benz DB 605 1800hp | Full aerodynamic model |
-| Avro 504K | Le Rhône 9J 110hp | Full aerodynamic model |
+| Avro 504K | Le Rhône 9J 110hp | Full aerodynamic model + gyroscopic precession |
 
 ---
 
@@ -183,15 +184,79 @@ aircraft/
   avro504.json   — Avro 504K (Le Rhône 9J rotary)
 
 missions/
-  lszh-approach.json   — ILS RWY 28, live METAR, ATC clearances
-  lszf-pattern.json    — VFR circuit, grass, C172
-  wolfskopf-1942.json  — Arctic 1942, scripted engine failure
-  hahnweide-1944.json  — Airshow ground run
-  melun-1918.json      — WWI patrol
+  lszh-approach.json     — ILS RWY 28, live METAR, ATC clearances
+  grenchen-circuit.json  — VFR circuit, Robin DR400, Flugschule Grenchen
+  lszf-pattern.json      — VFR circuit, grass, C172
+  wolfskopf-1942.json    — Arctic 1942, scripted engine failure
+  hahnweide-1944.json    — Airshow ground run
+  melun-1918.json        — WWI patrol
+
+tests/
+  physics.spec.js  — Playwright: rotation speed, climb rate, stall, engine failure
 
 server/
   hub.js         — WebSocket hub (Node.js, runs on Pi)
 ```
+
+---
+
+## Testing
+
+OpenSim uses [Playwright](https://playwright.dev) for automated physics validation. Every aircraft has a test. Every physics change is verified before merge.
+
+```bash
+npm install
+npx playwright install chromium
+npm test
+```
+
+Tests run headlessly in ~30 seconds. No browser opens. The physics engine runs at full speed without rendering.
+
+```
+Running 8 tests using 1 worker
+  8 passed (27.5s)
+```
+
+### What is tested
+
+Each aircraft test asserts real-world performance bounds from the POH:
+
+| Test | Passes if |
+|------|-----------|
+| Rotation speed | Liftoff between Vr−5kt and Vr+10kt |
+| Climb rate | VS > 300 fpm after liftoff |
+| Stall | VS < −100 fpm when below Vs |
+| Engine failure | `enginePower` drops on schedule (Wolfskopf) |
+
+### Add a test when you add an aircraft
+
+```js
+// tests/physics.spec.js
+
+test.describe('Your Aircraft — your mission', () => {
+
+  test('rotates between 60–80 kt', async ({ page }) => {
+    await loadSim(page, 'your-mission');
+
+    await setState(page, { spdT: 120 });   // full throttle
+    await stepSeconds(page, 5);
+    await setState(page, { pitchT: 8 });   // rotate
+
+    let liftoffSpd = null;
+    for (let i = 0; i < 60 * 60; i++) {
+      await page.evaluate(() => window.simStep(1));
+      const s = await getState(page);
+      if (!s.wow && s.alt > YOUR_ELEVATION + 1) { liftoffSpd = s.spd; break; }
+    }
+
+    expect(liftoffSpd).toBeGreaterThan(60);
+    expect(liftoffSpd).toBeLessThan(80);
+  });
+
+});
+```
+
+`simStep(n)` runs `n` physics frames at 60fps without rendering. 60 seconds of flight = ~2 seconds of test time.
 
 ---
 
