@@ -88,34 +88,107 @@
       "items": [
         "Runway 26, grass, 650m",
         "Departure: straight out, left crosswind at 800ft AGL",
-        "Vr 55kt · Vy 75kt · Vx 62kt",
+        "Vr 55kt · Vy 74kt · Vx 62kt · Best glide 65kt",
         "Engine failure < 200ft AGL: land ahead, no turns",
         "Engine failure > 200ft AGL: best glide 65kt, field ahead",
-        "Abort if not airborne by mid-field"
+        "Abort if not airborne by mid-field",
+        "Max demonstrated crosswind: 15kt"
+      ]
+    },
+    {
+      "title": "BEFORE ENGINE START",
+      "type": "checklist",
+      "items": [
+        "Preflight inspection — complete",
+        "Seats — adjusted and locked",
+        "Harnesses — fastened",
+        "Fuel shutoff — ON (both tanks)",
+        "Avionics master — OFF",
+        "Electrical equipment — OFF",
+        "Mixture — rich",
+        "Fuel pump — ON, check pressure",
+        "Circuit breakers — in"
+      ]
+    },
+    {
+      "title": "ENGINE START",
+      "type": "checklist",
+      "items": [
+        "Throttle — open ¼ inch",
+        "Magnetos — BOTH",
+        "Propeller arc — clear",
+        "Start engine",
+        "Oil pressure — rising within 30s",
+        "Fuel pump — OFF, pressure stable"
+      ]
+    },
+    {
+      "title": "AFTER ENGINE START",
+      "type": "checklist",
+      "items": [
+        "Engine instruments — within limits",
+        "Avionics master — ON",
+        "Altimeter — set QNH",
+        "Mixture — lean for taxi",
+        "Radios — set"
+      ]
+    },
+    {
+      "title": "RUN-UP",
+      "type": "checklist",
+      "items": [
+        "Parking brake — set",
+        "Flight controls — full and free, correct sense",
+        "Fuel selector — BOTH",
+        "Mixture — rich",
+        "Throttle — 1800 RPM",
+        "Magnetos — check each (max 125 RPM drop, max 50 RPM diff)",
+        "Carb heat — ON (RPM drop then recover), then OFF",
+        "Engine instruments — green",
+        "Throttle — idle, then set 1000 RPM"
       ]
     },
     {
       "title": "BEFORE TAKEOFF",
       "type": "checklist",
       "items": [
-        "Fuel — sufficient, correct tank",
+        "Mixture — rich",
         "Trim — neutral / takeoff",
         "Flaps — 0° (or 10° short field)",
         "Controls — full and free",
         "Instruments — set, ALT 1788ft",
-        "Engine — run-up complete",
-        "Transponder — ALT"
+        "Transponder — ALT",
+        "Departure briefing — complete"
+      ]
+    },
+    {
+      "title": "CLIMB",
+      "type": "checklist",
+      "items": [
+        "Flaps — retract above 200ft AGL",
+        "Airspeed — Vy 74kt (Vx 62kt obstacle)",
+        "Mixture — rich below 3000ft, lean above"
+      ]
+    },
+    {
+      "title": "CRUISE",
+      "type": "checklist",
+      "items": [
+        "Power — 65–75% (≈2400–2500 RPM)",
+        "Mixture — lean to smooth running",
+        "Engine instruments — within limits",
+        "Fuel — check quantity and balance"
       ]
     },
     {
       "title": "DOWNWIND",
       "type": "checklist",
       "items": [
-        "Fuel — sufficient",
+        "Fuel — sufficient, BOTH tanks",
         "Mixture — rich",
         "Speed — below 110kt",
         "Flaps — 10°",
-        "Instruments — ALT set",
+        "Altimeter — set QNH",
         "Harness — secure"
       ]
     },
@@ -125,7 +198,8 @@
       "items": [
         "Runway 26, grass, 650m",
         "Circuit: left hand",
-        "Final approach: 65kt, flaps 20–30°",
+        "Base: flaps 20° · 70kt",
+        "Final: flaps 30° · 65kt",
         "Threshold: 60kt, idle",
         "Go-around: full power, flaps 10°, climb 75kt",
         "Divert: LSZN Olten (10nm NE)"
@@ -135,11 +209,11 @@
       "title": "BEFORE LANDING",
       "type": "checklist",
       "items": [
-        "Fuel — sufficient",
+        "Fuel — sufficient, BOTH tanks",
         "Mixture — rich",
-        "Speed — below 85kt",
+        "Carb heat — ON",
+        "Speed — below 85kt for flaps",
         "Flaps — 20° base, 30° final",
-        "Trim — approach",
         "Harness — secure"
       ]
     },
@@ -147,11 +221,40 @@
       "title": "AFTER LANDING",
       "type": "checklist",
       "items": [
-        "Flaps — retract (F+F+F)",
+        "Carb heat — OFF",
+        "Flaps — retract",
+        "Mixture — lean for taxi",
         "Trim — neutral",
-        "Transponder — STBY",
-        "Lights — as required",
-        "Mixture — lean for taxi"
+        "Transponder — STBY"
+      ]
+    },
+    {
+      "title": "SHUTDOWN",
+      "type": "checklist",
+      "items": [
+        "Avionics master — OFF",
+        "Electrical equipment — OFF",
+        "Mixture — idle cut-off (engine stops)",
+        "Magnetos — OFF",
+        "Battery — OFF",
+        "Logbook — complete"
+      ]
+    },
+    {
+      "title": "SPEEDS (MTOW)",
+      "type": "briefing",
+      "items": [
+        "Vs0 (flaps 30°) ........ 40kt",
+        "Vs1 (clean) ............ 48kt",
+        "Vr ..................... 55kt",
+        "Vx (best angle) ........ 62kt",
+        "Vy (best rate) ......... 74kt",
+        "Best glide ............. 65kt",
+        "Va (maneuvering) ....... 105kt",
+        "Vfe flaps 10° .......... 110kt",
+        "Vfe flaps 20–30° ....... 85kt",
+        "Vno (normal ops) ....... 129kt",
+        "Vne .................... 163kt"
       ]
     }
   ],
