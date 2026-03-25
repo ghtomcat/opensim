@@ -632,6 +632,22 @@
       margin-top: 36px;
       animation: ob-blink 1.4s ease-in-out infinite;
     }
+    .mb-with-image {
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      gap: 48px;
+      align-items: start;
+      max-width: 860px;
+    }
+    .mb-portrait {
+      width: 100%;
+      aspect-ratio: 4/3;
+      object-fit: cover;
+      object-position: center top;
+      opacity: 0.55;
+      filter: grayscale(100%) contrast(1.1);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
 
     /* ── Engine switcher (dev/demo) ── */
 
@@ -902,6 +918,7 @@
         aircraft: 'Bf 109 E-4 · WkNr. 1983',
         orders: 'Freie Jagd. Sektor 7-Nord, Kola-Halbinsel.\nFeindlicher Luftverkehr über Titovka gemeldet.\nRückkehr bis 14:00. Nach eigenem Ermessen.\n\nWetter: −22°C · Wind 180/18kt · Sicht 8km\nBewölkung 2000ft · kein Instrumentenflug möglich.',
         atmosphere: 'Er wusste, dass er zurückkommen würde.\nEr kannte die Felder dort unten nicht.',
+        image: 'images/friedrich.png',
       },
     },
   ];
@@ -935,28 +952,35 @@
 
     el.style.setProperty('--mb-accent', m.accent);
 
-    let html = '';
+    /* Build text column */
+    let textHtml = '';
     if (b.classification) {
-      html += `<div class="mb-classification">${b.classification}</div>`;
+      textHtml += `<div class="mb-classification">${b.classification}</div>`;
     }
     if (b.date) {
-      html += `<div class="mb-date">${b.date}</div>`;
+      textHtml += `<div class="mb-date">${b.date}</div>`;
     }
-    html += `<div class="mb-pilot-block">`;
-    if (b.pilot)    html += `<div class="mb-pilot">${b.pilot}</div>`;
-    if (b.unit)     html += `<div class="mb-unit">${b.unit}</div>`;
-    if (b.aircraft) html += `<div class="mb-aircraft">${b.aircraft}</div>`;
-    html += `</div>`;
+    textHtml += `<div class="mb-pilot-block">`;
+    if (b.pilot)    textHtml += `<div class="mb-pilot">${b.pilot}</div>`;
+    if (b.unit)     textHtml += `<div class="mb-unit">${b.unit}</div>`;
+    if (b.aircraft) textHtml += `<div class="mb-aircraft">${b.aircraft}</div>`;
+    textHtml += `</div>`;
     if (b.orders) {
-      html += `<div class="mb-divider"></div>`;
-      html += `<div class="mb-orders">${b.orders.replace(/\n/g, '<br>')}</div>`;
+      textHtml += `<div class="mb-divider"></div>`;
+      textHtml += `<div class="mb-orders">${b.orders.replace(/\n/g, '<br>')}</div>`;
     }
     if (b.atmosphere) {
-      html += `<div class="mb-atmosphere">${b.atmosphere.replace(/\n/g, '<br>')}</div>`;
+      textHtml += `<div class="mb-atmosphere">${b.atmosphere.replace(/\n/g, '<br>')}</div>`;
     }
-    html += `<div class="mb-fly">Press any key to fly</div>`;
+    textHtml += `<div class="mb-fly">Press any key to fly</div>`;
 
-    content.innerHTML = html;
+    if (b.image) {
+      content.className = 'mb-inner mb-with-image';
+      content.innerHTML = `<div>${textHtml}</div><img class="mb-portrait" src="${b.image}" alt="">`;
+    } else {
+      content.className = 'mb-inner';
+      content.innerHTML = textHtml;
+    }
 
     /* Fade in */
     requestAnimationFrame(() => {
