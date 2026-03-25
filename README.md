@@ -41,9 +41,10 @@ No build step. No framework. No dependencies. Open `index.html` and fly.
 | `←` / `→` | Roll left/right (manual) · Heading target ±5° (AP) |
 | `+` / `−` | Throttle ±5 kt |
 | `t` / `T` | Trim nose up / nose down |
+| `B` | Brakes (hold) |
 | `f` / `F` | Flaps extend / retract |
 | `g` | Gear toggle |
-| `1`–`5` | Situation presets: Ground / Takeoff / Climb / Cruise / Approach |
+| `1`–`5` | Situation presets (disabled during active missions) |
 | `F1`–`F4` | Thrust detents (aircraft-specific) |
 | `k` | Kneeboard (briefings + checklists) |
 | `n` | Mini map (heading, track made good, wind) |
@@ -53,6 +54,7 @@ No build step. No framework. No dependencies. Open `index.html` and fly.
 | `m` | Audio on/off |
 | `r` | Cycle role: PF → PM → INSTRUCTOR |
 | `Space` | PTT (push to talk) |
+| `Ctrl+Shift+T` | Download flight telemetry as JSONL |
 
 **Gamepad:** Logitech Extreme 3D Pro out of the box.
 axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1]=flaps · buttons[2]=gear
@@ -99,7 +101,15 @@ dγ/dt  = (L − W·cos(γ)) / (m·v) − 0.4·γ + trim × 0.0015
 ISA density: `ρ = 1.225 × (1 − 2.2558e⁻⁵ × alt_m)^4.2559`
 
 Ground roll uses rolling friction and brakes. Liftoff triggers when L ≥ W.
-Stall occurs when CL → CL_max — lift collapses, nose drops.
+
+**Angular inertia** — PD controller with momentum (τ_roll = 0.18s, τ_pitch = 0.30s). The aircraft resists abrupt inputs and takes time to settle.
+
+**Stall** — two modes: high-alpha snap (CL → CL_max, nose drops suddenly) and energy stall (L < W at low speed, progressive sink).
+
+**Prop drag** — a seized or damaged propeller adds drag proportional to engine power loss.
+
+**Gyroscopic precession** — rotary engines (Le Rhône 9J) precess when pitch or roll rate changes. Left turns assisted, right turns resisted.
+
 Wind drift: dead reckoning uses ground velocity = TAS vector + wind vector.
 
 ---
@@ -153,6 +163,7 @@ core/
   input.js       — keyboard · mouse · Gamepad API
   loop.js        — rAF loop: tickFailures → tickPhysics → tickCrew → renders
   sound.js       — procedural audio: engine + wind + all layers
+  telemetry.js   — flight recorder: 2Hz JSONL, download with Ctrl+Shift+T
 
 display/
   pfd.js         — Primary Flight Display (canvas)
@@ -266,6 +277,42 @@ The Daimler-Benz DB 605 is the V12 that powered the Bf 109G. OpenSim synthesises
 - **No samples** — every sound is computed from physics
 
 The same impulse model drives the Lycoming IO-360 (4 cylinders) and Le Rhône 9J (9-cylinder rotary).
+
+---
+
+## Telemetry
+
+Every flight is recorded automatically. Press `Ctrl+Shift+T` at any point to download a JSONL file.
+
+Each line is one sample (2Hz):
+
+```json
+{"t":48.6,"alt":1789,"spd":68.7,"vs":11,"pitch":9.06,"roll":0,"hdg":260,
+ "enginePower":1,"flaps":0,"lat":47.385,"lon":8.776,
+ "pitchT":10.64,"rollT":0,"spdT":163,"braking":0}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `t` | Elapsed seconds |
+| `alt` | Altitude ft |
+| `spd` | Airspeed kt |
+| `vs` | Vertical speed fpm |
+| `pitch` / `roll` | Actual aircraft attitude ° |
+| `pitchT` / `rollT` | Commanded attitude ° — the gap is inertia lag |
+| `spdT` | Throttle target kt |
+| `enginePower` | 1.0 = full, 0.0 = dead engine |
+| `braking` | 1 = brakes held |
+
+The gap between `pitch` and `pitchT` shows the angular inertia working. Use the data to verify physics changes, debrief approaches, or feed an AI PM.
+
+```python
+import json, pandas as pd, matplotlib.pyplot as plt
+
+df = pd.DataFrame([json.loads(l) for l in open('flight.jsonl')])
+df.plot(x='t', y=['alt','vs'], secondary_y='vs')
+plt.show()
+```
 
 ---
 
