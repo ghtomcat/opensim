@@ -659,11 +659,23 @@
     }
     .ms-live-status.error { color: #e05a5a; }
     .ms-live-grid { margin-top: 16px; }
-    #ms-radar {
-      display: block;
-      cursor: crosshair;
-      background: transparent;
+    #radar-overlay {
+      position: fixed; inset: 0; z-index: 350;
+      background: #030609;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
     }
+    #radar-overlay.hidden { display: none; }
+    #radar-close {
+      position: absolute; top: 20px; right: 24px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px; letter-spacing: 0.12em;
+      color: rgba(232,237,242,0.4);
+      cursor: pointer; text-transform: uppercase;
+      background: none; border: none;
+    }
+    #radar-close:hover { color: rgba(232,237,242,0.9); }
+    #ms-radar { display: block; cursor: crosshair; }
     .ms-live-card {
       background: rgba(77,197,220,0.04);
       border: 1px solid rgba(77,197,220,0.12);
@@ -932,6 +944,12 @@
   <div class="ms-footer">v0.2 · MIT · github.com/ghtomcat/opensim</div>
 </div>
 
+<!-- Radar overlay -->
+<div id="radar-overlay" class="hidden">
+  <button id="radar-close">✕ close</button>
+  <canvas id="ms-radar"></canvas>
+</div>
+
 <!-- Pre-mission briefing overlay -->
 <div id="mission-briefing">
   <div class="mb-inner" id="mb-content"></div>
@@ -1173,6 +1191,7 @@
   }
 
   async function flyWithFlight(flight) {
+    document.getElementById('radar-overlay').classList.add('hidden');
     document.getElementById('mission-select').classList.add('hidden');
     const aircraftId = pickAircraft(flight.icaoType);
     await init('live-flight', aircraftId);
@@ -1192,14 +1211,17 @@
   }
 
   function renderRadarMap(flights, userLat, userLon) {
-    const grid  = document.getElementById('ms-live-grid');
-    const SIZE  = Math.min(window.innerWidth - 40, 900);
-    const R     = SIZE / 2 - 24;
+    const overlay = document.getElementById('radar-overlay');
+    overlay.classList.remove('hidden');
+    document.getElementById('radar-close').onclick = () => overlay.classList.add('hidden');
+
+    const SIZE  = Math.min(window.innerWidth, window.innerHeight) - 40;
+    const R     = SIZE / 2 - 32;
     const CX    = SIZE / 2, CY = SIZE / 2;
     const MAXNM = 120;
 
-    grid.innerHTML = `<canvas id="ms-radar" width="${SIZE}" height="${SIZE}"></canvas>`;
     const canvas = document.getElementById('ms-radar');
+    canvas.width = SIZE; canvas.height = SIZE;
     const ctx    = canvas.getContext('2d');
 
     function nmToR(nm) { return (nm / MAXNM) * R; }
