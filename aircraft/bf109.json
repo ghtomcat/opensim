@@ -18,6 +18,30 @@
     }
   },
 
+  "manualControl": true,
+
+  "performance": {
+    "mass":       2700,
+    "wingArea":   16.2,
+    "thrustMax":  12000,
+    "CL_0":       0.15,
+    "CL_alpha":   5.5,
+    "CL_max":     1.6,
+    "CD_0":       0.022,
+    "inducedK":   0.065,
+    "Vr":         120,
+    "muRoll":     0.03,
+    "muBrake":    0.30
+  },
+
+  "handling": {
+    "rollRate":  45,
+    "pitchRate":  6,
+    "spdRate":    3,
+    "maxBank":   90,
+    "maxPitch":  30
+  },
+
   "sound": {
     "engineType": "v12-supercharged"
   },

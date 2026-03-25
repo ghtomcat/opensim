@@ -134,10 +134,79 @@ let _inStartup    = false;
 let _workletNode  = null;   // AudioWorkletNode
 let _workletReady = false;
 
+/* ── Internal state — wind / airframe noise ── */
+let _windNoise    = null;
+let _windFilt     = null;
+let _windGain     = null;
+let _flapNoise    = null;
+let _flapFilt     = null;
+let _flapGain     = null;
+let _groundNoise  = null;
+let _groundFilt   = null;
+let _groundGain   = null;
+let _hissNoise    = null;
+let _hissFilt     = null;
+let _hissGain     = null;
+
 /* ── Public API ── */
 
 export function initSound(engineType) {
   _cfg = ENGINES[engineType] ?? ENGINES['geared-turbofan'];
+}
+
+export function engineGunfire() {
+  if (!_ctx) return;
+  /* Rapid impacts — enemy burst hitting the airframe */
+  const rounds = 5;
+  for (let i = 0; i < rounds; i++) {
+    setTimeout(() => {
+      if (!_ctx) return;
+      const dur  = Math.floor(_ctx.sampleRate * 0.04);
+      const buf  = _ctx.createBuffer(1, dur, _ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let j = 0; j < dur; j++) {
+        data[j] = (Math.random() * 2 - 1) * Math.exp(-j / (dur * 0.2));
+      }
+      const src  = _ctx.createBufferSource();
+      src.buffer = buf;
+      const filt = _ctx.createBiquadFilter();
+      filt.type            = 'bandpass';
+      filt.frequency.value = 400;
+      filt.Q.value         = 0.8;
+      const gain = _ctx.createGain();
+      gain.gain.value = 1.2 + Math.random() * 0.6;
+      src.connect(filt); filt.connect(gain); gain.connect(_ctx.destination);
+      src.start();
+    }, i * 90 + Math.random() * 30);   // irregular ~90ms spacing
+  }
+}
+
+export function engineBang() {
+  if (!_ctx) return;
+  /* Sharp impulse — white noise burst, low-passed, rapid decay */
+  const dur  = _ctx.sampleRate * 0.08;   // 80ms
+  const buf  = _ctx.createBuffer(1, dur, _ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < dur; i++) {
+    const env = Math.exp(-i / (dur * 0.15));   // fast decay envelope
+    data[i] = (Math.random() * 2 - 1) * env;
+  }
+
+  const src  = _ctx.createBufferSource();
+  src.buffer = buf;
+
+  const filt = _ctx.createBiquadFilter();
+  filt.type            = 'lowpass';
+  filt.frequency.value = 180;
+  filt.Q.value         = 2.0;
+
+  const gain = _ctx.createGain();
+  gain.gain.value = 2.5;
+
+  src.connect(filt);
+  filt.connect(gain);
+  gain.connect(_ctx.destination);
+  src.start();
 }
 
 export function startSound(engineType) {
@@ -177,8 +246,9 @@ export function tickSound() {
   const now      = _ctx.currentTime;
 
   if (_cfg.impulse && _workletNode && _workletReady) {
-    const rpm   = _cfg.rpmIdle + (_cfg.rpmMax - _cfg.rpmIdle) * throttle;
-    const gain  = _cfg.masterGain * (0.4 + 0.6 * throttle);
+    const ePow  = S.enginePower ?? 1.0;
+    const rpm   = _cfg.rpmIdle + (_cfg.rpmMax - _cfg.rpmIdle) * throttle * ePow;
+    const gain  = _cfg.masterGain * (0.4 + 0.6 * throttle) * Math.max(0.05, ePow);
 
     /* Supercharger — mechanically coupled, linear with RPM */
     const lFreq = _cfg.superchargerFreqIdle + (_cfg.superchargerFreqMax - _cfg.superchargerFreqIdle) * throttle;
@@ -191,6 +261,36 @@ export function tickSound() {
     const gain = _cfg.masterGain * (0.35 + 0.65 * throttle);
     _master.gain.setTargetAtTime(gain, now, 0.15);
     _noiseGain?.gain.setTargetAtTime(_cfg.noiseGain * throttle, now, 0.2);
+  }
+
+  /* Wind / airframe noise — speed² × flap character */
+  if (_windGain && _flapGain) {
+    const spd   = S.spd ?? 0;
+    const sf    = Math.min(1, spd / 120);          // linear — full at 120kt
+    const flaps = (S.flaps ?? 0) / 3;             // 0 → 1
+
+    _windGain.gain.setTargetAtTime(0.32 * sf, now, 0.3);
+    _windFilt.frequency.setTargetAtTime(300 - 100 * flaps, now, 0.3);  // 300Hz clean → 200Hz full flaps
+    _windFilt.Q.setTargetAtTime(0.7 - 0.3 * flaps, now, 0.3);          // broader with flaps
+
+    _flapGain.gain.setTargetAtTime(0.20 * flaps * sf, now, 0.4);       // rumble: flaps × speed
+  }
+
+  /* Coolant hiss — rises as engine power drops toward 0 */
+  if (_hissGain) {
+    const ePow   = S.enginePower ?? 1.0;
+    const damage = Math.max(0, 1 - ePow);          // 0 = healthy, 1 = dead
+    const hissG  = damage > 0.1 ? 0.18 * damage : 0;
+    _hissGain.gain.setTargetAtTime(hissG, now, 0.8);
+  }
+
+  /* Ground roll — creak and gear rumble, only while WoW */
+  if (_groundGain) {
+    const wow  = S.wow ?? false;
+    const spd  = S.spd ?? 0;
+    const gsf  = wow ? Math.min(1, spd / 40) : 0;   // rises 0→40kt on ground
+    _groundGain.gain.setTargetAtTime(0.25 * gsf, now, 0.15);
+    _groundFilt.frequency.setTargetAtTime(80 + 60 * gsf, now, 0.2);  // pitch rises with speed
   }
 
   /* Supercharger — shared by both paths */
@@ -235,6 +335,7 @@ async function _startWorkletEngine() {
     });
 
     _buildSupercharger();
+    _buildWindLayer();
 
     _started      = true;
     _workletReady = true;
@@ -295,6 +396,97 @@ function _startOscEngine() {
   _noise.start();
 
   _buildSupercharger();
+  _buildWindLayer();
+}
+
+function _buildWindLayer() {
+  /* Wind — broadband rush, shaped by airspeed */
+  const wBuf  = _ctx.createBuffer(1, _ctx.sampleRate * 2, _ctx.sampleRate);
+  const wData = wBuf.getChannelData(0);
+  for (let i = 0; i < wData.length; i++) wData[i] = Math.random() * 2 - 1;
+
+  _windNoise        = _ctx.createBufferSource();
+  _windNoise.buffer = wBuf;
+  _windNoise.loop   = true;
+
+  _windFilt              = _ctx.createBiquadFilter();
+  _windFilt.type         = 'bandpass';
+  _windFilt.frequency.value = 800;
+  _windFilt.Q.value      = 0.8;
+
+  _windGain             = _ctx.createGain();
+  _windGain.gain.value  = 0;
+
+  _windNoise.connect(_windFilt);
+  _windFilt.connect(_windGain);
+  _windGain.connect(_ctx.destination);
+  _windNoise.start();
+
+  /* Flap rumble — low-frequency turbulence from separated flow */
+  const fBuf  = _ctx.createBuffer(1, _ctx.sampleRate * 2, _ctx.sampleRate);
+  const fData = fBuf.getChannelData(0);
+  for (let i = 0; i < fData.length; i++) fData[i] = Math.random() * 2 - 1;
+
+  _flapNoise        = _ctx.createBufferSource();
+  _flapNoise.buffer = fBuf;
+  _flapNoise.loop   = true;
+
+  _flapFilt              = _ctx.createBiquadFilter();
+  _flapFilt.type         = 'bandpass';
+  _flapFilt.frequency.value = 200;
+  _flapFilt.Q.value      = 0.6;
+
+  _flapGain             = _ctx.createGain();
+  _flapGain.gain.value  = 0;
+
+  _flapNoise.connect(_flapFilt);
+  _flapFilt.connect(_flapGain);
+  _flapGain.connect(_ctx.destination);
+  _flapNoise.start();
+
+  /* Ground roll — airframe creak and gear rumble on grass */
+  const gBuf  = _ctx.createBuffer(1, _ctx.sampleRate * 2, _ctx.sampleRate);
+  const gData = gBuf.getChannelData(0);
+  for (let i = 0; i < gData.length; i++) gData[i] = Math.random() * 2 - 1;
+
+  _groundNoise        = _ctx.createBufferSource();
+  _groundNoise.buffer = gBuf;
+  _groundNoise.loop   = true;
+
+  _groundFilt              = _ctx.createBiquadFilter();
+  _groundFilt.type         = 'lowpass';
+  _groundFilt.frequency.value = 120;
+  _groundFilt.Q.value      = 1.2;
+
+  _groundGain             = _ctx.createGain();
+  _groundGain.gain.value  = 0;
+
+  _groundNoise.connect(_groundFilt);
+  _groundFilt.connect(_groundGain);
+  _groundGain.connect(_ctx.destination);
+  _groundNoise.start();
+
+  /* Coolant hiss — high-pitched steam, rises as engine dies */
+  const hBuf  = _ctx.createBuffer(1, _ctx.sampleRate * 2, _ctx.sampleRate);
+  const hData = hBuf.getChannelData(0);
+  for (let i = 0; i < hData.length; i++) hData[i] = Math.random() * 2 - 1;
+
+  _hissNoise        = _ctx.createBufferSource();
+  _hissNoise.buffer = hBuf;
+  _hissNoise.loop   = true;
+
+  _hissFilt              = _ctx.createBiquadFilter();
+  _hissFilt.type         = 'highpass';
+  _hissFilt.frequency.value = 3000;
+  _hissFilt.Q.value      = 1.5;
+
+  _hissGain             = _ctx.createGain();
+  _hissGain.gain.value  = 0;
+
+  _hissNoise.connect(_hissFilt);
+  _hissFilt.connect(_hissGain);
+  _hissGain.connect(_ctx.destination);
+  _hissNoise.start();
 }
 
 function _buildSupercharger() {
@@ -346,14 +538,22 @@ function _teardown() {
   _workletReady = false;
   try { _workletNode?.disconnect(); } catch {}
   _oscs.forEach(({ osc }) => { try { osc.stop(); } catch {} });
-  try { _noise?.stop();  } catch {}
-  try { _lader?.stop();  } catch {}
-  try { _lader2?.stop(); } catch {}
+  try { _noise?.stop();      } catch {}
+  try { _lader?.stop();      } catch {}
+  try { _lader2?.stop();     } catch {}
+  try { _windNoise?.stop();  } catch {}
+  try { _flapNoise?.stop();  } catch {}
   _ctx.close();
   _ctx = null; _master = null; _oscs = [];
   _noise = null; _noiseGain = null;
   _lader = null; _laderGain = null;
   _lader2 = null; _lader2Gain = null;
   _workletNode = null;
+  _windNoise = null; _windFilt = null; _windGain = null;
+  _flapNoise = null; _flapFilt = null; _flapGain = null;
+  try { _groundNoise?.stop(); } catch {}
+  _groundNoise = null; _groundFilt = null; _groundGain = null;
+  try { _hissNoise?.stop(); } catch {}
+  _hissNoise = null; _hissFilt = null; _hissGain = null;
   _started = false;
 }

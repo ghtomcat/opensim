@@ -68,13 +68,18 @@ export function tickPhysics(dt) {
     newPitch = converge(S.pitch, (onGround && S.spd < Vr) ? 0 : S.pitchT, pitchRate);
     newRoll  = converge(S.roll,  onGround ? 0 : S.rollT,  rollRate);
 
+    /* Flap effects — ΔCL_max and ΔCD_0 from aircraft JSON */
+    const flapCfg  = (ac.flaps ?? [])[S.flaps] ?? {};
+    const CL_max_e = CL_max + (flapCfg.dCL_max ?? 0);
+    const CD_0_e   = CD_0   + (flapCfg.dCD_0   ?? 0);
+
     /* Aerodynamics — computed always for both ground and flight */
     const alpha = newPitch * DEG;
-    const CL    = Math.min(CL_max, Math.max(-0.5, CL_0 + CL_alpha * alpha));
-    const CD    = CD_0 + k_ind * CL * CL;
+    const CL    = Math.min(CL_max_e, Math.max(-0.5, CL_0 + CL_alpha * alpha));
+    const CD    = CD_0_e + k_ind * CL * CL;
     const L     = q * S_wing * CL;
     const D     = q * S_wing * CD;
-    const T     = throttle * T_max * (rho / 1.225);  // thrust falls with density
+    const T     = throttle * T_max * (rho / 1.225) * (S.enginePower ?? 1.0);
     const W     = mass * 9.81;
 
     if (onGround && L < W) {
@@ -100,7 +105,9 @@ export function tickPhysics(dt) {
       const gamma  = Math.asin(Math.max(-0.5, Math.min(0.5, vz_ms / spd_ms)));
 
       const a_long = (T * Math.cos(alpha) - D - W * Math.sin(gamma)) / mass;
-      const dGamma = (L - W * Math.cos(gamma)) / (mass * Math.max(10, spd_ms));
+      const dGamma = (L - W * Math.cos(gamma)) / (mass * Math.max(10, spd_ms))
+                   - 0.4 * gamma                        // pitch damping — horizontal stab
+                   + (S.trim ?? 0) * 0.0015;            // trim — shifts pitch equilibrium
 
       const newSpd_ms = Math.max(0, spd_ms + a_long * dt);
       const newGamma  = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, gamma + dGamma * dt));
@@ -108,9 +115,9 @@ export function tickPhysics(dt) {
       newSpd = newSpd_ms / 0.5144;
       vs     = newSpd_ms * Math.sin(newGamma) * 196.85;
 
-      /* Stall: CL → CL_max, lift collapses, nose drops */
-      if (CL > CL_max * 0.95) {
-        const sf = Math.min(1, (CL / CL_max - 0.95) / 0.05);
+      /* Stall: CL → CL_max_e (flap-adjusted), lift collapses, nose drops */
+      if (CL > CL_max_e * 0.95) {
+        const sf = Math.min(1, (CL / CL_max_e - 0.95) / 0.05);
         vs      -= sf * 800;
         newPitch = Math.max(newPitch - 3 * sf * dt, -15);
       }
@@ -187,12 +194,30 @@ export function tickPhysics(dt) {
     }
   }
 
-  /* ── Dead reckoning — geographic position ── */
-  const distNm = newSpd * (dt / 3600);
-  const hdgRad = newHdg * Math.PI / 180;
-  const cosLat = Math.cos(S.lat * Math.PI / 180);
-  const newLat = S.lat + distNm / 60 * Math.cos(hdgRad);
-  const newLon = S.lon + distNm / 60 * Math.sin(hdgRad) / cosLat;
+  /* ── Wind ── */
+  const wx = _getWind();
+  const windSpd_ms  = wx.spd * 0.5144;
+  const windDir_rad = wx.dir * DEG;
+  // Wind FROM → air moves in opposite direction
+  const windN_ms = windSpd_ms * Math.cos(windDir_rad + Math.PI);
+  const windE_ms = windSpd_ms * Math.sin(windDir_rad + Math.PI);
+
+  /* ── Turbulence ── */
+  const turb = wx.turbulence ?? 0;
+  if (turb > 0 && !newWow) {
+    vs       += (Math.random() - 0.5) * turb * 300;
+    newRoll  += (Math.random() - 0.5) * turb * 4;
+  }
+
+  /* ── Dead reckoning — ground velocity = TAS vector + wind ── */
+  const hdgRad = newHdg * DEG;
+  const cosLat = Math.cos(S.lat * DEG);
+  const acN_ms = newSpd * 0.5144 * Math.cos(hdgRad);
+  const acE_ms = newSpd * 0.5144 * Math.sin(hdgRad);
+  const gndN_ms = acN_ms + windN_ms;
+  const gndE_ms = acE_ms + windE_ms;
+  const newLat  = S.lat + gndN_ms / 1852 / 60 * dt;
+  const newLon  = S.lon + gndE_ms / 1852 / 60 / cosLat * dt;
 
   setState({ alt: newAlt, spd: newSpd, hdg: newHdg, pitch: newPitch, roll: newRoll,
              vs, ilsLoc, ilsGs, fma, lat: newLat, lon: newLon,
@@ -206,6 +231,20 @@ export function resetApproach() {
 }
 
 /* ── Helpers ── */
+function _getWind() {
+  const w = S.mission?.weather;
+  if (!w) return { dir: 0, spd: 0, turbulence: 0 };
+  const src = w.source === 'manual' ? w.manual
+            : w.source === 'live'   ? S.metar
+            : w.fallback;
+  if (!src) return { dir: 0, spd: 0, turbulence: 0 };
+  return {
+    dir:        src.wdir  ?? src.wind  ?? 0,
+    spd:        src.wspd  ?? 0,
+    turbulence: src.turbulence ?? 0,
+  };
+}
+
 function converge(cur, tgt, rate) {
   const d = tgt - cur;
   return Math.abs(d) <= rate ? tgt : cur + Math.sign(d) * rate;

@@ -163,8 +163,13 @@ function _onKeyDown(e) {
     if (e.key === 'ArrowRight') setState({ hdgT: (S.hdgT + 5) % 360 });
   }
 
-  /* Flaps */
+  /* Trim — t nose up, T nose down */
+  if (e.key === 't') setState({ trim: Math.min(10, (S.trim ?? 0) + 0.5) });
+  if (e.key === 'T') setState({ trim: Math.max(-10, (S.trim ?? 0) - 0.5) });
+
+  /* Flaps — f extend, F retract */
   if (e.key === 'f') setState({ prevFlaps: S.flaps, flaps: Math.min(3, S.flaps + 1) });
+  if (e.key === 'F') setState({ prevFlaps: S.flaps, flaps: Math.max(0, S.flaps - 1) });
   if (e.key === 'g') setState({ prevGear: S.gear, gear: !S.gear });
 
   /* Role toggle (for solo sim) */

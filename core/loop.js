@@ -8,6 +8,7 @@ import { S } from './state.js';
 import { tickPhysics } from './physics.js';
 import { tickCrew }    from './crew.js';
 import { tickGamepad, tickControls } from './input.js';
+import { tickFailures }              from './failures.js';
 
 let _prevTime = null;
 let _renderers = [];
@@ -33,6 +34,7 @@ function _tick(now) {
 
   if (!S.paused) {
     const prevAlt = S.alt;
+    tickFailures(dt);
     tickPhysics(dt);
     tickCrew(prevAlt, S.alt);
   }

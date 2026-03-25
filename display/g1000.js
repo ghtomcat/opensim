@@ -528,12 +528,12 @@ function _engineStrip(ctx, x, y, w, h) {
     [0, 4, G.red], [4, 8, G.amber], [8, 25, G.green],
   ]); gy += gap;
 
-  const egt = 600 + throttle * 800;
+  const egt = 900 + throttle * 500;
   _barGauge(ctx, bx, gy, bw, bh, egt, 0, 1600, 'EGT °F', Math.round(egt), [
     [0, 800, G.dim], [800, 1450, G.green], [1450, 1600, G.red],
   ]); gy += gap;
 
-  const cht = 160 + throttle * 180;
+  const cht = 250 + throttle * 160;
   _barGauge(ctx, bx, gy, bw, bh, cht, 0, 500, 'CHT °F', Math.round(cht), [
     [0, 100, G.dim], [100, 400, G.green], [400, 500, G.red],
   ]);

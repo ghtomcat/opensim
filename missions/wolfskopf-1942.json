@@ -10,22 +10,31 @@
     "source": "manual",
     "manual": {
       "temp":       -22,
-      "wind":       180,
+      "wdir":       180,
       "wspd":       18,
       "visibility": 3000,
       "snow":       true,
-      "altim":      1013
+      "altim":      1013,
+      "turbulence": 0.4
     }
   },
 
   "initialState": {
     "lat":   69.40,
     "lon":   29.05,
-    "alt":   100,
-    "spd":   65,
+    "alt":   2000,
+    "spd":   180,
     "hdg":   45,
     "pitch": 2,
     "roll":  0
+  },
+
+  "departure": null,
+  "arrival": {
+    "icao": "ULMM",
+    "name": "Titovka — emergency field",
+    "runway": "45",
+    "elevation": 100
   },
 
   "narrative": [
@@ -46,5 +55,26 @@
     "Did you land?"
   ],
 
-  "failures": []
+  "failures": [
+    {
+      "trigger": { "type": "time", "t": 115 },
+      "type": "engine_gunfire"
+    },
+    {
+      "trigger": { "type": "time", "t": 120 },
+      "type": "engine_bang"
+    },
+    {
+      "trigger": { "type": "time", "t": 120 },
+      "type": "engine_power",
+      "value": 0.35,
+      "rampTime": 20
+    },
+    {
+      "trigger": { "type": "time", "t": 160 },
+      "type": "engine_power",
+      "value": 0.0,
+      "rampTime": 30
+    }
+  ]
 }

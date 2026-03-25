@@ -71,7 +71,7 @@ export function resetCrew() {
 /* ── Direct speech ── */
 export function speakPF(text, opts = {})  { _speak(text, _pfVoice,  { rate: 0.92, pitch: 0.88, ...opts }); }
 export function speakPM(text, opts = {})  { _speak(text, _pmVoice,  { rate: 0.92, pitch: 1.18, ...opts }); }
-export function speakATC(text, opts = {}) { _speak(text, _atcVoice, { rate: 1.08, pitch: 0.78, ...opts }); }
+export function speakATC(text, opts = {}) { _speak(text, _atcVoice, { rate: 1.08, pitch: 0.78, volume: 1.0, ...opts }); }
 
 /** Challenge / response: PF speaks, then PM confirms after a pause */
 export function sndCrew(pfText, pmText, delayMs = 750) {

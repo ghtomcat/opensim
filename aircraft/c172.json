@@ -51,6 +51,13 @@
     "muBrake":    0.35
   },
 
+  "flaps": [
+    { "deg":  0, "dCL_max": 0.0, "dCD_0": 0.000 },
+    { "deg": 10, "dCL_max": 0.3, "dCD_0": 0.010 },
+    { "deg": 20, "dCL_max": 0.5, "dCD_0": 0.020 },
+    { "deg": 30, "dCL_max": 0.7, "dCD_0": 0.035 }
+  ],
+
   "handling": {
     "rollRate":  30,
     "pitchRate":  5,
@@ -72,6 +79,81 @@
   "takeoffCallouts": [
     { "spd": 55, "speech": "rotate",    "voice": "pm" },
     { "spd": 74, "speech": "best rate", "voice": "pm" }
+  ],
+
+  "kneeboard": [
+    {
+      "title": "DEPARTURE BRIEFING",
+      "type": "briefing",
+      "items": [
+        "Runway 26, grass, 650m",
+        "Departure: straight out, left crosswind at 800ft AGL",
+        "Vr 55kt · Vy 75kt · Vx 62kt",
+        "Engine failure < 200ft AGL: land ahead, no turns",
+        "Engine failure > 200ft AGL: best glide 65kt, field ahead",
+        "Abort if not airborne by mid-field"
+      ]
+    },
+    {
+      "title": "BEFORE TAKEOFF",
+      "type": "checklist",
+      "items": [
+        "Fuel — sufficient, correct tank",
+        "Trim — neutral / takeoff",
+        "Flaps — 0° (or 10° short field)",
+        "Controls — full and free",
+        "Instruments — set, ALT 1788ft",
+        "Engine — run-up complete",
+        "Transponder — ALT"
+      ]
+    },
+    {
+      "title": "DOWNWIND",
+      "type": "checklist",
+      "items": [
+        "Fuel — sufficient",
+        "Mixture — rich",
+        "Speed — below 110kt",
+        "Flaps — 10°",
+        "Instruments — ALT set",
+        "Harness — secure"
+      ]
+    },
+    {
+      "title": "APPROACH BRIEFING",
+      "type": "briefing",
+      "items": [
+        "Runway 26, grass, 650m",
+        "Circuit: left hand",
+        "Final approach: 65kt, flaps 20–30°",
+        "Threshold: 60kt, idle",
+        "Go-around: full power, flaps 10°, climb 75kt",
+        "Divert: LSZN Olten (10nm NE)"
+      ]
+    },
+    {
+      "title": "BEFORE LANDING",
+      "type": "checklist",
+      "items": [
+        "Fuel — sufficient",
+        "Mixture — rich",
+        "Speed — below 85kt",
+        "Flaps — 20° base, 30° final",
+        "Trim — approach",
+        "Harness — secure"
+      ]
+    },
+    {
+      "title": "AFTER LANDING",
+      "type": "checklist",
+      "items": [
+        "Flaps — retract (F+F+F)",
+        "Trim — neutral",
+        "Transponder — STBY",
+        "Lights — as required",
+        "Mixture — lean for taxi"
+      ]
+    }
   ],
 
   "gpws": [

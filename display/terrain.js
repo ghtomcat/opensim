@@ -68,7 +68,7 @@ export function renderTerrain(canvas) {
   }
 
   /* ── Sky gradient ── */
-  const t   = Math.min(1, alt / 35000);
+  const t   = Math.min(1, (S.alt ?? 1000) / 35000);
   const sky = ctx.createLinearGradient(0, 0, 0, H);
   sky.addColorStop(0, `rgb(${_c(8,  100, t)},${_c(18, 180, t)},${_c(38, 230, t)})`);
   sky.addColorStop(1, `rgb(${_c(32, 165, t)},${_c(90, 210, t)},${_c(145,245, t)})`);

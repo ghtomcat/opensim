@@ -731,6 +731,8 @@
   import { initCOM }           from './display/com.js';
   import { initSound, startSound, stopSound, switchEngine, tickSound, getCurrentRpm } from './core/sound.js';
   import { initOutside, tickOutside, outsideInvalidate } from './display/outside.js';
+  import { initKneeboard, toggleKneeboard, tickKneeboard } from './display/kneeboard.js';
+  import { initMap, renderMap, toggleMap } from './display/map.js';
 
   /* ── DOM refs ── */
   const canvas     = document.getElementById('pfd');
@@ -818,6 +820,8 @@
     /* Init sound with default engine type from aircraft JSON */
     const engineType = S.aircraft?.sound?.engineType ?? 'geared-turbofan';
     initSound(engineType);
+    initKneeboard();
+    initMap();
 
     let _audioOn  = true;
     let _viewMode = 0;   /* 0=PFD · 1=Combined · 2=Outside */
@@ -834,6 +838,8 @@
     obEl.addEventListener('click', dismissOnboarding);
 
     window.addEventListener('keydown', (e) => {
+      if (e.key === 'k' || e.key === 'K') { toggleKneeboard(); return; }
+      if (e.key === 'n' || e.key === 'N') { toggleMap(); return; }
       if (e.key === 'm' || e.key === 'M') {
         _audioOn = !_audioOn;
         if (_audioOn) { startSound(engineType); audioEl.textContent = 'ON';  audioEl.className = 'panel-value green'; }
@@ -895,6 +901,8 @@
       () => checkDebrief(),
       () => tickSound(),
       () => tickOutside(),
+      () => tickKneeboard(),
+      () => renderMap(),
     ]);
   }
 

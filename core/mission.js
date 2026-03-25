@@ -4,7 +4,8 @@
    Fetches live METAR if mission.weather.source === 'live'.
    ═══════════════════════════════════════════════════════════════ */
 
-import { setState } from './state.js';
+import { setState }    from './state.js';
+import { resetFailures } from './failures.js';
 
 /**
  * loadMission(missionPath, aircraftPath)
@@ -32,8 +33,11 @@ export async function loadMission(missionPath, aircraftPath) {
     lon:   lon ?? 8.55,
     flaps: 0, prevFlaps: 0,
     gear:  false, prevGear: false,
-    ap:    true,
-    athr:  true,
+    ap:    !aircraft.manualControl,
+    athr:  !aircraft.manualControl,
+    wow:   false,
+    trim:  0,
+    enginePower: 1.0,
     ilsLoc: 1.2, ilsLocT: 1.2,
     ilsGs: -0.8, ilsGsT: -0.8,
     time:  0,
@@ -45,6 +49,7 @@ export async function loadMission(missionPath, aircraftPath) {
     fetchMetar(mission.weather.icao).catch(() => {});
   }
 
+  resetFailures();
   return { mission, aircraft };
 }
 
