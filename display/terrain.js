@@ -197,7 +197,6 @@ export function renderTerrain(canvas) {
       }
     }
   }
-}
 
   /* ── The Yrr — Wolfskopf T+113 to T+115 ── */
   if (isArctic) {
