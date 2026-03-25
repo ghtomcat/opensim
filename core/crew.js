@@ -18,8 +18,11 @@ let _briefLock        = false;
 let _checklistLock    = false;
 let _prevFlaps        = 0;
 let _prevGear         = false;
+let _prevSpd          = 0;
+let _prevWow          = false;
 const _pmFired        = new Set();   // altitude callout thresholds already fired
 const _gpwsFired      = new Set();   // GPWS callout altitudes already fired
+const _takeoffFired   = new Set();   // takeoff speed callouts already fired
 
 /* ── Audio file map — override TTS for key phrases ── */
 const AUDIO_FILES = {
@@ -45,6 +48,10 @@ export function tickCrew(prevAlt, currAlt) {
   _checkChecklist(prevAlt, currAlt, ac);
   _checkATC(prevAlt, currAlt, ms);
   _checkApproachBrief(prevAlt, currAlt, ms);
+  _checkTakeoffCallouts(ac);
+
+  _prevSpd = S.spd ?? 0;
+  _prevWow = S.wow ?? false;
 }
 
 export function resetCrew() {
@@ -54,8 +61,11 @@ export function resetCrew() {
   _checklistLock = false;
   _prevFlaps  = 0;
   _prevGear   = false;
+  _prevSpd    = 0;
+  _prevWow    = false;
   _pmFired.clear();
   _gpwsFired.clear();
+  _takeoffFired.clear();
 }
 
 /* ── Direct speech ── */
@@ -71,6 +81,34 @@ export function sndCrew(pfText, pmText, delayMs = 750) {
 }
 
 /* ═══ Private ════════════════════════════════════════════════ */
+
+function _checkTakeoffCallouts(ac) {
+  const currSpd = S.spd ?? 0;
+  const currWow = S.wow ?? false;
+
+  /* Reset when stopped on ground — allows multiple takeoffs per session */
+  if (currWow && currSpd < 5 && _takeoffFired.size > 0) {
+    _takeoffFired.clear();
+    return;
+  }
+
+  /* Speed-based callouts (ascending) */
+  if (ac.takeoffCallouts) {
+    for (const { spd, speech, voice } of ac.takeoffCallouts) {
+      if (_prevSpd < spd && currSpd >= spd && !_takeoffFired.has(spd)) {
+        _takeoffFired.add(spd);
+        const speak = voice === 'pf' ? speakPF : speakPM;
+        setTimeout(() => speak(speech), 200);
+      }
+    }
+  }
+
+  /* Positive rate: WoW releases with climbing VS */
+  if (_prevWow && !currWow && (S.vs ?? 0) > 50 && !_takeoffFired.has('positive_rate')) {
+    _takeoffFired.add('positive_rate');
+    setTimeout(() => speakPM('positive rate'), 400);
+  }
+}
 
 function _checkPMCallouts(prev, curr, ac) {
   if (!ac.pmCallouts) return;

@@ -69,6 +69,11 @@
     { "minAlt": 0,    "vals": ["MAN", "", "HDG", "CLIMB", ""], "cols": ["white","white","green","cyan","white"] }
   ],
 
+  "takeoffCallouts": [
+    { "spd": 55, "speech": "rotate",    "voice": "pm" },
+    { "spd": 74, "speech": "best rate", "voice": "pm" }
+  ],
+
   "gpws": [
     { "alt": 1000, "text": "1 0 0 0",   "speech": "one thousand",  "red": false },
     { "alt": 500,  "text": "5 0 0",     "speech": "five hundred",  "red": false },
