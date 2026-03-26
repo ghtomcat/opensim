@@ -14,7 +14,7 @@ Born 05:32, Sunday 15 March 2026, Zürich. Built with Claude Code.
 OpenSim is not a game. It is a modular simulation engine that runs entirely in the browser with zero dependencies and no build step.
 
 - **Real aerodynamic physics** — lift, drag, thrust, weight from first principles. Not kinematic approximations.
-- **Procedural sound** — every sound synthesised from physics. No samples. Wind rises with airspeed. Flaps change the airflow character. The DB 605 fires 12 cylinders.
+- **Procedural sound** — every sound synthesised from physics. No samples. Wind rises with airspeed. Flaps change the airflow character. The DB 601 fires 12 cylinders.
 - **Any aircraft** — envelope, performance, handling, sound, checklists in one JSON file
 - **Any mission** — weather, ATC clearances, approach brief, scripted failures, crew voices in one JSON file
 - **Runs anywhere** — laptop, tablet, Raspberry Pi, custom cockpit panels
@@ -68,7 +68,7 @@ axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1
 | Airbus A350-900 | Rolls-Royce Trent XWB | Autopilot convergence |
 | Cessna 172S | Lycoming IO-360 180hp | Full aerodynamic model |
 | Robin DR400/140B | Lycoming O-320 160hp | Full aerodynamic model |
-| Messerschmitt Bf 109 G-6 | Daimler-Benz DB 605 1800hp | Full aerodynamic model |
+| Messerschmitt Bf 109 G-4 | Daimler-Benz DB 601 1175hp | Full aerodynamic model |
 | Avro 504K | Le Rhône 9J 110hp | Full aerodynamic model + gyroscopic precession |
 
 ---
@@ -79,7 +79,7 @@ axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1
 |---------|----------|-------|------|
 | ILS Approach RWY 28 | A350 | Zürich LSZH | Live METAR, ATC clearances, approach brief |
 | VFR Pattern | C172 | Speck-Fehraltorf LSZF | Grass strip, takeoff callouts, kneeboard |
-| Airshow Ground Run | Bf 109 | Hahnweide EDST | DB 605 start, ground roll |
+| Airshow Ground Run | Bf 109 | Hahnweide EDST | DB 601 start, ground roll |
 | Patrol — Marne 1918 | Avro 504K | Melun-Villaroche | WWI rotary engine |
 | Operation Wolfskopf | Bf 109 | Titovka, Arctic 1942 | Scripted engine failure: gunfire → bang → dead engine |
 
@@ -180,7 +180,7 @@ display/
 aircraft/
   a350.json      — Airbus A350-900
   c172.json      — Cessna 172S (full performance + kneeboard)
-  bf109.json     — Messerschmitt Bf 109 G-6 (manualControl, DB 605)
+  bf109.json     — Messerschmitt Bf 109 G-4 (manualControl, DB 601)
   avro504.json   — Avro 504K (Le Rhône 9J rotary)
 
 missions/
@@ -331,13 +331,13 @@ test.describe('Your Aircraft — your mission', () => {
 
 ---
 
-## DB 605 — Physical Engine Sound
+## DB 601 — Physical Engine Sound
 
-The Daimler-Benz DB 605 is the V12 that powered the Bf 109G. OpenSim synthesises it sample-by-sample via AudioWorklet:
+The Daimler-Benz DB 601 is the V12 that powered the Bf 109G-4 (D-FEML). OpenSim synthesises it sample-by-sample via AudioWorklet:
 
 - **12 cylinders** fire at their own crankshaft angle (every 60°, ±8° jitter)
 - **Each firing** generates an impulse + noise burst with exponential decay
-- **Exhaust resonator** at ~110 Hz — the fundamental of the DB 605 note
+- **Exhaust resonator** at ~110 Hz — the fundamental of the DB 601 note
 - **Supercharger** — two sine oscillators (663 Hz + 1097 Hz) mechanically coupled to RPM
 - **No samples** — every sound is computed from physics
 

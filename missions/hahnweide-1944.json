@@ -1,7 +1,7 @@
 {
   "id": "hahnweide-1944",
   "title": "Airshow Ground Run — Hahnweide 2025",
-  "description": "DB 605 startup and ground run at Hahnweide. The sound that started it all.",
+  "description": "DB 601 startup and ground run at Hahnweide. The sound that started it all.",
   "author": "Markus Leutwyler",
   "aircraft": "bf109",
 
@@ -35,7 +35,7 @@
   },
 
   "debrief": [
-    "DB 605 — 1175hp at idle, 1800hp at full power.",
+    "DB 601 — 960hp takeoff, 1175hp emergency power.",
     "Calibrated from D-FEML ground run, Hangelar.",
     "Fundamental idle: ~110 Hz. Supercharger: 663 Hz."
   ],
