@@ -1210,11 +1210,17 @@
     el.className = 'ms-live-status' + (isError ? ' error' : '');
   }
 
+  const LIVE_MISSION = {
+    id: 'live-flight', title: 'Live Flight', aircraft: 'a350',
+    weather: { source: 'manual', manual: { wdir: 0, wspd: 0, turbulence: 0.1, altim: 1013 } },
+    initialState: { lat: 47.39, lon: 8.54, alt: 35000, spd: 480, hdg: 0, pitch: 0, roll: 0 },
+  };
+
   async function flyWithFlight(flight) {
     document.getElementById('radar-overlay').classList.add('hidden');
     document.getElementById('mission-select').classList.add('hidden');
     const aircraftId = pickAircraft(flight.icaoType);
-    await init('live-flight', aircraftId);
+    await init('live-flight', aircraftId, LIVE_MISSION);
     setState({
       lat:    flight.lat,
       lon:    flight.lon,
@@ -1509,7 +1515,7 @@
   }
 
   /* ── Init ── */
-  async function init(missionId, aircraftId) {
+  async function init(missionId, aircraftId, inlineMission = null) {
     const mData = MISSIONS.find(m => m.id === missionId);
     const mLabel = mData ? `${mData.acName} · ${mData.title}` : missionId;
     document.title = `OpenSim — ${mLabel}`;
@@ -1519,7 +1525,7 @@
     loadBar.style.width = '20%';
     loadStatus.textContent = 'loading aircraft…';
 
-    await loadMission(`missions/${missionId}.json`, `aircraft/${aircraftId}.json`);
+    await loadMission(inlineMission ?? `missions/${missionId}.json`, `aircraft/${aircraftId}.json`);
     startTelemetry();
 
     loadBar.style.width = '60%';

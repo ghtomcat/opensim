@@ -13,8 +13,8 @@ import { resetFailures } from './failures.js';
  */
 export async function loadMission(missionPath, aircraftPath) {
   const [mission, aircraft] = await Promise.all([
-    fetch(missionPath).then(r => r.json()),
-    fetch(aircraftPath).then(r => r.json()),
+    typeof missionPath  === 'object' ? missionPath  : fetch(missionPath).then(r => r.json()),
+    typeof aircraftPath === 'object' ? aircraftPath : fetch(aircraftPath).then(r => r.json()),
   ]);
 
   /* Apply initial state from mission */
