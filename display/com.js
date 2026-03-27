@@ -8,11 +8,17 @@ import { S } from '../core/state.js';
 
 /* ── Default LSZH frequency card ── */
 const FREQS_DEFAULT = {
-  '121.750': { label: 'LSZH GROUND',               audio: 'audio/guete-morge.mp3' },
+  '121.750': { label: 'LSZH GROUND',               audio: 'audio/guete-morge.mp3',
+               stream: 'http://d.liveatc.net/lszh1_gnd',
+               streamPage: 'https://www.liveatc.net/hlisten.php?mount=lszh1_gnd&icao=lszh' },
   '121.900': { label: 'LSZH CLEARANCE DELIVERY',   audio: null },
   '126.200': { label: 'LSZH ATIS',                 audio: 'audio/atis-zurich.mp3', atis: true },
-  '118.100': { label: 'LSZH TOWER',                audio: null, squawk: true },
-  '119.700': { label: 'LSZH APPROACH',             audio: null },
+  '118.100': { label: 'LSZH TOWER',                audio: null, squawk: true,
+               stream: 'http://d.liveatc.net/lszh1_twr',
+               streamPage: 'https://www.liveatc.net/hlisten.php?mount=lszh1_twr&icao=lszh' },
+  '119.700': { label: 'LSZH APPROACH',             audio: null,
+               stream: 'http://d.liveatc.net/lszh_app_final',
+               streamPage: 'https://www.liveatc.net/hlisten.php?mount=lszh_app_final&icao=lszh' },
   '121.500': { label: 'GUARD',                     audio: null },
 };
 
@@ -34,11 +40,14 @@ const XPDR = {
   ident:  false,
 };
 
-let _squelchCtx = null;
+let _squelchCtx  = null;
+let _streamAudio = null;   // currently playing LiveATC stream
 
 /* ═══ Public ══════════════════════════════════════════════════ */
 
 export function initCOM(container) {
+  _stopStream();   // stop any stream from previous mission
+
   /* Seed COM state from mission if provided */
   const mc = _missionCom();
   if (mc) {
@@ -218,6 +227,9 @@ function _onTune(freq) {
   const info = _freqs()[freq];
   if (!info) return;
 
+  /* Stop any active LiveATC stream */
+  _stopStream();
+
   /* Auto-assign squawk on Tower */
   if (info.squawk) {
     const code = [4, _r8(), _r8(), _r8()];
@@ -240,6 +252,11 @@ function _onTune(freq) {
   if (info.atis) {
     _openATIS();
   }
+
+  /* Start LiveATC stream if defined */
+  if (info.stream) {
+    _startStream(info.stream, info.streamPage);
+  }
 }
 
 function _r8() { return Math.floor(Math.random() * 8); }
@@ -253,6 +270,68 @@ function _ident() {
     XPDR.ident = false;
     if (btn) btn.classList.remove('active');
   }, 4500);
+}
+
+/* ── LiveATC stream ── */
+function _stopStream() {
+  if (_streamAudio) {
+    _streamAudio.pause();
+    _streamAudio.src = '';
+    _streamAudio = null;
+  }
+  const ind = document.getElementById('com-live-ind');
+  if (ind) ind.remove();
+}
+
+function _startStream(url, fallbackPage) {
+  const audio = new Audio(url);
+  audio.volume = 0.85;
+  _streamAudio = audio;
+
+  /* Show connecting indicator */
+  _setLiveIndicator('connecting');
+
+  const timeout = setTimeout(() => {
+    /* Stream failed to start — show popup link */
+    _stopStream();
+    _setLiveIndicator('fallback', fallbackPage);
+  }, 5000);
+
+  audio.addEventListener('playing', () => {
+    clearTimeout(timeout);
+    _setLiveIndicator('live');
+  });
+  audio.addEventListener('error', () => {
+    clearTimeout(timeout);
+    _stopStream();
+    _setLiveIndicator('fallback', fallbackPage);
+  });
+
+  audio.play().catch(() => {
+    clearTimeout(timeout);
+    _stopStream();
+    _setLiveIndicator('fallback', fallbackPage);
+  });
+}
+
+function _setLiveIndicator(state, fallbackPage) {
+  let ind = document.getElementById('com-live-ind');
+  if (!ind) {
+    ind = document.createElement('div');
+    ind.id = 'com-live-ind';
+    const header = document.querySelector('.com-section .com-header');
+    if (header) header.appendChild(ind);
+  }
+  if (state === 'connecting') {
+    ind.innerHTML = '<span class="com-live-dot connecting"></span>ATC';
+  } else if (state === 'live') {
+    ind.innerHTML = '<span class="com-live-dot live"></span>LIVE';
+    ind.title = 'LiveATC stream playing — click to stop';
+    ind.style.cursor = 'pointer';
+    ind.onclick = () => { _stopStream(); };
+  } else if (state === 'fallback') {
+    ind.innerHTML = `<a class="com-live-link" href="${fallbackPage}" target="_blank" rel="noopener">🎧 LIVE ATC</a>`;
+  }
 }
 
 /* ── Squelch click ── */

@@ -386,6 +386,19 @@
 
     .com-ptt { font-size: 10px; color: var(--green); }
 
+    #com-live-ind {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+      display: flex; align-items: center; gap: 4px; color: var(--dim);
+    }
+    .com-live-dot {
+      width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+    }
+    .com-live-dot.connecting { background: #888; animation: blink 1s step-end infinite; }
+    .com-live-dot.live       { background: #ff4444; animation: blink 1.2s ease-in-out infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+    .com-live-link { color: #ff6b6b; text-decoration: none; font-size: 10px; font-weight: 700; }
+    .com-live-link:hover { color: #ff4444; }
+
     .com-row {
       display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
     }
