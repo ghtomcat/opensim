@@ -1383,6 +1383,11 @@
     if (_trackingTimer) { clearInterval(_trackingTimer); _trackingTimer = null; }
     _trackingId = null;
     window.removeEventListener('keydown', _trackingUserInput);
+    /* Restore original fmaPhases */
+    if (S.aircraft?._fmaPhasesOrig !== undefined) {
+      S.aircraft.fmaPhases = S.aircraft._fmaPhasesOrig;
+      delete S.aircraft._fmaPhasesOrig;
+    }
     _renderTrackingBadge();
   }
 
@@ -1415,11 +1420,37 @@
         hdg: f.hdg,  hdgT: f.hdg,
         vs, pitch, pitchT: pitch,
       });
+      _patchTrackingFMA(f);
       _renderTrackingBadge(f);
     } catch {
       /* Aircraft may have landed or left ADS-B coverage */
       _renderTrackingBadge(null, true);
     }
+  }
+
+  function _patchTrackingFMA(f) {
+    if (!S.aircraft) return;
+    /* Save original once */
+    if (S.aircraft._fmaPhasesOrig === undefined)
+      S.aircraft._fmaPhasesOrig = S.aircraft.fmaPhases ?? null;
+
+    const vs  = f.vs ?? 0;
+    const alt = f.alt ?? 0;
+
+    /* Vertical mode label based on phase */
+    const vert = alt > 10000 ? (vs < -200 ? 'DES' : vs > 200 ? 'CLB' : 'CRZ')
+               : alt > 3000  ? (vs < -200 ? 'PATH' : 'LEVEL')
+               : 'SYNC';
+
+    /* Lateral: show approach modes on final */
+    const lat  = alt < 3000 ? 'LOC' : 'TRACK';
+    const latC = alt < 3000 ? 'green' : 'cyan';
+
+    S.aircraft.fmaPhases = [{
+      minAlt: 0,
+      vals: ['SYNC', 'ADS-B', lat,   vert,  'LIVE'],
+      cols: ['cyan', 'cyan',  latC, 'cyan', 'cyan'],
+    }];
   }
 
   function _renderTrackingBadge(f, lost) {
