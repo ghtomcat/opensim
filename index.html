@@ -1250,17 +1250,60 @@
     el.className = 'ms-live-status' + (isError ? ' error' : '');
   }
 
-  const LIVE_MISSION = {
-    id: 'live-flight', title: 'Live Flight', aircraft: 'a350',
-    weather: { source: 'manual', manual: { wdir: 0, wspd: 0, turbulence: 0.1, altim: 1013 } },
-    initialState: { lat: 47.39, lon: 8.54, alt: 35000, spd: 480, hdg: 0, pitch: 0, roll: 0 },
-  };
-
   async function flyWithFlight(flight) {
     document.getElementById('radar-overlay').classList.add('hidden');
     document.getElementById('mission-select').classList.add('hidden');
+
+    // Fetch route if not already cached
+    const cs    = (flight.callsign ?? '').replace(/\s+/g,'');
+    const route = await _fetchRoute(cs);
+    const org   = flight.org ?? route?.org ?? null;
+    const dest  = flight.dest ?? route?.dest ?? null;
+
+    // Build human-readable labels
+    const typeLabel = flight.icaoType && flight.icaoType !== '—' ? flight.icaoType : '';
+    const regLabel  = flight.reg      && flight.reg      !== '—' ? flight.reg      : '';
+    const csLabel   = flight.callsign && flight.callsign !== '—' ? flight.callsign : '';
+    const routeStr  = org && dest ? `${org} → ${dest}` : org ? `${org} →` : dest ? `→ ${dest}` : '';
+    const titleParts = [csLabel, regLabel].filter(Boolean);
+    if (typeLabel) titleParts.push(typeLabel);
+    if (routeStr)  titleParts.push(routeStr);
+    const missionTitle = titleParts.join(' · ') || 'Live Flight';
+
+    const fl  = Math.round(flight.alt / 100);
+    const flStr = `FL${String(fl).padStart(3,'0')}`;
+    const hdgStr = `${String(Math.round(flight.hdg)).padStart(3,'0')}°`;
+    const vsNum  = Math.round(flight.vs ?? 0);
+    const vsStr  = vsNum >= 0 ? `+${vsNum} fpm` : `${vsNum} fpm`;
+
+    const liveMission = {
+      id: 'live-flight', title: missionTitle, aircraft: 'a350',
+      weather: { source: 'manual', manual: { wdir: 0, wspd: 0, turbulence: 0.1, altim: 1013 } },
+      initialState: { lat: flight.lat, lon: flight.lon, alt: flight.alt, spd: flight.spd, hdg: flight.hdg, pitch: 0, roll: 0 },
+    };
+
     const aircraftId = pickAircraft(flight.icaoType);
-    await init('live-flight', aircraftId, LIVE_MISSION);
+    await init('live-flight', aircraftId, liveMission);
+
+    // Inject live flight data as kneeboard page (replaces empty A350 kneeboard)
+    const kbItems = [
+      routeStr  ? `ROUTE      ${routeStr}` : null,
+      csLabel   ? `CALLSIGN   ${csLabel}` : null,
+      regLabel  ? `REG        ${regLabel}` : null,
+      typeLabel ? `TYPE       ${typeLabel}` : null,
+      `ALTITUDE   ${flStr}  (${Math.round(flight.alt).toLocaleString()} ft)`,
+      `SPEED      ${Math.round(flight.spd)} kt`,
+      `HEADING    ${hdgStr}`,
+      `V/S        ${vsStr}`,
+    ].filter(Boolean);
+
+    if (S.aircraft) {
+      S.aircraft.kneeboard = [{
+        type: 'briefing',
+        title: 'LIVE FLIGHT DATA',
+        items: kbItems,
+      }];
+    }
 
     // Derive realistic pitch from VS — cruise ~2°, climb ~5°, descent ~-2°
     const vs    = flight.vs ?? 0;
