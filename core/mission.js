@@ -21,6 +21,10 @@ export async function loadMission(missionPath, aircraftPath) {
   /* Apply initial state from mission */
   const { alt, spd, hdg, pitch, roll, lat, lon } = mission.initialState;
 
+  /* Weight-on-wheels: true when starting at or below departure/arrival elevation */
+  const groundElev = mission.departure?.elevation ?? mission.arrival?.elevation ?? 0;
+  const startOnGround = spd === 0 && alt <= groundElev + 2;
+
   setState({
     aircraft,
     mission,
@@ -34,10 +38,10 @@ export async function loadMission(missionPath, aircraftPath) {
     lat:   lat ?? 48.13,
     lon:   lon ?? 8.55,
     flaps: 0, prevFlaps: 0,
-    gear:  false, prevGear: false,
+    gear:  startOnGround, prevGear: startOnGround,
     ap:    !aircraft.manualControl,
     athr:  !aircraft.manualControl,
-    wow:   false,
+    wow:   startOnGround,
     trim:  0,
     enginePower: 1.0,
     ilsLoc: 1.2, ilsLocT: 1.2,
