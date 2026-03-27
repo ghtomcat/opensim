@@ -1268,6 +1268,33 @@
     });
   }
 
+  /* ── Airport database — Central Europe ── */
+  const AIRPORTS_DB = [
+    { icao:'LSZH', lat:47.4647, lon: 8.5492, runways:[{hdg:100,len:1.78},{hdg:160,len:1.35}] },
+    { icao:'LSZG', lat:47.1817, lon: 7.4172, runways:[{hdg: 80,len:0.60}] },
+    { icao:'LSZF', lat:47.3750, lon: 8.7733, runways:[{hdg: 80,len:0.40}] },
+    { icao:'LSZB', lat:46.9141, lon: 7.4989, runways:[{hdg:140,len:1.03}] },
+    { icao:'LSGG', lat:46.2381, lon: 6.1089, runways:[{hdg: 40,len:2.00}] },
+    { icao:'LSME', lat:47.0922, lon: 8.3053, runways:[{hdg: 80,len:1.03}] },
+    { icao:'LSZA', lat:46.0044, lon: 8.9108, runways:[{hdg: 10,len:1.22}] },
+    { icao:'LSGL', lat:46.5450, lon: 6.6183, runways:[{hdg: 40,len:0.87}] },
+    { icao:'LSZR', lat:47.4800, lon: 7.5297, runways:[{hdg: 80,len:0.51}] },
+    { icao:'EDDS', lat:48.6900, lon: 9.2219, runways:[{hdg: 80,len:1.65},{hdg:100,len:1.35}] },
+    { icao:'EDST', lat:48.5253, lon: 9.5089, runways:[{hdg: 70,len:0.43}] },
+    { icao:'EDDM', lat:48.3537, lon:11.7861, runways:[{hdg: 80,len:2.60},{hdg: 80,len:2.60}] },
+    { icao:'LOWI', lat:47.2602, lon:11.3436, runways:[{hdg: 80,len:1.19}] },
+    { icao:'LOWW', lat:48.1103, lon:16.5697, runways:[{hdg:110,len:2.05},{hdg: 70,len:1.78}] },
+    { icao:'LFMN', lat:43.6584, lon: 7.2159, runways:[{hdg: 40,len:1.78},{hdg: 40,len:1.65}] },
+    { icao:'LFLL', lat:45.7256, lon: 5.0811, runways:[{hdg: 90,len:2.00},{hdg: 90,len:2.00}] },
+    { icao:'EHAM', lat:52.3086, lon: 4.7639, runways:[{hdg: 40,len:2.17},{hdg:180,len:2.00},{hdg: 60,len:1.60}] },
+    { icao:'EGLL', lat:51.4775, lon:-0.4614, runways:[{hdg: 90,len:2.35},{hdg: 90,len:2.35}] },
+    { icao:'EDDL', lat:51.2895, lon: 6.7668, runways:[{hdg: 60,len:1.60},{hdg: 60,len:1.60}] },
+    { icao:'LEBL', lat:41.2971, lon: 2.0785, runways:[{hdg: 70,len:2.60},{hdg: 20,len:2.00}] },
+    { icao:'LIRF', lat:41.8003, lon:12.2389, runways:[{hdg: 70,len:2.39},{hdg: 70,len:2.39}] },
+    { icao:'EGKK', lat:51.1481, lon:-0.1902, runways:[{hdg: 80,len:2.08}] },
+    { icao:'EIDW', lat:53.4213, lon:-6.2700, runways:[{hdg: 110,len:2.08},{hdg:60,len:1.35}] },
+  ];
+
   function renderRadarMap(flights, userLat, userLon) {
     const overlay = document.getElementById('radar-overlay');
     overlay.classList.remove('hidden');
@@ -1357,6 +1384,28 @@
       ctx.beginPath(); ctx.moveTo(CX, CY - R); ctx.lineTo(CX, CY); ctx.stroke();
       ctx.fillStyle = '#4dc5dc';
       ctx.beginPath(); ctx.arc(CX, CY, 4, 0, Math.PI*2); ctx.fill();
+
+      // Airports
+      AIRPORTS_DB.forEach(ap => {
+        const { x, y, nm } = project(ap.lat, ap.lon);
+        if (nm > MAXNM) return;
+        ap.runways.forEach(rwy => {
+          const hdgR    = rwy.hdg * Math.PI / 180;
+          const halfLen = Math.max(14, nmToR(rwy.len / 2));
+          ctx.strokeStyle = 'rgba(255,185,80,0.55)';
+          ctx.lineWidth   = 2;
+          ctx.beginPath();
+          ctx.moveTo(x - halfLen * Math.sin(hdgR), y + halfLen * Math.cos(hdgR));
+          ctx.lineTo(x + halfLen * Math.sin(hdgR), y - halfLen * Math.cos(hdgR));
+          ctx.stroke();
+        });
+        ctx.fillStyle = 'rgba(255,185,80,0.85)';
+        ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI*2); ctx.fill();
+        ctx.font      = '10px "IBM Plex Mono", monospace';
+        ctx.fillStyle = 'rgba(255,185,80,0.65)';
+        ctx.textAlign = 'center';
+        ctx.fillText(ap.icao, x, y + 15);
+      });
 
       hits.filter(h => h.f.alt <= maxAlt).forEach(h => {
         const isHov = h === hovered;
