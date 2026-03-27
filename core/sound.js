@@ -81,23 +81,24 @@ const ENGINES = {
     // Contra-rotating prop banks (6+6 blades) create a ~3.8Hz beat — the Bear heartbeat.
     // Four engines never perfectly in sync → second LFO at 3.5Hz creates the warbling
     // acoustic signature that made the Bear unmistakeable on sonar.
-    fundamentalIdle: 44,            // Hz — deep prop rumble at idle
-    fundamentalMax:  96,            // Hz — full power, slightly higher than before
-    harmonics:       [1, 2, 3, 4, 5, 6, 8],
-    harmonicGains:   [1.0, 0.65, 0.48, 0.28, 0.14, 0.08, 0.04],
+    fundamentalIdle: 38,            // Hz — subsonic chest rumble at idle
+    fundamentalMax:  96,            // Hz — full power
+    harmonics:       [1, 2, 3, 4, 5, 6, 8, 10],
+    harmonicGains:   [1.0, 0.72, 0.55, 0.35, 0.20, 0.12, 0.06, 0.02],
     oscType:         'sawtooth',
     filterType:      'lowpass',
-    filterFreq:      260,           // was 180 — opens up the harmonic rasp
-    filterQ:         2.0,           // sharper resonance peak — more nasal, industrial
-    noiseGain:       0.24,          // was 0.12 — prop wash turbulence, much heavier
-    noiseFilterFreq: 200,           // was 120 — more body in the prop noise
-    masterGain:      0.28,          // was 0.22
+    filterFreq:      340,           // let the harmonic rasp breathe
+    filterQ:         3.0,           // hard resonance peak — nasal, aggressive
+    noiseGain:       0.40,          // massive prop wash — four 8-blade disks
+    noiseFilterFreq: 280,           // body in the prop noise
+    masterGain:      0.36,
     attackTime:      3.5,
     slewTime:        1.8,
     lfoFreq:         3.8,           // Hz — primary contra-rotation beat
-    lfoDepth:        0.42,          // was 0.18 — chest-pounding AM, very pronounced
+    lfoDepth:        0.58,          // nearly cuts to silence at the trough
     lfoFreq2:        3.5,           // Hz — second engine pair, slightly out of sync
-    lfoDepth2:       0.24,          // inter-engine warbling: the Bear's acoustic fingerprint
+    lfoDepth2:       0.32,          // inter-engine warble: 0.3Hz envelope, ~3s period
+    saturation:      2.8,           // tanh overdrive — prop disk grit, not a jet
     supercharger:    false,
   },
   'v12-supercharged': {
@@ -159,6 +160,9 @@ let _inStartup    = false;
 /* ── Internal state — AudioWorklet path (V12) ── */
 let _workletNode  = null;   // AudioWorkletNode
 let _workletReady = false;
+
+/* ── Internal state — saturation stage ── */
+let _waveshaper   = null;
 
 /* ── Internal state — contra-rotation LFOs (NK-12) ── */
 let _lfoOsc       = null;
@@ -396,7 +400,24 @@ export function startSound(engineType) {
   _ctx    = new AudioContext();
   _master = _ctx.createGain();
   _master.gain.value = 0;
-  _master.connect(_ctx.destination);
+
+  /* Saturation (waveshaper) — tanh overdrive for engines that need grit */
+  if (_cfg.saturation) {
+    _waveshaper = _ctx.createWaveShaper();
+    const k     = _cfg.saturation;
+    const N     = 512;
+    const curve = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      const x    = (i * 2 / (N - 1)) - 1;         // -1…+1
+      curve[i]   = (1 + k) * x / (1 + k * Math.abs(x));   // soft-knee overdrive
+    }
+    _waveshaper.curve     = curve;
+    _waveshaper.oversample = '4x';
+    _master.connect(_waveshaper);
+    _waveshaper.connect(_ctx.destination);
+  } else {
+    _master.connect(_ctx.destination);
+  }
 
   if (_cfg.impulse) {
     _startWorkletEngine();   /* async — sets _started when ready */
@@ -807,7 +828,7 @@ function _teardown() {
   try { _windNoise?.stop();  } catch {}
   try { _flapNoise?.stop();  } catch {}
   _ctx.close();
-  _ctx = null; _master = null; _oscs = [];
+  _ctx = null; _master = null; _waveshaper = null; _oscs = [];
   _noise = null; _noiseGain = null;
   _lader = null; _laderGain = null;
   _lader2 = null; _lader2Gain = null;
