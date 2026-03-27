@@ -9,14 +9,29 @@ Born 05:32, Sunday 15 March 2026, Zürich. Built with Claude Code.
 
 ---
 
+## Who it is for
+
+**Spotters** — open the live radar, watch real flights within 1000nm, color-coded by destination. Click any aircraft and fly it at its current position, altitude, and heading.
+
+**Historians** — load a mission from 1918, 1942, or 1956. Read the classified briefing document. Hear the crew in the right language. Fly the aircraft with the right physics.
+
+**Airplane buffs** — the DB 601 fires 12 cylinders via AudioWorklet. The NK-12 contra-rotation beat is a 3.8Hz LFO modulating the master gain. Every number in the aircraft JSON came from a POH or technical manual.
+
+**PPL students** — circuits at LSZF and LSZG. Full checklists. GPWS callouts. Takeoff and approach briefings. Real weather via live METAR.
+
+**Anyone with a browser** — no install. No login. No fee. Works on a laptop, tablet, or Raspberry Pi.
+
+---
+
 ## What it is
 
 OpenSim is not a game. It is a modular simulation engine that runs entirely in the browser with zero dependencies and no build step.
 
 - **Real aerodynamic physics** — lift, drag, thrust, weight from first principles. Not kinematic approximations.
-- **Procedural sound** — every sound synthesised from physics. No samples. Wind rises with airspeed. Flaps change the airflow character. The DB 601 fires 12 cylinders.
-- **Any aircraft** — envelope, performance, handling, sound, checklists in one JSON file
-- **Any mission** — weather, ATC clearances, approach brief, scripted failures, crew voices in one JSON file
+- **Procedural sound** — every sound synthesised from physics. No samples. Wind rises with airspeed. The DB 601 fires 12 cylinders. The NK-12 turboprop beats at 3.8Hz.
+- **Any aircraft** — envelope, performance, handling, sound, crew language, checklists in one JSON file
+- **Any mission** — weather, ATC clearances, classified briefing documents, scripted failures, crew voices in one JSON file
+- **Live radar** — real flights via OpenSky Network, color-coded by destination, route lines to arrival airport, 150/400/1000nm range
 - **Runs anywhere** — laptop, tablet, Raspberry Pi, custom cockpit panels
 
 ---
@@ -63,25 +78,41 @@ axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1
 
 ## Aircraft included
 
-| Aircraft | Engine | Physics |
-|----------|--------|---------|
-| Airbus A350-900 | Rolls-Royce Trent XWB | Autopilot convergence |
-| Cessna 172S | Lycoming IO-360 180hp | Full aerodynamic model |
-| Robin DR400/140B | Lycoming O-320 160hp | Full aerodynamic model |
-| Messerschmitt Bf 109 G-4 | Daimler-Benz DB 601 1175hp | Full aerodynamic model |
-| Avro 504K | Le Rhône 9J 110hp | Full aerodynamic model + gyroscopic precession |
+| Aircraft | Engine | Notes |
+|----------|--------|-------|
+| Airbus A350-900 | Rolls-Royce Trent XWB | Autopilot, FMGS |
+| Cessna 172S | Lycoming IO-360 · 180hp | Full kneeboard, grass strip |
+| Robin DR400/140B | Lycoming O-320 · 160hp | Flugschule Grenchen checklists |
+| Messerschmitt Bf 109 G-4 | Daimler-Benz DB 601 · 1175hp | AudioWorklet 12-cylinder impulse model |
+| Avro 504K | Le Rhône 9J · 110hp | Gyroscopic precession, rotary blip switch |
+| Tupolev Tu-95MS Bear H | Kuznetsov NK-12MV × 4 · 44740kW | Russian crew voices, contra-rotation LFO |
 
 ---
 
 ## Missions included
 
-| Mission | Aircraft | Where | What |
-|---------|----------|-------|------|
-| ILS Approach RWY 28 | A350 | Zürich LSZH | Live METAR, ATC clearances, approach brief |
-| VFR Pattern | C172 | Speck-Fehraltorf LSZF | Grass strip, takeoff callouts, kneeboard |
-| Airshow Ground Run | Bf 109 | Hahnweide EDST | DB 601 start, ground roll |
-| Patrol — Marne 1918 | Avro 504K | Melun-Villaroche | WWI rotary engine |
-| Operation Wolfskopf | Bf 109 | Titovka, Arctic 1942 | Scripted engine failure: gunfire → bang → dead engine |
+| Mission | Aircraft | Era | What |
+|---------|----------|-----|------|
+| ILS Approach RWY 28 | A350 | Modern | Live METAR, ATC clearances, approach brief |
+| VFR Pattern | C172 | PPL | Grass strip LSZF, takeoff callouts, kneeboard |
+| VFR Circuit | Robin DR400 | PPL | LSZG, Flugschule Grenchen, live METAR |
+| Airshow Ground Run | Bf 109 G-4 | 2025 | DB 601 startup, D-FEML at Hahnweide |
+| Patrol — Marne 1918 | Avro 504K | 1918 | WWI rotary engine, Le Rhône blip switch |
+| Operation Wolfskopf | Bf 109 G-4 | 1942 | Arctic, scripted engine failure, NIFLHEIM |
+| Aufklärungsflug Nordmeer | Tu-95MS Bear H | 1956 | Olenya AB, Soviet ATC, Cold War dossier |
+
+---
+
+## Live radar
+
+Press **Near me** to fetch real flights via [OpenSky Network](https://opensky-network.org). No account needed.
+
+- **Range:** 150nm (local) · 400nm (regional) · 1000nm (intercontinental — see transatlantic heavies at dawn)
+- **Color coding:** each destination airport gets a color. All flights going there share it. Route lines connect aircraft to their arrival airport.
+- **Routes:** callsign lookup via [adsbdb.com](https://www.adsbdb.com) — `LSZH → JFK`, `ORD → EDDM`. Results cached for the session.
+- **Airports:** 23 airports drawn as runway crosses (Pistenkreuz), lit in their destination color when traffic is inbound.
+- **Hover:** callsign, FL, speed, heading, route.
+- **Click:** spawn the sim at that aircraft's current position, altitude, and heading.
 
 ---
 
@@ -115,13 +146,15 @@ Wind drift: dead reckoning uses ground velocity = TAS vector + wind vector.
 
 ---
 
-## Sound layers
+## Sound
 
 All sound is synthesised. No samples.
 
 | Layer | How |
 |-------|-----|
-| Engine | AudioWorklet impulse model or oscillator harmonics |
+| DB 601 / IO-360 / Le Rhône | AudioWorklet impulse model — cylinders fire at individual crankshaft angles |
+| NK-12 turboprop | Oscillator harmonics + 3.8Hz LFO (contra-rotation AM beat) + slewTime 1.8s |
+| GTF / HBF / LBF | Oscillator harmonics, engine-specific filter and gain profile |
 | Wind | White noise → bandpass, gain ∝ speed², filter softens with flaps |
 | Flap rumble | Low-frequency turbulence noise, rises with flap angle |
 | Ground creak | Lowpass rumble, WoW × speed — grass strip character |
@@ -131,11 +164,77 @@ All sound is synthesised. No samples.
 
 Engine RPM displayed live. Oil temp warms over 4 minutes. EGT and CHT track throttle.
 
+### DB 601 — physical impulse model
+
+The Daimler-Benz DB 601 V12 (D-FEML, Bf 109 G-4, Hahnweide 2025) is synthesised sample-by-sample via AudioWorklet:
+
+- **12 cylinders** fire at their own crankshaft angle (every 60°, ±8° jitter)
+- **Each firing** generates an impulse + noise burst with exponential decay
+- **Exhaust resonator** at ~110 Hz — the fundamental of the DB 601 note
+- **Supercharger** — two sine oscillators (663 Hz + 1097 Hz) mechanically coupled to RPM
+
+The same impulse model drives the Lycoming IO-360 (4 cylinders) and Le Rhône 9J (9-cylinder rotary).
+
+### NK-12 — contra-rotation beat
+
+The Kuznetsov NK-12MV drives two contra-rotating propellers. OpenSim synthesises the characteristic beating sound via Web Audio API LFO:
+
+- **LFO at 3.8Hz** — OscillatorNode → GainNode connected to master gain as AM modulator
+- **slewTime 1.8s** — turboprop inertia: throttle changes take seconds to spool
+- **Harmonics** [1, 2, 3, 4, 5, 8] through a lowpass filter at 180Hz
+
+---
+
+## Crew voices
+
+Crew language is set per aircraft via `"crewLang": "ru-RU"`. The browser selects a matching TTS voice (macOS: Milena, Chrome: Google русский). Every utterance — GPWS, PM callouts, takeoff calls — is spoken in that language.
+
+The Tu-95MS crew speaks Russian: **Взлётная · Набор · Тысяча · Пятьсот · Проходим десять тысяч.**
+
+ATC clearances support both altitude triggers (commercial missions) and time triggers (military departures). The Nordmeer ATC fires on elapsed seconds: engine start permission at T+5, takeoff at T+90, radio silence order at T+200.
+
+---
+
+## Mission briefing documents
+
+Missions can carry classified briefing images rendered in the pre-flight overlay:
+
+```js
+briefing: {
+  classification: 'СОВЕРШЕННО СЕКРЕТНО',
+  document:    'images/nordmeer-briefing-ru.png',
+  document_en: 'images/nordmeer-briefing-en.png',   // RU/EN toggle appears
+  image:       'images/olenya-1956.png',
+}
+```
+
+The Nordmeer 1956 dossier was generated by Gemini: Soviet КГБ order in Cyrillic, then the same document with CIA stamps — *EYES ONLY · Director of Central Intelligence* — and a pencil annotation in the margin: *"Bear H out of Olenya — confirmed. SIGINT match. — R.H."*
+
+---
+
+## COM panel
+
+The COM radio reads frequencies from the mission JSON. The Tu-95MS flies with:
+
+```json
+"com": {
+  "title": "Р/С 1",
+  "xpdrLabel": "IFF",
+  "freqs": {
+    "302.800": { "label": "ОЛЕНЬЯ · ВЫЛЕТ" },
+    "121.500": { "label": "АВАРИЙНЫЙ" },
+    "8971.000": { "label": "РАДИОМОЛЧАНИЕ" }
+  }
+}
+```
+
+All other missions fall back to LSZH frequencies with ATIS and squawk assignment.
+
 ---
 
 ## Failure system
 
-Missions can script mechanical failures in the mission JSON:
+Missions can script mechanical failures:
 
 ```json
 "failures": [
@@ -146,9 +245,7 @@ Missions can script mechanical failures in the mission JSON:
 ]
 ```
 
-`enginePower` multiplies thrust and engine sound gain simultaneously. The coolant hiss rises automatically as the engine dies.
-
-Trigger types: `time` (seconds elapsed) · `alt` (altitude in feet)
+`enginePower` multiplies thrust and engine sound gain simultaneously. Trigger types: `time` · `alt`.
 
 ---
 
@@ -158,13 +255,14 @@ Trigger types: `time` (seconds elapsed) · `alt` (altitude in feet)
 core/
   state.js       — single source of truth, all sim state
   physics.js     — aerodynamic force balance, wind drift, turbulence
-  crew.js        — four voices: PF · PM · ATC · GPWS, data-driven
+  crew.js        — four voices: PF · PM · ATC · GPWS, language-aware
   failures.js    — scripted failure event processor
   mission.js     — loads aircraft + mission JSON, live METAR fetch
   input.js       — keyboard · mouse · Gamepad API
   loop.js        — rAF loop: tickFailures → tickPhysics → tickCrew → renders
   sound.js       — procedural audio: engine + wind + all layers
   telemetry.js   — flight recorder: 2Hz JSONL, download with Ctrl+Shift+T
+  liveflight.js  — live flight lookup (adsb.fi) + nearby radar (OpenSky)
 
 display/
   pfd.js         — Primary Flight Display (canvas)
@@ -175,24 +273,27 @@ display/
   map.js         — Mini moving map: heading/track/wind/stopwatch
   terrain.js     — 3D outside view: pinhole projection, ground grid
   outside.js     — outside view shell
-  com.js         — COM panel + transponder
+  com.js         — COM radio + transponder, mission-configurable frequencies
 
 aircraft/
   a350.json      — Airbus A350-900
-  c172.json      — Cessna 172S (full performance + kneeboard)
-  bf109.json     — Messerschmitt Bf 109 G-4 (manualControl, DB 601)
-  avro504.json   — Avro 504K (Le Rhône 9J rotary)
+  c172.json      — Cessna 172S (full kneeboard, LSZF)
+  robin-dr400.json — Robin DR400/140B (Flugschule Grenchen)
+  bf109.json     — Messerschmitt Bf 109 G-4 (DB 601 impulse model)
+  avro504.json   — Avro 504K (Le Rhône 9J, gyroscopic precession)
+  tu95ms.json    — Tupolev Tu-95MS Bear H (NK-12 turboprop, ru-RU crew)
 
 missions/
   lszh-approach.json     — ILS RWY 28, live METAR, ATC clearances
-  grenchen-circuit.json  — VFR circuit, Robin DR400, Flugschule Grenchen
-  lszf-pattern.json      — VFR circuit, grass, C172
-  wolfskopf-1942.json    — Arctic 1942, scripted engine failure
-  hahnweide-1944.json    — Airshow ground run
-  melun-1918.json        — WWI patrol
+  grenchen-circuit.json  — VFR circuit, Robin DR400, LSZG
+  lszf-pattern.json      — VFR circuit, grass, C172, LSZF
+  wolfskopf-1942.json    — Arctic 1942, scripted engine failure, NIFLHEIM
+  hahnweide-1944.json    — Airshow ground run, D-FEML
+  melun-1918.json        — WWI patrol, Le Rhône rotary
+  nordmeer-1956.json     — Cold War recon, Tu-95MS, Olenya AB, Soviet ATC
 
 tests/
-  physics.spec.js  — Playwright: rotation speed, climb rate, stall, engine failure
+  physics.spec.js  — Playwright: 10 tests, ~45s headless
 
 server/
   hub.js         — WebSocket hub (Node.js, runs on Pi)
@@ -210,53 +311,25 @@ npx playwright install chromium
 npm test
 ```
 
-Tests run headlessly in ~30 seconds. No browser opens. The physics engine runs at full speed without rendering.
+Tests run headlessly in ~45 seconds.
 
 ```
-Running 8 tests using 1 worker
-  8 passed (27.5s)
+Running 10 tests using 1 worker
+  10 passed (45.5s)
 ```
-
-### What is tested
-
-Each aircraft test asserts real-world performance bounds from the POH:
 
 | Test | Passes if |
 |------|-----------|
-| Rotation speed | Liftoff between Vr−5kt and Vr+10kt |
-| Climb rate | VS > 300 fpm after liftoff |
-| Stall | VS < −100 fpm when below Vs |
-| Engine failure | `enginePower` drops on schedule (Wolfskopf) |
-
-### Add a test when you add an aircraft
-
-```js
-// tests/physics.spec.js
-
-test.describe('Your Aircraft — your mission', () => {
-
-  test('rotates between 60–80 kt', async ({ page }) => {
-    await loadSim(page, 'your-mission');
-
-    await setState(page, { spdT: 120 });   // full throttle
-    await stepSeconds(page, 5);
-    await setState(page, { pitchT: 8 });   // rotate
-
-    let liftoffSpd = null;
-    for (let i = 0; i < 60 * 60; i++) {
-      await page.evaluate(() => window.simStep(1));
-      const s = await getState(page);
-      if (!s.wow && s.alt > YOUR_ELEVATION + 1) { liftoffSpd = s.spd; break; }
-    }
-
-    expect(liftoffSpd).toBeGreaterThan(60);
-    expect(liftoffSpd).toBeLessThan(80);
-  });
-
-});
-```
-
-`simStep(n)` runs `n` physics frames at 60fps without rendering. 60 seconds of flight = ~2 seconds of test time.
+| C172 rotation | Liftoff 50–75 kt |
+| C172 climb | VS > 300 fpm |
+| C172 stall | VS < −100 fpm below Vs |
+| Robin rotation | Liftoff 60–75 kt |
+| Robin climb | VS > 300 fpm |
+| Robin stall | VS < −100 fpm below Vs |
+| Bf 109 engine failure | `enginePower` < 0.5 by T+200 |
+| Bf 109 engine dead | `enginePower` < 0.05 by T+210 |
+| Tu-95MS rotation | Liftoff 155–230 kt (flaps 20°) |
+| Tu-95MS climb | VS > 500 fpm |
 
 ---
 
@@ -267,6 +340,7 @@ test.describe('Your Aircraft — your mission', () => {
   "id": "your-aircraft",
   "name": "Your Aircraft",
   "manualControl": true,
+  "crewLang": "de-DE",
 
   "envelope": {
     "cruiseSpd": 122, "maxSpd": 163,
@@ -294,6 +368,8 @@ test.describe('Your Aircraft — your mission', () => {
 }
 ```
 
+Add a test in `tests/physics.spec.js`. POH numbers → test bounds → fly → verify telemetry.
+
 ---
 
 ## Add a mission
@@ -302,17 +378,12 @@ test.describe('Your Aircraft — your mission', () => {
 {
   "id": "your-mission",
   "title": "Your Mission",
-  "aircraft": "your-aircraft",
-
-  "departure": null,
-  "arrival": {
-    "icao": "LSZF", "runway": "26", "elevation": 1788,
-    "ils": { "freq": "109.900", "course": 260 }
-  },
+  "aircraft": "aircraft/your-aircraft.json",
 
   "weather": {
-    "source": "manual",
-    "manual": { "wdir": 270, "wspd": 12, "turbulence": 0.2, "altim": 1013 }
+    "source": "live",
+    "icao": "LSZH",
+    "fallback": { "wdir": 270, "wspd": 12, "turbulence": 0.2, "altim": 1013 }
   },
 
   "initialState": {
@@ -331,25 +402,9 @@ test.describe('Your Aircraft — your mission', () => {
 
 ---
 
-## DB 601 — Physical Engine Sound
-
-The Daimler-Benz DB 601 is the V12 that powered the Bf 109G-4 (D-FEML). OpenSim synthesises it sample-by-sample via AudioWorklet:
-
-- **12 cylinders** fire at their own crankshaft angle (every 60°, ±8° jitter)
-- **Each firing** generates an impulse + noise burst with exponential decay
-- **Exhaust resonator** at ~110 Hz — the fundamental of the DB 601 note
-- **Supercharger** — two sine oscillators (663 Hz + 1097 Hz) mechanically coupled to RPM
-- **No samples** — every sound is computed from physics
-
-The same impulse model drives the Lycoming IO-360 (4 cylinders) and Le Rhône 9J (9-cylinder rotary).
-
----
-
 ## Telemetry
 
-Every flight is recorded automatically. Press `Ctrl+Shift+T` at any point to download a JSONL file.
-
-Each line is one sample (2Hz):
+Every flight is recorded automatically. Press `Ctrl+Shift+T` to download a JSONL file.
 
 ```json
 {"t":48.6,"alt":1789,"spd":68.7,"vs":11,"pitch":9.06,"roll":0,"hdg":260,
@@ -357,19 +412,7 @@ Each line is one sample (2Hz):
  "pitchT":10.64,"rollT":0,"spdT":163,"braking":0}
 ```
 
-| Field | Meaning |
-|-------|---------|
-| `t` | Elapsed seconds |
-| `alt` | Altitude ft |
-| `spd` | Airspeed kt |
-| `vs` | Vertical speed fpm |
-| `pitch` / `roll` | Actual aircraft attitude ° |
-| `pitchT` / `rollT` | Commanded attitude ° — the gap is inertia lag |
-| `spdT` | Throttle target kt |
-| `enginePower` | 1.0 = full, 0.0 = dead engine |
-| `braking` | 1 = brakes held |
-
-The gap between `pitch` and `pitchT` shows the angular inertia working. Use the data to verify physics changes, debrief approaches, or feed an AI PM.
+Use the gap between `pitch` and `pitchT` to see angular inertia working. Feed to pandas, plot, debrief approaches, or stream to an AI co-pilot.
 
 ```python
 import json, pandas as pd, matplotlib.pyplot as plt
@@ -383,11 +426,13 @@ plt.show()
 
 ## Vision
 
-- **PPL(A) training** — Markus flying circuits at LSZF, target: licence end of 2026
-- **Kitfox electric digital twin** — the sim IS the avionics. Tune the sim, tune the aircraft.
-- **Time machine** — WWII, Apollo 11, Demo-2, Challenger, Inspiration5
+- **PPL(A) training** — circuits at LSZF and LSZG, licence end of 2026
+- **Kitfox electric digital twin** — the sim IS the avionics
+- **Time machine** — 1918 · 1942 · 1956 · Apollo 11 · Challenger · Demo-2
 - **Rwanda aviation academy** — three Raspberry Pis and a browser
-- **Hardware cockpit** — RPi WebSocket bridge, force-feedback controls, physical panels
+- **Ghost aircraft replay** — record instructor flight as JSONL, student flies alongside
+- **AI PM** — stream telemetry to Claude API for real-time callouts and post-flight debrief
+- **Hardware cockpit** — RPi WebSocket bridge, physical panels, force-feedback controls
 
 ---
 
