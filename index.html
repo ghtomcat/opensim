@@ -1383,11 +1383,23 @@
       hits.push({ f, x, y, fl, cs });
     });
 
-    // Fetch routes for all visible flights — redraw when results arrive
+    // Fetch routes for all visible flights — assign colors when results arrive
     const _apByIcao = Object.fromEntries(AIRPORTS_DB.map(a => [a.icao, a]));
+    const PALETTE = [
+      '#ff6b6b','#4ecdc4','#a29bfe','#fd79a8','#ffd93d',
+      '#6bcb77','#74b9ff','#e17055','#00cec9','#b8e994',
+      '#f8a5c2','#778ca3',
+    ];
+    let destColors = new Map();  // icao → color
+
     Promise.all(hits.map(h =>
       _fetchRoute(h.cs).then(r => { h.org = r?.org ?? null; h.dest = r?.dest ?? null; })
-    )).then(() => draw(null));
+    )).then(() => {
+      // Assign a palette color to each unique destination
+      const dests = [...new Set(hits.map(h => h.dest).filter(Boolean))];
+      dests.forEach((icao, i) => destColors.set(icao, PALETTE[i % PALETTE.length]));
+      draw(null);
+    });
 
     function draw(hovered) {
       // Clear aircraft layer
@@ -1414,47 +1426,51 @@
       AIRPORTS_DB.forEach(ap => {
         const { x, y, nm } = project(ap.lat, ap.lon);
         if (nm > MAXNM) return;
+        const col = destColors.get(ap.icao) ?? 'rgba(255,185,80,0.5)';
+        const isActive = destColors.has(ap.icao);
         ap.runways.forEach(rwy => {
           const hdgR    = rwy.hdg * Math.PI / 180;
           const halfLen = Math.max(14, nmToR(rwy.len / 2));
-          ctx.strokeStyle = 'rgba(255,185,80,0.55)';
-          ctx.lineWidth   = 2;
+          ctx.strokeStyle = isActive ? col : 'rgba(255,185,80,0.28)';
+          ctx.lineWidth   = isActive ? 2.5 : 1.5;
           ctx.beginPath();
           ctx.moveTo(x - halfLen * Math.sin(hdgR), y + halfLen * Math.cos(hdgR));
           ctx.lineTo(x + halfLen * Math.sin(hdgR), y - halfLen * Math.cos(hdgR));
           ctx.stroke();
         });
-        ctx.fillStyle = 'rgba(255,185,80,0.85)';
-        ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI*2); ctx.fill();
-        ctx.font      = '10px "IBM Plex Mono", monospace';
-        ctx.fillStyle = 'rgba(255,185,80,0.65)';
+        ctx.fillStyle = isActive ? col : 'rgba(255,185,80,0.4)';
+        ctx.beginPath(); ctx.arc(x, y, isActive ? 3.5 : 2, 0, Math.PI*2); ctx.fill();
+        ctx.font      = `${isActive ? 'bold ' : ''}10px "IBM Plex Mono", monospace`;
+        ctx.fillStyle = isActive ? col : 'rgba(255,185,80,0.35)';
         ctx.textAlign = 'center';
         ctx.fillText(ap.icao, x, y + 15);
       });
 
       hits.filter(h => h.f.alt <= maxAlt).forEach(h => {
-        const isHov = h === hovered;
+        const isHov  = h === hovered;
+        const col    = (h.dest && destColors.get(h.dest)) ?? null;
+        const dotCol = col ?? (isHov ? '#ffffff' : 'rgba(232,237,242,0.5)');
 
         // Route line to destination airport (if known + in DB)
-        if (h.dest && _apByIcao[h.dest]) {
+        if (h.dest && _apByIcao[h.dest] && col) {
           const dp = project(_apByIcao[h.dest].lat, _apByIcao[h.dest].lon);
           ctx.save();
           ctx.setLineDash([4, 5]);
-          ctx.strokeStyle = isHov ? 'rgba(77,197,220,0.5)' : 'rgba(77,197,220,0.18)';
-          ctx.lineWidth = 1;
+          ctx.strokeStyle = isHov ? col : col + '44';
+          ctx.lineWidth = isHov ? 1.5 : 1;
           ctx.beginPath(); ctx.moveTo(h.x, h.y); ctx.lineTo(dp.x, dp.y); ctx.stroke();
           ctx.restore();
         }
 
         // Heading tick
         const hdgR = h.f.hdg * Math.PI / 180;
-        ctx.strokeStyle = isHov ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.3)';
+        ctx.strokeStyle = col ? col + '99' : (isHov ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.3)');
         ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(h.x, h.y);
         ctx.lineTo(h.x + 12*Math.sin(hdgR), h.y - 12*Math.cos(hdgR)); ctx.stroke();
 
         // Dot
-        ctx.fillStyle = isHov ? '#ffffff' : 'rgba(232,237,242,0.6)';
+        ctx.fillStyle = isHov ? '#ffffff' : dotCol;
         ctx.beginPath(); ctx.arc(h.x, h.y, isHov ? 5 : 3, 0, Math.PI*2); ctx.fill();
 
         // Label only on hover
