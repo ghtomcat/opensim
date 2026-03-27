@@ -53,6 +53,19 @@
     { "t": 200, "text": "Борт 11, радиомолчание после береговой черты.", "voice": "atc" }
   ],
 
+  "com": {
+    "title":   "Р/С 1",
+    "xpdrLabel": "IFF",
+    "active":  "302.800",
+    "standby": "135.000",
+    "freqs": {
+      "302.800": { "label": "ОЛЕНЬЯ · ВЫЛЕТ" },
+      "135.000": { "label": "МУРМАНСК КОНТРОЛЬ" },
+      "121.500": { "label": "АВАРИЙНЫЙ" },
+      "8971.000": { "label": "РАДИОМОЛЧАНИЕ" }
+    }
+  },
+
   "debrief": [
     "Vier Triebwerke nach dem Start — alle stabil?",
     "Kurs 015 gehalten?",

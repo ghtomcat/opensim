@@ -6,8 +6,8 @@
 
 import { S } from '../core/state.js';
 
-/* ── LSZH frequency card ── */
-const FREQS = {
+/* ── Default LSZH frequency card ── */
+const FREQS_DEFAULT = {
   '121.750': { label: 'LSZH GROUND',               audio: 'audio/guete-morge.mp3' },
   '121.900': { label: 'LSZH CLEARANCE DELIVERY',   audio: null },
   '126.200': { label: 'LSZH ATIS',                 audio: 'audio/atis-zurich.mp3', atis: true },
@@ -16,9 +16,14 @@ const FREQS = {
   '121.500': { label: 'GUARD',                     audio: null },
 };
 
+function _missionCom() { return S.mission?.com ?? null; }
+function _freqs()      { return _missionCom()?.freqs ?? FREQS_DEFAULT; }
+function _comTitle()   { return _missionCom()?.title ?? 'COM 1'; }
+function _xpdrLabel()  { return _missionCom()?.xpdrLabel ?? 'XPDR'; }
+
 /* ── COM state ── */
 const COM = {
-  active: '121.750',
+  active:  '121.750',
   standby: '121.900',
 };
 
@@ -34,6 +39,15 @@ let _squelchCtx = null;
 /* ═══ Public ══════════════════════════════════════════════════ */
 
 export function initCOM(container) {
+  /* Seed COM state from mission if provided */
+  const mc = _missionCom();
+  if (mc) {
+    COM.active  = mc.active  ?? Object.keys(mc.freqs)[0];
+    COM.standby = mc.standby ?? Object.keys(mc.freqs)[1] ?? COM.active;
+  } else {
+    COM.active  = '121.750';
+    COM.standby = '121.900';
+  }
   container.innerHTML = _html();
   _render();
   _bindEvents(container);
@@ -48,7 +62,7 @@ function _html() {
   <!-- COM radio -->
   <div class="com-section">
     <div class="com-header">
-      <span class="com-title">COM 1</span>
+      <span class="com-title">${_comTitle()}</span>
       <span class="com-ptt" id="com-ptt-hint"></span>
     </div>
 
@@ -78,7 +92,7 @@ function _html() {
   <!-- Transponder -->
   <div class="xpdr-section">
     <div class="com-header">
-      <span class="com-title">XPDR</span>
+      <span class="com-title">${_xpdrLabel()}</span>
       <span class="xpdr-mode" id="xpdr-mode">MODE C</span>
     </div>
     <div class="xpdr-row">
@@ -98,12 +112,12 @@ function _render() {
   const staEl  = document.getElementById('com-station');
   if (actEl)  actEl.textContent  = COM.active;
   if (sbyEl)  sbyEl.textContent  = COM.standby;
-  if (staEl)  staEl.textContent  = FREQS[COM.active]?.label ?? COM.active;
+  if (staEl)  staEl.textContent  = _freqs()[COM.active]?.label ?? COM.active;
 
   /* Presets */
   const pre = document.getElementById('com-presets');
   if (pre && pre.children.length === 0) {
-    for (const [freq, info] of Object.entries(FREQS)) {
+    for (const [freq, info] of Object.entries(_freqs())) {
       const btn = document.createElement('button');
       btn.className   = 'com-preset-btn';
       btn.dataset.freq = freq;
@@ -193,15 +207,15 @@ function _tuneStandby(freq) {
   _render();
 }
 
-const FREQ_LIST = Object.keys(FREQS);
 function _nudgeStandby(dir) {
-  const i = FREQ_LIST.indexOf(COM.standby);
-  COM.standby = FREQ_LIST[(i + dir + FREQ_LIST.length) % FREQ_LIST.length];
+  const list = Object.keys(_freqs());
+  const i = list.indexOf(COM.standby);
+  COM.standby = list[(i + dir + list.length) % list.length];
   _render();
 }
 
 function _onTune(freq) {
-  const info = FREQS[freq];
+  const info = _freqs()[freq];
   if (!info) return;
 
   /* Auto-assign squawk on Tower */
