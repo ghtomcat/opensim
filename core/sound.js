@@ -196,6 +196,10 @@ let _hissNoise    = null;
 let _hissFilt     = null;
 let _hissGain     = null;
 
+/* ── Flap motor — whirr while travelling, thunk at stop ── */
+let _flapStep       = null;   // last flap position processed by sound
+let _flapMotorTimer = null;
+
 /* ── Knacken — cooling metal ticks, dead engine in arctic air ── */
 let _knackenActive  = false;
 let _knackenTimeout = null;
@@ -298,6 +302,80 @@ function _scheduleKnacken() {
     src.start();
     _scheduleKnacken();   // chain next tick
   }, interval);
+}
+
+/* ── Flap motor ── */
+function _flapMotorWhirr() {
+  if (!_ctx) return;
+  clearTimeout(_flapMotorTimer);
+
+  const now = _ctx.currentTime;
+  const dur = 2.2;                          // seconds of actuator travel
+
+  /* ── Noise layer — bandpass, frequency envelope: spool up → hold → spool down ── */
+  const nBuf  = _ctx.createBuffer(1, Math.ceil(_ctx.sampleRate * dur), _ctx.sampleRate);
+  const nData = nBuf.getChannelData(0);
+  for (let i = 0; i < nData.length; i++) nData[i] = Math.random() * 2 - 1;
+
+  const nSrc  = _ctx.createBufferSource();
+  nSrc.buffer = nBuf;
+
+  const nFilt = _ctx.createBiquadFilter();
+  nFilt.type  = 'bandpass';
+  nFilt.Q.value = 3.2;
+  nFilt.frequency.setValueAtTime(260,  now);
+  nFilt.frequency.linearRampToValueAtTime(440, now + 0.25);   // spool up
+  nFilt.frequency.setValueAtTime(440,  now + dur - 0.35);
+  nFilt.frequency.linearRampToValueAtTime(260, now + dur);    // spool down
+
+  const nGain = _ctx.createGain();
+  nGain.gain.setValueAtTime(0, now);
+  nGain.gain.linearRampToValueAtTime(0.28, now + 0.08);       // fast attack
+  nGain.gain.setValueAtTime(0.28, now + dur - 0.12);
+  nGain.gain.linearRampToValueAtTime(0, now + dur);
+
+  nSrc.connect(nFilt); nFilt.connect(nGain); nGain.connect(_ctx.destination);
+  nSrc.start(now); nSrc.stop(now + dur);
+
+  /* ── Oscillator layer — gearbox fundamental ~72Hz, sawtooth ── */
+  const mOsc  = _ctx.createOscillator();
+  mOsc.type   = 'sawtooth';
+  mOsc.frequency.setValueAtTime(58,  now);
+  mOsc.frequency.linearRampToValueAtTime(74, now + 0.25);
+  mOsc.frequency.setValueAtTime(74,  now + dur - 0.35);
+  mOsc.frequency.linearRampToValueAtTime(58, now + dur);
+
+  const mFilt = _ctx.createBiquadFilter();
+  mFilt.type  = 'lowpass';
+  mFilt.frequency.value = 180;
+  mFilt.Q.value = 1.5;
+
+  const mGain = _ctx.createGain();
+  mGain.gain.setValueAtTime(0, now);
+  mGain.gain.linearRampToValueAtTime(0.14, now + 0.1);
+  mGain.gain.setValueAtTime(0.14, now + dur - 0.15);
+  mGain.gain.linearRampToValueAtTime(0, now + dur);
+
+  mOsc.connect(mFilt); mFilt.connect(mGain); mGain.connect(_ctx.destination);
+  mOsc.start(now); mOsc.stop(now + dur);
+
+  /* ── Thunk at end of travel ── */
+  _flapMotorTimer = setTimeout(() => {
+    if (!_ctx) return;
+    const t    = _ctx.currentTime;
+    const tDur = Math.floor(_ctx.sampleRate * 0.055);
+    const tBuf = _ctx.createBuffer(1, tDur, _ctx.sampleRate);
+    const tData = tBuf.getChannelData(0);
+    for (let i = 0; i < tDur; i++)
+      tData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (tDur * 0.18));
+    const tSrc  = _ctx.createBufferSource();  tSrc.buffer = tBuf;
+    const tFilt = _ctx.createBiquadFilter();
+    tFilt.type = 'lowpass'; tFilt.frequency.value = 220; tFilt.Q.value = 1.8;
+    const tGain = _ctx.createGain(); tGain.gain.value = 0.9;
+    tSrc.connect(tFilt); tFilt.connect(tGain); tGain.connect(_ctx.destination);
+    tSrc.start(t);
+    _flapMotorTimer = null;
+  }, (dur - 0.05) * 1000);
 }
 
 function _playHeartbeat() {
@@ -491,6 +569,13 @@ export function tickSound() {
     const gain = _cfg.masterGain * (0.35 + 0.65 * throttle);
     _master.gain.setTargetAtTime(gain, now, slew);
     _noiseGain?.gain.setTargetAtTime(_cfg.noiseGain * throttle, now, slew * 1.5);
+  }
+
+  /* Flap motor — detect step change, trigger whirr + thunk */
+  if (_flapStep === null) _flapStep = S.flaps ?? 0;
+  if ((S.flaps ?? 0) !== _flapStep) {
+    _flapStep = S.flaps ?? 0;
+    _flapMotorWhirr();
   }
 
   /* Wind / airframe noise — speed² × flap character */
@@ -879,6 +964,7 @@ function _teardown() {
   try { _windNoise?.stop();  } catch {}
   try { _flapNoise?.stop();  } catch {}
   _ctx.close();
+  clearTimeout(_flapMotorTimer); _flapMotorTimer = null; _flapStep = null;
   _ctx = null; _master = null; _waveshaper = null; _oscs = [];
   _noise = null; _noiseGain = null;
   _lader = null; _laderGain = null;
