@@ -34,6 +34,7 @@
   ],
 
   "manualControl": true,
+  "fixedGear": true,
 
   "performance": {
     "mass":       830,

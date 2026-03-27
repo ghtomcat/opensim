@@ -28,6 +28,7 @@
     "CL_alpha":   5.5,
     "CL_max":     1.6,
     "CD_0":       0.022,
+    "gearDrag":   0.012,
     "inducedK":   0.065,
     "Vr":         120,
     "muRoll":     0.03,

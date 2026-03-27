@@ -158,6 +158,142 @@ test.describe('Bf 109 — Wolfskopf', () => {
 
 });
 
+/* ── An-225 Mriya ────────────────────────────────────────────── */
+
+test.describe('An-225 Mriya — Hostomel 2022', () => {
+
+  test('rotates between 165–215 kt (flaps 15°)', async ({ page }) => {
+    await loadSim(page, 'hostomel-2022');
+
+    await setState(page, { spdT: 460, flaps: 1 });
+    await stepSeconds(page, 5);
+    await setState(page, { pitchT: 8 });
+
+    let liftoffSpd = null;
+    for (let i = 0; i < 150 * 60; i++) {
+      await page.evaluate(() => window.simStep(1));
+      const s = await getState(page);
+      if (!s.wow && s.alt > 395) {
+        liftoffSpd = s.spd;
+        break;
+      }
+    }
+
+    expect(liftoffSpd, 'An-225 should lift off').not.toBeNull();
+    expect(liftoffSpd).toBeGreaterThan(165);
+    expect(liftoffSpd).toBeLessThan(215);
+  });
+
+  test('climbs at >500 fpm after liftoff', async ({ page }) => {
+    await loadSim(page, 'hostomel-2022');
+
+    await setState(page, { spdT: 460, pitchT: 8 });
+    await stepSeconds(page, 120);
+
+    const s = await getState(page);
+    expect(s.vs).toBeGreaterThan(500);
+  });
+
+  test('gear retracts after liftoff', async ({ page }) => {
+    await loadSim(page, 'hostomel-2022');
+
+    await setState(page, { spdT: 460, pitchT: 8 });
+    await stepSeconds(page, 120);
+
+    const airborne = await getState(page);
+    expect(airborne.wow, 'Mriya should be airborne').toBe(false);
+
+    await setState(page, { prevGear: true, gear: false });
+    const s = await getState(page);
+    expect(s.gear, 'Mriya gear should retract').toBe(false);
+  });
+
+});
+
+/* ── Ground spawn ────────────────────────────────────────────── */
+
+test.describe('Ground spawn — all missions start on the runway', () => {
+
+  const GROUND_MISSIONS = [
+    { id: 'lszf-pattern',     name: 'C172',    elev: 1788 },
+    { id: 'grenchen-circuit', name: 'Robin',   elev: 1411 },
+    { id: 'nordmeer-1956',    name: 'Tu-95MS', elev:  492 },
+    { id: 'hostomel-2022',   name: 'An-225',  elev:  394 },
+    // wolfskopf-1942 intentionally starts airborne (patrol, alt=2000, departure=null)
+    // lszh-approach intentionally starts airborne (ILS intercept)
+  ];
+
+  for (const { id, name, elev } of GROUND_MISSIONS) {
+    test(`${name} — wow=true, gear=true, spd=0 at spawn`, async ({ page }) => {
+      await loadSim(page, id);
+      const s = await getState(page);
+
+      expect(s.wow,  `${name} should be on ground`).toBe(true);
+      expect(s.gear, `${name} gear should be down`).toBe(true);
+      expect(s.spd,  `${name} speed should be 0`).toBeLessThan(1);
+      expect(s.alt,  `${name} alt should be at field elevation`).toBeGreaterThan(elev - 5);
+      expect(s.alt,  `${name} alt should not be above field elevation`).toBeLessThan(elev + 5);
+    });
+  }
+
+});
+
+/* ── Fixed gear ──────────────────────────────────────────────── */
+
+test.describe('Fixed gear — C172 and Robin', () => {
+
+  const FIXED_GEAR = [
+    { id: 'lszf-pattern',     name: 'C172'  },
+    { id: 'grenchen-circuit', name: 'Robin' },
+  ];
+
+  for (const { id, name } of FIXED_GEAR) {
+    test(`${name} — gear stays true after liftoff`, async ({ page }) => {
+      await loadSim(page, id);
+
+      // Get airborne
+      await setState(page, { spdT: 163, pitchT: 8 });
+      await stepSeconds(page, 60);
+
+      const s = await getState(page);
+      expect(s.wow,  `${name} should be airborne`).toBe(false);
+      expect(s.gear, `${name} fixed gear must stay true in flight`).toBe(true);
+    });
+
+    test(`${name} — G key does not retract gear`, async ({ page }) => {
+      await loadSim(page, id);
+
+      // Press G and check gear is unchanged
+      await page.keyboard.press('g');
+      const s = await getState(page);
+      expect(s.gear, `${name} gear should not toggle on fixed-gear aircraft`).toBe(true);
+    });
+  }
+
+});
+
+/* ── Retractable gear — Tu-95MS ──────────────────────────────── */
+
+test.describe('Retractable gear — Tu-95MS', () => {
+
+  test('gear retracts after liftoff', async ({ page }) => {
+    await loadSim(page, 'nordmeer-1956');
+
+    // Get airborne, then retract via simSetState (simulates G key path)
+    await setState(page, { spdT: 310, pitchT: 8 });
+    await stepSeconds(page, 90);
+
+    const airborne = await getState(page);
+    expect(airborne.wow, 'Tu-95MS should be airborne').toBe(false);
+
+    // Retract
+    await setState(page, { prevGear: true, gear: false });
+    const s = await getState(page);
+    expect(s.gear, 'Tu-95MS gear should retract').toBe(false);
+  });
+
+});
+
 /* ── Tu-95MS Bear H ──────────────────────────────────────────── */
 
 test.describe('Tu-95MS — Nordmeer 1956', () => {

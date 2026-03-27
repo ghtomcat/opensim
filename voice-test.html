@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Voice Test — OpenSim</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #111;
+    color: #ccc;
+    font-family: 'SF Mono', monospace;
+    font-size: 13px;
+    padding: 32px;
+    max-width: 720px;
+  }
+  h1 { color: #fff; font-size: 15px; letter-spacing: .1em; margin-bottom: 24px; }
+  h2 { color: #888; font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+       margin: 24px 0 10px; }
+
+  .row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  label { color: #888; width: 56px; flex-shrink: 0; }
+  .val  { color: #fff; width: 36px; text-align: right; }
+
+  select, input[type=text], textarea {
+    background: #1c1c1c; border: 1px solid #333; color: #eee;
+    padding: 6px 10px; border-radius: 4px; font-family: inherit; font-size: 13px;
+  }
+  select { width: 100%; cursor: pointer; }
+  input[type=range] { flex: 1; accent-color: #4af; cursor: pointer; }
+  textarea { width: 100%; height: 72px; resize: vertical; margin-top: 4px;
+             line-height: 1.5; }
+
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .preset {
+    background: #1c1c1c; border: 1px solid #333; color: #aaa;
+    padding: 4px 10px; border-radius: 3px; cursor: pointer; font-size: 12px;
+  }
+  .preset:hover { border-color: #4af; color: #4af; }
+  .active-filter { border-color: #4af; color: #4af; }
+
+  button#speak {
+    margin-top: 20px; width: 100%;
+    background: #1a3a5c; border: 1px solid #4af; color: #4af;
+    padding: 10px; border-radius: 4px; font-family: inherit; font-size: 13px;
+    cursor: pointer; letter-spacing: .08em;
+  }
+  button#speak:hover { background: #1e4a70; }
+  button#speak:active { background: #0e2a44; }
+
+  #voice-name { color: #555; font-size: 11px; margin-top: 6px; min-height: 16px; }
+</style>
+</head>
+<body>
+
+<h1>VOICE TEST — OPENSIM</h1>
+
+<h2>Voice</h2>
+<div class="presets" id="lang-filters" style="margin-bottom:8px">
+  <span class="preset active-filter" data-lang="en">EN</span>
+  <span class="preset" data-lang="uk">UK 🇺🇦</span>
+  <span class="preset" data-lang="ru">RU</span>
+  <span class="preset" data-lang="de">DE</span>
+  <span class="preset" data-lang="">ALL</span>
+</div>
+<select id="voice-select"><option>Loading voices…</option></select>
+<div id="voice-name"></div>
+
+<h2>Parameters</h2>
+<div class="row">
+  <label>Rate</label>
+  <input type="range" id="rate" min="0.5" max="2.0" step="0.05" value="1.0">
+  <span class="val" id="rate-val">1.00</span>
+</div>
+<div class="row">
+  <label>Pitch</label>
+  <input type="range" id="pitch" min="0.5" max="2.0" step="0.05" value="1.0">
+  <span class="val" id="pitch-val">1.00</span>
+</div>
+<div class="row">
+  <label>Volume</label>
+  <input type="range" id="volume" min="0.1" max="1.0" step="0.05" value="1.0">
+  <span class="val" id="volume-val">1.00</span>
+</div>
+
+<h2>Text</h2>
+<textarea id="text">Mriya, cleared for takeoff, runway one eight.</textarea>
+
+<h2>Presets</h2>
+<div class="presets">
+  <span class="preset" data-text="Mriya, cleared for takeoff, runway one eight.">ATC · Takeoff</span>
+  <span class="preset" data-text="Mriya, climb flight level three nine zero. Track two seven zero.">ATC · Climb</span>
+  <span class="preset" data-text="Mriya, contact Warsaw control. Good day.">ATC · Handoff</span>
+  <span class="preset" data-text="Rotate.">PM · Rotate</span>
+  <span class="preset" data-text="Positive rate. Gear up.">PM · Gear up</span>
+  <span class="preset" data-text="One thousand.">GPWS · 1000</span>
+  <span class="preset" data-text="Five hundred.">GPWS · 500</span>
+  <span class="preset" data-text="Bore eleven, cleared for takeoff, runway zero one.">ATC · Russian</span>
+  <span class="preset" data-text="Мрія, запуск двигунів дозволено.">UA · Запуск</span>
+  <span class="preset" data-text="Мрія, виліт дозволено. Злітна смуга вісімнадцять.">UA · Виліт</span>
+  <span class="preset" data-text="Мрія, набір ешелону триста дев'яносто. Курс двісті сімдесят.">UA · Набір</span>
+  <span class="preset" data-text="Мрія, до побачення. Контактуйте Варшаву контроль.">UA · Handoff</span>
+  <span class="preset" data-text="Борт 11, запуск двигателей разрешён.">RU · Запуск</span>
+  <span class="preset" data-text="Борт 11, к взлёту разрешён, полоса ноль один.">RU · Взлёт</span>
+  <span class="preset" data-text="Aufklärungsflug. Nordmeer. Vier Triebwerke.">DE · Narrative</span>
+  <span class="preset" data-text="Aufklärungsflug. Nordmeer. Vier Triebwerke.">Narrative</span>
+</div>
+
+<button id="speak">▶  SPEAK</button>
+
+<script>
+  const sel    = document.getElementById('voice-select');
+  const rateEl = document.getElementById('rate');
+  const pitchEl= document.getElementById('pitch');
+  const volEl  = document.getElementById('volume');
+  const textEl = document.getElementById('text');
+  const nameEl = document.getElementById('voice-name');
+
+  /* Sliders → display */
+  ['rate','pitch','volume'].forEach(id => {
+    const el  = document.getElementById(id);
+    const val = document.getElementById(id + '-val');
+    el.addEventListener('input', () => val.textContent = parseFloat(el.value).toFixed(2));
+  });
+
+  /* Populate voices */
+  let voices = [];
+  let filterLang = 'en';
+
+  function loadVoices() {
+    voices = speechSynthesis.getVoices();
+    if (!voices.length) return;
+    renderVoices();
+  }
+
+  function renderVoices() {
+    sel.innerHTML = '';
+    voices.forEach((v, i) => {
+      if (filterLang && !v.lang.toLowerCase().startsWith(filterLang)) return;
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = `${v.name}  [${v.lang}]${v.default ? '  ★' : ''}`;
+      sel.appendChild(opt);
+    });
+    if (!sel.options.length) {
+      const opt = document.createElement('option');
+      opt.textContent = `— no voices for "${filterLang}" —`;
+      sel.appendChild(opt);
+    }
+  }
+  speechSynthesis.onvoiceschanged = loadVoices;
+  loadVoices();
+
+  /* Language filter buttons */
+  document.querySelectorAll('#lang-filters .preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#lang-filters .preset').forEach(b => b.classList.remove('active-filter'));
+      btn.classList.add('active-filter');
+      filterLang = btn.dataset.lang;
+      renderVoices();
+    });
+  });
+
+  sel.addEventListener('change', () => {
+    const v = voices[+sel.value];
+    nameEl.textContent = v ? `${v.name} · ${v.lang} · ${v.localService ? 'local' : 'network'}` : '';
+  });
+
+  /* Presets */
+  document.querySelectorAll('.preset[data-text]').forEach(el => {
+    el.addEventListener('click', () => {
+      textEl.value = el.dataset.text;
+      speak();
+    });
+  });
+
+  /* Speak */
+  function speak() {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(textEl.value.trim());
+    u.voice  = voices[+sel.value] ?? null;
+    u.rate   = parseFloat(rateEl.value);
+    u.pitch  = parseFloat(pitchEl.value);
+    u.volume = parseFloat(volEl.value);
+    speechSynthesis.speak(u);
+  }
+
+  document.getElementById('speak').addEventListener('click', speak);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) speak();
+  });
+</script>
+</body>
+</html>

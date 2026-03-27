@@ -86,6 +86,7 @@ axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1
 | Messerschmitt Bf 109 G-4 | Daimler-Benz DB 601 · 1175hp | AudioWorklet 12-cylinder impulse model |
 | Avro 504K | Le Rhône 9J · 110hp | Gyroscopic precession, rotary blip switch |
 | Tupolev Tu-95MS Bear H | Kuznetsov NK-12MV × 4 · 44740kW | Russian crew voices, contra-rotation LFO |
+| Antonov An-225 Mriya | ZMKB Progress D-18T × 6 · 1 377 kN | Ukrainian crew voices (Lesya), 500 t, Hostomel 2022 |
 
 ---
 
@@ -187,11 +188,16 @@ The Kuznetsov NK-12MV drives two contra-rotating propellers. OpenSim synthesises
 
 ## Crew voices
 
-Crew language is set per aircraft via `"crewLang": "ru-RU"`. The browser selects a matching TTS voice (macOS: Milena, Chrome: Google русский). Every utterance — GPWS, PM callouts, takeoff calls — is spoken in that language.
+Crew language is set per aircraft via `"crewLang": "ru-RU"`. The browser selects a matching TTS voice (macOS: Milena for Russian, Lesya for Ukrainian). Every utterance — GPWS, PM callouts, takeoff calls, ATC clearances — is spoken in that language.
 
 The Tu-95MS crew speaks Russian: **Взлётная · Набор · Тысяча · Пятьсот · Проходим десять тысяч.**
+The An-225 Mriya crew speaks Ukrainian: **Мрія, виліт дозволено. Злітна смуга вісімнадцять.**
 
 ATC clearances support both altitude triggers (commercial missions) and time triggers (military departures). The Nordmeer ATC fires on elapsed seconds: engine start permission at T+5, takeoff at T+90, radio silence order at T+200.
+
+### Voice tester
+
+Open `voice-test.html` directly in the browser (no server needed) to explore available TTS voices and tune parameters before committing them to a mission. Filter by language (EN / UK 🇺🇦 / RU / DE / ALL), adjust rate, pitch, and volume with sliders, and fire preset sentences from ATC clearances, crew callouts, and narrative text. Cmd+Enter speaks the current text.
 
 ---
 

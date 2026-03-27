@@ -42,7 +42,10 @@ export function initCrew() {
 export function setCrewLang(lang) {
   _crewLang = lang || null;
   const voices = speechSynthesis.getVoices();
-  if (!voices.length) return;   // onvoiceschanged will re-run _loadVoices anyway
+  if (!voices.length) {
+    setTimeout(() => setCrewLang(_crewLang), 300);
+    return;
+  }
 
   if (_crewLang) {
     const prefix = _crewLang.slice(0, 2).toLowerCase();
@@ -91,7 +94,7 @@ export function resetCrew() {
 /* ── Direct speech ── */
 export function speakPF(text, opts = {})  { _speak(text, _pfVoice,  { rate: 0.92, pitch: 0.88, ...opts }); }
 export function speakPM(text, opts = {})  { _speak(text, _pmVoice,  { rate: 0.92, pitch: 1.18, ...opts }); }
-export function speakATC(text, opts = {}) { _speak(text, _atcVoice, { rate: 1.08, pitch: 0.78, volume: 1.0, ...opts }); }
+export function speakATC(text, opts = {}) { _speak(text, _atcVoice, { rate: 1.00, pitch: 1.00, volume: 1.0, ...opts }); }
 
 /** Challenge / response: PF speaks, then PM confirms after a pause */
 export function sndCrew(pfText, pmText, delayMs = 750) {
@@ -265,7 +268,10 @@ function _loadVoices() {
 
     _pfVoice  = pref(['Daniel', 'Alex', 'Tom', 'David'])   || voices.find(v => !v.name.includes('Google')) || voices[0];
     _pmVoice  = pref(['Samantha', 'Karen', 'Moira', 'Fiona']) || voices.find(v => v.name !== _pfVoice?.name) || voices[0];
-    _atcVoice = pref(['Fred', 'Ralph', 'Albert', 'Bruce'])  || voices[0];
+    _atcVoice = pref(['Gordon', 'Tom', 'Oliver', 'Lee', 'Malcolm', 'Alex'])
+              || voices.find(v => v.name !== _pfVoice?.name && v.name !== _pmVoice?.name
+                               && v.lang.startsWith('en') && !v.name.match(/Fred|Ralph|Albert|Bruce/i))
+              || _pfVoice;
   };
 
   if (speechSynthesis.onvoiceschanged !== undefined) {
@@ -283,7 +289,7 @@ function _speak(text, voice, { rate = 1, pitch = 1, volume = 0.9 } = {}) {
 function _makeUtt(text, voice, { rate = 1, pitch = 1, volume = 0.9 } = {}) {
   const u = new SpeechSynthesisUtterance(text);
   if (voice) u.voice = voice;
-  if (_crewLang) u.lang = _crewLang;
+  else if (_crewLang) u.lang = _crewLang;  // only hint language when using browser default voice
   u.rate   = rate;
   u.pitch  = pitch;
   u.volume = volume;

@@ -95,7 +95,7 @@ export function tickGamepad() {
     setState({ prevFlaps: S.flaps, flaps: Math.min(3, S.flaps + 1) });
 
   /* Gear — button 2 */
-  if (_btnPressed(btn, GP.BTN_GEAR))
+  if (_btnPressed(btn, GP.BTN_GEAR) && !S.aircraft?.fixedGear)
     setState({ prevGear: S.gear, gear: !S.gear });
 
   _gpPrevButtons = btn.map(b => b.pressed);
@@ -178,7 +178,7 @@ function _onKeyDown(e) {
   /* Flaps — f extend, F retract */
   if (e.key === 'f') setState({ prevFlaps: S.flaps, flaps: Math.min(3, S.flaps + 1) });
   if (e.key === 'F') setState({ prevFlaps: S.flaps, flaps: Math.max(0, S.flaps - 1) });
-  if (e.key === 'g') setState({ prevGear: S.gear, gear: !S.gear });
+  if (e.key === 'g' && !S.aircraft?.fixedGear) setState({ prevGear: S.gear, gear: !S.gear });
 
   /* Role toggle (for solo sim) */
   if (e.key === 'r') {

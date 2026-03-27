@@ -1,0 +1,170 @@
+{
+  "id": "an225",
+  "name": "Antonov An-225 Mriya",
+  "callsign": "UR-82060",
+  "icaoType": "A225",
+  "era": "Cargo · 1988",
+  "engine": "ZMKB Progress D-18T × 6 · 229.5 kN each · 1 377 kN total",
+
+  "manualControl": true,
+  "crewLang": "uk-UA",
+
+  "envelope": {
+    "cruiseAlt":  39000,
+    "maxAlt":     45000,
+    "cruiseSpd":  440,
+    "maxSpd":     460,
+    "spdProfile": {
+      "39000": 440,
+      "25000": 420,
+      "15000": 350,
+      "10000": 290,
+      "3000":  210,
+      "1000":  185,
+      "0":     160
+    }
+  },
+
+  "situations": [
+    { "label": "GROUND",   "alt":   394, "spd":   0, "hdg": 183, "altT":   394, "spdT":   0 },
+    { "label": "TAKEOFF",  "alt":   394, "spd": 175, "hdg": 183, "altT": 10000, "spdT": 440 },
+    { "label": "CLIMB",    "alt": 10000, "spd": 290, "hdg": 270, "altT": 39000, "spdT": 440 },
+    { "label": "CRUISE",   "alt": 39000, "spd": 440, "hdg": 270, "altT": 39000, "spdT": 440 },
+    { "label": "APPROACH", "alt":  3000, "spd": 195, "hdg": 183, "altT":   500, "spdT": 185 }
+  ],
+
+  "thrustProfiles": [
+    { "label": "IDLE",  "spdT":   0 },
+    { "label": "CLB",   "spdT": 290 },
+    { "label": "MCT",   "spdT": 420 },
+    { "label": "TOGA",  "spdT": 460 }
+  ],
+
+  "performance": {
+    "mass":       500000,
+    "wingArea":      905,
+    "thrustMax":  1377000,
+    "CL_0":          0.15,
+    "CL_alpha":       6.5,
+    "CL_max":         1.85,
+    "CD_0":          0.018,
+    "gearDrag":      0.018,
+    "inducedK":      0.038,
+    "Vr":              175,
+    "muRoll":         0.018,
+    "muBrake":         0.30
+  },
+
+  "flaps": [
+    { "deg":  0, "dCL_max": 0.00, "dCD_0": 0.000 },
+    { "deg": 15, "dCL_max": 0.40, "dCD_0": 0.015 },
+    { "deg": 30, "dCL_max": 0.70, "dCD_0": 0.035 }
+  ],
+
+  "handling": {
+    "rollRate":   6,
+    "pitchRate":  2,
+    "spdRate":    1,
+    "maxBank":   30,
+    "maxPitch":  12
+  },
+
+  "sound": {
+    "engineType": "high-bypass"
+  },
+
+  "fmaPhases": [
+    { "minAlt": 10000, "vals": ["MAN", "", "HDG", "ALT",   ""], "cols": ["white","white","green","cyan","white"] },
+    { "minAlt":  1000, "vals": ["MAN", "", "HDG", "CLB",   ""], "cols": ["white","white","green","cyan","white"] },
+    { "minAlt":     0, "vals": ["MAN", "", "HDG", "CLIMB", ""], "cols": ["white","white","green","cyan","white"] }
+  ],
+
+  "takeoffCallouts": [
+    { "spd": 175, "speech": "rotate",         "voice": "pm" },
+    { "spd": 195, "speech": "positive climb", "voice": "pm" }
+  ],
+
+  "gpws": [
+    { "alt": 2500, "text": "2 5 0 0",   "speech": "two thousand five hundred", "red": false },
+    { "alt": 1000, "text": "1 0 0 0",   "speech": "one thousand",              "red": false },
+    { "alt":  500, "text": "5 0 0",     "speech": "five hundred",              "red": false },
+    { "alt":  200, "text": "2 0 0",     "speech": "two hundred",               "red": true  },
+    { "alt":   50, "text": "F I F T Y", "speech": "fifty",                     "red": false }
+  ],
+
+  "pmCallouts": [
+    { "alt": 10000, "speech": "passing ten thousand"  },
+    { "alt":  5000, "speech": "passing five thousand" },
+    { "alt":  1000, "speech": "one thousand"          },
+    { "alt":   500, "speech": "five hundred"          }
+  ],
+
+  "kneeboard": [
+    {
+      "title": "DEPARTURE BRIEFING",
+      "type": "briefing",
+      "items": [
+        "Runway 18, concrete, 2 520 m — use all of it",
+        "Flaps: takeoff F1 (15°)",
+        "Vr 175 kt — rotation slow and deliberate",
+        "Positive climb: gear up, maintain runway heading",
+        "Initial climb: 2 000 ft/min, full thrust",
+        "Noise abatement: reduce thrust passing 1 500 ft AGL",
+        "Destination: EDDP Leipzig/Halle"
+      ]
+    },
+    {
+      "title": "BEFORE TAKEOFF",
+      "type": "checklist",
+      "items": [
+        "All six engines — running, parameters normal",
+        "Anti-ice — as required",
+        "Flaps — F1 (15°), indicator confirmed",
+        "Flight controls — checked, full and free",
+        "Trim — takeoff setting",
+        "Fuel — quantity and balance confirmed",
+        "Transponder — ALT, squawk set",
+        "Crew — seats, harnesses, ready"
+      ]
+    },
+    {
+      "title": "TAKEOFF",
+      "type": "checklist",
+      "items": [
+        "Thrust — advance to TOGA, confirm all six",
+        "80 kt — instruments crosscheck",
+        "V1 — commit",
+        "Vr — rotate smoothly, 2° per second",
+        "Positive climb — call, gear up",
+        "Flaps retraction — schedule per speed"
+      ]
+    },
+    {
+      "title": "CLIMB",
+      "type": "checklist",
+      "items": [
+        "Gear — up and locked",
+        "Flaps — retract schedule: F0 above 210 kt",
+        "Thrust — climb power above 1 500 ft AGL",
+        "Speed — 250 kt below 10 000 ft",
+        "Above 10 000 ft — accelerate to 290 kt, climb Mach .78"
+      ]
+    },
+    {
+      "title": "SPEEDS (500 000 kg)",
+      "type": "briefing",
+      "items": [
+        "V1 (decision) ........... 168 kt",
+        "Vr (rotate) ............. 175 kt",
+        "V2 (climb) .............. 185 kt",
+        "Best angle climb ......... 195 kt",
+        "Best rate climb .......... 220 kt",
+        "Cruise ................... M0.76 / 440 kt",
+        "Max operating (Vmo) ...... 460 kt",
+        "Gear extension (Vlo) ..... 220 kt",
+        "Flap F1 max .............. 220 kt",
+        "Flap F2 max .............. 195 kt"
+      ]
+    }
+  ]
+}

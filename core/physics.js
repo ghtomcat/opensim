@@ -94,10 +94,13 @@ export function tickPhysics(dt) {
     const CL_max_e = CL_max + (flapCfg.dCL_max ?? 0);
     const CD_0_e   = CD_0   + (flapCfg.dCD_0   ?? 0);
 
+    /* Gear drag — retractable aircraft only; fixed-gear drag is baked into CD_0 */
+    const gearDrag = (!ac.fixedGear && S.gear) ? (perf.gearDrag ?? 0) : 0;
+
     /* Prop/damage drag — seized propeller + battle damage as engine dies */
     const ePow     = S.enginePower ?? 1.0;
     const propDrag = (1 - ePow) * 0.022;
-    const CD_0_eff = CD_0_e + propDrag;
+    const CD_0_eff = CD_0_e + propDrag + gearDrag;
 
     /* Aerodynamics */
     const alpha = newPitch * DEG;
