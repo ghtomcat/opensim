@@ -99,7 +99,7 @@ function normaliseAdsbFi(ac) {
  * Uses OpenSky Network bounding box — CORS-enabled, no auth required.
  * Returns up to 20 airborne aircraft sorted by distance.
  */
-export async function nearbyFlights(lat, lon, distNm = 100) {
+export async function nearbyFlights(lat, lon, distNm = 100, limit = 20) {
   // 1° lat ≈ 60nm; 1° lon ≈ 60nm·cos(lat)
   const dLat = distNm / 60;
   const dLon = distNm / (60 * Math.cos(lat * Math.PI / 180));
@@ -119,7 +119,7 @@ export async function nearbyFlights(lat, lon, distNm = 100) {
     .map(s => normaliseOpenSky(s))
     .map(f => ({ ...f, _dist: haversine(lat, lon, f.lat, f.lon) }))
     .sort((a, b) => a._dist - b._dist)
-    .slice(0, 20);
+    .slice(0, limit);
 }
 
 /* OpenSky state vector indices per API spec.

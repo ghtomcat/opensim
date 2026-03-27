@@ -675,18 +675,19 @@
       background: none; border: none;
     }
     #radar-close:hover { color: rgba(232,237,242,0.9); }
-    #radar-filter {
+    #radar-controls {
       position: absolute; top: 20px; left: 24px;
-      display: flex; gap: 8px;
+      display: flex; flex-direction: column; gap: 8px;
     }
-    .radar-filter-btn {
+    #radar-filter, #radar-range { display: flex; gap: 8px; }
+    .radar-filter-btn, .radar-range-btn {
       font-family: "IBM Plex Mono", monospace;
       font-size: 11px; letter-spacing: 0.12em;
       text-transform: uppercase; cursor: pointer;
       background: none; border: 1px solid rgba(77,197,220,0.25);
       color: rgba(77,197,220,0.5); padding: 4px 10px;
     }
-    .radar-filter-btn.active {
+    .radar-filter-btn.active, .radar-range-btn.active {
       border-color: rgba(77,197,220,0.8);
       color: rgba(77,197,220,1);
       background: rgba(77,197,220,0.08);
@@ -977,9 +978,16 @@
 
 <!-- Radar overlay -->
 <div id="radar-overlay" class="hidden">
-  <div id="radar-filter">
-    <button class="radar-filter-btn active" data-max="99999">ALL</button>
-    <button class="radar-filter-btn" data-max="15000">LOCAL &lt;FL150</button>
+  <div id="radar-controls">
+    <div id="radar-filter">
+      <button class="radar-filter-btn active" data-max="99999">ALL</button>
+      <button class="radar-filter-btn" data-max="15000">LOCAL &lt;FL150</button>
+    </div>
+    <div id="radar-range">
+      <button class="radar-range-btn active" data-nm="150">150nm</button>
+      <button class="radar-range-btn" data-nm="400">400nm</button>
+      <button class="radar-range-btn" data-nm="1000">1000nm</button>
+    </div>
   </div>
   <button id="radar-close">✕ close</button>
   <canvas id="ms-radar"></canvas>
@@ -1314,7 +1322,7 @@
     { icao:'EIDW', lat:53.4213, lon:-6.2700, runways:[{hdg: 110,len:2.08},{hdg:60,len:1.35}] },
   ];
 
-  function renderRadarMap(flights, userLat, userLon) {
+  function renderRadarMap(flights, userLat, userLon, rangeNm = 150) {
     const overlay = document.getElementById('radar-overlay');
     overlay.classList.remove('hidden');
     document.getElementById('radar-close').onclick = () => overlay.classList.add('hidden');
@@ -1329,10 +1337,23 @@
       };
     });
 
+    // Range buttons — re-fetch when changed
+    document.querySelectorAll('.radar-range-btn').forEach(btn => {
+      btn.onclick = async () => {
+        if (!_radarLat) return;
+        document.querySelectorAll('.radar-range-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        await _fetchAndRenderRadar(_radarLat, _radarLon, parseInt(btn.dataset.nm));
+      };
+    });
+
     const SIZE  = Math.min(window.innerWidth, window.innerHeight) - 40;
     const R     = SIZE / 2 - 32;
     const CX    = SIZE / 2, CY = SIZE / 2;
-    const MAXNM = 120;
+    const MAXNM = rangeNm;
+    const rings = rangeNm <= 200  ? [25, 50, 100]
+                : rangeNm <= 500  ? [100, 200, 400]
+                :                   [200, 500, 900];
 
     const canvas = document.getElementById('ms-radar');
     canvas.width = SIZE; canvas.height = SIZE;
@@ -1413,7 +1434,7 @@
       ctx.font = '11px "IBM Plex Mono", monospace';
       ctx.fillStyle = 'rgba(77,197,220,0.4)';
       ctx.textAlign = 'center';
-      for (const nm of [25, 50, 100]) {
+      for (const nm of rings) {
         ctx.beginPath(); ctx.arc(CX, CY, nmToR(nm), 0, Math.PI*2); ctx.stroke();
         ctx.fillText(`${nm}nm`, CX, CY - nmToR(nm) + 13);
       }
@@ -1544,6 +1565,20 @@
     if (e.key === 'Enter') document.getElementById('ms-live-btn').click();
   });
 
+  let _radarLat = null, _radarLon = null;
+
+  async function _fetchAndRenderRadar(lat, lon, rangeNm) {
+    const limit = rangeNm <= 200 ? 30 : rangeNm <= 500 ? 60 : 120;
+    liveStatus(`fetching flights within ${rangeNm}nm…`);
+    const flights = await nearbyFlights(lat, lon, rangeNm, limit);
+    if (flights.length === 0) {
+      liveStatus('no flights found');
+      return;
+    }
+    liveStatus(`${flights.length} flights · ${rangeNm}nm · click to fly`);
+    renderRadarMap(flights, lat, lon, rangeNm);
+  }
+
   document.getElementById('ms-near-btn').addEventListener('click', async () => {
     const btn = document.getElementById('ms-near-btn');
     btn.disabled = true;
@@ -1552,15 +1587,10 @@
     try {
       const pos = await new Promise((res, rej) =>
         navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000 }));
-      const { latitude: lat, longitude: lon } = pos.coords;
-      liveStatus('fetching nearby flights…');
-      const flights = await nearbyFlights(lat, lon, 100);
-      if (flights.length === 0) {
-        liveStatus('no flights found nearby');
-      } else {
-        liveStatus(`${flights.length} flights within 100nm · click to fly`);
-        renderRadarMap(flights, lat, lon);
-      }
+      _radarLat = pos.coords.latitude;
+      _radarLon = pos.coords.longitude;
+      const rangeNm = parseInt(document.querySelector('.radar-range-btn.active')?.dataset.nm ?? 150);
+      await _fetchAndRenderRadar(_radarLat, _radarLon, rangeNm);
     } catch (e) {
       liveStatus(`error — ${e.message}`, true);
     } finally {
