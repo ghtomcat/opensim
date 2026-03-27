@@ -1411,14 +1411,20 @@
 
     try {
       const f = await lookupFlight(_trackingId);
-      const vs    = f.vs ?? 0;
-      const pitch = Math.max(-8, Math.min(10, vs / 150));
+      const vs = f.vs ?? 0;
+
+      // Set altT to predicted altitude at next poll — AP flies a continuous
+      // smooth descent/climb rather than teleporting. Don't force pitch/VS;
+      // let the AP manage thrust and pitch to match speed + altitude naturally.
+      const predictedAlt = Math.max(f.alt + (vs / 60) * (TRACK_POLL_MS / 1000), 200);
+
       setState({
-        lat: f.lat, lon: f.lon,
-        alt: Math.max(f.alt, 200), altT: f.alt,
-        spd: f.spd,  spdT: f.spd,
-        hdg: f.hdg,  hdgT: f.hdg,
-        vs, pitch, pitchT: pitch,
+        lat: f.lat,   lon:  f.lon,
+        alt: Math.max(f.alt, 200),
+        altT: predictedAlt,
+        spd: f.spd,   spdT: f.spd,
+        hdg: f.hdg,   hdgT: f.hdg,
+        vs,
       });
       _patchTrackingFMA(f);
       _renderTrackingBadge(f);
