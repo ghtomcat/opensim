@@ -205,6 +205,21 @@
       pointer-events: none;
     }
 
+    /* ── ADS-B tracking badge ── */
+    #tracking-badge {
+      position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+      z-index: 25;
+      font-family: "Syne", sans-serif; font-size: 11px; font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      padding: 4px 12px; border-radius: 3px;
+      pointer-events: none;
+    }
+    #tracking-badge:empty { display: none; }
+    .tracking-live       { color: #4ecdc4; background: rgba(78,205,196,0.10); }
+    .tracking-connecting { color: rgba(232,237,242,0.4); }
+    .tracking-paused     { color: rgba(232,237,242,0.35); }
+    .tracking-lost       { color: #e17055; background: rgba(225,112,85,0.10); }
+
     /* ── Debrief overlay ── */
     #debrief {
       position: fixed; inset: 0;
@@ -1339,6 +1354,102 @@
 
     // Auto-switch to combined view — instruments + outside, immediate sense of motion
     if (_setViewMode) _setViewMode(1);
+
+    // Start ADS-B tracking loop — feeds real position into the sim
+    _startTracking(flight.reg !== '—' ? flight.reg : flight.callsign);
+  }
+
+  /* ── ADS-B tracking — continuously drives the sim from real ADS-B data ── */
+  const TRACK_POLL_MS  = 9000;   // adsb.fi updates ~every 8–10s
+  const TRACK_RESUME_S = 20;     // resume tracking this many seconds after last user input
+
+  let _trackingId     = null;    // reg or callsign being tracked
+  let _trackingTimer  = null;
+  let _trackingPausedAt = 0;     // Date.now() when user last touched controls
+
+  function _startTracking(id) {
+    _stopTracking();
+    _trackingId = id;
+    _trackingPausedAt = 0;
+    _pollTracking();   // immediate first update
+    _trackingTimer = setInterval(_pollTracking, TRACK_POLL_MS);
+    setInterval(_renderTrackingBadge, 1000);  // refresh countdown every second
+    _renderTrackingBadge();
+    /* Pause tracking when user touches controls */
+    window.addEventListener('keydown', _trackingUserInput, { passive: true });
+  }
+
+  function _stopTracking() {
+    if (_trackingTimer) { clearInterval(_trackingTimer); _trackingTimer = null; }
+    _trackingId = null;
+    window.removeEventListener('keydown', _trackingUserInput);
+    _renderTrackingBadge();
+  }
+
+  function _trackingUserInput() {
+    _trackingPausedAt = Date.now();
+    _renderTrackingBadge();
+  }
+
+  async function _pollTracking() {
+    if (!_trackingId) return;
+
+    /* Skip update while user is flying, but let badge show "paused" */
+    const pausedMs = Date.now() - _trackingPausedAt;
+    if (_trackingPausedAt && pausedMs < TRACK_RESUME_S * 1000) {
+      _renderTrackingBadge();
+      return;
+    }
+    if (_trackingPausedAt && pausedMs >= TRACK_RESUME_S * 1000) {
+      _trackingPausedAt = 0;
+    }
+
+    try {
+      const f = await lookupFlight(_trackingId);
+      const vs    = f.vs ?? 0;
+      const pitch = Math.max(-8, Math.min(10, vs / 150));
+      setState({
+        lat: f.lat, lon: f.lon,
+        alt: Math.max(f.alt, 200), altT: f.alt,
+        spd: f.spd,  spdT: f.spd,
+        hdg: f.hdg,  hdgT: f.hdg,
+        vs, pitch, pitchT: pitch,
+      });
+      _renderTrackingBadge(f);
+    } catch {
+      /* Aircraft may have landed or left ADS-B coverage */
+      _renderTrackingBadge(null, true);
+    }
+  }
+
+  function _renderTrackingBadge(f, lost) {
+    let badge = document.getElementById('tracking-badge');
+    if (!badge) {
+      badge = document.createElement('div');
+      badge.id = 'tracking-badge';
+      document.body.appendChild(badge);
+    }
+    if (!_trackingId) { badge.textContent = ''; badge.className = ''; return; }
+
+    const paused = _trackingPausedAt && (Date.now() - _trackingPausedAt) < TRACK_RESUME_S * 1000;
+    const resumeIn = paused ? Math.ceil((TRACK_RESUME_S * 1000 - (Date.now() - _trackingPausedAt)) / 1000) : 0;
+
+    if (lost) {
+      badge.textContent = `● ${_trackingId} — SIGNAL LOST`;
+      badge.className = 'tracking-lost';
+    } else if (paused) {
+      badge.textContent = `⏸ MANUAL · tracking resumes in ${resumeIn}s`;
+      badge.className = 'tracking-paused';
+    } else if (f) {
+      const fl  = `FL${String(Math.round(f.alt / 100)).padStart(3,'0')}`;
+      const vs  = Math.round(f.vs ?? 0);
+      const vsStr = vs === 0 ? 'level' : vs > 0 ? `↑${vs}fpm` : `↓${Math.abs(vs)}fpm`;
+      badge.textContent = `● ${_trackingId}  ${fl}  ${Math.round(f.spd)}kt  ${vsStr}`;
+      badge.className = 'tracking-live';
+    } else {
+      badge.textContent = `● ${_trackingId}  connecting…`;
+      badge.className = 'tracking-connecting';
+    }
   }
 
   /* ── Route cache — callsign → { org, dest } ── */
@@ -1771,6 +1882,9 @@
 
   /* ── Init ── */
   async function init(missionId, aircraftId, inlineMission = null) {
+    /* Stop any ADS-B tracking from a previous live flight */
+    if (missionId !== 'live-flight') _stopTracking();
+
     const mData = MISSIONS.find(m => m.id === missionId);
     const mLabel = mData ? `${mData.acName} · ${mData.title}` : missionId;
     document.title = `OpenSim — ${mLabel}`;
