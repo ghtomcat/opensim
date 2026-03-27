@@ -99,6 +99,11 @@ const ENGINES = {
     lfoFreq2:        3.5,           // Hz — second engine pair, slightly out of sync
     lfoDepth2:       0.32,          // inter-engine warble: 0.3Hz envelope, ~3s period
     saturation:      2.8,           // tanh overdrive — prop disk grit, not a jet
+    resonanceFreq:   19,            // Hz — wing/fuel-tank structural resonance
+    resonanceQ:      10,            // tight bandpass — specific to this airframe geometry
+    resonanceGain:   0.45,          // felt before it's heard; harmonics push into 40–80Hz
+    resonanceDrift:  2.2,           // Hz — resonance shifts ±2.2Hz as fuel burns off
+    resonanceDriftHz: 0.038,        // LFO freq — one full drift cycle every ~26s
     supercharger:    false,
   },
   'v12-supercharged': {
@@ -169,6 +174,13 @@ let _lfoOsc       = null;
 let _lfoGain      = null;
 let _lfoOsc2      = null;   // second engine pair — slightly offset freq
 let _lfoGain2     = null;
+
+/* ── Internal state — airframe structural resonance (NK-12) ── */
+let _resOsc       = null;   // sub-bass standing wave (~19Hz)
+let _resFilt      = null;
+let _resGain      = null;
+let _resDriftOsc  = null;   // very slow LFO — resonance drifts as fuel burns
+let _resDriftGain = null;
 
 /* ── Internal state — wind / airframe noise ── */
 let _windNoise    = null;
@@ -677,6 +689,43 @@ function _startOscEngine() {
     _lfoOsc2.start();
   }
 
+  /* Airframe structural resonance — wing/fuel-tank standing wave.
+     The Bear's aluminium wings packed with 87,000L of kerosene act as
+     resonating chambers driven by the prop wash. Heard as a continuous
+     sub-bass that shifts frequency as the fuel burns off.
+     Routes directly to destination — independent of engine power beat. */
+  if (_cfg.resonanceFreq) {
+    _resOsc  = _ctx.createOscillator();
+    _resFilt = _ctx.createBiquadFilter();
+    _resGain = _ctx.createGain();
+
+    _resOsc.type = 'sine';
+    _resOsc.frequency.value = _cfg.resonanceFreq;
+
+    /* Very slow drift LFO — fuel burn shifts the resonance over minutes */
+    _resDriftOsc  = _ctx.createOscillator();
+    _resDriftGain = _ctx.createGain();
+    _resDriftOsc.type = 'sine';
+    _resDriftOsc.frequency.value = _cfg.resonanceDriftHz ?? 0.038;
+    _resDriftGain.gain.value     = _cfg.resonanceDrift   ?? 2;
+    _resDriftOsc.connect(_resDriftGain);
+    _resDriftGain.connect(_resOsc.frequency);
+    _resDriftOsc.start();
+
+    _resFilt.type            = 'bandpass';
+    _resFilt.frequency.value = _cfg.resonanceFreq;
+    _resFilt.Q.value         = _cfg.resonanceQ ?? 10;
+
+    _resGain.gain.value = _cfg.resonanceGain ?? 0.35;
+
+    _resOsc.connect(_resFilt);
+    _resFilt.connect(_resGain);
+    /* Bypass _master — this resonance is structural, not engine-power-dependent.
+       Goes through waveshaper if present (saturation pushes 19Hz into felt 38/57Hz). */
+    _resGain.connect(_waveshaper ?? _ctx.destination);
+    _resOsc.start();
+  }
+
   _buildSupercharger();
   _buildWindLayer();
 }
@@ -825,6 +874,8 @@ function _teardown() {
   try { _lader2?.stop();     } catch {}
   try { _lfoOsc?.stop();     } catch {}
   try { _lfoOsc2?.stop();    } catch {}
+  try { _resOsc?.stop();     } catch {}
+  try { _resDriftOsc?.stop();} catch {}
   try { _windNoise?.stop();  } catch {}
   try { _flapNoise?.stop();  } catch {}
   _ctx.close();
@@ -834,6 +885,8 @@ function _teardown() {
   _lader2 = null; _lader2Gain = null;
   _lfoOsc = null; _lfoGain = null;
   _lfoOsc2 = null; _lfoGain2 = null;
+  _resOsc = null; _resFilt = null; _resGain = null;
+  _resDriftOsc = null; _resDriftGain = null;
   _workletNode = null;
   _windNoise = null; _windFilt = null; _windGain = null;
   _flapNoise = null; _flapFilt = null; _flapGain = null;
