@@ -1363,27 +1363,40 @@
   const TRACK_POLL_MS  = 9000;   // adsb.fi updates ~every 8–10s
   const TRACK_RESUME_S = 20;     // resume tracking this many seconds after last user input
 
-  let _trackingId     = null;    // reg or callsign being tracked
-  let _trackingTimer  = null;
-  let _trackingPausedAt = 0;     // Date.now() when user last touched controls
+  // Keys that count as "taking control" — flight controls only, not UI keys
+  const FLIGHT_KEYS = new Set([
+    'ArrowUp','ArrowDown','ArrowLeft','ArrowRight',
+    'w','s','a','d','W','S','A','D',
+    'f','g','F','G',         // flaps
+    ' ',                     // brakes / spacebar
+    '1','2','3','4','5','6','7','8','9','0',  // throttle
+  ]);
+
+  let _trackingId       = null;    // reg or callsign being tracked
+  let _trackingTimer    = null;
+  let _trackingBadgeTimer = null;
+  let _trackingPausedAt = 0;       // Date.now() when user last touched controls
+  let _trackingLastF    = null;    // last good ADS-B snapshot
+  let _trackingLastAt   = 0;       // Date.now() of last good poll
 
   function _startTracking(id) {
     _stopTracking();
     _trackingId = id;
     _trackingPausedAt = 0;
+    _trackingLastF    = null;
+    _trackingLastAt   = 0;
     _pollTracking();   // immediate first update
-    _trackingTimer = setInterval(_pollTracking, TRACK_POLL_MS);
-    setInterval(_renderTrackingBadge, 1000);  // refresh countdown every second
+    _trackingTimer      = setInterval(_pollTracking, TRACK_POLL_MS);
+    _trackingBadgeTimer = setInterval(_renderTrackingBadge, 1000);
     _renderTrackingBadge();
-    /* Pause tracking when user touches controls */
     window.addEventListener('keydown', _trackingUserInput, { passive: true });
   }
 
   function _stopTracking() {
-    if (_trackingTimer) { clearInterval(_trackingTimer); _trackingTimer = null; }
+    if (_trackingTimer)      { clearInterval(_trackingTimer);      _trackingTimer = null; }
+    if (_trackingBadgeTimer) { clearInterval(_trackingBadgeTimer); _trackingBadgeTimer = null; }
     _trackingId = null;
     window.removeEventListener('keydown', _trackingUserInput);
-    /* Restore original fmaPhases */
     if (S.aircraft?._fmaPhasesOrig !== undefined) {
       S.aircraft.fmaPhases = S.aircraft._fmaPhasesOrig;
       delete S.aircraft._fmaPhasesOrig;
@@ -1391,7 +1404,8 @@
     _renderTrackingBadge();
   }
 
-  function _trackingUserInput() {
+  function _trackingUserInput(e) {
+    if (!FLIGHT_KEYS.has(e.key)) return;   // ignore UI keys (K, T, V, Escape…)
     _trackingPausedAt = Date.now();
     _renderTrackingBadge();
   }
@@ -1426,8 +1440,10 @@
         hdg: f.hdg,   hdgT: f.hdg,
         vs,
       });
+      _trackingLastF  = f;
+      _trackingLastAt = Date.now();
       _patchTrackingFMA(f);
-      _renderTrackingBadge(f);
+      _renderTrackingBadge();
     } catch {
       /* Aircraft may have landed or left ADS-B coverage */
       _renderTrackingBadge(null, true);
@@ -1468,20 +1484,24 @@
     }
     if (!_trackingId) { badge.textContent = ''; badge.className = ''; return; }
 
-    const paused = _trackingPausedAt && (Date.now() - _trackingPausedAt) < TRACK_RESUME_S * 1000;
-    const resumeIn = paused ? Math.ceil((TRACK_RESUME_S * 1000 - (Date.now() - _trackingPausedAt)) / 1000) : 0;
+    const paused    = _trackingPausedAt && (Date.now() - _trackingPausedAt) < TRACK_RESUME_S * 1000;
+    const resumeIn  = paused ? Math.ceil((TRACK_RESUME_S * 1000 - (Date.now() - _trackingPausedAt)) / 1000) : 0;
+    const ageS      = _trackingLastAt ? Math.round((Date.now() - _trackingLastAt) / 1000) : null;
+    const ageStr    = ageS !== null ? `  ·  ${ageS}s ago` : '';
+    const snap      = _trackingLastF;
 
     if (lost) {
       badge.textContent = `● ${_trackingId} — SIGNAL LOST`;
       badge.className = 'tracking-lost';
-    } else if (paused) {
-      badge.textContent = `⏸ MANUAL · tracking resumes in ${resumeIn}s`;
+    } else if (paused && snap) {
+      const fl = `FL${String(Math.round(snap.alt / 100)).padStart(3,'0')}`;
+      badge.textContent = `⏸ ${_trackingId}  ${fl}  ${Math.round(snap.spd)}kt  ·  manual — resumes in ${resumeIn}s`;
       badge.className = 'tracking-paused';
-    } else if (f) {
-      const fl  = `FL${String(Math.round(f.alt / 100)).padStart(3,'0')}`;
-      const vs  = Math.round(f.vs ?? 0);
+    } else if (snap) {
+      const fl    = `FL${String(Math.round(snap.alt / 100)).padStart(3,'0')}`;
+      const vs    = Math.round(snap.vs ?? 0);
       const vsStr = vs === 0 ? 'level' : vs > 0 ? `↑${vs}fpm` : `↓${Math.abs(vs)}fpm`;
-      badge.textContent = `● ${_trackingId}  ${fl}  ${Math.round(f.spd)}kt  ${vsStr}`;
+      badge.textContent = `● ${_trackingId}  ${fl}  ${Math.round(snap.spd)}kt  ${vsStr}${ageStr}`;
       badge.className = 'tracking-live';
     } else {
       badge.textContent = `● ${_trackingId}  connecting…`;
