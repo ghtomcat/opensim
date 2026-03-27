@@ -1261,6 +1261,11 @@
     document.getElementById('mission-select').classList.add('hidden');
     const aircraftId = pickAircraft(flight.icaoType);
     await init('live-flight', aircraftId, LIVE_MISSION);
+
+    // Derive realistic pitch from VS — cruise ~2°, climb ~5°, descent ~-2°
+    const vs    = flight.vs ?? 0;
+    const pitch = Math.max(-8, Math.min(10, vs / 150));
+
     setState({
       lat:    flight.lat,
       lon:    flight.lon,
@@ -1270,10 +1275,14 @@
       spdT:   flight.spd,
       hdg:    flight.hdg,
       hdgT:   flight.hdg,
-      vs:     flight.vs,
-      pitch:  0, roll: 0,
+      vs,
+      pitch,  pitchT: pitch,
+      roll:   0, rollT: 0,
       wow:    false,
     });
+
+    // Auto-switch to combined view — instruments + outside, immediate sense of motion
+    if (_setViewMode) _setViewMode(1);
   }
 
   /* ── Route cache — callsign → { org, dest } ── */
@@ -1566,6 +1575,7 @@
   });
 
   let _radarLat = null, _radarLon = null;
+  let _setViewMode = null;   // set by init(), used by flyWithFlight
 
   async function _fetchAndRenderRadar(lat, lon, rangeNm) {
     const limit = rangeNm <= 200 ? 30 : rangeNm <= 500 ? 60 : 120;
@@ -1841,6 +1851,9 @@
         outsideInvalidate();
       }
     }
+
+    /* Expose view switcher for flyWithFlight */
+    _setViewMode = (mode) => { _viewMode = mode; _applyViewMode(mode); };
 
     /* Notify test harness that sim is ready */
     if (window.simReady !== undefined) {
