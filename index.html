@@ -1268,6 +1268,25 @@
     });
   }
 
+  /* ── Route cache — callsign → { org, dest } ── */
+  const _routeCache = new Map();
+  async function _fetchRoute(callsign) {
+    const cs = (callsign ?? '').trim().replace(/\s+/g, '');
+    if (!cs || cs === '—') return null;
+    if (_routeCache.has(cs)) return _routeCache.get(cs);
+    try {
+      const res  = await fetch(`https://api.adsbdb.com/v0/callsign/${cs}`);
+      const data = await res.json();
+      const fr   = data?.response?.flightroute;
+      const result = fr ? { org: fr.origin?.icao_code ?? null, dest: fr.destination?.icao_code ?? null } : null;
+      _routeCache.set(cs, result);
+      return result;
+    } catch {
+      _routeCache.set(cs, null);
+      return null;
+    }
+  }
+
   /* ── Airport database — Central Europe ── */
   const AIRPORTS_DB = [
     { icao:'LSZH', lat:47.4647, lon: 8.5492, runways:[{hdg:100,len:1.78},{hdg:160,len:1.35}] },
@@ -1364,6 +1383,12 @@
       hits.push({ f, x, y, fl, cs });
     });
 
+    // Fetch routes for all visible flights — redraw when results arrive
+    const _apByIcao = Object.fromEntries(AIRPORTS_DB.map(a => [a.icao, a]));
+    Promise.all(hits.map(h =>
+      _fetchRoute(h.cs).then(r => { h.org = r?.org ?? null; h.dest = r?.dest ?? null; })
+    )).then(() => draw(null));
+
     function draw(hovered) {
       // Clear aircraft layer
       ctx.clearRect(0, 0, SIZE, SIZE);
@@ -1409,6 +1434,18 @@
 
       hits.filter(h => h.f.alt <= maxAlt).forEach(h => {
         const isHov = h === hovered;
+
+        // Route line to destination airport (if known + in DB)
+        if (h.dest && _apByIcao[h.dest]) {
+          const dp = project(_apByIcao[h.dest].lat, _apByIcao[h.dest].lon);
+          ctx.save();
+          ctx.setLineDash([4, 5]);
+          ctx.strokeStyle = isHov ? 'rgba(77,197,220,0.5)' : 'rgba(77,197,220,0.18)';
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(h.x, h.y); ctx.lineTo(dp.x, dp.y); ctx.stroke();
+          ctx.restore();
+        }
+
         // Heading tick
         const hdgR = h.f.hdg * Math.PI / 180;
         ctx.strokeStyle = isHov ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.3)';
@@ -1422,8 +1459,11 @@
 
         // Label only on hover
         if (isHov) {
+          const route = (h.org && h.dest) ? `${h.org} → ${h.dest}` : (h.dest ? `→ ${h.dest}` : null);
           const pad = 8, lh = 14;
           const lines = [h.cs, `${h.fl} · ${Math.round(h.f.spd)}kt · ${Math.round(h.f.hdg)}°`];
+          if (route) lines.push(route);
+          ctx.font = '11px "IBM Plex Mono", monospace';
           const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + pad*2;
           const bh = lines.length * lh + pad;
           let lx = h.x + 10, ly = h.y - bh / 2;
@@ -1440,6 +1480,10 @@
           ctx.fillStyle = 'rgba(77,197,220,0.9)';
           ctx.font = '11px "IBM Plex Mono", monospace';
           ctx.fillText(lines[1], lx + pad, ly + lh*2);
+          if (route) {
+            ctx.fillStyle = 'rgba(255,185,80,0.9)';
+            ctx.fillText(lines[2], lx + pad, ly + lh*3);
+          }
         }
       });
     }
