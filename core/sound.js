@@ -78,22 +78,26 @@ const ENGINES = {
   'nk12-turboprop': {
     // Kuznetsov NK-12MV — contra-rotating turboprop, Tu-95 Bear
     // Four engines × 15,000hp. Audible at 800km. NATO submarines tracked by sound alone.
-    // Two contra-rotating prop banks create a 4Hz beat — the Bear heartbeat.
-    fundamentalIdle: 44,           // Hz — deep prop rumble at idle
-    fundamentalMax:  88,           // Hz — cruise power
-    harmonics:       [1, 2, 3, 4, 5, 8],
-    harmonicGains:   [1.0, 0.60, 0.35, 0.20, 0.10, 0.04],
+    // Contra-rotating prop banks (6+6 blades) create a ~3.8Hz beat — the Bear heartbeat.
+    // Four engines never perfectly in sync → second LFO at 3.5Hz creates the warbling
+    // acoustic signature that made the Bear unmistakeable on sonar.
+    fundamentalIdle: 44,            // Hz — deep prop rumble at idle
+    fundamentalMax:  96,            // Hz — full power, slightly higher than before
+    harmonics:       [1, 2, 3, 4, 5, 6, 8],
+    harmonicGains:   [1.0, 0.65, 0.48, 0.28, 0.14, 0.08, 0.04],
     oscType:         'sawtooth',
     filterType:      'lowpass',
-    filterFreq:      180,           // very warm — prop wash, not jet whine
-    filterQ:         1.2,
-    noiseGain:       0.12,
-    noiseFilterFreq: 120,           // low-frequency prop turbulence
-    masterGain:      0.22,
-    attackTime:      3.5,           // turboprop spools very slowly
-    slewTime:        1.8,           // throttle response inertia (seconds)
-    lfoFreq:         3.8,           // Hz — contra-rotation beat frequency
-    lfoDepth:        0.18,          // AM modulation depth (0=none, 1=full)
+    filterFreq:      260,           // was 180 — opens up the harmonic rasp
+    filterQ:         2.0,           // sharper resonance peak — more nasal, industrial
+    noiseGain:       0.24,          // was 0.12 — prop wash turbulence, much heavier
+    noiseFilterFreq: 200,           // was 120 — more body in the prop noise
+    masterGain:      0.28,          // was 0.22
+    attackTime:      3.5,
+    slewTime:        1.8,
+    lfoFreq:         3.8,           // Hz — primary contra-rotation beat
+    lfoDepth:        0.42,          // was 0.18 — chest-pounding AM, very pronounced
+    lfoFreq2:        3.5,           // Hz — second engine pair, slightly out of sync
+    lfoDepth2:       0.24,          // inter-engine warbling: the Bear's acoustic fingerprint
     supercharger:    false,
   },
   'v12-supercharged': {
@@ -156,9 +160,11 @@ let _inStartup    = false;
 let _workletNode  = null;   // AudioWorkletNode
 let _workletReady = false;
 
-/* ── Internal state — contra-rotation LFO (NK-12) ── */
+/* ── Internal state — contra-rotation LFOs (NK-12) ── */
 let _lfoOsc       = null;
 let _lfoGain      = null;
+let _lfoOsc2      = null;   // second engine pair — slightly offset freq
+let _lfoGain2     = null;
 
 /* ── Internal state — wind / airframe noise ── */
 let _windNoise    = null;
@@ -627,18 +633,27 @@ function _startOscEngine() {
   _noiseGain.connect(_master);
   _noise.start();
 
-  /* Contra-rotation LFO — NK-12 beat frequency */
+  /* Contra-rotation LFOs — NK-12 beat frequencies */
   if (_cfg.lfoFreq && _cfg.lfoDepth) {
     _lfoOsc  = _ctx.createOscillator();
     _lfoGain = _ctx.createGain();
     _lfoOsc.type = 'sine';
     _lfoOsc.frequency.value = _cfg.lfoFreq;
-    // LFO modulates master gain: centre + depth × sin
-    // We use a constant gain node as the "centre" and the LFO as offset
     _lfoGain.gain.value = _cfg.lfoDepth * _cfg.masterGain;
     _lfoOsc.connect(_lfoGain);
     _lfoGain.connect(_master.gain);
     _lfoOsc.start();
+  }
+  /* Second LFO — second engine pair, slightly offset → inter-engine warble */
+  if (_cfg.lfoFreq2 && _cfg.lfoDepth2) {
+    _lfoOsc2  = _ctx.createOscillator();
+    _lfoGain2 = _ctx.createGain();
+    _lfoOsc2.type = 'sine';
+    _lfoOsc2.frequency.value = _cfg.lfoFreq2;
+    _lfoGain2.gain.value = _cfg.lfoDepth2 * _cfg.masterGain;
+    _lfoOsc2.connect(_lfoGain2);
+    _lfoGain2.connect(_master.gain);
+    _lfoOsc2.start();
   }
 
   _buildSupercharger();
@@ -788,6 +803,7 @@ function _teardown() {
   try { _lader?.stop();      } catch {}
   try { _lader2?.stop();     } catch {}
   try { _lfoOsc?.stop();     } catch {}
+  try { _lfoOsc2?.stop();    } catch {}
   try { _windNoise?.stop();  } catch {}
   try { _flapNoise?.stop();  } catch {}
   _ctx.close();
@@ -796,6 +812,7 @@ function _teardown() {
   _lader = null; _laderGain = null;
   _lader2 = null; _lader2Gain = null;
   _lfoOsc = null; _lfoGain = null;
+  _lfoOsc2 = null; _lfoGain2 = null;
   _workletNode = null;
   _windNoise = null; _windFilt = null; _windGain = null;
   _flapNoise = null; _flapFilt = null; _flapGain = null;
