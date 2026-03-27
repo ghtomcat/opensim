@@ -7,6 +7,7 @@
   "engine": "Kuznetsov NK-12MV × 4 · Contra-rotating turboprop · 44740kW",
 
   "manualControl": true,
+  "crewLang": "ru-RU",
 
   "envelope": {
     "cruiseAlt":  26000,
@@ -76,24 +77,24 @@
   ],
 
   "takeoffCallouts": [
-    { "spd": 155, "speech": "rotate",         "voice": "pm" },
-    { "spd": 180, "speech": "positive climb",  "voice": "pm" }
+    { "spd": 155, "speech": "Взлётная",  "voice": "pm" },
+    { "spd": 180, "speech": "Набор",     "voice": "pm" }
   ],
 
   "gpws": [
-    { "alt": 1000, "text": "1 0 0 0",   "speech": "one thousand",  "red": false },
-    { "alt": 500,  "text": "5 0 0",     "speech": "five hundred",  "red": false },
-    { "alt": 200,  "text": "2 0 0",     "speech": "two hundred",   "red": true  },
-    { "alt": 50,   "text": "F I F T Y", "speech": "fifty",         "red": false }
+    { "alt": 1000, "text": "1 0 0 0",   "speech": "Тысяча",        "red": false },
+    { "alt": 500,  "text": "5 0 0",     "speech": "Пятьсот",       "red": false },
+    { "alt": 200,  "text": "2 0 0",     "speech": "Двести",        "red": true  },
+    { "alt": 50,   "text": "5 0",       "speech": "Пятьдесят",     "red": false }
   ],
 
   "pmCallouts": [
-    { "alt": 10000, "speech": "passing ten thousand" },
-    { "alt":  8000, "speech": "passing eight thousand" },
-    { "alt":  5000, "speech": "passing five thousand" },
-    { "alt":  3000, "speech": "passing three thousand" },
-    { "alt":  1000, "speech": "one thousand" },
-    { "alt":   500, "speech": "five hundred" }
+    { "alt": 10000, "speech": "Проходим десять тысяч" },
+    { "alt":  8000, "speech": "Проходим восемь тысяч" },
+    { "alt":  5000, "speech": "Проходим пять тысяч" },
+    { "alt":  3000, "speech": "Три тысячи" },
+    { "alt":  1000, "speech": "Тысяча" },
+    { "alt":   500, "speech": "Пятьсот" }
   ],
 
   "kneeboard": [

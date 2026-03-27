@@ -10,9 +10,10 @@ import { S } from './state.js';
 let _pfVoice  = null;
 let _pmVoice  = null;
 let _atcVoice = null;
+let _crewLang = null;   // e.g. 'ru-RU' — null = browser default
 
 /* ── State ── */
-let _atcStep          = 0;
+const _atcFired       = new Set();  // indices of fired ATC clearances
 let _briefFired       = false;
 let _briefLock        = false;
 let _checklistLock    = false;
@@ -37,6 +38,25 @@ export function initCrew() {
   _loadVoices();
 }
 
+/** Switch crew language — call after aircraft JSON loads */
+export function setCrewLang(lang) {
+  _crewLang = lang || null;
+  const voices = speechSynthesis.getVoices();
+  if (!voices.length) return;   // onvoiceschanged will re-run _loadVoices anyway
+
+  if (_crewLang) {
+    const prefix = _crewLang.slice(0, 2).toLowerCase();
+    const langVoices = voices.filter(v => v.lang.toLowerCase().startsWith(prefix));
+    if (langVoices.length) {
+      _pfVoice  = langVoices[0];
+      _pmVoice  = langVoices[1] ?? langVoices[0];
+      _atcVoice = langVoices[2] ?? langVoices[0];
+      return;
+    }
+  }
+  _loadVoices();   // revert to English voices
+}
+
 /** Called every frame by loop.js */
 export function tickCrew(prevAlt, currAlt) {
   const ac = S.aircraft;
@@ -55,7 +75,7 @@ export function tickCrew(prevAlt, currAlt) {
 }
 
 export function resetCrew() {
-  _atcStep    = 0;
+  _atcFired.clear();
   _briefFired = false;
   _briefLock  = false;
   _checklistLock = false;
@@ -162,38 +182,43 @@ function _checkChecklist(prev, curr, ac) {
 
 function _checkATC(prev, curr, ms) {
   if (!ms.atcClearances) return;
-  const clearances = ms.atcClearances;
-  if (_atcStep >= clearances.length) return;
-  if (curr >= prev) return;
 
-  const clr = clearances[_atcStep];
-  if (prev > clr.alt && curr <= clr.alt) {
-    _atcStep++;
-    const pmText  = clr.pm;
-    const atcText = clr.atc;
+  ms.atcClearances.forEach((clr, idx) => {
+    if (_atcFired.has(idx)) return;
 
-    /* PM requests, then ATC responds after brief pause */
+    /* Determine trigger */
+    let fire = false;
+    if (clr.t !== undefined) {
+      fire = (S.time >= clr.t);
+    } else if (clr.alt !== undefined) {
+      fire = (curr < prev && prev > clr.alt && curr <= clr.alt);
+    }
+    if (!fire) return;
+    _atcFired.add(idx);
+
+    /* Single-voice format: { text, voice } */
+    if (clr.text !== undefined) {
+      const speak = clr.voice === 'pm' ? speakPM : speakATC;
+      setTimeout(() => speak(clr.text), 200);
+      return;
+    }
+
+    /* Call-response format: { pm, atc } — PM requests, ATC responds */
+    const pmText  = clr.pm  ?? '';
+    const atcText = clr.atc ?? '';
+
     const pmU = _makeUtt(pmText, _pmVoice, { rate: 0.92, pitch: 1.18 });
     pmU.onend = () => {
       setTimeout(() => {
-        /* Check for audio file (e.g. grüezi) */
         const lower = atcText.toLowerCase();
         const fileKey = Object.keys(AUDIO_FILES).find(k => lower.includes(k));
         if (fileKey) {
-          /* Speak the part before the file key, play file for the keyword */
-          const idx  = lower.indexOf(fileKey);
-          const pre  = atcText.slice(0, idx).trim();
-          const post = atcText.slice(idx + fileKey.length).trim();
-          let chain = () => {};
-          if (post) chain = () => setTimeout(() => speakATC(post), 400);
-          const afterFile = chain;
-
+          const i    = lower.indexOf(fileKey);
+          const pre  = atcText.slice(0, i).trim();
+          const post = atcText.slice(i + fileKey.length).trim();
+          const chain = post ? () => setTimeout(() => speakATC(post), 400) : () => {};
           const atcU = _makeUtt(pre || '.', _atcVoice, { rate: 1.08, pitch: 0.78 });
-          atcU.onend = () => {
-            setTimeout(() => {
-              _playFile(AUDIO_FILES[fileKey], afterFile);
-            }, 300);
-          };
+          atcU.onend = () => setTimeout(() => _playFile(AUDIO_FILES[fileKey], chain), 300);
           _safeSpeak(atcU);
         } else {
           speakATC(atcText);
@@ -201,7 +226,7 @@ function _checkATC(prev, curr, ms) {
       }, 1200);
     };
     _safeSpeak(pmU);
-  }
+  });
 }
 
 function _checkApproachBrief(prev, curr, ms) {
@@ -258,6 +283,7 @@ function _speak(text, voice, { rate = 1, pitch = 1, volume = 0.9 } = {}) {
 function _makeUtt(text, voice, { rate = 1, pitch = 1, volume = 0.9 } = {}) {
   const u = new SpeechSynthesisUtterance(text);
   if (voice) u.voice = voice;
+  if (_crewLang) u.lang = _crewLang;
   u.rate   = rate;
   u.pitch  = pitch;
   u.volume = volume;

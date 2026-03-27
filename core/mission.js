@@ -6,6 +6,7 @@
 
 import { setState }    from './state.js';
 import { resetFailures } from './failures.js';
+import { setCrewLang }   from './crew.js';
 
 /**
  * loadMission(missionPath, aircraftPath)
@@ -51,6 +52,7 @@ export async function loadMission(missionPath, aircraftPath) {
   }
 
   resetFailures();
+  setCrewLang(aircraft.crewLang ?? null);
   return { mission, aircraft };
 }
 
