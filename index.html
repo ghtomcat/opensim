@@ -1157,7 +1157,7 @@
   import { initOutside, tickOutside, outsideInvalidate } from './display/outside.js';
   import { initKneeboard, toggleKneeboard, tickKneeboard } from './display/kneeboard.js';
   import { initMap, renderMap, toggleMap } from './display/map.js';
-  import { lookupFlight, nearbyFlights, pickAircraft } from './core/liveflight.js';
+  import { lookupFlight, nearbyFlights, pickAircraft, trackFlight } from './core/liveflight.js';
 
   /* ── DOM refs ── */
   const canvas     = document.getElementById('pfd');
@@ -1355,8 +1355,12 @@
     // Auto-switch to combined view — instruments + outside, immediate sense of motion
     if (_setViewMode) _setViewMode(1);
 
-    // Start ADS-B tracking loop — feeds real position into the sim
-    _startTracking(flight.reg !== '—' ? flight.reg : flight.callsign);
+    // Start ADS-B tracking loop — feeds real position into the sim.
+    // flight.reg from OpenSky is ICAO24 hex (6 hex chars); from adsb.fi it's real reg.
+    const isHex    = /^[0-9a-f]{6}$/i.test(flight.reg ?? '');
+    const trackKey = { icao24: isHex ? flight.reg : null, callsign: csLabel || null };
+    const trackId  = csLabel || (isHex ? flight.reg : regLabel) || 'LIVE';
+    _startTracking(trackId, trackKey);
   }
 
   /* ── ADS-B tracking — continuously drives the sim from real ADS-B data ── */
@@ -1372,16 +1376,18 @@
     '1','2','3','4','5','6','7','8','9','0',  // throttle
   ]);
 
-  let _trackingId       = null;    // reg or callsign being tracked
+  let _trackingId       = null;    // display label (callsign or reg)
+  let _trackingKey      = null;    // { icao24, callsign } for API calls
   let _trackingTimer    = null;
   let _trackingBadgeTimer = null;
   let _trackingPausedAt = 0;       // Date.now() when user last touched controls
   let _trackingLastF    = null;    // last good ADS-B snapshot
   let _trackingLastAt   = 0;       // Date.now() of last good poll
 
-  function _startTracking(id) {
+  function _startTracking(id, key) {
     _stopTracking();
-    _trackingId = id;
+    _trackingId  = id;
+    _trackingKey = key;
     _trackingPausedAt = 0;
     _trackingLastF    = null;
     _trackingLastAt   = 0;
@@ -1424,7 +1430,7 @@
     }
 
     try {
-      const f = await lookupFlight(_trackingId);
+      const f = await trackFlight(_trackingKey);
       const vs = f.vs ?? 0;
 
       // Set altT to predicted altitude at next poll — AP flies a continuous

@@ -10,7 +10,7 @@ const ADSB_FI  = 'https://api.adsb.fi/v1';
 const OPENSKY  = 'https://opensky-network.org/api';
 const PROXY    = 'https://corsproxy.io/?';
 
-/* adsb.fi: always needs proxy */
+/* adsb.fi: try direct first, proxy as fallback */
 async function fetchAdsbFi(url) {
   for (const u of [url, PROXY + encodeURIComponent(url)]) {
     try {
@@ -19,6 +19,29 @@ async function fetchAdsbFi(url) {
       const d = await r.json();
       if (d.ac && d.ac.length > 0) return d.ac[0];
     } catch { /* try next */ }
+  }
+  throw new Error('not found');
+}
+
+/**
+ * trackFlight({icao24, callsign})
+ * Lightweight poll for continuous tracking — one adsb.fi call by ICAO24 hex.
+ * Falls back to callsign if ICAO24 not available.
+ * Does NOT fall through to OpenSky to avoid 429s.
+ */
+export async function trackFlight({ icao24, callsign }) {
+  if (icao24) {
+    try {
+      const ac = await fetchAdsbFi(`${ADSB_FI}/icao?icao=${encodeURIComponent(icao24)}`);
+      return normaliseAdsbFi(ac);
+    } catch { /* fall through to callsign */ }
+  }
+  if (callsign) {
+    const cs = callsign.trim().replace(/\s+/g, '');
+    try {
+      const ac = await fetchAdsbFi(`${ADSB_FI}/callsign?callsign=${encodeURIComponent(cs)}`);
+      return normaliseAdsbFi(ac);
+    } catch { /* not found */ }
   }
   throw new Error('not found');
 }
