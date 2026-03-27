@@ -41,8 +41,20 @@ export async function trackFlight({ icao24, callsign }) {
     try {
       const ac = await fetchAdsbFi(`${ADSB_FI}/callsign?callsign=${encodeURIComponent(cs)}`);
       return normaliseAdsbFi(ac);
+    } catch { /* fall through to OpenSky */ }
+  }
+
+  /* OpenSky fallback — uses 15s cache so rate-limit safe */
+  if (icao24) {
+    try {
+      const r = await fetch(`${OPENSKY}/states/all?icao24=${encodeURIComponent(icao24)}`);
+      if (r.ok) {
+        const d = await r.json();
+        if (d.states?.length) return normaliseOpenSky(d.states[0]);
+      }
     } catch { /* not found */ }
   }
+
   throw new Error('not found');
 }
 
