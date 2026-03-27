@@ -883,6 +883,21 @@
       filter: sepia(0.15) contrast(1.05);
       border: 1px solid rgba(255,255,255,0.06);
     }
+    .mb-lang-toggle {
+      display: flex; gap: 6px; margin-bottom: 8px;
+    }
+    .mb-lang-btn {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px; letter-spacing: 0.08em;
+      padding: 3px 8px;
+      border: 1px solid rgba(255,255,255,0.25);
+      background: transparent; color: rgba(255,255,255,0.45);
+      cursor: pointer;
+    }
+    .mb-lang-btn.active {
+      border-color: var(--mb-accent, #cc4444);
+      color: var(--mb-accent, #cc4444);
+    }
 
     /* ── Engine switcher (dev/demo) ── */
 
@@ -1213,6 +1228,9 @@
         aircraft: 'Tu-95MS Bear H · NK-12MV × 4 · 44740 kW',
         orders: 'Reconnaissance mission. Track 015. Climb to FL260.\nCoast-out Nordkap — radio silence from that point.\nPhotographic run FL030–FL050 over target.\nReturn via own route. Fuel for 9 hours.\n\nWetter: −14°C · Wind 320/25kt · Sicht 6km\nKein Aufklärungsflugzeug kehrt mit leeren Kameras zurück.',
         atmosphere: 'Vier Propeller, contra-rotierend.\nDas Grollen der NK-12 ist zu hören in Tromsø.\nSie wissen, dass ihr kommt.\nSie können euch nicht aufhalten.',
+        document:    'images/nordmeer-briefing-ru.png',
+        document_en: 'images/nordmeer-briefing-en.png',
+        image:       'images/olenya-1956.png',
       },
     },
   ];
@@ -1496,15 +1514,33 @@
       /* Document left, portrait right — orders speak for themselves */
       const atmHtml = b.atmosphere
         ? `<div class="mb-atmosphere" style="margin-top:20px">${b.atmosphere.replace(/\n/g, '<br>')}</div>` : '';
+      const langToggle = b.document_en
+        ? `<div class="mb-lang-toggle">
+             <button class="mb-lang-btn active" data-lang="ru">RU</button>
+             <button class="mb-lang-btn"        data-lang="en">EN</button>
+           </div>` : '';
       content.className = 'mb-inner';
       content.style.maxWidth = '860px';
       content.innerHTML = `
+        ${langToggle}
         <div class="mb-doc-layout">
-          <img class="mb-document" src="${b.document}" alt="Geheime Kommandosache">
+          <img class="mb-document" id="mb-doc-img" src="${b.document}" alt="document">
           <img class="mb-portrait" src="${b.image}" alt="">
         </div>
         ${atmHtml}
         <div class="mb-fly">Press any key to fly</div>`;
+
+      if (b.document_en) {
+        content.querySelectorAll('.mb-lang-btn').forEach(btn => {
+          btn.addEventListener('click', e => {
+            e.stopPropagation();
+            const lang = btn.dataset.lang;
+            document.getElementById('mb-doc-img').src = lang === 'en' ? b.document_en : b.document;
+            content.querySelectorAll('.mb-lang-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+          });
+        });
+      }
     } else if (b.image) {
       content.className = 'mb-inner mb-with-image';
       content.innerHTML = `<div>${textHtml}</div><img class="mb-portrait" src="${b.image}" alt="">`;
