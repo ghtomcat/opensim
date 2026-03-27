@@ -1,0 +1,61 @@
+{
+  "id": "nordmeer-1956",
+  "title": "Aufklärungsflug · Nordmeer 1956",
+  "description": "Olenya. Four engines turning. The Barents Sea ahead. No rescue there.",
+  "author": "Markus Leutwyler",
+  "book": "Zeitanker — Band V",
+  "aircraft": "aircraft/tu95ms.json",
+
+  "weather": {
+    "source": "live",
+    "icao": "ENVA",
+    "fallback": {
+      "temp":       -14,
+      "wdir":       320,
+      "wspd":        25,
+      "visibility": 6000,
+      "altim":      1002,
+      "turbulence":  0.3
+    }
+  },
+
+  "initialState": {
+    "lat":   68.15,
+    "lon":   33.46,
+    "alt":    492,
+    "spd":      0,
+    "hdg":     15,
+    "pitch":    0,
+    "roll":     0
+  },
+
+  "departure": {
+    "icao": "XLMO",
+    "name": "Olenya Air Base",
+    "runway": "01",
+    "elevation": 492
+  },
+
+  "arrival": null,
+
+  "narrative": [
+    "Olenya. Kola-Halbinsel.",
+    "Vier Triebwerke. Contra-rotierende Propeller.",
+    "Das Meer vor euch heißt Barentssee.",
+    "Keine Rettung dort draußen.",
+    "Funk ab über Nordkap."
+  ],
+
+  "atcClearances": [
+    { "t":   5, "text": "Борт 11, запуск двигателей разрешён.",        "voice": "atc" },
+    { "t":  90, "text": "Борт 11, к взлёту разрешён, полоса 01.",      "voice": "atc" },
+    { "t": 120, "text": "Борт 11, набор эшелона 260. Курс 015.",        "voice": "atc" },
+    { "t": 200, "text": "Борт 11, радиомолчание после береговой черты.", "voice": "atc" }
+  ],
+
+  "debrief": [
+    "Vier Triebwerke nach dem Start — alle stabil?",
+    "Kurs 015 gehalten?",
+    "FL260 erreicht?"
+  ]
+}

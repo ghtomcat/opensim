@@ -75,6 +75,27 @@ const ENGINES = {
     masterGain:       0.70,
     supercharger:     false,
   },
+  'nk12-turboprop': {
+    // Kuznetsov NK-12MV — contra-rotating turboprop, Tu-95 Bear
+    // Four engines × 15,000hp. Audible at 800km. NATO submarines tracked by sound alone.
+    // Two contra-rotating prop banks create a 4Hz beat — the Bear heartbeat.
+    fundamentalIdle: 44,           // Hz — deep prop rumble at idle
+    fundamentalMax:  88,           // Hz — cruise power
+    harmonics:       [1, 2, 3, 4, 5, 8],
+    harmonicGains:   [1.0, 0.60, 0.35, 0.20, 0.10, 0.04],
+    oscType:         'sawtooth',
+    filterType:      'lowpass',
+    filterFreq:      180,           // very warm — prop wash, not jet whine
+    filterQ:         1.2,
+    noiseGain:       0.12,
+    noiseFilterFreq: 120,           // low-frequency prop turbulence
+    masterGain:      0.22,
+    attackTime:      3.5,           // turboprop spools very slowly
+    slewTime:        1.8,           // throttle response inertia (seconds)
+    lfoFreq:         3.8,           // Hz — contra-rotation beat frequency
+    lfoDepth:        0.18,          // AM modulation depth (0=none, 1=full)
+    supercharger:    false,
+  },
   'v12-supercharged': {
     // Daimler-Benz DB 605 — impulse-based synthesis
     // Calibrated from Audacity spectrum of D-FEML ground run (Hangelar)
@@ -134,6 +155,10 @@ let _inStartup    = false;
 /* ── Internal state — AudioWorklet path (V12) ── */
 let _workletNode  = null;   // AudioWorkletNode
 let _workletReady = false;
+
+/* ── Internal state — contra-rotation LFO (NK-12) ── */
+let _lfoOsc       = null;
+let _lfoGain      = null;
 
 /* ── Internal state — wind / airframe noise ── */
 let _windNoise    = null;
@@ -421,11 +446,12 @@ export function tickSound() {
 
     _workletNode.port.postMessage({ rpm, masterGain: gain, laderGain: lGain, laderFreq: lFreq, throttle });
   } else if (!_cfg.impulse) {
+    const slew = _cfg.slewTime ?? 0.12;
     const freq = _cfg.fundamentalIdle + (_cfg.fundamentalMax - _cfg.fundamentalIdle) * throttle;
-    _oscs.forEach(({ osc, mult }) => osc.frequency.setTargetAtTime(freq * mult, now, 0.12));
+    _oscs.forEach(({ osc, mult }) => osc.frequency.setTargetAtTime(freq * mult, now, slew));
     const gain = _cfg.masterGain * (0.35 + 0.65 * throttle);
-    _master.gain.setTargetAtTime(gain, now, 0.15);
-    _noiseGain?.gain.setTargetAtTime(_cfg.noiseGain * throttle, now, 0.2);
+    _master.gain.setTargetAtTime(gain, now, slew);
+    _noiseGain?.gain.setTargetAtTime(_cfg.noiseGain * throttle, now, slew * 1.5);
   }
 
   /* Wind / airframe noise — speed² × flap character */
@@ -601,6 +627,20 @@ function _startOscEngine() {
   _noiseGain.connect(_master);
   _noise.start();
 
+  /* Contra-rotation LFO — NK-12 beat frequency */
+  if (_cfg.lfoFreq && _cfg.lfoDepth) {
+    _lfoOsc  = _ctx.createOscillator();
+    _lfoGain = _ctx.createGain();
+    _lfoOsc.type = 'sine';
+    _lfoOsc.frequency.value = _cfg.lfoFreq;
+    // LFO modulates master gain: centre + depth × sin
+    // We use a constant gain node as the "centre" and the LFO as offset
+    _lfoGain.gain.value = _cfg.lfoDepth * _cfg.masterGain;
+    _lfoOsc.connect(_lfoGain);
+    _lfoGain.connect(_master.gain);
+    _lfoOsc.start();
+  }
+
   _buildSupercharger();
   _buildWindLayer();
 }
@@ -747,6 +787,7 @@ function _teardown() {
   try { _noise?.stop();      } catch {}
   try { _lader?.stop();      } catch {}
   try { _lader2?.stop();     } catch {}
+  try { _lfoOsc?.stop();     } catch {}
   try { _windNoise?.stop();  } catch {}
   try { _flapNoise?.stop();  } catch {}
   _ctx.close();
@@ -754,6 +795,7 @@ function _teardown() {
   _noise = null; _noiseGain = null;
   _lader = null; _laderGain = null;
   _lader2 = null; _lader2Gain = null;
+  _lfoOsc = null; _lfoGain = null;
   _workletNode = null;
   _windNoise = null; _windFilt = null; _windGain = null;
   _flapNoise = null; _flapFilt = null; _flapGain = null;

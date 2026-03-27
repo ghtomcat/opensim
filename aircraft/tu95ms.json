@@ -1,0 +1,171 @@
+{
+  "id": "tu95ms",
+  "name": "Tupolev Tu-95MS Bear H",
+  "callsign": "Борт 11",
+  "icaoType": "TU95",
+  "era": "Cold War · 1956",
+  "engine": "Kuznetsov NK-12MV × 4 · Contra-rotating turboprop · 44740kW",
+
+  "manualControl": true,
+
+  "envelope": {
+    "cruiseAlt":  26000,
+    "maxAlt":     39000,
+    "cruiseSpd":  238,
+    "maxSpd":     310,
+    "spdProfile": {
+      "39000": 238,
+      "26000": 238,
+      "15000": 220,
+      "8000":  200,
+      "3000":  170,
+      "0":     130
+    }
+  },
+
+  "performance": {
+    "mass":      188000,
+    "wingArea":   289.0,
+    "thrustMax": 460000,
+    "CL_0":        0.12,
+    "CL_alpha":    5.0,
+    "CL_max":      1.30,
+    "CD_0":        0.022,
+    "inducedK":    0.038,
+    "Vr":          155,
+    "muRoll":      0.018,
+    "muBrake":     0.28
+  },
+
+  "handling": {
+    "rollRate":   6,
+    "pitchRate":  2,
+    "spdRate":    1,
+    "maxBank":    30,
+    "maxPitch":   12
+  },
+
+  "flaps": [
+    { "deg":  0, "dCL_max": 0.00, "dCD_0": 0.000 },
+    { "deg": 20, "dCL_max": 0.28, "dCD_0": 0.012 }
+  ],
+
+  "situations": [
+    { "label": "GROUND",  "alt":  492, "spd":   0, "hdg": 15, "altT":  492, "spdT":   0  },
+    { "label": "TAKEOFF", "alt":  492, "spd": 155, "hdg": 15, "altT": 8000, "spdT": 238  },
+    { "label": "CLIMB",   "alt": 5000, "spd": 190, "hdg": 15, "altT":26000, "spdT": 238  },
+    { "label": "CRUISE",  "alt":26000, "spd": 238, "hdg": 15, "altT":26000, "spdT": 238  },
+    { "label": "DESCENT", "alt":10000, "spd": 210, "hdg": 15, "altT":  492, "spdT": 180  }
+  ],
+
+  "thrustProfiles": [
+    { "label": "IDLE",    "spdT":   0 },
+    { "label": "CLIMB",   "spdT": 200 },
+    { "label": "CRUISE",  "spdT": 238 },
+    { "label": "MAX",     "spdT": 310 }
+  ],
+
+  "sound": {
+    "engineType": "nk12-turboprop"
+  },
+
+  "fmaPhases": [
+    { "minAlt": 26000, "vals": ["MAN", "", "HDG", "CRZ", ""], "cols": ["white","white","green","cyan","white"] },
+    { "minAlt":  3000, "vals": ["MAN", "", "HDG", "CLB", ""], "cols": ["white","white","green","cyan","white"] },
+    { "minAlt":     0, "vals": ["MAN", "", "HDG", "CLB", ""], "cols": ["white","white","green","cyan","white"] }
+  ],
+
+  "takeoffCallouts": [
+    { "spd": 155, "speech": "rotate",         "voice": "pm" },
+    { "spd": 180, "speech": "positive climb",  "voice": "pm" }
+  ],
+
+  "gpws": [
+    { "alt": 1000, "text": "1 0 0 0",   "speech": "one thousand",  "red": false },
+    { "alt": 500,  "text": "5 0 0",     "speech": "five hundred",  "red": false },
+    { "alt": 200,  "text": "2 0 0",     "speech": "two hundred",   "red": true  },
+    { "alt": 50,   "text": "F I F T Y", "speech": "fifty",         "red": false }
+  ],
+
+  "pmCallouts": [
+    { "alt": 10000, "speech": "passing ten thousand" },
+    { "alt":  8000, "speech": "passing eight thousand" },
+    { "alt":  5000, "speech": "passing five thousand" },
+    { "alt":  3000, "speech": "passing three thousand" },
+    { "alt":  1000, "speech": "one thousand" },
+    { "alt":   500, "speech": "five hundred" }
+  ],
+
+  "kneeboard": [
+    {
+      "title": "DEPARTURE BRIEFING",
+      "type": "briefing",
+      "items": [
+        "Olenya AB · Runway 01 · Kola Peninsula",
+        "Departure: track 015 climbing to FL260",
+        "Vr 155kt · Vy 180kt",
+        "Four NK-12MV engines. Spool time 8–12 seconds.",
+        "Radio silence after coast-out at Nordkap.",
+        "No rescue in the Barents Sea."
+      ]
+    },
+    {
+      "title": "BEFORE TAKEOFF",
+      "type": "checklist",
+      "items": [
+        "All four engines — started and stable",
+        "Fuel — checked, sufficient for 9h",
+        "Trim — takeoff",
+        "Flaps — 20°",
+        "Controls — full and free",
+        "Instruments — set",
+        "Radio — set to silence after coast-out"
+      ]
+    },
+    {
+      "title": "CRUISE",
+      "type": "checklist",
+      "items": [
+        "Altitude — FL260 cruise",
+        "Speed — 238kt",
+        "All four engines — within limits",
+        "Fuel — check every 30 min",
+        "Radio — silence maintained"
+      ]
+    },
+    {
+      "title": "RECON PASS",
+      "type": "briefing",
+      "items": [
+        "Descend to FL030–FL050 for photo run",
+        "Cameras — ON before target",
+        "Maintain heading through target",
+        "F-86 intercept likely — do not deviate",
+        "They cannot follow us home"
+      ]
+    },
+    {
+      "title": "BEFORE LANDING",
+      "type": "checklist",
+      "items": [
+        "Fuel — minimum 15% on landing",
+        "Flaps — 20°",
+        "Speed — below 200kt",
+        "All engines — within limits"
+      ]
+    },
+    {
+      "title": "SPEEDS",
+      "type": "briefing",
+      "items": [
+        "Vr .................... 155kt",
+        "Best climb ............ 180kt",
+        "Cruise ................ 238kt",
+        "Max ................... 310kt",
+        "Approach .............. 180kt",
+        "Threshold ............. 160kt",
+        "Stall (clean) ......... 113kt"
+      ]
+    }
+  ]
+}

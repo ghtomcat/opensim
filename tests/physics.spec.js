@@ -157,3 +157,44 @@ test.describe('Bf 109 — Wolfskopf', () => {
   });
 
 });
+
+/* ── Tu-95MS Bear H ──────────────────────────────────────────── */
+
+test.describe('Tu-95MS — Nordmeer 1956', () => {
+
+  test('rotates between 155–230 kt (flaps 20°)', async ({ page }) => {
+    await loadSim(page, 'nordmeer-1956');
+
+    // Max thrust, flaps 20° (checklist: takeoff), hold neutral for ground roll
+    await setState(page, { spdT: 310, flaps: 1 });
+    await stepSeconds(page, 5);
+
+    // Rotate
+    await setState(page, { pitchT: 8 });
+
+    let liftoffSpd = null;
+    for (let i = 0; i < 120 * 60; i++) {
+      await page.evaluate(() => window.simStep(1));
+      const s = await getState(page);
+      if (!s.wow && s.alt > 493) {
+        liftoffSpd = s.spd;
+        break;
+      }
+    }
+
+    expect(liftoffSpd, 'Tu-95MS should lift off').not.toBeNull();
+    expect(liftoffSpd).toBeGreaterThan(155);
+    expect(liftoffSpd).toBeLessThan(230);
+  });
+
+  test('climbs at >500 fpm after liftoff', async ({ page }) => {
+    await loadSim(page, 'nordmeer-1956');
+
+    await setState(page, { spdT: 310, pitchT: 8 });
+    await stepSeconds(page, 90);
+
+    const s = await getState(page);
+    expect(s.vs).toBeGreaterThan(500);
+  });
+
+});
