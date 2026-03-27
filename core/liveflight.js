@@ -117,10 +117,15 @@ function normaliseAdsbFi(ac) {
   };
 }
 
+/* OpenSky bounding box cache — avoid 429 on rapid re-fetches */
+const _nearbyCache = new Map();   // key → { ts, data }
+const NEARBY_TTL_MS = 15_000;     // 15s: OpenSky updates every ~10-15s anyway
+
 /**
  * nearbyFlights(lat, lon, distNm)
  * Uses OpenSky Network bounding box — CORS-enabled, no auth required.
- * Returns up to 20 airborne aircraft sorted by distance.
+ * Returns up to `limit` airborne aircraft sorted by distance.
+ * Results are cached for 15s to respect OpenSky rate limits.
  */
 export async function nearbyFlights(lat, lon, distNm = 100, limit = 20) {
   // 1° lat ≈ 60nm; 1° lon ≈ 60nm·cos(lat)
@@ -130,16 +135,33 @@ export async function nearbyFlights(lat, lon, distNm = 100, limit = 20) {
     + `?lamin=${(lat-dLat).toFixed(3)}&lomin=${(lon-dLon).toFixed(3)}`
     + `&lamax=${(lat+dLat).toFixed(3)}&lomax=${(lon+dLon).toFixed(3)}`;
 
+  /* Return cached result if still fresh */
+  const cached = _nearbyCache.get(url);
+  if (cached && Date.now() - cached.ts < NEARBY_TTL_MS) {
+    return cached.data
+      .map(f => ({ ...f, _dist: haversine(lat, lon, f.lat, f.lon) }))
+      .sort((a, b) => a._dist - b._dist)
+      .slice(0, limit);
+  }
+
   const r = await fetch(url);
-  if (!r.ok) throw new Error(`OpenSky HTTP ${r.status}`);
+  if (!r.ok) {
+    /* On 429 return stale cache if available, otherwise throw */
+    if (r.status === 429 && cached) return cached.data.slice(0, limit);
+    throw new Error(`OpenSky HTTP ${r.status}`);
+  }
   const d = await r.json();
   if (!d.states || d.states.length === 0) return [];
 
-  return d.states
+  const results = d.states
     .filter(s => s[6] != null && s[5] != null   // has position
               && !s[8]                           // not on ground
               && s[7] != null && s[7] > 150)     // has altitude > 150m
-    .map(s => normaliseOpenSky(s))
+    .map(s => normaliseOpenSky(s));
+
+  _nearbyCache.set(url, { ts: Date.now(), data: results });
+
+  return results
     .map(f => ({ ...f, _dist: haversine(lat, lon, f.lat, f.lon) }))
     .sort((a, b) => a._dist - b._dist)
     .slice(0, limit);
