@@ -111,7 +111,7 @@ export function tickPhysics(dt) {
     const T     = throttle * T_max * (rho / 1.225) * (S.enginePower ?? 1.0);
     const W     = mass * 9.81;
 
-    if (onGround && L < W) {
+    if (onGround && (L < W || S.wow)) {  // wow latch: stay on ground once down
       /* ── Ground roll ──
          Forces: thrust, aerodynamic drag, rolling friction, brakes.
          Heading via nose wheel steering.                              */

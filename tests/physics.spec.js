@@ -156,6 +156,48 @@ test.describe('Bf 109 — Wolfskopf', () => {
     expect(s.enginePower).toBeLessThan(0.05);
   });
 
+  test('dead-stick landing — gear down, wow triggers before alt < 50ft', async ({ page }) => {
+    await loadSim(page, 'wolfskopf-1942');
+
+    // Approach: 400ft AGL above the 100ft field, 100kt, gear down, dead engine
+    await setState(page, {
+      alt: 500, altT: 100,
+      spd: 100, spdT: 0,
+      pitch: 8, pitchT: 8,
+      gear: true, prevGear: false,
+      enginePower: 0,
+    });
+
+    let landed = false;
+    let wentUnderground = false;
+    for (let i = 0; i < 60 * 60; i++) {
+      await page.evaluate(() => window.simStep(1));
+      const s = await getState(page);
+      if (s.wow)       { landed = true; break; }
+      if (s.alt < 50)  { wentUnderground = true; break; }
+    }
+
+    expect(wentUnderground, 'aircraft should not pass through the ground').toBe(false);
+    expect(landed, 'Bf 109 should touch down (wow=true)').toBe(true);
+  });
+
+  test('high-speed touchdown — does not bounce (wow latch)', async ({ page }) => {
+    await loadSim(page, 'wolfskopf-1942');
+
+    // Touch down fast with nose up — should stay on ground, not bounce
+    await setState(page, {
+      alt: 100, spd: 156, spdT: 0,
+      pitch: 8, pitchT: 8,
+      gear: true, wow: true,
+      enginePower: 0,
+    });
+    await stepSeconds(page, 3);
+
+    const s = await getState(page);
+    expect(s.wow, 'aircraft should stay on ground after fast touchdown').toBe(true);
+    expect(s.spd, 'aircraft should decelerate on ground roll').toBeLessThan(130);
+  });
+
 });
 
 /* ── An-225 Mriya ────────────────────────────────────────────── */
