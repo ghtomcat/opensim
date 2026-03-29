@@ -1,0 +1,33 @@
+{
+  "id":    "hovercraft-markus",
+  "title": "Markus' Demonstrator — GPS Test",
+
+  "initialState": {
+    "alt":   0,
+    "spd":   0,
+    "hdg":   0,
+    "pitch": 0,
+    "roll":  0,
+    "lat":   47.19,
+    "lon":    8.82
+  },
+
+  "departure": {
+    "icao":      "LSZF",
+    "name":      "Faigle3D Workshop",
+    "elevation": 0
+  },
+
+  "weather": {
+    "source": "manual",
+    "manual": { "wdir": 0, "wspd": 0, "turbulence": 0 }
+  },
+
+  "notes": [
+    "Faigle3D H2D — Hovercraft Demonstrator",
+    "320×280mm · 0.8 kg · Plenum 0.0896 m² · Hover bei 88 Pa",
+    "HobbyKing 64mm (Lift) @ 4S · FMS 50mm (Thrust) @ 4S",
+    "GPS-Autonomie: MANUAL · HOVER · TRACK",
+    "Schwebedruck: 0.8 kg × 9.81 / 0.0896 m² = 87.6 Pa"
+  ]
+}

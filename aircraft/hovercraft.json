@@ -1,0 +1,48 @@
+{
+  "id":   "hovercraft",
+  "name": "Timo's Hovercraft",
+  "type": "hovercraft",
+
+  "specs": {
+    "hull_length_mm": 600,
+    "hull_width_mm":  400,
+    "plenum_area_m2": 0.24,
+    "mass_kg":        3.4,
+
+    "lift_edf": {
+      "model":         "Freewing DF-80-12B",
+      "motor":         "3658-KV2150",
+      "voltage":       "6S",
+      "max_thrust_g":  3300,
+      "max_esc_limit": 0.80
+    },
+
+    "thrust_edf": {
+      "model":        "FMS 90mm",
+      "motor":        "Predator 4075 KV1500",
+      "voltage":      "8S",
+      "max_thrust_g": 5000
+    },
+
+    "skirt": {
+      "material":            "PU Ripstop Nylon",
+      "height_mm":           50,
+      "leakage_coefficient": 0.15
+    }
+  },
+
+  "envelope": {
+    "max_lift_throttle":    0.80,
+    "max_thrust_accel_g":   0.80,
+    "max_yaw_rate_dps":     30,
+    "min_hover_pressure_pa": 139
+  },
+
+  "sound": { "engineType": "edf-hovercraft" },
+
+  "situations": [
+    { "label": "IDLE",   "hcLiftT": 0.0, "hcThrustT": 0.0 },
+    { "label": "HOVER",  "hcLiftT": 0.8, "hcThrustT": 0.0 },
+    { "label": "CRUISE", "hcLiftT": 0.8, "hcThrustT": 0.5 }
+  ]
+}

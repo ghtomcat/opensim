@@ -1,0 +1,58 @@
+{
+  "id":    "hovercraft_markus",
+  "name":  "Markus' Demonstrator",
+  "type":  "hovercraft",
+  "color": "#f85149",
+
+  "specs": {
+    "hull_length_mm":  320,
+    "hull_width_mm":   280,
+    "plenum_area_m2":  0.0896,
+    "mass_kg":         0.8,
+
+    "lift_edf": {
+      "model":         "HobbyKing 64mm",
+      "motor":         "2627-KV3500",
+      "voltage":       "4S",
+      "max_thrust_g":  950,
+      "max_esc_limit": 0.80
+    },
+
+    "thrust_edf": {
+      "model":        "FMS 50mm",
+      "motor":        "2215-KV2700",
+      "voltage":      "4S",
+      "max_thrust_g": 380
+    },
+
+    "skirt": {
+      "material":            "TPU Flex",
+      "height_mm":           35,
+      "leakage_coefficient": 0.12
+    },
+
+    "rudder_vanes": {
+      "count":              1,
+      "material":           "PLA",
+      "max_deflection_deg": 40
+    },
+
+    "flight_computer": {
+      "processor":    "STM32F4",
+      "imu":          "BNO055 × 3 (voting triad)",
+      "esc_protocol": "PWM",
+      "gps":          "u-blox M8N",
+      "autonomy_modes": ["MANUAL", "HOVER", "TRACK"]
+    }
+  },
+
+  "envelope": {
+    "max_lift_throttle":     0.80,
+    "max_thrust_accel_g":    0.60,
+    "max_yaw_rate_dps":      45,
+    "min_hover_pressure_pa": 88
+  },
+
+  "sound":       { "engineType": "edf-hovercraft" },
+  "attribution": "Faigle3D H2D — Hovercraft Demonstrator"
+}

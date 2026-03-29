@@ -1,0 +1,33 @@
+{
+  "id":       "hovercraft-demo",
+  "title":    "Hovercraft Demo — Timo & Markus",
+  "vehicles": ["hovercraft_timo", "hovercraft_markus"],
+
+  "initialState": {
+    "alt":   0,
+    "spd":   0,
+    "hdg":   0,
+    "pitch": 0,
+    "roll":  0,
+    "lat":   47.19,
+    "lon":    8.82
+  },
+
+  "departure": {
+    "icao":      "LSZF",
+    "name":      "Faigle3D Workshop",
+    "elevation": 0
+  },
+
+  "weather": {
+    "source": "manual",
+    "manual": { "wdir": 0, "wspd": 0, "turbulence": 0 }
+  },
+
+  "notes": [
+    "Timo: 600×400mm · 3.4 kg · Freewing DF-80 (Lift) · FMS 90mm (Thrust)",
+    "Markus: 320×280mm · 0.8 kg · GPS-Autonomie · MANUAL / HOVER / TRACK",
+    "Zwei Fahrzeuge. Ein Simulator.",
+    "Faigle3D H2D — Hovercraft Demonstrator"
+  ]
+}
