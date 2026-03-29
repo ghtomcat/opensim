@@ -106,6 +106,42 @@ const ENGINES = {
     resonanceDriftHz: 0.038,        // LFO freq — one full drift cycle every ~26s
     supercharger:    false,
   },
+  'edf-hovercraft': {
+    // Two independent EDF banks, each with sawtooth tone + duct air noise.
+    // Lift EDF: Freewing DF-80-12B (Timo) / HobbyKing 64mm (Markus)
+    // Thrust EDF: FMS 90mm (Timo) / FMS 50mm (Markus)
+    // Plenum skirt: sub-bass pressure rumble when hovering (~50 Hz).
+    edf: true,
+
+    liftFundIdle:  620,    // Hz — low throttle spool
+    liftFundMax:   5400,   // Hz — full throttle
+    liftHarmonics: [1, 2, 3],
+    liftHarmGains: [1.0, 0.38, 0.10],
+    liftFilterFreq: 1364,  // initial value (620 Hz × 2.2) — tickSound tracks pitch dynamically
+    liftFilterQ:    1.4,
+    liftNoiseFreq:  3200,  // highpass — air rushing in duct
+    liftNoiseGain:  0.22,
+    liftGain:       0.35,
+
+    thrFundIdle:  420,     // larger-diameter fan → lower pitch
+    thrFundMax:   3600,
+    thrHarmonics: [1, 2, 3],
+    thrHarmGains: [1.0, 0.42, 0.12],
+    thrFilterFreq: 924,    // initial value — tickSound will track pitch × 2.2
+    thrFilterQ:    1.0,
+    thrNoiseFreq:  2200,
+    thrNoiseGain:  0.18,
+    thrGain:       0.24,
+
+    skirtFreq:   50,       // Hz — plenum air cushion, felt before heard
+    skirtGain:   0.10,
+
+    rushFreqLo:  180,      // Hz — broadband duct rush, lower shelf
+    rushFreqHi:  1100,     // Hz — upper shelf
+    rushGain:    0.28,     // rises with throttle — air pushed through hull + skirt gap
+
+    slewTime:    0.04,     // 40 ms — electric motors spool almost instantly
+  },
   'v12-supercharged': {
     // Daimler-Benz DB 605 — impulse-based synthesis
     // Calibrated from Audacity spectrum of D-FEML ground run (Hangelar)
@@ -195,6 +231,30 @@ let _groundGain   = null;
 let _hissNoise    = null;
 let _hissFilt     = null;
 let _hissGain     = null;
+
+/* ── EDF hovercraft nodes ── */
+let _edfLiftOscs     = [];    // [{ osc, mult }]
+let _edfLiftGain     = null;
+let _edfLiftFilt     = null;
+let _edfLiftNoiseSrc = null;
+let _edfLiftNoiseFilt= null;
+let _edfLiftNoiseGain= null;
+
+let _edfThrOscs      = [];
+let _edfThrGain      = null;
+let _edfThrFilt      = null;
+let _edfThrNoiseSrc  = null;
+let _edfThrNoiseFilt = null;
+let _edfThrNoiseGain = null;
+
+let _edfSkirtSrc  = null;
+let _edfSkirtFilt = null;
+let _edfSkirtGain = null;
+
+let _edfRushSrc   = null;
+let _edfRushFiltLo= null;
+let _edfRushFiltHi= null;
+let _edfRushGain  = null;
 
 /* ── Flap motor — whirr while travelling, thunk at stop ── */
 let _flapStep       = null;   // last flap position processed by sound
@@ -511,6 +571,8 @@ export function startSound(engineType) {
 
   if (_cfg.impulse) {
     _startWorkletEngine();   /* async — sets _started when ready */
+  } else if (_cfg.edf) {
+    _startEdfEngine();
   } else {
     _startOscEngine();
     _started = true;
@@ -562,6 +624,39 @@ export function tickSound() {
     const lGain = _cfg.superchargerGain * (0.15 + 0.85 * throttle);
 
     _workletNode.port.postMessage({ rpm, masterGain: gain, laderGain: lGain, laderFreq: lFreq, throttle });
+  } else if (_cfg.edf) {
+    /* ── EDF hovercraft — two independent fan banks ── */
+    /* Read commanded throttle directly — immediate slider response */
+    const pfx = S.hcActive === 'markus' ? 'hcM' : 'hc';
+    const liftT    = Math.max(0, Math.min(1, S[pfx + 'LiftAct']   ?? 0));  // post-autonomy
+    const thrT     = Math.max(0, Math.min(1, S[pfx + 'ThrActPct'] ?? 0));  // post-autonomy
+    const pressure = S[pfx + 'Pressure'] ?? 0;
+    const slew     = _cfg.slewTime;
+
+    /* Lift EDF — frequency and gain follow commanded lift throttle */
+    const liftFreq = _cfg.liftFundIdle + (_cfg.liftFundMax - _cfg.liftFundIdle) * liftT;
+    _edfLiftOscs.forEach(({ osc, mult }) =>
+      osc.frequency.setTargetAtTime(liftFreq * mult, now, slew));
+    _edfLiftFilt?.frequency.setTargetAtTime(liftFreq * 2.2, now, slew);  // bandpass tracks pitch
+    _edfLiftGain?.gain.setTargetAtTime(_cfg.liftGain * liftT, now, slew);
+    _edfLiftNoiseGain?.gain.setTargetAtTime(_cfg.liftNoiseGain * liftT, now, slew * 2);
+
+    /* Thrust EDF */
+    const thrFreq = _cfg.thrFundIdle + (_cfg.thrFundMax - _cfg.thrFundIdle) * thrT;
+    _edfThrOscs.forEach(({ osc, mult }) =>
+      osc.frequency.setTargetAtTime(thrFreq * mult, now, slew));
+    _edfThrFilt?.frequency.setTargetAtTime(thrFreq * 2.2, now, slew);    // bandpass tracks pitch
+    _edfThrGain?.gain.setTargetAtTime(_cfg.thrGain * thrT, now, slew);
+    _edfThrNoiseGain?.gain.setTargetAtTime(_cfg.thrNoiseGain * thrT, now, slew * 2);
+
+    /* Skirt rumble — rises as plenum pressurizes, peaks when hovering */
+    const skirtLevel = Math.min(1, pressure / 200) * _cfg.skirtGain;
+    _edfSkirtGain?.gain.setTargetAtTime(skirtLevel, now, 0.25);
+
+    /* Duct rush — broadband air noise, follows dominant throttle */
+    const rushLevel = Math.max(liftT, thrT) * _cfg.rushGain;
+    _edfRushGain?.gain.setTargetAtTime(rushLevel, now, 0.08);
+
   } else if (!_cfg.impulse) {
     const slew = _cfg.slewTime ?? 0.12;
     const freq = _cfg.fundamentalIdle + (_cfg.fundamentalMax - _cfg.fundamentalIdle) * throttle;
@@ -815,6 +910,126 @@ function _startOscEngine() {
   _buildWindLayer();
 }
 
+/* ══════════════════════════════════════════════════
+   EDF ENGINE — dual-fan hovercraft
+   Lift EDF: sawtooth harmonics + duct air noise
+   Thrust EDF: same model, lower frequency range
+   Skirt rumble: plenum pressure → sub-bass noise
+   ══════════════════════════════════════════════════ */
+
+function _startEdfEngine() {
+  const cfg = _cfg;
+
+  _master.gain.value = 1.0;  // EDF banks control their own gain
+
+  function _makeNoiseSrc() {
+    const buf  = _ctx.createBuffer(1, _ctx.sampleRate * 2, _ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    const src  = _ctx.createBufferSource();
+    src.buffer = buf; src.loop = true; src.start();
+    return src;
+  }
+
+  /* ── Lift EDF ── */
+  _edfLiftGain = _ctx.createGain();
+  _edfLiftGain.gain.value = 0;
+
+  _edfLiftFilt = _ctx.createBiquadFilter();
+  _edfLiftFilt.type = 'bandpass';
+  _edfLiftFilt.frequency.value = cfg.liftFilterFreq;
+  _edfLiftFilt.Q.value         = cfg.liftFilterQ;
+  _edfLiftFilt.connect(_edfLiftGain);
+
+  cfg.liftHarmonics.forEach((mult, i) => {
+    const osc = _ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.value = cfg.liftFundIdle * mult;
+    const g = _ctx.createGain();
+    g.gain.value = cfg.liftHarmGains[i];
+    osc.connect(g); g.connect(_edfLiftFilt);
+    osc.start();
+    _edfLiftOscs.push({ osc, mult });
+  });
+
+  _edfLiftNoiseSrc  = _makeNoiseSrc();
+  _edfLiftNoiseFilt = _ctx.createBiquadFilter();
+  _edfLiftNoiseFilt.type = 'highpass';
+  _edfLiftNoiseFilt.frequency.value = cfg.liftNoiseFreq;
+  _edfLiftNoiseGain = _ctx.createGain();
+  _edfLiftNoiseGain.gain.value = 0;
+  _edfLiftNoiseSrc.connect(_edfLiftNoiseFilt);
+  _edfLiftNoiseFilt.connect(_edfLiftNoiseGain);
+  _edfLiftNoiseGain.connect(_edfLiftGain);
+
+  _edfLiftGain.connect(_master);
+
+  /* ── Thrust EDF ── */
+  _edfThrGain = _ctx.createGain();
+  _edfThrGain.gain.value = 0;
+
+  _edfThrFilt = _ctx.createBiquadFilter();
+  _edfThrFilt.type = 'bandpass';
+  _edfThrFilt.frequency.value = cfg.thrFilterFreq;
+  _edfThrFilt.Q.value         = cfg.thrFilterQ;
+  _edfThrFilt.connect(_edfThrGain);
+
+  cfg.thrHarmonics.forEach((mult, i) => {
+    const osc = _ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.value = cfg.thrFundIdle * mult;
+    const g = _ctx.createGain();
+    g.gain.value = cfg.thrHarmGains[i];
+    osc.connect(g); g.connect(_edfThrFilt);
+    osc.start();
+    _edfThrOscs.push({ osc, mult });
+  });
+
+  _edfThrNoiseSrc  = _makeNoiseSrc();
+  _edfThrNoiseFilt = _ctx.createBiquadFilter();
+  _edfThrNoiseFilt.type = 'highpass';
+  _edfThrNoiseFilt.frequency.value = cfg.thrNoiseFreq;
+  _edfThrNoiseGain = _ctx.createGain();
+  _edfThrNoiseGain.gain.value = 0;
+  _edfThrNoiseSrc.connect(_edfThrNoiseFilt);
+  _edfThrNoiseFilt.connect(_edfThrNoiseGain);
+  _edfThrNoiseGain.connect(_edfThrGain);
+
+  _edfThrGain.connect(_master);
+
+  /* ── Plenum skirt rumble — bypasses master, always present when pressurized ── */
+  _edfSkirtSrc  = _makeNoiseSrc();
+  _edfSkirtFilt = _ctx.createBiquadFilter();
+  _edfSkirtFilt.type = 'lowpass';
+  _edfSkirtFilt.frequency.value = cfg.skirtFreq;
+  _edfSkirtFilt.Q.value = 2.5;
+  _edfSkirtGain = _ctx.createGain();
+  _edfSkirtGain.gain.value = 0;
+  _edfSkirtSrc.connect(_edfSkirtFilt);
+  _edfSkirtFilt.connect(_edfSkirtGain);
+  _edfSkirtGain.connect(_ctx.destination);
+
+  /* ── Duct rush — broadband air noise through hull + skirt gap ── */
+  _edfRushSrc   = _makeNoiseSrc();
+  _edfRushFiltLo = _ctx.createBiquadFilter();
+  _edfRushFiltLo.type = 'highpass';
+  _edfRushFiltLo.frequency.value = cfg.rushFreqLo;
+  _edfRushFiltLo.Q.value = 0.5;
+  _edfRushFiltHi = _ctx.createBiquadFilter();
+  _edfRushFiltHi.type = 'lowpass';
+  _edfRushFiltHi.frequency.value = cfg.rushFreqHi;
+  _edfRushFiltHi.Q.value = 0.5;
+  _edfRushGain = _ctx.createGain();
+  _edfRushGain.gain.value = 0;
+  _edfRushSrc.connect(_edfRushFiltLo);
+  _edfRushFiltLo.connect(_edfRushFiltHi);
+  _edfRushFiltHi.connect(_edfRushGain);
+  _edfRushGain.connect(_ctx.destination);
+
+  _started   = true;
+  _inStartup = false;
+}
+
 function _buildWindLayer() {
   /* Wind — broadband rush, shaped by airspeed */
   const wBuf  = _ctx.createBuffer(1, _ctx.sampleRate * 2, _ctx.sampleRate);
@@ -953,6 +1168,19 @@ function _teardown() {
   _inStartup = false;
   _workletReady = false;
   try { _workletNode?.disconnect(); } catch {}
+  _edfLiftOscs.forEach(({ osc }) => { try { osc.stop(); } catch {} });
+  _edfThrOscs.forEach(({ osc })  => { try { osc.stop(); } catch {} });
+  try { _edfLiftNoiseSrc?.stop(); } catch {}
+  try { _edfThrNoiseSrc?.stop();  } catch {}
+  try { _edfSkirtSrc?.stop();     } catch {}
+  _edfLiftOscs = []; _edfThrOscs = [];
+  _edfLiftGain = null; _edfLiftFilt = null;
+  _edfLiftNoiseSrc = null; _edfLiftNoiseFilt = null; _edfLiftNoiseGain = null;
+  _edfThrGain  = null; _edfThrFilt  = null;
+  _edfThrNoiseSrc  = null; _edfThrNoiseFilt  = null; _edfThrNoiseGain  = null;
+  _edfSkirtSrc = null; _edfSkirtFilt = null; _edfSkirtGain = null;
+  try { _edfRushSrc?.stop(); } catch {}
+  _edfRushSrc = null; _edfRushFiltLo = null; _edfRushFiltHi = null; _edfRushGain = null;
   _oscs.forEach(({ osc }) => { try { osc.stop(); } catch {} });
   try { _noise?.stop();      } catch {}
   try { _lader?.stop();      } catch {}

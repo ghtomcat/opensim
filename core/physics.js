@@ -14,9 +14,13 @@ let _dmeNm         = 0;        // estimated distance to threshold (nm)
 
 const APPROACH_FLOOR = 4800;   // ft — activate ILS tracking below this
 
+/* ── Crash thresholds ── */
+const CRASH_VS_FPM   = -800;    // hard landing: touchdown VS below this → crash
+const CRASH_OVERSPD  = 1.15;    // overspeed: above maxSpd × this factor → structural failure
+
 export function tickPhysics(dt) {
   const ac = S.aircraft;
-  if (!ac || S.paused) return;
+  if (!ac || S.paused || S.crashed) return;
 
   const prevAlt = S.alt;
 
@@ -267,6 +271,24 @@ export function tickPhysics(dt) {
 
   const newRollRate  = ac?.manualControl ? (typeof newRollRateVal  !== 'undefined' ? newRollRateVal  : S.rollRate)  : 0;
   const newPitchRate = ac?.manualControl ? (typeof newPitchRateVal !== 'undefined' ? newPitchRateVal : S.pitchRate) : 0;
+
+  /* ── Bounds checker — crash detection ── */
+  if (ac.manualControl) {
+    // Hard landing: just touched down (WoW just went true) with excessive VS
+    const justTouched = !S.wow && newWow;
+    if (justTouched && vs < CRASH_VS_FPM) {
+      setState({ crashed: true, crashReason: `HARD LANDING  ${Math.round(vs)} fpm`,
+                 enginePower: 0, spdT: 0 });
+      return;
+    }
+    // Overspeed: structural failure above VNE × 1.15
+    const vne = ac.envelope.maxSpd ?? 999;
+    if (newSpd > vne * CRASH_OVERSPD) {
+      setState({ crashed: true, crashReason: `OVERSPEED  ${Math.round(newSpd)} kt  (VNE ${Math.round(vne)} kt)`,
+                 enginePower: 0, spdT: 0 });
+      return;
+    }
+  }
 
   setState({ alt: newAlt, spd: newSpd, hdg: newHdg, pitch: newPitch, roll: newRoll,
              rollRate: newRollRate, pitchRate: newPitchRate,

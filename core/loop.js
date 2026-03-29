@@ -5,8 +5,9 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from './state.js';
-import { tickPhysics } from './physics.js';
-import { tickCrew }    from './crew.js';
+import { tickPhysics }     from './physics.js';
+import { tickHovercraft }  from './hovercraft_physics.js';
+import { tickCrew }        from './crew.js';
 import { tickGamepad, tickControls } from './input.js';
 import { tickFailures }              from './failures.js';
 import { tickTelemetry }            from './telemetry.js';
@@ -36,7 +37,8 @@ function _tick(now) {
   if (!S.paused) {
     const prevAlt = S.alt;
     tickFailures(dt);
-    tickPhysics(dt);
+    if (S.aircraft?.type === 'hovercraft') tickHovercraft(dt);
+    else                                    tickPhysics(dt);
     tickCrew(prevAlt, S.alt);
     tickTelemetry(dt);
   }

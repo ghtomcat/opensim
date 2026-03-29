@@ -26,6 +26,7 @@ export const S = {
   athr:     true,                 // autothrust
   wow:      false,                // weight on wheels (squat switch)
   touchdownVS: 0,                 // VS at last touchdown (fpm, negative)
+  crashed:  false,                // bounds exceeded — physics frozen
 
   /* ── ILS ── */
   ilsLoc:   1.2,  ilsLocT: 1.2,  // deviation dots
@@ -53,6 +54,58 @@ export const S = {
 
   /* ── Scripted events ── */
   niflheimVisible: false,              // T+112–116, Wolfskopf only
+
+  /* ── Hovercraft state (S.aircraft.type === 'hovercraft') ── */
+  hcLiftT:     0,       // commanded lift throttle 0–1 (slider input)
+  hcThrustT:   0,       // commanded thrust throttle 0–1
+  hcRudder:    0,       // yaw input -1…+1
+  hcLiftAct:   0,       // actual lift throttle after ESC clamp
+  hcPressure:  0,       // plenum pressure Pa
+  hcPReq:      135,     // required hover pressure for current mass Pa
+  hcForce:     0,       // lift force N
+  hcHovering:  false,
+  hcLiftRatio: 0,       // F_lift / (mass × g)
+  hcEdfOp:     0,       // EDF operating-point efficiency 0–1
+  hcMode:      'NORMAL', // NORMAL / DEGRADED / DIRECT
+  hcYawRate:   0,       // deg/s
+  hcHeading:   0,       // degrees
+  hcSpeed:     0,       // m/s ground speed
+  hcThrActN:   0,       // actual thrust force N
+  hcMass:      3.4,     // kg — measured hover limit at 80% ESC
+  hcLeakage:   0.15,    // skirt leakage coefficient — adjustable
+  hcNodes:     [1, 1, 1], // voting triad health (1=OK 0.5=degraded 0=fail)
+  hcLiftEscTemp: 25,    // °C — lift ESC temperature
+  hcThrEscTemp:  25,    // °C — thrust ESC temperature
+  hcEmergency:   false, // emergency landing in progress
+
+  /* ── Hovercraft — multi-vehicle ── */
+  hcActive:    'timo',   // 'timo' | 'markus' | 'both'
+  hcVehicles:  null,     // { timo: acJson, markus: acJson } — loaded post-mission
+
+  /* ── Markus vehicle state (prefix hcM) ── */
+  hcMLiftT:    0,        // commanded lift throttle 0–1
+  hcMThrustT:  0,        // commanded thrust throttle 0–1
+  hcMRudder:   0,        // yaw input -1…+1
+  hcMLiftAct:  0,        // actual lift after ESC clamp
+  hcMPressure: 0,        // plenum pressure Pa
+  hcMPReq:     88,       // required hover pressure (0.8 kg at 0.0896 m²)
+  hcMForce:    0,        // lift force N
+  hcMHovering: false,
+  hcMLiftRatio: 0,
+  hcMEdfOp:    0,
+  hcMMode:     'NORMAL',
+  hcMYawRate:  0,
+  hcMHeading:  0,
+  hcMSpeed:    0,
+  hcMThrActN:  0,
+  hcMMass:     0.8,      // kg
+  hcMLeakage:  0.12,
+  hcMNodes:    [1, 1, 1],
+  hcMAutonomy: 'MANUAL', // 'MANUAL' | 'HOVER' | 'TRACK'
+  hcMTargetHdg: 0,       // heading to track in TRACK mode
+  hcMLiftEscTemp: 25,    // °C — lift ESC temperature
+  hcMThrEscTemp:  25,    // °C — thrust ESC temperature
+  hcMEmergency:   false, // emergency landing in progress
 
   /* ── Sim meta ── */
   role:    'PF',  // 'PF' | 'PM' | 'INSTRUCTOR'

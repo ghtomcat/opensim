@@ -49,6 +49,8 @@ export async function loadMission(missionPath, aircraftPath) {
     ilsGs: -0.8, ilsGsT: -0.8,
     time:  0,
     metar: null,
+    crashed: false,
+    crashReason: null,
   });
 
   /* Live METAR */
