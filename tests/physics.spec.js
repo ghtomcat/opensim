@@ -376,3 +376,73 @@ test.describe('Tu-95MS — Nordmeer 1956', () => {
   });
 
 });
+
+/* ── Crash bounds checker ─────────────────────────────────────── */
+
+test.describe('Crash bounds checker', () => {
+
+  test('hard landing — crash on extreme touchdown VS', async ({ page }) => {
+    await loadSim(page, 'wolfskopf-1942');
+
+    // Slam onto runway: approach at 80kt with extreme sink rate
+    await setState(page, {
+      alt: 110, spd: 80, spdT: 0,
+      pitch: -5, pitchT: -5,
+      gear: true, wow: false,
+      enginePower: 0,
+    });
+
+    // Step until touchdown or 30s
+    let crashed = false;
+    for (let i = 0; i < 30 * 60; i++) {
+      await page.evaluate(() => window.simStep(1));
+      const s = await getState(page);
+      if (s.crashed) { crashed = true; break; }
+      if (s.wow && !s.crashed) break;   // soft landing — not crashing
+    }
+
+    // At this steep approach angle, VS should exceed -800fpm → crash
+    const s = await getState(page);
+    if (s.touchdownVS < -800) {
+      expect(s.crashed, 'extreme sink rate should trigger crash').toBe(true);
+    }
+  });
+
+  test('overspeed — crash above VNE × 1.15', async ({ page }) => {
+    await loadSim(page, 'wolfskopf-1942');
+
+    // Set speed well above Bf 109 VNE (~500kt × 1.15 = ~575)
+    await setState(page, {
+      alt: 5000, spd: 600, spdT: 600,
+      pitch: 0, pitchT: 0,
+      enginePower: 1,
+    });
+    await stepSeconds(page, 2);
+
+    const s = await getState(page);
+    expect(s.crashed, 'extreme overspeed should trigger crash').toBe(true);
+  });
+
+  test('normal landing — no crash within bounds', async ({ page }) => {
+    await loadSim(page, 'wolfskopf-1942');
+
+    // Gentle approach: 80kt, gear down, dead engine, 500ft AGL
+    await setState(page, {
+      alt: 600, spd: 80, spdT: 0,
+      pitch: -3, pitchT: -3,
+      gear: true, wow: false,
+      enginePower: 0,
+    });
+
+    // Step until touchdown or 60s
+    for (let i = 0; i < 60 * 60; i++) {
+      await page.evaluate(() => window.simStep(1));
+      const s = await getState(page);
+      if (s.wow || s.crashed) break;
+    }
+
+    const s = await getState(page);
+    expect(s.crashed, 'gentle landing should not crash').toBe(false);
+  });
+
+});

@@ -25,7 +25,8 @@ export function tickTelemetry(dt) {
   _acc += dt;
   if (_acc < INTERVAL) return;
   _acc = 0;
-  _buf.push({
+  const isHover = S.aircraft?.type === 'hovercraft';
+  const row = {
     t:           +S.time.toFixed(1),
     alt:         +S.alt.toFixed(0),
     spd:         +S.spd.toFixed(1),
@@ -41,7 +42,17 @@ export function tickTelemetry(dt) {
     rollT:       +(S.rollT  ?? 0).toFixed(2),
     spdT:        +(S.spdT   ?? 0).toFixed(0),
     braking:     S.braking ? 1 : 0,
-  });
+  };
+  if (isHover) {
+    const pfx = S.hcActive === 'markus' ? 'hcM' : 'hc';
+    row.hcLiftAct  = +(S[pfx+'LiftAct']  ?? 0).toFixed(3);
+    row.hcPressure = +(S[pfx+'Pressure'] ?? 0).toFixed(1);
+    row.hcSpeed    = +(S[pfx+'Speed']    ?? 0).toFixed(2);
+    row.hcHeading  = +(S[pfx+'Heading']  ?? 0).toFixed(1);
+    row.hcHovering = S[pfx+'Hovering'] ? 1 : 0;
+    row.hcAutonomy = S.hcMAutonomy ?? 'MANUAL';
+  }
+  _buf.push(row);
 }
 
 export function downloadTelemetry() {
