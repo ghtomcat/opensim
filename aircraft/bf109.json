@@ -139,7 +139,8 @@
     { "key": "V",               "desc": "Außenansicht" },
     { "key": "K",               "desc": "Kniebeinkarte" },
     { "key": "N",               "desc": "Karte" },
-    { "key": "M",               "desc": "Ton ein/aus" },
+    { "key": "E",               "desc": "Anlasser — Motor starten" },
+    { "key": "M",               "desc": "Motor abstellen" },
     { "key": "P",               "desc": "Pause" }
   ]
 }

@@ -1414,7 +1414,7 @@
   import { renderHovercraft } from './display/hovercraft_display.js';
   import { initFMA, renderFMA } from './display/fma.js';
   import { initCOM }           from './display/com.js';
-  import { initSound, startSound, stopSound, switchEngine, tickSound, getCurrentRpm, silenceAll } from './core/sound.js';
+  import { initSound, startSound, stopSound, startEngineLifecycle, stopEngineLifecycle, switchEngine, tickSound, getCurrentRpm, silenceAll } from './core/sound.js';
   import { initOutside, tickOutside, outsideInvalidate } from './display/outside.js';
   import { initKneeboard, toggleKneeboard, tickKneeboard } from './display/kneeboard.js';
   import { initMap, renderMap, toggleMap } from './display/map.js';
@@ -2413,12 +2413,20 @@
     let _viewBeforeNiflheim = 0;
     const audioEl = document.getElementById('pv-audio');
 
+    const _isV12 = engineType === 'v12-supercharged';
+
     const dismissOnboarding = () => {
       obEl.classList.remove('visible');
       setTimeout(() => { obEl.style.display = 'none'; }, 500);
       window.removeEventListener('keydown', dismissOnboarding);
       obEl.removeEventListener('click', dismissOnboarding);
-      startSound(engineType);   /* AudioContext must start on user gesture */
+      if (_isV12) {
+        /* V12: engine starts OFF — user presses E to Anlasser */
+        audioEl.textContent = 'OFF · E=ANLASSER';
+        audioEl.className   = 'panel-value';
+      } else {
+        startSound(engineType);   /* AudioContext must start on user gesture */
+      }
     };
     window.addEventListener('keydown', dismissOnboarding);
     obEl.addEventListener('click', dismissOnboarding);
@@ -2427,10 +2435,22 @@
       if (e.ctrlKey && e.shiftKey && e.key === 'T') { e.preventDefault(); downloadTelemetry(); return; }
       if (e.key === 'k' || e.key === 'K') { toggleKneeboard(); return; }
       if (e.key === 'n' || e.key === 'N') { toggleMap(); return; }
+
+      /* E — Anlasser (v12 only) */
+      if ((e.key === 'e' || e.key === 'E') && _isV12) {
+        startEngineLifecycle();
+        return;
+      }
+
       if (e.key === 'm' || e.key === 'M') {
-        _audioOn = !_audioOn;
-        if (_audioOn) { startSound(engineType); audioEl.textContent = 'ON';  audioEl.className = 'panel-value green'; }
-        else          { stopSound();            audioEl.textContent = 'OFF'; audioEl.className = 'panel-value'; }
+        if (_isV12) {
+          /* M = Motor aus */
+          stopEngineLifecycle();
+        } else {
+          _audioOn = !_audioOn;
+          if (_audioOn) { startSound(engineType); audioEl.textContent = 'ON';  audioEl.className = 'panel-value green'; }
+          else          { stopSound();            audioEl.textContent = 'OFF'; audioEl.className = 'panel-value'; }
+        }
       }
       if (e.key === 'v' || e.key === 'V') {
         _viewMode = (_viewMode + 1) % 3;
@@ -2537,6 +2557,15 @@
     const rpm = getCurrentRpm();
     document.getElementById('pv-rpm').textContent = rpm ?? '---';
     pttEl.classList.toggle('active', isPTTActive());
+
+    /* Engine state display — v12 lifecycle */
+    if (_isV12) {
+      const st = S.engineState ?? 'off';
+      const labels = { off: 'OFF · E=AN', starting: 'ANLASSER…', running: 'RUNNING', shutdown: 'MOTOR AUS…' };
+      const colors  = { off: 'panel-value', starting: 'panel-value', running: 'panel-value green', shutdown: 'panel-value' };
+      audioEl.textContent = labels[st] ?? st.toUpperCase();
+      audioEl.className   = colors[st]  ?? 'panel-value';
+    }
 
     /* Keybind hint: AP vs manual */
     const isManual = !!S.aircraft?.manualControl;

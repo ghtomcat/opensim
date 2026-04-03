@@ -4,7 +4,7 @@
    Engine type defined in aircraft JSON → sound.engineType.
    ═══════════════════════════════════════════════════════════════ */
 
-import { S } from './state.js';
+import { S, setState } from './state.js';
 
 /* ── Engine type presets ── */
 const ENGINES = {
@@ -158,8 +158,8 @@ const ENGINES = {
     masterGain:      0.80,
     // Supercharger
     supercharger:          true,
-    superchargerFreqIdle:  663,
-    superchargerFreqMax:   1100,
+    superchargerFreqIdle:   700,  /* measured: ~650 Hz at true idle ~750 RPM, Hahnenweide */
+    superchargerFreqMax:   2500,  /* measured: ~2270 Hz at throttle blip ~2450 RPM */
     superchargerGain:      0.45,
     supercharger2:         true,
     supercharger2FreqIdle: 1097,
@@ -172,6 +172,21 @@ export const ENGINE_TYPES = Object.keys(ENGINES);
 
 export function getCurrentRpm() {
   if (!_cfg) return null;
+
+  /* During v12 startup: compute RPM from elapsed time, matching synthesis curves */
+  if (_lifecycleStartedAt !== null && _ctx) {
+    const elapsed  = _ctx.currentTime - _lifecycleStartedAt;
+    const runStart = 26.0 + 0.06 + 0.18 + 0.06 + 2.8 + 0.06;   // 29.16s
+    if (elapsed < 26.0) return '--- RPM';                         // flywheel only
+    if (elapsed < runStart) {
+      const p = Math.min(1, (elapsed - 26.0 - 0.06 - 0.18 - 0.06) / 2.8);
+      return Math.round(65 - p * 18) + ' RPM';                    // motoring 65→47
+    }
+    const p = Math.min(1, (elapsed - runStart) / 42.0);
+    const idleRpm = _cfg?.rpmIdle ?? 1000;
+    return Math.round(80 + (idleRpm - 80) * Math.pow(p, 0.55)) + ' RPM';  // runup 80→idle
+  }
+
   const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 350;
   const throttle = Math.max(0, Math.min(1, S.spdT / maxSpd));
   const ePow     = Math.max(0.05, S.enginePower ?? 1.0);
@@ -201,6 +216,12 @@ let _inStartup    = false;
 /* ── Internal state — AudioWorklet path (V12) ── */
 let _workletNode  = null;   // AudioWorkletNode
 let _workletReady = false;
+
+/* ── Engine lifecycle (v12-supercharged only) ── */
+let _engineType      = null;   // current engine type string
+let _lifecycleSrc    = null;   // BufferSource playing startup sequence
+let _lifecycleStartedAt = null; // _ctx.currentTime when startup began
+let _workletLoadDone = false;  // flag: worklet loaded during startup
 
 /* ── Internal state — saturation stage ── */
 let _waveshaper   = null;
@@ -280,7 +301,8 @@ let _niflheimOn   = false;
 /* ── Public API ── */
 
 export function initSound(engineType) {
-  _cfg = ENGINES[engineType] ?? ENGINES['geared-turbofan'];
+  _engineType = engineType ?? 'geared-turbofan';
+  _cfg = ENGINES[_engineType] ?? ENGINES['geared-turbofan'];
 }
 
 export function engineGunfire() {
@@ -1161,6 +1183,280 @@ function _buildSupercharger() {
 }
 
 function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+/* ══════════════════════════════════════════════════
+   DB 601 ENGINE LIFECYCLE
+   Synthesis functions — ported from db601-startup.html
+   Only active for 'v12-supercharged' engine type.
+   ══════════════════════════════════════════════════ */
+
+function _synthFlywheel(sr, duration = 26.0) {
+  const N = Math.floor(sr * duration);
+  const buf = new Float32Array(N);
+  let lfsr = 0xBEEF, motorPhase = 0;
+  const af1C = Math.cos(2*Math.PI*350/sr), af1S = Math.sin(2*Math.PI*350/sr);
+  let af1X = 0, af1Y = 0;
+  const toothDecay = Math.exp(-300/sr);
+  let tooth1Phase = 0, tooth1NextInt = 1, tooth1Env = 0;
+  let tooth2Phase = 0, tooth2NextInt = 1, tooth2Env = 0;
+  for (let i = 0; i < N; i++) {
+    const t = i / sr;
+    const meshFreq = Math.min(310, 47 * Math.exp(0.1143 * t));
+    const motorFreq = 1590 + 28 * Math.sin(2*Math.PI*3.7*t);
+    motorPhase += motorFreq / sr;
+    const motorEnv = Math.min(1, t/2.5) * 0.08;
+    const motorSig = (Math.sin(2*Math.PI*motorPhase)*0.65 + Math.sin(4*Math.PI*motorPhase)*0.22 + Math.sin(6*Math.PI*motorPhase)*0.08) * motorEnv;
+    tooth1Phase += meshFreq / sr;
+    if (tooth1Phase >= tooth1NextInt) { tooth1Env += 0.60*(0.5+Math.random()); tooth1NextInt = Math.floor(tooth1Phase)+1+(Math.random()-0.5)*0.16; }
+    tooth1Env *= toothDecay;
+    tooth2Phase += meshFreq * 1.633 / sr;
+    if (tooth2Phase >= tooth2NextInt) { tooth2Env += 0.28*(0.5+Math.random()); tooth2NextInt = Math.floor(tooth2Phase)+1+(Math.random()-0.5)*0.16; }
+    tooth2Env *= toothDecay;
+    lfsr ^= lfsr<<13; lfsr ^= lfsr>>17; lfsr ^= lfsr<<5;
+    const noise = (lfsr & 0xFFFF)/32768 - 1;
+    const raspScale = 0.04 + 0.08*(meshFreq/310);
+    const ampEnv = Math.min(1, t/8) * (0.5 + 0.5*Math.min(1, t/20));
+    const excitation = (tooth1Env + tooth2Env + noise*raspScale) * ampEnv;
+    let nx, ny;
+    nx = 0.960*(af1X*af1C - af1Y*af1S) + excitation*0.6; ny = 0.960*(af1X*af1S + af1Y*af1C); af1X=nx; af1Y=ny;
+    buf[i] = (af1X*0.30 + excitation*0.55 + motorSig) * 0.20;
+  }
+  return buf;
+}
+
+function _synthKlonk(sr) {
+  const N = Math.floor(sr * 0.18), buf = new Float32Array(N);
+  const tD = Math.exp(-200/sr), bD = Math.exp(-60/sr);
+  let t = 1.4, b = 1.0;
+  const rc = Math.cos(2*Math.PI*180/sr), rs = Math.sin(2*Math.PI*180/sr), r = 0.88;
+  let rx = 0, ry = 0, lfsr = 0xDEAD;
+  for (let i = 0; i < N; i++) {
+    t *= tD; b *= bD;
+    lfsr ^= lfsr<<13; lfsr ^= lfsr>>17; lfsr ^= lfsr<<5;
+    const noise = (lfsr & 0xFFFF)/32768 - 1;
+    const raw = t*0.5 + b*noise*0.4;
+    const nx = r*(rx*rc - ry*rs) + raw, ny = r*(rx*rs + ry*rc); rx=nx; ry=ny;
+    buf[i] = (raw*0.2 + nx*0.8) * 1.8;
+  }
+  return buf;
+}
+
+function _synthMotoring(sr, duration = 2.8) {
+  const N = Math.floor(sr * duration), buf = new Float32Array(N);
+  let lfsr = 0xF00D;
+  const rc = Math.cos(2*Math.PI*32/sr), rs = Math.sin(2*Math.PI*32/sr), r = 0.93;
+  let rx = 0, ry = 0, trans = 0, body = 0;
+  const tD = Math.exp(-150/sr), bD = Math.exp(-40/sr);
+  let nextComp = Math.floor(sr * 0.12);
+  let motorPhase = 0;
+  const toothDecay = Math.exp(-300/sr);
+  let toothPhase = 0, toothNextInt = 1, toothEnv = 0;
+  const af1C = Math.cos(2*Math.PI*350/sr), af1S = Math.sin(2*Math.PI*350/sr);
+  let af1X = 0, af1Y = 0;
+  for (let i = 0; i < N; i++) {
+    const t = i/sr, progress = t/duration;
+    const rpm = 65 - progress*18;
+    const compInterval = sr*2*60/(rpm*12);
+    if (i >= nextComp) { const amp = 0.7+Math.random()*0.5; trans += amp; body += amp*0.55; nextComp = i + compInterval*(0.95+Math.random()*0.1); }
+    trans *= tD; body *= bD;
+    lfsr ^= lfsr<<13; lfsr ^= lfsr>>17; lfsr ^= lfsr<<5;
+    const noise = (lfsr & 0xFFFF)/32768 - 1;
+    const raw = trans*0.4 + body*noise*0.22;
+    const nx = r*(rx*rc - ry*rs) + raw, ny = r*(rx*rs + ry*rc); rx=nx; ry=ny;
+    const compSig = (raw*0.1 + nx*0.9) * 1.05;
+    const loadSag = 170*progress, compFlut = trans*60;
+    const motorFreq = 1590 - loadSag - compFlut + (Math.random()-0.5)*20;
+    motorPhase += motorFreq/sr;
+    const motorGain = 0.08*(1-progress*0.4);
+    const motorSig = (Math.sin(2*Math.PI*motorPhase)*0.65 + Math.sin(4*Math.PI*motorPhase)*0.22 + Math.sin(6*Math.PI*motorPhase)*0.08) * motorGain;
+    const meshFreq = 310 - progress*70;
+    toothPhase += meshFreq/sr;
+    if (toothPhase >= toothNextInt) { toothEnv += 0.45*(0.5+Math.random()); toothNextInt = Math.floor(toothPhase)+1+(Math.random()-0.5)*0.16; }
+    toothEnv *= toothDecay;
+    const gearSig = (toothEnv + noise*(0.04+0.04*(meshFreq/310))) * (0.8-progress*0.5);
+    let cnx, cny;
+    cnx = 0.960*(af1X*af1C - af1Y*af1S) + (compSig+gearSig)*0.5; cny = 0.960*(af1X*af1S + af1Y*af1C); af1X=cnx; af1Y=cny;
+    buf[i] = (af1X*0.25 + compSig*0.45 + gearSig*0.15 + motorSig) * 0.90;
+  }
+  return buf;
+}
+
+function _synthRunup(sr, duration = 42.0, targetRpm = 1000) {
+  const N = Math.floor(sr*duration), buf = new Float32Array(N);
+  let lfsr = 0xACE1;
+  const resCos = Math.cos(2*Math.PI*45/sr), resSin = Math.sin(2*Math.PI*45/sr), resR = 0.96;
+  let resX = 0, resY = 0;
+  const transDecay = Math.exp(-300/sr);
+  let bodyDecay = Math.exp(-55/sr), noiseScale = 0.2, transient = 0, body = 0;
+  const firingAngles = [0,60,120,180,240,300].map(a => (a+(Math.random()-0.5)*16)%360);
+  const cylinderGains = Array.from({length:6}, () => 0.4+Math.random()*1.2);
+  let crankAngle = 0, knallAt = Math.floor(sr*0.04), knallDone = false, laderPhase = 0;
+  for (let i = 0; i < N; i++) {
+    const t = i/sr, progress = Math.min(t/duration, 1);
+    const rpm = 80 + (targetRpm-80)*Math.pow(progress, 0.55);
+    if (i%128===0) { const fi=sr*10/rpm, tau=Math.max(fi/3,sr*0.003); bodyDecay=Math.exp(-1/tau); noiseScale=0.2*(1-Math.exp(-fi/tau)); }
+    if (!knallDone && i>=knallAt) { transient+=2.8; body+=2.8*0.7; knallDone=true; }
+    const degPerSample = rpm/60/sr*360, prev = crankAngle;
+    crankAngle = (crankAngle+degPerSample)%360;
+    for (let c=0; c<firingAngles.length; c++) {
+      const target=firingAngles[c];
+      const crossed = crankAngle>=prev ? (prev<=target&&crankAngle>target) : (prev<=target||crankAngle>target);
+      if (crossed) { const mfp=Math.max(0,0.55-rpm/250*0.55); if (Math.random()>mfp) { const amp=cylinderGains[c]; transient+=amp; body+=amp*0.7; } }
+    }
+    transient*=transDecay; body*=bodyDecay;
+    lfsr ^= lfsr<<13; lfsr ^= lfsr>>17; lfsr ^= lfsr<<5;
+    const noise=(lfsr&0xFFFF)/32768-1;
+    const raw=transient*0.3+body*noise*noiseScale;
+    const nx=resR*(resX*resCos-resY*resSin)+raw, ny=resR*(resX*resSin+resY*resCos); resX=nx; resY=ny;
+    const laderFreq=930*rpm/1000; laderPhase+=laderFreq/sr;
+    const lader=(Math.sin(2*Math.PI*laderPhase)+Math.sin(4*Math.PI*laderPhase)*0.4)*Math.max(0,(progress-0.28)/0.72)*0.10;
+    buf[i] = ((raw*0.05+nx*0.95)*0.8+lader)*Math.min(1,t/0.06);
+  }
+  return buf;
+}
+
+function _synthShutdown(sr) {
+  const duration = 5.0, N = Math.floor(sr*duration), buf = new Float32Array(N);
+  let lfsr = 0xACE1;
+  const resCos = Math.cos(2*Math.PI*45/sr), resSin = Math.sin(2*Math.PI*45/sr), resR = 0.96;
+  let resX = 0, resY = 0;
+  const transDecay = Math.exp(-300/sr);
+  let bodyDecay = Math.exp(-55/sr), noiseScale = 0.2, transient = 0, body = 0;
+  const firingAngles = [0,60,120,180,240,300].map(a => (a+(Math.random()-0.5)*16)%360);
+  const cylinderGains = Array.from({length:6}, () => 0.4+Math.random()*1.2);
+  let crankAngle = 0, laderPhase = 0;
+  for (let i = 0; i < N; i++) {
+    const t = i/sr;
+    const rpm = Math.max(0, 1000*Math.exp(-t/1.2));
+    if (rpm < 5) break;
+    if (i%128===0) { const fi=sr*10/Math.max(rpm,1), tau=Math.max(fi/3,sr*0.003); bodyDecay=Math.exp(-1/tau); noiseScale=0.2*(1-Math.exp(-fi/tau)); }
+    const degPerSample = rpm/60/sr*360, prev = crankAngle;
+    crankAngle = (crankAngle+degPerSample)%360;
+    for (let c=0; c<firingAngles.length; c++) {
+      const target=firingAngles[c];
+      const crossed = crankAngle>=prev ? (prev<=target&&crankAngle>target) : (prev<=target||crankAngle>target);
+      if (crossed) { const amp=cylinderGains[c]; transient+=amp; body+=amp*0.7; }
+    }
+    transient*=transDecay; body*=bodyDecay;
+    lfsr ^= lfsr<<13; lfsr ^= lfsr>>17; lfsr ^= lfsr<<5;
+    const noise=(lfsr&0xFFFF)/32768-1;
+    const raw=transient*0.3+body*noise*noiseScale;
+    const nx=resR*(resX*resCos-resY*resSin)+raw, ny=resR*(resX*resSin+resY*resCos); resX=nx; resY=ny;
+    const laderFreq=930*rpm/1000; laderPhase+=laderFreq/sr;
+    const lader=(Math.sin(2*Math.PI*laderPhase)+Math.sin(4*Math.PI*laderPhase)*0.4)*Math.exp(-t/0.4)*0.10;
+    buf[i] = ((raw*0.05+nx*0.95)*0.8+lader)*(rpm/1000);
+  }
+  return buf;
+}
+
+function _assembleStartup(sr) {
+  const fw=_synthFlywheel(sr), kl=_synthKlonk(sr), mot=_synthMotoring(sr), run=_synthRunup(sr, 42.0, _cfg?.rpmIdle ?? 1000);
+  const gap=Math.floor(sr*0.06);
+  const total=fw.length+gap+kl.length+gap+mot.length+gap+run.length;
+  const full=new Float32Array(total);
+  let off=0; full.set(fw,off); off+=fw.length+gap; full.set(kl,off); off+=kl.length+gap; full.set(mot,off); off+=mot.length+gap; full.set(run,off);
+  /* Scale entire buffer so the runup endpoint (×0.8) matches worklet idle level (masterGain×0.4) */
+  const scale = ((_cfg?.masterGain ?? 0.8) * 0.4) / 0.8;
+  for (let i = 0; i < full.length; i++) full[i] *= scale;
+  return full;
+}
+
+async function _loadWorkletSilently() {
+  _workletLoadDone = false;
+  const workletFile = _cfg.workletFile ?? './core/db605-processor.js';
+  const workletName = _cfg.workletName ?? 'db605-processor';
+  try {
+    await _ctx.audioWorklet.addModule(workletFile);
+    _workletNode = new AudioWorkletNode(_ctx, workletName);
+    _workletNode.connect(_master);
+    _workletNode.port.postMessage({ rpm: _cfg.rpmIdle, masterGain: 0, laderGain: 0, laderFreq: _cfg.superchargerFreqIdle });
+    _buildSupercharger();
+    _buildWindLayer();
+  } catch (err) {
+    console.warn('DB 601 worklet pre-load failed:', err);
+  }
+  _workletLoadDone = true;
+}
+
+export async function startEngineLifecycle() {
+  if (_engineType !== 'v12-supercharged') { startSound(); return; }
+  if (S.engineState === 'starting' || S.engineState === 'running' || S.engineState === 'idle') return;
+
+  if (!_ctx) {
+    _ctx    = new AudioContext();
+    _master = _ctx.createGain();
+    _master.gain.value = 0;
+    _master.connect(_ctx.destination);
+  }
+  if (_ctx.state === 'suspended') await _ctx.resume();
+
+  setState({ engineState: 'starting' });
+
+  const startupBuf = _assembleStartup(_ctx.sampleRate);
+  const ab  = _ctx.createBuffer(1, startupBuf.length, _ctx.sampleRate);
+  ab.copyToChannel(startupBuf, 0);
+  const src = _ctx.createBufferSource();
+  src.buffer = ab;
+  src.connect(_ctx.destination);
+  _lifecycleSrc = src;
+  _lifecycleStartedAt = _ctx.currentTime;
+  src.start();
+
+  _loadWorkletSilently();   /* runs concurrently — worklet ready long before 71s startup ends */
+
+  src.onended = () => {
+    _lifecycleSrc = null;
+    _lifecycleStartedAt = null;
+    if (!_workletNode) { setState({ engineState: 'off' }); return; }
+    setState({ engineState: 'running', engineTemp: Math.min(1, (S.engineTemp ?? 0) + 0.8) });
+
+    const now = _ctx.currentTime;
+    _master.gain.setTargetAtTime(_cfg.masterGain * 0.4, now, 0.3);
+    _workletNode.port.postMessage({ rpm: _cfg.rpmIdle, masterGain: _cfg.masterGain * 0.4, laderGain: 0, laderFreq: _cfg.superchargerFreqIdle });
+
+    /* Lader handoff — match synthesis endpoint so there's no gap.
+       Synthesis ends at 930*rpmIdle/1000 Hz, gain 0.10 scaled by buffer scale.
+       Convert to _laderGain space: (synthGain × scale) / masterGain×0.4 */
+    if (_lader && _laderGain) {
+      const scale      = (_cfg.masterGain * 0.4) / 0.8;       // buffer scaling factor
+      const synthLader = 0.10 * scale;                          // synthesis Lader level at destination
+      const laderGainV = synthLader / (_cfg.masterGain * 0.4); // convert to _laderGain space
+      const laderFreqV = 930 * _cfg.rpmIdle / 1000;            // Hz at idle RPM (formula used in synthesis)
+      _lader.frequency.setValueAtTime(laderFreqV, now);
+      _laderGain.gain.setValueAtTime(laderGainV, now);
+    }
+
+    _started = true; _workletReady = true; _inStartup = false;
+  };
+}
+
+export function stopEngineLifecycle() {
+  if (_engineType !== 'v12-supercharged') { stopSound(); return; }
+  if (S.engineState === 'off' || S.engineState === 'shutdown') return;
+
+  _workletReady = false;
+  _started      = false;
+
+  if (_lifecycleSrc) { try { _lifecycleSrc.stop(); } catch {} _lifecycleSrc = null; }
+  _lifecycleStartedAt = null;
+
+  setState({ engineState: 'shutdown' });
+
+  if (_ctx) {
+    const shutBuf = _synthShutdown(_ctx.sampleRate);
+    const ab  = _ctx.createBuffer(1, shutBuf.length, _ctx.sampleRate);
+    ab.copyToChannel(shutBuf, 0);
+    const src = _ctx.createBufferSource();
+    src.buffer = ab;
+    const shutGain = _ctx.createGain();
+    shutGain.gain.value = (_cfg?.masterGain ?? 0.8) * 0.4 / 0.8;  /* match worklet idle level */
+    src.connect(shutGain); shutGain.connect(_ctx.destination);
+    src.start();
+    _master?.gain.setTargetAtTime(0, _ctx.currentTime, 0.3);
+  }
+
+  setTimeout(() => { _teardown(); setState({ engineState: 'off' }); }, 5500);
+}
 
 /* ── Teardown ── */
 function _teardown() {

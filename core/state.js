@@ -22,6 +22,9 @@ export const S = {
   gear:     false, prevGear: false,
   braking:  false,                   // ground brakes held
   enginePower: 1.0,               // 0 = dead engine, 1 = full power
+  engineState: 'off',             // 'off' | 'starting' | 'idle' | 'running' | 'shutdown'
+  engineTemp:  0.0,               // 0=cold, 1=warm — increases after each start
+  ambientTemp: 15,                // °C — controls cooling rate when off
   ap:       true,                 // autopilot engaged
   athr:     true,                 // autothrust
   wow:      false,                // weight on wheels (squat switch)
