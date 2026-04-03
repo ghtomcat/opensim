@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DB 601 — Anlasser</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #030609;
+      color: #e8edf2;
+      font-family: "IBM Plex Mono", monospace;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 32px;
+    }
+    #label { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(232,237,242,0.3); }
+    #phase { font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(77,197,220,0.7); min-height: 18px; }
+    #start {
+      width: 200px; height: 200px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.04);
+      color: #e8edf2; font-family: "IBM Plex Mono", monospace;
+      font-size: 18px; font-weight: 700; letter-spacing: 0.18em;
+      cursor: pointer; transition: background 0.08s, border-color 0.08s, transform 0.06s;
+    }
+    #start:hover  { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.35); }
+    #start:active { transform: scale(0.96); }
+    #start:disabled { opacity: 0.3; cursor: default; transform: none; }
+    #dl {
+      background: none; border: 1px solid rgba(255,255,255,0.15);
+      color: rgba(232,237,242,0.4); font-family: "IBM Plex Mono", monospace;
+      font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+      padding: 8px 20px; cursor: pointer;
+    }
+    #dl:hover { border-color: rgba(255,255,255,0.4); color: rgba(232,237,242,0.8); }
+    #dl:disabled { opacity: 0.2; cursor: default; }
+  </style>
+</head>
+<body>
+  <div id="label">DB 601 · Bf 109 Emil · Schwungkraftanlasser</div>
+  <div id="phase"></div>
+  <button id="start">ANLASSER</button>
+  <button id="dl" disabled>Download WAV</button>
+
+  <script>
+    const SR = 44100;
+
+    /* ── Phase 1: Flywheel — Elektromotor + Zahneingriffston ── */
+    function synthFlywheel(sr, duration = 26.0) {
+      const N = Math.floor(sr * duration);
+      const buf = new Float32Array(N);
+      let lfsr = 0xBEEF;
+      let motorPhase = 0;
+
+      /* Crankcase/block resonance — thick alu casting, ~350 Hz, low Q (no cowling) */
+      const af1C = Math.cos(2*Math.PI*350 / sr), af1S = Math.sin(2*Math.PI*350 / sr);
+      let af1X = 0, af1Y = 0;
+
+      /* Event-based tooth model — tracks crossing points, adds timing + amplitude jitter */
+      const toothDecay = Math.exp(-300 / sr);   /* ~3.3ms click — short, raspy */
+      let tooth1Phase = 0, tooth1NextInt = 1, tooth1Env = 0;
+      let tooth2Phase = 0, tooth2NextInt = 1, tooth2Env = 0;
+
+      for (let i = 0; i < N; i++) {
+        const t = i / sr;
+
+        /* Gear mesh frequency — calibrated from FFT:
+           66 Hz @ t=3s, 131 Hz @ t=9s, 269 Hz @ t=15.5s, plateau ~310 Hz from t≈16.5s
+           Model: exponential doubling every ~6s, capped at 310 Hz */
+        const meshFreq = Math.min(310, 47 * Math.exp(0.1143 * t));
+
+        /* Electric Anlassermotor — ~1590 Hz whine, dominant in original recording */
+        const motorFreq = 1590 + 28 * Math.sin(2 * Math.PI * 3.7 * t);
+        motorPhase += motorFreq / sr;
+        const motorEnv = Math.min(1, t / 2.5) * 0.08;
+        const motorSig = (
+          Math.sin(2 * Math.PI * motorPhase) * 0.65 +
+          Math.sin(4 * Math.PI * motorPhase) * 0.22 +
+          Math.sin(6 * Math.PI * motorPhase) * 0.08
+        ) * motorEnv;
+
+        /* Primary gear mesh — event fires at each tooth crossing, amplitude + timing jittered */
+        tooth1Phase += meshFreq / sr;
+        if (tooth1Phase >= tooth1NextInt) {
+          tooth1Env += 0.60 * (0.5 + Math.random());          /* amplitude: 0.30–0.60 × random */
+          tooth1NextInt = Math.floor(tooth1Phase) + 1
+                        + (Math.random() - 0.5) * 0.16;       /* timing: ±8% of period */
+        }
+        tooth1Env *= toothDecay;
+
+        /* Secondary gear (different ratio) — independent jitter */
+        tooth2Phase += meshFreq * 1.633 / sr;
+        if (tooth2Phase >= tooth2NextInt) {
+          tooth2Env += 0.28 * (0.5 + Math.random());
+          tooth2NextInt = Math.floor(tooth2Phase) + 1
+                        + (Math.random() - 0.5) * 0.16;
+        }
+        tooth2Env *= toothDecay;
+
+        /* Rasp noise — high-freq scraping, scales up with mesh speed */
+        lfsr ^= lfsr << 13; lfsr ^= lfsr >> 17; lfsr ^= lfsr << 5;
+        const noise = (lfsr & 0xFFFF) / 32768 - 1;
+        const raspScale = 0.04 + 0.08 * (meshFreq / 310);
+
+        /* Amplitude: very quiet at start, rises over 8s */
+        const ampEnv = Math.min(1, t / 8) * (0.5 + 0.5 * Math.min(1, t / 20));
+
+        const excitation = (tooth1Env + tooth2Env + noise * raspScale) * ampEnv;
+
+        /* No cowling — engine exposed on grass, near-anechoic.
+           Crankcase/block resonance: thick alu casting, ~350 Hz, low Q (heavily damped) */
+        let nx, ny;
+        nx = 0.960*(af1X*af1C - af1Y*af1S) + excitation*0.6; ny = 0.960*(af1X*af1S + af1Y*af1C); af1X=nx; af1Y=ny;
+
+        buf[i] = (af1X * 0.30 + excitation * 0.55 + motorSig) * 0.20;
+      }
+      return buf;
+    }
+
+    /* ── Phase 2: Klonk — Kupplung greift ein ── */
+    function synthKlonk(sr) {
+      const N = Math.floor(sr * 0.18);
+      const buf = new Float32Array(N);
+      const tD = Math.exp(-200 / sr), bD = Math.exp(-60 / sr);
+      let t = 1.4, b = 1.0;
+      const omega = 2 * Math.PI * 180 / sr;
+      const r = 0.88;
+      const rc = Math.cos(omega), rs = Math.sin(omega);
+      let rx = 0, ry = 0;
+      let lfsr = 0xDEAD;
+      for (let i = 0; i < N; i++) {
+        t *= tD; b *= bD;
+        lfsr ^= lfsr << 13; lfsr ^= lfsr >> 17; lfsr ^= lfsr << 5;
+        const noise = (lfsr & 0xFFFF) / 32768 - 1;
+        const raw = t * 0.5 + b * noise * 0.4;
+        const nx = r * (rx * rc - ry * rs) + raw;
+        const ny = r * (rx * rs + ry * rc);
+        rx = nx; ry = ny;
+        buf[i] = (raw * 0.2 + nx * 0.8) * 1.8;
+      }
+      return buf;
+    }
+
+    /* ── Phase 3: Motorisierung — Kurbelwelle dreht, Verdichtung, kein Zünden ── */
+    function synthMotoring(sr, duration = 2.8) {
+      const N = Math.floor(sr * duration);
+      const buf = new Float32Array(N);
+      let lfsr = 0xF00D;
+
+      /* Low resonator for compression thump */
+      const omega = 2 * Math.PI * 32 / sr;
+      const r = 0.93;
+      const rc = Math.cos(omega), rs = Math.sin(omega);
+      let rx = 0, ry = 0;
+      const tD = Math.exp(-150 / sr);
+      const bD = Math.exp(-40  / sr);
+      let trans = 0, body = 0;
+      let nextComp = Math.floor(sr * 0.12);
+
+      /* Anlassermotor straining under load — continuous from flywheel phase.
+         Freq sags as load hits (1590 → ~1420 Hz), with flutter/grunt on each compression */
+      let motorPhase = 0;
+      const motorDecay = Math.exp(-duration * 1.5 / duration); /* fades out as engine fires */
+
+      /* Flywheel gear still spinning but decelerating — starts at plateau 310 Hz, drops */
+      const toothDecay = Math.exp(-300 / sr);
+      let toothPhase = 0, toothNextInt = 1, toothEnv = 0;
+
+      /* Crankcase resonator (same as flywheel, carries through) */
+      const af1C = Math.cos(2*Math.PI*350 / sr), af1S = Math.sin(2*Math.PI*350 / sr);
+      let af1X = 0, af1Y = 0;
+
+      for (let i = 0; i < N; i++) {
+        const t        = i / sr;
+        const progress = t / duration;
+
+        /* RPM slows as flywheel loses energy against compression */
+        const rpm = 65 - progress * 18;
+        const compInterval = sr * 2 * 60 / (rpm * 12); /* 4-stroke: 1 compression per 2 rev per cyl */
+
+        if (i >= nextComp) {
+          const amp = 0.7 + Math.random() * 0.5;
+          trans += amp; body += amp * 0.55;
+          nextComp = i + compInterval * (0.95 + Math.random() * 0.1);
+        }
+
+        trans *= tD; body *= bD;
+        lfsr ^= lfsr << 13; lfsr ^= lfsr >> 17; lfsr ^= lfsr << 5;
+        const noise = (lfsr & 0xFFFF) / 32768 - 1;
+
+        const raw = trans * 0.4 + body * noise * 0.22;
+        const nx = r * (rx * rc - ry * rs) + raw;
+        const ny = r * (rx * rs + ry * rc);
+        rx = nx; ry = ny;
+        const compSig = (raw * 0.1 + nx * 0.9) * 1.05;
+
+        /* Anlassermotor — sags from 1590→1420 Hz over the motoring phase,
+           extra flutter (±60 Hz) on each compression pulse */
+        const loadSag   = 170 * progress;
+        const compFlut  = trans * 60;                     /* grunt as motor fights compression */
+        const motorFreq = 1590 - loadSag - compFlut + (Math.random() - 0.5) * 20;
+        motorPhase += motorFreq / sr;
+        const motorGain = 0.08 * (1 - progress * 0.4);   /* fades slightly toward engine start */
+        const motorSig  = (
+          Math.sin(2 * Math.PI * motorPhase) * 0.65 +
+          Math.sin(4 * Math.PI * motorPhase) * 0.22 +
+          Math.sin(6 * Math.PI * motorPhase) * 0.08
+        ) * motorGain;
+
+        /* Flywheel gear decelerating — 310 Hz dropping to ~240 Hz as load bites */
+        const meshFreq = 310 - progress * 70;
+        toothPhase += meshFreq / sr;
+        if (toothPhase >= toothNextInt) {
+          toothEnv += 0.45 * (0.5 + Math.random());
+          toothNextInt = Math.floor(toothPhase) + 1 + (Math.random() - 0.5) * 0.16;
+        }
+        toothEnv *= toothDecay;
+        const toothRasp = noise * (0.04 + 0.04 * (meshFreq / 310));
+        const gearSig   = (toothEnv + toothRasp) * (0.8 - progress * 0.5); /* fades as flywheel drains */
+
+        /* Crankcase carries both */
+        let cnx, cny;
+        cnx = 0.960*(af1X*af1C - af1Y*af1S) + (compSig + gearSig)*0.5;
+        cny = 0.960*(af1X*af1S + af1Y*af1C);
+        af1X = cnx; af1Y = cny;
+
+        buf[i] = (af1X * 0.25 + compSig * 0.45 + gearSig * 0.15 + motorSig) * 0.90;
+      }
+      return buf;
+    }
+
+    /* ── Phase 4+5: Erste Zündung → Hochlauf bis 1000 RPM + Lader → 30s Idle ── */
+    function synthRunup(sr, duration = 42.0) {
+      const N   = Math.floor(sr * duration);
+      const buf = new Float32Array(N);
+      let lfsr  = 0xACE1;
+
+      /* Main resonator — identical to db605-processor */
+      const f0     = 45, resR = 0.96;
+      const omega  = 2 * Math.PI * f0 / sr;
+      const resCos = Math.cos(omega), resSin = Math.sin(omega);
+      let resX = 0, resY = 0;
+
+      const transDecay = Math.exp(-300 / sr);
+      let bodyDecay    = Math.exp(-55 / sr);
+      let noiseScale   = 0.2;
+      let transient = 0, body = 0;
+
+      /* Crank-angle model — identical to db605-processor */
+      /* 6 firing angles for V12 4-stroke (one pair per 60°) */
+      const firingAngles  = [0, 60, 120, 180, 240, 300].map(a => (a + (Math.random() - 0.5) * 16) % 360);
+      const cylinderGains = Array.from({ length: 6 }, () => 0.4 + Math.random() * 1.2);
+      let crankAngle = 0;
+
+      /* First Knall: inject a huge transient at t=0.04s */
+      let knallAt = Math.floor(sr * 0.04);
+      let knallDone = false;
+
+      /* Supercharger oscillator */
+      let laderPhase = 0;
+
+      for (let i = 0; i < N; i++) {
+        const t        = i / sr;
+        const progress = Math.min(t / duration, 1);
+        const rpm      = 80 + (1000 - 80) * Math.pow(progress, 0.55);
+
+        /* Update bodyDecay + noiseScale every 128 samples — same as processor */
+        if (i % 128 === 0) {
+          const firingInterval = sr * 10 / rpm;   /* = sr / (rpm/10) */
+          const tau            = Math.max(firingInterval / 3, sr * 0.003);
+          bodyDecay            = Math.exp(-1 / tau);
+          const overlap        = Math.exp(-firingInterval / tau);
+          noiseScale           = 0.2 * (1 - overlap);
+        }
+
+        /* First Knall — laut, brutal */
+        if (!knallDone && i >= knallAt) {
+          transient += 2.8;
+          body      += 2.8 * 0.7;
+          knallDone  = true;
+        }
+
+        /* Crank-angle firing — same model as db605-processor */
+        const degPerSample = rpm / 60 / sr * 360;
+        const prev         = crankAngle;
+        crankAngle         = (crankAngle + degPerSample) % 360;
+
+        for (let c = 0; c < firingAngles.length; c++) {
+          const target = firingAngles[c];
+          const crossed = crankAngle >= prev
+            ? (prev <= target && crankAngle > target)
+            : (prev <= target || crankAngle > target);
+          if (crossed) {
+            /* Early phase: misfires. Fade out by ~250 RPM */
+            const misfireProb = Math.max(0, 0.55 - rpm / 250 * 0.55);
+            if (Math.random() > misfireProb) {
+              const amp  = cylinderGains[c];
+              transient += amp;
+              body      += amp * 0.7;
+            }
+          }
+        }
+
+        transient *= transDecay;
+        body      *= bodyDecay;
+
+        lfsr ^= lfsr << 13; lfsr ^= lfsr >> 17; lfsr ^= lfsr << 5;
+        const noise = (lfsr & 0xFFFF) / 32768 - 1;
+
+        const raw = transient * 0.3 + body * noise * noiseScale;
+        const nx  = resR * (resX * resCos - resY * resSin) + raw;
+        const ny  = resR * (resX * resSin + resY * resCos);
+        resX = nx; resY = ny;
+
+        /* Supercharger — fades in above ~280 RPM (~28% progress), ~930 Hz at 1000 RPM */
+        const laderFreq  = 930 * rpm / 1000;
+        laderPhase      += laderFreq / sr;
+        const laderGain  = Math.max(0, (progress - 0.28) / 0.72) * 0.10;
+        const lader      = (Math.sin(2 * Math.PI * laderPhase)
+                          + Math.sin(4 * Math.PI * laderPhase) * 0.4) * laderGain;
+
+        const fadeIn = Math.min(1, t / 0.06);
+        buf[i] = ((raw * 0.05 + nx * 0.95) * 0.8 + lader) * fadeIn;
+      }
+      return buf;
+    }
+
+    /* ── Assemble ── */
+    function assembleSequence(sr) {
+      const fw   = synthFlywheel(sr);
+      const kl   = synthKlonk(sr);
+      const mot  = synthMotoring(sr);
+      const run  = synthRunup(sr);
+      const gap  = Math.floor(sr * 0.06);
+      const total = fw.length + gap + kl.length + gap + mot.length + gap + run.length;
+      const full  = new Float32Array(total);
+      let off = 0;
+      full.set(fw,  off); off += fw.length  + gap;
+      full.set(kl,  off); off += kl.length  + gap;
+      full.set(mot, off); off += mot.length + gap;
+      full.set(run, off);
+      return full;
+    }
+
+    /* ── WAV encoder ── */
+    function encodeWav(samples, sr) {
+      const len  = samples.length;
+      const ab   = new ArrayBuffer(44 + len * 2);
+      const view = new DataView(ab);
+      const wr   = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+      wr(0, 'RIFF'); view.setUint32(4, 36 + len * 2, true);
+      wr(8, 'WAVE'); wr(12, 'fmt '); view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+      view.setUint32(24, sr, true); view.setUint32(28, sr * 2, true);
+      view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+      wr(36, 'data'); view.setUint32(40, len * 2, true);
+      for (let i = 0; i < len; i++) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        view.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      }
+      return new Blob([ab], { type: 'audio/wav' });
+    }
+
+    /* ── Playback ── */
+    let _ctx = null;
+    const phaseEl  = document.getElementById('phase');
+    const startBtn = document.getElementById('start');
+    const dlBtn    = document.getElementById('dl');
+
+    startBtn.addEventListener('click', async () => {
+      if (!_ctx) _ctx = new AudioContext();
+      if (_ctx.state === 'suspended') await _ctx.resume();
+      startBtn.disabled = true;
+      dlBtn.disabled    = true;
+
+      const fwDur  = 26.0, gap = 0.06, klDur = 0.18, motDur = 2.8, runDur = 42.0;
+      const t0     = _ctx.currentTime;
+
+      const _play = (buf, when) => {
+        const ab = _ctx.createBuffer(1, buf.length, _ctx.sampleRate);
+        ab.copyToChannel(buf, 0);
+        const src = _ctx.createBufferSource();
+        src.buffer = ab; src.connect(_ctx.destination); src.start(when);
+      };
+
+      phaseEl.textContent = 'Flywheel — hochdrehen';
+      _play(synthFlywheel(_ctx.sampleRate), t0);
+
+      const klAt  = t0 + fwDur + gap;
+      const motAt = klAt + klDur + gap;
+      const runAt = motAt + motDur + gap;
+
+      _play(synthKlonk   (_ctx.sampleRate), klAt);
+      _play(synthMotoring(_ctx.sampleRate), motAt);
+      _play(synthRunup   (_ctx.sampleRate), runAt);
+
+      const total = fwDur + gap + klDur + gap + motDur + gap + runDur;
+
+      const label = (msg, when) => setTimeout(() => { phaseEl.textContent = msg; }, when * 1000);
+      label('Kupplung — einrücken',   fwDur + gap);
+      label('Motorisierung',          fwDur + gap + klDur + gap);
+      label('Erste Zündung',          fwDur + gap + klDur + gap + motDur + gap);
+      label('Hochlauf → 1000 RPM',     fwDur + gap + klDur + gap + motDur + gap + 2);
+      label('Lader',                  fwDur + gap + klDur + gap + motDur + gap + 5);
+      label('Idle',                   fwDur + gap + klDur + gap + motDur + gap + 10);
+      label('Idle — 1000 RPM',        fwDur + gap + klDur + gap + motDur + gap + 14);
+
+      setTimeout(() => {
+        phaseEl.textContent = '';
+        startBtn.disabled   = false;
+        dlBtn.disabled      = false;
+      }, total * 1000);
+    });
+
+    dlBtn.addEventListener('click', () => {
+      const samples = assembleSequence(SR);
+      const blob    = encodeWav(samples, SR);
+      const url     = URL.createObjectURL(blob);
+      const a       = document.createElement('a');
+      a.href = url; a.download = 'db601-anlasser.wav';
+      a.click(); URL.revokeObjectURL(url);
+    });
+  </script>
+</body>
+</html>
