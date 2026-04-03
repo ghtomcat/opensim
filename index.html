@@ -1008,6 +1008,55 @@
       color: var(--mb-accent, #cc4444);
     }
 
+    /* ── On-screen keyboard (touch devices) ── */
+    #osk {
+      position: fixed;
+      bottom: 80px; left: 0; right: 0;
+      z-index: 22;
+      display: none;
+      padding: 6px 10px;
+      background: rgba(3,6,10,0.91);
+      border-top: 1px solid rgba(255,255,255,0.07);
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #osk.visible { display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; }
+
+    .osk-row, .osk-manual-row {
+      display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+      justify-content: center; width: 100%;
+    }
+    .osk-actions { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+    .osk-sep { margin-left: 8px; }
+
+    .osk-btn {
+      min-width: 52px; min-height: 44px;
+      padding: 6px 8px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.13);
+      color: var(--white);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+      text-transform: uppercase;
+      cursor: pointer; border-radius: 4px;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .osk-btn.osk-active { background: rgba(77,197,220,0.2); border-color: var(--cyan); color: var(--cyan); }
+
+    .osk-dpad-wrap {
+      display: grid;
+      grid-template-areas: ". up ." "left . right" ". down .";
+      grid-template-columns: 44px 44px 44px;
+      grid-template-rows: 44px 44px 44px;
+      gap: 3px; flex-shrink: 0;
+    }
+    .osk-dpad-up    { grid-area: up;    font-size: 16px; }
+    .osk-dpad-left  { grid-area: left;  font-size: 16px; }
+    .osk-dpad-right { grid-area: right; font-size: 16px; }
+    .osk-dpad-down  { grid-area: down;  font-size: 16px; }
+
     /* ── Engine switcher (dev/demo) ── */
 
     /* ── Loading screen ── */
@@ -1288,6 +1337,39 @@
     <input class="hc-slider" type="range" min="0" max="359" value="0" id="hcm-target-slider">
   </div>
 
+</div>
+
+<!-- On-screen keyboard (touch devices only) -->
+<div id="osk">
+  <!-- Autopilot aircraft (A350, Tu-95, An-225…) -->
+  <div id="osk-ap" class="osk-row" style="display:none">
+    <button class="osk-btn" data-key="ArrowUp">ALT ▲</button>
+    <button class="osk-btn" data-key="ArrowDown">ALT ▼</button>
+    <button class="osk-btn osk-sep" data-key="ArrowLeft">◄ HDG</button>
+    <button class="osk-btn" data-key="ArrowRight">HDG ►</button>
+    <button class="osk-btn osk-sep" data-key="=">SPD +</button>
+    <button class="osk-btn" data-key="-">SPD −</button>
+    <button class="osk-btn osk-sep" data-key="f">FLAP ▼</button>
+    <button class="osk-btn" data-key="F">FLAP ▲</button>
+    <button class="osk-btn" data-key="g">GEAR</button>
+    <button class="osk-btn osk-sep" data-key="p">PAUSE</button>
+  </div>
+  <!-- Manual aircraft (C172, Bf109, Robin…) — D-pad + actions -->
+  <div id="osk-manual" class="osk-manual-row" style="display:none">
+    <div class="osk-dpad-wrap">
+      <button class="osk-btn osk-dpad-up"    data-key="ArrowUp"    data-held="1">▲</button>
+      <button class="osk-btn osk-dpad-left"  data-key="ArrowLeft"  data-held="1">◄</button>
+      <button class="osk-btn osk-dpad-right" data-key="ArrowRight" data-held="1">►</button>
+      <button class="osk-btn osk-dpad-down"  data-key="ArrowDown"  data-held="1">▼</button>
+    </div>
+    <div class="osk-actions">
+      <button class="osk-btn" data-key="f">FLAP ▼</button>
+      <button class="osk-btn" data-key="F">FLAP ▲</button>
+      <button class="osk-btn" data-key="g">GEAR</button>
+      <button class="osk-btn" data-key="b" data-held="1">BRAKE</button>
+      <button class="osk-btn" data-key="p">PAUSE</button>
+    </div>
+  </div>
 </div>
 
 <!-- Crash overlay -->
@@ -2410,6 +2492,7 @@
         /* Show/hide hovercraft control panel; hide COM in hovercraft (no ATC) */
         document.getElementById('hc-panel').style.display     = isHover ? 'flex' : 'none';
         document.getElementById('com-container').style.display = isHover ? 'none' : '';
+        _oskUpdate(isHover, S.aircraft?.manualControl);
       },
       () => renderFMA(),
       () => updatePanel(),
@@ -2619,6 +2702,55 @@
       setState({ hcMEmergency: true });
     });
   })();
+
+  /* ── On-screen keyboard ── */
+  const _isTouchDevice = navigator.maxTouchPoints > 0;
+
+  function _initOsk() {
+    if (!_isTouchDevice) return;
+    /* Update onboarding hint for touch */
+    const hint = document.querySelector('.ob-hint');
+    if (hint) hint.textContent = 'Tap anywhere to begin';
+
+    document.querySelectorAll('.osk-btn').forEach(btn => {
+      const key  = btn.dataset.key;
+      const held = btn.dataset.held === '1';
+
+      btn.addEventListener('touchstart', e => {
+        e.preventDefault();
+        btn.classList.add('osk-active');
+        window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+        if (!held) {
+          setTimeout(() => {
+            window.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true }));
+            btn.classList.remove('osk-active');
+          }, 80);
+        }
+      }, { passive: false });
+
+      if (held) {
+        const release = () => {
+          btn.classList.remove('osk-active');
+          window.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true }));
+        };
+        btn.addEventListener('touchend',    release, { passive: false });
+        btn.addEventListener('touchcancel', release, { passive: false });
+      }
+    });
+  }
+
+  function _oskUpdate(isHover, isManual) {
+    const osk = document.getElementById('osk');
+    if (!_isTouchDevice || isHover) {
+      osk.classList.remove('visible');
+      return;
+    }
+    osk.classList.add('visible');
+    document.getElementById('osk-ap').style.display     = isManual ? 'none' : '';
+    document.getElementById('osk-manual').style.display = isManual ? ''     : 'none';
+  }
+
+  _initOsk();
 
   /* ── ESC temperature panel updates (runs in the display loop) ── */
   function _tempColor(t) {
