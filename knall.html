@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Knall</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #030609;
+      color: #e8edf2;
+      font-family: "IBM Plex Mono", monospace;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+    }
+    #label {
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(232,237,242,0.3);
+    }
+    #knall {
+      width: 200px; height: 200px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.04);
+      color: #e8edf2;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      cursor: pointer;
+      transition: background 0.08s, border-color 0.08s, transform 0.06s;
+    }
+    #knall:hover  { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.35); }
+    #knall:active { transform: scale(0.96); background: rgba(77,197,220,0.12); border-color: #4dc5dc; }
+    #dl {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.15);
+      color: rgba(232,237,242,0.4);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 8px 20px;
+      cursor: pointer;
+    }
+    #dl:hover { border-color: rgba(255,255,255,0.4); color: rgba(232,237,242,0.8); }
+  </style>
+</head>
+<body>
+  <div id="label">DB 601 · Einzelimpuls · V12</div>
+  <button id="knall">KNALL</button>
+  <button id="dl">Download WAV</button>
+
+  <script>
+    const SR = 44100;
+    const DURATION = 0.7; // seconds
+
+    /* ── Compute one impulse — same algorithm as db605-processor.js ── */
+    function computeImpulse(sampleRate) {
+      const N = Math.floor(sampleRate * DURATION);
+      const buf = new Float32Array(N);
+
+      /* Transient: ~4ms — harter Druckstoss */
+      const transDecay = Math.exp(-1000 / sampleRate);
+
+      /* Body: ~30ms — kurz, kein Sustain */
+      const bodyDecay  = Math.exp(-80 / sampleRate);
+      const noiseScale = 0.6;
+      const masterGain = 2.2;
+
+      /* Resonator at 38 Hz, r=0.72 — tief aber kurz */
+      const omega  = 2 * Math.PI * 38 / sampleRate;
+      const r      = 0.72;
+      const resCos = Math.cos(omega);
+      const resSin = Math.sin(omega);
+      let resX = 0, resY = 0;
+
+      /* LFSR noise — same seed as processor */
+      let lfsr = 0xACE1;
+
+      /* Single impulse at t=0 */
+      let transient = 1.8;
+      let body      = 1.2;
+
+      for (let i = 0; i < N; i++) {
+        transient *= transDecay;
+        body      *= bodyDecay;
+
+        lfsr ^= lfsr << 13;
+        lfsr ^= lfsr >> 17;
+        lfsr ^= lfsr << 5;
+        const noise = (lfsr & 0xFFFF) / 32768 - 1;
+
+        const raw = transient * 0.3 + body * noise * noiseScale;
+        const nx  = r * (resX * resCos - resY * resSin) + raw;
+        const ny  = r * (resX * resSin + resY * resCos);
+        resX = nx;
+        resY = ny;
+
+        buf[i] = (raw * 0.05 + nx * 0.95) * masterGain;
+      }
+
+      return buf;
+    }
+
+    /* ── Encode Float32Array → WAV Blob ── */
+    function encodeWav(samples, sampleRate) {
+      const len    = samples.length;
+      const ab     = new ArrayBuffer(44 + len * 2);
+      const view   = new DataView(ab);
+      const write  = (off, str) => { for (let i = 0; i < str.length; i++) view.setUint8(off + i, str.charCodeAt(i)); };
+
+      write(0,  'RIFF');
+      view.setUint32(4,  36 + len * 2, true);
+      write(8,  'WAVE');
+      write(12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1,  true);   // PCM
+      view.setUint16(22, 1,  true);   // mono
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * 2, true);
+      view.setUint16(32, 2,  true);
+      view.setUint16(34, 16, true);
+      write(36, 'data');
+      view.setUint32(40, len * 2, true);
+
+      for (let i = 0; i < len; i++) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        view.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      }
+
+      return new Blob([ab], { type: 'audio/wav' });
+    }
+
+    /* ── Playback ── */
+    let _ctx = null;
+
+    document.getElementById('knall').addEventListener('click', () => {
+      if (!_ctx) _ctx = new AudioContext();
+      if (_ctx.state === 'suspended') _ctx.resume();
+
+      const samples = computeImpulse(_ctx.sampleRate);
+      const ab      = _ctx.createBuffer(1, samples.length, _ctx.sampleRate);
+      ab.copyToChannel(samples, 0);
+
+      const src = _ctx.createBufferSource();
+      src.buffer = ab;
+      src.connect(_ctx.destination);
+      src.start();
+    });
+
+    /* ── Download WAV ── */
+    document.getElementById('dl').addEventListener('click', () => {
+      const samples = computeImpulse(SR);
+      const blob    = encodeWav(samples, SR);
+      const url     = URL.createObjectURL(blob);
+      const a       = document.createElement('a');
+      a.href        = url;
+      a.download    = 'db601-knall.wav';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  </script>
+</body>
+</html>
