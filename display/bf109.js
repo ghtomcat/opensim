@@ -541,7 +541,10 @@ function _drawVariometer(ctx, x, y, r, sc) {
 
 /* Drehzahlmesser — DB 601 max ~2600 U/min */
 function _drawDrehzahl(ctx, x, y, r, sc) {
-  const rpm  = (S.enginePower ?? 1) * 2600;
+  const running  = S.engineState === 'running';
+  const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 335;
+  const throttle = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
+  const rpm  = running ? Math.round(400 + (2800 - 400) * throttle) : 0;
   const maxR = 2800;
   const s0   = 220, sw = 280;
 
@@ -562,11 +565,13 @@ function _drawDrehzahl(ctx, x, y, r, sc) {
   _label(ctx, x, y, r, 'Drehzahlmesser', sc);
 }
 
-/* Öltemperatur — 0–130°C. Simulated from enginePower. */
+/* Öltemperatur — 0–130°C. Simulated from throttle + time. */
 function _drawOelTemp(ctx, x, y, r, sc) {
-  const ep   = S.enginePower ?? 1;
-  /* Cold start from -22°C — temp rises slowly with power */
-  const oilT = ep > 0.05 ? Math.min(130, 35 + ep * 70 + (S.time ?? 0) * 0.04) : 0;
+  const running  = S.engineState === 'running';
+  const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 335;
+  const throttle = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
+  /* Rises with throttle over time; cold at start */
+  const oilT = running ? Math.min(130, 35 + throttle * 70 + (S.time ?? 0) * 0.04) : 0;
   const maxT = 130;
   const s0   = 220, sw = 280;
 
@@ -595,8 +600,10 @@ function _drawOelTemp(ctx, x, y, r, sc) {
 
 /* Öldruck — 0–10 atü */
 function _drawOelDruck(ctx, x, y, r, sc) {
-  const ep   = S.enginePower ?? 1;
-  const oilP = ep * 7.5;
+  const running  = S.engineState === 'running';
+  const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 335;
+  const throttle = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
+  const oilP = running ? 1.5 + throttle * 6.0 : 0;   /* idle ~1.5 atü, full ~7.5 atü */
   const maxP = 10;
   const s0   = 220, sw = 280;
 
