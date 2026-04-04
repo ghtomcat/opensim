@@ -299,7 +299,9 @@ missions/
   nordmeer-1956.json     — Cold War recon, Tu-95MS, Olenya AB, Soviet ATC
 
 tests/
-  physics.spec.js  — Playwright: 10 tests, ~45s headless
+  db601-synth.test.mjs  — Node: 13 synthesis math tests, ~0.2s
+  db601-sound.spec.js   — Playwright: 9 sound state machine tests
+  physics.spec.js       — Playwright: 10 physics tests, ~45s headless
 
 server/
   hub.js         — WebSocket hub (Node.js, runs on Pi)
@@ -309,33 +311,65 @@ server/
 
 ## Testing
 
-OpenSim uses [Playwright](https://playwright.dev) for automated physics validation. Every aircraft has a test. Every physics change is verified before merge.
-
 ```bash
 npm install
 npx playwright install chromium
 npm test
 ```
 
-Tests run headlessly in ~45 seconds.
+`npm test` runs two suites in sequence:
+
+**1. Synthesis math (Node.js, ~0.2s)**
+Pure unit tests — no browser, no audio. Verifies the DB 601 sound synthesis formulas are correct.
 
 ```
-Running 10 tests using 1 worker
-  10 passed (45.5s)
+node --test tests/db601-synth.test.mjs
+
+✔ gain chain continuity — synthesis end matches worklet idle
+✔ scale factor formula — (masterGain × 0.4) / 0.8
+✔ gear tail envelope — starts at 0.30
+✔ gear tail envelope — decays to ~1/e at τ = 3 s
+✔ gear tail envelope — at 9 s (3τ) is ~e⁻³ ≈ 5% of start
+✔ lader frequency — proportional to RPM
+✔ lader frequency — rises with RPM (not constant)
+✔ throttle → rpm mapping covers full range
+✔ master gain increases monotonically with throttle
+✔ master gain at idle = masterGain × 0.4
+✔ startup total duration — flywheel + klonk + motoring + runup + gaps
+✔ worklet resonator tracks firing frequency — different at idle vs cruise
+✔ worklet resonator caps at 480 Hz (above 4800 RPM)
+13 passed
 ```
 
-| Test | Passes if |
-|------|-----------|
-| C172 rotation | Liftoff 50–75 kt |
-| C172 climb | VS > 300 fpm |
-| C172 stall | VS < −100 fpm below Vs |
-| Robin rotation | Liftoff 60–75 kt |
-| Robin climb | VS > 300 fpm |
-| Robin stall | VS < −100 fpm below Vs |
-| Bf 109 engine failure | `enginePower` < 0.5 by T+200 |
-| Bf 109 engine dead | `enginePower` < 0.05 by T+210 |
-| Tu-95MS rotation | Liftoff 155–230 kt (flaps 20°) |
-| Tu-95MS climb | VS > 500 fpm |
+**2. Physics + sound state machine (Playwright, ~60s headless)**
+Browser tests verifying physics, engine lifecycle, and sound parameters.
+
+```
+Running 19 tests using 1 worker
+  19 passed
+```
+
+| Suite | Test | Passes if |
+|-------|------|-----------|
+| C172 physics | rotation | Liftoff 50–75 kt |
+| C172 physics | climb | VS > 300 fpm |
+| C172 physics | stall | VS < −100 fpm below Vs |
+| Robin physics | rotation | Liftoff 60–75 kt |
+| Robin physics | climb | VS > 300 fpm |
+| Robin physics | stall | VS < −100 fpm below Vs |
+| Bf 109 physics | engine failure | `enginePower` < 0.5 by T+200 |
+| Bf 109 physics | engine dead | `enginePower` < 0.05 by T+210 |
+| Tu-95MS physics | rotation | Liftoff 155–230 kt (flaps 20°) |
+| Tu-95MS physics | climb | VS > 500 fpm |
+| DB 601 state machine | starts off | `engineState` = `'off'` on load |
+| DB 601 state machine | rpm format | `getCurrentRpm()` returns `"NNN RPM"` |
+| DB 601 RPM | idle | 400 RPM at spdT=0 |
+| DB 601 RPM | rises with throttle | idle < half < max |
+| DB 601 RPM | range | always within rpmIdle–rpmMax |
+| DB 601 gain chain | handoff continuity | synthesis end = worklet idle level |
+| DB 601 gain chain | throttle scaling | gain rises monotonically 0→1 |
+| DB 601 gain chain | lader proportional | 700 Hz at idle, 1400 Hz at 2× RPM |
+| DB 601 supercharger | engine off | `enginePower` > 0 |
 
 ---
 
