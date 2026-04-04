@@ -53,6 +53,18 @@
     "engineType": "v12-supercharged"
   },
 
+  "com": {
+    "title": "FuG 16",
+    "xpdrLabel": "FuG 25a IFF",
+    "active": "122.975",
+    "standby": "122.800",
+    "freqs": {
+      "122.975": { "label": "HAHNWEIDE INFO" },
+      "122.800": { "label": "PLATZRUNDE" },
+      "121.500": { "label": "GUARD" }
+    }
+  },
+
   "situations": [
     { "label": "GROUND",   "alt": 1450, "spd": 0,   "hdg": 280, "altT": 1450, "spdT": 0   },
     { "label": "TAKEOFF",  "alt": 1450, "spd": 120,  "hdg": 280, "altT": 8000, "spdT": 335 },

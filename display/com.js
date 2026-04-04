@@ -22,10 +22,12 @@ const FREQS_DEFAULT = {
   '121.500': { label: 'GUARD',                     audio: null },
 };
 
-function _missionCom() { return S.mission?.com ?? null; }
-function _freqs()      { return _missionCom()?.freqs ?? FREQS_DEFAULT; }
-function _comTitle()   { return _missionCom()?.title ?? 'COM 1'; }
-function _xpdrLabel()  { return _missionCom()?.xpdrLabel ?? 'XPDR'; }
+function _missionCom()  { return S.mission?.com ?? null; }
+function _aircraftCom() { return S.aircraft?.com ?? null; }
+function _activeCom()   { return _missionCom() ?? _aircraftCom(); }
+function _freqs()       { return _activeCom()?.freqs ?? FREQS_DEFAULT; }
+function _comTitle()    { return _activeCom()?.title ?? 'COM 1'; }
+function _xpdrLabel()   { return _activeCom()?.xpdrLabel ?? 'XPDR'; }
 
 /* ── COM state ── */
 const COM = {
@@ -49,10 +51,10 @@ export function initCOM(container) {
   _stopStream();   // stop any stream from previous mission
 
   /* Seed COM state from mission if provided */
-  const mc = _missionCom();
-  if (mc) {
-    COM.active  = mc.active  ?? Object.keys(mc.freqs)[0];
-    COM.standby = mc.standby ?? Object.keys(mc.freqs)[1] ?? COM.active;
+  const ac = _activeCom();
+  if (ac) {
+    COM.active  = ac.active  ?? Object.keys(ac.freqs)[0];
+    COM.standby = ac.standby ?? Object.keys(ac.freqs)[1] ?? COM.active;
   } else {
     COM.active  = '121.750';
     COM.standby = '121.900';

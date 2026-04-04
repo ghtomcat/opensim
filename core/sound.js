@@ -199,6 +199,13 @@ export function getCurrentRpm() {
   }
 }
 
+/* Numeric RPM for gauges — null if engine off or non-RPM display */
+export function getRpmValue() {
+  const str = getCurrentRpm();
+  if (!str || str.startsWith('---') || str.startsWith('N1')) return null;
+  return parseInt(str, 10) || null;
+}
+
 /* ── Internal state — oscillator path ── */
 let _ctx          = null;
 let _master       = null;
@@ -641,6 +648,9 @@ export function tickSound() {
     const rpm   = _cfg.rpmIdle + (_cfg.rpmMax - _cfg.rpmIdle) * throttle * ePow;
     const gain  = _cfg.masterGain * (0.4 + 0.6 * throttle) * Math.max(0.05, ePow);
 
+    /* Drive _master.gain with throttle — same as oscillator path */
+    _master.gain.setTargetAtTime(gain, now, 0.08);
+
     /* Supercharger — mechanically coupled, linear with RPM */
     const lFreq = _cfg.superchargerFreqIdle + (_cfg.superchargerFreqMax - _cfg.superchargerFreqIdle) * throttle;
     const lGain = _cfg.superchargerGain * (0.15 + 0.85 * throttle);
@@ -769,7 +779,7 @@ export function tickSound() {
   if (_cfg.supercharger && _lader && _laderGain) {
     const ePow  = S.enginePower ?? 1.0;
     const lFreq = _cfg.superchargerFreqIdle + (_cfg.superchargerFreqMax - _cfg.superchargerFreqIdle) * throttle;
-    const lGain = _cfg.superchargerGain * (0.15 + 0.85 * throttle) * ePow;
+    const lGain = _cfg.superchargerGain * (0.28 + 0.72 * throttle) * ePow;  // 0.28 matches synthesis handoff at idle
     _lader.frequency.setTargetAtTime(lFreq, now, 0.3);
     _laderGain.gain.setTargetAtTime(lGain, now, 0.5);
 
@@ -1204,7 +1214,8 @@ function _synthFlywheel(sr, duration = 26.0) {
     const meshFreq = Math.min(310, 47 * Math.exp(0.1143 * t));
     const motorFreq = 1590 + 28 * Math.sin(2*Math.PI*3.7*t);
     motorPhase += motorFreq / sr;
-    const motorEnv = Math.min(1, t/2.5) * 0.08;
+    const motorFade = Math.min(1, Math.max(0, (duration - t) / 5.0));  // fade out over last 5s
+    const motorEnv = Math.min(1, t/2.5) * 0.08 * motorFade;
     const motorSig = (Math.sin(2*Math.PI*motorPhase)*0.65 + Math.sin(4*Math.PI*motorPhase)*0.22 + Math.sin(6*Math.PI*motorPhase)*0.08) * motorEnv;
     tooth1Phase += meshFreq / sr;
     if (tooth1Phase >= tooth1NextInt) { tooth1Env += 0.60*(0.5+Math.random()); tooth1NextInt = Math.floor(tooth1Phase)+1+(Math.random()-0.5)*0.16; }
@@ -1291,6 +1302,11 @@ function _synthRunup(sr, duration = 42.0, targetRpm = 1000) {
   const firingAngles = [0,60,120,180,240,300].map(a => (a+(Math.random()-0.5)*16)%360);
   const cylinderGains = Array.from({length:6}, () => 0.4+Math.random()*1.2);
   let crankAngle = 0, knallAt = Math.floor(sr*0.04), knallDone = false, laderPhase = 0;
+  // Gear mesh tail — flywheel disengaging as first cylinders fire (~3s decay)
+  const gearTailDecay = Math.exp(-1 / (3.0 * sr));
+  let gearTailEnv = 0.30;                           // matches end-of-motoring level
+  const gearToothDecay = Math.exp(-300/sr);
+  let gearToothPhase = 0, gearToothNextInt = 1, gearToothEnv = 0;
   for (let i = 0; i < N; i++) {
     const t = i/sr, progress = Math.min(t/duration, 1);
     const rpm = 80 + (targetRpm-80)*Math.pow(progress, 0.55);
@@ -1306,11 +1322,19 @@ function _synthRunup(sr, duration = 42.0, targetRpm = 1000) {
     transient*=transDecay; body*=bodyDecay;
     lfsr ^= lfsr<<13; lfsr ^= lfsr>>17; lfsr ^= lfsr<<5;
     const noise=(lfsr&0xFFFF)/32768-1;
+    // Gear mesh tail — decays as flywheel disengages
+    gearTailEnv *= gearTailDecay;
+    const gearMeshFreq = Math.max(60, 240 - t * 6);   // slides down from 240 Hz as flywheel spins down
+    gearToothPhase += gearMeshFreq / sr;
+    if (gearToothPhase >= gearToothNextInt) { gearToothEnv += 0.35*(0.5+Math.random()); gearToothNextInt = Math.floor(gearToothPhase)+1+(Math.random()-0.5)*0.16; }
+    gearToothEnv *= gearToothDecay;
+    const gearSig = (gearToothEnv + noise * 0.06) * gearTailEnv;
     const raw=transient*0.3+body*noise*noiseScale;
     const nx=resR*(resX*resCos-resY*resSin)+raw, ny=resR*(resX*resSin+resY*resCos); resX=nx; resY=ny;
-    const laderFreq=930*rpm/1000; laderPhase+=laderFreq/sr;
+    const lFIdle=_cfg?.superchargerFreqIdle??700, rIdle=_cfg?.rpmIdle??400;
+    const laderFreq=lFIdle*rpm/rIdle; laderPhase+=laderFreq/sr;
     const lader=(Math.sin(2*Math.PI*laderPhase)+Math.sin(4*Math.PI*laderPhase)*0.4)*Math.max(0,(progress-0.28)/0.72)*0.10;
-    buf[i] = ((raw*0.05+nx*0.95)*0.8+lader)*Math.min(1,t/0.06);
+    buf[i] = ((raw*0.05+nx*0.95)*0.8 + gearSig*0.15 + lader)*Math.min(1,t/0.06);
   }
   return buf;
 }
@@ -1342,7 +1366,8 @@ function _synthShutdown(sr) {
     const noise=(lfsr&0xFFFF)/32768-1;
     const raw=transient*0.3+body*noise*noiseScale;
     const nx=resR*(resX*resCos-resY*resSin)+raw, ny=resR*(resX*resSin+resY*resCos); resX=nx; resY=ny;
-    const laderFreq=930*rpm/1000; laderPhase+=laderFreq/sr;
+    const lFIdle=_cfg?.superchargerFreqIdle??700, rIdle=_cfg?.rpmIdle??400;
+    const laderFreq=lFIdle*rpm/rIdle; laderPhase+=laderFreq/sr;
     const lader=(Math.sin(2*Math.PI*laderPhase)+Math.sin(4*Math.PI*laderPhase)*0.4)*Math.exp(-t/0.4)*0.10;
     buf[i] = ((raw*0.05+nx*0.95)*0.8+lader)*(rpm/1000);
   }
@@ -1407,7 +1432,9 @@ export async function startEngineLifecycle() {
   src.onended = () => {
     _lifecycleSrc = null;
     _lifecycleStartedAt = null;
+    if (S.engineState !== 'starting') return;   // aborted (M pressed) — don't activate
     if (!_workletNode) { setState({ engineState: 'off' }); return; }
+    console.log('[OpenSim] Engine started — worklet active, spdT:', S.spdT);
     setState({ engineState: 'running', engineTemp: Math.min(1, (S.engineTemp ?? 0) + 0.8) });
 
     const now = _ctx.currentTime;
@@ -1421,7 +1448,7 @@ export async function startEngineLifecycle() {
       const scale      = (_cfg.masterGain * 0.4) / 0.8;       // buffer scaling factor
       const synthLader = 0.10 * scale;                          // synthesis Lader level at destination
       const laderGainV = synthLader / (_cfg.masterGain * 0.4); // convert to _laderGain space
-      const laderFreqV = 930 * _cfg.rpmIdle / 1000;            // Hz at idle RPM (formula used in synthesis)
+      const laderFreqV = _cfg.superchargerFreqIdle;             // Hz at idle — matches live tickSound formula
       _lader.frequency.setValueAtTime(laderFreqV, now);
       _laderGain.gain.setValueAtTime(laderGainV, now);
     }
@@ -1437,7 +1464,7 @@ export function stopEngineLifecycle() {
   _workletReady = false;
   _started      = false;
 
-  if (_lifecycleSrc) { try { _lifecycleSrc.stop(); } catch {} _lifecycleSrc = null; }
+  if (_lifecycleSrc) { _lifecycleSrc.onended = null; try { _lifecycleSrc.stop(); } catch {} _lifecycleSrc = null; }
   _lifecycleStartedAt = null;
 
   setState({ engineState: 'shutdown' });

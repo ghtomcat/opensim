@@ -142,8 +142,10 @@ function _onKeyDown(e) {
   }
 
   /* Throttle / speed */
-  if (e.key === '=' || e.key === '+') setState({ spdT: Math.min(S.aircraft?.envelope.maxSpd ?? 350, S.spdT + 5) });
-  if (e.key === '-' || e.key === '_') setState({ spdT: Math.max(0, S.spdT - 5) });
+  /* Step size: larger for manual-control aircraft (throttle lever) vs AP (speed target) */
+  const _spdStep = S.aircraft?.manualControl ? 20 : 5;
+  if (e.key === '=' || e.key === '+') setState({ spdT: Math.min(S.aircraft?.envelope.maxSpd ?? 350, S.spdT + _spdStep) });
+  if (e.key === '-' || e.key === '_') setState({ spdT: Math.max(0, S.spdT - _spdStep) });
 
   /* Thrust detents — aircraft-specific profiles or hardcoded fallback */
   const _fi = ['F1','F2','F3','F4'].indexOf(e.key);

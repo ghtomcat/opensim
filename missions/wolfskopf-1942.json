@@ -45,6 +45,19 @@
     "End the war."
   ],
 
+  "com": {
+    "title": "FuG 16",
+    "xpdrLabel": "FuG 25a IFF",
+    "active": "38.400",
+    "standby": "39.200",
+    "freqs": {
+      "38.400": { "label": "HORCHKANAL" },
+      "39.200": { "label": "PLATZRUNDE TITOVKA" },
+      "42.000": { "label": "GEFECHTSKANAL" },
+      "42.100": { "label": "JÄGERLEITOFFIZIER" }
+    }
+  },
+
   "atcClearances": [],
 
   "approachBrief": [],

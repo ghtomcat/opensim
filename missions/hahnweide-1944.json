@@ -34,6 +34,18 @@
     }
   },
 
+  "com": {
+    "title": "FuG 16",
+    "xpdrLabel": "FuG 25a IFF",
+    "active": "122.975",
+    "standby": "122.800",
+    "freqs": {
+      "122.975": { "label": "HAHNWEIDE INFO" },
+      "122.800": { "label": "PLATZRUNDE" },
+      "121.500": { "label": "GUARD" }
+    }
+  },
+
   "debrief": [
     "DB 601 — 960hp takeoff, 1175hp emergency power.",
     "Calibrated from D-FEML ground run, Hangelar.",

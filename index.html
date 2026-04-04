@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>OpenSim — ILS Approach LSZH</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1209,12 +1212,12 @@
     <div class="panel-label">Role</div>
     <div class="panel-value cyan" id="pv-role">PF</div>
   </div>
-  <div class="panel-section">
+  <div class="panel-section" id="ps-rpm">
     <div class="panel-label">Engine</div>
     <div class="panel-value green" id="pv-rpm">---</div>
   </div>
   <div class="panel-section">
-    <div class="panel-label">Audio</div>
+    <div class="panel-label" id="pl-audio">Audio</div>
     <div class="panel-value green" id="pv-audio">ON</div>
   </div>
 </div>
@@ -1227,9 +1230,9 @@
 
 <!-- Keybinds -->
 <div id="keys">
-  ↑↓ ALT ±500 · ←→ HDG ±5 &nbsp;<span id="keys-ap">(AP)</span><br>
-  ↑↓ PITCH · ←→ BANK <span id="keys-manual" style="display:none">(MANUAL)</span><br>
-  + / − SPD · F1–F4 DETENT<br>
+  <span id="keys-ap">↑↓ ALT ±500 · ←→ HDG ±5<br></span>
+  <span id="keys-manual" style="display:none">↑↓ PITCH · ←→ BANK<br></span>
+  <span id="keys-spd">+ / − SPD</span><span id="keys-throttle" style="display:none">+ / − THROTTLE</span> · F1–F4 DETENT<br>
   F flaps · G gear<br>
   TAB display · V outside · P pause · R role<br>
   SPACE PTT
@@ -2559,18 +2562,30 @@
     pttEl.classList.toggle('active', isPTTActive());
 
     /* Engine state display — v12 lifecycle */
-    if (_isV12) {
-      const st = S.engineState ?? 'off';
-      const labels = { off: 'OFF · E=AN', starting: 'ANLASSER…', running: 'RUNNING', shutdown: 'MOTOR AUS…' };
-      const colors  = { off: 'panel-value', starting: 'panel-value', running: 'panel-value green', shutdown: 'panel-value' };
+    const isV12 = S.aircraft?.sound?.engineType === 'v12-supercharged';
+    document.getElementById('pl-audio').textContent = isV12 ? 'Motor' : 'Audio';
+    document.getElementById('ps-rpm').style.display = isV12 ? 'none' : '';
+    if (isV12) {
+      const st     = S.engineState ?? 'off';
+      const rpmNow = getCurrentRpm();
+      const hasRpm = rpmNow && !rpmNow.startsWith('---');
+      const labels = {
+        off:      'OFF · E=AN',
+        starting: hasRpm ? 'ANLASSER · ' + rpmNow : 'ANLASSER…',
+        running:  hasRpm ? rpmNow : 'RUNNING',
+        shutdown: 'MOTOR AUS…',
+      };
+      const colors = { off: 'panel-value', starting: 'panel-value', running: 'panel-value green', shutdown: 'panel-value' };
       audioEl.textContent = labels[st] ?? st.toUpperCase();
       audioEl.className   = colors[st]  ?? 'panel-value';
     }
 
     /* Keybind hint: AP vs manual */
     const isManual = !!S.aircraft?.manualControl;
-    document.getElementById('keys-ap').style.display     = isManual ? 'none'   : '';
-    document.getElementById('keys-manual').style.display = isManual ? 'inline' : 'none';
+    document.getElementById('keys-ap').style.display       = isManual ? 'none'   : '';
+    document.getElementById('keys-manual').style.display   = isManual ? 'inline' : 'none';
+    document.getElementById('keys-spd').style.display      = isManual ? 'none'   : '';
+    document.getElementById('keys-throttle').style.display = isManual ? 'inline' : 'none';
   }
 
   /* ── METAR ── */

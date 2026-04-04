@@ -21,12 +21,9 @@ class DB605Processor extends AudioWorkletProcessor {
     this.body       = 0;
     this.bodyDecay  = Math.exp(-55  / sampleRate);   // ~60ms puff
 
-    const f0    = 45;
-    const r     = 0.96;
-    const omega = 2 * Math.PI * f0 / sampleRate;
-    this.resR   = r;
-    this.resCos = Math.cos(omega);
-    this.resSin = Math.sin(omega);
+    this.resR   = 0.94;
+    this.resCos = 1;
+    this.resSin = 0;
     this.resX   = 0;
     this.resY   = 0;
 
@@ -49,7 +46,13 @@ class DB605Processor extends AudioWorkletProcessor {
     const tau            = Math.max(firingInterval / 3, sampleRate * 0.003);
     this.bodyDecay       = Math.exp(-1 / tau);
     const overlap        = Math.exp(-firingInterval / tau);
-    this.noiseScale      = 0.2 * (1 - overlap); // less noise when firings overlap more
+    this.noiseScale      = 0.2 * (1 - overlap);
+
+    /* Resonator tracks firing frequency — 6 firings/rev for V12 */
+    const firingFreq = Math.min(480, rpm / 60 * 6);
+    const omega      = 2 * Math.PI * firingFreq / sampleRate;
+    this.resCos      = Math.cos(omega);
+    this.resSin      = Math.sin(omega);
   }
 
   process(inputs, outputs) {

@@ -13,6 +13,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from '../core/state.js';
+import { getRpmValue } from '../core/sound.js';
 
 /* ── Palette ── */
 const P = {
@@ -542,9 +543,11 @@ function _drawVariometer(ctx, x, y, r, sc) {
 /* Drehzahlmesser — DB 601 max ~2600 U/min */
 function _drawDrehzahl(ctx, x, y, r, sc) {
   const running  = S.engineState === 'running';
+  const starting = S.engineState === 'starting';
   const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 335;
   const throttle = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
-  const rpm  = running ? Math.round(400 + (2800 - 400) * throttle) : 0;
+  const liveRpm  = (running || starting) ? (getRpmValue() ?? 0) : 0;
+  const rpm      = running ? Math.round(400 + (2800 - 400) * throttle) : liveRpm;
   const maxR = 2800;
   const s0   = 220, sw = 280;
 
@@ -570,7 +573,7 @@ function _drawOelTemp(ctx, x, y, r, sc) {
   const running  = S.engineState === 'running';
   const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 335;
   const throttle = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
-  /* Rises with throttle over time; cold at start */
+  /* Rises with throttle over time; stays cold during startup */
   const oilT = running ? Math.min(130, 35 + throttle * 70 + (S.time ?? 0) * 0.04) : 0;
   const maxT = 130;
   const s0   = 220, sw = 280;
@@ -601,9 +604,14 @@ function _drawOelTemp(ctx, x, y, r, sc) {
 /* Öldruck — 0–10 atü */
 function _drawOelDruck(ctx, x, y, r, sc) {
   const running  = S.engineState === 'running';
+  const starting = S.engineState === 'starting';
   const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 335;
   const throttle = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
-  const oilP = running ? 1.5 + throttle * 6.0 : 0;   /* idle ~1.5 atü, full ~7.5 atü */
+  const startRpm = starting ? (getRpmValue() ?? 0) : 0;
+  /* Builds with RPM during startup (0→1.5 atü), then throttle-dependent when running */
+  const oilP = running ? 1.5 + throttle * 6.0
+             : starting ? Math.min(1.5, startRpm / 400 * 1.5)
+             : 0;
   const maxP = 10;
   const s0   = 220, sw = 280;
 
