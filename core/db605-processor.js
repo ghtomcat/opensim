@@ -32,9 +32,16 @@ class DB605Processor extends AudioWorkletProcessor {
     this.noiseScale = 0.2;
     this._updateBodyDecay(this.rpm);
 
+    this._dbgLastRpm = null;
     this.port.onmessage = (e) => {
       const d = e.data;
-      if (d.rpm        !== undefined) { this.rpm = d.rpm; this._updateBodyDecay(d.rpm); }
+      if (d.rpm !== undefined) {
+        if (d.rpm !== this._dbgLastRpm) {
+          this._dbgLastRpm = d.rpm;
+          console.log(`[WKT] rpm=${Math.round(d.rpm)} masterGain=${d.masterGain?.toFixed(3)}`);
+        }
+        this.rpm = d.rpm; this._updateBodyDecay(d.rpm);
+      }
       if (d.masterGain !== undefined) this.masterGain = d.masterGain;
       if (d.laderGain  !== undefined) this.laderGain  = d.laderGain;
       if (d.laderFreq  !== undefined) this.laderFreq  = d.laderFreq;
@@ -87,7 +94,7 @@ class DB605Processor extends AudioWorkletProcessor {
       this.resX     = nx;
       this.resY     = ny;
 
-      out[i] = (raw * 0.05 + nx * 0.95) * this.masterGain;
+      out[i] = (raw * 0.05 + nx * 0.95);   // gain handled by _master GainNode in main thread
     }
 
     return true;

@@ -2576,6 +2576,7 @@
         shutdown: 'MOTOR AUS…',
       };
       const colors = { off: 'panel-value', starting: 'panel-value', running: 'panel-value green', shutdown: 'panel-value' };
+      const audioEl = document.getElementById('pv-audio');
       audioEl.textContent = labels[st] ?? st.toUpperCase();
       audioEl.className   = colors[st]  ?? 'panel-value';
     }
@@ -2898,8 +2899,10 @@
 
   /* ── Test API — only active when ?test=1 ── */
   if (new URLSearchParams(location.search).get('test') === '1') {
-    window.simGetState = () => ({ ...S });
-    window.simSetState = (patch) => setState(patch);
+    window.simGetState    = () => ({ ...S });
+    window.simSetState    = (patch) => setState(patch);
+    window.simGetRpm      = () => getCurrentRpm();
+    window.simEngineState = () => S.engineState ?? 'off';
     window.simStep     = (n = 1, dt = 1/60) => {
       const isHC = S.aircraft?.type === 'hovercraft';
       for (let i = 0; i < n; i++) {

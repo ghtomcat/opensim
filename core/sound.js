@@ -222,6 +222,7 @@ let _inStartup    = false;
 
 /* ── Internal state — AudioWorklet path (V12) ── */
 let _workletNode  = null;   // AudioWorkletNode
+let _workletMute  = null;   // GainNode between worklet and _master — 0 during startup, 1 after
 let _workletReady = false;
 
 /* ── Engine lifecycle (v12-supercharged only) ── */
@@ -636,12 +637,20 @@ export function switchEngine(type) {
   if (wasRunning) startSound();
 }
 
+let _dbgLastSpdT = null;
 export function tickSound() {
   if (!_ctx || !_started || !_cfg) return;
 
   const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 350;
   const throttle = Math.max(0, Math.min(1, S.spdT / maxSpd));
   const now      = _ctx.currentTime;
+
+  /* ── DEBUG: log on spdT change ── */
+  if (S.spdT !== _dbgLastSpdT) {
+    _dbgLastSpdT = S.spdT;
+    const rpm = _cfg.rpmIdle + (_cfg.rpmMax - _cfg.rpmIdle) * throttle;
+    console.log(`[SND] spdT=${S.spdT} throttle=${throttle.toFixed(3)} rpm=${Math.round(rpm)} | impulse=${_cfg.impulse} workletNode=${!!_workletNode} workletReady=${_workletReady} started=${_started}`);
+  }
 
   if (_cfg.impulse && _workletNode && _workletReady) {
     const ePow  = S.enginePower ?? 1.0;
@@ -655,7 +664,7 @@ export function tickSound() {
     const lFreq = _cfg.superchargerFreqIdle + (_cfg.superchargerFreqMax - _cfg.superchargerFreqIdle) * throttle;
     const lGain = _cfg.superchargerGain * (0.15 + 0.85 * throttle);
 
-    _workletNode.port.postMessage({ rpm, masterGain: gain, laderGain: lGain, laderFreq: lFreq, throttle });
+    _workletNode.port.postMessage({ rpm, laderGain: lGain, laderFreq: lFreq, throttle });
   } else if (_cfg.edf) {
     /* ── EDF hovercraft — two independent fan banks ── */
     /* Read commanded throttle directly — immediate slider response */
@@ -804,17 +813,19 @@ async function _startWorkletEngine() {
     await _ctx.audioWorklet.addModule(workletFile);
 
     _workletNode = new AudioWorkletNode(_ctx, workletName);
-    _workletNode.connect(_master);
+    _workletMute = _ctx.createGain();
+    _workletMute.gain.value = 1.0;   // no startup silence needed on this path
+    _workletNode.connect(_workletMute);
+    _workletMute.connect(_master);
 
     _master.gain.setValueAtTime(0, _ctx.currentTime);
     _master.gain.setTargetAtTime(_cfg.masterGain * 0.4, _ctx.currentTime, 0.5);
 
-    /* Send initial parameters */
+    /* Send initial parameters — worklet no longer applies masterGain internally */
     _workletNode.port.postMessage({
-      rpm:        _cfg.rpmIdle,
-      masterGain: _cfg.masterGain * 0.4,
-      laderGain:  0,
-      laderFreq:  _cfg.superchargerFreqIdle,
+      rpm:       _cfg.rpmIdle,
+      laderGain: 0,
+      laderFreq: _cfg.superchargerFreqIdle,
     });
 
     _buildSupercharger();
@@ -1393,8 +1404,11 @@ async function _loadWorkletSilently() {
   try {
     await _ctx.audioWorklet.addModule(workletFile);
     _workletNode = new AudioWorkletNode(_ctx, workletName);
-    _workletNode.connect(_master);
-    _workletNode.port.postMessage({ rpm: _cfg.rpmIdle, masterGain: 0, laderGain: 0, laderFreq: _cfg.superchargerFreqIdle });
+    _workletMute = _ctx.createGain();
+    _workletMute.gain.value = 0;   // silent during startup — unmuted at handoff
+    _workletNode.connect(_workletMute);
+    _workletMute.connect(_master);
+    _workletNode.port.postMessage({ rpm: _cfg.rpmIdle, laderGain: 0, laderFreq: _cfg.superchargerFreqIdle });
     _buildSupercharger();
     _buildWindLayer();
   } catch (err) {
@@ -1422,7 +1436,10 @@ export async function startEngineLifecycle() {
   ab.copyToChannel(startupBuf, 0);
   const src = _ctx.createBufferSource();
   src.buffer = ab;
-  src.connect(_ctx.destination);
+  /* Route through _master so gain chain is consistent with live worklet.
+     Buffer already has scale baked in — set _master to 1.0 so it passes through unchanged. */
+  _master.gain.value = 1.0;
+  src.connect(_master);
   _lifecycleSrc = src;
   _lifecycleStartedAt = _ctx.currentTime;
   src.start();
@@ -1438,17 +1455,19 @@ export async function startEngineLifecycle() {
     setState({ engineState: 'running', engineTemp: Math.min(1, (S.engineTemp ?? 0) + 0.8) });
 
     const now = _ctx.currentTime;
+    /* Unmute worklet; transition _master from 1.0 (startup pass-through) to idle level.
+       Worklet outputs normalized signal — _master.gain is the sole volume control. */
+    _workletMute?.gain.setTargetAtTime(1.0, now, 0.3);
     _master.gain.setTargetAtTime(_cfg.masterGain * 0.4, now, 0.3);
-    _workletNode.port.postMessage({ rpm: _cfg.rpmIdle, masterGain: _cfg.masterGain * 0.4, laderGain: 0, laderFreq: _cfg.superchargerFreqIdle });
+    _workletNode.port.postMessage({ rpm: _cfg.rpmIdle, laderGain: 0, laderFreq: _cfg.superchargerFreqIdle });
 
-    /* Lader handoff — match synthesis endpoint so there's no gap.
-       Synthesis ends at 930*rpmIdle/1000 Hz, gain 0.10 scaled by buffer scale.
-       Convert to _laderGain space: (synthGain × scale) / masterGain×0.4 */
+    /* Lader handoff — synthesis ends with Lader at 0.10 × scale going through _master(=1.0).
+       After handoff _master drops to masterGain×0.4, so _laderGain must compensate. */
     if (_lader && _laderGain) {
       const scale      = (_cfg.masterGain * 0.4) / 0.8;       // buffer scaling factor
-      const synthLader = 0.10 * scale;                          // synthesis Lader level at destination
-      const laderGainV = synthLader / (_cfg.masterGain * 0.4); // convert to _laderGain space
-      const laderFreqV = _cfg.superchargerFreqIdle;             // Hz at idle — matches live tickSound formula
+      const synthLader = 0.10 * scale;                          // Lader level at end of startup (through _master=1.0)
+      const laderGainV = synthLader / (_cfg.masterGain * 0.4); // _laderGain needed so lader×_master_idle = synthLader
+      const laderFreqV = _cfg.superchargerFreqIdle;
       _lader.frequency.setValueAtTime(laderFreqV, now);
       _laderGain.gain.setValueAtTime(laderGainV, now);
     }
@@ -1491,6 +1510,7 @@ function _teardown() {
   _inStartup = false;
   _workletReady = false;
   try { _workletNode?.disconnect(); } catch {}
+  try { _workletMute?.disconnect(); } catch {}
   _edfLiftOscs.forEach(({ osc }) => { try { osc.stop(); } catch {} });
   _edfThrOscs.forEach(({ osc })  => { try { osc.stop(); } catch {} });
   try { _edfLiftNoiseSrc?.stop(); } catch {}
@@ -1524,7 +1544,7 @@ function _teardown() {
   _lfoOsc2 = null; _lfoGain2 = null;
   _resOsc = null; _resFilt = null; _resGain = null;
   _resDriftOsc = null; _resDriftGain = null;
-  _workletNode = null;
+  _workletNode = null; _workletMute = null;
   _windNoise = null; _windFilt = null; _windGain = null;
   _flapNoise = null; _flapFilt = null; _flapGain = null;
   try { _groundNoise?.stop(); } catch {}
