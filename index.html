@@ -2308,8 +2308,8 @@
 
   /* ── Init ── */
   async function init(missionId, aircraftId, inlineMission = null) {
-    /* Push a history entry so the back button returns to the selector */
-    history.pushState({ sim: true }, '');
+    /* Push a history entry with mission data so back/forward work correctly */
+    history.pushState({ missionId, aircraftId }, '', `?mission=${missionId}`);
 
     /* Stop any ADS-B tracking from a previous live flight */
     if (missionId !== 'live-flight') _stopTracking();
@@ -2958,11 +2958,20 @@
     showSelect();
   }
 
-  /* ── Back button: return to mission selector ── */
-  window.addEventListener('popstate', () => {
-    document.getElementById('mission-briefing').classList.remove('visible');
-    document.getElementById('mission-select').classList.remove('hidden');
-    document.title = 'OpenSim';
+  /* ── Back / forward button handling ── */
+  window.addEventListener('popstate', (e) => {
+    stopSound();
+    if (e.state?.missionId) {
+      /* Forward: restore the mission the state points to */
+      document.getElementById('mission-select').classList.add('hidden');
+      document.getElementById('mission-briefing').classList.remove('visible');
+      init(e.state.missionId, e.state.aircraftId).catch(console.error);
+    } else {
+      /* Back: return to mission selector */
+      document.getElementById('mission-briefing').classList.remove('visible');
+      document.getElementById('mission-select').classList.remove('hidden');
+      document.title = 'OpenSim';
+    }
   });
 
   /* ── Test API — only active when ?test=1 ── */
