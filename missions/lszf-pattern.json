@@ -49,9 +49,12 @@
 
   "com": {
     "title": "COM 1 — LSZK",
-    "active":  "120.350",
-    "standby": "124.700",
+    "active":  "119.700",
+    "standby": "120.350",
     "freqs": {
+      "119.700": { "label": "LSZH APPROACH",
+                   "stream": "http://d.liveatc.net/lszh_app_final",
+                   "streamPage": "https://www.liveatc.net/hlisten.php?mount=lszh_app_final&icao=lszh" },
       "120.350": { "label": "LSZK AFIS" },
       "124.700": { "label": "LSZH INFO" },
       "121.500": { "label": "GUARD" }

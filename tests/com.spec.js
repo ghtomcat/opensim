@@ -32,16 +32,16 @@ async function getPresetFreqs(page) {
 /* ── LSZF mission-specific frequencies ── */
 
 test.describe('LSZF pattern — mission COM', () => {
-  test('active frequency is LSZK AFIS 120.350', async ({ page }) => {
+  test('active frequency is LSZH Approach 119.700', async ({ page }) => {
     await loadMission(page, 'lszf-pattern');
     const active = await getActiveFreq(page);
-    expect(active.trim()).toBe('120.350');
+    expect(active.trim()).toBe('119.700');
   });
 
-  test('standby frequency is LSZH Info 124.700', async ({ page }) => {
+  test('standby frequency is LSZK AFIS 120.350', async ({ page }) => {
     await loadMission(page, 'lszf-pattern');
     const standby = await getStandbyFreq(page);
-    expect(standby.trim()).toBe('124.700');
+    expect(standby.trim()).toBe('120.350');
   });
 
   test('guard 121.500 is present in presets', async ({ page }) => {
@@ -54,7 +54,7 @@ test.describe('LSZF pattern — mission COM', () => {
     await loadMission(page, 'lszf-pattern');
     const presets = await getPresetFreqs(page);
     const freqs = presets.map(f => f.trim()).sort();
-    expect(freqs).toEqual(['120.350', '121.500', '124.700'].sort());
+    expect(freqs).toEqual(['119.700', '120.350', '121.500', '124.700'].sort());
   });
 });
 
@@ -98,6 +98,6 @@ test.describe('COM resets on mission switch', () => {
     const freqLszf = (await getActiveFreq(page)).trim();
 
     expect(freqLszh).not.toBe(freqLszf);
-    expect(freqLszf).toBe('120.350');
+    expect(freqLszf).toBe('119.700');
   });
 });
