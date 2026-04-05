@@ -63,6 +63,7 @@ export function initCOM(container) {
   container.innerHTML = _html();
   _render();
   if (!_bound) { _bindEvents(container); _bound = true; }
+  _onTune(COM.active);   // start stream if active freq has one
 }
 
 /* ═══ Private — DOM ════════════════════════════════════════════ */
