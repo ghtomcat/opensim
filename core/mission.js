@@ -25,6 +25,13 @@ export async function loadMission(missionPath, aircraftPath) {
   /* Weight-on-wheels: true when starting at or below departure/arrival elevation */
   const groundElev = mission.departure?.elevation ?? mission.arrival?.elevation ?? 0;
   const startOnGround = spd === 0 && alt <= groundElev + 2;
+  const startAirborne = !startOnGround && spd > 0;
+
+  /* Oil temperature: cold on ground, warm if already airborne (engine running since before mission start) */
+  const startOilTempC = startAirborne ? 75 : 15;
+
+  /* Engine state: if airborne, engine is already running — skip startup sequence */
+  const startEngineState = startAirborne ? 'running' : 'off';
 
   setState({
     aircraft,
@@ -46,6 +53,8 @@ export async function loadMission(missionPath, aircraftPath) {
     wow:   startOnGround,
     trim:  0,
     enginePower: 1.0,
+    engineState: startEngineState,
+    oilTempC:    startOilTempC,
     ilsLoc: 1.2, ilsLocT: 1.2,
     ilsGs: -0.8, ilsGsT: -0.8,
     time:  0,

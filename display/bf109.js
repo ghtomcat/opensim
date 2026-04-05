@@ -568,13 +568,9 @@ function _drawDrehzahl(ctx, x, y, r, sc) {
   _label(ctx, x, y, r, 'Drehzahlmesser', sc);
 }
 
-/* Öltemperatur — 0–130°C. Simulated from throttle + time. */
+/* Öltemperatur — 0–130°C. Thermally lagged state from physics.js. */
 function _drawOelTemp(ctx, x, y, r, sc) {
-  const running  = S.engineState === 'running';
-  const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 335;
-  const throttle = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
-  /* Rises with throttle over time; stays cold during startup */
-  const oilT = running ? Math.min(130, 35 + throttle * 70 + (S.time ?? 0) * 0.04) : 0;
+  const oilT = Math.max(0, Math.min(130, S.oilTempC ?? 15));
   const maxT = 130;
   const s0   = 220, sw = 280;
 

@@ -290,11 +290,20 @@ export function tickPhysics(dt) {
     }
   }
 
+  /* ── Oil temperature — first-order lag toward throttle-dependent target ── */
+  const _running  = S.engineState === 'running';
+  const _throttle = Math.max(0, Math.min(1, (S.spdT ?? 0) / (ac.envelope.maxSpd ?? 335)));
+  const _oilTarget = _running ? 40 + _throttle * 75 : 15;   // °C: 40 idle → 115 full
+  const _tau       = _running ? 180 : 600;                   // s: 3 min warm-up, 10 min cool-down
+  const _oilNow    = S.oilTempC ?? 15;
+  const newOilTempC = _oilNow + (_oilTarget - _oilNow) * (dt / _tau);
+
   setState({ alt: newAlt, spd: newSpd, hdg: newHdg, pitch: newPitch, roll: newRoll,
              rollRate: newRollRate, pitchRate: newPitchRate,
              vs, ilsLoc, ilsGs, fma, lat: newLat, lon: newLon,
              prevAlt: S.alt, time: S.time + dt,
-             wow: newWow, touchdownVS: newTouchdownVS });
+             wow: newWow, touchdownVS: newTouchdownVS,
+             oilTempC: newOilTempC });
 }
 
 export function resetApproach() {

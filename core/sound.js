@@ -1455,22 +1455,12 @@ export async function startEngineLifecycle() {
     setState({ engineState: 'running', engineTemp: Math.min(1, (S.engineTemp ?? 0) + 0.8) });
 
     const now = _ctx.currentTime;
-    /* Unmute worklet; transition _master from 1.0 (startup pass-through) to idle level.
-       Worklet outputs normalized signal — _master.gain is the sole volume control. */
+    /* Unmute worklet — _workletMute fades from 0→1 over 0.3s.
+       Do NOT touch _master.gain or _laderGain here: tickSound runs every frame
+       and will ramp both smoothly (τ=0.08s and τ=0.5s respectively), avoiding
+       the gain-product overshoot that caused a ping at handoff. */
     _workletMute?.gain.setTargetAtTime(1.0, now, 0.3);
-    _master.gain.setTargetAtTime(_cfg.masterGain * 0.4, now, 0.3);
-    _workletNode.port.postMessage({ rpm: _cfg.rpmIdle, laderGain: 0, laderFreq: _cfg.superchargerFreqIdle });
-
-    /* Lader handoff — synthesis ends with Lader at 0.10 × scale going through _master(=1.0).
-       After handoff _master drops to masterGain×0.4, so _laderGain must compensate. */
-    if (_lader && _laderGain) {
-      const scale      = (_cfg.masterGain * 0.4) / 0.8;       // buffer scaling factor
-      const synthLader = 0.10 * scale;                          // Lader level at end of startup (through _master=1.0)
-      const laderGainV = synthLader / (_cfg.masterGain * 0.4); // _laderGain needed so lader×_master_idle = synthLader
-      const laderFreqV = _cfg.superchargerFreqIdle;
-      _lader.frequency.setValueAtTime(laderFreqV, now);
-      _laderGain.gain.setValueAtTime(laderGainV, now);
-    }
+    _workletNode.port.postMessage({ rpm: _cfg.rpmIdle, laderFreq: _cfg.superchargerFreqIdle });
 
     _started = true; _workletReady = true; _inStartup = false;
   };

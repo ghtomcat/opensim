@@ -2424,9 +2424,14 @@
       window.removeEventListener('keydown', dismissOnboarding);
       obEl.removeEventListener('click', dismissOnboarding);
       if (_isV12) {
-        /* V12: engine starts OFF — user presses E to Anlasser */
-        audioEl.textContent = 'OFF · E=ANLASSER';
-        audioEl.className   = 'panel-value';
+        if (S.engineState === 'running') {
+          /* Airborne start — engine already running, skip Anlasser */
+          startSound(engineType);
+        } else {
+          /* Ground start — engine off, user presses E */
+          audioEl.textContent = 'OFF · E=ANLASSER';
+          audioEl.className   = 'panel-value';
+        }
       } else {
         startSound(engineType);   /* AudioContext must start on user gesture */
       }
