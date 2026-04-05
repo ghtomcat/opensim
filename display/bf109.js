@@ -542,12 +542,13 @@ function _drawVariometer(ctx, x, y, r, sc) {
 
 /* Drehzahlmesser — DB 601 max ~2600 U/min */
 function _drawDrehzahl(ctx, x, y, r, sc) {
-  const running  = S.engineState === 'running';
-  const starting = S.engineState === 'starting';
-  const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 335;
-  const throttle = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
-  const liveRpm  = (running || starting) ? (getRpmValue() ?? 0) : 0;
-  const rpm      = running ? Math.round(400 + (2800 - 400) * throttle) : liveRpm;
+  const running   = S.engineState === 'running';
+  const starting  = S.engineState === 'starting';
+  const shuttingDown = S.engineState === 'shutdown';
+  const maxSpd    = S.aircraft?.envelope?.maxSpd ?? 335;
+  const throttle  = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
+  const liveRpm   = (running || starting || shuttingDown) ? (getRpmValue() ?? 0) : 0;
+  const rpm       = running ? Math.round(400 + (2800 - 400) * throttle) : liveRpm;
   const maxR = 2800;
   const s0   = 220, sw = 280;
 
@@ -599,14 +600,16 @@ function _drawOelTemp(ctx, x, y, r, sc) {
 
 /* Öldruck — 0–10 atü */
 function _drawOelDruck(ctx, x, y, r, sc) {
-  const running  = S.engineState === 'running';
-  const starting = S.engineState === 'starting';
-  const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 335;
-  const throttle = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
-  const startRpm = starting ? (getRpmValue() ?? 0) : 0;
-  /* Builds with RPM during startup (0→1.5 atü), then throttle-dependent when running */
-  const oilP = running ? 1.5 + throttle * 6.0
-             : starting ? Math.min(1.5, startRpm / 400 * 1.5)
+  const running      = S.engineState === 'running';
+  const starting     = S.engineState === 'starting';
+  const shuttingDown = S.engineState === 'shutdown';
+  const maxSpd       = S.aircraft?.envelope?.maxSpd ?? 335;
+  const throttle     = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
+  const dynRpm       = (starting || shuttingDown) ? (getRpmValue() ?? 0) : 0;
+  /* Builds with RPM during startup, decays during shutdown */
+  const oilP = running     ? 1.5 + throttle * 6.0
+             : starting    ? Math.min(1.5, dynRpm / 400 * 1.5)
+             : shuttingDown ? Math.max(0, dynRpm / 2800 * 7.5)
              : 0;
   const maxP = 10;
   const s0   = 220, sw = 280;

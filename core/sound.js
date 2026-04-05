@@ -187,6 +187,14 @@ export function getCurrentRpm() {
     return Math.round(80 + (idleRpm - 80) * Math.pow(p, 0.55)) + ' RPM';  // runup 80→idle
   }
 
+  /* During shutdown: exponential decay from _shutdownRpm */
+  if (S.engineState === 'shutdown' && _shutdownAt !== null && _ctx) {
+    const elapsed = _ctx.currentTime - _shutdownAt;
+    const rpm = Math.max(0, _shutdownRpm * Math.exp(-elapsed / 1.2));
+    if (rpm < 5) return '--- RPM';
+    return Math.round(rpm) + ' RPM';
+  }
+
   const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 350;
   const throttle = Math.max(0, Math.min(1, S.spdT / maxSpd));
   const ePow     = Math.max(0.05, S.enginePower ?? 1.0);
@@ -226,6 +234,9 @@ let _workletMute  = null;   // GainNode between worklet and _master — 0 during
 let _workletReady = false;
 
 /* ── Engine lifecycle (v12-supercharged only) ── */
+let _lastRpm         = 1000;   // last computed RPM — used by shutdown synth
+let _shutdownRpm     = 0;      // RPM at moment of shutdown — for gauge decay
+let _shutdownAt      = null;   // _ctx.currentTime when shutdown began
 let _engineType      = null;   // current engine type string
 let _lifecycleSrc    = null;   // BufferSource playing startup sequence
 let _lifecycleStartedAt = null; // _ctx.currentTime when startup began
@@ -639,7 +650,23 @@ export function switchEngine(type) {
 
 let _dbgLastSpdT = null;
 export function tickSound() {
-  if (!_ctx || !_started || !_cfg) return;
+  if (!_ctx || !_cfg) return;
+
+  /* Wind survives engine shutdown — update it whenever AudioContext is alive */
+  if (!_started) {
+    if (_windGain && _flapGain) {
+      const now   = _ctx.currentTime;
+      const spd   = S.spd ?? 0;
+      const sf    = Math.min(1, spd / 120);
+      const flaps = (S.flaps ?? 0) / 3;
+      const propTurb = 1 + (1 - (S.enginePower ?? 1.0)) * 0.5;
+      _windGain.gain.setTargetAtTime(0.32 * sf * propTurb, now, 0.3);
+      _windFilt.frequency.setTargetAtTime(300 - 100 * flaps, now, 0.3);
+      _windFilt.Q.setTargetAtTime(0.7 - 0.3 * flaps, now, 0.3);
+      _flapGain.gain.setTargetAtTime(0.18 * flaps * sf, now, 0.3);
+    }
+    return;
+  }
 
   const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 350;
   const throttle = Math.max(0, Math.min(1, S.spdT / maxSpd));
@@ -655,6 +682,7 @@ export function tickSound() {
   if (_cfg.impulse && _workletNode && _workletReady) {
     const ePow  = S.enginePower ?? 1.0;
     const rpm   = _cfg.rpmIdle + (_cfg.rpmMax - _cfg.rpmIdle) * throttle * ePow;
+    _lastRpm    = rpm;
     const gain  = _cfg.masterGain * (0.4 + 0.6 * throttle) * Math.max(0.05, ePow);
 
     /* Drive _master.gain with throttle — same as oscillator path */
@@ -1350,7 +1378,7 @@ function _synthRunup(sr, duration = 42.0, targetRpm = 1000) {
   return buf;
 }
 
-function _synthShutdown(sr) {
+function _synthShutdown(sr, startRpm = 1000) {
   const duration = 5.0, N = Math.floor(sr*duration), buf = new Float32Array(N);
   let lfsr = 0xACE1;
   const resCos = Math.cos(2*Math.PI*45/sr), resSin = Math.sin(2*Math.PI*45/sr), resR = 0.96;
@@ -1362,7 +1390,7 @@ function _synthShutdown(sr) {
   let crankAngle = 0, laderPhase = 0;
   for (let i = 0; i < N; i++) {
     const t = i/sr;
-    const rpm = Math.max(0, 1000*Math.exp(-t/1.2));
+    const rpm = Math.max(0, startRpm * Math.exp(-t/1.2));
     if (rpm < 5) break;
     if (i%128===0) { const fi=sr*10/Math.max(rpm,1), tau=Math.max(fi/3,sr*0.003); bodyDecay=Math.exp(-1/tau); noiseScale=0.2*(1-Math.exp(-fi/tau)); }
     const degPerSample = rpm/60/sr*360, prev = crankAngle;
@@ -1380,17 +1408,44 @@ function _synthShutdown(sr) {
     const lFIdle=_cfg?.superchargerFreqIdle??700, rIdle=_cfg?.rpmIdle??400;
     const laderFreq=lFIdle*rpm/rIdle; laderPhase+=laderFreq/sr;
     const lader=(Math.sin(2*Math.PI*laderPhase)+Math.sin(4*Math.PI*laderPhase)*0.4)*Math.exp(-t/0.4)*0.10;
-    buf[i] = ((raw*0.05+nx*0.95)*0.8+lader)*(rpm/1000);
+    buf[i] = ((raw*0.05+nx*0.95)*0.8+lader)*(rpm/startRpm);
   }
   return buf;
 }
 
 function _assembleStartup(sr) {
-  const fw=_synthFlywheel(sr), kl=_synthKlonk(sr), mot=_synthMotoring(sr), run=_synthRunup(sr, 42.0, _cfg?.rpmIdle ?? 1000);
-  const gap=Math.floor(sr*0.06);
-  const total=fw.length+gap+kl.length+gap+mot.length+gap+run.length;
-  const full=new Float32Array(total);
-  let off=0; full.set(fw,off); off+=fw.length+gap; full.set(kl,off); off+=kl.length+gap; full.set(mot,off); off+=mot.length+gap; full.set(run,off);
+  const oilC = S.oilTempC ?? 15;
+  const gap   = Math.floor(sr * 0.06);
+
+  let parts;
+  if (oilC >= 60) {
+    /* Hot engine — skip flywheel and Klonk entirely */
+    const mot = _synthMotoring(sr);
+    const run = _synthRunup(sr, 42.0, _cfg?.rpmIdle ?? 1000);
+    parts = [mot, run];
+  } else if (oilC >= 30) {
+    /* Warm engine — shortened flywheel (~12 s) */
+    const fw  = _synthFlywheel(sr, 12.0);
+    const kl  = _synthKlonk(sr);
+    const mot = _synthMotoring(sr);
+    const run = _synthRunup(sr, 42.0, _cfg?.rpmIdle ?? 1000);
+    parts = [fw, kl, mot, run];
+  } else {
+    /* Cold engine — full 26 s flywheel */
+    const fw  = _synthFlywheel(sr, 26.0);
+    const kl  = _synthKlonk(sr);
+    const mot = _synthMotoring(sr);
+    const run = _synthRunup(sr, 42.0, _cfg?.rpmIdle ?? 1000);
+    parts = [fw, kl, mot, run];
+  }
+
+  const total = parts.reduce((s, p) => s + p.length + gap, 0) - gap;
+  const full  = new Float32Array(total);
+  let off = 0;
+  for (let i = 0; i < parts.length; i++) {
+    full.set(parts[i], off);
+    off += parts[i].length + (i < parts.length - 1 ? gap : 0);
+  }
   /* Scale entire buffer so the runup endpoint (×0.8) matches worklet idle level (masterGain×0.4) */
   const scale = ((_cfg?.masterGain ?? 0.8) * 0.4) / 0.8;
   for (let i = 0; i < full.length; i++) full[i] *= scale;
@@ -1477,30 +1532,32 @@ export function stopEngineLifecycle() {
   _lifecycleStartedAt = null;
 
   setState({ engineState: 'shutdown' });
+  _shutdownRpm = _lastRpm;
+  _shutdownAt  = _ctx?.currentTime ?? 0;
 
   if (_ctx) {
-    const shutBuf = _synthShutdown(_ctx.sampleRate);
+    const shutBuf = _synthShutdown(_ctx.sampleRate, _lastRpm);
     const ab  = _ctx.createBuffer(1, shutBuf.length, _ctx.sampleRate);
     ab.copyToChannel(shutBuf, 0);
     const src = _ctx.createBufferSource();
     src.buffer = ab;
     const shutGain = _ctx.createGain();
-    shutGain.gain.value = (_cfg?.masterGain ?? 0.8) * 0.4 / 0.8;  /* match worklet idle level */
+    shutGain.gain.value = _master?.gain.value ?? ((_cfg?.masterGain ?? 0.8) * 0.4 / 0.8);
     src.connect(shutGain); shutGain.connect(_ctx.destination);
     src.start();
     _master?.gain.setTargetAtTime(0, _ctx.currentTime, 0.3);
   }
 
-  setTimeout(() => { _teardown(); setState({ engineState: 'off' }); }, 5500);
+  setTimeout(() => { _teardownEngine(); setState({ engineState: 'off' }); }, 5500);
 }
 
-/* ── Teardown ── */
-function _teardown() {
-  if (!_ctx) return;
+/* ── Engine-only teardown — leaves AudioContext + wind + flap alive ── */
+function _teardownEngine() {
   _inStartup = false;
   _workletReady = false;
   try { _workletNode?.disconnect(); } catch {}
   try { _workletMute?.disconnect(); } catch {}
+  _workletNode = null; _workletMute = null;
   _edfLiftOscs.forEach(({ osc }) => { try { osc.stop(); } catch {} });
   _edfThrOscs.forEach(({ osc })  => { try { osc.stop(); } catch {} });
   try { _edfLiftNoiseSrc?.stop(); } catch {}
@@ -1522,6 +1579,21 @@ function _teardown() {
   try { _lfoOsc2?.stop();    } catch {}
   try { _resOsc?.stop();     } catch {}
   try { _resDriftOsc?.stop();} catch {}
+  _master = null; _waveshaper = null; _oscs = [];
+  _noise = null; _noiseGain = null;
+  _lader = null; _laderGain = null;
+  _lader2 = null; _lader2Gain = null;
+  _lfoOsc = null; _lfoGain = null;
+  _lfoOsc2 = null; _lfoGain2 = null;
+  _resOsc = null; _resFilt = null; _resGain = null;
+  _resDriftOsc = null; _resDriftGain = null;
+  _started = false;
+}
+
+/* ── Full teardown — kills everything including wind ── */
+function _teardown() {
+  if (!_ctx) return;
+  _teardownEngine();
   try { _windNoise?.stop();  } catch {}
   try { _flapNoise?.stop();  } catch {}
   _ctx.close();

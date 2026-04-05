@@ -1233,7 +1233,7 @@
   <span id="keys-ap">↑↓ ALT ±500 · ←→ HDG ±5<br></span>
   <span id="keys-manual" style="display:none">↑↓ PITCH · ←→ BANK<br></span>
   <span id="keys-spd">+ / − SPD</span><span id="keys-throttle" style="display:none">+ / − THROTTLE</span> · F1–F4 DETENT<br>
-  F flaps · G gear<br>
+  f/F flaps ▼▲ · G gear<br>
   TAB display · V outside · P pause · R role<br>
   SPACE PTT
 </div>
@@ -2366,11 +2366,12 @@
       { key: '+ −',    desc: 'Speed ±5 kt' },
       { key: '1–5',    desc: 'Situation: Ground · Takeoff · Climb · Cruise · Approach' },
       { key: 'F1–F4',  desc: 'Thrust: IDLE · CLB · MCT · TOGA' },
-      { key: 'F',      desc: 'Flaps (cycle up)' },
+      { key: 'f / F',  desc: 'Flaps ▼ extend / ▲ retract' },
       { key: 'G',      desc: 'Gear toggle' },
       { key: 'Tab',    desc: 'Display: PFD ↔ ECAM' },
       { key: 'P',      desc: 'Pause' },
       { key: 'M',      desc: 'Audio on/off' },
+      { key: 'E / Q',  desc: 'Anlasser / Kraftstoffhahn (Bf 109)' },
       { key: 'R',      desc: 'Role: PF → PM → INSTRUCTOR' },
       { key: 'Space',  desc: 'PTT — Push to Talk' },
     ];
@@ -2429,7 +2430,7 @@
           startSound(engineType);
         } else {
           /* Ground start — engine off, user presses E */
-          audioEl.textContent = 'OFF · E=ANLASSER';
+          audioEl.textContent = 'OFF · E=ANLASSER · Q=AUS';
           audioEl.className   = 'panel-value';
         }
       } else {
@@ -2450,11 +2451,14 @@
         return;
       }
 
+      if ((e.key === 'q' || e.key === 'Q') && _isV12) {
+        /* Q = Kraftstoffhahn zu — Motor aus */
+        stopEngineLifecycle();
+        return;
+      }
+
       if (e.key === 'm' || e.key === 'M') {
-        if (_isV12) {
-          /* M = Motor aus */
-          stopEngineLifecycle();
-        } else {
+        if (!_isV12) {
           _audioOn = !_audioOn;
           if (_audioOn) { startSound(engineType); audioEl.textContent = 'ON';  audioEl.className = 'panel-value green'; }
           else          { stopSound();            audioEl.textContent = 'OFF'; audioEl.className = 'panel-value'; }
