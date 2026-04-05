@@ -717,6 +717,28 @@
       margin-top: 40px;
       text-transform: uppercase;
     }
+    .ms-tabs {
+      display: flex; gap: 0;
+      width: 100%; max-width: 1200px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .ms-tab {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px; letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: rgba(232,237,242,0.3);
+      padding: 8px 20px 10px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .ms-tab:hover { color: rgba(232,237,242,0.7); }
+    .ms-tab.active {
+      color: var(--white);
+      border-bottom-color: #4dc5dc;
+    }
 
     /* ── Live flight section ── */
     .ms-live-section {
@@ -1119,6 +1141,10 @@
 <div id="mission-select">
   <div class="ms-wordmark">OPENSIM</div>
   <div class="ms-sub">open-source flight simulation engine</div>
+  <div class="ms-tabs" id="ms-tabs">
+    <div class="ms-tab active" data-tab="fly">Fly</div>
+    <div class="ms-tab" data-tab="lab">Lab</div>
+  </div>
   <div class="ms-grid" id="ms-grid"></div>
 
   <div class="ms-live-section">
@@ -2156,9 +2182,29 @@
   });
 
   /* ── Selection screen ── */
+  let _activeTab = 'fly';
+  let _tabsWired = false;
+
   function showSelect() {
+    _renderGrid();
+
+    if (!_tabsWired) {
+      _tabsWired = true;
+      document.getElementById('ms-tabs').addEventListener('click', e => {
+        const tab = e.target.closest('.ms-tab');
+        if (!tab) return;
+        _activeTab = tab.dataset.tab;
+        document.querySelectorAll('.ms-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === _activeTab));
+        _renderGrid();
+      });
+    }
+  }
+
+  function _renderGrid() {
     const grid = document.getElementById('ms-grid');
-    MISSIONS.forEach(m => {
+    grid.innerHTML = '';
+    const isLab = _activeTab === 'lab';
+    MISSIONS.filter(m => isLab ? m.era === 'LAB' : m.era !== 'LAB').forEach(m => {
       const card = document.createElement('div');
       card.className = 'ms-card';
       card.style.setProperty('--card-accent', m.accent);
