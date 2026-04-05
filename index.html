@@ -2322,6 +2322,9 @@
 
     await loadMission(inlineMission ?? `missions/${missionId}.json`, `aircraft/${aircraftId}.json`);
 
+    /* Re-init COM with mission-specific frequencies now that S.mission is loaded */
+    initCOM(document.getElementById('com-container'));
+
     /* Reset hovercraft panel sliders on mission load */
     if (S.aircraft?.type === 'hovercraft') {
       const isMarkusOnly = S.aircraft?.id === 'hovercraft_markus';

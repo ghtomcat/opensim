@@ -44,6 +44,7 @@ const XPDR = {
 
 let _squelchCtx  = null;
 let _streamAudio = null;   // currently playing LiveATC stream
+let _bound       = false;  // event listeners registered once only
 
 /* ═══ Public ══════════════════════════════════════════════════ */
 
@@ -61,7 +62,7 @@ export function initCOM(container) {
   }
   container.innerHTML = _html();
   _render();
-  _bindEvents(container);
+  if (!_bound) { _bindEvents(container); _bound = true; }
 }
 
 /* ═══ Private — DOM ════════════════════════════════════════════ */

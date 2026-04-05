@@ -7,7 +7,7 @@
 
   "departure": null,
   "arrival": {
-    "icao": "LSZF",
+    "icao": "LSZK",
     "name": "Speck-Fehraltorf",
     "runway": "26",
     "ils": null,
@@ -46,6 +46,17 @@
     "Was the turn to final stabilised?",
     "Speed on final: 65kt?"
   ],
+
+  "com": {
+    "title": "COM 1 — LSZK",
+    "active":  "120.350",
+    "standby": "124.700",
+    "freqs": {
+      "120.350": { "label": "LSZK AFIS" },
+      "124.700": { "label": "LSZH INFO" },
+      "121.500": { "label": "GUARD" }
+    }
+  },
 
   "failures": []
 }
