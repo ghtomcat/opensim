@@ -112,7 +112,8 @@ export function tickPhysics(dt) {
     const CD    = CD_0_eff + k_ind * CL * CL;
     const L     = q * S_wing * CL;
     const D     = q * S_wing * CD;
-    const T     = throttle * T_max * (rho / 1.225) * (S.enginePower ?? 1.0);
+    const engineLive = S.engineState === 'running';
+    const T     = engineLive ? throttle * T_max * (rho / 1.225) * (S.enginePower ?? 1.0) : 0;
     const W     = mass * 9.81;
 
     if (onGround && (L < W || S.wow)) {  // wow latch: stay on ground once down
