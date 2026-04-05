@@ -2308,6 +2308,9 @@
 
   /* ── Init ── */
   async function init(missionId, aircraftId, inlineMission = null) {
+    /* Push a history entry so the back button returns to the selector */
+    history.pushState({ sim: true }, '');
+
     /* Stop any ADS-B tracking from a previous live flight */
     if (missionId !== 'live-flight') _stopTracking();
 
@@ -2954,6 +2957,13 @@
   } else {
     showSelect();
   }
+
+  /* ── Back button: return to mission selector ── */
+  window.addEventListener('popstate', () => {
+    document.getElementById('mission-briefing').classList.remove('visible');
+    document.getElementById('mission-select').classList.remove('hidden');
+    document.title = 'OpenSim';
+  });
 
   /* ── Test API — only active when ?test=1 ── */
   if (new URLSearchParams(location.search).get('test') === '1') {
