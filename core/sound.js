@@ -648,7 +648,6 @@ export function switchEngine(type) {
   if (wasRunning) startSound();
 }
 
-let _dbgLastSpdT = null;
 export function tickSound() {
   if (!_ctx || !_cfg) return;
 
@@ -671,13 +670,6 @@ export function tickSound() {
   const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 350;
   const throttle = Math.max(0, Math.min(1, S.spdT / maxSpd));
   const now      = _ctx.currentTime;
-
-  /* ── DEBUG: log on spdT change ── */
-  if (S.spdT !== _dbgLastSpdT) {
-    _dbgLastSpdT = S.spdT;
-    const rpm = _cfg.rpmIdle + (_cfg.rpmMax - _cfg.rpmIdle) * throttle;
-    console.log(`[SND] spdT=${S.spdT} throttle=${throttle.toFixed(3)} rpm=${Math.round(rpm)} | impulse=${_cfg.impulse} workletNode=${!!_workletNode} workletReady=${_workletReady} started=${_started}`);
-  }
 
   if (_cfg.impulse && _workletNode && _workletReady) {
     const ePow  = S.enginePower ?? 1.0;
