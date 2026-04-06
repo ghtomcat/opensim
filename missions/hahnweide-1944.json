@@ -4,7 +4,6 @@
   "description": "DB 601 startup and ground run at Hahnweide. The sound that started it all.",
   "author": "Markus Leutwyler",
   "aircraft": "bf109",
-
   "departure": null,
   "arrival": {
     "icao": "EDST",
@@ -13,44 +12,55 @@
     "ils": null,
     "elevation": 1312
   },
-
   "initialState": {
-    "lat":   48.634,
-    "lon":   9.577,
-    "alt":   1312,
-    "spd":   0,
-    "hdg":   260,
+    "lat": 48.634,
+    "lon": 9.577,
+    "alt": 1312,
+    "spd": 0,
+    "hdg": 260,
     "pitch": 0,
-    "roll":  0
+    "roll": 0
   },
-
   "weather": {
     "source": "live",
     "icao": "EDDS",
     "fallback": {
-      "wdir": 260, "wspd": 8, "altim": 1018,
-      "temp": 18, "dewp": 6, "visib": "6+",
-      "clouds": [{ "cover": "FEW", "base": 6000 }]
+      "wdir": 260,
+      "wspd": 8,
+      "altim": 1018,
+      "temp": 18,
+      "dewp": 6,
+      "visib": "6+",
+      "clouds": [
+        {
+          "cover": "FEW",
+          "base": 6000
+        }
+      ]
     }
   },
-
   "com": {
     "title": "FuG 16",
     "xpdrLabel": "FuG 25a IFF",
     "active": "122.975",
     "standby": "122.800",
     "freqs": {
-      "122.975": { "label": "HAHNWEIDE INFO" },
-      "122.800": { "label": "PLATZRUNDE" },
-      "121.500": { "label": "GUARD" }
+      "122.975": {
+        "label": "HAHNWEIDE INFO"
+      },
+      "122.800": {
+        "label": "PLATZRUNDE"
+      },
+      "121.500": {
+        "label": "GUARD"
+      }
     }
   },
-
   "debrief": [
     "DB 601 — 960hp takeoff, 1175hp emergency power.",
     "Calibrated from D-FEML ground run, Hangelar.",
     "Fundamental idle: ~110 Hz. Supercharger: 663 Hz."
   ],
-
-  "failures": []
+  "failures": [],
+  "timeOfDay": 14.0
 }

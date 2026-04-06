@@ -1,32 +1,33 @@
 {
-  "id":    "hovercraft-test",
+  "id": "hovercraft-test",
   "title": "Timo's Hovercraft — First Hover",
-
   "initialState": {
-    "alt":   0,
-    "spd":   0,
-    "hdg":   0,
+    "alt": 0,
+    "spd": 0,
+    "hdg": 0,
     "pitch": 0,
-    "roll":  0,
-    "lat":   47.19,
-    "lon":    8.82
+    "roll": 0,
+    "lat": 47.19,
+    "lon": 8.82
   },
-
   "departure": {
-    "icao":      "LSZF",
-    "name":      "Workshop Floor",
+    "icao": "LSZF",
+    "name": "Workshop Floor",
     "elevation": 0
   },
-
   "weather": {
-    "source":  "manual",
-    "manual":  { "wdir": 0, "wspd": 0, "turbulence": 0 }
+    "source": "manual",
+    "manual": {
+      "wdir": 0,
+      "wspd": 0,
+      "turbulence": 0
+    }
   },
-
   "notes": [
     "Freewing DF-80-12B @ 6S: 3300g Freiluft. ESC-Limit: 80% = 2640g.",
     "Plenum 0.24 m² × 135 Pa = 32.4 N = 3.30 kg Hubkraft.",
     "Schürze: PU-Ripstop, 50 mm. Leckage ~15% (einstellbar).",
     "Scenarios: Gewicht, ESC-Schutz, Node-Ausfall."
-  ]
+  ],
+  "timeOfDay": 12.0
 }

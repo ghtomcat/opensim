@@ -4,7 +4,6 @@
   "description": "Left-hand circuit at Flugplatz Grenchen. Robin DR400/140B. 160hp, stick, low wing.",
   "author": "Markus Leutwyler",
   "aircraft": "robin-dr400",
-
   "departure": null,
   "arrival": {
     "icao": "LSZG",
@@ -12,34 +11,40 @@
     "runway": "26",
     "ils": null,
     "elevation": 1411,
-    "rwyLat":     47.1815,
-    "rwyLon":      7.4172,
-    "rwyHdg":     260,
+    "rwyLat": 47.1815,
+    "rwyLon": 7.4172,
+    "rwyHdg": 260,
     "rwyLengthM": 900,
-    "rwyWidthM":   30,
-    "surface":    "asphalt"
+    "rwyWidthM": 30,
+    "surface": "asphalt"
   },
-
   "initialState": {
-    "lat":   47.1815,
-    "lon":   7.4172,
-    "alt":   1411,
-    "spd":   0,
-    "hdg":   260,
+    "lat": 47.1815,
+    "lon": 7.4172,
+    "alt": 1411,
+    "spd": 0,
+    "hdg": 260,
     "pitch": 0,
-    "roll":  0
+    "roll": 0
   },
-
   "weather": {
     "source": "live",
     "icao": "LSZG",
     "fallback": {
-      "wdir": 260, "wspd": 5, "altim": 1018,
-      "temp": 14, "dewp": 6, "visib": "6+",
-      "clouds": [{ "cover": "FEW", "base": 5000 }]
+      "wdir": 260,
+      "wspd": 5,
+      "altim": 1018,
+      "temp": 14,
+      "dewp": 6,
+      "visib": "6+",
+      "clouds": [
+        {
+          "cover": "FEW",
+          "base": 5000
+        }
+      ]
     }
   },
-
   "debrief": [
     "Circuit altitude: 2200ft (800ft AGL)?",
     "Downwind: 90kt, flaps 0°?",
@@ -47,6 +52,6 @@
     "Final: 70kt, flaps 30°?",
     "Threshold: 65kt, idle?"
   ],
-
-  "failures": []
+  "failures": [],
+  "timeOfDay": 11.0
 }

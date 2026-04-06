@@ -4,7 +4,6 @@
   "description": "Avro 504K patrol over the Marne valley. Le Rhône 9J at 600 RPM. Bröppel bröppel.",
   "author": "Markus Leutwyler",
   "aircraft": "avro504",
-
   "departure": null,
   "arrival": {
     "icao": "LFPM",
@@ -13,32 +12,38 @@
     "ils": null,
     "elevation": 302
   },
-
   "initialState": {
-    "lat":   48.65,
-    "lon":   2.85,
-    "alt":   3000,
-    "spd":   60,
-    "hdg":   270,
+    "lat": 48.65,
+    "lon": 2.85,
+    "alt": 3000,
+    "spd": 60,
+    "hdg": 270,
     "pitch": 6,
-    "roll":  0
+    "roll": 0
   },
-
   "weather": {
     "source": "live",
     "icao": "LFPB",
     "fallback": {
-      "wdir": 270, "wspd": 5, "altim": 1015,
-      "temp": 14, "dewp": 8, "visib": "6+",
-      "clouds": [{ "cover": "FEW", "base": 4500 }]
+      "wdir": 270,
+      "wspd": 5,
+      "altim": 1015,
+      "temp": 14,
+      "dewp": 8,
+      "visib": "6+",
+      "clouds": [
+        {
+          "cover": "FEW",
+          "base": 4500
+        }
+      ]
     }
   },
-
   "debrief": [
     "Le Rhône 9J — 9-cylinder rotary, 110hp.",
     "Blip switch on throttle < 30%: ignition cut.",
     "Gyroscopic torque: turn right costs power, turn left is free."
   ],
-
-  "failures": []
+  "failures": [],
+  "timeOfDay": 6.5
 }

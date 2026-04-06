@@ -34,7 +34,7 @@ export function renderTerrain(canvas) {
   const roll  = (S.roll  ?? 0) * DEG;
   const hdg   = (S.hdg   ?? 0) * DEG;
   const elevFt = S.mission?.arrival?.elevation ?? S.mission?.departure?.elevation ?? 0;
-  const agl    = Math.max(1, (S.alt ?? 1000) - elevFt);   // height above ground (ft)
+  const agl    = Math.max(1, (S.alt ?? 1000) - elevFt);
   const altNm  = agl * FT_NM;
 
   const focal = (W / 2) / Math.tan(FOV_H / 2 * DEG);
@@ -48,17 +48,11 @@ export function renderTerrain(canvas) {
      Returns [sx, sy] or null if behind camera.                   */
   function proj(fwd, right, upAdd) {
     const up = (upAdd ?? 0) - altNm;
-
-    /* Pitch (rotate around right/X axis) */
-    const cf = fwd * cosP + up * sinP;   /* cam depth  */
-    const cu = up  * cosP - fwd * sinP;  /* cam up     */
-
+    const cf = fwd * cosP + up * sinP;
+    const cu = up  * cosP - fwd * sinP;
     if (cf < 1e-4) return null;
-
-    /* Roll (rotate around fwd/Z axis) */
     const cr2 = right * cosR + cu * sinR;
     const cu2 = cu    * cosR - right * sinR;
-
     return [cx + cr2 / cf * focal, cy - cu2 / cf * focal];
   }
 
@@ -67,28 +61,134 @@ export function renderTerrain(canvas) {
     return proj(dN * cosH + dE * sinH, dE * cosH - dN * sinH, upAdd);
   }
 
-  /* ── Arctic terrain for Wolfskopf ── */
+  /* ── Mission flags ── */
   const isArctic = S.mission?.id === 'wolfskopf-1942';
+  const isWater  = S.mission?.water === true;
+
+  /* ── Time of day / sun ── */
+  const timeOfDay   = S.mission?.timeOfDay ?? 12;
+  const sunAlt      = Math.sin((timeOfDay - 6) / 12 * Math.PI);   // -1 midnight … +1 noon
+  const sunAzDeg    = (180 + (timeOfDay - 12) * 15 + 360) % 360;  // south at noon (NH)
+  const sunAltRad   = Math.asin(Math.max(-1, Math.min(1, sunAlt)));
+  const sunRelAzRad = ((sunAzDeg - (S.hdg ?? 0) + 540) % 360 - 180) * DEG;
+  const dayFrac     = Math.max(0, Math.min(1, (sunAlt + 0.15) / 0.25));  // 0=night 1=day
+  const goldenFrac  = Math.max(0, 1 - Math.abs(sunAlt) / 0.18);          // peak at sunrise/set
 
   /* ── Sky gradient ── */
-  const t   = Math.min(1, (S.alt ?? 1000) / 35000);
-  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  const t = Math.min(1, (S.alt ?? 1000) / 35000);  // altitude tint 0=low 1=high
+
+  let skyTopR, skyTopG, skyTopB;
+  let skyBotR, skyBotG, skyBotB;
+
   if (isArctic) {
-    /* Overcast Arctic sky — flat grey-white */
-    sky.addColorStop(0, `rgb(${_c(70, 120, t)},${_c(80, 130, t)},${_c(90, 140, t)})`);
-    sky.addColorStop(1, `rgb(${_c(140,170, t)},${_c(150,180, t)},${_c(160,190, t)})`);
+    /* Arctic overcast — grey, dimmed at night */
+    skyTopR = Math.round(_lerp(25, _c(70,120,t), dayFrac));
+    skyTopG = Math.round(_lerp(30, _c(80,130,t), dayFrac));
+    skyTopB = Math.round(_lerp(40, _c(90,140,t), dayFrac));
+    skyBotR = Math.round(_lerp(40, _c(140,170,t), dayFrac));
+    skyBotG = Math.round(_lerp(45, _c(150,180,t), dayFrac));
+    skyBotB = Math.round(_lerp(55, _c(160,190,t), dayFrac));
   } else {
-    sky.addColorStop(0, `rgb(${_c(8,  100, t)},${_c(18, 180, t)},${_c(38, 230, t)})`);
-    sky.addColorStop(1, `rgb(${_c(32, 165, t)},${_c(90, 210, t)},${_c(145,245, t)})`);
+    /* Day sky (altitude-tinted blue) */
+    const dayTopR = _c(8,  100, t), dayTopG = _c(18, 180, t), dayTopB = _c(38, 230, t);
+    const dayBotR = _c(32, 165, t), dayBotG = _c(90, 210, t), dayBotB = _c(145,245, t);
+    /* Night sky */
+    const nightTopR = 3,  nightTopG = 5,  nightTopB = 18;
+    const nightBotR = 8,  nightBotG = 12, nightBotB = 35;
+    /* Golden hour horizon */
+    const goldR = 255, goldG = 130, goldB = 40;
+
+    skyTopR = Math.round(_lerp(nightTopR, dayTopR, dayFrac));
+    skyTopG = Math.round(_lerp(nightTopG, dayTopG, dayFrac));
+    skyTopB = Math.round(_lerp(nightTopB, dayTopB, dayFrac));
+
+    const baseR = Math.round(_lerp(nightBotR, dayBotR, dayFrac));
+    const baseG = Math.round(_lerp(nightBotG, dayBotG, dayFrac));
+    const baseB = Math.round(_lerp(nightBotB, dayBotB, dayFrac));
+    skyBotR = Math.round(_lerp(baseR, goldR, goldenFrac));
+    skyBotG = Math.round(_lerp(baseG, goldG, goldenFrac));
+    skyBotB = Math.round(_lerp(baseB, goldB, goldenFrac));
   }
+
+  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, `rgb(${skyTopR},${skyTopG},${skyTopB})`);
+  sky.addColorStop(1, `rgb(${skyBotR},${skyBotG},${skyBotB})`);
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, H);
+
+  /* ── Stars (night only) ── */
+  if (dayFrac < 0.95 && !isArctic) {
+    const starAlpha = Math.max(0, 1 - dayFrac) * 0.85;
+    ctx.save();
+    /* Clip to sky half — approximate: above horizon */
+    const horizonY = cy + Math.tan(pitch) * focal;
+    ctx.beginPath();
+    ctx.rect(0, 0, W, horizonY);
+    ctx.clip();
+
+    ctx.fillStyle = `rgba(255,255,255,${starAlpha})`;
+    /* Deterministic star field — fixed seed via simple LCG */
+    let rx = 0x12345678;
+    const _rand = () => { rx = (rx * 1664525 + 1013904223) & 0xffffffff; return (rx >>> 0) / 0xffffffff; };
+    const STAR_COUNT = 180;
+    for (let i = 0; i < STAR_COUNT; i++) {
+      const sx = _rand() * W;
+      const sy = _rand() * (horizonY * 0.95);
+      const sr = (_rand() * 1.2 + 0.3) * devicePixelRatio;
+      /* Twinkle: vary alpha slightly per star */
+      const tw = 0.7 + _rand() * 0.3;
+      ctx.globalAlpha = starAlpha * tw;
+      ctx.beginPath();
+      ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /* ── Sun disc ── */
+  if (sunAlt > -0.05) {
+    const sunFwd    = Math.cos(sunAltRad) * Math.cos(sunRelAzRad);
+    const sunRight  = Math.cos(sunAltRad) * Math.sin(sunRelAzRad);
+    const sunUp     = Math.sin(sunAltRad);
+    const scf  = sunFwd  * cosP + sunUp   * sinP;
+    const scu  = sunUp   * cosP - sunFwd  * sinP;
+    const scr2 = sunRight * cosR + scu * sinR;
+    const scu2 = scu      * cosR - sunRight * sinR;
+
+    if (scf > 0.01) {
+      const sx = cx + scr2 / scf * focal;
+      const sy = cy - scu2 / scf * focal;
+      if (sx > -200 && sx < W + 200 && sy > -200 && sy < H + 200) {
+        const isLow   = sunAlt < 0.15;
+        const sunR    = isLow ? 255 : 255;
+        const sunG    = isLow ? 150 :  220;
+        const sunB    = isLow ?  40 :  120;
+        const radius  = 18 * devicePixelRatio;
+
+        /* Glow */
+        const glow = ctx.createRadialGradient(sx, sy, 0, sx, sy, radius * 4);
+        glow.addColorStop(0,   `rgba(${sunR},${sunG},${sunB},0.30)`);
+        glow.addColorStop(0.4, `rgba(${sunR},${sunG},${sunB},0.12)`);
+        glow.addColorStop(1,   `rgba(${sunR},${sunG},${sunB},0)`);
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(sx, sy, radius * 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        /* Disc */
+        ctx.fillStyle = `rgb(${sunR},${sunG},${sunB})`;
+        ctx.beginPath();
+        ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
 
   /* ── Ground grid — pre-project all vertices ── */
   const pts = [];
   for (let r = 0; r <= ROWS; r++) {
     const d    = ROW_DIST[r];
-    const half = d * 1.5;    /* lateral half-width: covers FOV + buffer */
+    const half = d * 1.5;
     const row  = [];
     for (let c = 0; c <= COLS; c++) {
       const right = (c / COLS - 0.5) * 2 * half;
@@ -97,8 +197,10 @@ export function renderTerrain(canvas) {
     pts.push(row);
   }
 
-  /* Draw all quads in one path fill */
-  ctx.fillStyle = isArctic ? '#cdd4d8' : '#3d6e30';
+  /* Terrain / water fill */
+  const terrainNear = isArctic ? '#cdd4d8' : isWater ? '#1a3f66' : '#3d6e30';
+  const terrainFar  = isArctic ? '#b8c2c8' : isWater ? '#162f50' : '#2d5a22';
+
   ctx.beginPath();
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
@@ -112,26 +214,35 @@ export function renderTerrain(canvas) {
       ctx.closePath();
     }
   }
+  /* Gradient fill front→back */
+  const frontPt = pts[0][Math.floor(COLS / 2)];
+  const backPt  = pts[ROWS][Math.floor(COLS / 2)];
+  if (frontPt && backPt) {
+    const tg = ctx.createLinearGradient(0, frontPt[1], 0, backPt[1]);
+    tg.addColorStop(0, terrainNear);
+    tg.addColorStop(1, terrainFar);
+    ctx.fillStyle = tg;
+  } else {
+    ctx.fillStyle = terrainNear;
+  }
   ctx.fill();
 
   /* ── World-fixed ground grid ── */
-  /* Snap to 0.5 nm intervals in lat/lon so lines scroll as aircraft moves */
-  const GRID_NM   = 0.5;
-  const GRID_RANGE_FWD  = 18;   /* nm forward  */
-  const GRID_RANGE_SIDE = 20;   /* nm sideways */
-  const GRID_RANGE_BACK =  3;   /* nm behind   */
+  const GRID_NM         = 0.5;
+  const GRID_RANGE_FWD  = 18;
+  const GRID_RANGE_SIDE = 20;
+  const GRID_RANGE_BACK =  3;
 
-  /* Aircraft position in nm */
   const acLatNm = (S.lat ?? 0) * 60;
   const acLonNm = (S.lon ?? 0) * 60 * Math.cos((S.lat ?? 0) * DEG);
 
-  ctx.strokeStyle = isArctic ? '#b0bcc4' : '#2d5a22';
+  const gridColor = isArctic ? '#b0bcc4' : isWater ? '#1e4a78' : '#2d5a22';
+  ctx.strokeStyle = gridColor;
   ctx.lineWidth   = 1 * devicePixelRatio;
   ctx.setLineDash([]);
 
-  /* E-W lines (constant latitude) */
-  const firstLatNm = Math.ceil((acLatNm - GRID_RANGE_BACK)  / GRID_NM) * GRID_NM;
-  const lastLatNm  = Math.floor((acLatNm + GRID_RANGE_FWD) / GRID_NM) * GRID_NM;
+  const firstLatNm = Math.ceil((acLatNm  - GRID_RANGE_BACK) / GRID_NM) * GRID_NM;
+  const lastLatNm  = Math.floor((acLatNm + GRID_RANGE_FWD)  / GRID_NM) * GRID_NM;
   ctx.beginPath();
   for (let lnm = firstLatNm; lnm <= lastLatNm; lnm += GRID_NM) {
     const dN = lnm - acLatNm;
@@ -141,8 +252,7 @@ export function renderTerrain(canvas) {
   }
   ctx.stroke();
 
-  /* N-S lines (constant longitude) */
-  const firstLonNm = Math.ceil((acLonNm - GRID_RANGE_SIDE) / GRID_NM) * GRID_NM;
+  const firstLonNm = Math.ceil((acLonNm  - GRID_RANGE_SIDE) / GRID_NM) * GRID_NM;
   const lastLonNm  = Math.floor((acLonNm + GRID_RANGE_SIDE) / GRID_NM) * GRID_NM;
   ctx.beginPath();
   for (let lnm = firstLonNm; lnm <= lastLonNm; lnm += GRID_NM) {
@@ -152,6 +262,40 @@ export function renderTerrain(canvas) {
     if (p1 && p2) { ctx.moveTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]); }
   }
   ctx.stroke();
+
+  /* ── Atmospheric haze at horizon ── */
+  const horizonY = cy + Math.tan(pitch) * focal;
+  const hazeTop  = Math.max(0, horizonY - 8 * devicePixelRatio);
+  const hazeH    = Math.min(70 * devicePixelRatio, H - hazeTop);
+  if (hazeH > 0) {
+    const hazeGrad = ctx.createLinearGradient(0, hazeTop, 0, hazeTop + hazeH);
+    hazeGrad.addColorStop(0, `rgba(${skyBotR},${skyBotG},${skyBotB},0.72)`);
+    hazeGrad.addColorStop(1, `rgba(${skyBotR},${skyBotG},${skyBotB},0)`);
+    ctx.fillStyle = hazeGrad;
+    ctx.fillRect(0, hazeTop, W, hazeH);
+  }
+
+  /* ── Water specular shimmer (horizontal bands near horizon) ── */
+  if (isWater && agl > 200) {
+    const shimmerAlpha = Math.min(0.18, agl / 8000 * 0.18);
+    ctx.save();
+    ctx.globalAlpha = shimmerAlpha;
+    ctx.strokeStyle = `rgb(${Math.min(255, skyBotR + 60)},${Math.min(255, skyBotG + 60)},${Math.min(255, skyBotB + 40)})`;
+    ctx.lineWidth = devicePixelRatio;
+    for (let i = 0; i < 6; i++) {
+      const frac = 0.3 + i * 0.12;
+      const wDist = frac * GRID_RANGE_FWD;
+      const p1 = projNE(wDist, -GRID_RANGE_SIDE * 0.6);
+      const p2 = projNE(wDist,  GRID_RANGE_SIDE * 0.6);
+      if (p1 && p2) {
+        ctx.beginPath();
+        ctx.moveTo(p1[0], p1[1]);
+        ctx.lineTo(p2[0], p2[1]);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
 
   /* ── Runway ── */
   const arr = S.mission?.arrival;
@@ -163,7 +307,6 @@ export function renderTerrain(canvas) {
     const hl  = (arr.rwyLengthM ?? 600) / 2 * M_NM;
     const hw  = (arr.rwyWidthM  ?? 20)  / 2 * M_NM;
 
-    /* Runway axis and perpendicular in NE */
     const axN =  Math.cos(rh) * hl,  axE = Math.sin(rh) * hl;
     const wpN = -Math.sin(rh) * hw,  wpE = Math.cos(rh) * hw;
 
@@ -182,7 +325,6 @@ export function renderTerrain(canvas) {
       ctx.closePath();
       ctx.fill();
 
-      /* Centreline dashes */
       const p1 = projNE(dN + axN * 0.9, dE + axE * 0.9);
       const p2 = projNE(dN - axN * 0.9, dE - axE * 0.9);
       if (p1 && p2) {
@@ -202,21 +344,18 @@ export function renderTerrain(canvas) {
   if (isArctic) {
     const mT = S.time ?? 0;
     if (mT >= 108 && mT < 124) {
-      const phase = (mT - 108) / 16;   /* 0 → 1 over 16 seconds */
+      const phase = (mT - 108) / 16;
 
-      /* Alpha: rises fast, holds briefly, gone before the hit */
       let alpha;
       if      (phase < 0.25) alpha = phase / 0.25;
       else if (phase < 0.65) alpha = 1.0;
       else                   alpha = 1 - (phase - 0.65) / 0.35;
 
-      /* Height: rises from ground, maximum at phase 0.5 */
       const rise    = Math.min(1, phase / 0.5);
-      const maxH    = 380 * FT_NM;            /* ~380ft above ground */
-      const dist    = 1.8;                    /* nm ahead */
-      const offR    = 0.18;                   /* nm to the right */
+      const maxH    = 380 * FT_NM;
+      const dist    = 1.8;
+      const offR    = 0.18;
 
-      /* Project anchor points — base on ground, top rising */
       const b1 = projNE(dist - 0.12, offR - 0.08);
       const b2 = projNE(dist + 0.10, offR + 0.16);
       const m1 = projNE(dist - 0.06, offR - 0.02, maxH * rise * 0.45);
@@ -228,7 +367,6 @@ export function renderTerrain(canvas) {
         ctx.save();
         ctx.globalAlpha = alpha * 0.82;
 
-        /* Body — deep near-black, slightly cold */
         ctx.fillStyle = 'rgba(6, 14, 20, 0.95)';
         ctx.beginPath();
         ctx.moveTo(b1[0], b1[1]);
@@ -240,7 +378,6 @@ export function renderTerrain(canvas) {
         ctx.closePath();
         ctx.fill();
 
-        /* Bioluminescent edge — faint cold teal, barely there */
         ctx.globalAlpha = alpha * 0.18;
         ctx.strokeStyle = 'rgba(40, 200, 180, 1.0)';
         ctx.lineWidth   = 1.5 * devicePixelRatio;
@@ -254,3 +391,6 @@ export function renderTerrain(canvas) {
 
 /* Lerp colour channel: low-alt value a, high-alt value b */
 function _c(a, b, t) { return Math.round(a + (b - a) * (1 - t)); }
+
+/* Linear interpolation */
+function _lerp(a, b, t) { return a + (b - a) * t; }

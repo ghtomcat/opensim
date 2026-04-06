@@ -4,42 +4,37 @@
   "description": "Hostomel. 3. Februar 2022. UR-82060 läuft die Triebwerke hoch. Sie weiß es nicht.",
   "author": "Markus Leutwyler",
   "aircraft": "aircraft/an225.json",
-
   "weather": {
     "source": "live",
     "icao": "EPWA",
     "fallback": {
-      "temp":        2,
-      "wdir":      220,
-      "wspd":        8,
+      "temp": 2,
+      "wdir": 220,
+      "wspd": 8,
       "visibility": 9999,
-      "altim":      1013,
-      "turbulence":  0.0
+      "altim": 1013,
+      "turbulence": 0.0
     }
   },
-
   "initialState": {
-    "lat":   50.615,
-    "lon":   30.219,
-    "alt":     394,
-    "spd":       0,
-    "hdg":     183,
-    "pitch":     0,
-    "roll":      0
+    "lat": 50.615,
+    "lon": 30.219,
+    "alt": 394,
+    "spd": 0,
+    "hdg": 183,
+    "pitch": 0,
+    "roll": 0
   },
-
   "departure": {
-    "icao":      "UKKM",
-    "name":      "Hostomel (Antonov Airport)",
-    "runway":    "18",
-    "elevation":  394
+    "icao": "UKKM",
+    "name": "Hostomel (Antonov Airport)",
+    "runway": "18",
+    "elevation": 394
   },
-
   "arrival": {
     "icao": "EDDP",
     "name": "Leipzig/Halle"
   },
-
   "narrative": [
     "Hostomel. Antonov-Flughafen.",
     "3. Februar 2022.",
@@ -51,30 +46,52 @@
     "19 Tage später beginnt die Invasion.",
     "Am 27. Februar wird sie hier sterben."
   ],
-
   "atcClearances": [
-    { "t":   8, "text": "Мрія, запуск двигунів дозволено.",                          "voice": "atc" },
-    { "t":  70, "text": "Мрія, виліт дозволено. Злітна смуга вісімнадцять.",         "voice": "atc" },
-    { "t": 100, "text": "Мрія, набір ешелону триста дев'яносто. Курс двісті сімдесят.", "voice": "atc" },
-    { "t": 210, "text": "Мрія, до побачення. Контактуйте Варшаву контроль.",         "voice": "atc" }
+    {
+      "t": 8,
+      "text": "Мрія, запуск двигунів дозволено.",
+      "voice": "atc"
+    },
+    {
+      "t": 70,
+      "text": "Мрія, виліт дозволено. Злітна смуга вісімнадцять.",
+      "voice": "atc"
+    },
+    {
+      "t": 100,
+      "text": "Мрія, набір ешелону триста дев'яносто. Курс двісті сімдесят.",
+      "voice": "atc"
+    },
+    {
+      "t": 210,
+      "text": "Мрія, до побачення. Контактуйте Варшаву контроль.",
+      "voice": "atc"
+    }
   ],
-
   "com": {
-    "title":     "COMM 1",
+    "title": "COMM 1",
     "xpdrLabel": "XPDR",
-    "active":    "128.100",
-    "standby":   "121.500",
+    "active": "128.100",
+    "standby": "121.500",
     "freqs": {
-      "128.100": { "label": "HOSTOMEL TWR" },
-      "121.000": { "label": "HOSTOMEL GND" },
-      "134.200": { "label": "KYIV CTR" },
-      "121.500": { "label": "EMERGENCY" }
+      "128.100": {
+        "label": "HOSTOMEL TWR"
+      },
+      "121.000": {
+        "label": "HOSTOMEL GND"
+      },
+      "134.200": {
+        "label": "KYIV CTR"
+      },
+      "121.500": {
+        "label": "EMERGENCY"
+      }
     }
   },
-
   "debrief": [
     "Alle sechs Triebwerke nach dem Start stabil?",
     "Vr 175 kt erreicht?",
     "FL390 und Kurs 270 gehalten?"
-  ]
+  ],
+  "timeOfDay": 9.0
 }

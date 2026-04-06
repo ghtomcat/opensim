@@ -5,30 +5,27 @@
   "author": "Markus Leutwyler",
   "book": "Zeitanker — Band IV",
   "aircraft": "aircraft/bf109.json",
-
   "weather": {
     "source": "manual",
     "manual": {
-      "temp":       -22,
-      "wdir":       45,
-      "wspd":       0,
+      "temp": -22,
+      "wdir": 45,
+      "wspd": 0,
       "visibility": 3000,
-      "snow":       true,
-      "altim":      1013,
+      "snow": true,
+      "altim": 1013,
       "turbulence": 0.4
     }
   },
-
   "initialState": {
-    "lat":   69.40,
-    "lon":   29.05,
-    "alt":   2000,
-    "spd":   180,
-    "hdg":   45,
+    "lat": 69.4,
+    "lon": 29.05,
+    "alt": 2000,
+    "spd": 180,
+    "hdg": 45,
     "pitch": 2,
-    "roll":  0
+    "roll": 0
   },
-
   "departure": null,
   "arrival": {
     "icao": "ULMM",
@@ -36,7 +33,6 @@
     "runway": "45",
     "elevation": 100
   },
-
   "narrative": [
     "Titovka. Arctic winter.",
     "The wolf on your fuselage is blue.",
@@ -44,50 +40,66 @@
     "You do not know her name. You know her handwriting.",
     "End the war."
   ],
-
   "com": {
     "title": "FuG 16",
     "xpdrLabel": "FuG 25a IFF",
     "active": "38.400",
     "standby": "39.200",
     "freqs": {
-      "38.400": { "label": "HORCHKANAL" },
-      "39.200": { "label": "PLATZRUNDE TITOVKA" },
-      "42.000": { "label": "GEFECHTSKANAL" },
-      "42.100": { "label": "JÄGERLEITOFFIZIER" }
+      "38.400": {
+        "label": "HORCHKANAL"
+      },
+      "39.200": {
+        "label": "PLATZRUNDE TITOVKA"
+      },
+      "42.000": {
+        "label": "GEFECHTSKANAL"
+      },
+      "42.100": {
+        "label": "JÄGERLEITOFFIZIER"
+      }
     }
   },
-
   "atcClearances": [],
-
   "approachBrief": [],
-
   "debrief": [
     "Did you maintain heading in the crosswind?",
     "Did you feel the gyroscopic pull on left turns?",
     "Did you land?"
   ],
-
   "failures": [
     {
-      "trigger": { "type": "time", "t": 115 },
+      "trigger": {
+        "type": "time",
+        "t": 115
+      },
       "type": "engine_gunfire"
     },
     {
-      "trigger": { "type": "time", "t": 120 },
+      "trigger": {
+        "type": "time",
+        "t": 120
+      },
       "type": "engine_bang"
     },
     {
-      "trigger": { "type": "time", "t": 120 },
+      "trigger": {
+        "type": "time",
+        "t": 120
+      },
       "type": "engine_power",
       "value": 0.35,
       "rampTime": 20
     },
     {
-      "trigger": { "type": "time", "t": 160 },
+      "trigger": {
+        "type": "time",
+        "t": 160
+      },
       "type": "engine_power",
       "value": 0.0,
       "rampTime": 30
     }
-  ]
+  ],
+  "timeOfDay": 9.5
 }

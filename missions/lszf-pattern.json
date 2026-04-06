@@ -4,7 +4,6 @@
   "description": "VFR traffic pattern at home base LSZF. Cessna 172. PPL training.",
   "author": "Markus Leutwyler",
   "aircraft": "c172",
-
   "departure": null,
   "arrival": {
     "icao": "LSZK",
@@ -12,54 +11,67 @@
     "runway": "26",
     "ils": null,
     "elevation": 1788,
-    "rwyLat":     47.3851,
-    "rwyLon":      8.7827,
-    "rwyHdg":    260,
+    "rwyLat": 47.3851,
+    "rwyLon": 8.7827,
+    "rwyHdg": 260,
     "rwyLengthM": 700,
-    "rwyWidthM":   18,
-    "surface":    "grass"
+    "rwyWidthM": 18,
+    "surface": "grass"
   },
-
   "initialState": {
-    "lat":   47.385,
-    "lon":   8.782,
-    "alt":   1788,
-    "spd":   0,
-    "hdg":   260,
+    "lat": 47.385,
+    "lon": 8.782,
+    "alt": 1788,
+    "spd": 0,
+    "hdg": 260,
     "pitch": 0,
-    "roll":  0
+    "roll": 0
   },
-
   "weather": {
     "source": "live",
     "icao": "LSZH",
     "fallback": {
-      "wdir": 260, "wspd": 6, "altim": 1018,
-      "temp": 12, "dewp": 4, "visib": "6+",
-      "clouds": [{ "cover": "FEW", "base": 5000 }]
+      "wdir": 260,
+      "wspd": 6,
+      "altim": 1018,
+      "temp": 12,
+      "dewp": 4,
+      "visib": "6+",
+      "clouds": [
+        {
+          "cover": "FEW",
+          "base": 5000
+        }
+      ]
     }
   },
-
   "debrief": [
     "Was the circuit altitude maintained at pattern altitude (2800ft)?",
     "Was the downwind leg flown at 90kt?",
     "Was the turn to final stabilised?",
     "Speed on final: 65kt?"
   ],
-
   "com": {
     "title": "COM 1 — LSZK",
-    "active":  "119.700",
+    "active": "119.700",
     "standby": "120.350",
     "freqs": {
-      "119.700": { "label": "LSZH APPROACH",
-                   "stream": "http://d.liveatc.net/lszh_app_final",
-                   "streamPage": "https://www.liveatc.net/hlisten.php?mount=lszh_app_final&icao=lszh" },
-      "120.350": { "label": "LSZK AFIS" },
-      "124.700": { "label": "LSZH INFO" },
-      "121.500": { "label": "GUARD" }
+      "119.700": {
+        "label": "LSZH APPROACH",
+        "stream": "http://d.liveatc.net/lszh_app_final",
+        "streamPage": "https://www.liveatc.net/hlisten.php?mount=lszh_app_final&icao=lszh"
+      },
+      "120.350": {
+        "label": "LSZK AFIS"
+      },
+      "124.700": {
+        "label": "LSZH INFO"
+      },
+      "121.500": {
+        "label": "GUARD"
+      }
     }
   },
-
-  "failures": []
+  "failures": [],
+  "timeOfDay": 11.0
 }

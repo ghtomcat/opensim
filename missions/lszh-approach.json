@@ -4,81 +4,119 @@
   "description": "Standard ILS approach into Zürich runway 28. Live METAR weather. Full crew loop: ATC clearances, approach brief, checklist, GPWS.",
   "author": "Markus Leutwyler",
   "aircraft": "a350",
-
   "departure": null,
   "arrival": {
     "icao": "LSZH",
     "name": "Zürich",
     "runway": "28",
-    "ils": { "freq": "109.900", "course": 280 },
+    "ils": {
+      "freq": "109.900",
+      "course": 280
+    },
     "elevation": 1416
   },
-
   "initialState": {
-    "lat":   47.55,
-    "lon":   8.85,
-    "alt":   35000,
-    "spd":   312,
-    "hdg":   360,
+    "lat": 47.55,
+    "lon": 8.85,
+    "alt": 35000,
+    "spd": 312,
+    "hdg": 360,
     "pitch": 2,
-    "roll":  0
+    "roll": 0
   },
-
   "weather": {
     "source": "live",
     "icao": "LSZH",
     "fallback": {
-      "wdir": 270, "wspd": 12, "altim": 1020,
-      "temp": 4, "dewp": -2, "visib": "6+",
-      "clouds": [{ "cover": "FEW", "base": 4500 }]
+      "wdir": 270,
+      "wspd": 12,
+      "altim": 1020,
+      "temp": 4,
+      "dewp": -2,
+      "visib": "6+",
+      "clouds": [
+        {
+          "cover": "FEW",
+          "base": 4500
+        }
+      ]
     }
   },
-
   "atcClearances": [
     {
       "alt": 32000,
-      "pm":  "zurich control, VisionPilot, request descent, flight level two four zero",
+      "pm": "zurich control, VisionPilot, request descent, flight level two four zero",
       "atc": "VisionPilot, zurich control, descend flight level two four zero, standard pressure"
     },
     {
       "alt": 23000,
-      "pm":  "request lower, flight level one eight zero",
+      "pm": "request lower, flight level one eight zero",
       "atc": "VisionPilot, cleared flight level one eight zero, report passing flight level two one zero"
     },
     {
       "alt": 17000,
-      "pm":  "passing flight level two one zero. request flight level one zero zero",
+      "pm": "passing flight level two one zero. request flight level one zero zero",
       "atc": "VisionPilot, descend flight level one zero zero, expect ILS approach runway two eight"
     },
     {
       "alt": 11000,
-      "pm":  "request ILS approach runway two eight, VisionPilot",
+      "pm": "request ILS approach runway two eight, VisionPilot",
       "atc": "VisionPilot, cleared ILS approach runway two eight. contact zurich approach, one one eight decimal one. grüezi"
     }
   ],
-
   "approachBrief": [
-    { "v": "pf", "t": "start approach briefing" },
-    { "v": "pf", "t": "destination, Zurich, Lima Sierra Zulu Hotel. runway two eight. ILS approach, frequency one zero niner decimal niner" },
-    { "v": "pm", "t": "confirmed" },
-    { "v": "pf", "t": "initial approach altitude, four thousand feet. final approach course, two eight zero degrees" },
-    { "v": "pm", "t": "checked" },
-    { "v": "pf", "t": "decision height, two hundred feet. minimums, two hundred. auto-call out armed" },
-    { "v": "pm", "t": "confirmed, minimums set" },
-    { "v": "pf", "t": "missed approach: climb runway heading to three thousand feet, then left turn direct Zurich VOR" },
-    { "v": "pm", "t": "understood" },
-    { "v": "pf", "t": "vee app one four zero knots. flaps full. landing checklist after gear down" },
-    { "v": "pm", "t": "ready for approach. crew is ready" }
+    {
+      "v": "pf",
+      "t": "start approach briefing"
+    },
+    {
+      "v": "pf",
+      "t": "destination, Zurich, Lima Sierra Zulu Hotel. runway two eight. ILS approach, frequency one zero niner decimal niner"
+    },
+    {
+      "v": "pm",
+      "t": "confirmed"
+    },
+    {
+      "v": "pf",
+      "t": "initial approach altitude, four thousand feet. final approach course, two eight zero degrees"
+    },
+    {
+      "v": "pm",
+      "t": "checked"
+    },
+    {
+      "v": "pf",
+      "t": "decision height, two hundred feet. minimums, two hundred. auto-call out armed"
+    },
+    {
+      "v": "pm",
+      "t": "confirmed, minimums set"
+    },
+    {
+      "v": "pf",
+      "t": "missed approach: climb runway heading to three thousand feet, then left turn direct Zurich VOR"
+    },
+    {
+      "v": "pm",
+      "t": "understood"
+    },
+    {
+      "v": "pf",
+      "t": "vee app one four zero knots. flaps full. landing checklist after gear down"
+    },
+    {
+      "v": "pm",
+      "t": "ready for approach. crew is ready"
+    }
   ],
-
   "approachBriefAlt": 9500,
-
   "debrief": [
     "Was the approach stabilised at 1000ft?",
     "Were all callouts made and confirmed?",
     "Was the go/no-go decision point identified?",
     "What would trigger a go-around?"
   ],
-
-  "failures": []
+  "failures": [],
+  "timeOfDay": 9.5
 }
