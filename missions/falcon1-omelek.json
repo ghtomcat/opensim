@@ -1,0 +1,49 @@
+{
+  "id":          "falcon1-omelek",
+  "title":       "First Orbit — Falcon 1 Flight 4",
+  "description": "Omelek Island. 28 September 2008. The fourth attempt. The one that worked.",
+  "author":      "Markus Leutwyler",
+  "aircraft":    "falcon1",
+
+  "timeOfDay": 11.0,
+  "water":     true,
+
+  "weather": {
+    "source": "manual",
+    "manual": {
+      "wdir": 90, "wspd": 8, "turbulence": 0.1, "altim": 1015, "temp": 28
+    }
+  },
+
+  "initialState": {
+    "lat":   9.0477,
+    "lon":   167.7431,
+    "alt":   6,
+    "spd":   0,
+    "hdg":   90,
+    "pitch": 90,
+    "roll":  0
+  },
+
+  "departure": {
+    "name":      "Omelek Island Launch Complex",
+    "elevation": 6
+  },
+
+  "arrival": null,
+
+  "narrative": [
+    "Omelek Island.",
+    "Marshall Islands.",
+    "28 September 2008.",
+    "Three failures behind them.",
+    "Nine minutes to orbit.",
+    "Or nothing."
+  ],
+
+  "debrief": [
+    "MECO at T+169s — did Stage 1 burn to completion?",
+    "Stage 2 ignition confirmed?",
+    "Orbit insertion — did SECO occur near T+09:31?"
+  ]
+}

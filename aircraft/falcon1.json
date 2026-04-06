@@ -1,0 +1,83 @@
+{
+  "id":          "falcon1",
+  "name":        "Falcon 1",
+  "vehicleType": "rocket",
+  "manualControl": false,
+  "crewLang":    "en-US",
+
+  "performance": {
+    "massWet": 28000,
+    "Cd":       0.30,
+    "area":     1.73,
+
+    "stages": [
+      {
+        "name":      "Stage 1 — Merlin 1C",
+        "thrustSL":  355000,
+        "thrustVac": 400000,
+        "isp":       280,
+        "massWet":   22500,
+        "massDry":   2000
+      },
+      {
+        "name":      "Stage 2 — Kestrel",
+        "thrustSL":  0,
+        "thrustVac": 31000,
+        "isp":       317,
+        "massWet":   4335,
+        "massDry":   635
+      }
+    ],
+
+    "payload": 1165,
+
+    "fpaProfile": [
+      [0,    90],
+      [10,   90],
+      [20,   85],
+      [40,   75],
+      [70,   60],
+      [100,  45],
+      [130,  30],
+      [169,  18],
+      [200,  15],
+      [350,   8],
+      [550,   3]
+    ]
+  },
+
+  "sound": { "engineType": "none" },
+
+  "kneeboard": [
+    {
+      "title": "FALCON 1 — FLIGHT 4",
+      "type": "briefing",
+      "items": [
+        "28 September 2008 · 23:15 UTC",
+        "Omelek Island · Marshall Islands · 9.0°N 167.7°E",
+        "Vehicle: Falcon 1 · Serial F1-004",
+        "Payload: RatSat (mass simulator, 165 kg)",
+        "Stage 1: Merlin 1C · 355 kN SL · Isp 280s · 169s burn",
+        "Stage 2: Kestrel · 31 kN · Isp 317s · 378s burn",
+        "Target orbit: 621 km circular · 9.35° inclination",
+        "T/W at liftoff: 1.29"
+      ]
+    },
+    {
+      "title": "FLIGHT PROFILE",
+      "type": "briefing",
+      "items": [
+        "T+00:00  Merlin ignition · Liftoff",
+        "T+01:19  MECO · Stage 1 separation",
+        "T+01:25  Stage 2 ignition (Kestrel)",
+        "T+09:31  SECO · Orbit insertion",
+        "T+10:00  Payload deployment",
+        "—",
+        "Max-Q at approximately T+60s",
+        "This was the fourth and final Falcon 1 launch.",
+        "It was the first privately funded liquid-fuelled",
+        "rocket to reach Earth orbit."
+      ]
+    }
+  ]
+}

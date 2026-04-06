@@ -75,7 +75,10 @@ export function renderTerrain(canvas) {
   const goldenFrac  = Math.max(0, 1 - Math.abs(sunAlt) / 0.18);          // peak at sunrise/set
 
   /* ── Sky gradient ── */
-  const t = Math.min(1, (S.alt ?? 1000) / 35000);  // altitude tint 0=low 1=high
+  const isRocket   = S.aircraft?.vehicleType === 'rocket';
+  const altScale   = isRocket ? 500_000 : 35_000;   // ft: rockets reach space, aircraft don't
+  const spaceFrac  = isRocket ? Math.min(1, (S.alt ?? 0) / 350_000) : 0;  // 0=atmo 1=space
+  const t = Math.min(1, (S.alt ?? 1000) / altScale);  // altitude tint 0=low 1=high
 
   let skyTopR, skyTopG, skyTopB;
   let skyBotR, skyBotG, skyBotB;
@@ -116,9 +119,10 @@ export function renderTerrain(canvas) {
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, H);
 
-  /* ── Stars (night only) ── */
-  if (dayFrac < 0.95 && !isArctic) {
-    const starAlpha = Math.max(0, 1 - dayFrac) * 0.85;
+  /* ── Stars (night or space) ── */
+  const effectiveDayFrac = dayFrac * (1 - spaceFrac);  // space overrides time of day
+  if (effectiveDayFrac < 0.95 && !isArctic) {
+    const starAlpha = Math.max(0, 1 - effectiveDayFrac) * 0.85;
     ctx.save();
     /* Clip to sky half — approximate: above horizon */
     const horizonY = cy + Math.tan(pitch) * focal;

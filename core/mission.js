@@ -70,6 +70,16 @@ export async function loadMission(missionPath, aircraftPath) {
     fetchMetar(mission.weather.icao).catch(() => {});
   }
 
+  /* Rocket-specific state init */
+  if (aircraft.vehicleType === 'rocket') {
+    setState({
+      rocketMass:  aircraft.performance?.massWet ?? 28000,
+      rocketStage: 1,
+      rocketCoast: false,
+      rocketCoastT: 0,
+    });
+  }
+
   resetFailures();
   setCrewLang(aircraft.crewLang ?? null);
   return { mission, aircraft };
