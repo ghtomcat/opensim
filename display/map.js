@@ -135,6 +135,12 @@ function _updateTrack() {
 
 /* ── Rocket world map ── */
 function _renderWorldMap(ctx, W, H, dpr) {
+  /* Clip everything to the map canvas — prevents tracks from escaping the panel */
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, W, H);
+  ctx.clip();
+
   const launch   = S.mission?.initialState ?? {};
   const launchLat = launch.lat ?? 0;
   const launchLon = launch.lon ?? 0;
@@ -416,6 +422,9 @@ function _renderWorldMap(ctx, W, H, dpr) {
   ctx.textAlign    = 'left';
   ctx.textBaseline = 'top';
   ctx.fillText(`${sign} ${mm}:${ss}`, 4 * dpr, 4 * dpr);
+  ctx.restore();
+
+  /* End clip region */
   ctx.restore();
 }
 
