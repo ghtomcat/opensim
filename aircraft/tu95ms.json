@@ -34,7 +34,7 @@
     "CD_0":        0.022,
     "gearDrag":    0.016,
     "inducedK":    0.038,
-    "Vr":          155,
+    "Vr":          185,
     "muRoll":      0.018,
     "muBrake":     0.28
   },
@@ -78,8 +78,8 @@
   ],
 
   "takeoffCallouts": [
-    { "spd": 155, "speech": "Взлётная",  "voice": "pm" },
-    { "spd": 180, "speech": "Набор",     "voice": "pm" }
+    { "spd": 185, "speech": "Взлётная",  "voice": "pm" },
+    { "spd": 210, "speech": "Набор",     "voice": "pm" }
   ],
 
   "gpws": [
@@ -106,7 +106,7 @@
         "Olenya AB · Runway 01 · Kola Peninsula",
         "Departure: track 015 climbing to FL260",
         "Vr 155kt · Vy 180kt",
-        "Four NK-12MV engines. Spool time 8–12 seconds.",
+        "Four NK-12MV engines. Spool time 8–12 seconds. Flaps 20° for takeoff.",
         "Radio silence after coast-out at Nordkap.",
         "No rescue in the Barents Sea."
       ]

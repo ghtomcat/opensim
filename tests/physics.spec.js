@@ -340,10 +340,16 @@ test.describe('Retractable gear — Tu-95MS', () => {
 
 test.describe('Tu-95MS — Nordmeer 1956', () => {
 
-  test('rotates between 155–230 kt (flaps 20°)', async ({ page }) => {
+  test('starts with engineState running on ground (non-v12 fix)', async ({ page }) => {
+    await loadSim(page, 'nordmeer-1956');
+    const s = await getState(page);
+    expect(s.engineState, 'Tu-95MS should start running — no manual startup needed').toBe('running');
+  });
+
+  test('lifts off from ground roll — WoW latch does not block takeoff', async ({ page }) => {
     await loadSim(page, 'nordmeer-1956');
 
-    // Max thrust, flaps 20° (checklist: takeoff), hold neutral for ground roll
+    // Max thrust, flaps 20°, neutral pitch during ground roll
     await setState(page, { spdT: 310, flaps: 1 });
     await stepSeconds(page, 5);
 
@@ -361,7 +367,7 @@ test.describe('Tu-95MS — Nordmeer 1956', () => {
     }
 
     expect(liftoffSpd, 'Tu-95MS should lift off').not.toBeNull();
-    expect(liftoffSpd).toBeGreaterThan(155);
+    expect(liftoffSpd).toBeGreaterThan(180);
     expect(liftoffSpd).toBeLessThan(230);
   });
 
