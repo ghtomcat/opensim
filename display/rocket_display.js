@@ -90,6 +90,9 @@ function _buildRef(ac) {
   return points;
 }
 
+const GM_EARTH  = 3.986004418e14;   // m³/s²
+const R_EARTH_M = 6_371_000;        // m
+
 /* ── Main renderer ── */
 export function renderRocket(canvas) {
   const DPR = devicePixelRatio || 1;
@@ -100,66 +103,78 @@ export function renderRocket(canvas) {
   const ac = S.aircraft;
   if (!ac || ac.vehicleType !== 'rocket') return;
 
-  /* Clear */
   ctx.fillStyle = '#03060a';
   ctx.fillRect(0, 0, W, H);
 
   const mT    = S.time ?? 0;
   const ignT  = ac.ignitionTime ?? 0;
-  const tLO   = mT - ignT;          /* seconds from liftoff; negative = pre-launch */
+  const tLO   = mT - ignT;
   const stage = S.rocketStage ?? 1;
   const coast = S.rocketCoast ?? false;
+  const fpa   = S.pitch ?? 90;
+
+  /* Derived values */
+  const altKm       = (S.alt ?? 0) * 0.3048 / 1000;
+  const alt_m       = altKm * 1000;
+  const velMs       = (S.spd ?? 0) * 0.5144;
+  const velKms      = velMs / 1000;
+  const velKmh      = velMs * 3.6;
+  const vOrbKms     = Math.sqrt(GM_EARTH / (R_EARTH_M + alt_m)) / 1000;
+  const orbitFrac   = Math.min(1, velKms / vOrbKms);
+  const inOrbit     = velKms >= vOrbKms * 0.99 && Math.abs(fpa) < 8 && tLO > 0;
+
+  const launch      = S.mission?.initialState ?? {};
+  const dLatKm      = ((S.lat ?? 0) - (launch.lat ?? 0)) * 111.32;
+  const dLonKm      = ((S.lon ?? 0) - (launch.lon ?? 0)) * 111.32 * Math.cos((launch.lat ?? 0) * DEG);
+  const downrangeKm = Math.sqrt(dLatKm * dLatKm + dLonKm * dLonKm);
 
   /* ── Mission Timer ── */
-  const absT   = Math.abs(tLO);
-  const sign   = tLO >= 0 ? 'T+' : 'T\u2212';
-  const mm     = Math.floor(absT / 60);
-  const ss     = Math.floor(absT % 60);
-  const timer  = `${sign} ${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
-  const timerY = H * 0.10;
+  const absT  = Math.abs(tLO);
+  const sign  = tLO >= 0 ? 'T+' : 'T\u2212';
+  const mm    = Math.floor(absT / 60);
+  const ss    = Math.floor(absT % 60);
+  const timer = `${sign} ${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
 
   ctx.save();
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
   ctx.font         = `bold ${Math.round(H * 0.11)}px "IBM Plex Mono", monospace`;
-  ctx.fillStyle    = tLO >= 0 ? '#e8edf2' : '#ffb74d';
-  ctx.fillText(timer, W / 2, timerY);
+  ctx.fillStyle    = inOrbit ? '#5dd47e' : (tLO >= 0 ? '#e8edf2' : '#ffb74d');
+  ctx.fillText(timer, W / 2, H * 0.10);
   ctx.restore();
 
   /* ── Stage / event label ── */
   const acStages  = ac.performance?.stages ?? [];
   const rawName   = acStages[stage - 1]?.name ?? `Stage ${stage}`;
-  /* strip leading "Stage N — " prefix to get the engine name */
   const engName   = rawName.replace(/^Stage \d+ — /i, '');
-  const stageStr  = coast ? 'STAGE SEPARATION' : `STAGE ${stage}  —  ${engName.toUpperCase()}`;
-  const stageColor = coast ? '#ffb74d' : (stage === 1 ? '#4dc5dc' : '#5dd47e');
+  const stageStr  = inOrbit     ? 'ORBIT ACHIEVED'
+                  : coast       ? 'STAGE SEPARATION'
+                  : `STAGE ${stage}  —  ${engName.toUpperCase()}`;
+  const stageColor = inOrbit ? '#5dd47e' : coast ? '#ffb74d' : (stage === 1 ? '#4dc5dc' : '#5dd47e');
 
   ctx.save();
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
   ctx.font         = `700 ${Math.round(H * 0.05)}px "Syne", sans-serif`;
   ctx.fillStyle    = stageColor;
+  if (inOrbit) ctx.shadowColor = '#5dd47e', ctx.shadowBlur = 8;
   ctx.fillText(stageStr, W / 2, H * 0.20);
   ctx.restore();
 
-  /* ── Metrics ── */
-  const altKm       = (S.alt ?? 0) * 0.3048 / 1000;
-  const velKms      = (S.spd ?? 0) * 0.5144 / 1000;
-  const launch      = S.mission?.initialState ?? {};
-  const dLatKm      = ((S.lat ?? 0) - (launch.lat ?? 0)) * 111.32;
-  const dLonKm      = ((S.lon ?? 0) - (launch.lon ?? 0)) * 111.32 * Math.cos((launch.lat ?? 0) * DEG);
-  const downrangeKm = Math.sqrt(dLatKm * dLatKm + dLonKm * dLonKm);
+  /* ── Metrics (3 columns + rocket orientation) ── */
+  const lblFontSz = Math.round(H * 0.037);
+  const vFontSz   = Math.round(H * 0.078);
+  const mTop      = H * 0.27;
+  const mW        = W * 0.27;   /* 3 metric cols share 81%, orientation uses 19% */
 
   const metrics = [
-    { label: 'ALTITUDE',  value: altKm.toFixed(1),       unit: 'km'   },
-    { label: 'VELOCITY',  value: velKms.toFixed(2),       unit: 'km/s' },
-    { label: 'DOWNRANGE', value: downrangeKm.toFixed(0),  unit: 'km'   },
+    { label: 'ALTITUDE',  value: altKm.toFixed(1),      unit: 'km',
+      sub: null },
+    { label: 'VELOCITY',  value: velKms.toFixed(2),     unit: 'km/s',
+      sub: Math.round(velKmh).toLocaleString() + ' km/h' },
+    { label: 'DOWNRANGE', value: downrangeKm.toFixed(0), unit: 'km',
+      sub: null },
   ];
-
-  const mW   = W / 3;
-  const mTop = H * 0.28;
-  const vFontSz  = Math.round(H * 0.085);
-  const lblFontSz = Math.round(H * 0.038);
 
   metrics.forEach((m, i) => {
     const cx = mW * i + mW / 2;
@@ -174,18 +189,168 @@ export function renderRocket(canvas) {
     ctx.font         = `bold ${vFontSz}px "IBM Plex Mono", monospace`;
     ctx.fillStyle    = '#e8edf2';
     ctx.textBaseline = 'top';
-    ctx.fillText(m.value, cx, mTop + lblFontSz + 4);
+    const valY = mTop + lblFontSz + 3;
+    ctx.fillText(m.value, cx, valY);
 
     ctx.font         = `${lblFontSz}px "IBM Plex Mono", monospace`;
     ctx.fillStyle    = 'rgba(232,237,242,0.35)';
     ctx.textBaseline = 'top';
-    ctx.fillText(m.unit, cx, mTop + lblFontSz + 4 + vFontSz + 2);
+    ctx.fillText(m.unit, cx, valY + vFontSz + 1);
+
+    if (m.sub) {
+      ctx.font      = `${Math.round(lblFontSz * 0.85)}px "IBM Plex Mono", monospace`;
+      ctx.fillStyle = 'rgba(232,237,242,0.25)';
+      ctx.fillText(m.sub, cx, valY + vFontSz + lblFontSz + 3);
+    }
 
     ctx.restore();
   });
 
+  /* ── Rocket orientation side view ── */
+  const orX = W * 0.855;
+  const orY = mTop;
+  const orW = W * 0.13;
+  const orH = H * 0.20;
+  _drawOrientation(ctx, orX, orY, orW, orH, fpa, stageColor);
+
+  /* ── Orbital velocity bar ── */
+  _drawOrbitalBar(ctx, W, H, velKms, vOrbKms, orbitFrac, inOrbit, fpa, lblFontSz);
+
   /* ── Trajectory profile ── */
   _drawProfile(ctx, W, H, tLO, ac);
+}
+
+/* ── Rocket orientation: side-view silhouette showing pitch / gravity turn ── */
+function _drawOrientation(ctx, x, y, w, h, fpa, color) {
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+
+  /* Background box */
+  ctx.save();
+  ctx.fillStyle   = 'rgba(255,255,255,0.03)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth   = 1;
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeRect(x, y, w, h);
+  ctx.restore();
+
+  /* Label */
+  ctx.save();
+  ctx.font         = `${Math.round(h * 0.12)}px "IBM Plex Mono", monospace`;
+  ctx.fillStyle    = 'rgba(232,237,242,0.3)';
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('ATTITUDE', cx, y + h);
+  ctx.restore();
+
+  /* FPA angle: 90=vertical, 0=horizontal, negative=descending */
+  /* Rotation from up-axis: 0° = vertical up, 90° = pointing right */
+  const tiltRad = (90 - fpa) * DEG;
+
+  const bodyLen = h * 0.52;
+  const bodyW   = w * 0.18;
+  const noseLen = h * 0.16;
+  const bellLen = h * 0.12;
+  const bellW   = bodyW * 1.5;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(tiltRad);
+
+  /* Engine flame (at bottom of rocket = -bodyLen/2 going toward -Y before rotation) */
+  if (fpa > -80) {
+    const flameLen = bodyLen * 0.35;
+    const grad = ctx.createLinearGradient(0, bodyLen / 2, 0, bodyLen / 2 + flameLen);
+    grad.addColorStop(0, 'rgba(255,180,50,0.9)');
+    grad.addColorStop(0.5, 'rgba(255,100,20,0.6)');
+    grad.addColorStop(1, 'rgba(255,60,0,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(-bellW / 2, bodyLen / 2);
+    ctx.lineTo(0, bodyLen / 2 + flameLen);
+    ctx.lineTo(bellW / 2, bodyLen / 2);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  /* Body */
+  ctx.fillStyle = color;
+  ctx.globalAlpha = 0.85;
+  ctx.beginPath();
+  ctx.roundRect(-bodyW / 2, -bodyLen / 2, bodyW, bodyLen, bodyW * 0.2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  /* Nose cone */
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(-bodyW / 2, -bodyLen / 2);
+  ctx.quadraticCurveTo(-bodyW / 4, -bodyLen / 2 - noseLen, 0, -bodyLen / 2 - noseLen);
+  ctx.quadraticCurveTo( bodyW / 4, -bodyLen / 2 - noseLen, bodyW / 2, -bodyLen / 2);
+  ctx.closePath();
+  ctx.fill();
+
+  /* Engine bell */
+  ctx.fillStyle = 'rgba(180,180,190,0.6)';
+  ctx.beginPath();
+  ctx.moveTo(-bodyW / 2, bodyLen / 2 - bellLen * 0.3);
+  ctx.lineTo(-bellW / 2, bodyLen / 2);
+  ctx.lineTo( bellW / 2, bodyLen / 2);
+  ctx.lineTo( bodyW / 2, bodyLen / 2 - bellLen * 0.3);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+
+  /* FPA label */
+  ctx.save();
+  ctx.font         = `bold ${Math.round(h * 0.14)}px "IBM Plex Mono", monospace`;
+  ctx.fillStyle    = color;
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText(`${Math.round(fpa)}°`, cx, y + h * 0.04);
+  ctx.restore();
+}
+
+/* ── Orbital velocity progress bar ── */
+function _drawOrbitalBar(ctx, W, H, velKms, vOrbKms, frac, inOrbit, fpa, lblFontSz) {
+  const barTop = H * 0.495;
+  const barH   = Math.round(H * 0.04);
+  const padX   = Math.round(W * 0.04);
+  const barW   = W - padX * 2;
+
+  /* Label left */
+  ctx.save();
+  ctx.font         = `${lblFontSz}px "IBM Plex Mono", monospace`;
+  ctx.fillStyle    = 'rgba(232,237,242,0.35)';
+  ctx.textAlign    = 'left';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('ORBITAL VELOCITY', padX, barTop - 2);
+
+  /* Values right */
+  ctx.textAlign = 'right';
+  const statusStr = inOrbit
+    ? 'ORBIT ACHIEVED'
+    : fpa < 0
+      ? `DESCENT  ${velKms.toFixed(2)} / ${vOrbKms.toFixed(2)} km/s`
+      : `${velKms.toFixed(2)} / ${vOrbKms.toFixed(2)} km/s`;
+  ctx.fillStyle = inOrbit ? '#5dd47e' : fpa < 0 ? '#ffb74d' : 'rgba(232,237,242,0.35)';
+  ctx.fillText(statusStr, W - padX, barTop - 2);
+
+  /* Bar track */
+  ctx.fillStyle = 'rgba(255,255,255,0.07)';
+  ctx.fillRect(padX, barTop, barW, barH);
+
+  /* Bar fill */
+  const fillColor = inOrbit ? '#5dd47e' : fpa < 0 ? '#ffb74d' : '#4dc5dc';
+  ctx.fillStyle   = fillColor;
+  ctx.fillRect(padX, barTop, barW * frac, barH);
+
+  /* Thin accent line on top of fill */
+  ctx.fillStyle = inOrbit ? 'rgba(93,212,126,0.5)' : 'rgba(77,197,220,0.4)';
+  ctx.fillRect(padX, barTop, barW * frac, 2);
+
+  ctx.restore();
 }
 
 function _drawProfile(ctx, W, H, tLO, ac) {
@@ -198,7 +363,7 @@ function _drawProfile(ctx, W, H, tLO, ac) {
   /* Profile bounding box */
   const padL  = Math.round(W * 0.07);
   const padR  = Math.round(W * 0.03);
-  const padT  = Math.round(H * 0.545);
+  const padT  = Math.round(H * 0.575);
   const padB  = Math.round(H * 0.09);
   const pw    = W - padL - padR;
   const ph    = H - padT - padB;

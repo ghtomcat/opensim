@@ -150,11 +150,12 @@ export function tickRocket(dt) {
     : 90;
   /* Blend: follow programmed FPA early on, then follow velocity vector */
   const timeSinceLiftoff = mT - ignitionTime;
-  const guidanceFrac = Math.max(0, 1 - timeSinceLiftoff / 60);   // full guidance for first 60s, then gravity turn
+  const guidanceFrac = Math.max(0, 1 - timeSinceLiftoff / 120);  // programmed guidance for first 120s, then gravity turn
   const fpaCmd     = fpaTarget * guidanceFrac + fpaActual * (1 - guidanceFrac);
   /* Attitude rate limited — rocket can't spin instantly */
   const dFPA = Math.max(-3, Math.min(3, (fpaCmd - fpa) * 0.5)) * dt;
-  const newFPA = Math.max(0, Math.min(90, fpa + dFPA));
+  /* Allow negative FPA for ballistic descent — clamp at ±85° */
+  const newFPA = Math.max(-85, Math.min(90, fpa + dFPA));
 
   /* ── Position update ── */
   const newAlt_m  = Math.max(padElev * 0.3048, alt_m + newVVert * dt);
