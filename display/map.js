@@ -6,14 +6,17 @@
    Rocket    : equirectangular world map, ground track, bigger panel
    ═══════════════════════════════════════════════════════════════ */
 
-import { S } from '../core/state.js';
+import { S }     from '../core/state.js';
+import { COAST, SPACE_SITES } from './coastlines.js';
 
 const DEG = Math.PI / 180;
 
 /* Sizes */
 const LOCAL_SIZE = 180;        /* px — aircraft mini-map */
-const ROCKET_W   = 340;        /* px — rocket world map */
-const ROCKET_H   = 210;        /* px */
+const PROFILE_W  =  54;        /* px — altitude profile strip (left of map) */
+const MAP_W      = 360;        /* px — world map */
+const ROCKET_W   = PROFILE_W + MAP_W;   /* total rocket panel width */
+const ROCKET_H   = 230;        /* px — rocket panel height */
 
 let _el      = null;
 let _canvas  = null;
@@ -23,6 +26,12 @@ let _mode    = 'local';        /* 'local' | 'rocket' */
 /* Ground track history for rocket missions */
 let _track          = [];
 let _trackMissionId = null;
+
+/* Smooth zoom state — current displayed extent, lerped toward target */
+let _dispCLat = null;
+let _dispCLon = null;
+let _dispLatSpan = 12;
+let _dispLonSpan = 20;
 
 export function initMap() {
   _el = document.createElement('div');
@@ -36,7 +45,7 @@ export function initMap() {
 
 function _applySize(mode) {
   const w = mode === 'rocket' ? ROCKET_W : LOCAL_SIZE;
-  const h = mode === 'rocket' ? ROCKET_H : LOCAL_SIZE;
+  const h = mode === 'rocket' ? ROCKET_H  : LOCAL_SIZE;
   _el.style.cssText = `
     position: fixed;
     top: 12px;
@@ -71,14 +80,19 @@ export function renderMap() {
 
   const dpr = window.devicePixelRatio || 1;
   const W   = (isRocket ? ROCKET_W : LOCAL_SIZE) * dpr;
-  const H   = (isRocket ? ROCKET_H : LOCAL_SIZE) * dpr;
+  const H   = (isRocket ? ROCKET_H  : LOCAL_SIZE) * dpr;
   _canvas.width  = W;
   _canvas.height = H;
   const ctx = _canvas.getContext('2d');
 
   if (isRocket) {
     _updateTrack();
-    _renderWorldMap(ctx, W, H, dpr);
+    const pW = PROFILE_W * dpr;
+    _renderSideProfile(ctx, pW, H, dpr);
+    ctx.save();
+    ctx.translate(pW, 0);
+    _renderWorldMap(ctx, MAP_W * dpr, H, dpr);
+    ctx.restore();
   } else {
     _renderLocalMap(ctx, W, H, dpr);
   }
@@ -90,6 +104,7 @@ function _updateTrack() {
   if (missionId !== _trackMissionId) {
     _track          = [];
     _trackMissionId = missionId;
+    _dispCLat = null;   /* reset zoom on new mission */
   }
 
   const mT   = S.time ?? 0;
@@ -98,9 +113,11 @@ function _updateTrack() {
 
   const lat = S.lat ?? 0;
   const lon = S.lon ?? 0;
+  const alt = (S.alt ?? 0) * 0.3048 / 1000;   /* km */
+  const t   = mT - (S.aircraft?.ignitionTime ?? 0);
   const last = _track[_track.length - 1];
   if (!last || Math.abs(lat - last.lat) + Math.abs(lon - last.lon) > 0.005) {
-    _track.push({ lat, lon });
+    _track.push({ lat, lon, alt, t, stg: S.rocketStage ?? 1 });
   }
 }
 
@@ -112,7 +129,7 @@ function _renderWorldMap(ctx, W, H, dpr) {
   const curLat    = S.lat  ?? launchLat;
   const curLon    = S.lon  ?? launchLon;
 
-  /* Compute extent from track + launch + current */
+  /* Compute target extent from track + launch + current */
   const allLats = [launchLat, curLat, ..._track.map(p => p.lat)];
   const allLons = [launchLon, curLon, ..._track.map(p => p.lon)];
 
@@ -121,11 +138,27 @@ function _renderWorldMap(ctx, W, H, dpr) {
   const rawMinLon = Math.min(...allLons);
   const rawMaxLon = Math.max(...allLons);
 
-  /* Minimum window: 18° lat × 40° lon */
-  const cLat   = (rawMinLat + rawMaxLat) / 2;
-  const cLon   = (rawMinLon + rawMaxLon) / 2;
-  const latSpan = Math.max(rawMaxLat - rawMinLat + 8,  18);
-  const lonSpan = Math.max(rawMaxLon - rawMinLon + 8,  40);
+  /* Target window: fit the track with padding, minimum 10° lat × 16° lon */
+  const tgtCLat    = (rawMinLat + rawMaxLat) / 2;
+  const tgtCLon    = (rawMinLon + rawMaxLon) / 2;
+  const tgtLatSpan = Math.max(rawMaxLat - rawMinLat + 6, 10);
+  const tgtLonSpan = Math.max(rawMaxLon - rawMinLon + 8, 16);
+
+  /* Reset on mission change */
+  if (_dispCLat === null) { _dispCLat = tgtCLat; _dispCLon = tgtCLon;
+                            _dispLatSpan = tgtLatSpan; _dispLonSpan = tgtLonSpan; }
+
+  /* Smooth lerp toward target — zoom out fast, zoom in slow */
+  const k = tgtLonSpan > _dispLonSpan ? 0.06 : 0.02;
+  _dispCLat    += (tgtCLat    - _dispCLat)    * k;
+  _dispCLon    += (tgtCLon    - _dispCLon)    * k;
+  _dispLatSpan += (tgtLatSpan - _dispLatSpan) * k;
+  _dispLonSpan += (tgtLonSpan - _dispLonSpan) * k;
+
+  const cLat    = _dispCLat;
+  const cLon    = _dispCLon;
+  const latSpan = _dispLatSpan;
+  const lonSpan = _dispLonSpan;
 
   const minLat = cLat - latSpan / 2;
   const maxLat = cLat + latSpan / 2;
@@ -141,6 +174,29 @@ function _renderWorldMap(ctx, W, H, dpr) {
   /* Background */
   ctx.fillStyle = '#060c16';
   ctx.fillRect(0, 0, W, H);
+
+  /* Continent fills + outlines */
+  ctx.save();
+  ctx.lineJoin = 'round';
+  for (const poly of COAST) {
+    ctx.beginPath();
+    let first = true;
+    for (const [rawLon, lat] of poly) {
+      let lon = rawLon;
+      if (lon < minLon - 10) lon += 360;
+      if (lon > maxLon + 10) lon -= 360;
+      const { x, y } = proj(lat, lon);
+      if (first) { ctx.moveTo(x, y); first = false; }
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fillStyle   = '#0d1f2d';
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+    ctx.lineWidth   = 0.7 * dpr;
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.restore();
 
   /* Grid */
   const gridStep = lonSpan > 50 ? 10 : 5;
@@ -168,6 +224,38 @@ function _renderWorldMap(ctx, W, H, dpr) {
     ctx.fillText('EQ', p2.x - 2 * dpr, p2.y - 2 * dpr);
   }
 
+  /* Nominal ground track — great circle from launch heading */
+  const nomHdg = S.mission?.initialState?.hdg ?? S.hdg ?? 0;
+  {
+    const lat1 = launchLat * DEG;
+    const lon1 = launchLon * DEG;
+    const az   = nomHdg * DEG;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.lineWidth   = 1.2 * dpr;
+    ctx.setLineDash([4 * dpr, 5 * dpr]);
+    ctx.lineJoin    = 'round';
+    ctx.beginPath();
+    proj(launchLat, launchLon);
+    const { x: nx0, y: ny0 } = proj(launchLat, launchLon);
+    ctx.moveTo(nx0, ny0);
+    for (let i = 1; i <= 50; i++) {
+      const d    = i * 0.8 * DEG;
+      const lat2 = Math.asin(Math.sin(lat1) * Math.cos(d)
+                   + Math.cos(lat1) * Math.sin(d) * Math.cos(az));
+      const lon2 = lon1 + Math.atan2(Math.sin(az) * Math.sin(d) * Math.cos(lat1),
+                   Math.cos(d) - Math.sin(lat1) * Math.sin(lat2));
+      let lon2deg = lon2 / DEG;
+      if (lon2deg < minLon - 10) lon2deg += 360;
+      if (lon2deg > maxLon + 10) lon2deg -= 360;
+      const { x: nx, y: ny } = proj(lat2 / DEG, lon2deg);
+      ctx.lineTo(nx, ny);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
   /* Ground track */
   if (_track.length > 1) {
     ctx.save();
@@ -190,6 +278,30 @@ function _renderWorldMap(ctx, W, H, dpr) {
     ctx.stroke();
     ctx.restore();
   }
+
+  /* Space facility markers */
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.fillStyle   = 'rgba(255,255,255,0.55)';
+  ctx.font        = `${6.5 * dpr}px "IBM Plex Mono", monospace`;
+  ctx.lineWidth   = 1 * dpr;
+  for (const [sLon, sLat, label] of SPACE_SITES) {
+    if (sLat < minLat || sLat > maxLat) continue;
+    let lon = sLon;
+    if (lon < minLon - 5) lon += 360;
+    if (lon > maxLon + 5) lon -= 360;
+    if (lon < minLon || lon > maxLon) continue;
+    const { x, y } = proj(sLat, lon);
+    const r = 2.5 * dpr;
+    ctx.beginPath();
+    ctx.moveTo(x - r, y); ctx.lineTo(x + r, y);
+    ctx.moveTo(x, y - r); ctx.lineTo(x, y + r);
+    ctx.stroke();
+    ctx.textAlign    = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(label, x + 3 * dpr, y - 2 * dpr);
+  }
+  ctx.restore();
 
   /* Launch site — amber diamond */
   const lp = proj(launchLat, launchLon);
@@ -255,6 +367,91 @@ function _renderWorldMap(ctx, W, H, dpr) {
   ctx.textAlign    = 'left';
   ctx.textBaseline = 'top';
   ctx.fillText(`${sign} ${mm}:${ss}`, 4 * dpr, 4 * dpr);
+  ctx.restore();
+}
+
+/* ── Side altitude profile strip (left of map) ── */
+function _renderSideProfile(ctx, W, H, dpr) {
+  /* Background */
+  ctx.fillStyle = '#040a12';
+  ctx.fillRect(0, 0, W, H);
+
+  /* Right divider */
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  ctx.fillRect(W - 1 * dpr, 0, 1 * dpr, H);
+
+  const ignT  = S.aircraft?.ignitionTime ?? 0;
+  const curT  = Math.max(0, (S.time ?? 0) - ignT);
+  const altKm = (S.alt ?? 0) * 0.3048 / 1000;
+  const maxAlt = Math.max(10, ...(_track.map(p => p.alt ?? 0)), altKm) * 1.1;
+  const maxT   = Math.max(curT, 60);
+
+  const pad  = { l: 4 * dpr, r: 14 * dpr, t: 6 * dpr, b: 6 * dpr };
+  const pw   = W - pad.l - pad.r;
+  const ph   = H - pad.t - pad.b;
+
+  /* altitude → y,  time → x */
+  const ay = a => pad.t + ph - (a / maxAlt) * ph;
+  const tx = t => pad.l + (t / maxT) * pw;
+
+  /* Altitude grid lines */
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth   = 0.5 * dpr;
+  const altStep = maxAlt > 80 ? 50 : maxAlt > 40 ? 25 : 10;
+  for (let a = altStep; a < maxAlt; a += altStep) {
+    const y = ay(a);
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+  }
+
+  /* Stage boundary — horizontal dashed line at staging altitude */
+  ctx.setLineDash([2 * dpr, 3 * dpr]);
+  ctx.strokeStyle = 'rgba(255,200,80,0.4)';
+  ctx.lineWidth   = 0.8 * dpr;
+  for (let i = 1; i < _track.length; i++) {
+    if ((_track[i].stg ?? 1) > (_track[i-1].stg ?? 1)) {
+      const y = ay(_track[i].alt ?? 0);
+      ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+    }
+  }
+  ctx.setLineDash([]);
+
+  /* Altitude curve */
+  if (_track.length > 1) {
+    ctx.save();
+    ctx.beginPath();
+    _track.forEach((p, i) => {
+      const x = tx(p.t ?? 0);
+      const y = ay(p.alt ?? 0);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.lineTo(tx(curT), ay(altKm));
+    ctx.strokeStyle = '#4dc5dc';
+    ctx.lineWidth   = 1.5 * dpr;
+    ctx.lineJoin    = 'round';
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /* Current dot */
+  ctx.beginPath();
+  ctx.arc(tx(curT), ay(altKm), 2.5 * dpr, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+
+  /* Altitude labels (right side) */
+  ctx.save();
+  ctx.font         = `${6 * dpr}px "IBM Plex Mono", monospace`;
+  ctx.fillStyle    = 'rgba(255,255,255,0.35)';
+  ctx.textAlign    = 'right';
+  ctx.textBaseline = 'middle';
+  for (let a = 0; a <= maxAlt; a += altStep) {
+    ctx.fillText(`${a}`, W - 2 * dpr, ay(a));
+  }
+  /* "km" unit top-left */
+  ctx.textAlign    = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle    = 'rgba(255,255,255,0.2)';
+  ctx.fillText('km', pad.l, 1 * dpr);
   ctx.restore();
 }
 

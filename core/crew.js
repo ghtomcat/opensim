@@ -25,6 +25,18 @@ const _pmFired        = new Set();   // altitude callout thresholds already fire
 const _gpwsFired      = new Set();   // GPWS callout altitudes already fired
 const _takeoffFired   = new Set();   // takeoff speed callouts already fired
 
+/* ── Rocket event tracking ── */
+let _prevVelMs        = 0;
+let _prevDynQ         = 0;
+let _prevRocketCoast  = false;
+let _prevRocketStage  = 1;
+let _prevRocketSECO   = false;
+let _prevOrbit        = false;
+let _secoTime          = -1;         // mission time when SECO occurred, -1 = not yet
+let _prevActiveEngines = null;       // track engine count drops
+let _prevCECO          = false;      // track G-triggered CECO
+const _rocketFired    = new Set();   // named rocket events already fired
+
 /* ── Audio file map — override TTS for key phrases ── */
 const AUDIO_FILES = {
   'grüezi':      'audio/grüezi.mp3',
@@ -75,6 +87,22 @@ export function tickCrew(prevAlt, currAlt) {
 
   _prevSpd = S.spd ?? 0;
   _prevWow = S.wow ?? false;
+
+  /* Advance rocket prev-state for event edge detection */
+  if (ac.vehicleType === 'rocket') {
+    const alt_m  = (S.alt ?? 0) * 0.3048;
+    const vel_ms = (S.spd ?? 0) * 0.5144;
+    const rho    = _rhoSimple(alt_m);
+    _prevVelMs        = vel_ms;
+    _prevDynQ         = 0.5 * rho * vel_ms * vel_ms;
+    _prevRocketCoast  = S.rocketCoast  ?? false;
+    _prevRocketStage  = S.rocketStage  ?? 1;
+    if (!_prevRocketSECO && (S.rocketSECO ?? false)) _secoTime = S.time ?? 0;
+    _prevRocketSECO    = S.rocketSECO   ?? false;
+    _prevOrbit         = _isInOrbit();
+    _prevActiveEngines = S.rocketActiveEngines ?? null;
+    _prevCECO          = S.rocketCECO          ?? false;
+  }
 }
 
 export function resetCrew() {
@@ -89,6 +117,13 @@ export function resetCrew() {
   _pmFired.clear();
   _gpwsFired.clear();
   _takeoffFired.clear();
+  _rocketFired.clear();
+  _prevVelMs = 0; _prevDynQ = 0;
+  _prevRocketCoast = false; _prevRocketStage = 1;
+  _prevRocketSECO = false; _prevOrbit = false;
+  _secoTime = -1;
+  _prevActiveEngines = null;
+  _prevCECO = false;
 }
 
 /* ── Direct speech ── */
@@ -195,14 +230,18 @@ function _checkATC(prev, curr, ms) {
       fire = (S.time >= clr.t);
     } else if (clr.alt !== undefined) {
       fire = (curr < prev && prev > clr.alt && curr <= clr.alt);
+    } else if (clr.event !== undefined) {
+      fire = _checkRocketEvent(clr.event, clr);
     }
     if (!fire) return;
     _atcFired.add(idx);
 
+    const delay = clr.delay ?? 200;
+
     /* Single-voice format: { text, voice } */
     if (clr.text !== undefined) {
       const speak = clr.voice === 'pm' ? speakPM : speakATC;
-      setTimeout(() => speak(clr.text), 200);
+      setTimeout(() => speak(clr.text), delay);
       return;
     }
 
@@ -230,6 +269,163 @@ function _checkATC(prev, curr, ms) {
     };
     _safeSpeak(pmU);
   });
+}
+
+/* ── Rocket event detection ── */
+
+function _rhoSimple(alt_m) {
+  if (alt_m <= 11000)  return 1.225 * Math.pow((288.15 - 6.5e-3 * alt_m) / 288.15, 4.2559);
+  if (alt_m <= 25000)  return 0.3639 * Math.exp(-(alt_m - 11000) / 6341.6);
+  if (alt_m <= 86000)  return 0.01   * Math.exp(-(alt_m - 25000) / 7200);
+  return 0;
+}
+
+function _isInOrbit() {
+  const alt_m  = (S.alt ?? 0) * 0.3048;
+  const vel_ms = (S.spd ?? 0) * 0.5144;
+  const vOrb   = Math.sqrt(3.986004418e14 / (6371000 + alt_m));
+  return vel_ms >= vOrb * 0.99 && Math.abs(S.pitch ?? 90) < 8;
+}
+
+function _checkRocketEvent(event, clr) {
+  /* Each named event fires at most once per mission.
+     For events reused with different delays (e.g. two 'stagesep' entries),
+     use clr._uid as a tie-breaker set by the caller. */
+  const uid = clr._uid ?? event;
+  if (_rocketFired.has(uid)) return false;
+
+  const alt_m  = (S.alt ?? 0) * 0.3048;
+  const vel_ms = (S.spd ?? 0) * 0.5144;
+  const rho    = _rhoSimple(alt_m);
+  const dynQ   = 0.5 * rho * vel_ms * vel_ms;
+
+  switch (event) {
+    case 'supersonic':
+      if (vel_ms > 340 && _prevVelMs <= 340) {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
+    case 'maxq':
+      /* Q has peaked: currently falling and was above 10 kPa (well past transonic) */
+      if (_prevDynQ > 10000 && dynQ < _prevDynQ * 0.985) {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
+    case 'stage1_nominal': {
+      /* Fires when stage 1 has burned ~40% of its propellant */
+      if ((S.rocketStage ?? 1) !== 1) break;
+      const perf  = S.aircraft?.performance ?? {};
+      const s1    = perf.stages?.[0] ?? {};
+      const s2    = perf.stages?.[1] ?? {};
+      const mWet  = perf.massWet ?? 28000;
+      const b1    = (s1.massDry ?? 0) + (s2.massWet ?? 0) + (perf.payload ?? 0) + 5;
+      const prop1 = mWet - b1;
+      if ((S.rocketMass ?? mWet) <= mWet - prop1 * 0.4) {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+    }
+
+    case 'meco':
+      /* Stage 1 just started coasting (burnout) */
+      if ((S.rocketCoast ?? false) && !_prevRocketCoast && (S.rocketStage ?? 1) === 1) {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
+    case 'stagesep':
+      /* Coast just ended, stage 2 active — unique per callout using index */
+      if (!(S.rocketCoast ?? false) && _prevRocketCoast && (S.rocketStage ?? 1) === 2) {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
+    case 'seco':
+      if ((S.rocketSECO ?? false) && !_prevRocketSECO) {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
+    case 'orbit':
+      if (_isInOrbit() && !_prevOrbit) {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
+    case 'engine_out': {
+      /* Unplanned engine loss — active count dropped, NOT triggered by auto-CECO */
+      const stgCfg  = (S.aircraft?.performance?.stages ?? [])[(S.rocketStage ?? 1) - 1] ?? {};
+      const total   = stgCfg.engineCount ?? 1;
+      const active  = S.rocketActiveEngines ?? total;
+      const prevAct = _prevActiveEngines ?? total;
+      if (active < prevAct && !S.rocketCECO && !_prevCECO) {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+    }
+
+    case 'ceco':
+      /* G-triggered center engine cutoff — planned, not a failure */
+      if ((S.rocketCECO ?? false) && !_prevCECO) {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
+    case 'engine_failure_ascent':
+      /* Stage 1 engine failure at low altitude — vehicle falling back (F1 Flight 1: T+25s fire) */
+      if ((S.rocketStage ?? 1) === 1
+          && !(S.rocketCoast ?? false)
+          && !(S.rocketSECO ?? false)
+          && (S.time ?? 0) > 65
+          && (S.alt ?? 0) < 164000   /* below 50 km */
+          && (S.vs  ?? 0) < -2000) { /* descending > 10 m/s */
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
+    case 'stage2_anomaly':
+      /* Stage 2 vehicle tumbling / separation collision — strong nose-down (F1 Flight 3) */
+      if ((S.rocketStage ?? 1) >= 2
+          && !(S.rocketCoast ?? false)
+          && !(S.rocketSECO ?? false)
+          && (S.pitch ?? 90) < -25) { /* FPA < -25°: clearly falling away */
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
+    case 'structural_failure': {
+      /* G-load or dynamic pressure exceeds design limit */
+      const gLim = S.aircraft?.performance?.gLimit ?? 8;
+      const qLim = S.aircraft?.performance?.qLimit ?? 50000;
+      if ((S.rocketG ?? 0) > gLim || (S.rocketDynQ ?? 0) > qLim) {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+    }
+
+    case 'orbit_anomaly':
+      /* Fires if SECO occurred but orbital velocity was never achieved after 60 s */
+      if (_secoTime >= 0
+          && !_rocketFired.has('orbit')
+          && !_isInOrbit()
+          && (S.time ?? 0) - _secoTime > 60) {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
+    case 'alt': {
+      const altKm = alt_m / 1000;
+      const tgt   = clr.alt_km ?? 0;
+      if (altKm >= tgt && (alt_m - vel_ms * 0.1) / 1000 < tgt) {
+        /* Only fire on the ascending pass through the threshold */
+        _rocketFired.add(uid); return true;
+      }
+      break;
+    }
+  }
+  return false;
 }
 
 function _checkApproachBrief(prev, curr, ms) {

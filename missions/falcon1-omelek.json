@@ -32,24 +32,40 @@
 
   "arrival": null,
 
+  "com": {
+    "title": "MISSION AUDIO",
+    "loops": [
+      { "id": "silence",   "label": "SILENCE" },
+      { "id": "webcast",   "label": "F4 WEBCAST",   "audio": "audio/falcon1-f4-webcast.mp3"  },
+      { "id": "ambient",   "label": "PAD AMBIENT",  "audio": "audio/launch-ambient.mp3"      },
+      { "id": "countdown", "label": "COUNTDOWN",    "audio": "audio/falcon1-countdown.mp3"   }
+    ],
+    "active": "silence"
+  },
+
   "atcClearances": [
-    { "t":   0, "text": "T minus 60 seconds. Launch control go for launch.",                  "voice": "atc" },
-    { "t":  30, "text": "T minus 30 seconds.",                                                "voice": "atc" },
-    { "t":  40, "text": "T minus 20. Vehicle on internal power.",                             "voice": "atc" },
-    { "t":  50, "text": "T minus 10. 9. 8. 7. 6. 5. 4. 3. 2. 1.",                           "voice": "atc" },
-    { "t":  57, "text": "Ignition sequence start.",                                           "voice": "atc" },
-    { "t":  60, "text": "Liftoff. Falcon 1 is on its way to orbit.",                         "voice": "atc" },
-    { "t": 115, "text": "Vehicle is supersonic.",                                             "voice": "atc" },
-    { "t": 139, "text": "Max Q.",                                                             "voice": "atc" },
-    { "t": 170, "text": "Stage 1 nominal. Propellant nominal.",                               "voice": "atc" },
-    { "t": 229, "text": "T minus ten to MECO.",                                               "voice": "atc" },
-    { "t": 239, "text": "Main engine cutoff. MECO confirmed.",                                "voice": "atc" },
-    { "t": 245, "text": "Stage separation. Second engine start.",                             "voice": "atc" },
-    { "t": 252, "text": "Kestrel ignition confirmed. Stage 2 is go.",                         "voice": "atc" },
-    { "t": 370, "text": "Altitude 200 kilometers. Velocity 4.2 kilometers per second.",       "voice": "atc" },
-    { "t": 520, "text": "Altitude 450 kilometers. Approaching apogee.",                       "voice": "atc" },
-    { "t": 631, "text": "T minus ten to SECO.",                                               "voice": "atc" },
-    { "t": 641, "text": "Second engine cutoff. SECO confirmed. Falcon 1 has reached orbit. Congratulations SpaceX.", "voice": "atc" }
+    { "t":  0,  "text": "T minus 60 seconds. Launch control go for launch.",   "voice": "atc" },
+    { "t": 30,  "text": "T minus 30 seconds.",                                  "voice": "atc" },
+    { "t": 40,  "text": "T minus 20. Vehicle on internal power.",               "voice": "atc" },
+    { "t": 50,  "text": "T minus 10. 9. 8. 7. 6. 5. 4. 3. 2. 1.",            "voice": "atc" },
+    { "t": 57,  "text": "Ignition sequence start.",                             "voice": "atc" },
+    { "t": 60,  "text": "Liftoff. Falcon 1 is on its way to orbit.",           "voice": "atc" },
+
+    { "event": "supersonic",    "text": "Vehicle is supersonic.",                                    "voice": "atc" },
+    { "event": "maxq",          "text": "Max Q. Vehicle is go.",                                     "voice": "atc" },
+    { "event": "stage1_nominal","text": "Stage 1 performance nominal. Propellant nominal.",           "voice": "atc" },
+    { "event": "meco",          "text": "Main engine cutoff. MECO confirmed.",                       "voice": "atc" },
+    { "event": "stagesep", "_uid": "stagesep", "text": "Stage separation confirmed.",                "voice": "atc", "delay": 200  },
+    { "event": "stagesep", "_uid": "kestrel",  "text": "Kestrel ignition confirmed. Stage 2 is go.", "voice": "atc", "delay": 6000 },
+    { "event": "alt", "_uid": "alt200", "alt_km": 200, "text": "Altitude 200 kilometers.",           "voice": "atc" },
+    { "event": "alt", "_uid": "alt450", "alt_km": 450, "text": "Altitude 450 kilometers. Approaching apogee.", "voice": "atc" },
+    { "event": "seco",          "text": "Second engine cutoff. SECO confirmed.",                     "voice": "atc" },
+    { "event": "orbit",         "text": "Falcon 1 has reached orbit. Congratulations SpaceX.",       "voice": "atc" },
+
+    { "event": "orbit_anomaly",       "text": "Orbital insertion anomaly. Velocity below nominal for circular orbit. Trajectory suborbital.", "voice": "atc" },
+    { "event": "engine_failure_ascent","text": "Engine failure. Loss of thrust confirmed. Vehicle descending. Loss of mission.",             "voice": "atc" },
+    { "event": "stage2_anomaly",       "text": "Stage two anomaly. Attitude loss detected. Vehicle tumbling. Contact lost.",                  "voice": "atc" },
+    { "event": "structural_failure",   "text": "Structural failure. Vehicle has exceeded design limits. Loss of vehicle.",                    "voice": "atc" }
   ],
 
   "narrative": [

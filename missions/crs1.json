@@ -1,0 +1,89 @@
+{
+  "id":          "crs1",
+  "title":       "CRS-1 — Dragon to ISS",
+  "description": "8 October 2012. Engine 1 fails at T+79s. Eight engines carry Dragon to orbit.",
+  "author":      "Markus Leutwyler",
+  "aircraft":    "falcon9-b1",
+
+  "timeOfDay": 0.6,
+  "water":     false,
+
+  "weather": {
+    "source": "manual",
+    "manual": {
+      "wdir": 100, "wspd": 6, "turbulence": 0.1, "altim": 1015, "temp": 26
+    }
+  },
+
+  "initialState": {
+    "lat":   28.5621,
+    "lon":  -80.5772,
+    "alt":   6,
+    "spd":   0,
+    "hdg":  51,
+    "pitch": 90,
+    "roll":  0
+  },
+
+  "departure": {
+    "name":      "Cape Canaveral SLC-40",
+    "elevation": 6
+  },
+
+  "arrival": null,
+
+  "com": {
+    "title": "MISSION AUDIO",
+    "loops": [
+      { "id": "silence",  "label": "SILENCE" },
+      { "id": "webcast",  "label": "CRS-1 WEBCAST",  "audio": "audio/crs1-webcast.mp3"  },
+      { "id": "ambient",  "label": "PAD AMBIENT",    "audio": "audio/launch-ambient.mp3" }
+    ],
+    "active": "silence"
+  },
+
+  "engineFailures": [
+    { "t": 139, "stageIdx": 0, "activeEngines": 8, "failedEngines": [3] }
+  ],
+
+  "atcClearances": [
+    { "t":  0,  "text": "T minus 60 seconds. Go for launch.",                              "voice": "atc" },
+    { "t": 30,  "text": "T minus 30 seconds.",                                              "voice": "atc" },
+    { "t": 40,  "text": "T minus 20. Terminal count.",                                      "voice": "atc" },
+    { "t": 50,  "text": "T minus 10. 9. 8. 7. 6. 5. 4. 3. 2. 1.",                        "voice": "atc" },
+    { "t": 57,  "text": "Ignition sequence start.",                                         "voice": "atc" },
+    { "t": 60,  "text": "Liftoff. Falcon 9 lifts off from Cape Canaveral.",               "voice": "atc" },
+
+    { "event": "engine_out",         "text": "Falcon 9 has experienced an engine shutdown. The vehicle is in the nominal flight envelope.", "voice": "atc" },
+    { "event": "supersonic",         "text": "Vehicle is supersonic.",                     "voice": "atc" },
+    { "event": "maxq",               "text": "Max Q.",                                     "voice": "atc" },
+    { "event": "ceco",               "text": "Center engine cutoff.",                      "voice": "atc" },
+    { "event": "stage1_nominal",     "text": "Stage 1 performing nominally.",               "voice": "atc" },
+    { "event": "meco",               "text": "Main engine cutoff. MECO confirmed.",         "voice": "atc" },
+    { "event": "stagesep", "_uid": "stagesep", "text": "Stage separation confirmed.",      "voice": "atc", "delay": 200  },
+    { "event": "stagesep", "_uid": "mvac",     "text": "MVac ignition confirmed. Stage 2 is go.", "voice": "atc", "delay": 6000 },
+    { "event": "alt", "_uid": "alt200", "alt_km": 200, "text": "Altitude 200 kilometers.", "voice": "atc" },
+    { "event": "seco",               "text": "Second engine cutoff. SECO confirmed.",      "voice": "atc" },
+    { "event": "orbit",              "text": "Falcon 9 has reached orbit. Dragon separation in 22 minutes.", "voice": "atc" },
+
+    { "event": "orbit_anomaly",      "text": "Orbital insertion anomaly. Vehicle did not reach nominal orbit.", "voice": "atc" },
+    { "event": "engine_failure_ascent", "text": "Multiple engine failures. Loss of vehicle.",                 "voice": "atc" },
+    { "event": "structural_failure", "text": "Structural failure. Loss of vehicle.",                          "voice": "atc" }
+  ],
+
+  "narrative": [
+    "Cape Canaveral.",
+    "SLC-40.",
+    "8 October 2012.",
+    "Engine 1 fails at T+79 seconds.",
+    "Eight engines carry Dragon to orbit anyway.",
+    "The ISS gets its cargo.",
+    "Orbcomm does not."
+  ],
+
+  "debrief": [
+    "Engine 1 failed at T+79s — did the callout fire?",
+    "Did the vehicle reach orbit on 8 engines?",
+    "If orbit was low — what did the secondary payload lose?"
+  ]
+}

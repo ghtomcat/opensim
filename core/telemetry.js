@@ -1,6 +1,7 @@
 /* ═══════════════════════════════════════════════════════════════
    OpenSim — core/telemetry.js
-   Records flight state at ~2Hz. Download as JSONL with Ctrl+Shift+T.
+   Records flight state at ~2Hz.
+   Ctrl+Shift+T → CSV (rockets) or JSONL (aircraft).
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from './state.js';
@@ -9,6 +10,11 @@ const INTERVAL = 0.5;   // seconds between samples
 let _buf = [];
 let _acc = 0;
 let _recording = false;
+
+function _soundAt(alt_m) {
+  const T = alt_m < 11000 ? 288.15 - 6.5e-3 * alt_m : 216.65;
+  return Math.sqrt(1.4 * 287 * T);
+}
 
 export function startTelemetry() {
   _buf = [];
@@ -43,7 +49,33 @@ export function tickTelemetry(dt) {
     spdT:        +(S.spdT   ?? 0).toFixed(0),
     braking:     S.braking ? 1 : 0,
   };
-  if (isHover) {
+  const isRocket = S.aircraft?.vehicleType === 'rocket';
+
+  if (isRocket) {
+    const alt_m  = (S.alt ?? 0) * 0.3048;
+    const vel_ms = (S.spd ?? 0) * 0.5144;
+    const sound  = _soundAt(alt_m);
+    const ignT   = S.aircraft?.ignitionTime ?? 0;
+    const tLO    = (S.time ?? 0) - ignT;
+    const launch = S.mission?.initialState ?? {};
+    const dLat   = ((S.lat ?? 0) - (launch.lat ?? 0)) * 111.32;
+    const dLon   = ((S.lon ?? 0) - (launch.lon ?? 0)) * 111.32 * Math.cos((launch.lat ?? 0) * Math.PI / 180);
+    row.t_liftoff    = +Math.max(0, tLO).toFixed(1);
+    row.alt_km       = +(alt_m / 1000).toFixed(2);
+    row.vel_ms       = +vel_ms.toFixed(1);
+    row.vel_kmh      = +Math.round(vel_ms * 3.6);
+    row.mach         = +(vel_ms / sound).toFixed(3);
+    row.fpa_deg      = +(S.pitch ?? 90).toFixed(2);
+    row.vs_ms        = +((S.vs ?? 0) / 196.85).toFixed(2);
+    row.downrange_km = +Math.sqrt(dLat * dLat + dLon * dLon).toFixed(2);
+    row.stage        = S.rocketStage  ?? 1;
+    row.mass_kg      = +(S.rocketMass ?? 0).toFixed(0);
+    row.g_axial      = +(S.rocketG    ?? 0).toFixed(3);
+    row.dynq_pa      = +(S.rocketDynQ ?? 0).toFixed(0);
+    row.active_eng   = S.rocketActiveEngines ?? null;
+    row.coast        = (S.rocketCoast ?? false) ? 1 : 0;
+    row.seco         = (S.rocketSECO  ?? false) ? 1 : 0;
+  } else if (isHover) {
     const pfx = S.hcActive === 'markus' ? 'hcM' : 'hc';
     row.hcLiftAct  = +(S[pfx+'LiftAct']  ?? 0).toFixed(3);
     row.hcPressure = +(S[pfx+'Pressure'] ?? 0).toFixed(1);
@@ -64,6 +96,22 @@ export function downloadTelemetry() {
   const mission = S.mission?.id ?? 'opensim';
   a.href     = url;
   a.download = `${mission}-${Date.now()}.jsonl`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export function downloadTelemetryCSV() {
+  if (!_buf.length) { console.warn('No telemetry recorded.'); return; }
+  const keys   = Object.keys(_buf[0]);
+  const header = keys.join(',');
+  const rows   = _buf.map(r => keys.map(k => r[k] ?? '').join(','));
+  const csv    = [header, ...rows].join('\n');
+  const blob   = new Blob([csv], { type: 'text/csv' });
+  const url    = URL.createObjectURL(blob);
+  const a      = document.createElement('a');
+  const mission = S.mission?.id ?? 'opensim';
+  a.href     = url;
+  a.download = `${mission}-${Date.now()}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }

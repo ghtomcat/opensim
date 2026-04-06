@@ -17,6 +17,17 @@ const G0  = 9.80665;
 let _refCache = null;
 let _refAcId  = null;
 
+/* ── Peak telemetry trackers (reset on aircraft change) ── */
+let _peakG    = 0;
+let _peakQ    = 0;
+let _peakAcId = null;
+
+/* ── ISA speed of sound — for Mach calculation ── */
+function _machAt(vel_ms, alt_m) {
+  const T_K = alt_m < 11000 ? 288.15 - 6.5e-3 * alt_m : 216.65;
+  return vel_ms / Math.sqrt(1.4 * 287 * T_K);
+}
+
 function _getRef(ac) {
   if (_refCache && _refAcId === ac.id) return _refCache;
   _refCache = _buildRef(ac);
@@ -161,19 +172,32 @@ export function renderRocket(canvas) {
   ctx.fillText(stageStr, W / 2, H * 0.20);
   ctx.restore();
 
-  /* ── Metrics (3 columns + rocket orientation) ── */
+  /* ── Peak trackers ── */
+  if (_peakAcId !== ac.id) { _peakG = 0; _peakQ = 0; _peakAcId = ac.id; }
+  _peakG = Math.max(_peakG, Math.abs(S.rocketG   ?? 0));
+  _peakQ = Math.max(_peakQ, S.rocketDynQ ?? 0);
+
+  /* ── Mach ── */
+  const mach = _machAt(velMs, alt_m);
+
+  /* ── Metrics (4 columns + rocket orientation) ── */
   const lblFontSz = Math.round(H * 0.037);
   const vFontSz   = Math.round(H * 0.078);
   const mTop      = H * 0.27;
-  const mW        = W * 0.27;   /* 3 metric cols share 81%, orientation uses 19% */
+  const mW        = W * 0.20;   /* 4 metric cols share 80%, orientation uses 20% */
+
+  const gVal   = S.rocketG ?? 0;
+  const gColor = gVal > 6 ? '#ff4444' : gVal > 4 ? '#ffb74d' : '#e8edf2';
 
   const metrics = [
-    { label: 'ALTITUDE',  value: altKm.toFixed(1),      unit: 'km',
-      sub: null },
-    { label: 'VELOCITY',  value: velKms.toFixed(2),     unit: 'km/s',
-      sub: Math.round(velKmh).toLocaleString() + ' km/h' },
+    { label: 'ALTITUDE',  value: altKm.toFixed(1),       unit: 'km',
+      sub: null,                                                          color: '#e8edf2' },
+    { label: 'VELOCITY',  value: velKms.toFixed(2),      unit: 'km/s',
+      sub: `M ${mach.toFixed(2)}  ·  ${Math.round(velKmh).toLocaleString()} km/h`,  color: '#e8edf2' },
     { label: 'DOWNRANGE', value: downrangeKm.toFixed(0), unit: 'km',
-      sub: null },
+      sub: null,                                                          color: '#e8edf2' },
+    { label: 'G-FORCE',   value: gVal.toFixed(1),        unit: 'g',
+      sub: `q ${Math.round((S.rocketDynQ ?? 0) / 1000)} kPa  · peak ${_peakG.toFixed(1)}g`, color: gColor },
   ];
 
   metrics.forEach((m, i) => {
@@ -187,7 +211,7 @@ export function renderRocket(canvas) {
     ctx.fillText(m.label, cx, mTop);
 
     ctx.font         = `bold ${vFontSz}px "IBM Plex Mono", monospace`;
-    ctx.fillStyle    = '#e8edf2';
+    ctx.fillStyle    = m.color;
     ctx.textBaseline = 'top';
     const valY = mTop + lblFontSz + 3;
     ctx.fillText(m.value, cx, valY);
@@ -207,14 +231,28 @@ export function renderRocket(canvas) {
   });
 
   /* ── Rocket orientation side view ── */
-  const orX = W * 0.855;
-  const orY = mTop;
-  const orW = W * 0.13;
-  const orH = H * 0.20;
+  const totalEnginesDisp = (ac.performance?.stages ?? [])[stage - 1]?.engineCount ?? 1;
+  const orX  = W * 0.82;
+  const orY  = mTop;
+  const orW  = W * 0.16;
+  const orH  = totalEnginesDisp > 1 ? H * 0.115 : H * 0.20;
   _drawOrientation(ctx, orX, orY, orW, orH, fpa, stageColor);
+
+  /* ── Engine grid (multi-engine vehicles only) ── */
+  if (totalEnginesDisp > 1) {
+    const egY = orY + orH + Math.round(H * 0.005);
+    const egH = H * 0.085;
+    _drawEngineGrid(ctx, orX, egY, orW, egH,
+      totalEnginesDisp,
+      S.rocketActiveEngines ?? totalEnginesDisp,
+      S.rocketFailedEngines ?? []);
+  }
 
   /* ── Orbital velocity bar ── */
   _drawOrbitalBar(ctx, W, H, velKms, vOrbKms, orbitFrac, inOrbit, fpa, lblFontSz);
+
+  /* ── Propellant gauge ── */
+  _drawPropGauge(ctx, W, H, lblFontSz, stage, ac);
 
   /* ── Trajectory profile ── */
   _drawProfile(ctx, W, H, tLO, ac);
@@ -248,10 +286,12 @@ function _drawOrientation(ctx, x, y, w, h, fpa, color) {
   const tiltRad = (90 - fpa) * DEG;
 
   const bodyLen = h * 0.52;
-  const bodyW   = w * 0.18;
-  const noseLen = h * 0.16;
-  const bellLen = h * 0.12;
-  const bellW   = bodyW * 1.5;
+  const bodyW   = w * 0.10;
+  const noseLen = h * 0.24;
+  const bellLen = h * 0.10;
+  const bellW   = bodyW * 1.8;
+  const finH    = bodyLen * 0.22;
+  const finW    = bodyW * 1.4;
 
   ctx.save();
   ctx.translate(cx, cy);
@@ -281,12 +321,29 @@ function _drawOrientation(ctx, x, y, w, h, fpa, color) {
   ctx.fill();
   ctx.globalAlpha = 1;
 
-  /* Nose cone */
+  /* Nose cone — ogive shape */
   ctx.fillStyle = color;
   ctx.beginPath();
   ctx.moveTo(-bodyW / 2, -bodyLen / 2);
-  ctx.quadraticCurveTo(-bodyW / 4, -bodyLen / 2 - noseLen, 0, -bodyLen / 2 - noseLen);
-  ctx.quadraticCurveTo( bodyW / 4, -bodyLen / 2 - noseLen, bodyW / 2, -bodyLen / 2);
+  ctx.quadraticCurveTo(-bodyW / 2, -bodyLen / 2 - noseLen * 0.7, 0, -bodyLen / 2 - noseLen);
+  ctx.quadraticCurveTo( bodyW / 2, -bodyLen / 2 - noseLen * 0.7, bodyW / 2, -bodyLen / 2);
+  ctx.closePath();
+  ctx.fill();
+
+  /* Grid fins / landing legs (swept triangles at base) */
+  ctx.fillStyle = 'rgba(180,180,200,0.55)';
+  /* left fin */
+  ctx.beginPath();
+  ctx.moveTo(-bodyW / 2, bodyLen / 2);
+  ctx.lineTo(-bodyW / 2 - finW, bodyLen / 2);
+  ctx.lineTo(-bodyW / 2, bodyLen / 2 - finH);
+  ctx.closePath();
+  ctx.fill();
+  /* right fin */
+  ctx.beginPath();
+  ctx.moveTo( bodyW / 2, bodyLen / 2);
+  ctx.lineTo( bodyW / 2 + finW, bodyLen / 2);
+  ctx.lineTo( bodyW / 2, bodyLen / 2 - finH);
   ctx.closePath();
   ctx.fill();
 
@@ -294,8 +351,8 @@ function _drawOrientation(ctx, x, y, w, h, fpa, color) {
   ctx.fillStyle = 'rgba(180,180,190,0.6)';
   ctx.beginPath();
   ctx.moveTo(-bodyW / 2, bodyLen / 2 - bellLen * 0.3);
-  ctx.lineTo(-bellW / 2, bodyLen / 2);
-  ctx.lineTo( bellW / 2, bodyLen / 2);
+  ctx.lineTo(-bellW / 2, bodyLen / 2 + bellLen * 0.5);
+  ctx.lineTo( bellW / 2, bodyLen / 2 + bellLen * 0.5);
   ctx.lineTo( bodyW / 2, bodyLen / 2 - bellLen * 0.3);
   ctx.closePath();
   ctx.fill();
@@ -353,6 +410,112 @@ function _drawOrbitalBar(ctx, W, H, velKms, vOrbKms, frac, inOrbit, fpa, lblFont
   ctx.restore();
 }
 
+/* ── Propellant gauge ── */
+function _drawPropGauge(ctx, W, H, lblFontSz, stage, ac) {
+  const perf    = ac?.performance ?? {};
+  const stages  = perf.stages ?? [];
+  const stgIdx  = stage - 1;
+  const stg     = stages[stgIdx] ?? {};
+  const mass    = S.rocketMass  ?? 0;
+  const payload = perf.payload  ?? 0;
+
+  let massAbove = payload;
+  for (let i = stgIdx + 1; i < stages.length; i++) massAbove += stages[i].massWet ?? 0;
+  const burnoutT = (stg.massDry ?? 0) + massAbove + 5;
+  const initProp = (stg.massWet ?? 0) - (stg.massDry ?? 0) - 5;
+  const frac     = initProp > 0 ? Math.max(0, Math.min(1, (mass - burnoutT) / initProp)) : 0;
+
+  const coast  = S.rocketCoast ?? false;
+  const seco   = S.rocketSECO  ?? false;
+  const color  = stgIdx === 0 ? '#4dc5dc' : '#5dd47e';
+  const padX   = Math.round(W * 0.04);
+  const barW   = W - padX * 2;
+  const gTop   = H * 0.548;
+  const gH     = Math.round(H * 0.028);
+
+  ctx.save();
+  ctx.font         = `${lblFontSz}px "IBM Plex Mono", monospace`;
+  ctx.textBaseline = 'bottom';
+
+  ctx.fillStyle = 'rgba(232,237,242,0.35)';
+  ctx.textAlign = 'left';
+  ctx.fillText(`STAGE ${stage} PROPELLANT`, padX, gTop - 2);
+
+  const pctStr  = seco ? 'DEPLETED' : coast ? 'STAGING' : `${Math.round(frac * 100)}%`;
+  ctx.fillStyle = seco ? 'rgba(255,255,255,0.25)' : coast ? '#ffb74d' : color;
+  ctx.textAlign = 'right';
+  ctx.fillText(pctStr, W - padX, gTop - 2);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.07)';
+  ctx.fillRect(padX, gTop, barW, gH);
+
+  if (!seco) {
+    ctx.fillStyle = coast ? 'rgba(255,183,77,0.35)' : color;
+    ctx.fillRect(padX, gTop, barW * frac, gH);
+    /* thin accent line */
+    ctx.fillStyle = coast ? 'rgba(255,183,77,0.5)' : (stgIdx === 0 ? 'rgba(77,197,220,0.5)' : 'rgba(93,212,126,0.5)');
+    ctx.fillRect(padX, gTop, barW * frac, 2);
+  }
+  ctx.restore();
+}
+
+/* ── Engine status grid (multi-engine vehicles) ── */
+function _drawEngineGrid(ctx, x, y, w, h, totalEngines, activeEngines, failedEngines) {
+  ctx.save();
+
+  /* Background */
+  ctx.fillStyle   = 'rgba(255,255,255,0.03)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth   = 1;
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeRect(x, y, w, h);
+
+  /* Count label */
+  ctx.font         = `${Math.round(h * 0.20)}px "IBM Plex Mono", monospace`;
+  ctx.fillStyle    = activeEngines < totalEngines ? '#ffb74d' : 'rgba(232,237,242,0.4)';
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(`${activeEngines}/${totalEngines} ENG`, x + w / 2, y + h);
+
+  /* Engine dots — Octaweb layout for 9, circle for others */
+  const cx   = x + w / 2;
+  const cy   = y + h * 0.42;
+  const dotR = Math.min(w, h) * 0.072;
+  const positions = [];
+
+  if (totalEngines === 9) {
+    /* 8 outer in octagon + 1 center (index 8) */
+    const outerR = Math.min(w, h * 0.75) * 0.33;
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 - Math.PI / 2;
+      positions.push([cx + outerR * Math.cos(a), cy + outerR * Math.sin(a)]);
+    }
+    positions.push([cx, cy]);
+  } else {
+    /* Generic: evenly spaced in a single ring */
+    const r = Math.min(w, h * 0.75) * 0.32;
+    for (let i = 0; i < totalEngines; i++) {
+      const a = (i / totalEngines) * Math.PI * 2 - Math.PI / 2;
+      positions.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
+    }
+  }
+
+  for (let i = 0; i < positions.length; i++) {
+    const [px, py] = positions[i];
+    const failed   = failedEngines.includes(i);
+    ctx.fillStyle  = failed ? '#ff4444' : '#5dd47e';
+    ctx.shadowColor = ctx.fillStyle;
+    ctx.shadowBlur  = failed ? 0 : 3;
+    ctx.globalAlpha = failed ? 0.65 : 0.9;
+    ctx.beginPath();
+    ctx.arc(px, py, dotR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.shadowBlur  = 0;
+  ctx.restore();
+}
+
 function _drawProfile(ctx, W, H, tLO, ac) {
   const ref = _getRef(ac);
   if (!ref.length) return;
@@ -363,7 +526,7 @@ function _drawProfile(ctx, W, H, tLO, ac) {
   /* Profile bounding box */
   const padL  = Math.round(W * 0.07);
   const padR  = Math.round(W * 0.03);
-  const padT  = Math.round(H * 0.575);
+  const padT  = Math.round(H * 0.615);
   const padB  = Math.round(H * 0.09);
   const pw    = W - padL - padR;
   const ph    = H - padT - padB;
@@ -517,7 +680,7 @@ function _drawProfile(ctx, W, H, tLO, ac) {
   ctx.fillText(`SECO T+${endMm}:${String(endSs).padStart(2, '0')}`, padL + pw, xLblY);
   ctx.restore();
 
-  /* Legend */
+  /* Legend + export hint */
   ctx.save();
   ctx.font         = `${axisFontSz}px "IBM Plex Mono", monospace`;
   ctx.textBaseline = 'top';
@@ -526,5 +689,8 @@ function _drawProfile(ctx, W, H, tLO, ac) {
   ctx.fillText('── STAGE 1', padL + 4, padT + 4);
   ctx.fillStyle    = '#5dd47e';
   ctx.fillText('── STAGE 2', padL + 4 + Math.round(W * 0.14), padT + 4);
+  ctx.fillStyle    = 'rgba(232,237,242,0.18)';
+  ctx.textAlign    = 'right';
+  ctx.fillText('Ctrl+Shift+T  ↓ CSV', padL + pw, padT + 4);
   ctx.restore();
 }

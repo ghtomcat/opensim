@@ -91,6 +91,20 @@ export function tickRocket(dt) {
   /* ── Thrust & fuel burn ── */
   let T = 0, mdot = 0;
 
+  /* ── Engine count — apply mission failures first ── */
+  const totalEngines  = stg.engineCount ?? 1;
+  let   activeEngines = S.rocketActiveEngines ?? totalEngines;
+
+  const failures = S.mission?.engineFailures ?? [];
+  for (const f of failures) {
+    if (mT >= f.t && mT < f.t + dt && (f.stageIdx ?? 0) === stage - 1) {
+      activeEngines = f.activeEngines ?? activeEngines;
+      setState({ rocketActiveEngines: activeEngines, rocketFailedEngines: f.failedEngines ?? [] });
+    }
+  }
+
+  const engineFrac = totalEngines > 0 ? activeEngines / totalEngines : 1;
+
   if (coasting) {
     /* Stage separation coast — no thrust, count 6 s */
     if (mT - coastT >= 6 && stage < stages.length) {
@@ -98,19 +112,25 @@ export function tickRocket(dt) {
       mass  -= stg.massDry ?? 0;
       stage += 1;
       coasting = false;
+      /* Reset engine state for new stage */
+      const nextStg = stages[stage - 1] ?? {};
+      setState({ rocketActiveEngines: nextStg.engineCount ?? 1, rocketFailedEngines: [], rocketCECO: false });
     }
   } else if (mass > burnoutThreshold && S.engineState === 'running') {
-    /* Thrusting */
+    /* Thrusting — scale thrust by active engine fraction */
     const thrustSL  = stg.thrustSL  ?? 0;
     const thrustVac = stg.thrustVac ?? stg.thrustSL ?? 0;
-    T    = thrustSL * atmFrac + thrustVac * (1 - atmFrac);
+    T    = (thrustSL * atmFrac + thrustVac * (1 - atmFrac)) * engineFrac;
     mdot = T / ((stg.isp ?? 300) * G0);
   } else if (mass <= burnoutThreshold && !coasting && stage < stages.length) {
     /* Burnout — start coast */
     coasting = true;
     coastT   = mT;
+  } else if (mass <= burnoutThreshold && !coasting && stage >= stages.length) {
+    /* Last stage burnout — SECO */
+    if (!S.rocketSECO) setState({ rocketSECO: true });
   }
-  /* Stage 2 burnout: just coast to orbit */
+  /* After SECO: ballistic coast toward orbit or reentry */
 
   /* Burn fuel */
   mass = Math.max(massAbove, mass - mdot * dt);
@@ -135,8 +155,24 @@ export function tickRocket(dt) {
 
   /* ── Net accelerations ── */
   const aNet  = (T - (spd_ms > 0.1 ? D : 0)) / Math.max(1, mass);
-  const aVert  = aNet * Math.sin(fpa_rad) - g;
+  /* Centrifugal acceleration from horizontal motion (orbital mechanics):
+     at orbital velocity, centrifugal = g and the rocket naturally orbits. */
+  const centrifugal = vHoriz * vHoriz / (R_EARTH + alt_m);
+  const aVert  = aNet * Math.sin(fpa_rad) - g + centrifugal;
   const aHoriz = aNet * Math.cos(fpa_rad);
+
+  /* ── Axial G-load (positive = forward thrust, felt by vehicle) ── */
+  const axialG = aNet / G0;
+
+  /* ── G-triggered center-engine cutoff (CECO) ──
+     When axial G exceeds cegCutoffG on stage 1 with a multi-engine vehicle
+     and the center engine hasn't been cut yet, drop to (N-1) engines.       */
+  const cegCutoff = perf.cegCutoffG;
+  if (cegCutoff && !S.rocketCECO && stage === 1
+      && activeEngines === totalEngines && totalEngines > 1
+      && axialG > cegCutoff) {
+    setState({ rocketActiveEngines: totalEngines - 1, rocketCECO: true });
+  }
 
   /* ── Integrate velocity ── */
   const newVVert  = vVert  + aVert  * dt;
@@ -150,7 +186,10 @@ export function tickRocket(dt) {
     : 90;
   /* Blend: follow programmed FPA early on, then follow velocity vector */
   const timeSinceLiftoff = mT - ignitionTime;
-  const guidanceFrac = Math.max(0, 1 - timeSinceLiftoff / 120);  // programmed guidance for first 120s, then gravity turn
+  /* How long to follow the programmed FPA profile before handing off to
+     pure gravity-turn (velocity vector tracking). Tunable per vehicle. */
+  const guidanceDur  = perf.guidanceDuration ?? 120;
+  const guidanceFrac = Math.max(0, 1 - timeSinceLiftoff / guidanceDur);
   const fpaCmd     = fpaTarget * guidanceFrac + fpaActual * (1 - guidanceFrac);
   /* Attitude rate limited — rocket can't spin instantly */
   const dFPA = Math.max(-3, Math.min(3, (fpaCmd - fpa) * 0.5)) * dt;
@@ -180,6 +219,8 @@ export function tickRocket(dt) {
     rocketStage:  stage,
     rocketCoast:  coasting,
     rocketCoastT: coastT,
+    rocketG:      axialG,
+    rocketDynQ:   dynQ,
     time:  mT + dt,
   });
 }

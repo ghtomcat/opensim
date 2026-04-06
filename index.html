@@ -593,6 +593,16 @@
       letter-spacing: 0.15em;
     }
 
+    /* Loop mode (rocket mission audio) */
+    .loop-idle-icon   { color: var(--dim); }
+    .loop-active-icon { color: #00ff88; }
+    .com-preset-btn.loop-playing .preset-label { color: rgba(232,237,242,0.7); }
+    .loop-playing-dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: #00ff88; flex-shrink: 0;
+      animation: blink 1.2s ease-in-out infinite;
+    }
+
     /* ATIS modal */
     #atis-modal {
       position: fixed; top: 50%; left: 50%;
@@ -1431,11 +1441,12 @@
   import { loadMission }  from './core/mission.js';
   import { tickPhysics }     from './core/physics.js';
   import { tickHovercraft }  from './core/hovercraft_physics.js';
+  import { tickRocket }      from './core/rocket.js';
   import { tickFailures }    from './core/failures.js';
   import { initCrew, tickCrew, resetCrew } from './core/crew.js';
   import { initInput, isPTTActive }        from './core/input.js';
   import { startLoop }    from './core/loop.js';
-  import { startTelemetry, downloadTelemetry } from './core/telemetry.js';
+  import { startTelemetry, downloadTelemetry, downloadTelemetryCSV } from './core/telemetry.js';
   import { renderPFD }    from './display/pfd.js';
   import { renderRocket } from './display/rocket_display.js';
   import { renderG1000 }  from './display/g1000.js';
@@ -1625,6 +1636,20 @@
         aircraft: 'Merlin 1C · 355 kN SL · Stage 2: Kestrel · 31 kN',
         orders: 'Launch site: Omelek Island, Marshall Islands.\nTarget orbit: 621 km circular · 9.35° inclination.\nPayload: RatSat (mass simulator, 165 kg).\n\nFlight sequence:\nT+00:00  Merlin ignition · Liftoff\nT+01:09  Max-Q\nT+02:49  MECO · Stage separation\nT+02:55  Stage 2 ignition (Kestrel)\nT+09:31  SECO · Orbit insertion',
         atmosphere: 'Three failures.\nFirst: a fuel leak ignited on ascent.\nSecond: stage-1 re-contacted stage-2.\nThird: residual thrust caused re-contact again.\n\nThis is the fourth attempt.\nThey had enough hardware for one more flight.\nAfter this, the program was over — or it was not.',
+      },
+    },
+    {
+      id: 'crs1', aircraft: 'falcon9-b1',
+      acName: 'Falcon 9 v1.0', engine: '9× Merlin 1C + MVac · SpaceX',
+      location: 'Cape Canaveral · SLC-40', title: 'CRS-1 · Engine Out to ISS', era: '2012', accent: '#7090b8',
+      briefing: {
+        classification: 'SPACEX · MISSION SUMMARY',
+        date: '8 October 2012 · 00:35 UTC',
+        pilot: 'Falcon 9 v1.0 · Flight 3',
+        unit: 'Space Exploration Technologies Corp.',
+        aircraft: '9× Merlin 1C · 3807 kN SL · Stage 2: MVac · 411 kN',
+        orders: 'Launch site: Cape Canaveral SLC-40.\nTarget orbit: ~400 km circular · 51.6° inclination.\nPayload: Dragon C2+ · ISS cargo.\n\nFlight sequence:\nT+00:00  9-engine ignition · Liftoff\nT+01:19  Engine 1 failure\nT+02:58  MECO · Stage separation\nT+03:05  MVac ignition\nT+10:10  SECO · Orbit insertion',
+        atmosphere: 'Engine 1 fails at T+79 seconds.\n\nEight engines carry Dragon to orbit anyway.\nISS gets its cargo.\nOrbcomm does not — orbit too low to raise.\n\nThe rocket flew the mission on its own terms.',
       },
     },
   ];
@@ -2508,7 +2533,12 @@
     obEl.addEventListener('click', dismissOnboarding);
 
     window.addEventListener('keydown', (e) => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'T') { e.preventDefault(); downloadTelemetry(); return; }
+      if (e.ctrlKey && e.shiftKey && e.key === 'T') {
+        e.preventDefault();
+        if (S.aircraft?.vehicleType === 'rocket') downloadTelemetryCSV();
+        else downloadTelemetry();
+        return;
+      }
       if (e.key === 'k' || e.key === 'K') { toggleKneeboard(); return; }
       if (e.key === 'n' || e.key === 'N') { toggleMap(); return; }
 
@@ -2596,9 +2626,9 @@
         else if (isG1000)                            renderG1000(canvas);
         else if (isBf109)                            renderBf109(canvas);
         else                                         renderPFD(canvas);
-        /* Show/hide hovercraft control panel; hide COM and panel for rockets */
+        /* Show/hide hovercraft control panel; hide COM for hovercraft only (rockets get loop selector) */
         document.getElementById('hc-panel').style.display     = isHover ? 'flex' : 'none';
-        document.getElementById('com-container').style.display = (isHover || isRocket) ? 'none' : '';
+        document.getElementById('com-container').style.display = isHover ? 'none' : '';
         document.getElementById('panel').style.display         = isRocket ? 'none' : '';
         document.getElementById('keys').style.display          = isRocket ? 'none' : '';
         document.getElementById('fma').style.display           = isRocket ? 'none' : '';
@@ -2970,8 +3000,12 @@
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+  /* Capture test flag NOW — before init() calls history.pushState which strips &test=1 */
+  const _urlParams  = new URLSearchParams(location.search);
+  const _isTestMode = _urlParams.get('test') === '1';
+
   /* Show selection screen, or load directly if ?mission= param set */
-  const _urlMission = new URLSearchParams(location.search).get('mission');
+  const _urlMission = _urlParams.get('mission');
   if (_urlMission) {
     const _m = MISSIONS.find(m => m.id === _urlMission);
     if (_m) {
@@ -3001,16 +3035,21 @@
   });
 
   /* ── Test API — only active when ?test=1 ── */
-  if (new URLSearchParams(location.search).get('test') === '1') {
+  if (_isTestMode) {
     window.simGetState    = () => ({ ...S });
     window.simSetState    = (patch) => setState(patch);
     window.simGetRpm      = () => getCurrentRpm();
     window.simEngineState = () => S.engineState ?? 'off';
     window.simStep     = (n = 1, dt = 1/60) => {
-      const isHC = S.aircraft?.type === 'hovercraft';
+      const isHC     = S.aircraft?.type         === 'hovercraft';
+      const isRocket = S.aircraft?.vehicleType  === 'rocket';
       for (let i = 0; i < n; i++) {
+        const prevAlt = S.alt;
         tickFailures(dt);
-        if (isHC) tickHovercraft(dt); else tickPhysics(dt);
+        if      (isRocket) tickRocket(dt);
+        else if (isHC)     tickHovercraft(dt);
+        else               tickPhysics(dt);
+        tickCrew(prevAlt, S.alt);
       }
     };
     window.simLoad     = (missionId) => {

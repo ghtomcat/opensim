@@ -1,0 +1,95 @@
+{
+  "id":          "falcon9-b1",
+  "name":        "Falcon 9 v1.0",
+  "vehicleType": "rocket",
+  "ignitionTime": 60,
+  "manualControl": false,
+  "crewLang":    "en-US",
+
+  "performance": {
+    "massWet": 333400,
+    "Cd":       0.27,
+    "area":     10.75,
+
+    "stages": [
+      {
+        "name":        "Stage 1 — 9× Merlin 1C",
+        "engineCount": 9,
+        "thrustSL":    3807000,
+        "thrustVac":   4293000,
+        "isp":         282,
+        "massWet":     249300,
+        "massDry":     22000
+      },
+      {
+        "name":        "Stage 2 — Merlin 1C Vacuum",
+        "engineCount": 1,
+        "thrustSL":    0,
+        "thrustVac":   411000,
+        "isp":         342,
+        "massWet":     70000,
+        "massDry":     3900
+      }
+    ],
+
+    "payload": 14100,
+
+    "gLimit":     6.0,
+    "qLimit":     50000,
+    "cegCutoffG": 3.8,
+    "guidanceDuration": 9999,
+
+    "fpaProfile": [
+      [60,   90],
+      [75,   89],
+      [90,   84],
+      [115,  72],
+      [140,  57],
+      [165,  40],
+      [190,  24],
+      [215,  14],
+      [235,   8],
+      [265,   4],
+      [370,   2],
+      [570,   1],
+      [760,   0]
+    ]
+  },
+
+  "sound": { "engineType": "none" },
+
+  "kneeboard": [
+    {
+      "title": "FALCON 9 v1.0 — CRS-1",
+      "type": "briefing",
+      "items": [
+        "8 October 2012 · 00:35 UTC",
+        "Cape Canaveral · SLC-40 · 28.5°N 80.6°W",
+        "Vehicle: Falcon 9 v1.0 · Flight 3",
+        "Payload: Dragon C2+ · CRS-1 · ISS cargo",
+        "Stage 1: 9× Merlin 1C · 3807 kN SL · Isp 282s",
+        "Stage 2: Merlin 1C Vac · 411 kN · Isp 342s",
+        "Target orbit: 400 km circular · 51.6° inc",
+        "T/W at liftoff: 1.16"
+      ]
+    },
+    {
+      "title": "FLIGHT PROFILE",
+      "type": "briefing",
+      "items": [
+        "T+00:00  9-engine ignition · Liftoff",
+        "T+01:19  Engine 1 failure (outer engine)",
+        "T+02:50  CECO — center engine cutoff",
+        "T+02:58  MECO · Stage 1 separation",
+        "T+03:05  MVac ignition",
+        "T+10:10  SECO · Orbit insertion",
+        "T+10:32  Dragon separation",
+        "—",
+        "Dragon C2+ delivered to ISS.",
+        "Engine 1 failure at T+79s — vehicle continued",
+        "on 8/9 engines. Secondary payload Orbcomm OG2",
+        "lost — orbit too low to raise independently."
+      ]
+    }
+  ]
+}

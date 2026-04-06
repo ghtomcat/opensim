@@ -46,16 +46,31 @@ let _squelchCtx  = null;
 let _streamAudio = null;   // currently playing LiveATC stream
 let _bound       = false;  // event listeners registered once only
 
+/* ── Loop mode (rocket/mission audio) ── */
+let _loopAudio  = null;    // currently playing mission audio loop
+let _activeLoop = null;    // id of selected loop
+let _loopBound  = false;   // loop event listeners registered
+
 /* ═══ Public ══════════════════════════════════════════════════ */
 
 export function initCOM(container) {
-  _stopStream();   // stop any stream from previous mission
+  _stopStream();
+  _stopLoop();
 
-  /* Seed COM state from mission if provided */
-  const ac = _activeCom();
-  if (ac) {
-    COM.active  = ac.active  ?? Object.keys(ac.freqs)[0];
-    COM.standby = ac.standby ?? Object.keys(ac.freqs)[1] ?? COM.active;
+  /* ── Loop mode: mission has com.loops array ── */
+  const comCfg = _activeCom();
+  if (comCfg?.loops) {
+    _activeLoop = comCfg.active ?? null;
+    container.innerHTML = _htmlLoops(comCfg);
+    _renderLoops(comCfg);
+    if (!_loopBound) { _bindLoopEvents(container); _loopBound = true; }
+    return;
+  }
+
+  /* ── Standard airplane COM ── */
+  if (comCfg?.freqs) {
+    COM.active  = comCfg.active  ?? Object.keys(comCfg.freqs)[0];
+    COM.standby = comCfg.standby ?? Object.keys(comCfg.freqs)[1] ?? COM.active;
   } else {
     COM.active  = '121.750';
     COM.standby = '121.900';
@@ -264,6 +279,90 @@ function _onTune(freq) {
 }
 
 function _r8() { return Math.floor(Math.random() * 8); }
+
+/* ═══ Loop mode (rocket / mission audio) ══════════════════════ */
+
+function _stopLoop() {
+  if (_loopAudio) {
+    _loopAudio.pause();
+    _loopAudio.src = '';
+    _loopAudio = null;
+  }
+  _activeLoop = null;
+}
+
+function _htmlLoops(ac) {
+  return `
+<div class="com-panel">
+  <div class="com-section" style="border-bottom:none">
+    <div class="com-header">
+      <span class="com-title">${ac?.title ?? 'MISSION AUDIO'}</span>
+      <span id="loop-status" class="com-ptt"></span>
+    </div>
+    <div class="com-presets" id="loop-list"></div>
+  </div>
+</div>`;
+}
+
+function _renderLoops(ac) {
+  const loops = (ac ?? _activeCom())?.loops ?? [];
+  const list  = document.getElementById('loop-list');
+  if (!list) return;
+  list.innerHTML = '';
+
+  for (const lp of loops) {
+    const isPlaying = _activeLoop === lp.id && !!lp.audio;
+    const btn = document.createElement('button');
+    btn.className    = 'com-preset-btn' + (isPlaying ? ' loop-playing' : '');
+    btn.dataset.loopId = lp.id;
+
+    const icon    = isPlaying ? '■' : '▶';
+    const iconCls = isPlaying ? 'preset-freq loop-active-icon' : 'preset-freq loop-idle-icon';
+    const extra   = !lp.audio
+      ? `<span class="preset-label" style="color:rgba(255,255,255,0.18)">NO FILE</span>`
+      : (isPlaying ? `<span class="loop-playing-dot"></span>` : '');
+
+    btn.innerHTML = `
+      <span class="${iconCls}">${icon}</span>
+      <span class="preset-label">${lp.label}</span>
+      ${extra}`;
+    list.appendChild(btn);
+  }
+
+  const status = document.getElementById('loop-status');
+  if (status) {
+    const cur = loops.find(l => l.id === _activeLoop && l.audio);
+    status.textContent = cur ? '● PLAYING' : '';
+    status.style.color = cur ? '#00ff88' : '';
+  }
+}
+
+function _bindLoopEvents(container) {
+  container.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-loop-id]');
+    if (!btn) return;
+    const id  = btn.dataset.loopId;
+    const ac  = _activeCom();
+    const lp  = (ac?.loops ?? []).find(l => l.id === id);
+    if (!lp) return;
+
+    if (_activeLoop === id) {
+      /* Toggle off */
+      _stopLoop();
+    } else {
+      _stopLoop();
+      _activeLoop = id;
+      if (lp.audio) {
+        const a   = new Audio(lp.audio);
+        a.loop    = true;
+        a.volume  = 0.75;
+        a.play().catch(() => {});
+        _loopAudio = a;
+      }
+    }
+    _renderLoops(ac);
+  });
+}
 
 /* ── IDENT ── */
 function _ident() {
