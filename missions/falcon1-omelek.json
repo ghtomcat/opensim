@@ -33,20 +33,23 @@
   "arrival": null,
 
   "atcClearances": [
-    { "t":   0, "text": "T minus 10. 9. 8. 7. 6. 5. 4. 3. 2. 1.",                           "voice": "atc" },
-    { "t":  13, "text": "Ignition sequence start.",                                           "voice": "atc" },
-    { "t":  20, "text": "Liftoff. Falcon 1 is on its way to orbit.",                         "voice": "atc" },
-    { "t":  55, "text": "Vehicle is supersonic.",                                             "voice": "atc" },
-    { "t":  79, "text": "Max Q.",                                                             "voice": "atc" },
-    { "t": 110, "text": "Stage 1 nominal. Propellant nominal.",                               "voice": "atc" },
-    { "t": 169, "text": "T minus ten to MECO.",                                               "voice": "atc" },
-    { "t": 179, "text": "Main engine cutoff. MECO confirmed.",                                "voice": "atc" },
-    { "t": 185, "text": "Stage separation. Second engine start.",                             "voice": "atc" },
-    { "t": 192, "text": "Kestrel ignition confirmed. Stage 2 is go.",                         "voice": "atc" },
-    { "t": 310, "text": "Altitude 200 kilometers. Velocity 4.2 kilometers per second.",       "voice": "atc" },
-    { "t": 460, "text": "Altitude 450 kilometers. Approaching apogee.",                       "voice": "atc" },
-    { "t": 571, "text": "T minus ten to SECO.",                                               "voice": "atc" },
-    { "t": 581, "text": "Second engine cutoff. SECO confirmed. Falcon 1 has reached orbit. Congratulations SpaceX.", "voice": "atc" }
+    { "t":   0, "text": "T minus 60 seconds. Launch control go for launch.",                  "voice": "atc" },
+    { "t":  30, "text": "T minus 30 seconds.",                                                "voice": "atc" },
+    { "t":  40, "text": "T minus 20. Vehicle on internal power.",                             "voice": "atc" },
+    { "t":  50, "text": "T minus 10. 9. 8. 7. 6. 5. 4. 3. 2. 1.",                           "voice": "atc" },
+    { "t":  57, "text": "Ignition sequence start.",                                           "voice": "atc" },
+    { "t":  60, "text": "Liftoff. Falcon 1 is on its way to orbit.",                         "voice": "atc" },
+    { "t": 115, "text": "Vehicle is supersonic.",                                             "voice": "atc" },
+    { "t": 139, "text": "Max Q.",                                                             "voice": "atc" },
+    { "t": 170, "text": "Stage 1 nominal. Propellant nominal.",                               "voice": "atc" },
+    { "t": 229, "text": "T minus ten to MECO.",                                               "voice": "atc" },
+    { "t": 239, "text": "Main engine cutoff. MECO confirmed.",                                "voice": "atc" },
+    { "t": 245, "text": "Stage separation. Second engine start.",                             "voice": "atc" },
+    { "t": 252, "text": "Kestrel ignition confirmed. Stage 2 is go.",                         "voice": "atc" },
+    { "t": 370, "text": "Altitude 200 kilometers. Velocity 4.2 kilometers per second.",       "voice": "atc" },
+    { "t": 520, "text": "Altitude 450 kilometers. Approaching apogee.",                       "voice": "atc" },
+    { "t": 631, "text": "T minus ten to SECO.",                                               "voice": "atc" },
+    { "t": 641, "text": "Second engine cutoff. SECO confirmed. Falcon 1 has reached orbit. Congratulations SpaceX.", "voice": "atc" }
   ],
 
   "narrative": [

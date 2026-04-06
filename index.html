@@ -1437,6 +1437,7 @@
   import { startLoop }    from './core/loop.js';
   import { startTelemetry, downloadTelemetry } from './core/telemetry.js';
   import { renderPFD }    from './display/pfd.js';
+  import { renderRocket } from './display/rocket_display.js';
   import { renderG1000 }  from './display/g1000.js';
   import { renderECAM }   from './display/ecam.js';
   import { renderBf109 }      from './display/bf109.js';
@@ -2564,6 +2565,12 @@
       }
     }
 
+    /* Rockets start in combined view (outside + telemetry display) */
+    if (S.aircraft?.vehicleType === 'rocket') {
+      _viewMode = 1;
+      _applyViewMode(1);
+    }
+
     /* Expose view switcher for flyWithFlight */
     _setViewMode = (mode) => { _viewMode = mode; _applyViewMode(mode); };
 
@@ -2582,14 +2589,19 @@
         const isG1000    = S.aircraft?.id === 'c172';
         const isBf109    = S.aircraft?.id === 'bf109';
         const isHover    = S.aircraft?.type === 'hovercraft';
-        if      (isHover)                       renderHovercraft(canvas);
-        else if (ecam && !isG1000 && !isBf109)  renderECAM(ecamCanvas);
-        else if (isG1000)                        renderG1000(canvas);
-        else if (isBf109)                        renderBf109(canvas);
-        else                                     renderPFD(canvas);
-        /* Show/hide hovercraft control panel; hide COM in hovercraft (no ATC) */
+        const isRocket   = S.aircraft?.vehicleType === 'rocket';
+        if      (isHover)                            renderHovercraft(canvas);
+        else if (isRocket)                           renderRocket(canvas);
+        else if (ecam && !isG1000 && !isBf109)       renderECAM(ecamCanvas);
+        else if (isG1000)                            renderG1000(canvas);
+        else if (isBf109)                            renderBf109(canvas);
+        else                                         renderPFD(canvas);
+        /* Show/hide hovercraft control panel; hide COM and panel for rockets */
         document.getElementById('hc-panel').style.display     = isHover ? 'flex' : 'none';
-        document.getElementById('com-container').style.display = isHover ? 'none' : '';
+        document.getElementById('com-container').style.display = (isHover || isRocket) ? 'none' : '';
+        document.getElementById('panel').style.display         = isRocket ? 'none' : '';
+        document.getElementById('keys').style.display          = isRocket ? 'none' : '';
+        document.getElementById('fma').style.display           = isRocket ? 'none' : '';
         _oskUpdate(isHover, S.aircraft?.manualControl);
       },
       () => renderFMA(),

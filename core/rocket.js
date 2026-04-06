@@ -57,6 +57,13 @@ export function tickRocket(dt) {
   const mT    = S.time ?? 0;
   const stages = perf.stages ?? [];
 
+  /* ── Pre-ignition hold — sit on pad until engine start time ── */
+  const ignitionTime = ac.ignitionTime ?? 0;
+  if (mT < ignitionTime) {
+    setState({ time: mT + dt });
+    return;
+  }
+
   /* ── Stage bookkeeping ── */
   let stage    = S.rocketStage   ?? 1;
   let coasting = S.rocketCoast   ?? false;
@@ -142,7 +149,8 @@ export function tickRocket(dt) {
     ? Math.atan2(newVVert, Math.max(0.01, newVHoriz)) / DEG
     : 90;
   /* Blend: follow programmed FPA early on, then follow velocity vector */
-  const guidanceFrac = Math.max(0, 1 - mT / 60);   // full guidance for first 60s, then gravity turn
+  const timeSinceLiftoff = mT - ignitionTime;
+  const guidanceFrac = Math.max(0, 1 - timeSinceLiftoff / 60);   // full guidance for first 60s, then gravity turn
   const fpaCmd     = fpaTarget * guidanceFrac + fpaActual * (1 - guidanceFrac);
   /* Attitude rate limited — rocket can't spin instantly */
   const dFPA = Math.max(-3, Math.min(3, (fpaCmd - fpa) * 0.5)) * dt;
@@ -167,9 +175,10 @@ export function tickRocket(dt) {
     vs:    vs_fpm,
     lat:   (S.lat ?? 0) + dLat,
     lon:   (S.lon ?? 0) + dLon,
-    rocketMass:  mass,
-    rocketStage: stage,
-    rocketCoast: coasting,
+    rocketMass:   mass,
+    rocketStage:  stage,
+    rocketCoast:  coasting,
     rocketCoastT: coastT,
+    time:  mT + dt,
   });
 }
