@@ -30,8 +30,10 @@ export async function loadMission(missionPath, aircraftPath) {
   /* Oil temperature: cold on ground, warm if already airborne (engine running since before mission start) */
   const startOilTempC = startAirborne ? 75 : 15;
 
-  /* Engine state: if airborne, engine is already running — skip startup sequence */
-  const startEngineState = startAirborne ? 'running' : 'off';
+  /* Engine state: v12 starts 'off' on ground (manual startup sequence via E key).
+     All other manualControl aircraft start 'running' — no startup procedure. */
+  const isV12 = aircraft.sound?.engineType === 'v12-supercharged';
+  const startEngineState = (startOnGround && isV12) ? 'off' : 'running';
 
   setState({
     aircraft,
