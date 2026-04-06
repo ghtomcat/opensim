@@ -1153,6 +1153,7 @@
   <div class="ms-sub">open-source flight simulation engine</div>
   <div class="ms-tabs" id="ms-tabs">
     <div class="ms-tab active" data-tab="fly">Fly</div>
+    <div class="ms-tab" data-tab="orbit">Orbit</div>
     <div class="ms-tab" data-tab="lab">Lab</div>
   </div>
   <div class="ms-grid" id="ms-grid"></div>
@@ -1627,7 +1628,7 @@
     {
       id: 'falcon1-omelek', aircraft: 'falcon1',
       acName: 'Falcon 1', engine: 'Merlin 1C + Kestrel · SpaceX',
-      location: 'Omelek Island · Marshall Islands', title: 'First Orbit · Flight 4', era: '2008', accent: '#c0c8d8',
+      location: 'Omelek Island · Marshall Islands', title: 'First Orbit · Flight 4', era: 'ORBIT', eraLabel: '2008', accent: '#c0c8d8',
       briefing: {
         classification: 'SPACEX · MISSION SUMMARY',
         date: '28 September 2008 · 23:15 UTC',
@@ -1641,7 +1642,7 @@
     {
       id: 'crs1', aircraft: 'falcon9-b1',
       acName: 'Falcon 9 v1.0', engine: '9× Merlin 1C + MVac · SpaceX',
-      location: 'Cape Canaveral · SLC-40', title: 'CRS-1 · Engine Out to ISS', era: '2012', accent: '#7090b8',
+      location: 'Cape Canaveral · SLC-40', title: 'CRS-1 · Engine Out to ISS', era: 'ORBIT', eraLabel: '2012', accent: '#7090b8',
       briefing: {
         classification: 'SPACEX · MISSION SUMMARY',
         date: '8 October 2012 · 00:35 UTC',
@@ -2243,13 +2244,16 @@
   function _renderGrid() {
     const grid = document.getElementById('ms-grid');
     grid.innerHTML = '';
-    const isLab = _activeTab === 'lab';
-    MISSIONS.filter(m => isLab ? m.era === 'LAB' : m.era !== 'LAB').forEach(m => {
+    MISSIONS.filter(m =>
+      _activeTab === 'lab'   ? m.era === 'LAB'   :
+      _activeTab === 'orbit' ? m.era === 'ORBIT'  :
+      m.era !== 'LAB' && m.era !== 'ORBIT'
+    ).forEach(m => {
       const card = document.createElement('div');
       card.className = 'ms-card';
       card.style.setProperty('--card-accent', m.accent);
       card.innerHTML = `
-        <div class="ms-era">${m.era} · ${m.location}</div>
+        <div class="ms-era">${m.eraLabel ?? m.era} · ${m.location}</div>
         <div class="ms-acname">${m.acName}</div>
         <div class="ms-title">${m.title}</div>
         <div class="ms-engine">${m.engine}</div>
