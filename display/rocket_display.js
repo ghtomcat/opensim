@@ -180,11 +180,15 @@ export function renderRocket(canvas) {
   /* ── Mach ── */
   const mach = _machAt(velMs, alt_m);
 
-  /* ── Metrics (4 columns + rocket orientation) ── */
-  const lblFontSz = Math.round(H * 0.037);
-  const vFontSz   = Math.round(H * 0.078);
-  const mTop      = H * 0.27;
-  const mW        = W * 0.20;   /* 4 metric cols share 80%, orientation uses 20% */
+  /* ── Metrics layout — splits when booster is active ── */
+  const lblFontSz  = Math.round(H * 0.037);
+  const vFontSz    = Math.round(H * 0.078);
+  const mTop       = H * 0.27;
+  const boosterOn  = !!(S.booster?.active || S.booster?.landed);
+
+  /* When booster is active: Stage 2 uses left 57%, booster panel uses right 43% */
+  const s2Width    = boosterOn ? W * 0.57 : W;
+  const mW         = s2Width * 0.20;   /* 4 metric cols share 80% of s2Width */
 
   const gVal   = S.rocketG ?? 0;
   const gColor = gVal > 6 ? '#ff4444' : gVal > 4 ? '#ffb74d' : '#e8edf2';
@@ -232,9 +236,9 @@ export function renderRocket(canvas) {
 
   /* ── Rocket orientation side view ── */
   const totalEnginesDisp = (ac.performance?.stages ?? [])[stage - 1]?.engineCount ?? 1;
-  const orX  = W * 0.82;
+  const orX  = s2Width * 0.82;
   const orY  = mTop;
-  const orW  = W * 0.16;
+  const orW  = s2Width * 0.16;
   const orH  = totalEnginesDisp > 1 ? H * 0.115 : H * 0.20;
   _drawOrientation(ctx, orX, orY, orW, orH, fpa, stageColor);
 
@@ -246,6 +250,13 @@ export function renderRocket(canvas) {
       totalEnginesDisp,
       S.rocketActiveEngines ?? totalEnginesDisp,
       S.rocketFailedEngines ?? []);
+  }
+
+  /* ── Booster telemetry panel (right side, appears at stage sep) ── */
+  if (boosterOn) {
+    const bpX = s2Width + W * 0.01;
+    const bpW = W - bpX;
+    _drawBoosterPanel(ctx, bpX, mTop, bpW, H * 0.22, lblFontSz, vFontSz);
   }
 
   /* ── Orbital velocity bar ── */
@@ -457,6 +468,105 @@ function _drawPropGauge(ctx, W, H, lblFontSz, stage, ac) {
     ctx.fillRect(padX, gTop, barW * frac, 2);
   }
   ctx.restore();
+}
+
+/* ── Stage 1 booster telemetry panel ── */
+function _drawBoosterPanel(ctx, x0, y0, w, h, lblFontSz, vFontSz) {
+  const b = S.booster;
+  if (!b) return;
+
+  const ORANGE      = '#ff8c32';
+  const ORANGE_DIM  = 'rgba(255,140,50,0.45)';
+  const ORANGE_FAINT= 'rgba(255,140,50,0.18)';
+
+  /* Vertical divider */
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  ctx.fillRect(x0 - 1, y0, 1, h);
+  ctx.restore();
+
+  /* Derived values */
+  const bAlt_km  = (b.alt ?? 0) * 0.3048 / 1000;
+  const bVVert   = b.vVert ?? 0;
+  const bVDown   = b.vDown ?? 0;
+  const bSpd_ms  = Math.sqrt(bVVert * bVVert + bVDown * bVDown);
+  const bSpd_kms = bSpd_ms / 1000;
+  const arrow    = b.landed ? '' : bVVert > 0 ? ' ↑' : ' ↓';
+
+  const PHASE_LABELS = {
+    flip:       'ORIENTING',
+    boostback:  'BOOSTBACK BURN',
+    coast:      'COASTING',
+    glide:      'GRID FINS',
+    landing:    'LANDING BURN',
+    landed:     'TOUCHDOWN',
+  };
+  const phaseStr = PHASE_LABELS[b.phase] ?? (b.phase ?? '').toUpperCase();
+  const phaseColor = b.landed ? '#5dd47e'
+    : b.phase === 'boostback' || b.phase === 'landing' ? '#ffb74d'
+    : ORANGE;
+
+  /* Header — "STAGE 1 · BOOSTER" */
+  ctx.save();
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'top';
+  ctx.font         = `700 ${Math.round(lblFontSz * 0.95)}px "IBM Plex Mono", monospace`;
+  ctx.fillStyle    = ORANGE_DIM;
+  ctx.fillText('STAGE 1  ·  BOOSTER', x0 + w / 2, y0);
+  ctx.restore();
+
+  /* Phase label */
+  ctx.save();
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'top';
+  ctx.font         = `bold ${Math.round(lblFontSz * 1.1)}px "Syne", sans-serif`;
+  ctx.fillStyle    = phaseColor;
+  if (b.landed) { ctx.shadowColor = '#5dd47e'; ctx.shadowBlur = 6; }
+  ctx.fillText(phaseStr, x0 + w / 2, y0 + lblFontSz * 1.4);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+
+  /* Two metrics: ALT and VEL */
+  const mY    = y0 + lblFontSz * 3.2;
+  const halfW = w / 2;
+
+  const bMetrics = [
+    { label: 'ALTITUDE', value: bAlt_km.toFixed(1) + arrow, unit: 'km' },
+    { label: 'VELOCITY', value: bSpd_kms.toFixed(2),        unit: 'km/s' },
+  ];
+
+  bMetrics.forEach((m, i) => {
+    const cx = x0 + halfW * i + halfW / 2;
+    ctx.save();
+    ctx.textAlign = 'center';
+
+    ctx.font      = `700 ${Math.round(lblFontSz * 0.85)}px "IBM Plex Mono", monospace`;
+    ctx.fillStyle = ORANGE_DIM;
+    ctx.textBaseline = 'top';
+    ctx.fillText(m.label, cx, mY);
+
+    ctx.font      = `bold ${Math.round(vFontSz * 0.85)}px "IBM Plex Mono", monospace`;
+    ctx.fillStyle = b.landed ? 'rgba(93,212,126,0.7)' : ORANGE;
+    ctx.textBaseline = 'top';
+    ctx.fillText(m.value, cx, mY + lblFontSz * 1.1);
+
+    ctx.font      = `${Math.round(lblFontSz * 0.85)}px "IBM Plex Mono", monospace`;
+    ctx.fillStyle = ORANGE_FAINT;
+    ctx.textBaseline = 'top';
+    ctx.fillText(m.unit, cx, mY + lblFontSz * 1.1 + vFontSz * 0.85 + 2);
+
+    ctx.restore();
+  });
+
+  /* Booster FPA indicator — tiny orientation */
+  if (!b.landed) {
+    const bFpa = bVVert !== 0 || bVDown !== 0
+      ? Math.atan2(bVVert, Math.abs(bVDown)) / DEG
+      : 90;
+    const orX = x0 + w * 0.5 - w * 0.12;
+    const orY2 = mY + lblFontSz * 1.1 + vFontSz + lblFontSz * 2;
+    _drawOrientation(ctx, orX, orY2, w * 0.24, h - (orY2 - y0) - 4, bFpa, ORANGE);
+  }
 }
 
 /* ── Engine status grid (multi-engine vehicles) ── */
