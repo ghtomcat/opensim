@@ -108,6 +108,24 @@ export function tickRocket(dt) {
   if (coasting) {
     /* Stage separation coast — no thrust, count 6 s */
     if (mT - coastT >= 6 && stage < stages.length) {
+      /* Capture booster state for RTLS recovery */
+      if (!S.booster?.active && !S.booster?.landed && perf.recovery?.rtls) {
+        const spd_ms  = (S.spd ?? 0) * 0.5144;
+        const fpa_rad = (S.pitch ?? 0) * DEG;
+        setState({ booster: {
+          active:      true,
+          landed:      false,
+          phase:       'flip',
+          phaseStartT: mT,
+          alt:         S.alt ?? 0,
+          vVert:       spd_ms * Math.sin(fpa_rad),
+          vDown:       spd_ms * Math.cos(fpa_rad),
+          lat:         S.lat ?? 0,
+          lon:         S.lon ?? 0,
+          hdg:         S.hdg ?? 0,
+          mass:        stg.massDry ?? 22000,
+        }});
+      }
       /* Jettison spent stage dry mass, advance to next stage */
       mass  -= stg.massDry ?? 0;
       stage += 1;
@@ -223,4 +241,124 @@ export function tickRocket(dt) {
     rocketDynQ:   dynQ,
     time:  mT + dt,
   });
+}
+
+/* ── Booster recovery tick ─────────────────────────────────────
+   Runs alongside tickRocket after stage separation.
+   Phases: flip → boostback → coast → entry → glide → landing → landed
+   ─────────────────────────────────────────────────────────────── */
+export function tickBooster(dt) {
+  const b = S.booster;
+  if (!b?.active || b.landed) return;
+
+  const mT       = S.time ?? 0;
+  const phaseAge = mT - (b.phaseStartT ?? mT);
+  const ac       = S.aircraft;
+  const perf     = ac?.performance ?? {};
+  const stg1     = perf.stages?.[0] ?? {};
+  const rec      = perf.recovery   ?? {};
+
+  const alt_m   = (b.alt ?? 0) * 0.3048;
+  const rho     = rhoAtAlt(alt_m);
+  const g       = G0 * Math.pow(R_EARTH / (R_EARTH + alt_m), 2);
+  const atmFrac = Math.min(1, rho / 1.225);
+
+  const mass  = b.mass  ?? (stg1.massDry ?? 22000);
+  const vVert = b.vVert ?? 0;
+  const vDown = b.vDown ?? 0;
+  const spd   = Math.sqrt(vVert * vVert + vDown * vDown);
+
+  const thrustSL  = stg1.thrustSL  ?? 0;
+  const thrustVac = stg1.thrustVac ?? 0;
+  const isp       = stg1.isp ?? 282;
+  const nEng      = stg1.engineCount ?? 9;
+
+  /* Grid fins multiply drag during glide */
+  const dragMult = b.phase === 'glide' ? 8 : 1;
+  const dynQ     = 0.5 * rho * spd * spd;
+  const dragAcc  = spd > 0.5
+    ? dynQ * (perf.Cd ?? 0.27) * (perf.area ?? 10.75) * dragMult / Math.max(1, mass)
+    : 0;
+
+  let thrustVert = 0, thrustDown = 0, mdot = 0;
+  let newPhase = b.phase, newPhaseStartT = b.phaseStartT;
+
+  if (b.phase === 'flip') {
+    /* Cold-gas flip — no thrust, just coast */
+    if (phaseAge >= (rec.flipDuration ?? 20)) {
+      newPhase = 'boostback'; newPhaseStartT = mT;
+    }
+
+  } else if (b.phase === 'boostback') {
+    const nB = rec.boostbackEngines  ?? 3;
+    const th = rec.boostbackThrottle ?? 1.0;
+    const T  = (thrustSL * atmFrac + thrustVac * (1 - atmFrac)) * (nB / nEng) * th;
+    const tA = T / Math.max(1, mass);
+    mdot = T / (isp * G0);
+    /* Horizontal-only burn toward pad — constant -tA regardless of sign,
+       preserves upward vVert so the booster arcs high before descending. */
+    thrustDown = -tA;
+    if (vDown < -50 || phaseAge >= (rec.boostbackDuration ?? 60)) {
+      newPhase = 'coast'; newPhaseStartT = mT;
+    }
+
+  } else if (b.phase === 'coast') {
+    /* No dedicated entry burn — grid fins handle atmospheric deceleration.
+       Transition to glide when descending below 50 km. */
+    if (alt_m <= 50_000 && vVert < 0) {
+      newPhase = 'glide'; newPhaseStartT = mT;
+    }
+
+  } else if (b.phase === 'glide') {
+    if (alt_m <= (rec.landingBurnAlt_m ?? 600) && vVert < 0) {
+      newPhase = 'landing'; newPhaseStartT = mT;
+    }
+
+  } else if (b.phase === 'landing') {
+    /* Single engine — proportional throttle to reach vVert=0 at surface */
+    const T1max = (thrustSL * atmFrac + thrustVac * (1 - atmFrac)) / nEng;
+    const tAMax = T1max / Math.max(1, mass);
+    /* Required decel: v² / 2h, capped at max engine thrust */
+    const reqDecel  = vVert < 0 ? Math.min(tAMax, vVert * vVert / (2 * Math.max(1, alt_m))) : 0;
+    const tA        = Math.min(tAMax, reqDecel + g);
+    const T         = tA * mass;
+    mdot            = T / (isp * G0);
+    thrustVert      = tA;   /* purely vertical — legs down, no horizontal thrust */
+  }
+
+  /* Drag components (opposing velocity) */
+  const dragVert = spd > 0.5 ? -dragAcc * (vVert / spd) : 0;
+  const dragDown = spd > 0.5 ? -dragAcc * (vDown / spd) : 0;
+
+  /* Integrate */
+  const newMass  = Math.max(stg1.massDry ?? 22000, mass - mdot * dt);
+  const newVVert = vVert + (thrustVert + dragVert - g) * dt;
+  const newVDown = vDown + (thrustDown + dragDown)      * dt;
+
+  /* Position */
+  const newAlt_m  = alt_m + newVVert * dt;
+  const newAlt_ft = Math.max(0, newAlt_m / 0.3048);
+
+  const hdg_rad = (b.hdg ?? 0) * DEG;
+  const bLat    = b.lat ?? 0;
+  const dDown   = newVDown * dt;
+  const newLat  = bLat + (dDown * Math.cos(hdg_rad)) / (R_EARTH * DEG);
+  const newLon  = (b.lon ?? 0) + (dDown * Math.sin(hdg_rad)) / (R_EARTH * Math.cos(bLat * DEG) * DEG);
+
+  /* Touchdown */
+  const padElev_m = (S.mission?.departure?.elevation ?? 0) * 0.3048;
+  if (newAlt_m <= padElev_m + 3 && (newVVert < 0 || b.phase === 'landing')) {
+    setState({ booster: { ...b,
+      alt: (padElev_m + 2) / 0.3048, vVert: 0, vDown: 0,
+      mass: newMass, lat: newLat, lon: newLon,
+      phase: 'landed', landed: true, active: false,
+    }});
+    return;
+  }
+
+  setState({ booster: { ...b,
+    alt: newAlt_ft, vVert: newVVert, vDown: newVDown,
+    lat: newLat, lon: newLon, mass: newMass,
+    phase: newPhase, phaseStartT: newPhaseStartT,
+  }});
 }

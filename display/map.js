@@ -25,6 +25,7 @@ let _mode    = 'local';        /* 'local' | 'rocket' */
 
 /* Ground track history for rocket missions */
 let _track          = [];
+let _boosterTrack   = [];
 let _trackMissionId = null;
 
 /* Smooth zoom state — current displayed extent, lerped toward target */
@@ -103,6 +104,7 @@ function _updateTrack() {
   const missionId = S.mission?.id;
   if (missionId !== _trackMissionId) {
     _track          = [];
+    _boosterTrack   = [];
     _trackMissionId = missionId;
     _dispCLat = null;   /* reset zoom on new mission */
   }
@@ -119,6 +121,16 @@ function _updateTrack() {
   if (!last || Math.abs(lat - last.lat) + Math.abs(lon - last.lon) > 0.005) {
     _track.push({ lat, lon, alt, t, stg: S.rocketStage ?? 1 });
   }
+
+  /* Booster track */
+  const b = S.booster;
+  if (b?.active || b?.landed) {
+    const bLat = b.lat ?? 0, bLon = b.lon ?? 0;
+    const lastB = _boosterTrack[_boosterTrack.length - 1];
+    if (!lastB || Math.abs(bLat - lastB.lat) + Math.abs(bLon - lastB.lon) > 0.005) {
+      _boosterTrack.push({ lat: bLat, lon: bLon, alt: (b.alt ?? 0) * 0.3048 / 1000 });
+    }
+  }
 }
 
 /* ── Rocket world map ── */
@@ -130,8 +142,8 @@ function _renderWorldMap(ctx, W, H, dpr) {
   const curLon    = S.lon  ?? launchLon;
 
   /* Compute target extent from track + launch + current */
-  const allLats = [launchLat, curLat, ..._track.map(p => p.lat)];
-  const allLons = [launchLon, curLon, ..._track.map(p => p.lon)];
+  const allLats = [launchLat, curLat, ..._track.map(p => p.lat), ..._boosterTrack.map(p => p.lat)];
+  const allLons = [launchLon, curLon, ..._track.map(p => p.lon), ..._boosterTrack.map(p => p.lon)];
 
   const rawMinLat = Math.min(...allLats);
   const rawMaxLat = Math.max(...allLats);
@@ -276,6 +288,43 @@ function _renderWorldMap(ctx, W, H, dpr) {
       i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     });
     ctx.stroke();
+    ctx.restore();
+  }
+
+  /* Booster ground track — orange dashed */
+  if (_boosterTrack.length > 1) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,140,50,0.75)';
+    ctx.lineWidth   = 1.5 * dpr;
+    ctx.lineJoin    = 'round';
+    ctx.setLineDash([3 * dpr, 3 * dpr]);
+    ctx.beginPath();
+    _boosterTrack.forEach((p, i) => {
+      const { x, y } = proj(p.lat, p.lon);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  /* Booster current position dot */
+  const booster = S.booster;
+  if (booster?.active || booster?.landed) {
+    const bp = proj(booster.lat ?? 0, booster.lon ?? 0);
+    ctx.save();
+    ctx.fillStyle   = booster.landed ? '#ff6600' : '#ff8c32';
+    ctx.shadowColor = '#ff8c32';
+    ctx.shadowBlur  = 5 * dpr;
+    ctx.beginPath(); ctx.arc(bp.x, bp.y, 3 * dpr, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur  = 0;
+    if (!booster.landed && booster.phase) {
+      ctx.font         = `${6 * dpr}px "IBM Plex Mono", monospace`;
+      ctx.fillStyle    = 'rgba(255,160,80,0.8)';
+      ctx.textAlign    = 'left';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(booster.phase.toUpperCase(), bp.x + 4 * dpr, bp.y - 2 * dpr);
+    }
     ctx.restore();
   }
 

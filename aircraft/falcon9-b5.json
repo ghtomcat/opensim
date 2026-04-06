@@ -1,0 +1,103 @@
+{
+  "id":          "falcon9-b5",
+  "name":        "Falcon 9 Block 5",
+  "vehicleType": "rocket",
+  "ignitionTime": 60,
+  "manualControl": false,
+  "crewLang":    "en-US",
+
+  "performance": {
+    "massWet": 549054,
+    "Cd":       0.27,
+    "area":     10.75,
+
+    "stages": [
+      {
+        "name":        "Stage 1 — 9× Merlin 1D+",
+        "engineCount": 9,
+        "thrustSL":    7607000,
+        "thrustVac":   8227000,
+        "isp":         282,
+        "massWet":     425054,
+        "massDry":     25600
+      },
+      {
+        "name":        "Stage 2 — Merlin Vacuum",
+        "engineCount": 1,
+        "thrustSL":    0,
+        "thrustVac":   934000,
+        "isp":         348,
+        "massWet":     111400,
+        "massDry":     4000
+      }
+    ],
+
+    "payload": 12600,
+
+    "gLimit":     6.0,
+    "qLimit":     50000,
+    "cegCutoffG": 3.8,
+    "guidanceDuration": 9999,
+
+    "fpaProfile": [
+      [60,   90],
+      [75,   89],
+      [90,   84],
+      [115,  72],
+      [140,  57],
+      [165,  40],
+      [190,  24],
+      [215,  14],
+      [235,   8],
+      [265,   4],
+      [370,   2],
+      [570,   1],
+      [760,   0]
+    ],
+
+    "recovery": {
+      "rtls":              true,
+      "flipDuration":      20,
+      "boostbackEngines":  3,
+      "boostbackThrottle": 1.00,
+      "boostbackDuration": 60,
+      "entryBurnAlt_m":    70000,
+      "entryBurnEngines":  3,
+      "entryBurnThrottle": 0.40,
+      "entryBurnDuration": 22,
+      "landingBurnAlt_m":  600,
+      "landingBurnEngines": 1
+    }
+  },
+
+  "sound": { "engineType": "none" },
+
+  "kneeboard": [
+    {
+      "title": "FALCON 9 BLOCK 5",
+      "type": "briefing",
+      "items": [
+        "Block 5 — full reusability upgrade",
+        "Stage 1: 9× Merlin 1D+ · 7607 kN SL · Isp 282s",
+        "Stage 2: Merlin Vacuum · 934 kN · Isp 348s",
+        "T/W at liftoff: 1.41",
+        "RTLS: Boostback + Entry + Landing burns",
+        "Stage 1 lands at LZ-1 — 6 min after liftoff"
+      ]
+    },
+    {
+      "title": "RECOVERY PROFILE",
+      "type": "briefing",
+      "items": [
+        "T+00:00  9-engine ignition · Liftoff",
+        "T+01:12  CECO — center engine cutoff",
+        "T+02:33  MECO · Stage 1 separation",
+        "T+02:53  Boostback burn — 3 engines · 23s",
+        "T+06:30  Entry burn — 3 engines · 22s · 70km",
+        "T+07:00  Grid fins deploy · Aerodynamic descent",
+        "T+08:15  Landing burn — 1 engine · touchdown LZ-1",
+        "T+08:45  MVac cutoff · SECO · Orbit insertion"
+      ]
+    }
+  ]
+}

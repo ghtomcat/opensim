@@ -7,7 +7,7 @@
 import { S } from './state.js';
 import { tickPhysics }     from './physics.js';
 import { tickHovercraft }  from './hovercraft_physics.js';
-import { tickRocket }      from './rocket.js';
+import { tickRocket, tickBooster } from './rocket.js';
 import { tickCrew }        from './crew.js';
 import { tickGamepad, tickControls } from './input.js';
 import { tickFailures }              from './failures.js';
@@ -38,7 +38,7 @@ function _tick(now) {
   if (!S.paused) {
     const prevAlt = S.alt;
     tickFailures(dt);
-    if      (S.aircraft?.vehicleType === 'rocket')    tickRocket(dt);
+    if      (S.aircraft?.vehicleType === 'rocket')    { tickRocket(dt); tickBooster(dt); }
     else if (S.aircraft?.type       === 'hovercraft') tickHovercraft(dt);
     else                                              tickPhysics(dt);
     tickCrew(prevAlt, S.alt);

@@ -83,6 +83,7 @@ export async function loadMission(missionPath, aircraftPath) {
       rocketActiveEngines: aircraft.performance?.stages?.[0]?.engineCount ?? 1,
       rocketFailedEngines: [],
       rocketCECO:          false,
+      booster:             null,
     });
   }
 

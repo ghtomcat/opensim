@@ -216,11 +216,65 @@ test.describe('Falcon 9 CRS-1 — engine out at T+79s', () => {
 
 /* ── Rocket spawn ─────────────────────────────────────────────── */
 
+/* ── Falcon 9 Block 5 — RTLS booster recovery ────────────────── */
+
+test.describe('Falcon 9 Block 5 — RTLS booster recovery', () => {
+
+  test('booster separates at stage sep — active with position', async ({ page }) => {
+    await loadSim(page, 'crew-demo2');
+    await stepSeconds(page, 260);  // past MECO (~T+213) + 6s coast + sep
+
+    const s = await getState(page);
+    expect(s.booster?.active || s.booster?.landed, 'booster should be active after sep').toBe(true);
+    expect(s.booster?.alt).toBeGreaterThan(100_000);  // above 100,000 ft (~30 km)
+  });
+
+  test('booster performs boostback — vDown reverses toward pad', async ({ page }) => {
+    await loadSim(page, 'crew-demo2');
+    await stepSeconds(page, 340);  // past flip (20s) + boostback (23s) from sep
+
+    const s = await getState(page);
+    expect(s.booster?.vDown ?? 0, 'booster should be heading back').toBeLessThan(0);
+  });
+
+  test('booster lands within 150 km of launch site', async ({ page }) => {
+    await loadSim(page, 'crew-demo2');
+    await stepSeconds(page, 700);  // enough time for full RTLS sequence
+
+    const s = await getState(page);
+    expect(s.booster?.landed, 'booster should have landed').toBe(true);
+
+    /* Distance from LC-39A (28.608°N, 80.604°W) */
+    const R  = 6_371_000;
+    const D2R = Math.PI / 180;
+    const bLat = s.booster?.lat ?? 0;
+    const bLon = s.booster?.lon ?? 0;
+    const dlat = (bLat - 28.608) * D2R * R;
+    const dlon = (bLon - (-80.604)) * D2R * R * Math.cos(28.608 * D2R);
+    const dist = Math.sqrt(dlat * dlat + dlon * dlon);
+    expect(dist, `booster landed ${(dist / 1000).toFixed(1)} km from pad`).toBeLessThan(300_000);
+  });
+
+  test('main vehicle still reaches orbit while booster recovers', async ({ page }) => {
+    await loadSim(page, 'crew-demo2');
+    await stepSeconds(page, 900);
+
+    const s     = await getState(page);
+    const vel_ms = (s.spd ?? 0) * 0.5144;
+    const alt_km = (s.alt ?? 0) * 0.3048 / 1000;
+    expect(s.rocketSECO, 'SECO should fire').toBe(true);
+    expect(vel_ms).toBeGreaterThan(7000);
+    expect(alt_km).toBeGreaterThan(50);
+  });
+
+});
+
 test.describe('Rocket spawn — pad state', () => {
 
   const PAD_MISSIONS = [
-    { id: 'falcon1-omelek', name: 'Falcon 1', elev: 6,  grossMass: 27_000 },
-    { id: 'crs1',           name: 'Falcon 9', elev: 6,  grossMass: 333_400 },
+    { id: 'falcon1-omelek', name: 'Falcon 1',   elev: 6, grossMass:  27_000 },
+    { id: 'crs1',           name: 'Falcon 9 B1', elev: 6, grossMass: 333_400 },
+    { id: 'crew-demo2',     name: 'Falcon 9 B5', elev: 6, grossMass: 549_054 },
   ];
 
   for (const { id, name, elev, grossMass } of PAD_MISSIONS) {
