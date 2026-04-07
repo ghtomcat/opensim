@@ -3061,6 +3061,7 @@
       document.getElementById('mission-briefing').classList.remove('visible');
       document.getElementById('mission-select').classList.remove('hidden');
       document.title = 'OpenSim';
+      showSelect();   /* ensure grid is rendered (may not have been on direct URL load) */
     }
   });
 
