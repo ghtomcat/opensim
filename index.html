@@ -2291,14 +2291,7 @@
       `;
       card.addEventListener('click', () => {
         document.getElementById('mission-select').classList.add('hidden');
-        /* Skip briefing for autonomous missions (rockets) and slider-controlled
-           vehicles (hovercrafts) — no keyboard interaction needed */
-        const noKeys = m.era === 'ORBIT' || (m.aircraft ?? '').startsWith('hovercraft');
-        if (noKeys) {
-          init(m.id, m.aircraft);
-        } else {
-          showBriefing(m);
-        }
+        showBriefing(m);
       });
       grid.appendChild(card);
     });
@@ -2332,7 +2325,7 @@
     if (b.atmosphere) {
       textHtml += `<div class="mb-atmosphere">${b.atmosphere.replace(/\n/g, '<br>')}</div>`;
     }
-    textHtml += `<div class="mb-fly">Press any key to fly</div>`;
+    textHtml += `<div class="mb-fly">Press any key to continue</div>`;
 
     if (b.document && b.image) {
       /* Document left, portrait right — orders speak for themselves */
@@ -2352,7 +2345,7 @@
           <img class="mb-portrait" src="${b.image}" alt="">
         </div>
         ${atmHtml}
-        <div class="mb-fly">Press any key to fly</div>`;
+        <div class="mb-fly">Press any key to continue</div>`;
 
       if (b.document_en) {
         content.querySelectorAll('.mb-lang-btn').forEach(btn => {
