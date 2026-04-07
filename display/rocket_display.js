@@ -132,7 +132,7 @@ export function renderRocket(canvas) {
   const velKmh      = velMs * 3.6;
   const vOrbKms     = Math.sqrt(GM_EARTH / (R_EARTH_M + alt_m)) / 1000;
   const orbitFrac   = Math.min(1, velKms / vOrbKms);
-  const inOrbit     = velKms >= vOrbKms * 0.99 && Math.abs(fpa) < 8 && tLO > 0;
+  const inOrbit     = !!(S.rocketOrbit) || (velKms >= vOrbKms * 0.99 && Math.abs(fpa) < 8 && tLO > 0);
 
   const launch      = S.mission?.initialState ?? {};
   const dLatKm      = ((S.lat ?? 0) - (launch.lat ?? 0)) * 111.32;
@@ -158,7 +158,14 @@ export function renderRocket(canvas) {
   const acStages  = ac.performance?.stages ?? [];
   const rawName   = acStages[stage - 1]?.name ?? `Stage ${stage}`;
   const engName   = rawName.replace(/^Stage \d+ — /i, '');
-  const stageStr  = inOrbit     ? 'ORBIT ACHIEVED'
+  const orbitPass = S.orbitPass ?? 0;
+  const orbPeriodS = S.orbitPeriod ?? 0;
+  const orbMM  = Math.floor(orbPeriodS / 60);
+  const orbSS  = Math.floor(orbPeriodS % 60);
+  const orbPeriodStr = orbPeriodS > 0 ? `  ·  T ${orbMM}:${String(orbSS).padStart(2,'0')}` : '';
+  const stageStr  = inOrbit && orbitPass > 0
+                  ? `ORBIT ${orbitPass}${orbPeriodStr}`
+                  : inOrbit     ? `ORBIT ACHIEVED${orbPeriodStr}`
                   : coast       ? 'STAGE SEPARATION'
                   : `STAGE ${stage}  —  ${engName.toUpperCase()}`;
   const stageColor = inOrbit ? '#5dd47e' : coast ? '#ffb74d' : (stage === 1 ? '#4dc5dc' : '#5dd47e');
@@ -193,6 +200,17 @@ export function renderRocket(canvas) {
   const gVal   = S.rocketG ?? 0;
   const gColor = gVal > 6 ? '#ff4444' : gVal > 4 ? '#ffb74d' : '#e8edf2';
 
+  /* In orbit: replace G-FORCE with PERIOD */
+  const lastMetric = inOrbit
+    ? { label: 'PERIOD',
+        value: orbPeriodS > 0 ? `${orbMM}:${String(orbSS).padStart(2,'0')}` : '—',
+        unit: 'min:sec',
+        sub: orbitPass > 0 ? `ORBIT  ${orbitPass}` : 'ORBIT  0',
+        color: '#5dd47e' }
+    : { label: 'G-FORCE',   value: gVal.toFixed(1),        unit: 'g',
+        sub: `q ${Math.round((S.rocketDynQ ?? 0) / 1000)} kPa  · peak ${_peakG.toFixed(1)}g`,
+        color: gColor };
+
   const metrics = [
     { label: 'ALTITUDE',  value: altKm.toFixed(1),       unit: 'km',
       sub: null,                                                          color: '#e8edf2' },
@@ -200,8 +218,7 @@ export function renderRocket(canvas) {
       sub: `M ${mach.toFixed(2)}  ·  ${Math.round(velKmh).toLocaleString()} km/h`,  color: '#e8edf2' },
     { label: 'DOWNRANGE', value: downrangeKm.toFixed(0), unit: 'km',
       sub: null,                                                          color: '#e8edf2' },
-    { label: 'G-FORCE',   value: gVal.toFixed(1),        unit: 'g',
-      sub: `q ${Math.round((S.rocketDynQ ?? 0) / 1000)} kPa  · peak ${_peakG.toFixed(1)}g`, color: gColor },
+    lastMetric,
   ];
 
   metrics.forEach((m, i) => {

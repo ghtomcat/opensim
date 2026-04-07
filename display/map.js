@@ -159,8 +159,8 @@ function _renderWorldMap(ctx, W, H, dpr) {
   /* Target window: fit the track with padding, minimum 10° lat × 16° lon */
   const tgtCLat    = (rawMinLat + rawMaxLat) / 2;
   const tgtCLon    = (rawMinLon + rawMaxLon) / 2;
-  const tgtLatSpan = Math.max(rawMaxLat - rawMinLat + 6, 10);
-  const tgtLonSpan = Math.max(rawMaxLon - rawMinLon + 8, 16);
+  const tgtLatSpan = Math.min(180, Math.max(rawMaxLat - rawMinLat + 6, 10));
+  const tgtLonSpan = Math.min(360, Math.max(rawMaxLon - rawMinLon + 8, 16));
 
   /* Reset on mission change */
   if (_dispCLat === null) { _dispCLat = tgtCLat; _dispCLon = tgtCLon;
@@ -274,7 +274,7 @@ function _renderWorldMap(ctx, W, H, dpr) {
     ctx.restore();
   }
 
-  /* Ground track */
+  /* Ground track — break path at anti-meridian jumps (> 180° lon diff) */
   if (_track.length > 1) {
     ctx.save();
     const grad = ctx.createLinearGradient(
@@ -289,10 +289,14 @@ function _renderWorldMap(ctx, W, H, dpr) {
     ctx.lineWidth   = 2 * dpr;
     ctx.lineJoin    = 'round';
     ctx.beginPath();
-    _track.forEach((p, i) => {
+    let move = true;
+    for (let i = 0; i < _track.length; i++) {
+      const p = _track[i];
+      if (i > 0 && Math.abs(p.lon - _track[i - 1].lon) > 120) { move = true; }
       const { x, y } = proj(p.lat, p.lon);
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-    });
+      move ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      move = false;
+    }
     ctx.stroke();
     ctx.restore();
   }

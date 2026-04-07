@@ -269,6 +269,61 @@ test.describe('Falcon 9 Block 5 — RTLS booster recovery', () => {
 
 });
 
+/* ── Keplerian orbital propagator ────────────────────────────── */
+
+test.describe('Keplerian orbital propagator', () => {
+
+  test('rocketOrbit flag set after SECO — Falcon 1', async ({ page }) => {
+    await loadSim(page, 'falcon1-omelek');
+    await stepSeconds(page, 700);
+    const s = await getState(page);
+    expect(s.rocketOrbit, 'rocketOrbit should be true after SECO').toBe(true);
+    expect(s.orbitVec, 'orbitVec should be captured').toBeTruthy();
+  });
+
+  test('orbital energy conserved within 0.01% over 30 min — no decay', async ({ page }) => {
+    const GM = 3.986004418e14;
+    const RE = 6_371_000;
+
+    await loadSim(page, 'falcon1-omelek');
+    await stepSeconds(page, 700);   // reach orbit
+    const s0 = await getState(page);
+
+    /* Specific orbital energy E = v²/2 - GM/r */
+    const { rx: rx0, ry: ry0, rz: rz0, vx: vx0, vy: vy0, vz: vz0 } = s0.orbitVec ?? {};
+    const r0 = Math.sqrt(rx0**2 + ry0**2 + rz0**2);
+    const v0 = Math.sqrt(vx0**2 + vy0**2 + vz0**2);
+    const E0 = v0*v0 / 2 - GM / r0;
+
+    await stepSeconds(page, 1800); // 30 more minutes of Keplerian propagation
+
+    const s1 = await getState(page);
+    const { rx: rx1, ry: ry1, rz: rz1, vx: vx1, vy: vy1, vz: vz1 } = s1.orbitVec ?? {};
+    const r1 = Math.sqrt(rx1**2 + ry1**2 + rz1**2);
+    const v1 = Math.sqrt(vx1**2 + vy1**2 + vz1**2);
+    const E1 = v1*v1 / 2 - GM / r1;
+
+    const relErr = Math.abs((E1 - E0) / E0);
+    expect(relErr, `energy error ${(relErr * 100).toFixed(4)}%`).toBeLessThan(0.0001);
+  });
+
+  test('longitude advances after orbit insertion — spacecraft moves', async ({ page }) => {
+    await loadSim(page, 'crew-demo2');
+    await stepSeconds(page, 900);   // reach orbit
+    const s0 = await getState(page);
+    const lon0 = s0.lon ?? 0;
+
+    await stepSeconds(page, 600);  // 10 more minutes
+
+    const s1 = await getState(page);
+    const lon1 = s1.lon ?? 0;
+    /* Longitude must have changed — spacecraft is orbiting */
+    const dLon = Math.abs(((lon1 - lon0 + 540) % 360) - 180);
+    expect(dLon, `lon changed ${dLon.toFixed(1)}°`).toBeGreaterThan(10);
+  });
+
+});
+
 test.describe('Rocket spawn — pad state', () => {
 
   const PAD_MISSIONS = [

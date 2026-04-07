@@ -18,6 +18,7 @@ import { S, setState } from './state.js';
 const DEG     = Math.PI / 180;
 const R_EARTH = 6_371_000;   // m
 const G0      = 9.80665;     // m/s²
+const GM      = 3.986004418e14;  // m³/s² — Earth's gravitational parameter
 
 /* ── Extended atmosphere — sea level through low Earth orbit ──
    Returns air density kg/m³ at altitude in metres.             */
@@ -50,6 +51,124 @@ function _programmedFPA(t, profile) {
   return 90;
 }
 
+/* ── Keplerian orbital propagation ──────────────────────────────
+   Activated once after SECO. Replaces flat-Earth dead reckoning
+   with a 3D ECEF point-mass gravity integrator (RK1 / Euler step).
+   State vector S.orbitVec = { rx,ry,rz, vx,vy,vz } in metres/m·s⁻¹.
+   ─────────────────────────────────────────────────────────────── */
+
+function _captureOrbitVec() {
+  const lat_r  = (S.lat  ?? 0) * DEG;
+  const lon_r  = (S.lon  ?? 0) * DEG;
+  const alt_m  = (S.alt  ?? 0) * 0.3048;
+  const spd_ms = (S.spd  ?? 0) * 0.5144;
+  const fpa_r  = (S.pitch ?? 0) * DEG;
+  const hdg_r  = (S.hdg  ?? 0) * DEG;
+
+  const r      = R_EARTH + alt_m;
+  const vHoriz = spd_ms * Math.cos(fpa_r);
+  const vVert  = spd_ms * Math.sin(fpa_r);
+
+  /* Local ENU velocity */
+  const vEast  = vHoriz * Math.sin(hdg_r);
+  const vNorth = vHoriz * Math.cos(hdg_r);
+  const vUp    = vVert;
+
+  /* ENU → ECEF rotation */
+  const slat = Math.sin(lat_r), clat = Math.cos(lat_r);
+  const slon = Math.sin(lon_r), clon = Math.cos(lon_r);
+  const vx =  -slon * vEast  - slat * clon * vNorth  + clat * clon * vUp;
+  const vy =   clon * vEast  - slat * slon * vNorth  + clat * slon * vUp;
+  const vz =   clat * vNorth + slat * vUp;
+
+  /* Position in ECEF */
+  const rx = r * clat * clon;
+  const ry = r * clat * slon;
+  const rz = r * slat;
+
+  setState({
+    rocketOrbit:   true,
+    orbitVec:      { rx, ry, rz, vx, vy, vz },
+    orbitPass:     0,
+    _orbitPrevLat: S.lat ?? 0,
+  });
+}
+
+function _tickOrbit(dt) {
+  const { rx, ry, rz, vx, vy, vz } = S.orbitVec;
+
+  /* Velocity Verlet — symplectic, conserves orbital energy.
+     Step 1: accelerate current position */
+  const r2  = rx*rx + ry*ry + rz*rz;
+  const r3  = r2 * Math.sqrt(r2);
+  const k   = -GM / r3;
+  const ax = k * rx, ay = k * ry, az = k * rz;
+
+  /* Step 2: advance position with current v + half-kick */
+  const dt2 = dt * dt;
+  const nrx = rx + vx * dt + 0.5 * ax * dt2;
+  const nry = ry + vy * dt + 0.5 * ay * dt2;
+  const nrz = rz + vz * dt + 0.5 * az * dt2;
+
+  /* Step 3: new acceleration at new position */
+  const nr2 = nrx*nrx + nry*nry + nrz*nrz;
+  const nr3 = nr2 * Math.sqrt(nr2);
+  const nk  = -GM / nr3;
+  const nax = nk * nrx, nay = nk * nry, naz = nk * nrz;
+
+  /* Step 4: full velocity kick using average acceleration */
+  const nvx = vx + 0.5 * (ax + nax) * dt;
+  const nvy = vy + 0.5 * (ay + nay) * dt;
+  const nvz = vz + 0.5 * (az + naz) * dt;
+
+  /* ECEF → geodetic */
+  const nr     = Math.sqrt(nrx*nrx + nry*nry + nrz*nrz);
+  const newAlt = nr - R_EARTH;                                   // m
+  const newLat = Math.atan2(nrz, Math.sqrt(nrx*nrx + nry*nry)) / DEG;
+  const newLon = Math.atan2(nry, nrx) / DEG;
+
+  /* Speed */
+  const newSpd = Math.sqrt(nvx*nvx + nvy*nvy + nvz*nvz);
+
+  /* FPA = arcsin(v · r̂ / |v|) */
+  const rHx  = nrx / nr, rHy = nry / nr, rHz = nrz / nr;
+  const vRad = nvx * rHx + nvy * rHy + nvz * rHz;
+  const newFPA = Math.asin(Math.max(-1, Math.min(1, vRad / newSpd))) / DEG;
+
+  /* Heading from local ENU tangential velocity */
+  const slat = Math.sin(newLat * DEG), clat = Math.cos(newLat * DEG);
+  const slon = Math.sin(newLon * DEG), clon = Math.cos(newLon * DEG);
+  const vE   = -slon * nvx + clon * nvy;
+  const vN   = -slat * clon * nvx - slat * slon * nvy + clat * nvz;
+  const newHdg = (Math.atan2(vE, vN) / DEG + 360) % 360;
+
+  /* Orbit pass counter — ascending equator crossing */
+  const prevLat   = S._orbitPrevLat ?? 0;
+  const orbitPass = (S.orbitPass ?? 0) + (prevLat < 0 && newLat >= 0 ? 1 : 0);
+
+  /* Orbital period — T = 2π√(a³/GM), a ≈ r for near-circular orbit */
+  const T_orb = 2 * Math.PI * Math.sqrt(Math.pow(nr, 3) / GM);
+
+  setState({
+    spd:   newSpd / 0.5144,
+    spdT:  newSpd / 0.5144,
+    alt:   newAlt / 0.3048,
+    altT:  newAlt / 0.3048,
+    pitch: newFPA,
+    vs:    vRad * 196.85,
+    lat:   newLat,
+    lon:   newLon,
+    hdg:   newHdg,
+    rocketG:    0,
+    rocketDynQ: 0,
+    orbitVec:   { rx: nrx, ry: nry, rz: nrz, vx: nvx, vy: nvy, vz: nvz },
+    orbitPass,
+    orbitPeriod:    T_orb,
+    _orbitPrevLat:  newLat,
+    time: (S.time ?? 0) + dt,
+  });
+}
+
 /* ── Main tick ── */
 export function tickRocket(dt) {
   const ac    = S.aircraft;
@@ -61,6 +180,15 @@ export function tickRocket(dt) {
   const ignitionTime = ac.ignitionTime ?? 0;
   if (mT < ignitionTime) {
     setState({ time: mT + dt });
+    return;
+  }
+
+  /* ── Orbital propagation — takes over after SECO ── */
+  if (S.rocketSECO && !S.rocketOrbit) {
+    _captureOrbitVec();   // first tick after SECO: freeze orbit vector
+  }
+  if (S.rocketOrbit && S.orbitVec) {
+    _tickOrbit(dt);       // Keplerian propagation — replaces flat-Earth update
     return;
   }
 
