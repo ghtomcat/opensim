@@ -2377,7 +2377,8 @@
       window.removeEventListener('keydown', dismiss);
       el.removeEventListener('click', dismiss);
     };
-    window.addEventListener('keydown', dismiss);
+    /* Delay keydown — gives time to screenshot without accidentally dismissing */
+    setTimeout(() => window.addEventListener('keydown', dismiss), 10000);
     el.addEventListener('click', dismiss);
   }
 
