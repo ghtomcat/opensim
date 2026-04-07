@@ -118,8 +118,12 @@ function _updateTrack() {
   const alt = (S.alt ?? 0) * 0.3048 / 1000;   /* km */
   const t   = mT - (S.aircraft?.ignitionTime ?? 0);
   const last = _track[_track.length - 1];
-  if (!last || Math.abs(lat - last.lat) + Math.abs(lon - last.lon) > 0.005) {
+  /* In orbit the spacecraft moves fast — use a coarser threshold to keep
+     the track manageable (~1 point per ~40 km, ≤ 2000 points total).   */
+  const threshold = S.rocketOrbit ? 0.35 : 0.005;
+  if (!last || Math.abs(lat - last.lat) + Math.abs(lon - last.lon) > threshold) {
     _track.push({ lat, lon, alt, t, stg: S.rocketStage ?? 1 });
+    if (_track.length > 2000) _track.shift();   /* rolling window — drop oldest */
   }
 
   /* Booster track */
@@ -147,6 +151,9 @@ function _renderWorldMap(ctx, W, H, dpr) {
   const curLat    = S.lat  ?? launchLat;
   const curLon    = S.lon  ?? launchLon;
 
+  /* In Keplerian orbit: always show the full globe */
+  const inOrbit = !!(S.rocketOrbit);
+
   /* Compute target extent from track + launch + current */
   const allLats = [launchLat, curLat, ..._track.map(p => p.lat), ..._boosterTrack.map(p => p.lat)];
   const allLons = [launchLon, curLon, ..._track.map(p => p.lon), ..._boosterTrack.map(p => p.lon)];
@@ -156,11 +163,12 @@ function _renderWorldMap(ctx, W, H, dpr) {
   const rawMinLon = Math.min(...allLons);
   const rawMaxLon = Math.max(...allLons);
 
-  /* Target window: fit the track with padding, minimum 10° lat × 16° lon */
-  const tgtCLat    = (rawMinLat + rawMaxLat) / 2;
-  const tgtCLon    = (rawMinLon + rawMaxLon) / 2;
-  const tgtLatSpan = Math.min(180, Math.max(rawMaxLat - rawMinLat + 6, 10));
-  const tgtLonSpan = Math.min(360, Math.max(rawMaxLon - rawMinLon + 8, 16));
+  /* Target window: fit the track with padding, minimum 10° lat × 16° lon.
+     When in orbit, show the full globe centred on 0°,0°.                 */
+  const tgtCLat    = inOrbit ? 0  : (rawMinLat + rawMaxLat) / 2;
+  const tgtCLon    = inOrbit ? 0  : (rawMinLon + rawMaxLon) / 2;
+  const tgtLatSpan = inOrbit ? 180 : Math.min(180, Math.max(rawMaxLat - rawMinLat + 6, 10));
+  const tgtLonSpan = inOrbit ? 360 : Math.min(360, Math.max(rawMaxLon - rawMinLon + 8, 16));
 
   /* Reset on mission change */
   if (_dispCLat === null) { _dispCLat = tgtCLat; _dispCLon = tgtCLon;
@@ -242,9 +250,10 @@ function _renderWorldMap(ctx, W, H, dpr) {
     ctx.fillText('EQ', p2.x - 2 * dpr, p2.y - 2 * dpr);
   }
 
-  /* Nominal ground track — great circle from launch heading */
+  /* Nominal ground track — great circle from launch heading.
+     Hidden once in orbit — the actual track tells the full story. */
   const nomHdg = S.mission?.initialState?.hdg ?? S.hdg ?? 0;
-  {
+  if (!inOrbit) {
     const lat1 = launchLat * DEG;
     const lon1 = launchLon * DEG;
     const az   = nomHdg * DEG;
@@ -272,32 +281,65 @@ function _renderWorldMap(ctx, W, H, dpr) {
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.restore();
-  }
+  }   /* end nominal track */
 
-  /* Ground track — break path at anti-meridian jumps (> 180° lon diff) */
+  /* Ground track — fading tail: recent segment bright, older dim.
+     Break path at anti-meridian jumps (> 120° lon diff).          */
   if (_track.length > 1) {
     ctx.save();
-    const grad = ctx.createLinearGradient(
-      proj(_track[0].lat, _track[0].lon).x,
-      proj(_track[0].lat, _track[0].lon).y,
-      proj(curLat, curLon).x,
-      proj(curLat, curLon).y,
-    );
-    grad.addColorStop(0, 'rgba(77,197,220,0.4)');
-    grad.addColorStop(1, '#4dc5dc');
-    ctx.strokeStyle = grad;
-    ctx.lineWidth   = 2 * dpr;
-    ctx.lineJoin    = 'round';
-    ctx.beginPath();
-    let move = true;
-    for (let i = 0; i < _track.length; i++) {
-      const p = _track[i];
-      if (i > 0 && Math.abs(p.lon - _track[i - 1].lon) > 120) { move = true; }
-      const { x, y } = proj(p.lat, p.lon);
-      move ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-      move = false;
+    ctx.lineWidth = 2 * dpr;
+    ctx.lineJoin  = 'round';
+
+    if (inOrbit) {
+      /* In orbit: draw entire history dim, then last ~15% bright */
+      const splitIdx = Math.floor(_track.length * 0.85);
+
+      /* Old track — dim */
+      ctx.strokeStyle = 'rgba(77,197,220,0.25)';
+      ctx.beginPath();
+      let move = true;
+      for (let i = 0; i <= splitIdx; i++) {
+        const p = _track[i];
+        if (i > 0 && Math.abs(p.lon - _track[i - 1].lon) > 120) move = true;
+        const { x, y } = proj(p.lat, p.lon);
+        move ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        move = false;
+      }
+      ctx.stroke();
+
+      /* Recent tail — bright */
+      ctx.strokeStyle = '#4dc5dc';
+      ctx.lineWidth   = 2.5 * dpr;
+      ctx.beginPath();
+      move = true;
+      for (let i = splitIdx; i < _track.length; i++) {
+        const p = _track[i];
+        if (i > splitIdx && Math.abs(p.lon - _track[i - 1].lon) > 120) move = true;
+        const { x, y } = proj(p.lat, p.lon);
+        move ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        move = false;
+      }
+      ctx.stroke();
+    } else {
+      /* Ascent: gradient from dim to bright */
+      const p0 = proj(_track[0].lat, _track[0].lon);
+      const pN = proj(curLat, curLon);
+      const grad = ctx.createLinearGradient(p0.x, p0.y, pN.x, pN.y);
+      grad.addColorStop(0, 'rgba(77,197,220,0.35)');
+      grad.addColorStop(1, '#4dc5dc');
+      ctx.strokeStyle = grad;
+      ctx.beginPath();
+      let move = true;
+      for (let i = 0; i < _track.length; i++) {
+        const p = _track[i];
+        if (i > 0 && Math.abs(p.lon - _track[i - 1].lon) > 120) move = true;
+        const { x, y } = proj(p.lat, p.lon);
+        move ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        move = false;
+      }
+      ctx.stroke();
     }
-    ctx.stroke();
+
     ctx.restore();
   }
 
