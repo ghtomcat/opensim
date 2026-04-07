@@ -2536,9 +2536,10 @@
     await sleep(500);
     loadEl.style.display = 'none';
 
-    /* Show onboarding */
+    /* Show onboarding — skip for autonomous/slider-controlled vehicles */
     const obEl = document.getElementById('onboarding');
-    obEl.classList.add('visible');
+    const _noKeys = S.aircraft?.vehicleType === 'rocket' || S.aircraft?.type === 'hovercraft';
+    if (!_noKeys) obEl.classList.add('visible');
     /* Init sound with default engine type from aircraft JSON */
     const engineType = S.aircraft?.sound?.engineType ?? 'geared-turbofan';
     initSound(engineType);
