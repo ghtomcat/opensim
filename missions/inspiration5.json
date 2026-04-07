@@ -1,0 +1,78 @@
+{
+  "id":          "inspiration5",
+  "title":       "Inspiration5 · Commander Leutwyler",
+  "description": "2030. Markus Leutwyler commanding. Four civilians. 590 km orbit. Stage 1 returns to LZ-1.",
+  "author":      "Markus Leutwyler",
+  "aircraft":    "falcon9-b5",
+
+  "timeOfDay": 0.65,
+  "water":     false,
+
+  "weather": {
+    "source": "manual",
+    "manual": {
+      "wdir": 110, "wspd": 4, "turbulence": 0.03, "altim": 1018, "temp": 26
+    }
+  },
+
+  "initialState": {
+    "lat":   28.6080,
+    "lon":  -80.6040,
+    "alt":   6,
+    "spd":   0,
+    "hdg":  51,
+    "pitch": 90,
+    "roll":  0
+  },
+
+  "departure": {
+    "name":      "Kennedy Space Center LC-39A",
+    "elevation": 6
+  },
+
+  "arrival": null,
+
+  "com": {
+    "title": "MISSION AUDIO",
+    "loops": [
+      { "id": "silence", "label": "SILENCE" }
+    ],
+    "active": "silence"
+  },
+
+  "atcClearances": [
+    { "t":  0,  "text": "T minus 60 seconds. Go for launch.",                                        "voice": "atc" },
+    { "t": 30,  "text": "T minus 30.",                                                               "voice": "atc" },
+    { "t": 50,  "text": "T minus 10. 9. 8. 7. 6. 5. 4. 3. 2. 1.",                                "voice": "atc" },
+    { "t": 57,  "text": "Ignition sequence start.",                                                  "voice": "atc" },
+    { "t": 60,  "text": "Liftoff. Falcon 9 lifts off with Dragon Inspiration.",                     "voice": "atc" },
+
+    { "event": "supersonic",     "text": "Vehicle is supersonic.",                                  "voice": "atc" },
+    { "event": "maxq",           "text": "Max Q.",                                                  "voice": "atc" },
+    { "event": "ceco",           "text": "Center engine cutoff.",                                   "voice": "atc" },
+    { "event": "meco",           "text": "MECO confirmed.",                                         "voice": "atc" },
+    { "event": "stagesep", "_uid": "sep",  "text": "Stage separation confirmed.",                  "voice": "atc", "delay": 200  },
+    { "event": "stagesep", "_uid": "mvac", "text": "MVac ignition. Stage 2 go.",                  "voice": "atc", "delay": 6000 },
+    { "event": "seco",           "text": "SECO confirmed. Dragon Inspiration is in orbit.",        "voice": "atc" },
+    { "event": "orbit",          "text": "Nominal orbit insertion. 590 kilometres. Inspiration5 is go.", "voice": "atc" },
+
+    { "event": "booster_landing", "text": "Stage 1 landing burn. Touchdown confirmed. LZ-1.",     "voice": "atc" }
+  ],
+
+  "narrative": [
+    "Kennedy Space Center.",
+    "Launch Complex 39A.",
+    "2030.",
+    "Markus Leutwyler — Commander.",
+    "Lydia — Pilot.",
+    "Pradeep — Mission Specialist.",
+    "Dragon Inspiration.",
+    "Stage 1 comes home."
+  ],
+
+  "debrief": [
+    "Did stage 1 perform the boostback burn?",
+    "Did the booster land at LZ-1?",
+    "Did Dragon reach 590 km orbit?"
+  ]
+}
