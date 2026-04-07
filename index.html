@@ -2325,7 +2325,7 @@
     if (b.atmosphere) {
       textHtml += `<div class="mb-atmosphere">${b.atmosphere.replace(/\n/g, '<br>')}</div>`;
     }
-    textHtml += `<div class="mb-fly">Press any key to continue</div>`;
+    textHtml += `<div class="mb-fly">Tap to continue</div>`;
 
     if (b.document && b.image) {
       /* Document left, portrait right — orders speak for themselves */
@@ -2345,7 +2345,7 @@
           <img class="mb-portrait" src="${b.image}" alt="">
         </div>
         ${atmHtml}
-        <div class="mb-fly">Press any key to continue</div>`;
+        <div class="mb-fly">Tap to continue</div>`;
 
       if (b.document_en) {
         content.querySelectorAll('.mb-lang-btn').forEach(btn => {
@@ -2377,8 +2377,6 @@
       window.removeEventListener('keydown', dismiss);
       el.removeEventListener('click', dismiss);
     };
-    /* Delay keydown — gives time to screenshot without accidentally dismissing */
-    setTimeout(() => window.addEventListener('keydown', dismiss), 10000);
     el.addEventListener('click', dismiss);
   }
 
