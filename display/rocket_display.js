@@ -266,7 +266,8 @@ export function renderRocket(canvas) {
     _drawEngineGrid(ctx, orX, egY, orW, egH,
       totalEnginesDisp,
       S.rocketActiveEngines ?? totalEnginesDisp,
-      S.rocketFailedEngines ?? []);
+      S.rocketFailedEngines  ?? [],
+      S.rocketCECOEngines    ?? []);
   }
 
   /* ── Booster telemetry panel (right side, appears at stage sep) ── */
@@ -587,7 +588,7 @@ function _drawBoosterPanel(ctx, x0, y0, w, h, lblFontSz, vFontSz) {
 }
 
 /* ── Engine status grid (multi-engine vehicles) ── */
-function _drawEngineGrid(ctx, x, y, w, h, totalEngines, activeEngines, failedEngines) {
+function _drawEngineGrid(ctx, x, y, w, h, totalEngines, activeEngines, failedEngines, cecoEngines = []) {
   ctx.save();
 
   /* Background */
@@ -629,11 +630,12 @@ function _drawEngineGrid(ctx, x, y, w, h, totalEngines, activeEngines, failedEng
 
   for (let i = 0; i < positions.length; i++) {
     const [px, py] = positions[i];
-    const failed   = failedEngines.includes(i);
-    ctx.fillStyle  = failed ? '#ff4444' : '#5dd47e';
+    const failed = failedEngines.includes(i);
+    const ceco   = cecoEngines.includes(i);
+    ctx.fillStyle   = failed ? '#ff4444' : ceco ? '#ffb74d' : '#5dd47e';
     ctx.shadowColor = ctx.fillStyle;
-    ctx.shadowBlur  = failed ? 0 : 3;
-    ctx.globalAlpha = failed ? 0.65 : 0.9;
+    ctx.shadowBlur  = (failed || ceco) ? 0 : 3;
+    ctx.globalAlpha = (failed || ceco) ? 0.60 : 0.9;
     ctx.beginPath();
     ctx.arc(px, py, dotR, 0, Math.PI * 2);
     ctx.fill();

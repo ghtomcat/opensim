@@ -2277,7 +2277,14 @@
       `;
       card.addEventListener('click', () => {
         document.getElementById('mission-select').classList.add('hidden');
-        showBriefing(m);
+        /* Skip briefing for autonomous missions (rockets) and slider-controlled
+           vehicles (hovercrafts) — no keyboard interaction needed */
+        const noKeys = m.era === 'ORBIT' || (m.aircraft ?? '').startsWith('hovercraft');
+        if (noKeys) {
+          init(m.id, m.aircraft);
+        } else {
+          showBriefing(m);
+        }
       });
       grid.appendChild(card);
     });
@@ -2560,6 +2567,8 @@
         else downloadTelemetry();
         return;
       }
+      /* Escape — back to mission selector */
+      if (e.key === 'Escape') { history.back(); return; }
       if (e.key === 'k' || e.key === 'K') { toggleKneeboard(); return; }
       if (e.key === 'n' || e.key === 'N') { toggleMap(); return; }
 

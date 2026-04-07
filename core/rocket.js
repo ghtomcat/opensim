@@ -260,7 +260,7 @@ export function tickRocket(dt) {
       coasting = false;
       /* Reset engine state for new stage */
       const nextStg = stages[stage - 1] ?? {};
-      setState({ rocketActiveEngines: nextStg.engineCount ?? 1, rocketFailedEngines: [], rocketCECO: false });
+      setState({ rocketActiveEngines: nextStg.engineCount ?? 1, rocketFailedEngines: [], rocketCECO: false, rocketCECOEngines: [] });
     }
   } else if (mass > burnoutThreshold && S.engineState === 'running') {
     /* Thrusting — scale thrust by active engine fraction */
@@ -317,7 +317,9 @@ export function tickRocket(dt) {
   if (cegCutoff && !S.rocketCECO && stage === 1
       && activeEngines === totalEngines && totalEngines > 1
       && axialG > cegCutoff) {
-    setState({ rocketActiveEngines: totalEngines - 1, rocketCECO: true });
+    /* Center engine is last in the position array (index totalEngines-1) */
+    setState({ rocketActiveEngines: totalEngines - 1, rocketCECO: true,
+               rocketCECOEngines: [totalEngines - 1] });
   }
 
   /* ── Integrate velocity ── */
