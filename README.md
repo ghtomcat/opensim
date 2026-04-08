@@ -78,6 +78,8 @@ axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1
 
 ## Aircraft included
 
+### Atmosphere
+
 | Aircraft | Engine | Notes |
 |----------|--------|-------|
 | Airbus A350-900 | Rolls-Royce Trent XWB | Autopilot, FMGS |
@@ -88,9 +90,20 @@ axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1
 | Tupolev Tu-95MS Bear H | Kuznetsov NK-12MV × 4 · 44740kW | Russian crew voices, contra-rotation LFO |
 | Antonov An-225 Mriya | ZMKB Progress D-18T × 6 · 1 377 kN | Ukrainian crew voices (Lesya), 500 t, Hostomel 2022 |
 
+### Orbit
+
+| Vehicle | Notes |
+|---------|-------|
+| Falcon 1 | 27 000 kg, 2-stage, RatSat payload, Omelek Island |
+| Falcon 9 Block 1 | 333 400 kg, 9 Merlins, no recovery |
+| Falcon 9 Block 5 | 549 054 kg, RTLS booster recovery, MECO→SECO→Keplerian orbit |
+| Falcon 9 Block 5 (590 km) | Tuned for 590 km near-circular insertion — Inspiration5 |
+
 ---
 
 ## Missions included
+
+### Fly tab
 
 | Mission | Aircraft | Era | What |
 |---------|----------|-----|------|
@@ -101,6 +114,15 @@ axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1
 | Patrol — Marne 1918 | Avro 504K | 1918 | WWI rotary engine, Le Rhône blip switch |
 | Operation Wolfskopf | Bf 109 G-4 | 1942 | Arctic, scripted engine failure, NIFLHEIM |
 | Aufklärungsflug Nordmeer | Tu-95MS Bear H | 1956 | Olenya AB, Soviet ATC, Cold War dossier |
+
+### Orbit tab
+
+| Mission | Vehicle | Year | What |
+|---------|---------|------|------|
+| Falcon 1 — Omelek Island | Falcon 1 | 2008 | First privately funded orbital rocket. 2-stage gravity turn, RatSat to LEO |
+| CRS-1 — Engine Out | Falcon 9 Block 1 | 2012 | Engine failure at T+79s. Vehicle reaches orbit on 8 engines |
+| Crew Dragon Demo-2 | Falcon 9 Block 5 | 2020 | Behnken + Hurley. First crewed Dragon. Stage 1 RTLS to LZ-1. Full webcast audio loop |
+| Inspiration5 — Commander Leutwyler | Falcon 9 Block 5 | 2030 | Four civilians. 590 km orbit. RTLS. 3-day mission. Deorbit → reentry → splashdown |
 
 ---
 
@@ -147,6 +169,43 @@ Wind drift: dead reckoning uses ground velocity = TAS vector + wind vector.
 
 ---
 
+## Rocket + orbital physics
+
+### Ascent
+
+Point-mass gravity turn model driven by a programmed FPA profile `[[t, fpa_deg], ...]`. Extended ISA atmosphere from sea level through 140 km. Thrust interpolated sea-level ↔ vacuum via atmospheric density fraction.
+
+- **Staging** — automatic when propellant mass ≤ dry + upper stages
+- **CECO** — center engine cutoff triggered by G-load threshold
+- **On-pad hold** — vehicle holds until T/W > 1
+- **Engine failures** — scripted via `engineFailures` array in mission JSON
+
+### Orbital propagation
+
+Velocity Verlet integrator in ECEF coordinates. Activated at SECO. Energy conserved < 0.01% over 30 minutes.
+
+- Full 3D ECEF state vector: `{ rx, ry, rz, vx, vy, vz }`
+- Ground track: full-globe view, fading tail, anti-meridian breaks, 2000-point rolling window
+- Dragon / Stage 2 separation: two independent Keplerian propagators after `dragonSepT`
+- Orbital period displayed live once in orbit
+
+### Deorbit + reentry
+
+- Retrograde ΔV subtracted from orbit vector at `deorbitT`
+- Drag applied below 140 km: extended atmosphere `5.6e⁻⁶ × exp(−(alt−86km)/6150)`
+- Drogue chutes at 5 500 m (CdA = 79.2 m²), 4 mains at 1 800 m (CdA = 996 m²)
+- Terminal velocity ~6 m/s, splashdown detected at alt ≤ 0
+
+### Booster RTLS
+
+Phases: **flip → boostback → coast → glide → landing → landed**
+
+- Boostback: retrograde burn (3 engines) opposing full velocity vector — apogee ~100–130 km
+- Glide: grid fin drag multiplier ×8
+- Landing burn: single engine, proportional throttle `v²/2h` for soft touchdown
+
+---
+
 ## Sound
 
 All sound is synthesised. No samples.
@@ -188,12 +247,33 @@ The Kuznetsov NK-12MV drives two contra-rotating propellers. OpenSim synthesises
 
 ## Crew voices
 
+Five independent TTS voices, each with distinct character:
+
+| Voice key | Role | Character |
+|-----------|------|-----------|
+| `crew` | CDR (Pilot Flying) | Daniel — calm, authoritative |
+| `pm` | PLT (Pilot Monitoring) | Karen — professional, precise |
+| `atc` | CAPCOM / ATC | Gordon — official radio |
+| `narrator` | Webcast host (John) | Natural pace, technical commentary |
+| `narrator2` | Webcast host (Lauren) | Enthusiastic, human moments |
+
 Crew language is set per aircraft via `"crewLang": "ru-RU"`. The browser selects a matching TTS voice (macOS: Milena for Russian, Lesya for Ukrainian). Every utterance — GPWS, PM callouts, takeoff calls, ATC clearances — is spoken in that language.
 
 The Tu-95MS crew speaks Russian: **Взлётная · Набор · Тысяча · Пятьсот · Проходим десять тысяч.**
 The An-225 Mriya crew speaks Ukrainian: **Мрія, виліт дозволено. Злітна смуга вісімнадцять.**
 
-ATC clearances support both altitude triggers (commercial missions) and time triggers (military departures). The Nordmeer ATC fires on elapsed seconds: engine start permission at T+5, takeoff at T+90, radio silence order at T+200.
+ATC clearances support time triggers, altitude triggers (ascending and descending), and named rocket events:
+
+```json
+{ "t": 60, "text": "Liftoff.", "voice": "narrator" },
+{ "event": "maxq", "text": "Max Q.", "voice": "narrator2" },
+{ "event": "alt", "alt_km": 80, "text": "Kármán line.", "voice": "narrator" },
+{ "event": "alt_desc", "alt_ft": 200, "text": "200 feet.", "voice": "pm" },
+{ "event": "seco", "text": "SECO confirmed.", "voice": "narrator" },
+{ "event": "splashdown", "text": "Splashdown confirmed.", "voice": "narrator", "delay": 1000 }
+```
+
+Named rocket events: `supersonic` · `maxq` · `ceco` · `meco` · `stagesep` · `seco` · `orbit` · `booster_flip` · `booster_boostback` · `booster_coast` · `booster_entry` · `booster_landing_burn` · `booster_landing` · `deorbit` · `blackout` · `signal` · `drogue` · `mains` · `splashdown`
 
 ### Voice tester
 
@@ -261,7 +341,8 @@ Missions can script mechanical failures:
 core/
   state.js       — single source of truth, all sim state
   physics.js     — aerodynamic force balance, wind drift, turbulence
-  crew.js        — four voices: PF · PM · ATC · GPWS, language-aware
+  crew.js        — five voices: CDR · PLT · CAPCOM · Narrator × 2, rocket events, language-aware
+  rocket.js      — gravity turn, staging, RTLS booster, Keplerian propagator, deorbit + reentry
   failures.js    — scripted failure event processor
   mission.js     — loads aircraft + mission JSON, live METAR fetch
   input.js       — keyboard · mouse · Gamepad API
@@ -282,12 +363,16 @@ display/
   com.js         — COM radio + transponder, mission-configurable frequencies
 
 aircraft/
-  a350.json      — Airbus A350-900
-  c172.json      — Cessna 172S (full kneeboard, LSZF)
-  robin-dr400.json — Robin DR400/140B (Flugschule Grenchen)
-  bf109.json     — Messerschmitt Bf 109 G-4 (DB 601 impulse model)
-  avro504.json   — Avro 504K (Le Rhône 9J, gyroscopic precession)
-  tu95ms.json    — Tupolev Tu-95MS Bear H (NK-12 turboprop, ru-RU crew)
+  a350.json            — Airbus A350-900
+  c172.json            — Cessna 172S (full kneeboard, LSZF)
+  robin-dr400.json     — Robin DR400/140B (Flugschule Grenchen)
+  bf109.json           — Messerschmitt Bf 109 G-4 (DB 601 impulse model)
+  avro504.json         — Avro 504K (Le Rhône 9J, gyroscopic precession)
+  tu95ms.json          — Tupolev Tu-95MS Bear H (NK-12 turboprop, ru-RU crew)
+  falcon1.json         — Falcon 1 (27 000 kg, Omelek Island)
+  falcon9-b1.json      — Falcon 9 Block 1 (333 400 kg, no recovery)
+  falcon9-b5.json      — Falcon 9 Block 5 (549 054 kg, RTLS)
+  falcon9-b5-590.json  — Falcon 9 Block 5, tuned for 590 km insertion
 
 missions/
   lszh-approach.json     — ILS RWY 28, live METAR, ATC clearances
@@ -297,11 +382,17 @@ missions/
   hahnweide-1944.json    — Airshow ground run, D-FEML
   melun-1918.json        — WWI patrol, Le Rhône rotary
   nordmeer-1956.json     — Cold War recon, Tu-95MS, Olenya AB, Soviet ATC
+  falcon1-omelek.json    — Falcon 1, 2008, first private orbital rocket
+  crs1.json              — Falcon 9 B1, 2012, engine out T+79s
+  crew-demo2.json        — Falcon 9 B5, 2020, Behnken + Hurley, RTLS, full webcast
+  inspiration5.json      — Falcon 9 B5, 2030, 590 km, 3-day mission, full loop
 
 tests/
   db601-synth.test.mjs  — Node: 13 synthesis math tests, ~0.2s
   db601-sound.spec.js   — Playwright: 9 sound state machine tests
   physics.spec.js       — Playwright: 10 physics tests, ~45s headless
+  rocket.spec.js        — Playwright: 25 rocket tests (pad, liftoff, staging, orbit, RTLS, Dragon sep)
+  check_alt.spec.js     — Playwright: 30 Inspiration5 orbit validation tests (perigee 560–630 km, e < 0.05)
 
 server/
   hub.js         — WebSocket hub (Node.js, runs on Pi)

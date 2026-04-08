@@ -85,6 +85,18 @@ export async function loadMission(missionPath, aircraftPath) {
       rocketCECO:          false,
       rocketCECOEngines:   [],
       booster:             null,
+      dragonSep:           false,
+      s2Vec:               null,
+      s2Lat:               0,
+      s2Lon:               0,
+      s2Alt:               0,
+      dragonDeorbit:       false,
+      dragonReentry:       false,
+      dragonBlackout:      false,
+      dragonSignal:        false,
+      dragonDrogue:        false,
+      dragonMains:         false,
+      dragonSplashdown:    false,
     });
   }
 

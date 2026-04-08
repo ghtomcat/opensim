@@ -269,6 +269,59 @@ test.describe('Falcon 9 Block 5 — RTLS booster recovery', () => {
 
 });
 
+/* ── Dragon / Stage 2 separation ────────────────────────────── */
+
+test.describe('Dragon / Stage 2 separation', () => {
+
+  test('dragonSep false before separation time', async ({ page }) => {
+    await loadSim(page, 'crew-demo2');
+    await stepSeconds(page, 600);   // T+10:00 — before dragonSepT=780
+    const s = await getState(page);
+    expect(s.dragonSep, 'dragonSep should be false before T+13:00').toBe(false);
+    expect(s.s2Vec, 's2Vec should be null before sep').toBeNull();
+  });
+
+  test('dragonSep fires at dragonSepT — s2Vec captured', async ({ page }) => {
+    await loadSim(page, 'crew-demo2');
+    await stepSeconds(page, 850);   // T+14:10 — past dragonSepT=780
+    const s = await getState(page);
+    expect(s.dragonSep, 'dragonSep should be true after T+13:00').toBe(true);
+    expect(s.s2Vec, 's2Vec should be captured').toBeTruthy();
+  });
+
+  test('Dragon and Stage 2 both orbit independently after separation', async ({ page }) => {
+    await loadSim(page, 'crew-demo2');
+    await stepSeconds(page, 850);   // just past separation
+    const s0 = await getState(page);
+    const dragonLon0 = s0.lon ?? 0;
+    const s2Lon0     = s0.s2Lon ?? 0;
+
+    await stepSeconds(page, 600);   // 10 more minutes
+    const s1 = await getState(page);
+    const dragonLon1 = s1.lon ?? 0;
+    const s2Lon1     = s1.s2Lon ?? 0;
+
+    /* Both Dragon and S2 must advance in longitude — both are orbiting */
+    const dDragon = Math.abs(((dragonLon1 - dragonLon0 + 540) % 360) - 180);
+    const dS2     = Math.abs(((s2Lon1     - s2Lon0     + 540) % 360) - 180);
+    expect(dDragon, 'Dragon longitude must advance').toBeGreaterThan(10);
+    expect(dS2,     'Stage 2 longitude must advance').toBeGreaterThan(10);
+    /* Both s2Vec and orbitVec must be present and active */
+    expect(s1.s2Vec,    's2Vec must be active').toBeTruthy();
+    expect(s1.orbitVec, 'orbitVec must be active').toBeTruthy();
+  });
+
+  test('Stage 2 alt stays in orbital range after separation', async ({ page }) => {
+    await loadSim(page, 'crew-demo2');
+    await stepSeconds(page, 1200);   // 20 min — well past separation and into orbit
+    const s = await getState(page);
+    const s2Alt_km = (s.s2Alt ?? 0) * 0.3048 / 1000;
+    expect(s.dragonSep, 'dragonSep should be true').toBe(true);
+    expect(s2Alt_km, `S2 alt ${s2Alt_km.toFixed(0)} km should be orbital`).toBeGreaterThan(100);
+  });
+
+});
+
 /* ── Keplerian orbital propagator ────────────────────────────── */
 
 test.describe('Keplerian orbital propagator', () => {

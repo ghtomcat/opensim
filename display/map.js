@@ -26,6 +26,7 @@ let _mode    = 'local';        /* 'local' | 'rocket' */
 /* Ground track history for rocket missions */
 let _track          = [];
 let _boosterTrack   = [];
+let _s2Track        = [];   /* Stage 2 track after Dragon separation */
 let _trackMissionId = null;
 
 /* Smooth zoom state — current displayed extent, lerped toward target */
@@ -105,6 +106,7 @@ function _updateTrack() {
   if (missionId !== _trackMissionId) {
     _track          = [];
     _boosterTrack   = [];
+    _s2Track        = [];
     _trackMissionId = missionId;
     _dispCLat = null;   /* reset zoom on new mission */
   }
@@ -133,6 +135,16 @@ function _updateTrack() {
     const lastB = _boosterTrack[_boosterTrack.length - 1];
     if (!lastB || Math.abs(bLat - lastB.lat) + Math.abs(bLon - lastB.lon) > 0.005) {
       _boosterTrack.push({ lat: bLat, lon: bLon, alt: (b.alt ?? 0) * 0.3048 / 1000 });
+    }
+  }
+
+  /* Stage 2 track after Dragon separation */
+  if (S.dragonSep && S.s2Vec) {
+    const s2Lat = S.s2Lat ?? 0, s2Lon = S.s2Lon ?? 0;
+    const lastS2 = _s2Track[_s2Track.length - 1];
+    if (!lastS2 || Math.abs(s2Lat - lastS2.lat) + Math.abs(s2Lon - lastS2.lon) > 0.35) {
+      _s2Track.push({ lat: s2Lat, lon: s2Lon });
+      if (_s2Track.length > 2000) _s2Track.shift();
     }
   }
 }
@@ -377,6 +389,39 @@ function _renderWorldMap(ctx, W, H, dpr) {
       ctx.textBaseline = 'bottom';
       ctx.fillText(booster.phase.toUpperCase(), bp.x + 4 * dpr, bp.y - 2 * dpr);
     }
+    ctx.restore();
+  }
+
+  /* Stage 2 ground track after Dragon separation — dim white dashed */
+  if (_s2Track.length > 1) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.30)';
+    ctx.lineWidth   = 1 * dpr;
+    ctx.setLineDash([2 * dpr, 4 * dpr]);
+    ctx.beginPath();
+    _s2Track.forEach((p, i) => {
+      if (i > 0 && Math.abs(p.lon - _s2Track[i-1].lon) > 120) {
+        ctx.stroke(); ctx.beginPath();
+      }
+      const { x, y } = proj(p.lat, p.lon);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  /* Stage 2 current position dot */
+  if (S.dragonSep && S.s2Vec) {
+    const sp = proj(S.s2Lat ?? 0, S.s2Lon ?? 0);
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.beginPath(); ctx.arc(sp.x, sp.y, 2 * dpr, 0, Math.PI * 2); ctx.fill();
+    ctx.font      = `${6 * dpr}px "IBM Plex Mono", monospace`;
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('S2', sp.x + 3 * dpr, sp.y - 2 * dpr);
     ctx.restore();
   }
 

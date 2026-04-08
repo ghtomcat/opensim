@@ -33,7 +33,10 @@ export function rhoAtAlt(alt_m) {
   if (alt_m <= 86_000) {
     return 0.01 * Math.exp(-(alt_m - 25_000) / 7200);
   }
-  return 0;   // above Kármán line
+  if (alt_m <= 140_000) {
+    return 5.6e-6 * Math.exp(-(alt_m - 86_000) / 6150);  // mesosphere/thermosphere
+  }
+  return 0;
 }
 
 /* ── Programmed flight path angle (degrees, 90=vertical) ──
@@ -49,6 +52,33 @@ function _programmedFPA(t, profile) {
       return f0 + (f1 - f0) * (t - t0) / (t1 - t0);
   }
   return 90;
+}
+
+/* ── Dragon reentry constants ────────────────────────────────── */
+const REENTRY_CD    = 1.4;    // blunt-body heat shield
+const REENTRY_AREA  = 10.2;   // m²  (3.6 m diameter)
+const REENTRY_MASS  = 9500;   // kg  (capsule + crew, no trunk)
+const DROGUE_CDA    = 79.2;   // m²  2× 5.8 m drogues
+const MAINS_CDA     = 996;    // m²  4× 21.3 m mains
+const DROGUE_ALT    = 5_500;  // m
+const MAINS_ALT     = 1_800;  // m
+const BLACKOUT_ALT  = 80_000; // m  comms blackout entry
+const BLACKOUT_EXIT = 35_000; // m  signal reacquired
+
+/* ── Deorbit burn — apply retrograde ΔV to orbitVec ─────────── */
+function _applyDeorbitBurn(dv_ms) {
+  const v   = S.orbitVec;
+  const spd = Math.sqrt(v.vx*v.vx + v.vy*v.vy + v.vz*v.vz);
+  const f   = dv_ms / spd;                // fraction to subtract
+  setState({
+    dragonDeorbit: true,
+    orbitVec: {
+      ...v,
+      vx: v.vx * (1 - f),
+      vy: v.vy * (1 - f),
+      vz: v.vz * (1 - f),
+    },
+  });
 }
 
 /* ── Keplerian orbital propagation ──────────────────────────────
@@ -117,15 +147,47 @@ function _tickOrbit(dt) {
   const nax = nk * nrx, nay = nk * nry, naz = nk * nrz;
 
   /* Step 4: full velocity kick using average acceleration */
-  const nvx = vx + 0.5 * (ax + nax) * dt;
-  const nvy = vy + 0.5 * (ay + nay) * dt;
-  const nvz = vz + 0.5 * (az + naz) * dt;
+  let nvx = vx + 0.5 * (ax + nax) * dt;
+  let nvy = vy + 0.5 * (ay + nay) * dt;
+  let nvz = vz + 0.5 * (az + naz) * dt;
 
   /* ECEF → geodetic */
   const nr     = Math.sqrt(nrx*nrx + nry*nry + nrz*nrz);
   const newAlt = nr - R_EARTH;                                   // m
   const newLat = Math.atan2(nrz, Math.sqrt(nrx*nrx + nry*nry)) / DEG;
   const newLon = Math.atan2(nry, nrx) / DEG;
+
+  /* ── Reentry drag — active when deorbit burn done and descending ── */
+  let reentryG = 0;
+  if (S.dragonDeorbit && newAlt < 140_000) {
+    const rho  = rhoAtAlt(newAlt);
+    const spd  = Math.sqrt(nvx*nvx + nvy*nvy + nvz*nvz);
+
+    /* Effective CdA: heat shield baseline, then drogues, then mains */
+    let cdA = REENTRY_CD * REENTRY_AREA;
+    if (S.dragonMains)  cdA = MAINS_CDA;
+    else if (S.dragonDrogue) cdA = REENTRY_CD * REENTRY_AREA + DROGUE_CDA;
+
+    const dragAcc = 0.5 * rho * cdA * spd * spd / REENTRY_MASS;
+    reentryG = dragAcc / G0;
+
+    /* Apply drag — decelerate along velocity vector */
+    const df = Math.min(dragAcc * dt / spd, 1);
+    nvx -= nvx * df;
+    nvy -= nvy * df;
+    nvz -= nvz * df;
+
+    /* Parachute deployment events */
+    if (newAlt < DROGUE_ALT && !S.dragonDrogue)  setState({ dragonDrogue: true });
+    if (newAlt < MAINS_ALT  && !S.dragonMains)   setState({ dragonMains:  true });
+
+    /* Blackout */
+    if (newAlt < BLACKOUT_ALT && !S.dragonBlackout)           setState({ dragonBlackout: true  });
+    if (newAlt < BLACKOUT_EXIT && S.dragonBlackout && !S.dragonSignal) setState({ dragonSignal: true });
+
+    /* Splashdown */
+    if (newAlt <= 0 && !S.dragonSplashdown) setState({ dragonSplashdown: true });
+  }
 
   /* Speed */
   const newSpd = Math.sqrt(nvx*nvx + nvy*nvy + nvz*nvz);
@@ -159,13 +221,67 @@ function _tickOrbit(dt) {
     lat:   newLat,
     lon:   newLon,
     hdg:   newHdg,
-    rocketG:    0,
+    rocketG:    reentryG,
     rocketDynQ: 0,
     orbitVec:   { rx: nrx, ry: nry, rz: nrz, vx: nvx, vy: nvy, vz: nvz },
     orbitPass,
     orbitPeriod:    T_orb,
     _orbitPrevLat:  newLat,
     time: (S.time ?? 0) + dt,
+  });
+}
+
+/* ── Dragon / Stage 2 separation ────────────────────────────────
+   At dragonSepT, Dragon and Stage 2 become independent objects.
+   Dragon continues on S.orbitVec (primary vehicle).
+   Stage 2 gets its own S.s2Vec and propagates separately.        */
+
+function _captureDragonSep() {
+  const v = S.orbitVec;
+  if (!v) return;
+  setState({
+    dragonSep: true,
+    s2Vec:     { ...v },
+    s2Lat:     S.lat ?? 0,
+    s2Lon:     S.lon ?? 0,
+    s2Alt:     S.alt ?? 0,
+  });
+}
+
+function _tickS2(dt) {
+  const v = S.s2Vec;
+  if (!v) return;
+  const { rx, ry, rz, vx, vy, vz } = v;
+
+  const r2  = rx*rx + ry*ry + rz*rz;
+  const r3  = r2 * Math.sqrt(r2);
+  const k   = -GM / r3;
+  const ax = k * rx, ay = k * ry, az = k * rz;
+
+  const dt2 = dt * dt;
+  const nrx = rx + vx * dt + 0.5 * ax * dt2;
+  const nry = ry + vy * dt + 0.5 * ay * dt2;
+  const nrz = rz + vz * dt + 0.5 * az * dt2;
+
+  const nr2 = nrx*nrx + nry*nry + nrz*nrz;
+  const nr3 = nr2 * Math.sqrt(nr2);
+  const nk  = -GM / nr3;
+  const nax = nk * nrx, nay = nk * nry, naz = nk * nrz;
+
+  const nvx = vx + 0.5 * (ax + nax) * dt;
+  const nvy = vy + 0.5 * (ay + nay) * dt;
+  const nvz = vz + 0.5 * (az + naz) * dt;
+
+  const nr    = Math.sqrt(nrx*nrx + nry*nry + nrz*nrz);
+  const s2Lat = Math.atan2(nrz, Math.sqrt(nrx*nrx + nry*nry)) / DEG;
+  const s2Lon = Math.atan2(nry, nrx) / DEG;
+  const s2Alt = (nr - R_EARTH) / 0.3048;   // ft
+
+  setState({
+    s2Vec: { rx: nrx, ry: nry, rz: nrz, vx: nvx, vy: nvy, vz: nvz },
+    s2Lat,
+    s2Lon,
+    s2Alt,
   });
 }
 
@@ -188,6 +304,19 @@ export function tickRocket(dt) {
     _captureOrbitVec();   // first tick after SECO: freeze orbit vector
   }
   if (S.rocketOrbit && S.orbitVec) {
+    /* Dragon / Stage 2 separation */
+    const sepT = S.mission?.dragonSepT;
+    if (sepT && !S.dragonSep && mT >= sepT) _captureDragonSep();
+    if (S.dragonSep && S.s2Vec) _tickS2(dt);
+
+    /* Deorbit burn */
+    const deorbitT = S.mission?.deorbitT;
+    const deorbitDv = S.mission?.deorbitDv ?? 170;
+    if (deorbitT && !S.dragonDeorbit && mT >= deorbitT) _applyDeorbitBurn(deorbitDv);
+
+    /* Stop propagation after splashdown */
+    if (S.dragonSplashdown) return;
+
     _tickOrbit(dt);       // Keplerian propagation — replaces flat-Earth update
     return;
   }
@@ -425,9 +554,13 @@ export function tickBooster(dt) {
     const T  = (thrustSL * atmFrac + thrustVac * (1 - atmFrac)) * (nB / nEng) * th;
     const tA = T / Math.max(1, mass);
     mdot = T / (isp * G0);
-    /* Horizontal-only burn toward pad — constant -tA regardless of sign,
-       preserves upward vVert so the booster arcs high before descending. */
-    thrustDown = -tA;
+    /* Retrograde burn — oppose full velocity vector to reverse downrange motion
+       and reduce apogee. Real RTLS apogee ~100-130 km. */
+    const vMag = Math.sqrt(vVert * vVert + vDown * vDown);
+    if (vMag > 0.5) {
+      thrustVert = -tA * (vVert / vMag);
+      thrustDown = -tA * (vDown / vMag);
+    }
     if (vDown < -50 || phaseAge >= (rec.boostbackDuration ?? 60)) {
       newPhase = 'coast'; newPhaseStartT = mT;
     }

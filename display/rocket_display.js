@@ -193,8 +193,8 @@ export function renderRocket(canvas) {
   const mTop       = H * 0.27;
   const boosterOn  = !!(S.booster?.active || S.booster?.landed);
 
-  /* When booster is active: Stage 2 uses left 57%, booster panel uses right 43% */
-  const s2Width    = boosterOn ? W * 0.57 : W;
+  /* When booster is active: Stage 1 booster uses right 57%, Stage 2 uses left 43% */
+  const s2Width    = boosterOn ? W * 0.43 : W;
   const mW         = s2Width * 0.20;   /* 4 metric cols share 80% of s2Width */
 
   const gVal   = S.rocketG ?? 0;

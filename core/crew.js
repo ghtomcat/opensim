@@ -7,9 +7,11 @@
 import { S } from './state.js';
 
 /* ── Voice handles ── */
-let _pfVoice  = null;
-let _pmVoice  = null;
-let _atcVoice = null;
+let _pfVoice        = null;
+let _pmVoice        = null;
+let _atcVoice       = null;
+let _narratorVoice  = null;   // deep cinematic narrator
+let _narrator2Voice = null;   // second narrator (female)
 let _crewLang = null;   // e.g. 'ru-RU' — null = browser default
 
 /* ── State ── */
@@ -35,6 +37,14 @@ let _prevOrbit        = false;
 let _secoTime          = -1;         // mission time when SECO occurred, -1 = not yet
 let _prevActiveEngines = null;       // track engine count drops
 let _prevCECO          = false;      // track G-triggered CECO
+let _prevBoosterPhase   = null;   // track booster phase transitions
+let _prevBoosterLanded  = false;
+let _prevDragonDeorbit  = false;
+let _prevDragonBlackout = false;
+let _prevDragonSignal   = false;
+let _prevDragonDrogue   = false;
+let _prevDragonMains    = false;
+let _prevDragonSplashdown = false;
 const _rocketFired    = new Set();   // named rocket events already fired
 
 /* ── Audio file map — override TTS for key phrases ── */
@@ -63,9 +73,21 @@ export function setCrewLang(lang) {
     const prefix = _crewLang.slice(0, 2).toLowerCase();
     const langVoices = voices.filter(v => v.lang.toLowerCase().startsWith(prefix));
     if (langVoices.length) {
-      _pfVoice  = langVoices[0];
-      _pmVoice  = langVoices[1] ?? langVoices[0];
-      _atcVoice = langVoices[2] ?? langVoices[0];
+      const pref = (names) => langVoices.find(v =>
+        names.some(n => v.name.toLowerCase().includes(n.toLowerCase()))
+      ) || null;
+      _pfVoice  = pref(['Daniel', 'Alex', 'Tom', 'David']) || langVoices[0];
+      _pmVoice  = pref(['Samantha', 'Karen', 'Moira', 'Fiona', 'Victoria', 'Allison', 'Ava', 'Susan', 'Zoe', 'Tessa', 'Veena', 'Serena', 'Kate'])
+                || langVoices.find(v => v.name !== _pfVoice?.name && /samantha|karen|moira|fiona|victoria|allison|ava|susan|zoe|tessa|female|woman/i.test(v.name))
+                || langVoices.find(v => v.name !== _pfVoice?.name)
+                || langVoices[0];
+      _atcVoice = pref(['Gordon', 'Tom', 'Oliver', 'Lee', 'Malcolm'])
+                || langVoices.find(v => v.name !== _pfVoice?.name && v.name !== _pmVoice?.name)
+                || langVoices[0];
+      if (speechSynthesis.onvoiceschanged !== undefined)
+        speechSynthesis.onvoiceschanged = () => setCrewLang(_crewLang);
+      console.log('[crew] lang voices:', langVoices.map(v => v.name));
+      console.log('[crew] PF:', _pfVoice?.name, '| PM:', _pmVoice?.name, '| ATC:', _atcVoice?.name);
       return;
     }
   }
@@ -100,8 +122,16 @@ export function tickCrew(prevAlt, currAlt) {
     if (!_prevRocketSECO && (S.rocketSECO ?? false)) _secoTime = S.time ?? 0;
     _prevRocketSECO    = S.rocketSECO   ?? false;
     _prevOrbit         = _isInOrbit();
-    _prevActiveEngines = S.rocketActiveEngines ?? null;
-    _prevCECO          = S.rocketCECO          ?? false;
+    _prevActiveEngines    = S.rocketActiveEngines ?? null;
+    _prevCECO             = S.rocketCECO          ?? false;
+    _prevBoosterPhase     = S.booster?.phase   ?? null;
+    _prevBoosterLanded    = S.booster?.landed  ?? false;
+    _prevDragonDeorbit    = S.dragonDeorbit   ?? false;
+    _prevDragonBlackout   = S.dragonBlackout  ?? false;
+    _prevDragonSignal     = S.dragonSignal    ?? false;
+    _prevDragonDrogue     = S.dragonDrogue    ?? false;
+    _prevDragonMains      = S.dragonMains     ?? false;
+    _prevDragonSplashdown = S.dragonSplashdown ?? false;
   }
 }
 
@@ -124,12 +154,18 @@ export function resetCrew() {
   _secoTime = -1;
   _prevActiveEngines = null;
   _prevCECO = false;
+  _prevBoosterPhase = null; _prevBoosterLanded = false;
+  _prevDragonDeorbit = false; _prevDragonBlackout = false;
+  _prevDragonSignal  = false; _prevDragonDrogue   = false;
+  _prevDragonMains   = false; _prevDragonSplashdown = false;
 }
 
 /* ── Direct speech ── */
-export function speakPF(text, opts = {})  { _speak(text, _pfVoice,  { rate: 0.92, pitch: 0.88, ...opts }); }
-export function speakPM(text, opts = {})  { _speak(text, _pmVoice,  { rate: 0.92, pitch: 1.18, ...opts }); }
-export function speakATC(text, opts = {}) { _speak(text, _atcVoice, { rate: 1.00, pitch: 1.00, volume: 1.0, ...opts }); }
+export function speakPF(text, opts = {})        { _speak(text, _pfVoice,        { rate: 0.92, pitch: 0.88, ...opts }); }
+export function speakPM(text, opts = {})        { _speak(text, _pmVoice,        { rate: 0.92, pitch: 1.18, ...opts }); }
+export function speakATC(text, opts = {})       { _speak(text, _atcVoice,       { rate: 1.00, pitch: 1.00, volume: 1.0, ...opts }); }
+export function speakNarrator(text, opts = {})  { _speak(text, _narratorVoice,  { rate: 0.95, pitch: 0.88, volume: 1.0, ...opts }); }
+export function speakNarrator2(text, opts = {}) { _speak(text, _narrator2Voice, { rate: 0.95, pitch: 1.08, volume: 1.0, ...opts }); }
 
 /** Challenge / response: PF speaks, then PM confirms after a pause */
 export function sndCrew(pfText, pmText, delayMs = 750) {
@@ -231,7 +267,7 @@ function _checkATC(prev, curr, ms) {
     } else if (clr.alt !== undefined) {
       fire = (curr < prev && prev > clr.alt && curr <= clr.alt);
     } else if (clr.event !== undefined) {
-      fire = _checkRocketEvent(clr.event, clr);
+      fire = _checkRocketEvent(clr.event, clr, prev, curr);
     }
     if (!fire) return;
     _atcFired.add(idx);
@@ -240,7 +276,13 @@ function _checkATC(prev, curr, ms) {
 
     /* Single-voice format: { text, voice } */
     if (clr.text !== undefined) {
-      const speak = clr.voice === 'pm' ? speakPM : speakATC;
+      const crewSpeak = (S.mission?.crewVoice === 'female') ? speakPM : speakPF;
+      const speak = clr.voice === 'pm'        ? speakPM
+                  : clr.voice === 'crew'      ? crewSpeak
+                  : clr.voice === 'narrator'  ? speakNarrator
+                  : clr.voice === 'narrator2' ? speakNarrator2
+                  : speakATC;
+      if (clr.voice === 'crew') console.log('[crew] crew callout:', clr.text, '| crewVoice:', S.mission?.crewVoice, '| fn:', speak === speakPM ? 'speakPM(Karen)' : 'speakPF(Daniel)');
       setTimeout(() => speak(clr.text), delay);
       return;
     }
@@ -287,7 +329,7 @@ function _isInOrbit() {
   return vel_ms >= vOrb * 0.99 && Math.abs(S.pitch ?? 90) < 8;
 }
 
-function _checkRocketEvent(event, clr) {
+function _checkRocketEvent(event, clr, prevAlt = 0, currAlt = 0) {
   /* Each named event fires at most once per mission.
      For events reused with different delays (e.g. two 'stagesep' entries),
      use clr._uid as a tie-breaker set by the caller. */
@@ -424,6 +466,88 @@ function _checkRocketEvent(event, clr) {
       }
       break;
     }
+
+    case 'alt_desc': {
+      /* Fires on the descending pass through a threshold (ft) */
+      const tgt_ft = clr.alt_ft ?? 0;
+      if (currAlt <= tgt_ft && prevAlt > tgt_ft) {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+    }
+
+    case 'booster_flip':
+      if (S.booster?.active && S.booster?.phase === 'flip' && _prevBoosterPhase === null) {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
+    case 'booster_boostback':
+      if (S.booster?.phase === 'boostback' && _prevBoosterPhase === 'flip') {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
+    case 'booster_coast':
+      if (S.booster?.phase === 'coast' && _prevBoosterPhase === 'boostback') {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
+    case 'booster_entry':
+      /* 'glide' phase = grid fins deployed, entering atmosphere */
+      if (S.booster?.phase === 'glide' && _prevBoosterPhase === 'coast') {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
+    case 'booster_landing_burn':
+      if (S.booster?.phase === 'landing' && _prevBoosterPhase === 'glide') {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
+    case 'booster_landing':
+      if ((S.booster?.landed ?? false) && !_prevBoosterLanded) {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
+    case 'deorbit':
+      if ((S.dragonDeorbit ?? false) && !_prevDragonDeorbit) {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
+    case 'blackout':
+      if ((S.dragonBlackout ?? false) && !_prevDragonBlackout) {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
+    case 'signal':
+      if ((S.dragonSignal ?? false) && !_prevDragonSignal) {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
+    case 'drogue':
+      if ((S.dragonDrogue ?? false) && !_prevDragonDrogue) {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
+    case 'mains':
+      if ((S.dragonMains ?? false) && !_prevDragonMains) {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
+    case 'splashdown':
+      if ((S.dragonSplashdown ?? false) && !_prevDragonSplashdown) {
+        _rocketFired.add(uid); return true;
+      }
+      break;
   }
   return false;
 }
@@ -463,15 +587,29 @@ function _loadVoices() {
     ) || null;
 
     _pfVoice  = pref(['Daniel', 'Alex', 'Tom', 'David'])   || voices.find(v => !v.name.includes('Google')) || voices[0];
-    _pmVoice  = pref(['Samantha', 'Karen', 'Moira', 'Fiona']) || voices.find(v => v.name !== _pfVoice?.name) || voices[0];
+    _pmVoice  = pref(['Samantha', 'Karen', 'Moira', 'Fiona', 'Victoria', 'Allison', 'Ava', 'Susan', 'Zoe', 'Tessa', 'Veena', 'Serena', 'Kate'])
+              || voices.find(v => v.name !== _pfVoice?.name && /samantha|karen|moira|fiona|victoria|allison|ava|susan|zoe|tessa|female|woman/i.test(v.name))
+              || voices.find(v => v.name !== _pfVoice?.name) || voices[0];
     _atcVoice = pref(['Gordon', 'Tom', 'Oliver', 'Lee', 'Malcolm', 'Alex'])
               || voices.find(v => v.name !== _pfVoice?.name && v.name !== _pmVoice?.name
                                && v.lang.startsWith('en') && !v.name.match(/Fred|Ralph|Albert|Bruce/i))
               || _pfVoice;
+    /* Narrator (SpaceX webcast host — male, "John") — professional, clear, slightly warm */
+    _narratorVoice  = pref(['Oliver', 'Lee', 'Malcolm', 'Fred', 'Ralph', 'Bruce', 'Albert'])
+                    || voices.find(v => v.name !== _pfVoice?.name && v.name !== _atcVoice?.name
+                                     && v.lang.startsWith('en'))
+                    || _pfVoice;
+    /* Narrator 2 (SpaceX webcast host — female, "Lauren") — professional, clear, enthusiastic */
+    _narrator2Voice = pref(['Serena', 'Kate', 'Martha', 'Helena', 'Veena', 'Tessa'])
+                    || voices.find(v => v.name !== _pmVoice?.name && v.name !== _pfVoice?.name
+                                     && v.lang.startsWith('en') && /female|woman|serena|kate|martha|helena/i.test(v.name))
+                    || _pmVoice;
+    console.log('[crew] _loadVoices — en voices:', voices.filter(v=>v.lang.startsWith('en')).map(v=>v.name));
+    console.log('[crew] PF:', _pfVoice?.name, '| PM:', _pmVoice?.name, '| ATC:', _atcVoice?.name, '| NAR:', _narratorVoice?.name, '| NAR2:', _narrator2Voice?.name);
   };
 
   if (speechSynthesis.onvoiceschanged !== undefined) {
-    speechSynthesis.onvoiceschanged = assign;
+    speechSynthesis.onvoiceschanged = () => setCrewLang(_crewLang);
   }
   assign();
 }
