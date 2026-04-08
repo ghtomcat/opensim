@@ -113,7 +113,8 @@ export const S = {
 
   /* ── Sim meta ── */
   role:    'PF',  // 'PF' | 'PM' | 'INSTRUCTOR'
-  paused:  false,
+  paused:      false,
+  warpFactor:  1,    // time warp multiplier: 1 | 10 | 100 | 1000
   roomId:  null,  // WebSocket room
 
   /* ── Aircraft config (loaded from aircraft/*.json) ── */

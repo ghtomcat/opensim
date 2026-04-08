@@ -60,6 +60,7 @@ export async function loadMission(missionPath, aircraftPath) {
     ilsLoc: 1.2, ilsLocT: 1.2,
     ilsGs: -0.8, ilsGsT: -0.8,
     time:  0,
+    warpFactor: 1,
     metar: null,
     crashed: false,
     crashReason: null,

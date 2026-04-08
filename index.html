@@ -195,6 +195,22 @@
 
     #ptt-indicator.active { opacity: 1; }
 
+    /* ── Time warp indicator ── */
+    #warp-indicator {
+      position: fixed; bottom: 90px; right: 16px;
+      z-index: 25;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      color: #f9ca24;
+      background: rgba(3,6,10,0.88);
+      border: 1px solid #f9ca24;
+      padding: 4px 10px;
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none;
+    }
+    #warp-indicator.active { opacity: 1; }
+
     /* ── Mission title ── */
     #mission-title {
       position: fixed; top: 70px; left: 20px;
@@ -1264,6 +1280,9 @@
 
 <!-- PTT -->
 <div id="ptt-indicator">● TRANSMITTING</div>
+
+<!-- Time warp -->
+<div id="warp-indicator">⏩ 1×</div>
 
 <!-- Keybinds -->
 <div id="keys">
@@ -2714,6 +2733,12 @@
     const rpm = getCurrentRpm();
     document.getElementById('pv-rpm').textContent = rpm ?? '---';
     pttEl.classList.toggle('active', isPTTActive());
+
+    /* Time warp indicator */
+    const warpEl = document.getElementById('warp-indicator');
+    const warp   = S.warpFactor ?? 1;
+    warpEl.textContent = `⏩ ${warp}×`;
+    warpEl.classList.toggle('active', warp > 1 && S.aircraft?.vehicleType === 'rocket');
 
     /* Engine state display — v12 lifecycle */
     const isV12 = S.aircraft?.sound?.engineType === 'v12-supercharged';

@@ -129,6 +129,14 @@ function _onKeyDown(e) {
     return;
   }
 
+  /* Time warp — rockets only */
+  if ((e.key === 'w' || e.key === 'W') && S.aircraft?.vehicleType === 'rocket') {
+    const steps = [1, 10, 100, 1000];
+    const next  = steps[(steps.indexOf(S.warpFactor ?? 1) + 1) % steps.length];
+    setState({ warpFactor: next });
+    return;
+  }
+
   /* Brakes — hold B */
   if (e.key === 'b' || e.key === 'B') { setState({ braking: true }); return; }
 

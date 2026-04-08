@@ -36,13 +36,15 @@ function _tick(now) {
   if (!S.paused) tickControls(dt);
 
   if (!S.paused) {
+    const warp    = (S.aircraft?.vehicleType === 'rocket') ? (S.warpFactor ?? 1) : 1;
+    const warpDt  = dt * warp;
     const prevAlt = S.alt;
-    tickFailures(dt);
-    if      (S.aircraft?.vehicleType === 'rocket')    { tickRocket(dt); tickBooster(dt); }
-    else if (S.aircraft?.type       === 'hovercraft') tickHovercraft(dt);
+    tickFailures(warpDt);
+    if      (S.aircraft?.vehicleType === 'rocket')    { tickRocket(warpDt); tickBooster(warpDt); }
+    else if (S.aircraft?.type       === 'hovercraft') tickHovercraft(warpDt);
     else                                              tickPhysics(dt);
     tickCrew(prevAlt, S.alt);
-    tickTelemetry(dt);
+    tickTelemetry(warpDt);
   }
 
   for (const render of _renderers) render();

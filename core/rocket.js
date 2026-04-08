@@ -314,8 +314,8 @@ export function tickRocket(dt) {
     const deorbitDv = S.mission?.deorbitDv ?? 170;
     if (deorbitT && !S.dragonDeorbit && mT >= deorbitT) _applyDeorbitBurn(deorbitDv);
 
-    /* Stop propagation after splashdown */
-    if (S.dragonSplashdown) return;
+    /* Stop propagation after splashdown — drop warp */
+    if (S.dragonSplashdown) { setState({ warpFactor: 1 }); return; }
 
     _tickOrbit(dt);       // Keplerian propagation — replaces flat-Earth update
     return;
