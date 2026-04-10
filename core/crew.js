@@ -5,6 +5,8 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from './state.js';
+import { playThroughChain } from './radio.js';
+import { getAudioContext, getEngineBleedNode } from './sound.js';
 
 /* ── Voice handles ── */
 let _pfVoice        = null;
@@ -274,8 +276,14 @@ function _checkATC(prev, curr, ms) {
 
     const delay = clr.delay ?? 200;
 
-    /* Single-voice format: { text, voice } */
-    if (clr.text !== undefined) {
+    /* Single-voice format: { text, voice } or { audio, voice } */
+    if (clr.text !== undefined || clr.audio !== undefined) {
+      /* Pre-recorded audio file — route through radio chain */
+      if (clr.audio !== undefined) {
+        const profile = clr.commProfile ?? S.mission?.commProfile ?? 'vhf-aviation';
+        setTimeout(() => playRadio(clr.audio, { profile }), delay);
+        return;
+      }
       const crewSpeak = (S.mission?.crewVoice === 'female') ? speakPM : speakPF;
       const speak = clr.voice === 'pm'        ? speakPM
                   : clr.voice === 'crew'      ? crewSpeak
@@ -640,4 +648,41 @@ function _playFile(src, onended) {
   a.volume = 0.9;
   a.onended = onended ?? null;
   a.play().catch(() => { if (onended) onended(); });
+}
+
+/* ── Radio chain playback ───────────────────────────────────────
+   Plays an MP3 through the mission's commProfile radio chain.
+   Falls back to plain Audio if Web Audio isn't available.
+   ─────────────────────────────────────────────────────────────── */
+/* Cockpit environments that blend engine noise into received comms */
+const COCKPIT_PROFILES = {
+  'cockpit-bf109':  { bleedLevel: 0.04 },
+  'cockpit-c172':   { bleedLevel: 0.05 },
+  'capsule-dragon': { bleedLevel: 0.04 },
+};
+
+export async function playRadio(src, { profile, onEnded } = {}) {
+  const profileName = profile
+    ?? S.mission?.commProfile
+    ?? 'vhf-aviation';
+
+  try {
+    /* Always use sound.js AudioContext so engine bleed nodes can be shared */
+    const ctx          = getAudioContext() ?? new AudioContext();
+    const bleedCfg     = COCKPIT_PROFILES[profileName];
+    const envBleedNode = bleedCfg ? getEngineBleedNode() : null;
+
+    if (!ctx) throw new Error('no AudioContext');
+
+    await playThroughChain(ctx, src, {
+      profileName,
+      destination:  ctx.destination,
+      envBleedNode,
+      bleedLevel:   bleedCfg?.bleedLevel ?? 0.08,
+      onEnded,
+    });
+  } catch (e) {
+    console.warn('[crew] radio chain failed, falling back:', e.message);
+    _playFile(src, onEnded);
+  }
 }

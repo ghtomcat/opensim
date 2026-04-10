@@ -1543,6 +1543,10 @@ export function stopEngineLifecycle() {
   setTimeout(() => { _teardownEngine(); setState({ engineState: 'off' }); }, 5500);
 }
 
+/* ── Engine bleed tap — for radio chain environment mixing ── */
+export function getAudioContext()    { return _ctx ?? null; }
+export function getEngineBleedNode() { return (_ctx && _master) ? _master : null; }
+
 /* ── Engine-only teardown — leaves AudioContext + wind + flap alive ── */
 function _teardownEngine() {
   _inStartup = false;

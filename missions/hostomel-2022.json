@@ -1,5 +1,6 @@
 {
   "id": "hostomel-2022",
+  "commProfile": "vhf-aviation",
   "title": "Mriya · Die letzte Reise",
   "description": "Hostomel. 3. Februar 2022. UR-82060 läuft die Triebwerke hoch. Sie weiß es nicht.",
   "author": "Markus Leutwyler",
@@ -47,6 +48,11 @@
     "Am 27. Februar wird sie hier sterben."
   ],
   "atcClearances": [
+    {
+      "t": 5,
+      "audio": "audio/hostomel/atc_olena.mp3",
+      "commProfile": "vhf-aviation"
+    },
     {
       "t": 8,
       "text": "Мрія, запуск двигунів дозволено.",
