@@ -391,6 +391,8 @@ export function renderTerrain(canvas) {
       }
     }
   }
+
+  /* ── Vehicle silhouette HUD (rocket missions only) — rendered by map.js ── */
 }
 
 /* Lerp colour channel: low-alt value a, high-alt value b */

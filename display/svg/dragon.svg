@@ -1,0 +1,26 @@
+<svg viewBox="0 0 80 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Docking nose / CBM port -->
+  <rect x="32" y="0" width="16" height="8" rx="4" fill="#8899aa"/>
+
+  <!-- Nose fairing / forward section -->
+  <path d="M32 8 L48 8 L52 28 L28 28 Z" fill="#b8c4cc"/>
+
+  <!-- Main pressure vessel (slightly tapered) -->
+  <path d="M28 28 L52 28 L56 72 L24 72 Z" fill="#c8d4dc"/>
+
+  <!-- Waterline / structural ring -->
+  <line x1="26" y1="50" x2="54" y2="50" stroke="#aab4be" stroke-width="1.5"/>
+
+  <!-- Windows (2 visible in side view) -->
+  <ellipse cx="32" cy="38" rx="5" ry="4" fill="#1a3a5c" stroke="#667788" stroke-width="1.5"/>
+  <ellipse cx="48" cy="38" rx="5" ry="4" fill="#1a3a5c" stroke="#667788" stroke-width="1.5"/>
+
+  <!-- RCS thruster pods -->
+  <rect x="19" y="30" width="8" height="14" rx="2" fill="#7788aa"/>
+  <rect x="53" y="30" width="8" height="14" rx="2" fill="#7788aa"/>
+
+  <!-- Heat shield (PICA-X, wider than capsule) -->
+  <path d="M22 72 Q40 82 58 72 L58 76 Q40 88 22 76 Z" fill="#7a5030"/>
+  <!-- Heat shield detail -->
+  <path d="M24 73 Q40 83 56 73" stroke="#5a3820" stroke-width="1" fill="none"/>
+</svg>

@@ -12,16 +12,31 @@ import { COAST, SPACE_SITES } from './coastlines.js';
 const DEG = Math.PI / 180;
 
 /* Sizes */
-const LOCAL_SIZE = 180;        /* px — aircraft mini-map */
-const PROFILE_W  =  54;        /* px — altitude profile strip (left of map) */
-const MAP_W      = 360;        /* px — world map */
+const LOCAL_SIZE = 300;        /* px — aircraft mini-map */
+const PROFILE_W  =  70;        /* px — altitude profile strip (left of map) */
+const MAP_W      = 560;        /* px — world map */
 const ROCKET_W   = PROFILE_W + MAP_W;   /* total rocket panel width */
-const ROCKET_H   = 230;        /* px — rocket panel height */
+const ROCKET_H   = 340;        /* px — rocket panel height */
 
 let _el      = null;
 let _canvas  = null;
 let _visible = true;
 let _mode    = 'local';        /* 'local' | 'rocket' */
+
+/* ── Vehicle silhouette panels (rocket mode, left of map) ── */
+const SIL_W = 130;            /* px — each silhouette panel width */
+let _silEl     = null;        /* main vehicle (S2+Trunk+Dragon or Trunk+Dragon) */
+let _silCanvas = null;
+let _silEl2    = null;        /* Stage 1 booster — shown only during RTLS */
+let _silCanvas2 = null;
+
+/* SVG silhouettes */
+const _svg = {};
+['dragon', 'trunk', 'stage2', 'stage1'].forEach(name => {
+  const img = new Image();
+  img.src = `display/svg/${name}.svg`;
+  _svg[name] = img;
+});
 
 /* Ground track history for rocket missions */
 let _track          = [];
@@ -43,6 +58,24 @@ export function initMap() {
   _canvas.style.cssText = 'display:block;width:100%;height:100%;';
   _el.appendChild(_canvas);
   document.body.appendChild(_el);
+
+  /* Main vehicle silhouette — hidden until rocket mode */
+  _silEl = document.createElement('div');
+  _silEl.id = 'vehicle-silhouette';
+  _silEl.style.cssText = 'display:none;';
+  _silCanvas = document.createElement('canvas');
+  _silCanvas.style.cssText = 'display:block;width:100%;height:100%;';
+  _silEl.appendChild(_silCanvas);
+  document.body.appendChild(_silEl);
+
+  /* Booster silhouette — shown only during RTLS */
+  _silEl2 = document.createElement('div');
+  _silEl2.id = 'booster-silhouette';
+  _silEl2.style.cssText = 'display:none;';
+  _silCanvas2 = document.createElement('canvas');
+  _silCanvas2.style.cssText = 'display:block;width:100%;height:100%;';
+  _silEl2.appendChild(_silCanvas2);
+  document.body.appendChild(_silEl2);
 }
 
 function _applySize(mode) {
@@ -61,11 +94,36 @@ function _applySize(mode) {
     z-index: 8000;
     pointer-events: none;
   `;
+  /* Silhouette panels: same height as map, stacked left of it */
+  const silCSS = (rightPx) => `
+    position: fixed;
+    top: 12px;
+    right: ${rightPx}px;
+    width: ${SIL_W}px;
+    height: ${h}px;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.15);
+    box-shadow: 0 2px 16px rgba(0,0,0,0.7);
+    background: rgba(3,6,10,0.75);
+    z-index: 8000;
+    pointer-events: none;
+  `;
+  if (mode === 'rocket') {
+    /* Main vehicle: directly left of map */
+    if (_silEl)  _silEl.style.cssText  = silCSS(12 + w + 8);
+    /* Booster: left of main vehicle (position managed in _renderSilhouette) */
+    if (_silEl2) _silEl2.style.cssText = silCSS(12 + w + 8 + SIL_W + 6);
+  } else {
+    if (_silEl)  _silEl.style.display  = 'none';
+    if (_silEl2) _silEl2.style.display = 'none';
+  }
 }
 
 export function toggleMap() {
   _visible = !_visible;
-  _el.style.display = _visible ? '' : 'none';
+  _el.style.display  = _visible ? '' : 'none';
+  if (_silEl)  _silEl.style.display  = _visible ? '' : 'none';
+  if (_silEl2) _silEl2.style.display = _visible ? '' : 'none';
 }
 
 export function renderMap() {
@@ -95,9 +153,153 @@ export function renderMap() {
     ctx.translate(pW, 0);
     _renderWorldMap(ctx, MAP_W * dpr, H, dpr);
     ctx.restore();
+    _renderSilhouette(dpr);
   } else {
     _renderLocalMap(ctx, W, H, dpr);
   }
+}
+
+/* ── Vehicle silhouette panel ── */
+function _renderSilhouette(dpr) {
+  const b         = S.booster;
+  const boosterOn = !!(b?.active && !b?.landed);
+
+  /* Show/hide booster panel */
+  if (_silEl2) _silEl2.style.display = boosterOn ? '' : 'none';
+
+  /* ── Main vehicle panel ── */
+  _drawSilPanel(_silCanvas, dpr, _mainShape(), S.pitch ?? 90, false);
+
+  /* ── Booster panel (Stage 1 RTLS) ── */
+  if (boosterOn) {
+    const bFpa = (b.vVert !== 0 || (b.vDown ?? 0) !== 0)
+      ? Math.atan2(b.vVert, Math.abs(b.vDown ?? 0)) / (Math.PI / 180)
+      : 90;
+    _drawSilPanel(_silCanvas2, dpr, 'stage1', bFpa, true);
+  }
+}
+
+function _mainShape() {
+  const stage = S.rocketStage ?? 1;
+  const coast = S.rocketCoast ?? false;
+  const seco  = S.rocketSECO  ?? false;
+  if (stage === 1 || coast)      return 'fullstack';
+  if (seco || S.dragonSep)       return 'capsule';
+  return 's2stack';
+}
+
+function _drawSilPanel(canvas, dpr, shape, fpa, isBooster) {
+  if (!canvas) return;
+  const W = SIL_W * dpr;
+  const H = ROCKET_H * dpr;
+  canvas.width  = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  const labelColor = isBooster ? 'rgba(255,140,50,0.70)' : 'rgba(232,237,242,0.60)';
+
+  /* FPA label */
+  ctx.save();
+  ctx.font         = `bold ${Math.round(11 * dpr)}px "IBM Plex Mono", monospace`;
+  ctx.fillStyle    = labelColor;
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText(`${Math.round(fpa)}°`, W / 2, 4 * dpr);
+
+  /* Panel label */
+  ctx.font         = `${Math.round(9 * dpr)}px "IBM Plex Mono", monospace`;
+  ctx.fillStyle    = isBooster ? 'rgba(255,140,50,0.35)' : 'rgba(232,237,242,0.25)';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(isBooster ? 'STAGE 1' : 'ATTITUDE', W / 2, H - 3 * dpr);
+  ctx.restore();
+
+  /* Drawing area */
+  const drawH  = H - 26 * dpr;
+  const drawCX = W / 2;
+  const drawCY = 16 * dpr + drawH / 2;
+  const tiltRad = (90 - fpa) * (Math.PI / 180);
+
+  const DIM = { s1: 42, s2: 15, trunk: 3.7, dragon: 6 };
+  const BODY_W = W * 0.62;
+  const CAPS_W = W * 0.70;
+  const TRNK_W = W * 0.96;
+  const PART_W = { stage1: BODY_W, stage2: BODY_W, dragon: CAPS_W, trunk: TRNK_W };
+
+  function drawSvg(key, yTop, partH) {
+    const img = _svg[key];
+    if (!img?.complete) return;
+    ctx.drawImage(img, -PART_W[key] / 2, yTop, PART_W[key], partH);
+  }
+
+  const usableH = drawH * 0.88;
+
+  /* Joint fractions — where each SVG's connection points are within its own height */
+  const J = {
+    dragon_bot: 0.88,   /* heat shield bottom in dragon.svg */
+    trunk_bot:  1.00,   /* trunk full height */
+    s2_bot:     0.93,   /* MVac nozzle exit in stage2.svg */
+    s1_inter:   0.041,  /* interstage bottom in stage1.svg (14/340) */
+  };
+
+  /* Compute part heights from real dimensions */
+  function heights(keys) {
+    const total = keys.reduce((s, k) => s + DIM[k], 0);
+    const h = {};
+    keys.forEach(k => { h[k] = usableH * (DIM[k] / total); });
+    return h;
+  }
+
+  /* Compute joint-based positions (nose = top = −y), no drawing yet */
+  let dragonTop, trunkTop, s2Top, s1Top, h;
+
+  if (shape === 'fullstack') {
+    h = heights(['dragon', 'trunk', 's2', 's1']);
+    dragonTop = -usableH / 2;
+    trunkTop  = dragonTop + h.dragon * J.dragon_bot;
+    s2Top     = trunkTop  + h.trunk  * J.trunk_bot;
+    s1Top     = s2Top     + h.s2     * J.s2_bot - h.s1 * J.s1_inter;
+  } else if (shape === 's2stack') {
+    h = heights(['dragon', 'trunk', 's2']);
+    dragonTop = -usableH / 2;
+    trunkTop  = dragonTop + h.dragon * J.dragon_bot;
+    s2Top     = trunkTop  + h.trunk  * J.trunk_bot;
+  } else if (shape === 'capsule') {
+    h = heights(['dragon', 'trunk']);
+    dragonTop = -usableH / 2;
+    trunkTop  = dragonTop + h.dragon * J.dragon_bot;
+  }
+
+  /* Scale to fit: ensure rotated silhouette stays within panel bounds */
+  const maxW    = shape === 'stage1' ? BODY_W : TRNK_W;
+  const tiltAbs = Math.abs(tiltRad);
+  const bboxW   = maxW * Math.cos(tiltAbs) + usableH * Math.sin(tiltAbs);
+  const bboxH   = maxW * Math.sin(tiltAbs) + usableH * Math.cos(tiltAbs);
+  const fitScale = Math.min(1, W / bboxW, drawH / bboxH);
+
+  ctx.save();
+  ctx.translate(drawCX, drawCY);
+  ctx.rotate(tiltRad);
+  ctx.scale(fitScale, fitScale);
+
+  if (shape === 'fullstack') {
+    drawSvg('dragon', dragonTop, h.dragon);
+    drawSvg('trunk',  trunkTop,  h.trunk);
+    drawSvg('stage2', s2Top,     h.s2);
+    drawSvg('stage1', s1Top,     h.s1);
+  } else if (shape === 's2stack') {
+    drawSvg('dragon', dragonTop, h.dragon);
+    drawSvg('trunk',  trunkTop,  h.trunk);
+    drawSvg('stage2', s2Top,     h.s2);
+  } else if (shape === 'capsule') {
+    drawSvg('dragon', dragonTop, h.dragon);
+    drawSvg('trunk',  trunkTop,  h.trunk);
+  } else {
+    /* stage1 only (booster panel) */
+    drawSvg('stage1', -usableH / 2, usableH);
+  }
+
+  ctx.restore();
 }
 
 /* ── Track history ── */
@@ -606,7 +808,7 @@ function _renderSideProfile(ctx, W, H, dpr) {
 
 /* ── Aircraft local mini-map (unchanged) ── */
 function _renderLocalMap(ctx, W, H, dpr) {
-  const RANGE_NM = 8;
+  const RANGE_NM = 2.7;   /* ~5 km radius → 10×10 km view */
 
   ctx.fillStyle = '#0d1117';
   ctx.fillRect(0, 0, W, H);
