@@ -19,6 +19,8 @@ Born 05:32, Sunday 15 March 2026, Zürich. Built with Claude Code.
 
 **PPL students** — circuits at LSZF and LSZG. Full checklists. GPWS callouts. Takeoff and approach briefings. Real weather via live METAR.
 
+**Makers** — build a Dragon capsule mockup with a table saw, a Bambu A1, and four screens. Wire an ESP32 to a physical altimeter. Add a 6-DOF motion platform. The WebSocket data stream is open.
+
 **Anyone with a browser** — no install. No login. No fee. Works on a laptop, tablet, or Raspberry Pi.
 
 ---
@@ -28,7 +30,8 @@ Born 05:32, Sunday 15 March 2026, Zürich. Built with Claude Code.
 OpenSim is not a game. It is a modular simulation engine that runs entirely in the browser with zero dependencies and no build step.
 
 - **Real aerodynamic physics** — lift, drag, thrust, weight from first principles. Not kinematic approximations.
-- **Procedural sound** — every sound synthesised from physics. No samples. Wind rises with airspeed. The DB 601 fires 12 cylinders. The NK-12 turboprop beats at 3.8Hz.
+- **Procedural sound** — engine sounds synthesised from physics. No samples. Wind rises with airspeed. The DB 601 fires 12 cylinders. The NK-12 turboprop beats at 3.8Hz.
+- **Historically accurate comm chain** — every voice passes through the correct radio equipment for its era. VHF aviation, NASA S-band, Soviet VHF, SpaceX IP backbone. Pre-recorded voices, archival recordings, or TTS — all through the same chain.
 - **Any aircraft** — envelope, performance, handling, sound, crew language, checklists in one JSON file
 - **Any mission** — weather, ATC clearances, classified briefing documents, scripted failures, crew voices in one JSON file
 - **Live radar** — real flights via OpenSky Network, color-coded by destination, route lines to arrival airport, 150/400/1000nm range
@@ -69,6 +72,7 @@ No build step. No framework. No dependencies. Open `index.html` and fly.
 | `m` | Audio on/off |
 | `r` | Cycle role: PF → PM → INSTRUCTOR |
 | `Space` | PTT (push to talk) |
+| `W` | Time warp — rocket missions only (1× → 10× → 100× → 1000×) |
 | `Ctrl+Shift+T` | Download flight telemetry as JSONL |
 
 **Gamepad:** Logitech Extreme 3D Pro out of the box.
@@ -88,7 +92,7 @@ axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1
 | Messerschmitt Bf 109 G-4 | Daimler-Benz DB 601 · 1175hp | AudioWorklet 12-cylinder impulse model |
 | Avro 504K | Le Rhône 9J · 110hp | Gyroscopic precession, rotary blip switch |
 | Tupolev Tu-95MS Bear H | Kuznetsov NK-12MV × 4 · 44740kW | Russian crew voices, contra-rotation LFO |
-| Antonov An-225 Mriya | ZMKB Progress D-18T × 6 · 1 377 kN | Ukrainian crew voices (Lesya), 500 t, Hostomel 2022 |
+| Antonov An-225 Mriya | ZMKB Progress D-18T × 6 · 1 377 kN | Ukrainian crew voices, 500 t, Hostomel 2022 |
 
 ### Orbit
 
@@ -114,6 +118,7 @@ axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1
 | Patrol — Marne 1918 | Avro 504K | 1918 | WWI rotary engine, Le Rhône blip switch |
 | Operation Wolfskopf | Bf 109 G-4 | 1942 | Arctic, scripted engine failure, NIFLHEIM |
 | Aufklärungsflug Nordmeer | Tu-95MS Bear H | 1956 | Olenya AB, Soviet ATC, Cold War dossier |
+| Mriya — Die letzte Reise | An-225 | 2022 | Hostomel, Ukrainian ATC, 3 February 2022 |
 
 ### Orbit tab
 
@@ -121,7 +126,7 @@ axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1
 |---------|---------|------|------|
 | Falcon 1 — Omelek Island | Falcon 1 | 2008 | First privately funded orbital rocket. 2-stage gravity turn, RatSat to LEO |
 | CRS-1 — Engine Out | Falcon 9 Block 1 | 2012 | Engine failure at T+79s. Vehicle reaches orbit on 8 engines |
-| Crew Dragon Demo-2 | Falcon 9 Block 5 | 2020 | Behnken + Hurley. First crewed Dragon. Stage 1 RTLS to LZ-1. Full webcast audio loop |
+| Crew Dragon Demo-2 | Falcon 9 Block 5 | 2020 | Behnken + Hurley. First crewed Dragon. Stage 1 RTLS to LZ-1. Full webcast audio |
 | Inspiration5 — Commander Leutwyler | Falcon 9 Block 5 | 2030 | Four civilians. 590 km orbit. RTLS. 3-day mission. Deorbit → reentry → splashdown |
 
 ---
@@ -130,11 +135,9 @@ axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1
 
 Press **Near me** to fetch real flights via [OpenSky Network](https://opensky-network.org). No account needed.
 
-- **Range:** 150nm (local) · 400nm (regional) · 1000nm (intercontinental — see transatlantic heavies at dawn)
-- **Color coding:** each destination airport gets a color. All flights going there share it. Route lines connect aircraft to their arrival airport.
-- **Routes:** callsign lookup via [adsbdb.com](https://www.adsbdb.com) — `LSZH → JFK`, `ORD → EDDM`. Results cached for the session.
-- **Airports:** 23 airports drawn as runway crosses (Pistenkreuz), lit in their destination color when traffic is inbound.
-- **Hover:** callsign, FL, speed, heading, route.
+- **Range:** 150nm (local) · 400nm (regional) · 1000nm (intercontinental)
+- **Color coding:** each destination airport gets a color. All flights going there share it.
+- **Routes:** callsign lookup via [adsbdb.com](https://www.adsbdb.com) — `LSZH → JFK`, `ORD → EDDM`
 - **Click:** spawn the sim at that aircraft's current position, altitude, and heading.
 
 ---
@@ -155,183 +158,127 @@ dγ/dt  = (L − W·cos(γ)) / (m·v) − 0.4·γ + trim × 0.0015
 
 ISA density: `ρ = 1.225 × (1 − 2.2558e⁻⁵ × alt_m)^4.2559`
 
-Ground roll uses rolling friction and brakes. Liftoff triggers when L ≥ W.
-
-**Angular inertia** — PD controller with momentum (τ_roll = 0.18s, τ_pitch = 0.30s). The aircraft resists abrupt inputs and takes time to settle.
-
-**Stall** — two modes: high-alpha snap (CL → CL_max, nose drops suddenly) and energy stall (L < W at low speed, progressive sink).
-
-**Prop drag** — a seized or damaged propeller adds drag proportional to engine power loss.
-
-**Gyroscopic precession** — rotary engines (Le Rhône 9J) precess when pitch or roll rate changes. Left turns assisted, right turns resisted.
-
-Wind drift: dead reckoning uses ground velocity = TAS vector + wind vector.
+**Angular inertia** — PD controller with momentum (τ_roll = 0.18s, τ_pitch = 0.30s).
+**Stall** — high-alpha snap + energy stall (progressive sink at low speed).
+**Gyroscopic precession** — rotary engines precess when pitch or roll rate changes.
 
 ---
 
 ## Rocket + orbital physics
 
-### Ascent
+Point-mass gravity turn, programmed FPA profile, extended ISA through 140 km. Thrust interpolated sea-level ↔ vacuum.
 
-Point-mass gravity turn model driven by a programmed FPA profile `[[t, fpa_deg], ...]`. Extended ISA atmosphere from sea level through 140 km. Thrust interpolated sea-level ↔ vacuum via atmospheric density fraction.
+**Orbital propagation** — Velocity Verlet integrator in ECEF. Energy conserved < 0.01% over 30 minutes. Dragon / Stage 2 propagate independently after separation.
 
-- **Staging** — automatic when propellant mass ≤ dry + upper stages
-- **CECO** — center engine cutoff triggered by G-load threshold
-- **On-pad hold** — vehicle holds until T/W > 1
-- **Engine failures** — scripted via `engineFailures` array in mission JSON
+**Deorbit + reentry** — retrograde ΔV at `deorbitT`, drag below 140 km, drogue at 5 500 m, mains at 1 800 m, terminal ~6 m/s.
 
-### Orbital propagation
+**Booster RTLS** — flip → boostback → coast → glide → landing. Single engine proportional throttle `v²/2h`.
 
-Velocity Verlet integrator in ECEF coordinates. Activated at SECO. Energy conserved < 0.01% over 30 minutes.
-
-- Full 3D ECEF state vector: `{ rx, ry, rz, vx, vy, vz }`
-- Ground track: full-globe view, fading tail, anti-meridian breaks, 2000-point rolling window
-- Dragon / Stage 2 separation: two independent Keplerian propagators after `dragonSepT`
-- Orbital period displayed live once in orbit
-
-### Deorbit + reentry
-
-- Retrograde ΔV subtracted from orbit vector at `deorbitT`
-- Drag applied below 140 km: extended atmosphere `5.6e⁻⁶ × exp(−(alt−86km)/6150)`
-- Drogue chutes at 5 500 m (CdA = 79.2 m²), 4 mains at 1 800 m (CdA = 996 m²)
-- Terminal velocity ~6 m/s, splashdown detected at alt ≤ 0
-
-### Booster RTLS
-
-Phases: **flip → boostback → coast → glide → landing → landed**
-
-- Boostback: retrograde burn (3 engines) opposing full velocity vector — apogee ~100–130 km
-- Glide: grid fin drag multiplier ×8
-- Landing burn: single engine, proportional throttle `v²/2h` for soft touchdown
+**Time warp** — `W` key cycles 1× → 10× → 100× → 1000×. A 3-day Inspiration5 orbit takes ~4 minutes real time at 1000×.
 
 ---
 
 ## Sound
 
-All sound is synthesised. No samples.
+All engine sound is synthesised. No samples.
 
 | Layer | How |
 |-------|-----|
 | DB 601 / IO-360 / Le Rhône | AudioWorklet impulse model — cylinders fire at individual crankshaft angles |
-| NK-12 turboprop | Oscillator harmonics + 3.8Hz LFO (contra-rotation AM beat) + slewTime 1.8s |
-| GTF / HBF / LBF | Oscillator harmonics, engine-specific filter and gain profile |
-| Wind | White noise → bandpass, gain ∝ speed², filter softens with flaps |
-| Flap rumble | Low-frequency turbulence noise, rises with flap angle |
-| Ground creak | Lowpass rumble, WoW × speed — grass strip character |
-| Coolant hiss | Highpass steam noise, rises as `enginePower` drops |
-| Engine bang | Single impulse event — damage hit |
-| Engine gunfire | 5 rapid irregular impacts — enemy burst |
+| NK-12 turboprop | 3.8Hz LFO contra-rotation beat + slewTime 1.8s |
+| GTF / HBF / LBF | Oscillator harmonics, engine-specific filter and gain |
+| Wind | White noise → bandpass, gain ∝ speed² |
+| Ground creak | Lowpass rumble, WoW × speed |
+| Coolant hiss | Rises as `enginePower` drops |
 
-Engine RPM displayed live. Oil temp warms over 4 minutes. EGT and CHT track throttle.
-
-### DB 601 — physical impulse model
-
-The Daimler-Benz DB 601 V12 (D-FEML, Bf 109 G-4, Hahnweide 2025) is synthesised sample-by-sample via AudioWorklet:
-
-- **12 cylinders** fire at their own crankshaft angle (every 60°, ±8° jitter)
-- **Each firing** generates an impulse + noise burst with exponential decay
-- **Exhaust resonator** at ~110 Hz — the fundamental of the DB 601 note
-- **Supercharger** — two sine oscillators (663 Hz + 1097 Hz) mechanically coupled to RPM
-
-The same impulse model drives the Lycoming IO-360 (4 cylinders) and Le Rhône 9J (9-cylinder rotary).
-
-### NK-12 — contra-rotation beat
-
-The Kuznetsov NK-12MV drives two contra-rotating propellers. OpenSim synthesises the characteristic beating sound via Web Audio API LFO:
-
-- **LFO at 3.8Hz** — OscillatorNode → GainNode connected to master gain as AM modulator
-- **slewTime 1.8s** — turboprop inertia: throttle changes take seconds to spool
-- **Harmonics** [1, 2, 3, 4, 5, 8] through a lowpass filter at 180Hz
+See `docs/db601-synthesis.md` for the full DB 601 physical impulse model.
 
 ---
 
-## Crew voices
+## Audio chain — historically accurate comm
 
-Five independent TTS voices, each with distinct character:
+Every voice in a mission passes through the correct radio equipment for its era. The voice source and the comm chain are decoupled:
+
+```
+[voice source]           [commProfile chain]
+ElevenLabs MP3      ──►  bandpass + presence boost
+Archival recording  ──►  noise floor + crackle
+H4n Pro WAV         ──►  carrier hum + squelch tail  ──►  speakers
+Web Speech TTS      ──►
+                    ↑
+          environment bleed
+          (engine tap from sound.js)
+```
+
+### commProfile presets
+
+| Profile | Era | Character |
+|---|---|---|
+| `vhf-aviation` | Standard ATC 118–137 MHz | Bandpass 350–3400 Hz, presence boost, squelch tail |
+| `tower-quiet` | Ground station TX | Cleaner — quiet room, good equipment |
+| `sband-apollo` | NASA S-band MSFN | More hiss — 380 000 km signal path |
+| `vhf-vostok` | Soviet VHF 1961 | Narrow, harsh, heavy noise floor |
+| `ip-spacex` | SpaceX IP backbone | Near-phone quality, minimal processing |
+
+### Environment bleed
+
+Cockpit profiles tap the live engine output and mix it into received comms. A Bf 109 pilot hears ATC with DB 601 underneath. A Dragon crew hears CAPCOM with Merlin rumble during ascent.
+
+### Voice sources
+
+Three tiers, all through the same chain:
+
+- **ElevenLabs MP3** — pre-generated character voices (e.g. Ukrainian ATC: Olena voice)
+- **Archival recording** — real mission audio. NASA audio is public domain. SpaceX webcasts.
+- **Own recording** — Zoom H4n Pro, 24-bit WAV. For Inspiration5: Markus, Lydia, Pradeep, and MS2 record their own lines. The actual crew, in the actual simulator, years before launch.
+
+### Mission JSON
+
+```json
+{
+  "commProfile": "vhf-aviation",
+  "atcClearances": [
+    { "t": 5, "audio": "audio/hostomel/atc_olena.mp3" },
+    { "t": 8, "text": "Мрія, запуск двигунів дозволено.", "voice": "atc" }
+  ]
+}
+```
+
+If an `audio:` file is missing, the mission falls back to TTS automatically.
+
+See `docs/audio-chain.md` for full documentation including spectral analysis results.
+
+---
+
+## Crew voices (TTS)
+
+Five independent voices, each with distinct character:
 
 | Voice key | Role | Character |
 |-----------|------|-----------|
 | `crew` | CDR (Pilot Flying) | Daniel — calm, authoritative |
 | `pm` | PLT (Pilot Monitoring) | Karen — professional, precise |
 | `atc` | CAPCOM / ATC | Gordon — official radio |
-| `narrator` | Webcast host (John) | Natural pace, technical commentary |
+| `narrator` | Webcast host (John) | Natural pace, technical |
 | `narrator2` | Webcast host (Lauren) | Enthusiastic, human moments |
 
-Crew language is set per aircraft via `"crewLang": "ru-RU"`. The browser selects a matching TTS voice (macOS: Milena for Russian, Lesya for Ukrainian). Every utterance — GPWS, PM callouts, takeoff calls, ATC clearances — is spoken in that language.
+Crew language set per aircraft via `"crewLang": "ru-RU"`. Every utterance — GPWS, PM callouts, ATC clearances — in that language.
 
-The Tu-95MS crew speaks Russian: **Взлётная · Набор · Тысяча · Пятьсот · Проходим десять тысяч.**
-The An-225 Mriya crew speaks Ukrainian: **Мрія, виліт дозволено. Злітна смуга вісімнадцять.**
-
-ATC clearances support time triggers, altitude triggers (ascending and descending), and named rocket events:
-
-```json
-{ "t": 60, "text": "Liftoff.", "voice": "narrator" },
-{ "event": "maxq", "text": "Max Q.", "voice": "narrator2" },
-{ "event": "alt", "alt_km": 80, "text": "Kármán line.", "voice": "narrator" },
-{ "event": "alt_desc", "alt_ft": 200, "text": "200 feet.", "voice": "pm" },
-{ "event": "seco", "text": "SECO confirmed.", "voice": "narrator" },
-{ "event": "splashdown", "text": "Splashdown confirmed.", "voice": "narrator", "delay": 1000 }
-```
-
-Named rocket events: `supersonic` · `maxq` · `ceco` · `meco` · `stagesep` · `seco` · `orbit` · `booster_flip` · `booster_boostback` · `booster_coast` · `booster_entry` · `booster_landing_burn` · `booster_landing` · `deorbit` · `blackout` · `signal` · `drogue` · `mains` · `splashdown`
-
-### Voice tester
-
-Open `voice-test.html` directly in the browser (no server needed) to explore available TTS voices and tune parameters before committing them to a mission. Filter by language (EN / UK 🇺🇦 / RU / DE / ALL), adjust rate, pitch, and volume with sliders, and fire preset sentences from ATC clearances, crew callouts, and narrative text. Cmd+Enter speaks the current text.
+Named rocket events: `supersonic` · `maxq` · `ceco` · `meco` · `stagesep` · `seco` · `orbit` · `booster_flip` · `booster_boostback` · `booster_landing` · `deorbit` · `blackout` · `signal` · `drogue` · `mains` · `splashdown`
 
 ---
 
-## Mission briefing documents
+## Hardware ecosystem
 
-Missions can carry classified briefing images rendered in the pre-flight overlay:
+OpenSim streams live sim state over WebSocket from a Raspberry Pi hub. Any device on the network can consume it.
 
-```js
-briefing: {
-  classification: 'СОВЕРШЕННО СЕКРЕТНО',
-  document:    'images/nordmeer-briefing-ru.png',
-  document_en: 'images/nordmeer-briefing-en.png',   // RU/EN toggle appears
-  image:       'images/olenya-1956.png',
-}
-```
+**Physical cockpit mockup** — four screens, four seats, each a browser tab. Build the frame from wood and 3D-printed panels. FabLab Winti has the tools. The software is already there.
 
-The Nordmeer 1956 dossier was generated by Gemini: Soviet КГБ order in Cyrillic, then the same document with CIA stamps — *EYES ONLY · Director of Central Intelligence* — and a pencil annotation in the margin: *"Bear H out of Olenya — confirmed. SIGINT match. — R.H."*
+**6-DOF motion platform** — G-force, pitch, roll, vertical acceleration are computed every tick. Publish the WebSocket format, makers wire their platform to the data stream. MaxQ pushes you back. Stage sep: weightlessness.
 
----
+**Physical instruments** — ESP32 reads WebSocket state keys (`S.alt`, `S.spd`, `S.hdg`...) and drives stepper motors. 3D print the bezels, wire the needles. Altimeter, airspeed, VSI, RPM — all physical, all driven by the same physics engine.
 
-## COM panel
-
-The COM radio reads frequencies from the mission JSON. The Tu-95MS flies with:
-
-```json
-"com": {
-  "title": "Р/С 1",
-  "xpdrLabel": "IFF",
-  "freqs": {
-    "302.800": { "label": "ОЛЕНЬЯ · ВЫЛЕТ" },
-    "121.500": { "label": "АВАРИЙНЫЙ" },
-    "8971.000": { "label": "РАДИОМОЛЧАНИЕ" }
-  }
-}
-```
-
-All other missions fall back to LSZH frequencies with ATIS and squawk assignment.
-
----
-
-## Failure system
-
-Missions can script mechanical failures:
-
-```json
-"failures": [
-  { "trigger": { "type": "time", "t": 115 }, "type": "engine_gunfire" },
-  { "trigger": { "type": "time", "t": 120 }, "type": "engine_bang" },
-  { "trigger": { "type": "time", "t": 120 }, "type": "engine_power", "value": 0.35, "rampTime": 20 },
-  { "trigger": { "type": "time", "t": 160 }, "type": "engine_power", "value": 0.0,  "rampTime": 30 }
-]
-```
-
-`enginePower` multiplies thrust and engine sound gain simultaneously. Trigger types: `time` · `alt`.
+The software is the platform. The hardware is the expression. MIT open source means anyone can build.
 
 ---
 
@@ -339,63 +286,49 @@ Missions can script mechanical failures:
 
 ```
 core/
-  state.js       — single source of truth, all sim state
-  physics.js     — aerodynamic force balance, wind drift, turbulence
-  crew.js        — five voices: CDR · PLT · CAPCOM · Narrator × 2, rocket events, language-aware
-  rocket.js      — gravity turn, staging, RTLS booster, Keplerian propagator, deorbit + reentry
-  failures.js    — scripted failure event processor
-  mission.js     — loads aircraft + mission JSON, live METAR fetch
-  input.js       — keyboard · mouse · Gamepad API
-  loop.js        — rAF loop: tickFailures → tickPhysics → tickCrew → renders
-  sound.js       — procedural audio: engine + wind + all layers
-  telemetry.js   — flight recorder: 2Hz JSONL, download with Ctrl+Shift+T
-  liveflight.js  — live flight lookup (adsb.fi) + nearby radar (OpenSky)
+  state.js                    — single source of truth, all sim state
+  physics.js                  — aerodynamic force balance, wind drift, turbulence
+  rocket.js                   — gravity turn, staging, RTLS, Keplerian propagator, reentry
+  crew.js                     — five voices, rocket events, language-aware, radio dispatch
+  radio.js                    — commProfile chain: createRadioChain(), playThroughChain()
+  radio-crackle-processor.js  — AudioWorklet: crackle, static bursts, squelch tail
+  sound.js                    — procedural engine audio, engine bleed tap
+  mission.js                  — loads aircraft + mission JSON, live METAR fetch
+  failures.js                 — scripted failure event processor
+  input.js                    — keyboard · mouse · Gamepad API
+  loop.js                     — rAF loop: tickFailures → tickPhysics → tickCrew → renders
+  telemetry.js                — flight recorder: 2Hz JSONL
 
 display/
-  pfd.js         — Primary Flight Display (canvas)
-  g1000.js       — Garmin G1000: PFD + MFD engine strip
-  fma.js         — 5-box Flight Mode Annunciator
-  ecam.js        — Engine + Warning Display
-  kneeboard.js   — HTML overlay kneeboard: briefings + checklists
-  map.js         — Mini moving map: heading/track/wind/stopwatch
-  terrain.js     — 3D outside view: pinhole projection, ground grid
-  outside.js     — outside view shell
-  com.js         — COM radio + transponder, mission-configurable frequencies
+  bf109.js       — Bf 109 instrument panel
+  rocket_display.js — SpaceX-style telemetry, split panel for RTLS
+  map.js         — world map (rocket) + local mini-map + vehicle silhouette panels
+  terrain.js     — 3D outside view: day/night sky, stars, water, space
+  com.js         — COM radio + transponder
+  svg/           — vehicle silhouettes: dragon.svg, trunk.svg, stage2.svg, stage1.svg
 
-aircraft/
-  a350.json            — Airbus A350-900
-  c172.json            — Cessna 172S (full kneeboard, LSZF)
-  robin-dr400.json     — Robin DR400/140B (Flugschule Grenchen)
-  bf109.json           — Messerschmitt Bf 109 G-4 (DB 601 impulse model)
-  avro504.json         — Avro 504K (Le Rhône 9J, gyroscopic precession)
-  tu95ms.json          — Tupolev Tu-95MS Bear H (NK-12 turboprop, ru-RU crew)
-  falcon1.json         — Falcon 1 (27 000 kg, Omelek Island)
-  falcon9-b1.json      — Falcon 9 Block 1 (333 400 kg, no recovery)
-  falcon9-b5.json      — Falcon 9 Block 5 (549 054 kg, RTLS)
-  falcon9-b5-590.json  — Falcon 9 Block 5, tuned for 590 km insertion
+aircraft/        — JSON vehicle definitions
+missions/        — JSON mission definitions
+audio/           — voice assets (not in git — generate locally, see docs/audio-chain.md)
 
-missions/
-  lszh-approach.json     — ILS RWY 28, live METAR, ATC clearances
-  grenchen-circuit.json  — VFR circuit, Robin DR400, LSZG
-  lszf-pattern.json      — VFR circuit, grass, C172, LSZF
-  wolfskopf-1942.json    — Arctic 1942, scripted engine failure, NIFLHEIM
-  hahnweide-1944.json    — Airshow ground run, D-FEML
-  melun-1918.json        — WWI patrol, Le Rhône rotary
-  nordmeer-1956.json     — Cold War recon, Tu-95MS, Olenya AB, Soviet ATC
-  falcon1-omelek.json    — Falcon 1, 2008, first private orbital rocket
-  crs1.json              — Falcon 9 B1, 2012, engine out T+79s
-  crew-demo2.json        — Falcon 9 B5, 2020, Behnken + Hurley, RTLS, full webcast
-  inspiration5.json      — Falcon 9 B5, 2030, 590 km, 3-day mission, full loop
+docs/
+  db601-synthesis.md  — DB 601 physical impulse model, all parameters
+  audio-chain.md      — radio chain architecture, commProfile presets, pipeline
+
+scripts/
+  render-startup.mjs   — offline DB 601 startup synthesis → startup.wav
+  analyze-startup.py   — DB 601 spectrogram + phase annotation
+  analyze-radio.py     — radio chain: clean vs processed spectrogram comparison
 
 tests/
-  db601-synth.test.mjs  — Node: 13 synthesis math tests, ~0.2s
-  db601-sound.spec.js   — Playwright: 9 sound state machine tests
-  physics.spec.js       — Playwright: 10 physics tests, ~45s headless
-  rocket.spec.js        — Playwright: 25 rocket tests (pad, liftoff, staging, orbit, RTLS, Dragon sep)
-  check_alt.spec.js     — Playwright: 30 Inspiration5 orbit validation tests (perigee 560–630 km, e < 0.05)
+  db601-synth.test.mjs  — 13 synthesis math tests (Node, ~0.2s)
+  db601-sound.spec.js   — 9 sound state machine tests (Playwright)
+  physics.spec.js       — 10 physics tests (Playwright, ~45s)
+  rocket.spec.js        — 25 rocket tests: pad, liftoff, staging, orbit, RTLS, Dragon sep
+  check_alt.spec.js     — 30 Inspiration5 orbit tests: perigee 560–630 km, e < 0.05
 
 server/
-  hub.js         — WebSocket hub (Node.js, runs on Pi)
+  hub.js   — WebSocket hub (Node.js, runs on Raspberry Pi)
 ```
 
 ---
@@ -408,59 +341,7 @@ npx playwright install chromium
 npm test
 ```
 
-`npm test` runs two suites in sequence:
-
-**1. Synthesis math (Node.js, ~0.2s)**
-Pure unit tests — no browser, no audio. Verifies the DB 601 sound synthesis formulas are correct.
-
-```
-node --test tests/db601-synth.test.mjs
-
-✔ gain chain continuity — synthesis end matches worklet idle
-✔ scale factor formula — (masterGain × 0.4) / 0.8
-✔ gear tail envelope — starts at 0.30
-✔ gear tail envelope — decays to ~1/e at τ = 3 s
-✔ gear tail envelope — at 9 s (3τ) is ~e⁻³ ≈ 5% of start
-✔ lader frequency — proportional to RPM
-✔ lader frequency — rises with RPM (not constant)
-✔ throttle → rpm mapping covers full range
-✔ master gain increases monotonically with throttle
-✔ master gain at idle = masterGain × 0.4
-✔ startup total duration — flywheel + klonk + motoring + runup + gaps
-✔ worklet resonator tracks firing frequency — different at idle vs cruise
-✔ worklet resonator caps at 480 Hz (above 4800 RPM)
-13 passed
-```
-
-**2. Physics + sound state machine (Playwright, ~60s headless)**
-Browser tests verifying physics, engine lifecycle, and sound parameters.
-
-```
-Running 19 tests using 1 worker
-  19 passed
-```
-
-| Suite | Test | Passes if |
-|-------|------|-----------|
-| C172 physics | rotation | Liftoff 50–75 kt |
-| C172 physics | climb | VS > 300 fpm |
-| C172 physics | stall | VS < −100 fpm below Vs |
-| Robin physics | rotation | Liftoff 60–75 kt |
-| Robin physics | climb | VS > 300 fpm |
-| Robin physics | stall | VS < −100 fpm below Vs |
-| Bf 109 physics | engine failure | `enginePower` < 0.5 by T+200 |
-| Bf 109 physics | engine dead | `enginePower` < 0.05 by T+210 |
-| Tu-95MS physics | rotation | Liftoff 155–230 kt (flaps 20°) |
-| Tu-95MS physics | climb | VS > 500 fpm |
-| DB 601 state machine | starts off | `engineState` = `'off'` on load |
-| DB 601 state machine | rpm format | `getCurrentRpm()` returns `"NNN RPM"` |
-| DB 601 RPM | idle | 400 RPM at spdT=0 |
-| DB 601 RPM | rises with throttle | idle < half < max |
-| DB 601 RPM | range | always within rpmIdle–rpmMax |
-| DB 601 gain chain | handoff continuity | synthesis end = worklet idle level |
-| DB 601 gain chain | throttle scaling | gain rises monotonically 0→1 |
-| DB 601 gain chain | lader proportional | 700 Hz at idle, 1400 Hz at 2× RPM |
-| DB 601 supercharger | engine off | `enginePower` > 0 |
+Physics, engine lifecycle, sound parameters, rocket staging, orbital mechanics — all tested headless. 55+ tests across 5 suites.
 
 ---
 
@@ -470,64 +351,34 @@ Running 19 tests using 1 worker
 {
   "id": "your-aircraft",
   "name": "Your Aircraft",
-  "manualControl": true,
   "crewLang": "de-DE",
-
-  "envelope": {
-    "cruiseSpd": 122, "maxSpd": 163,
-    "spdProfile": { "8000": 122, "3000": 100, "0": 55 }
-  },
-
+  "envelope": { "cruiseSpd": 122, "maxSpd": 163 },
   "performance": {
     "mass": 1157, "wingArea": 16.2, "thrustMax": 1800,
     "CL_0": 0.2, "CL_alpha": 5.0, "CL_max": 1.9,
-    "CD_0": 0.028, "inducedK": 0.055,
-    "Vr": 55, "muRoll": 0.05, "muBrake": 0.35
+    "CD_0": 0.028, "inducedK": 0.055, "Vr": 55
   },
-
-  "handling": {
-    "rollRate": 30, "pitchRate": 5, "maxBank": 60, "maxPitch": 20
-  },
-
-  "flaps": [
-    { "deg":  0, "dCL_max": 0.0, "dCD_0": 0.000 },
-    { "deg": 10, "dCL_max": 0.3, "dCD_0": 0.010 },
-    { "deg": 30, "dCL_max": 0.7, "dCD_0": 0.035 }
-  ],
-
+  "handling": { "rollRate": 30, "pitchRate": 5, "maxBank": 60 },
   "sound": { "engineType": "lycoming-o360" }
 }
 ```
-
-Add a test in `tests/physics.spec.js`. POH numbers → test bounds → fly → verify telemetry.
-
----
 
 ## Add a mission
 
 ```json
 {
   "id": "your-mission",
-  "title": "Your Mission",
   "aircraft": "aircraft/your-aircraft.json",
-
-  "weather": {
-    "source": "live",
-    "icao": "LSZH",
-    "fallback": { "wdir": 270, "wspd": 12, "turbulence": 0.2, "altim": 1013 }
-  },
-
-  "initialState": {
-    "lat": 47.39, "lon": 8.78,
-    "alt": 1788, "spd": 0, "hdg": 260, "pitch": 0, "roll": 0
-  },
-
-  "failures": [
-    { "trigger": { "type": "time", "t": 120 }, "type": "engine_bang" },
-    { "trigger": { "type": "time", "t": 120 }, "type": "engine_power", "value": 0.0, "rampTime": 60 }
+  "commProfile": "vhf-aviation",
+  "weather": { "source": "live", "icao": "LSZH" },
+  "initialState": { "lat": 47.39, "lon": 8.78, "alt": 1788, "spd": 0, "hdg": 260 },
+  "atcClearances": [
+    { "t": 10, "audio": "audio/your-mission/atc_line1.mp3" },
+    { "t": 30, "text": "Radar contact.", "voice": "atc" }
   ],
-
-  "debrief": ["Did you find the field?", "Did you walk away?"]
+  "failures": [
+    { "trigger": { "type": "time", "t": 120 }, "type": "engine_power", "value": 0.0, "rampTime": 60 }
+  ]
 }
 ```
 
@@ -535,35 +386,26 @@ Add a test in `tests/physics.spec.js`. POH numbers → test bounds → fly → v
 
 ## Telemetry
 
-Every flight is recorded automatically. Press `Ctrl+Shift+T` to download a JSONL file.
+Every flight recorded automatically. `Ctrl+Shift+T` downloads JSONL.
 
 ```json
 {"t":48.6,"alt":1789,"spd":68.7,"vs":11,"pitch":9.06,"roll":0,"hdg":260,
- "enginePower":1,"flaps":0,"lat":47.385,"lon":8.776,
- "pitchT":10.64,"rollT":0,"spdT":163,"braking":0}
+ "enginePower":1,"flaps":0,"lat":47.385,"lon":8.776}
 ```
 
-Use the gap between `pitch` and `pitchT` to see angular inertia working. Feed to pandas, plot, debrief approaches, or stream to an AI co-pilot.
-
-```python
-import json, pandas as pd, matplotlib.pyplot as plt
-
-df = pd.DataFrame([json.loads(l) for l in open('flight.jsonl')])
-df.plot(x='t', y=['alt','vs'], secondary_y='vs')
-plt.show()
-```
+Feed to pandas, plot, debrief approaches, or stream to an AI co-pilot.
 
 ---
 
 ## Vision
 
-- **PPL(A) training** — circuits at LSZF and LSZG, licence end of 2026
+- **PPL(A) training** — circuits at LSZF and LSZG
 - **Kitfox electric digital twin** — the sim IS the avionics
 - **Time machine** — 1918 · 1942 · 1956 · Apollo 11 · Challenger · Demo-2
-- **Rwanda aviation academy** — three Raspberry Pis and a browser
+- **FabLab cockpits** — anyone with a laser cutter and a Bambu A1 builds a Dragon capsule
+- **Real crew training** — Inspiration5 crew records their actual voices on an H4n Pro, years before launch
 - **Ghost aircraft replay** — record instructor flight as JSONL, student flies alongside
-- **AI PM** — stream telemetry to Claude API for real-time callouts and post-flight debrief
-- **Hardware cockpit** — RPi WebSocket bridge, physical panels, force-feedback controls
+- **Hardware panels** — RPi WebSocket bridge, ESP32 instruments, 6-DOF motion
 
 ---
 
@@ -571,6 +413,7 @@ plt.show()
 
 Because a 40-million-franc simulator should not be the only way to train crew.
 Because anyone on earth with a browser should be able to fly.
+Because the same URL that runs on a MacBook runs on a Raspberry Pi in a FabLab in Nairobi.
 Because somewhere in the permafrost near Titovka, a man is still waiting to be found.
 
 ---
