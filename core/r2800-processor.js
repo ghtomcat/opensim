@@ -14,6 +14,12 @@
    Paired firings 20° apart (≈2.8ms at 750 RPM), 60° gaps between pairs.
    Fundamental = 9 pairs × (RPM/120) = 56 Hz at 750 RPM.
 
+   Signal chain per cylinder firing:
+   - bang  (K=4500, f_3dB≈716 Hz)  — low punch/impact
+   - crack (K=10000, f_3dB≈1592 Hz) — mid presence, the "snap" per cylinder
+   - exhaust × noise                 — body and texture
+   Final: raw * 0.85 + resonator * 0.15 (resonator adds warmth, not dominance)
+
    Calibration target: https://www.youtube.com/watch?v=P1cTOLemXLA
    See docs/sound-calibration.md for methodology.
    ═══════════════════════════════════════════════════════════════ */
@@ -39,35 +45,49 @@ class R2800Processor extends AudioWorkletProcessor {
     this.gainA = Array.from({ length: 9 }, () => 0.55 + Math.random() * 0.9);
     this.gainB = Array.from({ length: 9 }, () => 0.55 + Math.random() * 0.9);
 
-    /* Bang — sharp crack, front/rear rows slightly different */
-    this.bangDecayA  = Math.exp(-5500 / sampleRate);
-    this.bangDecayB  = Math.exp(-4800 / sampleRate);
-    this.bangAmpA    = new Float32Array(9);
-    this.bangAmpB    = new Float32Array(9);
+    /* Bang — low punch, f_3dB = K/(2π) ≈ 716 Hz */
+    this.bangDecayA = Math.exp(-4500 / sampleRate);
+    this.bangDecayB = Math.exp(-3800 / sampleRate);
+    this.bangAmpA   = new Float32Array(9);
+    this.bangAmpB   = new Float32Array(9);
+
+    /* Crack — mid presence, f_3dB ≈ 1592 Hz — dedicated source for 800-3k range */
+    this.crackDecayA = Math.exp(-10000 / sampleRate);
+    this.crackDecayB = Math.exp(-8500 / sampleRate);
+    this.crackAmpA   = new Float32Array(9);
+    this.crackAmpB   = new Float32Array(9);
 
     /* Exhaust body */
     this.exhaustAmpA  = new Float32Array(9);
     this.exhaustAmpB  = new Float32Array(9);
     this.exhaustDecay = Math.exp(-60 / sampleRate);
-    this.noiseScale   = 0.18;   // updated by _updateDecay — shrinks with overlap
+    this.noiseScale   = 0.18;   // updated by _updateDecay
 
-    /* Resonator at firing fundamental */
-    this.resR   = 0.93;
+    /* Resonator 1 — 3rd harmonic (~168 Hz idle): deep body/warmth */
+    this.resR   = 0.86;
     this.resCos = 1;
     this.resSin = 0;
     this.resX   = 0;
     this.resY   = 0;
 
+    /* Resonator 2 — 9th harmonic (~506 Hz idle): exhaust rasp/character
+       Lower Q (resR=0.80) → broader resonance, less ringy */
+    this.res2R   = 0.80;
+    this.res2Cos = 1;
+    this.res2Sin = 0;
+    this.res2X   = 0;
+    this.res2Y   = 0;
+
     /* LFSR noise */
     this.lfsr = 0xACE1;
 
-    /* Noise lowpass */
+    /* Noise lowpass — 2200 Hz for exhaust texture */
     this.noiseLp      = 0;
-    this.noiseLpCoeff = Math.exp(-2 * Math.PI * 900 / sampleRate);
+    this.noiseLpCoeff = Math.exp(-2 * Math.PI * 2200 / sampleRate);
 
-    /* Output lowpass — 2000 Hz, harmonics measured to 9× fundamental */
+    /* Output lowpass — 3.5 kHz: crack presence without harshness */
     this.lpState = 0;
-    this.lpCoeff = Math.exp(-2 * Math.PI * 2000 / sampleRate);
+    this.lpCoeff = Math.exp(-2 * Math.PI * 3500 / sampleRate);
 
     this._updateDecay(this.rpm);
 
@@ -87,25 +107,26 @@ class R2800Processor extends AudioWorkletProcessor {
     const tau = Math.min(firingInterval * 0.50, sampleRate * 0.022);
     this.exhaustDecay = Math.exp(-1 / tau);
 
-    /* Noise scale: DB-605 approach — shrinks as cylinders overlap.
-       At idle (long interval) puffs are distinct → more noise character.
-       At high RPM (dense overlap) puffs blur → less noise, more tonal. */
-    const overlap     = Math.exp(-firingInterval / tau);
-    this.noiseScale   = 0.22 * (1 - overlap);
+    /* Noise scale shrinks as cylinders overlap (idle = distinct puffs, power = tonal) */
+    const overlap   = Math.exp(-firingInterval / tau);
+    this.noiseScale = 0.55 * (1 - overlap);
 
-    /* Resonator at fundamental: 9 × cyclesPerSec Hz */
-    const firingFreq = cyclesPerSec * 9;
+    /* Resonator 1: 3rd harmonic — 168 Hz at idle */
+    const firingFreq = cyclesPerSec * 9 * 3;
     const omega      = 2 * Math.PI * firingFreq / sampleRate;
     this.resCos = Math.cos(omega);
     this.resSin = Math.sin(omega);
+
+    /* Resonator 2: 9th harmonic — 506 Hz at idle (rasp cluster from no-cowling analysis) */
+    const omega2   = 2 * Math.PI * (cyclesPerSec * 9 * 9) / sampleRate;
+    this.res2Cos = Math.cos(omega2);
+    this.res2Sin = Math.sin(omega2);
   }
 
   process(inputs, outputs) {
     const out = outputs[0][0];
     if (!out) return true;
 
-    /* Advance angle in CRANK degrees — 360° per crank revolution.
-       720° = 2 full revolutions = one complete 4-stroke cycle. */
     const degsPerSample = this.rpm * 360 / 60 / sampleRate;
 
     for (let i = 0; i < out.length; i++) {
@@ -118,10 +139,12 @@ class R2800Processor extends AudioWorkletProcessor {
         const crossed = (prev < fa && this.angle >= fa) ||
                         (prev > this.angle && (fa >= prev || fa < this.angle));
         if (crossed) {
-          this.bangAmpA[c]    = this.gainA[c] * 0.10;
-          this.exhaustAmpA[c] = this.gainA[c] * 0.55;
+          this.bangAmpA[c]    = this.gainA[c] * 0.50;
+          this.crackAmpA[c]   = this.gainA[c] * 0.38;
+          this.exhaustAmpA[c] = this.gainA[c] * 0.75;
         }
         this.bangAmpA[c]    *= this.bangDecayA;
+        this.crackAmpA[c]   *= this.crackDecayA;
         this.exhaustAmpA[c] *= this.exhaustDecay;
       }
 
@@ -131,10 +154,12 @@ class R2800Processor extends AudioWorkletProcessor {
         const crossed = (prev < fb && this.angle >= fb) ||
                         (prev > this.angle && (fb >= prev || fb < this.angle));
         if (crossed) {
-          this.bangAmpB[c]    = this.gainB[c] * 0.09;
-          this.exhaustAmpB[c] = this.gainB[c] * 0.52;
+          this.bangAmpB[c]    = this.gainB[c] * 0.44;
+          this.crackAmpB[c]   = this.gainB[c] * 0.34;
+          this.exhaustAmpB[c] = this.gainB[c] * 0.68;
         }
         this.bangAmpB[c]    *= this.bangDecayB;
+        this.crackAmpB[c]   *= this.crackDecayB;
         this.exhaustAmpB[c] *= this.exhaustDecay;
       }
 
@@ -146,22 +171,31 @@ class R2800Processor extends AudioWorkletProcessor {
       this.noiseLp = this.noiseLpCoeff * this.noiseLp + (1 - this.noiseLpCoeff) * raw_noise;
 
       /* Sum rows */
-      let bang = 0, exhaust = 0;
+      let bang = 0, crack = 0, exhaust = 0;
       for (let c = 0; c < 9; c++) {
-        bang    += this.bangAmpA[c] + this.bangAmpB[c];
+        bang    += this.bangAmpA[c]  + this.bangAmpB[c];
+        crack   += this.crackAmpA[c] + this.crackAmpB[c];
         exhaust += this.exhaustAmpA[c] + this.exhaustAmpB[c];
       }
 
-      /* Mix: sharp crack + noise-modulated exhaust body (noise scales with RPM) */
-      const raw = (bang * 0.40 + exhaust * this.noiseLp * this.noiseScale) * this.masterGain;
+      /* Mix: bang (low punch) + crack (mid presence) + exhaust body (deep rumble) + noise texture */
+      const raw = (bang * 0.28 + crack * 0.18
+                   + exhaust * 0.32                          // pure exhaust body — deep bass substance
+                   + exhaust * this.noiseLp * this.noiseScale) * this.masterGain;
 
-      /* Resonator */
+      /* Resonator 1 — 3rd harmonic: deep body */
       const nx  = this.resR * (this.resX * this.resCos - this.resY * this.resSin) + raw;
       const ny  = this.resR * (this.resX * this.resSin + this.resY * this.resCos);
       this.resX = nx;
       this.resY = ny;
 
-      const mixed  = raw * 0.30 + nx * 0.70;
+      /* Resonator 2 — 9th harmonic: exhaust rasp */
+      const nx2 = this.res2R * (this.res2X * this.res2Cos - this.res2Y * this.res2Sin) + raw;
+      const ny2 = this.res2R * (this.res2X * this.res2Sin + this.res2Y * this.res2Cos);
+      this.res2X = nx2;
+      this.res2Y = ny2;
+
+      const mixed  = raw * 0.50 + nx * 0.32 + nx2 * 0.18;
       this.lpState = this.lpCoeff * this.lpState + (1 - this.lpCoeff) * mixed;
       out[i]       = this.lpState;
     }

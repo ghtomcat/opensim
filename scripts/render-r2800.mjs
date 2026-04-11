@@ -20,21 +20,27 @@ function makeR2800(rpm) {
   const gainA = Array.from({ length: 9 }, () => 0.55 + Math.random() * 0.9);
   const gainB = Array.from({ length: 9 }, () => 0.55 + Math.random() * 0.9);
 
-  const bangDecayA  = Math.exp(-5500 / SR);
-  const bangDecayB  = Math.exp(-4800 / SR);
+  const bangDecayA  = Math.exp(-4500 / SR);
+  const bangDecayB  = Math.exp(-3800 / SR);
   const bangAmpA    = new Float32Array(9);
   const bangAmpB    = new Float32Array(9);
+  const crackDecayA = Math.exp(-10000 / SR);
+  const crackDecayB = Math.exp(-8500 / SR);
+  const crackAmpA   = new Float32Array(9);
+  const crackAmpB   = new Float32Array(9);
   const exhaustAmpA = new Float32Array(9);
   const exhaustAmpB = new Float32Array(9);
 
-  const resR = 0.93;
+  const resR = 0.86;
   let resCos, resSin, resX = 0, resY = 0;
+  const res2R = 0.80;
+  let res2Cos, res2Sin, res2X = 0, res2Y = 0;
   let exhaustDecay, noiseScale = 0.18;
   let lfsr = 0xACE1;
   let noiseLp = 0;
-  const noiseLpCoeff = Math.exp(-2 * Math.PI * 900 / SR);
+  const noiseLpCoeff = Math.exp(-2 * Math.PI * 2200 / SR);
   let lpState = 0;
-  const lpCoeff = Math.exp(-2 * Math.PI * 2000 / SR);
+  const lpCoeff = Math.exp(-2 * Math.PI * 3500 / SR);
   let angle = 0;
 
   function updateDecay(r) {
@@ -43,11 +49,14 @@ function makeR2800(rpm) {
     const tau = Math.min(firingInterval * 0.50, SR * 0.022);
     exhaustDecay = Math.exp(-1 / tau);
     const overlap = Math.exp(-firingInterval / tau);
-    noiseScale = 0.22 * (1 - overlap);
-    const firingFreq = cyclesPerSec * 9;
+    noiseScale = 0.55 * (1 - overlap);
+    const firingFreq = cyclesPerSec * 9 * 3;
     const omega = 2 * Math.PI * firingFreq / SR;
     resCos = Math.cos(omega);
     resSin = Math.sin(omega);
+    const omega2 = 2 * Math.PI * (cyclesPerSec * 9 * 9) / SR;
+    res2Cos = Math.cos(omega2);
+    res2Sin = Math.sin(omega2);
   }
 
   updateDecay(rpm);
@@ -61,15 +70,25 @@ function makeR2800(rpm) {
       for (let c = 0; c < 9; c++) {
         const fa = firingAnglesA[c];
         const crossed = (prev < fa && angle >= fa) || (prev > angle && (fa >= prev || fa < angle));
-        if (crossed) { bangAmpA[c] = gainA[c] * 0.10; exhaustAmpA[c] = gainA[c] * 0.55; }
+        if (crossed) {
+          bangAmpA[c]    = gainA[c] * 0.50;
+          crackAmpA[c]   = gainA[c] * 0.38;
+          exhaustAmpA[c] = gainA[c] * 0.75;
+        }
         bangAmpA[c]    *= bangDecayA;
+        crackAmpA[c]   *= crackDecayA;
         exhaustAmpA[c] *= exhaustDecay;
       }
       for (let c = 0; c < 9; c++) {
         const fb = firingAnglesB[c];
         const crossed = (prev < fb && angle >= fb) || (prev > angle && (fb >= prev || fb < angle));
-        if (crossed) { bangAmpB[c] = gainB[c] * 0.09; exhaustAmpB[c] = gainB[c] * 0.52; }
+        if (crossed) {
+          bangAmpB[c]    = gainB[c] * 0.44;
+          crackAmpB[c]   = gainB[c] * 0.34;
+          exhaustAmpB[c] = gainB[c] * 0.68;
+        }
         bangAmpB[c]    *= bangDecayB;
+        crackAmpB[c]   *= crackDecayB;
         exhaustAmpB[c] *= exhaustDecay;
       }
 
@@ -77,18 +96,24 @@ function makeR2800(rpm) {
       const raw_noise = (lfsr & 0xFFFF) / 0x8000 - 1;
       noiseLp = noiseLpCoeff * noiseLp + (1 - noiseLpCoeff) * raw_noise;
 
-      let bang = 0, exhaust = 0;
+      let bang = 0, crack = 0, exhaust = 0;
       for (let c = 0; c < 9; c++) {
-        bang    += bangAmpA[c] + bangAmpB[c];
+        bang    += bangAmpA[c]  + bangAmpB[c];
+        crack   += crackAmpA[c] + crackAmpB[c];
         exhaust += exhaustAmpA[c] + exhaustAmpB[c];
       }
 
-      const raw = (bang * 0.40 + exhaust * noiseLp * noiseScale) * MASTER;
-      const nx  = resR * (resX * resCos - resY * resSin) + raw;
-      const ny  = resR * (resX * resSin + resY * resCos);
+      const raw = (bang * 0.28 + crack * 0.18
+                   + exhaust * 0.32
+                   + exhaust * noiseLp * noiseScale) * MASTER;
+      const nx  = resR  * (resX  * resCos  - resY  * resSin)  + raw;
+      const ny  = resR  * (resX  * resSin  + resY  * resCos);
       resX = nx; resY = ny;
+      const nx2 = res2R * (res2X * res2Cos - res2Y * res2Sin) + raw;
+      const ny2 = res2R * (res2X * res2Sin + res2Y * res2Cos);
+      res2X = nx2; res2Y = ny2;
 
-      const mixed  = raw * 0.35 + nx * 0.65;
+      const mixed  = raw * 0.50 + nx * 0.32 + nx2 * 0.18;
       lpState = lpCoeff * lpState + (1 - lpCoeff) * mixed;
       out[i]  = lpState;
     }

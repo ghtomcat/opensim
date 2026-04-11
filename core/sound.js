@@ -188,7 +188,7 @@ const ENGINES = {
     supercharger:          true,
     superchargerFreqIdle: 1500,     // Hz — impeller fundamental at ~750 RPM idle
     superchargerFreqMax:  4050,     // Hz — at 2700 RPM combat power
-    superchargerGain:     0.10,     // very subtle — cowling absorbs most
+    superchargerGain:     0.018,    // barely-there — 1500 Hz sits in hearing sensitivity peak; must be very low
   },
 };
 
