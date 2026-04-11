@@ -9,6 +9,16 @@ Born 05:32, Sunday 15 March 2026, Zürich. Built with Claude Code.
 
 ---
 
+**Realism as respect.**
+
+Every aircraft modeled here carried a human being. Every engine sound is calibrated from real recordings. Every mission is set on the right day, over the right place, with the right names.
+
+We do not take sides in history. A nineteen-year-old climbing into a Zero over the Pacific deserves the same accuracy and respect as the one climbing into a Corsair. OpenSim honors duty. Not victory. Not ideology. Duty.
+
+→ [MANIFEST.md](MANIFEST.md) · [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+
+---
+
 ## Who it is for
 
 **Spotters** — open the live radar, watch real flights within 1000nm, color-coded by destination. Click any aircraft and fly it at its current position, altitude, and heading.
