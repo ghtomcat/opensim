@@ -25,7 +25,9 @@ We do not take sides in history. A nineteen-year-old climbing into a Zero over t
 
 **Historians** — load a mission from 1918, 1942, or 1956. Read the classified briefing document. Hear the crew in the right language. Fly the aircraft with the right physics.
 
-**Airplane buffs** — the DB 601 fires 12 cylinders via AudioWorklet. The NK-12 contra-rotation beat is a 3.8Hz LFO modulating the master gain. Every number in the aircraft JSON came from a POH or technical manual.
+**Warbird buffs** — the R-2800 Double Wasp fires 18 cylinders in two rows. The DB 601 startup takes 71 seconds from cold. Every number came from a POH or technical manual. If you've stood next to a running radial at an airshow, you'll know immediately whether it's right.
+
+**Space nerds** — fly the Falcon 9 Demo-2 from T-3:00 with real webcast audio. Watch stage separation. Track the booster back to LZ-1. Fly a 590 km orbit. Deorbit, reentry, splashdown. The physics are real. Scott Manley would check the Isp. Everyday Astronaut would check the fairing. Check them.
 
 **PPL students** — circuits at LSZF and LSZG. Full checklists. GPWS callouts. Takeoff and approach briefings. Real weather via live METAR.
 
