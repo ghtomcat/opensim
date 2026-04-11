@@ -1472,6 +1472,7 @@
   import { renderG1000 }  from './display/g1000.js';
   import { renderECAM }   from './display/ecam.js';
   import { renderBf109 }      from './display/bf109.js';
+  import { renderF4U1A }      from './display/f4u1a.js';
   import { renderHovercraft } from './display/hovercraft_display.js';
   import { initFMA, renderFMA } from './display/fma.js';
   import { initCOM }           from './display/com.js';
@@ -1572,6 +1573,38 @@
         atmosphere: 'Er wusste, dass er zurückkommen würde.\naber er kannte die felder dort unten nicht.',
         image: 'images/friedrich.png',
         document: 'images/gkdos-wolfskopf.png',
+      },
+    },
+    {
+      id: 'bougainville-1943', aircraft: 'f4u1a',
+      acName: 'Vought F4U-1A Corsair', engine: 'Pratt & Whitney R-2800-8 Double Wasp · 2000hp',
+      location: 'Bougainville · South Pacific', title: 'The Wasp · Bougainville', era: '1943', accent: '#c8a850',
+      briefing: {
+        classification: 'CONFIDENTIAL · TASK FORCE 38',
+        date: '11 November 1943 · 10:30 Local · Ondonga, New Georgia',
+        pilot: 'Lt. Edward "Big Ed" Beeler',
+        unit: 'VF-17 "Jolly Rogers" · USS Bunker Hill (CV-17)',
+        aircraft: 'F4U-1A Corsair · BuNo 02465 · "The Wasp"',
+        orders: 'CAP assignment. Altitude 15,000 ft over Empress Augusta Bay.\nBogeys reported bearing 350, angels 12, thirty miles.\nEngaged mixed formation — Zeros and Vals.\nFour kills confirmed. No damage. RTB Ondonga.\n\nWeather: 28°C · Wind 120/12kt · Visibility unlimited\nNote: Today is Armistice Day.',
+        atmosphere: 'Twenty-five years since the last one ended.\nThe Wasp is on your nose.\nShe has no idea what\'s coming.',
+        image:    'images/ed_beeler.png',
+        document: 'images/betty_joe.png',
+      },
+    },
+    {
+      id: 'rabaul-1943', aircraft: 'f4u1a',
+      acName: 'Vought F4U-1A Corsair', engine: 'Pratt & Whitney R-2800-8 Double Wasp · 2000hp',
+      location: 'Rabaul · New Britain', title: 'No Bomber Lost · Rabaul', era: '1943', accent: '#c8a850',
+      briefing: {
+        classification: 'CONFIDENTIAL · TASK FORCE 38',
+        date: '11 November 1943 · 0830 Local · USS Bunker Hill CV-17',
+        pilot: 'Lt. Ira "Ike" Kepford',
+        unit: 'VF-17 "Jolly Rogers" · USS Bunker Hill (CV-17)',
+        aircraft: 'F4U-1A Corsair · VF-17',
+        orders: 'Strike escort. Simpson Harbor, Rabaul.\nEscort bomber formation from launch to egress.\nExpect heavy AA and fighter opposition — 30+ Zeros reported.\nNo bomber is to be lost to enemy air action.\nRTB USS Bunker Hill.\n\nWeather: 28°C · Wind 110/15kt · Visibility unlimited\nNote: Today is Armistice Day.',
+        atmosphere: 'Rabaul is the most defended base in the Pacific.\nTwo hundred aircraft. Heavy AA. Three airfields.\nThe bombers are counting on you.\nNo bomber lost. That is the record. Hold it.',
+        image:    'images/ed_beeler.png',
+        document: 'images/betty_joe.png',
       },
     },
     {
@@ -2674,14 +2707,16 @@
         ecamCanvas.style.display = ecam ? '' : 'none';
         const isG1000    = S.aircraft?.id === 'c172';
         const isBf109    = S.aircraft?.id === 'bf109';
+        const isF4U     = S.aircraft?.id === 'f4u1a';
         const isHover    = S.aircraft?.type === 'hovercraft';
         const isRocket   = S.aircraft?.vehicleType === 'rocket';
-        if      (isHover)                            renderHovercraft(canvas);
-        else if (isRocket)                           renderRocket(canvas);
-        else if (ecam && !isG1000 && !isBf109)       renderECAM(ecamCanvas);
-        else if (isG1000)                            renderG1000(canvas);
-        else if (isBf109)                            renderBf109(canvas);
-        else                                         renderPFD(canvas);
+        if      (isHover)                                        renderHovercraft(canvas);
+        else if (isRocket)                                       renderRocket(canvas);
+        else if (ecam && !isG1000 && !isBf109 && !isF4U)        renderECAM(ecamCanvas);
+        else if (isG1000)                                        renderG1000(canvas);
+        else if (isBf109)                                        renderBf109(canvas);
+        else if (isF4U)                                          renderF4U1A(canvas);
+        else                                                     renderPFD(canvas);
         /* Show/hide hovercraft control panel; hide COM for hovercraft only (rockets get loop selector) */
         document.getElementById('hc-panel').style.display     = isHover ? 'flex' : 'none';
         document.getElementById('com-container').style.display = isHover ? 'none' : '';

@@ -1,0 +1,122 @@
+{
+  "id": "rabaul-1943",
+  "commProfile": "vhf-aviation",
+  "characters": {
+    "atc":   { "commProfile": "vhf-aviation" },
+    "pilot": { "commProfile": "vhf-aviation" }
+  },
+  "title": "No Bomber Lost · Rabaul",
+  "description": "11 November 1943. Simpson Harbor. Ike Kepford. VF-17 Jolly Rogers. The bombers are counting on you.",
+  "author": "Markus Leutwyler",
+  "aircraft": "aircraft/f4u1a.json",
+
+  "weather": {
+    "source": "manual",
+    "manual": {
+      "temp": 28,
+      "wdir": 110,
+      "wspd": 15,
+      "visibility": 9999,
+      "altim": 1013,
+      "turbulence": 0.15
+    }
+  },
+
+  "initialState": {
+    "lat":   -5.0,
+    "lon":   154.2,
+    "alt":   50,
+    "spd":   0,
+    "hdg":   310,
+    "pitch": 0,
+    "roll":  0
+  },
+
+  "departure": {
+    "icao": "BUNKER",
+    "name": "USS Bunker Hill CV-17",
+    "runway": "31",
+    "elevation": 50
+  },
+
+  "arrival": {
+    "icao": "BUNKER",
+    "name": "USS Bunker Hill CV-17"
+  },
+
+  "narrative": [
+    "USS Bunker Hill. CV-17.",
+    "Solomon Sea. 0830 local.",
+    "11 November 1943.",
+    "Armistice Day.",
+    "Ira Cassius Kepford. Ike.",
+    "VF-17 Jolly Rogers.",
+    "Rabaul is 200 miles northwest.",
+    "Simpson Harbor is full of ships.",
+    "The bombers are counting on you."
+  ],
+
+  "atcClearances": [
+    {
+      "t": 10,
+      "text": "Jolly flight, Air Boss. Wind one-one-zero at fifteen. Deck is yours. Good hunting.",
+      "voice": "atc"
+    },
+    {
+      "t": 20,
+      "text": "Jolly 1, wilco. Flight, go.",
+      "voice": "crew"
+    },
+    {
+      "t": 300,
+      "text": "Jolly flight, bogeys. Zeros. High, eleven o'clock. Thirty plus.",
+      "voice": "atc"
+    },
+    {
+      "t": 312,
+      "text": "Jolly 1, tally. Flight, weapons free. Stay with the bombers.",
+      "voice": "crew"
+    },
+    {
+      "t": 600,
+      "text": "Jolly 1, bomber lead. Feet dry. Target in sight. We're in.",
+      "voice": "atc"
+    },
+    {
+      "t": 612,
+      "text": "Jolly flight, cover the egress. Nobody goes home alone.",
+      "voice": "crew"
+    },
+    {
+      "t": 900,
+      "text": "Jolly 1, all bombers clear. Good work. RTB.",
+      "voice": "atc"
+    },
+    {
+      "t": 912,
+      "text": "Jolly 1, RTB. No bomber lost.",
+      "voice": "crew"
+    }
+  ],
+
+  "com": {
+    "title": "ARC-5",
+    "xpdrLabel": "IFF",
+    "active":  "4610",
+    "standby": "4620",
+    "freqs": {
+      "4610": { "label": "TASK FORCE" },
+      "4620": { "label": "STRIKE OPS" },
+      "4630": { "label": "GUARD" }
+    }
+  },
+
+  "debrief": [
+    "All bombers returned?",
+    "No ship hit by enemy action?",
+    "R-2800 ran clean throughout?"
+  ],
+
+  "water": true,
+  "timeOfDay": 8.5
+}
