@@ -1,5 +1,6 @@
 {
   "id": "hovercraft-markus",
+  "phase": "ground",
   "title": "Markus' Demonstrator — GPS Test",
   "initialState": {
     "alt": 0,

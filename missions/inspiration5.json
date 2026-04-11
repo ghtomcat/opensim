@@ -1,166 +1,697 @@
 {
-  "id":          "inspiration5",
-  "title":       "Inspiration5 · Commander Leutwyler",
+  "id": "inspiration5",
+  "phase": "launch",
+  "title": "Inspiration5 · Commander Leutwyler",
   "description": "2030. Markus Leutwyler commanding. Four civilians. 590 km orbit. Stage 1 returns to LZ-1.",
-  "author":      "Markus Leutwyler",
-  "aircraft":    "falcon9-b5-590",
-  "dragonSepT":  780,
-  "deorbitT":    259200,
-  "deorbitDv":   170,
-
+  "author": "Markus Leutwyler",
+  "aircraft": "falcon9-b5-590",
+  "dragonSepT": 780,
+  "deorbitT": 259200,
+  "deorbitDv": 170,
   "timeOfDay": 0.65,
-  "water":     false,
-
+  "water": false,
   "weather": {
     "source": "manual",
     "manual": {
-      "wdir": 110, "wspd": 4, "turbulence": 0.03, "altim": 1018, "temp": 26
+      "wdir": 110,
+      "wspd": 4,
+      "turbulence": 0.03,
+      "altim": 1018,
+      "temp": 26
     }
   },
-
   "initialState": {
-    "lat":   28.6080,
-    "lon":  -80.6040,
-    "alt":   6,
-    "spd":   0,
-    "hdg":  51,
+    "lat": 28.608,
+    "lon": -80.604,
+    "alt": 6,
+    "spd": 0,
+    "hdg": 51,
     "pitch": 90,
-    "roll":  0
+    "roll": 0
   },
-
   "departure": {
-    "name":      "Kennedy Space Center LC-39A",
+    "name": "Kennedy Space Center LC-39A",
     "elevation": 6
   },
-
   "arrival": null,
-
   "com": {
     "title": "MISSION AUDIO",
     "loops": [
-      { "id": "silence", "label": "SILENCE" }
+      {
+        "id": "silence",
+        "label": "SILENCE"
+      }
     ],
     "active": "silence"
   },
-
   "atcClearances": [
-    { "t":  0,  "text": "T minus 60 seconds. Launch Director is go for launch.",                     "voice": "narrator" },
-    { "t":  3,  "text": "Dragon Inspiration, Mission Control. You are go for launch.",               "voice": "atc" },
-    { "t":  5,  "text": "Copy. Go for launch.",                                                      "voice": "crew" },
-    { "t":  8,  "text": "All systems are green. Falcon 9 is fully fuelled and standing by.",         "voice": "narrator2" },
-    { "t": 14,  "text": "On board Dragon Inspiration — Commander Markus Leutwyler, Pilot Lydia Meier, Mission Specialist Pradeep Sapkota.", "voice": "narrator" },
-    { "t": 23,  "text": "T minus 37 seconds. Auto-sequence start.",                                  "voice": "narrator" },
-    { "t": 30,  "text": "T minus 30.",                                                               "voice": "narrator2" },
-    { "t": 33,  "text": "Propellant tanks pressurised for flight.",                                  "voice": "narrator" },
-    { "t": 45,  "text": "T minus 15. Vehicle in terminal count.",                                    "voice": "narrator" },
-    { "t": 50,  "text": "10. 9. 8. 7. 6. 5. 4. 3. 2. 1.",                                        "voice": "narrator2" },
-    { "t": 53,  "text": "Vehicle in startup.",                                                       "voice": "narrator" },
-    { "t": 57,  "text": "Ignition sequence start.",                                                  "voice": "narrator2" },
-    { "t": 59,  "text": "Engines at full thrust.",                                                   "voice": "narrator" },
-    { "t": 60,  "text": "Liftoff. Falcon 9 lifts off with Dragon Inspiration.",                     "voice": "narrator" },
-    { "t": 61,  "text": "Abort mode 1-Alpha.",                                                       "voice": "atc" },
-    { "t": 62,  "text": "Copy. 1-Alpha.",                                                            "voice": "crew" },
-    { "t": 63,  "text": "Clock running. All systems go.",                                            "voice": "pm" },
-    { "t": 65,  "text": "And liftoff of Dragon Inspiration, carrying four people to a 590-kilometre orbit.",  "voice": "narrator2" },
-
-    { "event": "supersonic",     "text": "Vehicle is supersonic.",                                  "voice": "narrator" },
-    { "event": "maxq",           "text": "Falcon 9 passing through the area of maximum aerodynamic pressure — Max Q. Engines have throttled slightly to reduce stress on the vehicle.", "voice": "narrator2" },
-    { "event": "maxq", "_uid": "throttleup",  "text": "Go at throttle up.",                        "voice": "narrator",  "delay": 7000 },
-    { "event": "maxq", "_uid": "throttleupc", "text": "Copy, go at throttle up.",                  "voice": "crew",      "delay": 8500 },
-    { "event": "maxq", "_uid": "throttleuppm","text": "Throttle up. Vehicle nominal.",              "voice": "pm",        "delay": 10500 },
-    { "event": "alt",  "_uid": "nar_15km",  "alt_km": 15, "text": "Back at full thrust, climbing through 15 kilometres.",                            "voice": "narrator" },
-    { "event": "alt",  "_uid": "nar_55km",  "alt_km": 55, "text": "Stage 1 performing nominally. Main engine cutoff coming up.",                     "voice": "narrator2" },
-    { "t": 133, "text": "Abort mode 1-Bravo.",                                                       "voice": "atc" },
-    { "t": 134, "text": "Copy. 1-Bravo.",                                                            "voice": "crew" },
-    { "t": 155, "text": "Dragon Inspiration, go for staging.",                                       "voice": "atc" },
-    { "t": 157, "text": "Copy, go for staging.",                                                     "voice": "crew" },
-    { "event": "ceco",           "text": "Center engine cutoff.",                                   "voice": "narrator" },
-    { "event": "ceco", "_uid": "cecopm",      "text": "Eight engines.",                             "voice": "pm",        "delay": 1500 },
-    { "event": "meco",           "text": "MECO confirmed.",                                         "voice": "narrator" },
-    { "event": "meco", "_uid": "mecopm",      "text": "Stage 2 ready.",                             "voice": "pm",        "delay": 1500 },
-    { "event": "stagesep", "_uid": "sep",    "text": "Stage separation confirmed.",                 "voice": "narrator",  "delay": 200  },
-    { "event": "stagesep", "_uid": "las",    "text": "LAS jettison confirmed.",                     "voice": "narrator2", "delay": 3000 },
-    { "event": "stagesep", "_uid": "2a",     "text": "Abort mode 2-Alpha.",                         "voice": "atc",       "delay": 4500 },
-    { "event": "stagesep", "_uid": "2ac",    "text": "Copy. 2-Alpha.",                              "voice": "crew",      "delay": 5500 },
-    { "event": "stagesep", "_uid": "mvac",   "text": "MVac ignition. Stage 2 go.",                 "voice": "narrator",  "delay": 6000 },
-    { "event": "stagesep", "_uid": "mvacpm", "text": "Stage 2 ignition confirmed.",                "voice": "pm",        "delay": 8000 },
-    { "event": "booster_flip",         "_uid": "nar_flip",     "text": "Stage 1 beginning its flip maneuver, targeting Landing Zone 1 at Cape Canaveral.", "voice": "narrator2" },
-    { "event": "booster_boostback",    "_uid": "nar_boostback","text": "Boostback burn in progress. Three engines pushing Stage 1 back toward the coast.", "voice": "narrator" },
-    { "event": "booster_coast",        "_uid": "nar_coast",    "text": "Boostback burn complete. Stage 1 now coasting back toward the Cape, grid fins deploying.", "voice": "narrator2" },
-    { "event": "booster_entry",        "_uid": "nar_entry",    "text": "Stage 1 entering the atmosphere. Grid fins active, bleeding off velocity.", "voice": "narrator" },
-    { "event": "booster_landing_burn", "_uid": "nar_lburn",    "text": "Stage 1 landing burn ignition!", "voice": "narrator2" },
-    { "event": "alt",  "_uid": "karman",    "alt_km": 80,  "text": "Dragon Inspiration passing through 80 kilometres — the Kármán line, the edge of space.", "voice": "narrator" },
-    { "event": "alt",  "_uid": "nar_160km", "alt_km": 160, "text": "Stage 2 continuing to burn. Altitude 160 kilometres.",                           "voice": "narrator2" },
-    { "t": 382, "text": "Abort mode 2-Bravo.",                                                       "voice": "atc" },
-    { "t": 383, "text": "Copy. 2-Bravo.",                                                            "voice": "crew" },
-    { "t": 415, "text": "Stage 2 nominal. Dragon, you are go for orbit insertion.",                  "voice": "atc" },
-    { "event": "alt",  "_uid": "nar_400km", "alt_km": 400, "text": "Dragon Inspiration closing in on its target orbit. Stage 2 burning toward shutdown.", "voice": "narrator2" },
-    { "t": 449, "text": "Abort mode 2-Charlie.",                                                     "voice": "atc" },
-    { "t": 450, "text": "Copy. 2-Charlie.",                                                          "voice": "crew" },
-    { "event": "alt",  "_uid": "nar_500km", "alt_km": 500, "text": "Velocity now over 7 kilometres per second. Dragon Inspiration almost at orbital speed.", "voice": "narrator" },
-    { "t": 529, "text": "Abort mode 2-Delta.",                                                       "voice": "atc" },
-    { "t": 530, "text": "Copy. 2-Delta.",                                                            "voice": "crew" },
-    { "t": 568, "text": "30 seconds to SECO.",                                                       "voice": "narrator" },
-    { "t": 572, "text": "Altitude and velocity nominal. Standing by for cutoff.",                    "voice": "pm" },
-    { "event": "seco",           "text": "SECO confirmed. Dragon Inspiration is in orbit.",        "voice": "narrator" },
-    { "event": "seco", "_uid": "secopm",  "text": "Cutoff. We're in orbit.",                       "voice": "pm",        "delay": 1000 },
-    { "event": "seco", "_uid": "ato",  "text": "Abort mode 2-Echo.",                               "voice": "atc",       "delay": 3000 },
-    { "event": "seco", "_uid": "atoc", "text": "Copy. 2-Echo. Inspiration5 is go for orbit ops.", "voice": "crew",      "delay": 4500 },
-    { "event": "orbit",          "text": "Nominal orbit insertion. 590 kilometres. Inspiration5 is go.", "voice": "narrator2" },
-
-    { "event": "booster_landing",              "text": "Touchdown confirmed! Stage 1 has landed at Landing Zone 1.",         "voice": "narrator2" },
-    { "event": "booster_landing", "_uid": "nar_land2", "text": "Incredible. Stage 1 is back on the ground at Cape Canaveral.", "voice": "narrator", "delay": 3500 },
-
-    { "t": 259120, "text": "After three days and approximately 45 orbits of Earth, Dragon Inspiration is preparing to come home.", "voice": "narrator2" },
-    { "t": 259128, "text": "The crew is strapped in, suits pressurised, and ready for the deorbit burn.", "voice": "narrator" },
-    { "t": 259140, "text": "Dragon Inspiration, Mission Control. You are go for deorbit burn.",          "voice": "atc" },
-    { "t": 259145, "text": "Copy. Go for deorbit burn. Trunk sep complete.",                            "voice": "crew" },
-    { "t": 259150, "text": "Retrograde attitude. Burn in 50 seconds.",                                  "voice": "pm" },
-    { "t": 259198, "text": "10. 9. 8. 7. 6. 5. 4. 3. 2. 1. Ignition.",                               "voice": "pm" },
-
-    { "event": "deorbit", "_uid": "deorbit_mc",      "text": "Deorbit burn complete. Perigee minus 110. Dragon Inspiration, you're coming home.", "voice": "atc",       "delay": 1500 },
-    { "event": "deorbit", "_uid": "deorbit_crew",    "text": "Copy. Coming home.",                      "voice": "crew",      "delay": 4500 },
-    { "event": "deorbit", "_uid": "deorbit_nar",     "text": "A 170-metre-per-second retrograde burn has lowered Dragon Inspiration's perigee into the upper atmosphere. The capsule will reach reentry interface in approximately 18 minutes.", "voice": "narrator", "delay": 8000 },
-    { "event": "deorbit", "_uid": "deorbit_pm",      "text": "Separation confirmed. Reentry interface in 18 minutes.", "voice": "pm",   "delay": 14000 },
-    { "event": "deorbit", "_uid": "deorbit_trunk",   "text": "Trunk separation complete. Dragon Inspiration is now the capsule alone, heat shield pointed toward Earth.", "voice": "narrator2", "delay": 22000 },
-
-    { "event": "blackout", "_uid": "nar_losig",      "text": "Loss of signal. Dragon Inspiration has entered the upper atmosphere. Plasma building up around the heat shield is blocking all communications.", "voice": "narrator",  "delay": 200 },
-    { "event": "blackout", "_uid": "reentry_intf",   "text": "Reentry interface. Heat shield go.",      "voice": "pm",        "delay": 3000 },
-    { "event": "blackout", "_uid": "g_nominal",      "text": "G-force building. Six g. Nominal.",       "voice": "pm",        "delay": 12000 },
-    { "event": "blackout", "_uid": "nar_heating",    "text": "The heat shield is absorbing temperatures exceeding 1,600 degrees Celsius — hotter than the surface of the sun. The crew is experiencing four to five g's of deceleration.", "voice": "narrator2", "delay": 18000 },
-    { "event": "blackout", "_uid": "through_fire",   "text": "We're through the fire.",                 "voice": "pm",        "delay": 30000 },
-
-    { "event": "signal",   "_uid": "nar_signal",     "text": "We have signal! Dragon Inspiration is through blackout.",  "voice": "narrator2", "delay": 200 },
-    { "event": "signal",   "_uid": "signal_mc",      "text": "Dragon Inspiration, Mission Control. Do you read?", "voice": "atc",       "delay": 2500 },
-    { "event": "signal",   "_uid": "signal_crew",    "text": "Loud and clear. We're through.",          "voice": "crew",      "delay": 5500 },
-    { "event": "signal",   "_uid": "nar_signal2",    "text": "Three crew members safe. Dragon Inspiration descending under parachutes shortly.", "voice": "narrator", "delay": 9000 },
-
-    { "event": "drogue",   "_uid": "drogue_pm",      "text": "Drogues out. Descent nominal.",           "voice": "pm",        "delay": 500 },
-    { "event": "drogue",   "_uid": "drogue_mc",      "text": "Dragon Inspiration, two drogues confirmed.", "voice": "narrator", "delay": 3000 },
-
-    { "event": "mains",    "_uid": "mains_pm",       "text": "Four mains. Beautiful.",                  "voice": "pm",        "delay": 500 },
-    { "event": "mains",    "_uid": "mains_mc",       "text": "Dragon Inspiration, four main parachutes confirmed. Recovery teams are standing by.", "voice": "narrator2", "delay": 3000 },
-
-    { "event": "alt_desc", "_uid": "chute_800",   "alt_ft":  800, "text": "800 feet.",         "voice": "narrator2" },
-    { "event": "alt_desc", "_uid": "chute_800pm", "alt_ft":  800, "text": "800 feet.",         "voice": "pm",   "delay": 1500 },
-    { "event": "alt_desc", "_uid": "chute_600",   "alt_ft":  600, "text": "600 feet.",         "voice": "narrator2" },
-    { "event": "alt_desc", "_uid": "chute_600pm", "alt_ft":  600, "text": "600 feet.",         "voice": "pm",   "delay": 1500 },
-    { "event": "alt_desc", "_uid": "chute_400",   "alt_ft":  400, "text": "400 feet.",         "voice": "narrator2" },
-    { "event": "alt_desc", "_uid": "chute_400pm", "alt_ft":  400, "text": "400 feet.",         "voice": "pm",   "delay": 1500 },
-    { "event": "alt_desc", "_uid": "chute_200",   "alt_ft":  200, "text": "200 feet.",         "voice": "narrator2" },
-    { "event": "alt_desc", "_uid": "chute_200pm", "alt_ft":  200, "text": "200 feet.",         "voice": "pm",   "delay": 1500 },
-    { "event": "alt_desc", "_uid": "chute_brace", "alt_ft":   50, "text": "Brace for impact.", "voice": "pm" },
-
-    { "event": "splashdown", "_uid": "splash_mc",    "text": "Splashdown confirmed. Dragon Inspiration is home.", "voice": "narrator",  "delay": 1000 },
-    { "event": "splashdown", "_uid": "splash_stable","text": "Stable one. We have stable one.",         "voice": "pm",        "delay": 5000 },
-    { "event": "splashdown", "_uid": "fast_boats",   "text": "Fast boats are on their way.",             "voice": "narrator2", "delay": 12000 },
-    { "event": "splashdown", "_uid": "sniff",        "text": "Sniffing for Draco residuals. All clear.", "voice": "narrator",  "delay": 28000 },
-    { "event": "splashdown", "_uid": "diver",        "text": "Diver in the water. Harness attached.",   "voice": "narrator2", "delay": 50000 },
-    { "event": "splashdown", "_uid": "hatch",        "text": "Hatch open.",                             "voice": "narrator2", "delay": 75000 },
-    { "event": "splashdown", "_uid": "thankyou",     "text": "Dragon Inspiration, thank you for flying SpaceX.", "voice": "narrator", "delay": 82000 },
-    { "event": "splashdown", "_uid": "markus_final", "text": "It was one hell of a ride.",              "voice": "crew",      "delay": 88000 }
+    {
+      "t": 0,
+      "text": "T minus 60 seconds. Launch Director is go for launch.",
+      "voice": "narrator"
+    },
+    {
+      "t": 3,
+      "text": "Dragon Inspiration, Mission Control. You are go for launch.",
+      "voice": "atc"
+    },
+    {
+      "t": 5,
+      "text": "Copy. Go for launch.",
+      "voice": "crew"
+    },
+    {
+      "t": 8,
+      "text": "All systems are green. Falcon 9 is fully fuelled and standing by.",
+      "voice": "narrator2"
+    },
+    {
+      "t": 14,
+      "text": "On board Dragon Inspiration — Commander Markus Leutwyler, Pilot Lydia Meier, Mission Specialist Pradeep Sapkota.",
+      "voice": "narrator"
+    },
+    {
+      "t": 23,
+      "text": "T minus 37 seconds. Auto-sequence start.",
+      "voice": "narrator"
+    },
+    {
+      "t": 30,
+      "text": "T minus 30.",
+      "voice": "narrator2"
+    },
+    {
+      "t": 33,
+      "text": "Propellant tanks pressurised for flight.",
+      "voice": "narrator"
+    },
+    {
+      "t": 45,
+      "text": "T minus 15. Vehicle in terminal count.",
+      "voice": "narrator"
+    },
+    {
+      "t": 50,
+      "text": "10. 9. 8. 7. 6. 5. 4. 3. 2. 1.",
+      "voice": "narrator2"
+    },
+    {
+      "t": 53,
+      "text": "Vehicle in startup.",
+      "voice": "narrator"
+    },
+    {
+      "t": 57,
+      "text": "Ignition sequence start.",
+      "voice": "narrator2"
+    },
+    {
+      "t": 59,
+      "text": "Engines at full thrust.",
+      "voice": "narrator"
+    },
+    {
+      "t": 60,
+      "text": "Liftoff. Falcon 9 lifts off with Dragon Inspiration.",
+      "voice": "narrator"
+    },
+    {
+      "t": 61,
+      "text": "Abort mode 1-Alpha.",
+      "voice": "atc"
+    },
+    {
+      "t": 62,
+      "text": "Copy. 1-Alpha.",
+      "voice": "crew"
+    },
+    {
+      "t": 63,
+      "text": "Clock running. All systems go.",
+      "voice": "pm"
+    },
+    {
+      "t": 65,
+      "text": "And liftoff of Dragon Inspiration, carrying four people to a 590-kilometre orbit.",
+      "voice": "narrator2"
+    },
+    {
+      "event": "supersonic",
+      "text": "Vehicle is supersonic.",
+      "voice": "narrator"
+    },
+    {
+      "event": "maxq",
+      "text": "Falcon 9 passing through the area of maximum aerodynamic pressure — Max Q. Engines have throttled slightly to reduce stress on the vehicle.",
+      "voice": "narrator2"
+    },
+    {
+      "event": "maxq",
+      "_uid": "throttleup",
+      "text": "Go at throttle up.",
+      "voice": "narrator",
+      "delay": 7000
+    },
+    {
+      "event": "maxq",
+      "_uid": "throttleupc",
+      "text": "Copy, go at throttle up.",
+      "voice": "crew",
+      "delay": 8500
+    },
+    {
+      "event": "maxq",
+      "_uid": "throttleuppm",
+      "text": "Throttle up. Vehicle nominal.",
+      "voice": "pm",
+      "delay": 10500
+    },
+    {
+      "event": "alt",
+      "_uid": "nar_15km",
+      "alt_km": 15,
+      "text": "Back at full thrust, climbing through 15 kilometres.",
+      "voice": "narrator"
+    },
+    {
+      "event": "alt",
+      "_uid": "nar_55km",
+      "alt_km": 55,
+      "text": "Stage 1 performing nominally. Main engine cutoff coming up.",
+      "voice": "narrator2"
+    },
+    {
+      "t": 133,
+      "text": "Abort mode 1-Bravo.",
+      "voice": "atc"
+    },
+    {
+      "t": 134,
+      "text": "Copy. 1-Bravo.",
+      "voice": "crew"
+    },
+    {
+      "t": 155,
+      "text": "Dragon Inspiration, go for staging.",
+      "voice": "atc"
+    },
+    {
+      "t": 157,
+      "text": "Copy, go for staging.",
+      "voice": "crew"
+    },
+    {
+      "event": "ceco",
+      "text": "Center engine cutoff.",
+      "voice": "narrator"
+    },
+    {
+      "event": "ceco",
+      "_uid": "cecopm",
+      "text": "Eight engines.",
+      "voice": "pm",
+      "delay": 1500
+    },
+    {
+      "event": "meco",
+      "text": "MECO confirmed.",
+      "voice": "narrator"
+    },
+    {
+      "event": "meco",
+      "_uid": "mecopm",
+      "text": "Stage 2 ready.",
+      "voice": "pm",
+      "delay": 1500
+    },
+    {
+      "event": "stagesep",
+      "_uid": "sep",
+      "text": "Stage separation confirmed.",
+      "voice": "narrator",
+      "delay": 200
+    },
+    {
+      "event": "stagesep",
+      "_uid": "las",
+      "text": "LAS jettison confirmed.",
+      "voice": "narrator2",
+      "delay": 3000
+    },
+    {
+      "event": "stagesep",
+      "_uid": "2a",
+      "text": "Abort mode 2-Alpha.",
+      "voice": "atc",
+      "delay": 4500
+    },
+    {
+      "event": "stagesep",
+      "_uid": "2ac",
+      "text": "Copy. 2-Alpha.",
+      "voice": "crew",
+      "delay": 5500
+    },
+    {
+      "event": "stagesep",
+      "_uid": "mvac",
+      "text": "MVac ignition. Stage 2 go.",
+      "voice": "narrator",
+      "delay": 6000
+    },
+    {
+      "event": "stagesep",
+      "_uid": "mvacpm",
+      "text": "Stage 2 ignition confirmed.",
+      "voice": "pm",
+      "delay": 8000
+    },
+    {
+      "event": "booster_flip",
+      "_uid": "nar_flip",
+      "text": "Stage 1 beginning its flip maneuver, targeting Landing Zone 1 at Cape Canaveral.",
+      "voice": "narrator2"
+    },
+    {
+      "event": "booster_boostback",
+      "_uid": "nar_boostback",
+      "text": "Boostback burn in progress. Three engines pushing Stage 1 back toward the coast.",
+      "voice": "narrator"
+    },
+    {
+      "event": "booster_coast",
+      "_uid": "nar_coast",
+      "text": "Boostback burn complete. Stage 1 now coasting back toward the Cape, grid fins deploying.",
+      "voice": "narrator2"
+    },
+    {
+      "event": "booster_entry",
+      "_uid": "nar_entry",
+      "text": "Stage 1 entering the atmosphere. Grid fins active, bleeding off velocity.",
+      "voice": "narrator"
+    },
+    {
+      "event": "booster_landing_burn",
+      "_uid": "nar_lburn",
+      "text": "Stage 1 landing burn ignition!",
+      "voice": "narrator2"
+    },
+    {
+      "event": "alt",
+      "_uid": "karman",
+      "alt_km": 80,
+      "text": "Dragon Inspiration passing through 80 kilometres — the Kármán line, the edge of space.",
+      "voice": "narrator"
+    },
+    {
+      "event": "alt",
+      "_uid": "nar_160km",
+      "alt_km": 160,
+      "text": "Stage 2 continuing to burn. Altitude 160 kilometres.",
+      "voice": "narrator2"
+    },
+    {
+      "t": 382,
+      "text": "Abort mode 2-Bravo.",
+      "voice": "atc"
+    },
+    {
+      "t": 383,
+      "text": "Copy. 2-Bravo.",
+      "voice": "crew"
+    },
+    {
+      "t": 415,
+      "text": "Stage 2 nominal. Dragon, you are go for orbit insertion.",
+      "voice": "atc"
+    },
+    {
+      "event": "alt",
+      "_uid": "nar_400km",
+      "alt_km": 400,
+      "text": "Dragon Inspiration closing in on its target orbit. Stage 2 burning toward shutdown.",
+      "voice": "narrator2"
+    },
+    {
+      "t": 449,
+      "text": "Abort mode 2-Charlie.",
+      "voice": "atc"
+    },
+    {
+      "t": 450,
+      "text": "Copy. 2-Charlie.",
+      "voice": "crew"
+    },
+    {
+      "event": "alt",
+      "_uid": "nar_500km",
+      "alt_km": 500,
+      "text": "Velocity now over 7 kilometres per second. Dragon Inspiration almost at orbital speed.",
+      "voice": "narrator"
+    },
+    {
+      "t": 529,
+      "text": "Abort mode 2-Delta.",
+      "voice": "atc"
+    },
+    {
+      "t": 530,
+      "text": "Copy. 2-Delta.",
+      "voice": "crew"
+    },
+    {
+      "t": 568,
+      "text": "30 seconds to SECO.",
+      "voice": "narrator"
+    },
+    {
+      "t": 572,
+      "text": "Altitude and velocity nominal. Standing by for cutoff.",
+      "voice": "pm"
+    },
+    {
+      "event": "seco",
+      "text": "SECO confirmed. Dragon Inspiration is in orbit.",
+      "voice": "narrator"
+    },
+    {
+      "event": "seco",
+      "_uid": "secopm",
+      "text": "Cutoff. We're in orbit.",
+      "voice": "pm",
+      "delay": 1000
+    },
+    {
+      "event": "seco",
+      "_uid": "ato",
+      "text": "Abort mode 2-Echo.",
+      "voice": "atc",
+      "delay": 3000
+    },
+    {
+      "event": "seco",
+      "_uid": "atoc",
+      "text": "Copy. 2-Echo. Inspiration5 is go for orbit ops.",
+      "voice": "crew",
+      "delay": 4500
+    },
+    {
+      "event": "orbit",
+      "text": "Nominal orbit insertion. 590 kilometres. Inspiration5 is go.",
+      "voice": "narrator2"
+    },
+    {
+      "event": "booster_landing",
+      "text": "Touchdown confirmed! Stage 1 has landed at Landing Zone 1.",
+      "voice": "narrator2"
+    },
+    {
+      "event": "booster_landing",
+      "_uid": "nar_land2",
+      "text": "Incredible. Stage 1 is back on the ground at Cape Canaveral.",
+      "voice": "narrator",
+      "delay": 3500
+    },
+    {
+      "t": 259120,
+      "text": "After three days and approximately 45 orbits of Earth, Dragon Inspiration is preparing to come home.",
+      "voice": "narrator2"
+    },
+    {
+      "t": 259128,
+      "text": "The crew is strapped in, suits pressurised, and ready for the deorbit burn.",
+      "voice": "narrator"
+    },
+    {
+      "t": 259140,
+      "text": "Dragon Inspiration, Mission Control. You are go for deorbit burn.",
+      "voice": "atc"
+    },
+    {
+      "t": 259145,
+      "text": "Copy. Go for deorbit burn. Trunk sep complete.",
+      "voice": "crew"
+    },
+    {
+      "t": 259150,
+      "text": "Retrograde attitude. Burn in 50 seconds.",
+      "voice": "pm"
+    },
+    {
+      "t": 259198,
+      "text": "10. 9. 8. 7. 6. 5. 4. 3. 2. 1. Ignition.",
+      "voice": "pm"
+    },
+    {
+      "event": "deorbit",
+      "_uid": "deorbit_mc",
+      "text": "Deorbit burn complete. Perigee minus 110. Dragon Inspiration, you're coming home.",
+      "voice": "atc",
+      "delay": 1500
+    },
+    {
+      "event": "deorbit",
+      "_uid": "deorbit_crew",
+      "text": "Copy. Coming home.",
+      "voice": "crew",
+      "delay": 4500
+    },
+    {
+      "event": "deorbit",
+      "_uid": "deorbit_nar",
+      "text": "A 170-metre-per-second retrograde burn has lowered Dragon Inspiration's perigee into the upper atmosphere. The capsule will reach reentry interface in approximately 18 minutes.",
+      "voice": "narrator",
+      "delay": 8000
+    },
+    {
+      "event": "deorbit",
+      "_uid": "deorbit_pm",
+      "text": "Separation confirmed. Reentry interface in 18 minutes.",
+      "voice": "pm",
+      "delay": 14000
+    },
+    {
+      "event": "deorbit",
+      "_uid": "deorbit_trunk",
+      "text": "Trunk separation complete. Dragon Inspiration is now the capsule alone, heat shield pointed toward Earth.",
+      "voice": "narrator2",
+      "delay": 22000
+    },
+    {
+      "event": "blackout",
+      "_uid": "nar_losig",
+      "text": "Loss of signal. Dragon Inspiration has entered the upper atmosphere. Plasma building up around the heat shield is blocking all communications.",
+      "voice": "narrator",
+      "delay": 200
+    },
+    {
+      "event": "blackout",
+      "_uid": "reentry_intf",
+      "text": "Reentry interface. Heat shield go.",
+      "voice": "pm",
+      "delay": 3000
+    },
+    {
+      "event": "blackout",
+      "_uid": "g_nominal",
+      "text": "G-force building. Six g. Nominal.",
+      "voice": "pm",
+      "delay": 12000
+    },
+    {
+      "event": "blackout",
+      "_uid": "nar_heating",
+      "text": "The heat shield is absorbing temperatures exceeding 1,600 degrees Celsius — hotter than the surface of the sun. The crew is experiencing four to five g's of deceleration.",
+      "voice": "narrator2",
+      "delay": 18000
+    },
+    {
+      "event": "blackout",
+      "_uid": "through_fire",
+      "text": "We're through the fire.",
+      "voice": "pm",
+      "delay": 30000
+    },
+    {
+      "event": "signal",
+      "_uid": "nar_signal",
+      "text": "We have signal! Dragon Inspiration is through blackout.",
+      "voice": "narrator2",
+      "delay": 200
+    },
+    {
+      "event": "signal",
+      "_uid": "signal_mc",
+      "text": "Dragon Inspiration, Mission Control. Do you read?",
+      "voice": "atc",
+      "delay": 2500
+    },
+    {
+      "event": "signal",
+      "_uid": "signal_crew",
+      "text": "Loud and clear. We're through.",
+      "voice": "crew",
+      "delay": 5500
+    },
+    {
+      "event": "signal",
+      "_uid": "nar_signal2",
+      "text": "Three crew members safe. Dragon Inspiration descending under parachutes shortly.",
+      "voice": "narrator",
+      "delay": 9000
+    },
+    {
+      "event": "drogue",
+      "_uid": "drogue_pm",
+      "text": "Drogues out. Descent nominal.",
+      "voice": "pm",
+      "delay": 500
+    },
+    {
+      "event": "drogue",
+      "_uid": "drogue_mc",
+      "text": "Dragon Inspiration, two drogues confirmed.",
+      "voice": "narrator",
+      "delay": 3000
+    },
+    {
+      "event": "mains",
+      "_uid": "mains_pm",
+      "text": "Four mains. Beautiful.",
+      "voice": "pm",
+      "delay": 500
+    },
+    {
+      "event": "mains",
+      "_uid": "mains_mc",
+      "text": "Dragon Inspiration, four main parachutes confirmed. Recovery teams are standing by.",
+      "voice": "narrator2",
+      "delay": 3000
+    },
+    {
+      "event": "alt_desc",
+      "_uid": "chute_800",
+      "alt_ft": 800,
+      "text": "800 feet.",
+      "voice": "narrator2"
+    },
+    {
+      "event": "alt_desc",
+      "_uid": "chute_800pm",
+      "alt_ft": 800,
+      "text": "800 feet.",
+      "voice": "pm",
+      "delay": 1500
+    },
+    {
+      "event": "alt_desc",
+      "_uid": "chute_600",
+      "alt_ft": 600,
+      "text": "600 feet.",
+      "voice": "narrator2"
+    },
+    {
+      "event": "alt_desc",
+      "_uid": "chute_600pm",
+      "alt_ft": 600,
+      "text": "600 feet.",
+      "voice": "pm",
+      "delay": 1500
+    },
+    {
+      "event": "alt_desc",
+      "_uid": "chute_400",
+      "alt_ft": 400,
+      "text": "400 feet.",
+      "voice": "narrator2"
+    },
+    {
+      "event": "alt_desc",
+      "_uid": "chute_400pm",
+      "alt_ft": 400,
+      "text": "400 feet.",
+      "voice": "pm",
+      "delay": 1500
+    },
+    {
+      "event": "alt_desc",
+      "_uid": "chute_200",
+      "alt_ft": 200,
+      "text": "200 feet.",
+      "voice": "narrator2"
+    },
+    {
+      "event": "alt_desc",
+      "_uid": "chute_200pm",
+      "alt_ft": 200,
+      "text": "200 feet.",
+      "voice": "pm",
+      "delay": 1500
+    },
+    {
+      "event": "alt_desc",
+      "_uid": "chute_brace",
+      "alt_ft": 50,
+      "text": "Brace for impact.",
+      "voice": "pm"
+    },
+    {
+      "event": "splashdown",
+      "_uid": "splash_mc",
+      "text": "Splashdown confirmed. Dragon Inspiration is home.",
+      "voice": "narrator",
+      "delay": 1000
+    },
+    {
+      "event": "splashdown",
+      "_uid": "splash_stable",
+      "text": "Stable one. We have stable one.",
+      "voice": "pm",
+      "delay": 5000
+    },
+    {
+      "event": "splashdown",
+      "_uid": "fast_boats",
+      "text": "Fast boats are on their way.",
+      "voice": "narrator2",
+      "delay": 12000
+    },
+    {
+      "event": "splashdown",
+      "_uid": "sniff",
+      "text": "Sniffing for Draco residuals. All clear.",
+      "voice": "narrator",
+      "delay": 28000
+    },
+    {
+      "event": "splashdown",
+      "_uid": "diver",
+      "text": "Diver in the water. Harness attached.",
+      "voice": "narrator2",
+      "delay": 50000
+    },
+    {
+      "event": "splashdown",
+      "_uid": "hatch",
+      "text": "Hatch open.",
+      "voice": "narrator2",
+      "delay": 75000
+    },
+    {
+      "event": "splashdown",
+      "_uid": "thankyou",
+      "text": "Dragon Inspiration, thank you for flying SpaceX.",
+      "voice": "narrator",
+      "delay": 82000
+    },
+    {
+      "event": "splashdown",
+      "_uid": "markus_final",
+      "text": "It was one hell of a ride.",
+      "voice": "crew",
+      "delay": 88000
+    }
   ],
-
   "narrative": [
     "Kennedy Space Center.",
     "Launch Complex 39A.",
@@ -171,7 +702,6 @@
     "Dragon Inspiration.",
     "Stage 1 comes home."
   ],
-
   "debrief": [
     "Did stage 1 perform the boostback burn?",
     "Did the booster land at LZ-1?",

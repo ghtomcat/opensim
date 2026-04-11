@@ -1,5 +1,6 @@
 {
   "id": "hovercraft-demo",
+  "phase": "ground",
   "title": "Hovercraft Demo — Timo & Markus",
   "vehicles": [
     "hovercraft_timo",

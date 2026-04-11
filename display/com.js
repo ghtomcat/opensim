@@ -5,20 +5,33 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from '../core/state.js';
+import { speakATC } from '../core/crew.js';
 
 /* ── Default LSZH frequency card ── */
 const FREQS_DEFAULT = {
   '121.750': { label: 'LSZH GROUND',               audio: 'audio/guete-morge.mp3',
                stream: 'http://d.liveatc.net/lszh1_gnd',
-               streamPage: 'https://www.liveatc.net/hlisten.php?mount=lszh1_gnd&icao=lszh' },
-  '121.900': { label: 'LSZH CLEARANCE DELIVERY',   audio: null },
+               streamPage: 'https://www.liveatc.net/hlisten.php?mount=lszh1_gnd&icao=lszh',
+               checkin: (cs, alt, spd, phase) => alt !== null && alt > 500 ? null
+                 : S.wow
+                 ? `${cs}, Zürich Ground. Vacate runway, taxi to stand via Alpha.`
+                 : `${cs}, Zürich Ground. Push and start approved, face east. QNH 1017.` },
+  '121.900': { label: 'LSZH CLEARANCE DELIVERY',   audio: null,
+               checkin: (cs) => `${cs}, Zürich Delivery. Cleared ILS runway 28 via LOBEP, climb 5000 feet, squawk 4721.` },
   '126.200': { label: 'LSZH ATIS',                 audio: 'audio/atis-zurich.mp3', atis: true },
   '118.100': { label: 'LSZH TOWER',                audio: null, squawk: true,
                stream: 'http://d.liveatc.net/lszh1_twr',
-               streamPage: 'https://www.liveatc.net/hlisten.php?mount=lszh1_twr&icao=lszh' },
+               streamPage: 'https://www.liveatc.net/hlisten.php?mount=lszh1_twr&icao=lszh',
+               checkin: (cs, alt) => {
+                 const m = S.metar;
+                 const wind = m ? `Wind ${String(m.wdir??110).padStart(3,'0')} at ${m.wspd??5}.` : '';
+                 const info = `Information ${_atisLetter()} current.`;
+                 return `${cs}, Zürich Tower. Runway 28, cleared to land. ${wind} ${info}`;
+               } },
   '119.700': { label: 'LSZH APPROACH',             audio: null,
                stream: 'http://d.liveatc.net/lszh_app_final',
-               streamPage: 'https://www.liveatc.net/hlisten.php?mount=lszh_app_final&icao=lszh' },
+               streamPage: 'https://www.liveatc.net/hlisten.php?mount=lszh_app_final&icao=lszh',
+               checkin: (cs, alt) => `${cs}, Zürich Approach. Radar contact. ${alt ? `Confirm altitude ${Math.round(alt/100)*100} feet. ` : ''}Descend 4000 feet. Expect ILS runway 28. ` },
   '121.500': { label: 'GUARD',                     audio: null },
 };
 
@@ -276,6 +289,16 @@ function _onTune(freq) {
   if (info.stream) {
     _startStream(info.stream, info.streamPage);
   }
+
+  /* Virtual ATC check-in */
+  if (info.checkin) {
+    const cs    = S.aircraft?.callsign ?? S.mission?.callsign ?? 'Traffic';
+    const alt   = S.alt ? Math.round(S.alt) : null;
+    const spd   = S.spd ? Math.round(S.spd) : 0;
+    const phase = S.mission?.phase ?? null;
+    const text  = info.checkin(cs, alt, spd, phase);
+    if (text) setTimeout(() => speakATC(text), 1200);
+  }
 }
 
 function _r8() { return Math.floor(Math.random() * 8); }
@@ -387,34 +410,8 @@ function _stopStream() {
 }
 
 function _startStream(url, fallbackPage) {
-  const audio = new Audio(url);
-  audio.volume = 0.85;
-  _streamAudio = audio;
-
-  /* Show connecting indicator */
-  _setLiveIndicator('connecting');
-
-  const timeout = setTimeout(() => {
-    /* Stream failed to start — show popup link */
-    _stopStream();
-    _setLiveIndicator('fallback', fallbackPage);
-  }, 5000);
-
-  audio.addEventListener('playing', () => {
-    clearTimeout(timeout);
-    _setLiveIndicator('live');
-  });
-  audio.addEventListener('error', () => {
-    clearTimeout(timeout);
-    _stopStream();
-    _setLiveIndicator('fallback', fallbackPage);
-  });
-
-  audio.play().catch(() => {
-    clearTimeout(timeout);
-    _stopStream();
-    _setLiveIndicator('fallback', fallbackPage);
-  });
+  /* Show fallback link immediately — direct stream blocked by Cloudflare */
+  _setLiveIndicator('fallback', fallbackPage);
 }
 
 function _setLiveIndicator(state, fallbackPage) {
@@ -456,16 +453,39 @@ function _openATIS() {
   if (existing) { existing.remove(); return; }
 
   const m = S.metar;
-  const lines = m ? _buildAtis(m) : ['ATIS NOT AVAILABLE'];
+  const letter = _atisLetter();
+  const lines  = m ? _buildAtis(m) : ['ATIS NOT AVAILABLE'];
 
   const modal = document.createElement('div');
   modal.id = 'atis-modal';
   modal.innerHTML = `
-    <div class="atis-title">ATIS LSZH · INFO ${_atisLetter()}</div>
+    <div class="atis-title">ATIS LSZH · INFO ${letter}</div>
     ${lines.map(l => `<div class="atis-line">${l}</div>`).join('')}
     <button class="atis-close" onclick="document.getElementById('atis-modal').remove()">×</button>
   `;
   document.body.appendChild(modal);
+
+  /* Speak ATIS via TTS */
+  if (m) setTimeout(() => speakATC(_buildAtisSpoken(m, letter)), 600);
+}
+
+function _buildAtisSpoken(m, letter) {
+  const rwy    = _rwyFromWind(m.wdir ?? 270);
+  const wind   = m.wspd > 0
+    ? `wind ${String(m.wdir ?? 270).padStart(3,'0')} degrees, ${m.wspd} knots`
+    : 'wind calm';
+  const vis    = m.visib ? `visibility ${m.visib}` : 'visibility good';
+  const clouds = m.clouds?.length
+    ? m.clouds.map(c => `${c.cover.toLowerCase()} at ${c.base} feet`).join(', ')
+    : 'sky clear';
+  const temp   = m.temp !== undefined ? `temperature ${m.temp}, dew point ${m.dewp ?? m.temp - 2}` : '';
+  const qnh    = m.altim ? `QNH ${m.altim}` : '';
+
+  return `Zürich information ${letter}. ` +
+    `${wind}. ${vis}. ${clouds}. ` +
+    `${temp}. ${qnh}. ` +
+    `ILS approach runway ${rwy} in use. ` +
+    `Advise on first contact you have information ${letter}.`;
 }
 
 function _buildAtis(m) {

@@ -1,73 +1,171 @@
 {
-  "id":          "falcon1-omelek",
-  "title":       "First Orbit — Falcon 1 Flight 4",
+  "id": "falcon1-omelek",
+  "phase": "launch",
+  "title": "First Orbit — Falcon 1 Flight 4",
   "description": "Omelek Island. 28 September 2008. The fourth attempt. The one that worked.",
-  "author":      "Markus Leutwyler",
-  "aircraft":    "falcon1",
-
+  "author": "Markus Leutwyler",
+  "aircraft": "falcon1",
   "timeOfDay": 11.0,
-  "water":     true,
-
+  "water": true,
   "weather": {
     "source": "manual",
     "manual": {
-      "wdir": 90, "wspd": 8, "turbulence": 0.1, "altim": 1015, "temp": 28
+      "wdir": 90,
+      "wspd": 8,
+      "turbulence": 0.1,
+      "altim": 1015,
+      "temp": 28
     }
   },
-
   "initialState": {
-    "lat":   9.0477,
-    "lon":   167.7431,
-    "alt":   6,
-    "spd":   0,
-    "hdg":   90,
+    "lat": 9.0477,
+    "lon": 167.7431,
+    "alt": 6,
+    "spd": 0,
+    "hdg": 90,
     "pitch": 90,
-    "roll":  0
+    "roll": 0
   },
-
   "departure": {
-    "name":      "Omelek Island Launch Complex",
+    "name": "Omelek Island Launch Complex",
     "elevation": 6
   },
-
   "arrival": null,
-
   "com": {
     "title": "MISSION AUDIO",
     "loops": [
-      { "id": "silence",   "label": "SILENCE" },
-      { "id": "webcast",   "label": "F4 WEBCAST",   "audio": "audio/falcon1-f4-webcast.mp3"  },
-      { "id": "ambient",   "label": "PAD AMBIENT",  "audio": "audio/launch-ambient.mp3"      },
-      { "id": "countdown", "label": "COUNTDOWN",    "audio": "audio/falcon1-countdown.mp3"   }
+      {
+        "id": "silence",
+        "label": "SILENCE"
+      },
+      {
+        "id": "webcast",
+        "label": "F4 WEBCAST",
+        "audio": "audio/falcon1-f4-webcast.mp3"
+      },
+      {
+        "id": "ambient",
+        "label": "PAD AMBIENT",
+        "audio": "audio/launch-ambient.mp3"
+      },
+      {
+        "id": "countdown",
+        "label": "COUNTDOWN",
+        "audio": "audio/falcon1-countdown.mp3"
+      }
     ],
     "active": "silence"
   },
-
   "atcClearances": [
-    { "t":  0,  "text": "T minus 60 seconds. Launch control go for launch.",   "voice": "atc" },
-    { "t": 30,  "text": "T minus 30 seconds.",                                  "voice": "atc" },
-    { "t": 40,  "text": "T minus 20. Vehicle on internal power.",               "voice": "atc" },
-    { "t": 50,  "text": "T minus 10. 9. 8. 7. 6. 5. 4. 3. 2. 1.",            "voice": "atc" },
-    { "t": 57,  "text": "Ignition sequence start.",                             "voice": "atc" },
-    { "t": 60,  "text": "Liftoff. Falcon 1 is on its way to orbit.",           "voice": "atc" },
-
-    { "event": "supersonic",    "text": "Vehicle is supersonic.",                                    "voice": "atc" },
-    { "event": "maxq",          "text": "Max Q. Vehicle is go.",                                     "voice": "atc" },
-    { "event": "stage1_nominal","text": "Stage 1 performance nominal. Propellant nominal.",           "voice": "atc" },
-    { "event": "meco",          "text": "Main engine cutoff. MECO confirmed.",                       "voice": "atc" },
-    { "event": "stagesep", "_uid": "stagesep", "text": "Stage separation confirmed.",                "voice": "atc", "delay": 200  },
-    { "event": "stagesep", "_uid": "kestrel",  "text": "Kestrel ignition confirmed. Stage 2 is go.", "voice": "atc", "delay": 6000 },
-    { "event": "alt", "_uid": "alt200", "alt_km": 200, "text": "Altitude 200 kilometers.",           "voice": "atc" },
-    { "event": "alt", "_uid": "alt450", "alt_km": 450, "text": "Altitude 450 kilometers. Approaching apogee.", "voice": "atc" },
-    { "event": "seco",          "text": "Second engine cutoff. SECO confirmed.",                     "voice": "atc" },
-    { "event": "orbit",         "text": "Falcon 1 has reached orbit. Congratulations SpaceX.",       "voice": "atc" },
-
-    { "event": "orbit_anomaly",       "text": "Orbital insertion anomaly. Velocity below nominal for circular orbit. Trajectory suborbital.", "voice": "atc" },
-    { "event": "engine_failure_ascent","text": "Engine failure. Loss of thrust confirmed. Vehicle descending. Loss of mission.",             "voice": "atc" },
-    { "event": "stage2_anomaly",       "text": "Stage two anomaly. Attitude loss detected. Vehicle tumbling. Contact lost.",                  "voice": "atc" },
-    { "event": "structural_failure",   "text": "Structural failure. Vehicle has exceeded design limits. Loss of vehicle.",                    "voice": "atc" }
+    {
+      "t": 0,
+      "text": "T minus 60 seconds. Launch control go for launch.",
+      "voice": "atc"
+    },
+    {
+      "t": 30,
+      "text": "T minus 30 seconds.",
+      "voice": "atc"
+    },
+    {
+      "t": 40,
+      "text": "T minus 20. Vehicle on internal power.",
+      "voice": "atc"
+    },
+    {
+      "t": 50,
+      "text": "T minus 10. 9. 8. 7. 6. 5. 4. 3. 2. 1.",
+      "voice": "atc"
+    },
+    {
+      "t": 57,
+      "text": "Ignition sequence start.",
+      "voice": "atc"
+    },
+    {
+      "t": 60,
+      "text": "Liftoff. Falcon 1 is on its way to orbit.",
+      "voice": "atc"
+    },
+    {
+      "event": "supersonic",
+      "text": "Vehicle is supersonic.",
+      "voice": "atc"
+    },
+    {
+      "event": "maxq",
+      "text": "Max Q. Vehicle is go.",
+      "voice": "atc"
+    },
+    {
+      "event": "stage1_nominal",
+      "text": "Stage 1 performance nominal. Propellant nominal.",
+      "voice": "atc"
+    },
+    {
+      "event": "meco",
+      "text": "Main engine cutoff. MECO confirmed.",
+      "voice": "atc"
+    },
+    {
+      "event": "stagesep",
+      "_uid": "stagesep",
+      "text": "Stage separation confirmed.",
+      "voice": "atc",
+      "delay": 200
+    },
+    {
+      "event": "stagesep",
+      "_uid": "kestrel",
+      "text": "Kestrel ignition confirmed. Stage 2 is go.",
+      "voice": "atc",
+      "delay": 6000
+    },
+    {
+      "event": "alt",
+      "_uid": "alt200",
+      "alt_km": 200,
+      "text": "Altitude 200 kilometers.",
+      "voice": "atc"
+    },
+    {
+      "event": "alt",
+      "_uid": "alt450",
+      "alt_km": 450,
+      "text": "Altitude 450 kilometers. Approaching apogee.",
+      "voice": "atc"
+    },
+    {
+      "event": "seco",
+      "text": "Second engine cutoff. SECO confirmed.",
+      "voice": "atc"
+    },
+    {
+      "event": "orbit",
+      "text": "Falcon 1 has reached orbit. Congratulations SpaceX.",
+      "voice": "atc"
+    },
+    {
+      "event": "orbit_anomaly",
+      "text": "Orbital insertion anomaly. Velocity below nominal for circular orbit. Trajectory suborbital.",
+      "voice": "atc"
+    },
+    {
+      "event": "engine_failure_ascent",
+      "text": "Engine failure. Loss of thrust confirmed. Vehicle descending. Loss of mission.",
+      "voice": "atc"
+    },
+    {
+      "event": "stage2_anomaly",
+      "text": "Stage two anomaly. Attitude loss detected. Vehicle tumbling. Contact lost.",
+      "voice": "atc"
+    },
+    {
+      "event": "structural_failure",
+      "text": "Structural failure. Vehicle has exceeded design limits. Loss of vehicle.",
+      "voice": "atc"
+    }
   ],
-
   "narrative": [
     "Omelek Island.",
     "Marshall Islands.",
@@ -76,7 +174,6 @@
     "Nine minutes to orbit.",
     "Or nothing."
   ],
-
   "debrief": [
     "MECO at T+169s — did Stage 1 burn to completion?",
     "Stage 2 ignition confirmed?",

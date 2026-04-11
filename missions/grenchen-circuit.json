@@ -1,5 +1,6 @@
 {
   "id": "grenchen-circuit",
+  "phase": "circuit",
   "title": "VFR Circuit — Grenchen LSZG",
   "description": "Left-hand circuit at Flugplatz Grenchen. Robin DR400/140B. 160hp, stick, low wing.",
   "author": "Markus Leutwyler",

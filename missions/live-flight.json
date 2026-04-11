@@ -1,15 +1,24 @@
 {
   "id": "live-flight",
+  "phase": "cruise",
   "title": "Live Flight",
   "aircraft": "a350",
-
   "weather": {
     "source": "manual",
-    "manual": { "wdir": 0, "wspd": 0, "turbulence": 0.1, "altim": 1013 }
+    "manual": {
+      "wdir": 0,
+      "wspd": 0,
+      "turbulence": 0.1,
+      "altim": 1013
+    }
   },
-
   "initialState": {
-    "lat": 47.39, "lon": 8.54,
-    "alt": 35000, "spd": 480, "hdg": 0, "pitch": 0, "roll": 0
+    "lat": 47.39,
+    "lon": 8.54,
+    "alt": 35000,
+    "spd": 480,
+    "hdg": 0,
+    "pitch": 0,
+    "roll": 0
   }
 }

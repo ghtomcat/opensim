@@ -1,5 +1,6 @@
 {
   "id": "hovercraft-test",
+  "phase": "ground",
   "title": "Timo's Hovercraft — First Hover",
   "initialState": {
     "alt": 0,

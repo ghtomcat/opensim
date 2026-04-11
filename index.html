@@ -1059,6 +1059,52 @@
       color: var(--mb-accent, #cc4444);
     }
 
+    /* ── Role selector overlay ── */
+    #role-select {
+      position: fixed; inset: 0; z-index: 320;
+      background: #030609;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 40px 24px;
+      opacity: 0; transition: opacity 0.4s ease;
+      pointer-events: none;
+    }
+    #role-select.visible { opacity: 1; pointer-events: all; }
+    .rs-title {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px; letter-spacing: 0.25em;
+      color: rgba(232,237,242,0.35);
+      text-transform: uppercase;
+      margin-bottom: 40px;
+    }
+    .rs-cards {
+      display: flex; flex-wrap: wrap; gap: 16px;
+      justify-content: center; max-width: 720px;
+    }
+    .rs-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 24px 32px; min-width: 130px;
+      text-align: center; cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .rs-card:hover {
+      background: rgba(255,255,255,0.07);
+      border-color: var(--rs-accent, rgba(255,255,255,0.22));
+    }
+    .rs-card-id {
+      font-family: "Syne", sans-serif;
+      font-size: 18px; font-weight: 700;
+      color: var(--white); margin-bottom: 8px;
+    }
+    .rs-card-label {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px; color: rgba(232,237,242,0.4);
+      line-height: 1.5;
+    }
+    .rs-card.rs-instructor { border-color: rgba(255,200,50,0.15); }
+    .rs-card.rs-instructor .rs-card-id { color: rgba(255,200,50,0.75); }
+
     /* ── On-screen keyboard (touch devices) ── */
     #osk {
       position: fixed;
@@ -1209,6 +1255,12 @@
 <!-- Pre-mission briefing overlay -->
 <div id="mission-briefing">
   <div class="mb-inner" id="mb-content"></div>
+</div>
+
+<!-- Role selector overlay -->
+<div id="role-select">
+  <div class="rs-title">Select your role</div>
+  <div class="rs-cards" id="rs-cards"></div>
 </div>
 
 <!-- Outside view -->
@@ -1505,6 +1557,11 @@
         orders: 'Cleared ILS 28. Descend 4000ft.\nExpect vectors from LOBEP. Speed 250kt below FL100.\nGear down abeam threshold. Full flaps by FAP.\nDecision height: 700ft. Go-around: climb 5000ft, track 283°.',
         atmosphere: 'Live METAR active. Weather may differ from brief.\nOpen kneeboard (K) for full approach plate.',
       },
+      roles: [
+        { id: 'PF',         label: 'Pilot Flying' },
+        { id: 'PM',         label: 'Pilot Monitoring' },
+        { id: 'INSTRUCTOR', label: 'Instructor' },
+      ],
     },
     {
       id: 'grenchen-circuit', aircraft: 'robin-dr400',
@@ -1692,7 +1749,7 @@
       },
     },
     {
-      id: 'crew-demo2', aircraft: 'falcon9-b5',
+      id: 'crew-demo2', aircraft: 'falcon9-b5-demo2',
       acName: 'Falcon 9 Block 5', engine: '9× Merlin 1D+ + MVac · SpaceX',
       location: 'Kennedy Space Center · LC-39A', title: 'Crew Dragon Demo-2 · RTLS', era: 'ORBIT', eraLabel: '2020', accent: '#a0b8d8',
       briefing: {
@@ -1707,6 +1764,13 @@
           'Target orbit: 400 km × 200 km · 51.6°',
         ],
       },
+      roles: [
+        { id: 'CDR',        label: 'Commander' },
+        { id: 'PILOT',      label: 'Pilot' },
+        { id: 'MS1',        label: 'Mission Specialist 1' },
+        { id: 'MS2',        label: 'Mission Specialist 2' },
+        { id: 'INSTRUCTOR', label: 'Instructor' },
+      ],
     },
     {
       id: 'crs1', aircraft: 'falcon9-b1',
@@ -1735,6 +1799,13 @@
         orders: 'Launch site: Kennedy Space Center LC-39A.\nTarget orbit: 590 km circular · 51.6° inclination.\nMission duration: 3 days.\n\nFlight sequence:\nT+00:00  9-engine ignition · Liftoff\nT+01:12  CECO — center engine cutoff\nT+02:33  MECO · Stage separation\nT+02:53  Boostback burn — 3 engines\nT+08:45  SECO · Orbit insertion\nT+08:45+ Stage 1 RTLS · LZ-1',
         atmosphere: 'Four people.\nNo professional astronauts.\nNo government agency.\n\nA rocket, a capsule, and a crew that trained for this.\nThe door Jared opened.\nWe walked through.',
       },
+      roles: [
+        { id: 'CDR',        label: 'Commander' },
+        { id: 'PILOT',      label: 'Pilot' },
+        { id: 'MS1',        label: 'Mission Specialist 1' },
+        { id: 'MS2',        label: 'Mission Specialist 2' },
+        { id: 'INSTRUCTOR', label: 'Instructor' },
+      ],
     },
   ];
 
@@ -2425,11 +2496,37 @@
 
     const dismiss = () => {
       el.classList.remove('visible');
-      setTimeout(() => { init(m.id, m.aircraft); }, 400);
       window.removeEventListener('keydown', dismiss);
       el.removeEventListener('click', dismiss);
+      if (m.roles?.length > 1) {
+        setTimeout(() => showRoleSelect(m), 400);
+      } else {
+        setTimeout(() => init(m.id, m.aircraft), 400);
+      }
     };
     el.addEventListener('click', dismiss);
+  }
+
+  /* ── Role selector ── */
+  function showRoleSelect(m) {
+    const el    = document.getElementById('role-select');
+    const cards = document.getElementById('rs-cards');
+    el.style.setProperty('--rs-accent', m.accent ?? 'rgba(255,255,255,0.22)');
+    cards.innerHTML = '';
+
+    for (const r of m.roles) {
+      const card = document.createElement('div');
+      card.className = 'rs-card' + (r.id === 'INSTRUCTOR' ? ' rs-instructor' : '');
+      card.innerHTML = `<div class="rs-card-id">${r.id}</div><div class="rs-card-label">${r.label}</div>`;
+      card.addEventListener('click', () => {
+        setState({ role: r.id });
+        el.classList.remove('visible');
+        setTimeout(() => init(m.id, m.aircraft), 400);
+      });
+      cards.appendChild(card);
+    }
+
+    requestAnimationFrame(() => el.classList.add('visible'));
   }
 
   /* ── Init ── */

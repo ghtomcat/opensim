@@ -1,15 +1,19 @@
 {
   "id": "rabaul-1943",
+  "phase": "ground",
   "commProfile": "vhf-aviation",
   "characters": {
-    "atc":   { "commProfile": "vhf-aviation" },
-    "pilot": { "commProfile": "vhf-aviation" }
+    "atc": {
+      "commProfile": "vhf-aviation"
+    },
+    "pilot": {
+      "commProfile": "vhf-aviation"
+    }
   },
   "title": "No Bomber Lost · Rabaul",
   "description": "11 November 1943. Simpson Harbor. Ike Kepford. VF-17 Jolly Rogers. The bombers are counting on you.",
   "author": "Markus Leutwyler",
   "aircraft": "aircraft/f4u1a.json",
-
   "weather": {
     "source": "manual",
     "manual": {
@@ -21,29 +25,25 @@
       "turbulence": 0.15
     }
   },
-
   "initialState": {
-    "lat":   -5.0,
-    "lon":   154.2,
-    "alt":   50,
-    "spd":   0,
-    "hdg":   310,
+    "lat": -5.0,
+    "lon": 154.2,
+    "alt": 50,
+    "spd": 0,
+    "hdg": 310,
     "pitch": 0,
-    "roll":  0
+    "roll": 0
   },
-
   "departure": {
     "icao": "BUNKER",
     "name": "USS Bunker Hill CV-17",
     "runway": "31",
     "elevation": 50
   },
-
   "arrival": {
     "icao": "BUNKER",
     "name": "USS Bunker Hill CV-17"
   },
-
   "narrative": [
     "USS Bunker Hill. CV-17.",
     "Solomon Sea. 0830 local.",
@@ -55,7 +55,6 @@
     "Simpson Harbor is full of ships.",
     "The bombers are counting on you."
   ],
-
   "atcClearances": [
     {
       "t": 10,
@@ -98,25 +97,28 @@
       "voice": "crew"
     }
   ],
-
   "com": {
     "title": "ARC-5",
     "xpdrLabel": "IFF",
-    "active":  "4610",
+    "active": "4610",
     "standby": "4620",
     "freqs": {
-      "4610": { "label": "TASK FORCE" },
-      "4620": { "label": "STRIKE OPS" },
-      "4630": { "label": "GUARD" }
+      "4610": {
+        "label": "TASK FORCE"
+      },
+      "4620": {
+        "label": "STRIKE OPS"
+      },
+      "4630": {
+        "label": "GUARD"
+      }
     }
   },
-
   "debrief": [
     "All bombers returned?",
     "No ship hit by enemy action?",
     "R-2800 ran clean throughout?"
   ],
-
   "water": true,
   "timeOfDay": 8.5
 }

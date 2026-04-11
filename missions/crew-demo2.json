@@ -1,93 +1,234 @@
 {
-  "id":          "crew-demo2",
+  "id": "crew-demo2",
+  "phase": "launch",
   "commProfile": "ip-spacex",
   "characters": {
-    "narrator":  { "commProfile": "ip-spacex" },
-    "atc":       { "commProfile": "ip-spacex" },
-    "crew":      { "commProfile": "sband-crew" }
+    "narrator": {
+      "commProfile": "ip-spacex"
+    },
+    "atc": {
+      "commProfile": "ip-spacex"
+    },
+    "crew": {
+      "commProfile": "sband-crew"
+    }
   },
-  "title":       "Crew Dragon Demo-2",
+  "title": "Crew Dragon Demo-2",
   "description": "30 May 2020. Bob Behnken and Doug Hurley. First crewed Dragon. Stage 1 returns to LZ-1.",
-  "author":      "Markus Leutwyler",
-  "aircraft":    "falcon9-b5",
-  "dragonSepT":  780,
-
+  "author": "Markus Leutwyler",
+  "aircraft": "falcon9-b5-demo2",
+  "dragonSepT": 1020,
   "timeOfDay": 0.75,
-  "water":     false,
-
+  "water": false,
   "weather": {
     "source": "manual",
     "manual": {
-      "wdir": 110, "wspd": 5, "turbulence": 0.05, "altim": 1017, "temp": 28
+      "wdir": 110,
+      "wspd": 5,
+      "turbulence": 0.05,
+      "altim": 1017,
+      "temp": 28
     }
   },
-
   "initialState": {
-    "lat":   28.6080,
-    "lon":  -80.6040,
-    "alt":   6,
-    "spd":   0,
-    "hdg":  51,
+    "lat": 28.608,
+    "lon": -80.604,
+    "alt": 6,
+    "spd": 0,
+    "hdg": 51,
     "pitch": 90,
-    "roll":  0
+    "roll": 0
   },
-
   "departure": {
-    "name":      "Kennedy Space Center LC-39A",
+    "name": "Kennedy Space Center LC-39A",
     "elevation": 6
   },
-
   "arrival": null,
-
   "com": {
     "title": "MISSION AUDIO",
     "loops": [
-      { "id": "silence", "label": "SILENCE" }
+      {
+        "id": "silence",
+        "label": "SILENCE"
+      }
     ],
     "active": "silence"
   },
-
   "atcClearances": [
-    { "t":  0,  "text": "T minus 60 seconds. Launch Director is go for launch.",                   "voice": "atc" },
-    { "t":  5,  "speaker": "narrator", "audio": "audio/crew-demo2/f9_startup.mp3" },
-    { "t": 16,  "speaker": "narrator", "audio": "audio/crew-demo2/go_for_launch.mp3" },
-    { "t": 23,  "text": "T minus 37 seconds. Auto-sequence start.",                                "voice": "atc" },
-    { "t": 31,  "speaker": "narrator", "audio": "audio/crew-demo2/tanks_pressing.mp3" },
-    { "t": 48,  "speaker": "narrator", "audio": "audio/crew-demo2/ignition_liftoff.mp3" },
-    { "t": 61,  "text": "Abort mode 1-Alpha.",                                                    "voice": "atc" },
-    { "t": 62,  "text": "Copy. 1-Alpha.",                                                         "voice": "crew" },
-
-    { "event": "supersonic",     "text": "Vehicle is supersonic.",                                "voice": "atc" },
-    { "event": "maxq",           "text": "Max Q.",                                                "voice": "atc" },
-    { "event": "maxq", "_uid": "throttleup",  "text": "Go at throttle up.",                      "voice": "atc",  "delay": 4000 },
-    { "event": "maxq", "_uid": "throttleupc", "text": "Copy, go at throttle up.",                "voice": "crew", "delay": 5500 },
-    { "t": 133, "text": "Abort mode 1-Bravo.",                                                    "voice": "atc" },
-    { "t": 134, "text": "Copy. 1-Bravo.",                                                         "voice": "crew" },
-    { "t": 155, "text": "Dragon Endeavour, go for staging.",                                      "voice": "atc" },
-    { "t": 157, "text": "Copy, go for staging.",                                                   "voice": "crew" },
-    { "event": "ceco",           "text": "Center engine cutoff.",                                 "voice": "atc" },
-    { "event": "meco",           "text": "MECO confirmed.",                                       "voice": "atc" },
-    { "event": "stagesep", "_uid": "sep",  "text": "Stage separation confirmed.",                "voice": "atc", "delay": 200  },
-    { "event": "stagesep", "_uid": "las",  "text": "LAS jettison confirmed.",                    "voice": "atc", "delay": 3000 },
-    { "event": "stagesep", "_uid": "2a",   "text": "Abort mode 2-Alpha.",                        "voice": "atc", "delay": 4500 },
-    { "event": "stagesep", "_uid": "2ac",  "text": "Copy. 2-Alpha.",                             "voice": "crew", "delay": 5500 },
-    { "event": "stagesep", "_uid": "mvac", "text": "MVac ignition. Stage 2 go.",                "voice": "atc", "delay": 6000 },
-    { "t": 382, "text": "Abort mode 2-Bravo.",                                                    "voice": "atc" },
-    { "t": 383, "text": "Copy. 2-Bravo.",                                                         "voice": "crew" },
-    { "t": 415, "text": "Stage 2 nominal. Dragon, you are go for orbit insertion.",               "voice": "atc" },
-    { "t": 449, "text": "Abort mode 2-Charlie.",                                                  "voice": "atc" },
-    { "t": 450, "text": "Copy. 2-Charlie.",                                                       "voice": "crew" },
-    { "t": 529, "text": "Abort mode 2-Delta.",                                                    "voice": "atc" },
-    { "t": 530, "text": "Copy. 2-Delta.",                                                         "voice": "crew" },
-    { "t": 568, "text": "30 seconds to SECO.",                                                    "voice": "atc" },
-    { "event": "seco",           "text": "SECO confirmed. Dragon Endeavour is in orbit.",        "voice": "atc" },
-    { "event": "seco", "_uid": "ato",  "text": "Abort mode 2-Echo.",                             "voice": "atc",  "delay": 2000 },
-    { "event": "seco", "_uid": "atoc", "text": "Copy. 2-Echo. Dragon is go for orbit ops.",     "voice": "crew", "delay": 3500 },
-    { "event": "orbit",          "text": "Nominal orbit insertion. Dragon separation in 22 minutes.", "voice": "atc" },
-
-    { "event": "booster_landing", "text": "Stage 1 landing burn. Touchdown confirmed. LZ-1.",   "voice": "atc" }
+    {
+      "t": 0,
+      "speaker": "narrator",
+      "audio": "audio/crew-demo2/demo2_raw.mp3"
+    },
+    {
+      "t": 301,
+      "text": "Abort mode 1-Alpha.",
+      "voice": "atc"
+    },
+    {
+      "t": 302,
+      "text": "Copy. 1-Alpha.",
+      "voice": "crew"
+    },
+    {
+      "event": "supersonic",
+      "text": "Vehicle is supersonic.",
+      "voice": "atc"
+    },
+    {
+      "event": "maxq",
+      "text": "Max Q.",
+      "voice": "atc"
+    },
+    {
+      "event": "maxq",
+      "_uid": "throttleup",
+      "text": "Go at throttle up.",
+      "voice": "atc",
+      "delay": 4000
+    },
+    {
+      "event": "maxq",
+      "_uid": "throttleupc",
+      "text": "Copy, go at throttle up.",
+      "voice": "crew",
+      "delay": 5500
+    },
+    {
+      "t": 373,
+      "text": "Abort mode 1-Bravo.",
+      "voice": "atc"
+    },
+    {
+      "t": 374,
+      "text": "Copy. 1-Bravo.",
+      "voice": "crew"
+    },
+    {
+      "t": 395,
+      "text": "Dragon Endeavour, go for staging.",
+      "voice": "atc"
+    },
+    {
+      "t": 397,
+      "text": "Copy, go for staging.",
+      "voice": "crew"
+    },
+    {
+      "event": "ceco",
+      "text": "Center engine cutoff.",
+      "voice": "atc"
+    },
+    {
+      "event": "meco",
+      "text": "MECO confirmed.",
+      "voice": "atc"
+    },
+    {
+      "event": "stagesep",
+      "_uid": "sep",
+      "text": "Stage separation confirmed.",
+      "voice": "atc",
+      "delay": 200
+    },
+    {
+      "event": "stagesep",
+      "_uid": "las",
+      "text": "LAS jettison confirmed.",
+      "voice": "atc",
+      "delay": 3000
+    },
+    {
+      "event": "stagesep",
+      "_uid": "2a",
+      "text": "Abort mode 2-Alpha.",
+      "voice": "atc",
+      "delay": 4500
+    },
+    {
+      "event": "stagesep",
+      "_uid": "2ac",
+      "text": "Copy. 2-Alpha.",
+      "voice": "crew",
+      "delay": 5500
+    },
+    {
+      "event": "stagesep",
+      "_uid": "mvac",
+      "text": "MVac ignition. Stage 2 go.",
+      "voice": "atc",
+      "delay": 6000
+    },
+    {
+      "t": 622,
+      "text": "Abort mode 2-Bravo.",
+      "voice": "atc"
+    },
+    {
+      "t": 623,
+      "text": "Copy. 2-Bravo.",
+      "voice": "crew"
+    },
+    {
+      "t": 655,
+      "text": "Stage 2 nominal. Dragon, you are go for orbit insertion.",
+      "voice": "atc"
+    },
+    {
+      "t": 689,
+      "text": "Abort mode 2-Charlie.",
+      "voice": "atc"
+    },
+    {
+      "t": 690,
+      "text": "Copy. 2-Charlie.",
+      "voice": "crew"
+    },
+    {
+      "t": 769,
+      "text": "Abort mode 2-Delta.",
+      "voice": "atc"
+    },
+    {
+      "t": 770,
+      "text": "Copy. 2-Delta.",
+      "voice": "crew"
+    },
+    {
+      "t": 808,
+      "text": "30 seconds to SECO.",
+      "voice": "atc"
+    },
+    {
+      "event": "seco",
+      "text": "SECO confirmed. Dragon Endeavour is in orbit.",
+      "voice": "atc"
+    },
+    {
+      "event": "seco",
+      "_uid": "ato",
+      "text": "Abort mode 2-Echo.",
+      "voice": "atc",
+      "delay": 2000
+    },
+    {
+      "event": "seco",
+      "_uid": "atoc",
+      "text": "Copy. 2-Echo. Dragon is go for orbit ops.",
+      "voice": "crew",
+      "delay": 3500
+    },
+    {
+      "event": "orbit",
+      "text": "Nominal orbit insertion. Dragon separation in 22 minutes.",
+      "voice": "atc"
+    },
+    {
+      "event": "booster_landing",
+      "text": "Stage 1 landing burn. Touchdown confirmed. LZ-1.",
+      "voice": "atc"
+    }
   ],
-
   "narrative": [
     "Kennedy Space Center.",
     "Launch Complex 39A.",
@@ -97,7 +238,6 @@
     "Dragon Endeavour.",
     "Stage 1 comes home to LZ-1."
   ],
-
   "debrief": [
     "Did stage 1 perform the boostback burn?",
     "Did the booster land at LZ-1?",

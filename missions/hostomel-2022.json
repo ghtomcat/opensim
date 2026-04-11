@@ -1,5 +1,6 @@
 {
   "id": "hostomel-2022",
+  "phase": "ground",
   "commProfile": "vhf-aviation",
   "characters": {
     "atc": {

@@ -1,5 +1,6 @@
 {
   "id": "lszf-pattern",
+  "phase": "circuit",
   "title": "VFR Pattern — Speck-Fehraltorf LSZF",
   "description": "VFR traffic pattern at home base LSZF. Cessna 172. PPL training.",
   "author": "Markus Leutwyler",
