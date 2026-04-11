@@ -65,7 +65,11 @@ This is not arbitrary. It is the same model Linus Torvalds uses for the Linux ke
 
 If a contribution does not meet the standard — historically inaccurate, disrespectful, or in violation of the manifest — it does not merge. No negotiation required. The maintainer's judgment is final.
 
-If you believe something in the project violates these principles, open an issue. Describe the problem clearly. It will be taken seriously.
+The same applies to how people are treated. Harassment, bullying, or disrespect toward any contributor — for any reason — gets the same response as a bad PR: it doesn't land. If it persists, access to the repository is revoked. No warnings required. No second chances owed.
+
+Who doesn't show respect gets the boot.
+
+If you believe something in the project violates these principles — a bad contribution or bad behavior toward a contributor — open an issue. Describe the problem clearly. It will be taken seriously.
 
 If your contribution was rejected and you disagree, you are welcome to fork the project. That is what open source allows. But the standard here does not move.
 
