@@ -32,7 +32,7 @@ export async function loadMission(missionPath, aircraftPath) {
 
   /* Engine state: v12 starts 'off' on ground (manual startup sequence via E key).
      All other manualControl aircraft start 'running' — no startup procedure. */
-  const isV12 = aircraft.sound?.engineType === 'v12-supercharged';
+  const isV12 = ['v12-supercharged', 'radial-2000hp'].includes(aircraft.sound?.engineType);
   const startEngineState = (startOnGround && isV12) ? 'off' : 'running';
 
   setState({

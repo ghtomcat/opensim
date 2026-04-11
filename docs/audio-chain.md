@@ -149,10 +149,79 @@ Web Audio decodes WAV natively — no conversion needed.
 
 ### Archival recordings (Demo-2, Apollo, Vostok)
 
-1. Source clip from public recording (NASA audio = public domain)
-2. Cut to relevant moment, export as MP3 or WAV
-3. Place in `audio/[mission_id]/`
-4. Apply appropriate profile: `sband-apollo`, `ip-spacex`, `vhf-vostok`
+#### 1. Download the source
+
+```bash
+# YouTube webcast — outputs to audio/[mission_id]/raw.mp3
+yt-dlp -x --audio-format mp3 -o "audio/crew-demo2/webcast.%(ext)s" "https://..."
+
+# Or cut a specific time window directly (saves bandwidth):
+yt-dlp -x --audio-format mp3 \
+  --download-sections "*01:44:40-01:46:40" \
+  -o "audio/crew-demo2/demo2_raw.%(ext)s" \
+  "https://..."
+```
+
+#### 2. Identify timestamps
+
+Watch the raw clip and note the offset (seconds from clip start) of each moment you want.
+
+Example (Demo-2, raw clip starts at webcast T-1:00 = mission t=0):
+
+| Offset in clip | Mission t | Content |
+|---|---|---|
+| 0:05 | t=5 | "Falcon 9 is in startup" |
+| 0:16 | t=16 | "Dragon SpaceX, you are go for launch" + crew |
+| 0:31 | t=31 | "Stage one tanks pressing for flight" |
+| 0:48 | t=48 | Countdown + ignition + "Godspeed Bob and Doug" |
+
+#### 3. Cut individual clips
+
+```bash
+ffmpeg -y -ss 0:00:05 -i audio/crew-demo2/demo2_raw.mp3 -t 6  -q:a 0 audio/crew-demo2/f9_startup.mp3
+ffmpeg -y -ss 0:00:16 -i audio/crew-demo2/demo2_raw.mp3 -t 8  -q:a 0 audio/crew-demo2/go_for_launch.mp3
+ffmpeg -y -ss 0:00:31 -i audio/crew-demo2/demo2_raw.mp3 -t 5  -q:a 0 audio/crew-demo2/tanks_pressing.mp3
+ffmpeg -y -ss 0:00:48 -i audio/crew-demo2/demo2_raw.mp3 -t 20 -q:a 0 audio/crew-demo2/ignition_liftoff.mp3
+```
+
+`-ss` before `-i` = fast seek. `-t` = duration in seconds. `-q:a 0` = best MP3 quality.
+
+#### 4. Wire into mission JSON
+
+Add a `characters` block to the mission with the correct commProfile for each speaker, then reference clips with `speaker` + `audio`:
+
+```json
+{
+  "commProfile": "ip-spacex",
+  "characters": {
+    "narrator": { "commProfile": "ip-spacex" },
+    "atc":      { "commProfile": "ip-spacex" },
+    "crew":     { "commProfile": "sband-crew" }
+  },
+  "atcClearances": [
+    { "t":  5, "speaker": "narrator", "audio": "audio/crew-demo2/f9_startup.mp3" },
+    { "t": 16, "speaker": "narrator", "audio": "audio/crew-demo2/go_for_launch.mp3" },
+    { "t": 31, "speaker": "narrator", "audio": "audio/crew-demo2/tanks_pressing.mp3" },
+    { "t": 48, "speaker": "narrator", "audio": "audio/crew-demo2/ignition_liftoff.mp3" }
+  ]
+}
+```
+
+The `speaker` field resolves `characters[speaker].commProfile` at playback time. No extra field needed.
+
+#### 5. Profile for each source
+
+| Source | Profile |
+|---|---|
+| SpaceX webcast (John Insprucker, Kate Tice, webcast room) | `ip-spacex` |
+| SpaceX CAPCOM (Mission Control to crew) | `ip-spacex` |
+| Crew inside Dragon | `sband-crew` *(add when H4n recordings land)* |
+| NASA public affairs / MSFN (Apollo) | `sband-apollo` |
+| Soviet ground (Vostok) | `vhf-vostok` |
+
+#### License note
+
+NASA audio is public domain. SpaceX webcasts are © SpaceX — use only for non-commercial simulation and education. The audio files are excluded from the repo (`.gitignore`) and are not redistributed.
 
 ---
 
@@ -214,7 +283,7 @@ Then reference it in mission JSON: `"commProfile": "my-profile"`.
 | 1 — Radio chain | ✓ Done | `createRadioChain()`, 5 profiles, crackle worklet |
 | 2 — MP3 playback | ✓ Done | `audio:` field in callouts, `playRadio()` in crew.js |
 | 3 — Environment bleed | ✓ Done | Engine tap from sound.js into cockpit profiles |
-| 4 — Character system | Planned | `characters:` block in mission JSON, per-character voice + profile |
+| 4 — Character system | ✓ Done | `characters:` block in mission JSON, per-character commProfile + `speaker:` field on callouts |
 | 5 — Era sounds | Future | AFSK data bursts (SpaceX), biomedical beeps (Apollo), SELCAL |
 
 ---
@@ -229,4 +298,9 @@ Then reference it in mission JSON: `"commProfile": "my-profile"`.
 | `core/sound.js` | `getAudioContext()`, `getEngineBleedNode()` — shared context + engine tap |
 | `scripts/analyze-radio.py` | Spectral analysis — clean vs processed comparison |
 | `audio/hostomel/atc_olena.mp3` | Ukrainian ATC voice (ElevenLabs, Olena) |
+| `audio/crew-demo2/demo2_raw.mp3` | Demo-2 webcast raw clip (T-60 to T+60), not committed |
+| `audio/crew-demo2/f9_startup.mp3` | "Falcon 9 is in startup" — John Insprucker, t=5 |
+| `audio/crew-demo2/go_for_launch.mp3` | Go for launch comm + crew — t=16 |
+| `audio/crew-demo2/tanks_pressing.mp3` | "Stage one tanks pressing" — t=31 |
+| `audio/crew-demo2/ignition_liftoff.mp3` | Countdown + ignition + Godspeed — t=48 |
 | `docs/db601-synthesis.md` | Companion doc — DB 601 engine synthesis |

@@ -1,5 +1,11 @@
 {
   "id":          "crew-demo2",
+  "commProfile": "ip-spacex",
+  "characters": {
+    "narrator":  { "commProfile": "ip-spacex" },
+    "atc":       { "commProfile": "ip-spacex" },
+    "crew":      { "commProfile": "sband-crew" }
+  },
   "title":       "Crew Dragon Demo-2",
   "description": "30 May 2020. Bob Behnken and Doug Hurley. First crewed Dragon. Stage 1 returns to LZ-1.",
   "author":      "Markus Leutwyler",
@@ -43,16 +49,11 @@
 
   "atcClearances": [
     { "t":  0,  "text": "T minus 60 seconds. Launch Director is go for launch.",                   "voice": "atc" },
-    { "t":  3,  "text": "Dragon Endeavour, Mission Control. You are go for launch.",               "voice": "atc" },
-    { "t":  5,  "text": "Copy. Go for launch.",                                                    "voice": "crew" },
+    { "t":  5,  "speaker": "narrator", "audio": "audio/crew-demo2/f9_startup.mp3" },
+    { "t": 16,  "speaker": "narrator", "audio": "audio/crew-demo2/go_for_launch.mp3" },
     { "t": 23,  "text": "T minus 37 seconds. Auto-sequence start.",                                "voice": "atc" },
-    { "t": 30,  "text": "T minus 30.",                                                             "voice": "atc" },
-    { "t": 45,  "text": "T minus 15. Vehicle in terminal count.",                                  "voice": "atc" },
-    { "t": 50,  "text": "10. 9. 8. 7. 6. 5. 4. 3. 2. 1.",                                      "voice": "atc" },
-    { "t": 53,  "text": "Vehicle in startup.",                                                     "voice": "atc" },
-    { "t": 57,  "text": "Ignition sequence start.",                                                "voice": "atc" },
-    { "t": 59,  "text": "Engines at full thrust.",                                                 "voice": "atc" },
-    { "t": 60,  "text": "Liftoff. Falcon 9 lifts off with Crew Dragon Endeavour.",               "voice": "atc" },
+    { "t": 31,  "speaker": "narrator", "audio": "audio/crew-demo2/tanks_pressing.mp3" },
+    { "t": 48,  "speaker": "narrator", "audio": "audio/crew-demo2/ignition_liftoff.mp3" },
     { "t": 61,  "text": "Abort mode 1-Alpha.",                                                    "voice": "atc" },
     { "t": 62,  "text": "Copy. 1-Alpha.",                                                         "voice": "crew" },
 

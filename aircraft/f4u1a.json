@@ -1,0 +1,140 @@
+{
+  "id": "f4u1a",
+  "name": "Vought F4U-1A Corsair",
+  "callsign": "Jolly 1",
+  "icaoType": "CORS",
+
+  "envelope": {
+    "cruiseAlt": 20000,
+    "maxAlt":    36000,
+    "cruiseSpd": 220,
+    "maxSpd":    362,
+    "spdProfile": {
+      "36000": 330,
+      "20000": 280,
+      "10000": 260,
+      "5000":  230,
+      "1000":  200,
+      "0":     160
+    }
+  },
+
+  "manualControl": true,
+
+  "performance": {
+    "mass":      5000,
+    "wingArea":  29.17,
+    "thrustMax": 16000,
+    "CL_0":      0.15,
+    "CL_alpha":  5.2,
+    "CL_max":    1.5,
+    "CD_0":      0.024,
+    "gearDrag":  0.014,
+    "inducedK":  0.070,
+    "Vr":        95,
+    "muRoll":    0.03,
+    "muBrake":   0.30
+  },
+
+  "handling": {
+    "rollRate":  40,
+    "pitchRate":  5,
+    "spdRate":    3,
+    "maxBank":   90,
+    "maxPitch":  30
+  },
+
+  "flaps": [
+    { "label": "UP",   "dCL_max": 0.0,  "dCD_0": 0.000 },
+    { "label": "TAKE", "dCL_max": 0.3,  "dCD_0": 0.020 },
+    { "label": "LAND", "dCL_max": 0.6,  "dCD_0": 0.075 }
+  ],
+
+  "sound": {
+    "engineType": "radial-2000hp"
+  },
+
+  "com": {
+    "title": "ARC-5",
+    "xpdrLabel": "IFF",
+    "active":  "4610",
+    "standby": "4620",
+    "freqs": {
+      "4610": { "label": "TASK FORCE" },
+      "4620": { "label": "STRIKE OPS" },
+      "4630": { "label": "GUARD" }
+    }
+  },
+
+  "situations": [
+    { "label": "CRUISE",   "alt": 15000, "spd": 220, "hdg": 270, "altT": 15000, "spdT": 220 },
+    { "label": "COMBAT",   "alt": 20000, "spd": 280, "hdg": 270, "altT": 20000, "spdT": 320 },
+    { "label": "APPROACH", "alt": 3000,  "spd": 140, "hdg": 270, "altT": 500,   "spdT": 100 }
+  ],
+
+  "thrustProfiles": [
+    { "label": "IDLE",      "spdT": 0   },
+    { "label": "CRUISE",    "spdT": 220 },
+    { "label": "COMBAT",    "spdT": 320 },
+    { "label": "EMERGENCY", "spdT": 362 }
+  ],
+
+  "fmaPhases": [
+    { "minAlt": 5000, "vals": ["MAN", "", "HDG", "CLB", ""], "cols": ["white","white","green","cyan","white"] },
+    { "minAlt": 1000, "vals": ["MAN", "", "HDG", "DES", ""], "cols": ["white","white","green","cyan","white"] },
+    { "minAlt": 0,    "vals": ["MAN", "", "HDG", "APP", ""], "cols": ["white","white","green","green","white"] }
+  ],
+
+  "gpws": [
+    { "alt": 1000, "text": "1 0 0 0", "speech": "one thousand", "red": false },
+    { "alt": 500,  "text": "5 0 0",   "speech": "five hundred", "red": false },
+    { "alt": 100,  "text": "1 0 0",   "speech": "one hundred",  "red": true  }
+  ],
+
+  "pmCallouts": [],
+
+  "kneeboard": [
+    {
+      "title": "ENGINE FAILURE",
+      "type": "checklist",
+      "items": [
+        "Throttle ............... IDLE",
+        "Mixture ................ IDLE CUT-OFF",
+        "Fuel selector .......... OFF",
+        "Landing site ........... SELECT",
+        "Radio .................. MAYDAY",
+        "Gear ................... DOWN",
+        "Flaps .................. LAND",
+        "Airspeed ............... 100 kt",
+        "Harness ................ TIGHT"
+      ]
+    },
+    {
+      "title": "COMBAT NOTES",
+      "type": "briefing",
+      "items": [
+        "Bougainville. 11 November 1943.",
+        "Armistice Day.",
+        "VF-17 Jolly Rogers.",
+        "CAP at 15,000 ft.",
+        "Bounce from above. Use altitude.",
+        "R-2800 will not quit.",
+        "Bring the Wasp home."
+      ]
+    }
+  ],
+
+  "onboarding": [
+    { "key": "Mouse (hold) / Arrow keys", "desc": "Stick · Rudder" },
+    { "key": "F",                         "desc": "Flaps (cycle)" },
+    { "key": "G",                         "desc": "Gear (toggle)" },
+    { "key": "F1",                        "desc": "Idle (throttle off)" },
+    { "key": "+ / −",                     "desc": "Throttle ±" },
+    { "key": "t / T",                     "desc": "Elevator trim" },
+    { "key": "B (hold)",                  "desc": "Brakes" },
+    { "key": "V",                         "desc": "External view" },
+    { "key": "K",                         "desc": "Kneeboard" },
+    { "key": "N",                         "desc": "Map" },
+    { "key": "P",                         "desc": "Pause" }
+  ]
+}

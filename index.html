@@ -2596,20 +2596,24 @@
     let _viewBeforeNiflheim = 0;
     const audioEl = document.getElementById('pv-audio');
 
-    const _isV12 = engineType === 'v12-supercharged';
+    const _isV12    = engineType === 'v12-supercharged';
+    const _isRadial = engineType === 'radial-2000hp';
+    const _hasLifecycle = _isV12 || _isRadial;
 
     const dismissOnboarding = () => {
       obEl.classList.remove('visible');
       setTimeout(() => { obEl.style.display = 'none'; }, 500);
       window.removeEventListener('keydown', dismissOnboarding);
       obEl.removeEventListener('click', dismissOnboarding);
-      if (_isV12) {
+      if (_hasLifecycle) {
         if (S.engineState === 'running') {
-          /* Airborne start — engine already running, skip Anlasser */
+          /* Airborne start — engine already running, skip startup sequence */
           startSound(engineType);
         } else {
           /* Ground start — engine off, user presses E */
-          audioEl.textContent = 'OFF · E=ANLASSER · Q=AUS';
+          audioEl.textContent = _isV12
+            ? 'OFF · E=ANLASSER · Q=AUS'
+            : 'OFF · E=START · Q=CUT OFF';
           audioEl.className   = 'panel-value';
         }
       } else {
@@ -2632,19 +2636,18 @@
       if (e.key === 'n' || e.key === 'N') { toggleMap(); return; }
 
       /* E — Anlasser (v12 only) */
-      if ((e.key === 'e' || e.key === 'E') && _isV12) {
+      if ((e.key === 'e' || e.key === 'E') && _hasLifecycle) {
         startEngineLifecycle();
         return;
       }
 
-      if ((e.key === 'q' || e.key === 'Q') && _isV12) {
-        /* Q = Kraftstoffhahn zu — Motor aus */
+      if ((e.key === 'q' || e.key === 'Q') && _hasLifecycle) {
         stopEngineLifecycle();
         return;
       }
 
       if (e.key === 'm' || e.key === 'M') {
-        if (!_isV12) {
+        if (!_hasLifecycle) {
           _audioOn = !_audioOn;
           if (_audioOn) { startSound(engineType); audioEl.textContent = 'ON';  audioEl.className = 'panel-value green'; }
           else          { stopSound();            audioEl.textContent = 'OFF'; audioEl.className = 'panel-value'; }
@@ -2775,19 +2778,27 @@
     warpEl.textContent = `⏩ ${warp}×`;
     warpEl.classList.toggle('active', warp > 1 && S.aircraft?.vehicleType === 'rocket');
 
-    /* Engine state display — v12 lifecycle */
-    const isV12 = S.aircraft?.sound?.engineType === 'v12-supercharged';
-    document.getElementById('pl-audio').textContent = isV12 ? 'Motor' : 'Audio';
-    document.getElementById('ps-rpm').style.display = isV12 ? 'none' : '';
-    if (isV12) {
+    /* Engine state display — lifecycle engines (v12 + radial) */
+    const _et        = S.aircraft?.sound?.engineType;
+    const isV12      = _et === 'v12-supercharged';
+    const isRadial   = _et === 'radial-2000hp';
+    const hasLifecycle = isV12 || isRadial;
+    document.getElementById('pl-audio').textContent = hasLifecycle ? 'Motor' : 'Audio';
+    document.getElementById('ps-rpm').style.display = hasLifecycle ? 'none' : '';
+    if (hasLifecycle) {
       const st     = S.engineState ?? 'off';
       const rpmNow = getCurrentRpm();
       const hasRpm = rpmNow && !rpmNow.startsWith('---');
-      const labels = {
+      const labels = isV12 ? {
         off:      'OFF · E=AN',
         starting: hasRpm ? 'ANLASSER · ' + rpmNow : 'ANLASSER…',
         running:  hasRpm ? rpmNow : 'RUNNING',
         shutdown: 'MOTOR AUS…',
+      } : {
+        off:      'OFF · E=START',
+        starting: hasRpm ? 'STARTING · ' + rpmNow : 'STARTING…',
+        running:  hasRpm ? rpmNow : 'RUNNING',
+        shutdown: 'SHUTTING DOWN…',
       };
       const colors = { off: 'panel-value', starting: 'panel-value', running: 'panel-value green', shutdown: 'panel-value' };
       const audioEl = document.getElementById('pv-audio');

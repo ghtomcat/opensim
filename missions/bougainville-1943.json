@@ -1,0 +1,116 @@
+{
+  "id": "bougainville-1943",
+  "commProfile": "vhf-aviation",
+  "characters": {
+    "atc":   { "commProfile": "vhf-aviation" },
+    "pilot": { "commProfile": "vhf-aviation" }
+  },
+  "title": "The Wasp · Bougainville",
+  "description": "11 November 1943. Armistice Day. Big Ed Beeler. Four kills. VF-17 Jolly Rogers.",
+  "author": "Markus Leutwyler",
+  "aircraft": "aircraft/f4u1a.json",
+
+  "weather": {
+    "source": "manual",
+    "manual": {
+      "temp": 28,
+      "wdir": 120,
+      "wspd": 12,
+      "visibility": 9999,
+      "altim": 1013,
+      "turbulence": 0.1
+    }
+  },
+
+  "initialState": {
+    "lat":   -6.2,
+    "lon":   155.1,
+    "alt":   15000,
+    "spd":   220,
+    "hdg":   270,
+    "pitch": 0,
+    "roll":  0
+  },
+
+  "departure": {
+    "icao": "AYMO",
+    "name": "Ondonga, New Georgia",
+    "runway": "27",
+    "elevation": 50
+  },
+
+  "arrival": {
+    "icao": "AYMO",
+    "name": "Ondonga, New Georgia"
+  },
+
+  "narrative": [
+    "Bougainville. South Pacific.",
+    "11 November 1943.",
+    "Armistice Day.",
+    "Twenty-five years since the last one ended.",
+    "Big Ed Beeler. VF-17 Jolly Rogers.",
+    "CAP at fifteen thousand feet.",
+    "The Wasp is on his nose.",
+    "She has no idea what's coming."
+  ],
+
+  "atcClearances": [
+    {
+      "t": 10,
+      "text": "Jolly flight, bogeys bearing three-five-zero, angels twelve, thirty miles. Multiple contacts.",
+      "voice": "atc"
+    },
+    {
+      "t": 18,
+      "text": "Jolly 1, copy. Tally-ho.",
+      "voice": "crew"
+    },
+    {
+      "t": 120,
+      "text": "Jolly 1, splash one. Good kill.",
+      "voice": "atc"
+    },
+    {
+      "t": 210,
+      "text": "Jolly 1, splash two.",
+      "voice": "atc"
+    },
+    {
+      "t": 310,
+      "text": "Jolly 1, splash three.",
+      "voice": "atc"
+    },
+    {
+      "t": 430,
+      "text": "Jolly 1, splash four. Break off. RTB.",
+      "voice": "atc"
+    },
+    {
+      "t": 438,
+      "text": "Jolly 1, RTB. The Wasp is coming home.",
+      "voice": "crew"
+    }
+  ],
+
+  "com": {
+    "title": "ARC-5",
+    "xpdrLabel": "IFF",
+    "active":  "4610",
+    "standby": "4620",
+    "freqs": {
+      "4610": { "label": "TASK FORCE" },
+      "4620": { "label": "STRIKE OPS" },
+      "4630": { "label": "GUARD" }
+    }
+  },
+
+  "debrief": [
+    "Four kills confirmed?",
+    "R-2800 ran clean throughout?",
+    "RTB without damage?"
+  ],
+
+  "water": true,
+  "timeOfDay": 10.5
+}

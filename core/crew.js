@@ -276,11 +276,13 @@ function _checkATC(prev, curr, ms) {
 
     const delay = clr.delay ?? 200;
 
-    /* Single-voice format: { text, voice } or { audio, voice } */
+    /* Single-voice format: { text, voice } or { audio, voice } or { speaker, audio } */
     if (clr.text !== undefined || clr.audio !== undefined) {
       /* Pre-recorded audio file — route through radio chain */
       if (clr.audio !== undefined) {
-        const profile = clr.commProfile ?? S.mission?.commProfile ?? 'vhf-aviation';
+        /* Resolve commProfile: callout → character → mission → default */
+        const char    = clr.speaker ? S.mission?.characters?.[clr.speaker] : null;
+        const profile = clr.commProfile ?? char?.commProfile ?? S.mission?.commProfile ?? 'vhf-aviation';
         setTimeout(() => playRadio(clr.audio, { profile }), delay);
         return;
       }

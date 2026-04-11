@@ -58,6 +58,17 @@
 The V12 startup lifecycle takes ~71 seconds cold, ~55 seconds warm, ~12 seconds hot.  
 Engine state: `off → starting → idle → running → shutdown → off`
 
+### F4U-1A Corsair / R-2800 Double Wasp (radial-2000hp)
+
+| Key | Action |
+|-----|--------|
+| `E` | Start engine — inertial starter + runup lifecycle |
+| `Q` | Cut off — shut down engine |
+
+The R-2800 startup takes ~64 seconds cold, ~50 seconds warm, ~38 seconds hot.  
+Individual cylinders engage one by one (15–120 RPM) — distinct "brabbel" puffs before all 18 are online.  
+Engine state: `off → starting → running → shutdown → off`
+
 ### Rocket missions (Falcon 1, Falcon 9)
 
 | Key | Action |

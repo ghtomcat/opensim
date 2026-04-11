@@ -166,6 +166,30 @@ const ENGINES = {
     supercharger2FreqMax:  1400,
     supercharger2Gain:     0.18,
   },
+  'radial-2000hp': {
+    // Pratt & Whitney R-2800-8 Double Wasp — impulse-based synthesis
+    // 18 cylinders, twin-row (9 front + 9 rear), single-stage two-speed supercharger
+    // Calibration target: https://www.youtube.com/watch?v=P1cTOLemXLA
+    // Measured warm idle: ~750 RPM (56.5 Hz fundamental × 120/9)
+    // Harmonic series extends to 8-9× fundamental (~450-500 Hz at idle)
+    // Throttle push at 2:36 → ~860-1077 RPM max in ground recording
+    // See docs/sound-calibration.md for methodology
+    impulse:          true,
+    workletFile:      './core/r2800-processor.js',
+    workletName:      'r2800-processor',
+    rpmIdle:          750,
+    rpmMax:           2700,
+    masterGain:       0.78,
+    // Single-stage supercharger — lower, thicker whine than DB 605
+    // Supercharger: 479-584 Hz peaks in reference are 8-9th harmonics of firing,
+    // not the supercharger. Real impeller frequency (7.5:1 gear, ~16 blades):
+    //   750 RPM × 7.5 × 16/60 ≈ 1500 Hz idle → 4050 Hz at 2700 RPM
+    // Largely masked by cowling in outside recording — subtle in synthesis.
+    supercharger:          true,
+    superchargerFreqIdle: 1500,     // Hz — impeller fundamental at ~750 RPM idle
+    superchargerFreqMax:  4050,     // Hz — at 2700 RPM combat power
+    superchargerGain:     0.10,     // very subtle — cowling absorbs most
+  },
 };
 
 export const ENGINE_TYPES = Object.keys(ENGINES);
@@ -173,14 +197,30 @@ export const ENGINE_TYPES = Object.keys(ENGINES);
 export function getCurrentRpm() {
   if (!_cfg) return null;
 
-  /* During v12 startup: compute RPM from elapsed time, matching synthesis curves */
+  /* During engine startup: compute RPM from elapsed time, matching synthesis curves */
   if (_lifecycleStartedAt !== null && _ctx) {
-    const elapsed  = _ctx.currentTime - _lifecycleStartedAt;
+    const elapsed = _ctx.currentTime - _lifecycleStartedAt;
+    if (_engineType === 'radial-2000hp') {
+      /* R-2800: flywheel(cold26s/warm12s/hot0s) → klonk(0.18s) → motoring(2.8s) → runup(35s) */
+      const oilC       = S.oilTempC ?? 15;
+      const flywheelDur = oilC >= 60 ? 0 : oilC >= 30 ? 12.0 : 26.0;
+      const motorStart  = oilC >= 60 ? 0 : flywheelDur + 0.06 + 0.18 + 0.06;
+      const runStart    = motorStart + 2.8 + 0.06;
+      if (elapsed < motorStart) return '--- RPM';                    // flywheel phase
+      if (elapsed < runStart) {
+        const p = Math.min(1, (elapsed - motorStart) / 2.8);
+        return Math.round(65 - p * 18) + ' RPM';                    // motoring 65→47
+      }
+      const p = Math.min(1, (elapsed - runStart) / 35.0);
+      const idleRpm = _cfg?.rpmIdle ?? 750;
+      return Math.round(65 + (idleRpm - 65) * Math.pow(p, 0.6)) + ' RPM';  // runup 65→idle
+    }
+    /* v12-supercharged: flywheel(cold26s) → klonk → motoring(2.8s) → runup(42s) */
     const runStart = 26.0 + 0.06 + 0.18 + 0.06 + 2.8 + 0.06;   // 29.16s
-    if (elapsed < 26.0) return '--- RPM';                         // flywheel only
+    if (elapsed < 26.0) return '--- RPM';                          // flywheel only
     if (elapsed < runStart) {
       const p = Math.min(1, (elapsed - 26.0 - 0.06 - 0.18 - 0.06) / 2.8);
-      return Math.round(65 - p * 18) + ' RPM';                    // motoring 65→47
+      return Math.round(65 - p * 18) + ' RPM';                     // motoring 65→47
     }
     const p = Math.min(1, (elapsed - runStart) / 42.0);
     const idleRpm = _cfg?.rpmIdle ?? 1000;
@@ -1444,6 +1484,320 @@ function _assembleStartup(sr) {
   return full;
 }
 
+/* ══════════════════════════════════════════════════
+   R-2800 PRE-IGNITION MOTORING
+   Engine turned over by inertial starter, no combustion.
+   18-cylinder twin-row compression thuds, 720° cycle.
+   ══════════════════════════════════════════════════ */
+
+function _synthR2800Motoring(sr, duration = 2.8) {
+  const N = Math.floor(sr * duration);
+  const buf = new Float32Array(N);
+
+  /* 18 compression angles in 720° cycle */
+  const anglesA = Array.from({ length: 9 }, (_, i) => ((i * 80) + (Math.random() - 0.5) * 8) % 720);
+  const anglesB = Array.from({ length: 9 }, (_, i) => ((i * 80 + 20) + (Math.random() - 0.5) * 8) % 720);
+  const compGain = Array.from({ length: 18 }, () => 0.6 + Math.random() * 0.8);
+
+  /* Low-frequency compression resonator ~55 Hz (near R-2800 idle fundamental) */
+  const resR = 0.91;
+  const resCos = Math.cos(2 * Math.PI * 55 / sr);
+  const resSin = Math.sin(2 * Math.PI * 55 / sr);
+  let resX = 0, resY = 0;
+
+  const transDecay = Math.exp(-180 / sr);   // ~5ms thud
+  const bodyDecay  = Math.exp(-35  / sr);   // ~30ms rumble
+  let trans = 0, body = 0;
+  let lfsr = 0xBEEF;
+  let angle = 0;
+
+  for (let i = 0; i < N; i++) {
+    const t = i / sr, progress = t / duration;
+    /* RPM climbs from 20→65 as inertial starter engages — magnetos on at ~60 RPM */
+    const rpm = 20 + (65 - 20) * Math.pow(progress, 0.4);
+    const degs = rpm * 360 / 60 / sr;
+    const prev = angle;
+    angle = (angle + degs) % 720;
+
+    /* Compression thuds — soft, no bang (no ignition) */
+    for (let c = 0; c < 9; c++) {
+      if ((prev < anglesA[c] && angle >= anglesA[c]) || (prev > angle && (anglesA[c] >= prev || anglesA[c] < angle))) {
+        const amp = compGain[c] * 0.28;
+        trans += amp; body += amp * 0.6;
+      }
+      if ((prev < anglesB[c] && angle >= anglesB[c]) || (prev > angle && (anglesB[c] >= prev || anglesB[c] < angle))) {
+        const amp = compGain[9 + c] * 0.25;
+        trans += amp; body += amp * 0.6;
+      }
+    }
+    trans *= transDecay;
+    body  *= bodyDecay;
+
+    lfsr ^= lfsr << 13; lfsr ^= lfsr >> 17; lfsr ^= lfsr << 5;
+    const noise = (lfsr & 0xFFFF) / 32768 - 1;
+    const raw = trans * 0.5 + body * noise * 0.25;
+
+    const nx = resR * (resX * resCos - resY * resSin) + raw;
+    const ny = resR * (resX * resSin + resY * resCos);
+    resX = nx; resY = ny;
+
+    buf[i] = (raw * 0.20 + nx * 0.80) * Math.min(1, t / 0.04) * 1.2;
+  }
+  return buf;
+}
+
+/* ══════════════════════════════════════════════════
+   R-2800 ENGINE LIFECYCLE
+   Twin-row 18-cylinder model — matches r2800-processor.js exactly.
+   Per-cylinder engagement thresholds give the characteristic
+   "unrund" (rough running) as cylinders catch one by one.
+   ══════════════════════════════════════════════════ */
+
+function _synthR2800Runup(sr, duration = 35.0, targetRpm = 750) {
+  const N = Math.floor(sr * duration);
+  const buf = new Float32Array(N);
+
+  /* Twin-row 18-cylinder model */
+  const firingAnglesA = Array.from({ length: 9 }, (_, i) => ((i * 80) + (Math.random() - 0.5) * 10) % 720);
+  const firingAnglesB = Array.from({ length: 9 }, (_, i) => ((i * 80 + 20) + (Math.random() - 0.5) * 10) % 720);
+  const gainA = Array.from({ length: 9 }, () => 0.55 + Math.random() * 0.9);
+  const gainB = Array.from({ length: 9 }, () => 0.55 + Math.random() * 0.9);
+
+  /* Per-cylinder engagement thresholds — each cylinder catches at its own RPM.
+     This produces the organic "unrund" as cylinders engage one by one 15→120 RPM. */
+  const engRpmA = Array.from({ length: 9 }, () => 15 + Math.random() * 105);  // 15–120 RPM
+  const engRpmB = Array.from({ length: 9 }, () => 15 + Math.random() * 105);
+
+  const bangDecayA  = Math.exp(-5500 / sr);
+  const bangDecayB  = Math.exp(-4800 / sr);
+  const bangAmpA    = new Float32Array(9);
+  const bangAmpB    = new Float32Array(9);
+  const exhaustAmpA = new Float32Array(9);
+  const exhaustAmpB = new Float32Array(9);
+
+  let exhaustDecay = Math.exp(-60 / sr);
+  let noiseScale = 0.18;
+  let resCos = 1, resSin = 0, resX = 0, resY = 0;
+  /* resR 0.96 for startup synthesis — higher Q boosts fundamental for good volume.
+     The running worklet uses 0.93 (different tone target).
+     masterGain is NOT applied here — assembly handles it via scale factor. */
+  const resR = 0.96;
+  let lfsr = 0xACE1;
+  let noiseLp = 0;
+  const noiseLpCoeff = Math.exp(-2 * Math.PI * 900 / sr);
+  let lpState = 0;
+  const lpCoeff    = Math.exp(-2 * Math.PI * 2000 / sr);
+  let angle = 0;
+
+  for (let i = 0; i < N; i++) {
+    const t        = i / sr;
+    const progress = Math.min(t / duration, 1);
+    const rpm      = 65 + (targetRpm - 65) * Math.pow(progress, 0.6);
+
+    if (i % 128 === 0) {
+      const cyclesPerSec   = rpm / 120;
+      const firingInterval = sr / (cyclesPerSec * 9);
+      const tau            = Math.min(firingInterval * 0.50, sr * 0.022);
+      exhaustDecay = Math.exp(-1 / tau);
+      const overlap = Math.exp(-firingInterval / tau);
+      noiseScale    = 0.22 * (1 - overlap);
+      const omega   = 2 * Math.PI * cyclesPerSec * 9 / sr;
+      resCos = Math.cos(omega);
+      resSin = Math.sin(omega);
+    }
+
+    const degsPerSample = rpm * 360 / 60 / sr;
+    const prev = angle;
+    angle = (angle + degsPerSample) % 720;
+
+    for (let c = 0; c < 9; c++) {
+      const fa      = firingAnglesA[c];
+      const crossed = (prev < fa && angle >= fa) || (prev > angle && (fa >= prev || fa < angle));
+      /* Fire only when RPM exceeds this cylinder's engagement threshold.
+         Add small random flutter near threshold for organic roughness. */
+      if (crossed && rpm > engRpmA[c] * (0.8 + Math.random() * 0.4)) {
+        bangAmpA[c]    = gainA[c] * 0.10;
+        exhaustAmpA[c] = gainA[c] * 0.55;
+      }
+      bangAmpA[c]    *= bangDecayA;
+      exhaustAmpA[c] *= exhaustDecay;
+    }
+    for (let c = 0; c < 9; c++) {
+      const fb      = firingAnglesB[c];
+      const crossed = (prev < fb && angle >= fb) || (prev > angle && (fb >= prev || fb < angle));
+      if (crossed && rpm > engRpmB[c] * (0.8 + Math.random() * 0.4)) {
+        bangAmpB[c]    = gainB[c] * 0.09;
+        exhaustAmpB[c] = gainB[c] * 0.52;
+      }
+      bangAmpB[c]    *= bangDecayB;
+      exhaustAmpB[c] *= exhaustDecay;
+    }
+
+    lfsr ^= lfsr << 13; lfsr ^= lfsr >> 17; lfsr ^= lfsr << 5;
+    const raw_noise = (lfsr & 0xFFFF) / 0x8000 - 1;
+    noiseLp = noiseLpCoeff * noiseLp + (1 - noiseLpCoeff) * raw_noise;
+
+    let bang = 0, exhaust = 0;
+    for (let c = 0; c < 9; c++) {
+      bang    += bangAmpA[c] + bangAmpB[c];
+      exhaust += exhaustAmpA[c] + exhaustAmpB[c];
+    }
+
+    const raw = bang * 0.40 + exhaust * noiseLp * noiseScale;
+    const nx  = resR * (resX * resCos - resY * resSin) + raw;
+    const ny  = resR * (resX * resSin + resY * resCos);
+    resX = nx; resY = ny;
+
+    const mixed  = raw * 0.05 + nx * 0.95;
+    lpState = lpCoeff * lpState + (1 - lpCoeff) * mixed;
+    buf[i]  = lpState * Math.min(1, t / 0.06);
+  }
+  return buf;
+}
+
+function _synthR2800Shutdown(sr, startRpm = 750) {
+  const duration = 4.5;
+  const N = Math.floor(sr * duration);
+  const buf = new Float32Array(N);
+
+  const firingAnglesA = Array.from({ length: 9 }, (_, i) => ((i * 80) + (Math.random() - 0.5) * 10) % 720);
+  const firingAnglesB = Array.from({ length: 9 }, (_, i) => ((i * 80 + 20) + (Math.random() - 0.5) * 10) % 720);
+  const gainA = Array.from({ length: 9 }, () => 0.55 + Math.random() * 0.9);
+  const gainB = Array.from({ length: 9 }, () => 0.55 + Math.random() * 0.9);
+
+  const bangDecayA  = Math.exp(-5500 / sr);
+  const bangDecayB  = Math.exp(-4800 / sr);
+  const bangAmpA    = new Float32Array(9);
+  const bangAmpB    = new Float32Array(9);
+  const exhaustAmpA = new Float32Array(9);
+  const exhaustAmpB = new Float32Array(9);
+
+  let exhaustDecay = Math.exp(-60 / sr);
+  let noiseScale = 0.18;
+  let resCos = 1, resSin = 0, resX = 0, resY = 0;
+  const resR = 0.93;
+  let lfsr = 0xD00F;
+  let noiseLp = 0;
+  const noiseLpCoeff = Math.exp(-2 * Math.PI * 900 / sr);
+  let lpState = 0;
+  const lpCoeff    = Math.exp(-2 * Math.PI * 2000 / sr);
+  let angle = 0;
+
+  for (let i = 0; i < N; i++) {
+    const t   = i / sr;
+    const rpm = Math.max(0, startRpm * Math.exp(-t / 1.5));
+    if (rpm < 5) break;
+
+    if (i % 128 === 0) {
+      const cyclesPerSec   = rpm / 120;
+      const firingInterval = sr / (cyclesPerSec * 9);
+      const tau            = Math.min(firingInterval * 0.50, sr * 0.022);
+      exhaustDecay = Math.exp(-1 / tau);
+      const overlap = Math.exp(-firingInterval / tau);
+      noiseScale    = 0.22 * (1 - overlap);
+      const omega   = 2 * Math.PI * cyclesPerSec * 9 / sr;
+      resCos = Math.cos(omega);
+      resSin = Math.sin(omega);
+    }
+
+    const degsPerSample = rpm * 360 / 60 / sr;
+    const prev = angle;
+    angle = (angle + degsPerSample) % 720;
+
+    for (let c = 0; c < 9; c++) {
+      const fa      = firingAnglesA[c];
+      const crossed = (prev < fa && angle >= fa) || (prev > angle && (fa >= prev || fa < angle));
+      if (crossed) { bangAmpA[c] = gainA[c] * 0.10; exhaustAmpA[c] = gainA[c] * 0.55; }
+      bangAmpA[c]    *= bangDecayA;
+      exhaustAmpA[c] *= exhaustDecay;
+    }
+    for (let c = 0; c < 9; c++) {
+      const fb      = firingAnglesB[c];
+      const crossed = (prev < fb && angle >= fb) || (prev > angle && (fb >= prev || fb < angle));
+      if (crossed) { bangAmpB[c] = gainB[c] * 0.09; exhaustAmpB[c] = gainB[c] * 0.52; }
+      bangAmpB[c]    *= bangDecayB;
+      exhaustAmpB[c] *= exhaustDecay;
+    }
+
+    lfsr ^= lfsr << 13; lfsr ^= lfsr >> 17; lfsr ^= lfsr << 5;
+    const raw_noise = (lfsr & 0xFFFF) / 0x8000 - 1;
+    noiseLp = noiseLpCoeff * noiseLp + (1 - noiseLpCoeff) * raw_noise;
+
+    let bang = 0, exhaust = 0;
+    for (let c = 0; c < 9; c++) {
+      bang    += bangAmpA[c] + bangAmpB[c];
+      exhaust += exhaustAmpA[c] + exhaustAmpB[c];
+    }
+
+    const raw = (bang * 0.40 + exhaust * noiseLp * noiseScale);
+    const nx  = resR * (resX * resCos - resY * resSin) + raw;
+    const ny  = resR * (resX * resSin + resY * resCos);
+    resX = nx; resY = ny;
+
+    const mixed  = raw * 0.35 + nx * 0.65;
+    lpState = lpCoeff * lpState + (1 - lpCoeff) * mixed;
+    buf[i]  = lpState * (rpm / startRpm);
+  }
+  return buf;
+}
+
+function _assembleR2800Startup(sr) {
+  const oilC   = S.oilTempC ?? 15;
+  const gap    = Math.floor(sr * 0.06);    // gap between flywheel/klonk segments
+  const motGap = 0;                         // no gap before runup — motoring fades into first puff
+  const rpmIdle = _cfg?.rpmIdle ?? 750;
+
+  let parts;
+  if (oilC >= 60) {
+    /* Hot — R-2800 motoring + runup only (~38 s) */
+    const mot = _synthR2800Motoring(sr);
+    const run = _synthR2800Runup(sr, 35.0, rpmIdle);
+    parts = [mot, run];
+  } else if (oilC >= 30) {
+    /* Warm — shortened flywheel (~50 s) */
+    const fw  = _synthFlywheel(sr, 12.0);
+    const kl  = _synthKlonk(sr);
+    const mot = _synthR2800Motoring(sr);
+    const run = _synthR2800Runup(sr, 35.0, rpmIdle);
+    parts = [fw, kl, mot, run];
+  } else {
+    /* Cold — full flywheel (~64 s) */
+    const fw  = _synthFlywheel(sr, 26.0);
+    const kl  = _synthKlonk(sr);
+    const mot = _synthR2800Motoring(sr);
+    const run = _synthR2800Runup(sr, 35.0, rpmIdle);
+    parts = [fw, kl, mot, run];
+  }
+
+  /* Fade out each pre-runup segment's last 80ms — smooth blend into runup's own fade-in */
+  const fadeLen = Math.floor(sr * 0.08);
+  for (let p = 0; p < parts.length - 1; p++) {
+    const seg = parts[p];
+    for (let i = 0; i < fadeLen && i < seg.length; i++) {
+      seg[seg.length - 1 - i] *= i / fadeLen;
+    }
+  }
+
+  /* Normal gap between flywheel/klonk; zero gap into runup — motoring fades directly in */
+  const lastIdx = parts.length - 1;
+  let r2800Total = 0;
+  for (let i = 0; i < parts.length; i++) {
+    r2800Total += parts[i].length;
+    if (i < lastIdx) r2800Total += (i === lastIdx - 1) ? motGap : gap;
+  }
+  const full  = new Float32Array(r2800Total);
+  let off = 0;
+  for (let i = 0; i < parts.length; i++) {
+    full.set(parts[i], off);
+    if (i < lastIdx) off += parts[i].length + ((i === lastIdx - 1) ? motGap : gap);
+  }
+  /* Scale so runup endpoint matches worklet idle level: masterGain × 0.4.
+     _synthR2800Runup does NOT apply masterGain internally (consistent with DB605). */
+  const scale = ((_cfg?.masterGain ?? 0.78) * 0.4) / 0.8;
+  for (let i = 0; i < full.length; i++) full[i] *= scale;
+  return full;
+}
+
 async function _loadWorkletSilently() {
   _workletLoadDone = false;
   const workletFile = _cfg.workletFile ?? './core/db605-processor.js';
@@ -1465,7 +1819,7 @@ async function _loadWorkletSilently() {
 }
 
 export async function startEngineLifecycle() {
-  if (_engineType !== 'v12-supercharged') { startSound(); return; }
+  if (_engineType !== 'v12-supercharged' && _engineType !== 'radial-2000hp') { startSound(); return; }
   if (S.engineState === 'starting' || S.engineState === 'running' || S.engineState === 'idle') return;
 
   if (!_ctx) {
@@ -1478,7 +1832,9 @@ export async function startEngineLifecycle() {
 
   setState({ engineState: 'starting' });
 
-  const startupBuf = _assembleStartup(_ctx.sampleRate);
+  const startupBuf = _engineType === 'radial-2000hp'
+    ? _assembleR2800Startup(_ctx.sampleRate)
+    : _assembleStartup(_ctx.sampleRate);
   const ab  = _ctx.createBuffer(1, startupBuf.length, _ctx.sampleRate);
   ab.copyToChannel(startupBuf, 0);
   const src = _ctx.createBufferSource();
@@ -1514,7 +1870,7 @@ export async function startEngineLifecycle() {
 }
 
 export function stopEngineLifecycle() {
-  if (_engineType !== 'v12-supercharged') { stopSound(); return; }
+  if (_engineType !== 'v12-supercharged' && _engineType !== 'radial-2000hp') { stopSound(); return; }
   if (S.engineState === 'off' || S.engineState === 'shutdown') return;
 
   _workletReady = false;
@@ -1528,7 +1884,9 @@ export function stopEngineLifecycle() {
   _shutdownAt  = _ctx?.currentTime ?? 0;
 
   if (_ctx) {
-    const shutBuf = _synthShutdown(_ctx.sampleRate, _lastRpm);
+    const shutBuf = _engineType === 'radial-2000hp'
+      ? _synthR2800Shutdown(_ctx.sampleRate, _lastRpm)
+      : _synthShutdown(_ctx.sampleRate, _lastRpm);
     const ab  = _ctx.createBuffer(1, shutBuf.length, _ctx.sampleRate);
     ab.copyToChannel(shutBuf, 0);
     const src = _ctx.createBufferSource();
