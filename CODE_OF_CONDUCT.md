@@ -49,6 +49,12 @@ Every contributor is taken seriously. Disagreements about accuracy are resolved 
 
 We do not argue about which side was right. That is not what OpenSim is for.
 
+Who you are outside the codebase is your business. Race, nationality, religion, gender, sexuality — none of it determines whether your contribution is welcome. Your knowledge and your accuracy do.
+
+A trans developer who knows the Mitsubishi A6M. A gay developer who knows Apollo guidance systems. A developer from any country that was on any side of any war. All welcome. No exceptions.
+
+Bullying, harassment, or exclusion on any of these grounds will be treated the same as a historically dishonest contribution: it does not belong here, and it will not be tolerated. The maintainer's judgment on this is also final.
+
 ---
 
 ## Enforcement
