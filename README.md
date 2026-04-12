@@ -29,7 +29,7 @@ We do not take sides in history. A nineteen-year-old climbing into a Zero over t
 
 **Space nerds** — fly the Falcon 9 Demo-2 from T-3:00 with real webcast audio. Watch stage separation. Track the booster back to LZ-1. Fly a 590 km orbit. Deorbit, reentry, splashdown. The physics are real. SpaceX, Apollo, V-2, Vostok, H3 — every program that ever put something into orbit deserves a mission here. Scott Manley would check the Isp. Everyday Astronaut would check the fairing. Check them.
 
-**PPL students** — circuits at LSZF and LSZG. Full checklists. GPWS callouts. Takeoff and approach briefings. Real weather via live METAR.
+**PPL students** — circuits at LSZF and LSZG. Full checklists. GPWS callouts. Emergency procedures. Scored debrief: alignment, speed, touchdown point. Engine failure scenarios with virtual ATC Mayday acknowledgement. Real weather via live METAR. No instructor needed to run a session.
 
 **Makers** — build a Dragon capsule mockup with a table saw, a Bambu A1, and four screens. Wire an ESP32 to a physical altimeter. Add a 6-DOF motion platform. The WebSocket data stream is open.
 
@@ -406,6 +406,83 @@ Every flight recorded automatically. `Ctrl+Shift+T` downloads JSONL.
 ```
 
 Feed to pandas, plot, debrief approaches, or stream to an AI co-pilot.
+
+---
+
+## Training
+
+OpenSim is a real training tool. Not a game with training features — a training tool that happens to run in a browser.
+
+### How it works
+
+Every aviation mission has a **scenario setup screen** before you fly. Choose your conditions:
+
+| Scenario | What happens |
+|----------|-------------|
+| **CLEAN** | Normal flight. Practice circuits, navigation, communication. |
+| **PARTIAL** | Engine degrades to 50% power after 60–300 seconds. Partial power emergency. |
+| **ROUGH** | Engine bang + 30% power. Forced landing required. |
+| **FAILURE** | Full engine failure. Glide, pick a field, land it. |
+
+Timing is random (60–300s) or fixed. You set it up, then forget it. The failure comes when it comes.
+
+### What gets scored
+
+After every flight — including crashes — the debrief shows two blocks:
+
+**Emergency Response** (if a failure occurred)
+- Survived
+- Best glide speed — did you pitch for 65kt within seconds of the failure?
+- Squawk 7700 — how many seconds after the failure?
+- 121.5 tuned — how many seconds after the failure?
+- Mayday called — did you key the mic?
+
+**Approach Data** (every landing)
+- Runway alignment — heading deviation in degrees
+- Speed at touchdown — vs target approach speed
+- Touchdown point — distance from threshold
+
+### The priority order
+
+**Aviate → Navigate → Communicate**
+
+In an emergency: pitch for best glide first. Find a field. Then squawk 7700 — one knob, passive, radar sees you immediately. Then tune 121.5 and call Mayday.
+
+When you tune 121.5 during an engine failure, virtual ATC responds:
+
+> *"HB-CBX, Mayday acknowledged. Say position and souls on board."*
+
+That's the training. Do it enough times and the hands move before the brain catches up.
+
+### The kneeboard
+
+Press `K` to open the kneeboard. Every aircraft has:
+- Departure briefing
+- Normal checklists (startup through shutdown)
+- Emergency checklists — engine failure, partial power, engine fire
+
+In a C172 engine failure:
+1. Best glide — 65kt
+2. Field — select, into wind
+3. Fuel selector — BOTH
+4. Mixture — rich
+5. Carb heat — ON
+6. Throttle — full, then back to idle
+7. If no restart: Mayday on 121.5, squawk 7700
+
+### The philosophy
+
+> *You don't rise to the occasion. You fall to your training.*
+
+Sim crashes are ones you walk away from. Run the engine failure scenario until the checklist runs itself. That's chair flying with feedback.
+
+A 40-million-franc certified simulator trains the same reflex. OpenSim runs in a browser, costs nothing, and sends you a scored debrief.
+
+### For instructors
+
+Send the student a URL the night before a lesson. Assign a scenario — ROUGH, fixed timing 120s. Student flies three circuits, gets three debriefs. They arrive having already run the emergency. Ground time becomes review, not introduction.
+
+The debrief scores are honest. "Squawk 7700 — not set" is not an opinion. It happened, or it didn't.
 
 ---
 
