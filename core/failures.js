@@ -17,7 +17,7 @@ let _ramps    = [];          // active power ramps
 export function resetFailures() {
   _fired.clear();
   _ramps = [];
-  setState({ enginePower: 1.0 });
+  setState({ enginePower: 1.0, emergLog: [] });
 }
 
 export function tickFailures(dt) {
@@ -42,6 +42,11 @@ export function tickFailures(dt) {
 
     if (!triggered) return;
     _fired.add(i);
+
+    /* Log failure event for emergency scoring */
+    if (f.type === 'engine_power' || f.type === 'engine_bang') {
+      S.emergLog.push({ t, type: 'failure', failureType: f.type, value: f.value ?? 0 });
+    }
 
     switch (f.type) {
       case 'engine_gunfire':

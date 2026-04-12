@@ -151,6 +151,35 @@
       ]
     },
     {
+      "title": "EMERG — ENGINE FAILURE",
+      "type": "checklist",
+      "items": [
+        "Identify failed engine — instruments",
+        "Failed engine throttle — idle",
+        "Failed engine — shut down if fire or severe damage",
+        "Remaining five engines — maintain thrust, check parameters",
+        "Airspeed — maintain V2+10 if below 400ft, else best climb speed",
+        "Gear — up if not already",
+        "Mayday on 121.5",
+        "Squawk 7700",
+        "Divert to nearest suitable runway",
+        "Landing distance — add 30% for five-engine approach"
+      ]
+    },
+    {
+      "title": "EMERG — ENGINE FIRE",
+      "type": "checklist",
+      "items": [
+        "Affected engine — identify",
+        "Throttle affected — idle",
+        "Fuel shutoff — close for affected engine",
+        "Fire extinguisher — discharge",
+        "If fire persists — second shot",
+        "Mayday on 121.5",
+        "Land as soon as possible"
+      ]
+    },
+    {
       "title": "SPEEDS (500 000 kg)",
       "type": "briefing",
       "items": [

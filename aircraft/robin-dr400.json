@@ -390,6 +390,50 @@
       ]
     },
     {
+      "title": "EMERG — ENGINE FAILURE",
+      "type": "checklist",
+      "items": [
+        "Best glide — 65kt",
+        "Field — select, into wind",
+        "Fuel selector — ON",
+        "Mixture — rich",
+        "Throttle — full, then idle",
+        "Magnetos — BOTH",
+        "Primer — in and locked",
+        "If no restart: Mayday on 121.5",
+        "Squawk 7700",
+        "Mixture — idle cut-off on short final",
+        "Magnetos — OFF before touchdown",
+        "Master — OFF before touchdown"
+      ]
+    },
+    {
+      "title": "EMERG — PARTIAL POWER",
+      "type": "checklist",
+      "items": [
+        "Best glide — 65kt (maintain altitude if possible)",
+        "Fuel selector — ON",
+        "Mixture — adjust for smooth running",
+        "Throttle — adjust for best power",
+        "Nearest airfield — plan diversion",
+        "Mayday on 121.5 if unsure of field",
+        "Squawk 7700"
+      ]
+    },
+    {
+      "title": "EMERG — ENGINE FIRE",
+      "type": "checklist",
+      "items": [
+        "Mixture — idle cut-off",
+        "Fuel selector — OFF",
+        "Throttle — closed",
+        "Master — OFF",
+        "Best glide — 65kt",
+        "Land as soon as possible",
+        "Evacuate immediately after stop"
+      ]
+    },
+    {
       "title": "SPEEDS (MTOM)",
       "type": "briefing",
       "items": [

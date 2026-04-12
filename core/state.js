@@ -111,6 +111,9 @@ export const S = {
   hcMThrEscTemp:  25,    // °C — thrust ESC temperature
   hcMEmergency:   false, // emergency landing in progress
 
+  /* ── Emergency log (scored at debrief) ── */
+  emergLog: [],   // { t, type: 'failure'|'tune'|'squawk7700'|'ptt', ... }
+
   /* ── Sim meta ── */
   role:    'PF',  // 'PF' | 'PM' | 'INSTRUCTOR'
   paused:      false,

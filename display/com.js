@@ -187,6 +187,9 @@ function _render() {
         XPDR.code[i] = (XPDR.code[i] + delta + 8) % 8;
         span.textContent = XPDR.code[i];
         _renderXpdrStatus();
+        if (XPDR.code.join('') === '7700' && S.emergLog?.some(e => e.type === 'failure')) {
+          S.emergLog.push({ t: S.time, type: 'squawk7700' });
+        }
       });
       dig.appendChild(span);
     });
@@ -262,6 +265,18 @@ function _nudgeStandby(dir) {
 function _onTune(freq) {
   const info = _freqs()[freq];
   if (!info) return;
+
+  /* Log tune event for emergency scoring */
+  const inEmerg = S.emergLog?.some(e => e.type === 'failure');
+  if (inEmerg) {
+    S.emergLog.push({ t: S.time, type: 'tune', freq });
+  }
+
+  /* Mayday acknowledgement on 121.5 during emergency */
+  if (freq === '121.500' && inEmerg) {
+    const cs = S.mission?.callsign ?? S.aircraft?.callsign ?? 'aircraft';
+    setTimeout(() => speakATC(`${cs}, Mayday acknowledged. Say position and souls on board.`), 2000);
+  }
 
   /* Stop any active LiveATC stream */
   _stopStream();

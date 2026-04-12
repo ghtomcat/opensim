@@ -157,6 +157,33 @@
       ]
     },
     {
+      "title": "EMERG — ENGINE FAILURE",
+      "type": "checklist",
+      "items": [
+        "Identify failed engine — gauges",
+        "Failed engine throttle — idle",
+        "Failed engine — shut down if fire or vibration",
+        "Remaining engines — adjust thrust for balance",
+        "Airspeed — maintain 180kt minimum",
+        "Three engines — land at nearest suitable field",
+        "Mayday on 121.5",
+        "Squawk 7700"
+      ]
+    },
+    {
+      "title": "EMERG — ENGINE FIRE",
+      "type": "checklist",
+      "items": [
+        "Affected engine — identify",
+        "Throttle — idle",
+        "Fuel shutoff — close for affected engine",
+        "Fire extinguisher — discharge",
+        "If fire persists — second shot",
+        "Descend below 10 000ft if pressurization lost",
+        "Land as soon as possible"
+      ]
+    },
+    {
       "title": "SPEEDS",
       "type": "briefing",
       "items": [

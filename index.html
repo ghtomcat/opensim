@@ -1129,6 +1129,91 @@
     .rs-card.rs-instructor { border-color: rgba(255,200,50,0.15); }
     .rs-card.rs-instructor .rs-card-id { color: rgba(255,200,50,0.75); }
 
+    /* ── Scenario setup overlay ── */
+    #scenario-setup {
+      position: fixed; inset: 0; z-index: 325;
+      background: #030609;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 40px 24px;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+      pointer-events: none;
+    }
+    #scenario-setup.visible { opacity: 1; pointer-events: all; }
+    .ss-title {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px; letter-spacing: 0.2em;
+      color: rgba(232,237,242,0.3);
+      text-transform: uppercase;
+      margin-bottom: 40px;
+    }
+    .ss-cards {
+      display: flex; flex-wrap: wrap; gap: 14px;
+      justify-content: center; max-width: 680px;
+      margin-bottom: 36px;
+    }
+    .ss-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 4px;
+      padding: 18px 24px; min-width: 130px;
+      cursor: pointer; text-align: center;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .ss-card:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.22); }
+    .ss-card.selected { background: rgba(255,255,255,0.07); border-color: rgba(255,200,50,0.5); }
+    .ss-card-id {
+      font-family: "Syne", sans-serif;
+      font-size: 15px; font-weight: 700;
+      color: var(--white); margin-bottom: 6px;
+    }
+    .ss-card-label {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px; color: rgba(232,237,242,0.35);
+    }
+    .ss-timing {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 40px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px; color: rgba(232,237,242,0.4);
+    }
+    .ss-timing-toggle {
+      display: flex; gap: 0;
+    }
+    .ss-timing-btn {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: rgba(232,237,242,0.5);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px; letter-spacing: 0.1em;
+      padding: 5px 12px; cursor: pointer;
+      transition: background 0.15s;
+    }
+    .ss-timing-btn:first-child { border-radius: 3px 0 0 3px; }
+    .ss-timing-btn:last-child  { border-radius: 0 3px 3px 0; border-left: none; }
+    .ss-timing-btn.active { background: rgba(255,200,50,0.1); border-color: rgba(255,200,50,0.3); color: rgba(255,200,50,0.8); }
+    #ss-fixed-input {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: var(--white);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      padding: 4px 10px; width: 64px;
+      border-radius: 3px; text-align: center;
+    }
+    .ss-fly-btn {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #e8edf2;
+      font-family: "Syne", sans-serif;
+      font-size: 12px; letter-spacing: 0.15em;
+      padding: 10px 36px; cursor: pointer;
+      text-transform: uppercase;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .ss-fly-btn:hover { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.05); }
+
     /* ── On-screen keyboard (touch devices) ── */
     #osk {
       position: fixed;
@@ -1285,6 +1370,22 @@
 <div id="role-select">
   <div class="rs-title">Select your role</div>
   <div class="rs-cards" id="rs-cards"></div>
+</div>
+
+<!-- Scenario setup overlay -->
+<div id="scenario-setup">
+  <div class="ss-title">Training Scenario</div>
+  <div class="ss-cards" id="ss-cards"></div>
+  <div class="ss-timing" id="ss-timing">
+    <span>Trigger</span>
+    <div class="ss-timing-toggle">
+      <button class="ss-timing-btn active" id="ss-rand-btn">Random</button>
+      <button class="ss-timing-btn" id="ss-fixed-btn">Fixed</button>
+    </div>
+    <input type="number" id="ss-fixed-input" value="120" min="10" max="3600" style="display:none">
+    <span id="ss-timing-label">60–300 s</span>
+  </div>
+  <button class="ss-fly-btn" id="ss-fly-btn">Fly</button>
 </div>
 
 <!-- Outside view -->
@@ -2538,6 +2639,8 @@
       el.removeEventListener('click', dismiss);
       if (m.roles?.length > 1) {
         setTimeout(() => showRoleSelect(m), 400);
+      } else if (_hasScenarioSetup(m)) {
+        setTimeout(() => showScenarioSetup(m), 400);
       } else {
         setTimeout(() => init(m.id, m.aircraft), 400);
       }
@@ -2559,10 +2662,104 @@
       card.addEventListener('click', () => {
         setState({ role: r.id });
         el.classList.remove('visible');
-        setTimeout(() => init(m.id, m.aircraft), 400);
+        if (_hasScenarioSetup(m)) {
+          setTimeout(() => showScenarioSetup(m), 400);
+        } else {
+          setTimeout(() => init(m.id, m.aircraft), 400);
+        }
       });
       cards.appendChild(card);
     }
+
+    requestAnimationFrame(() => el.classList.add('visible'));
+  }
+
+  /* ── Scenario setup ── */
+  function _hasScenarioSetup(m) {
+    return m.phase !== 'launch'
+      && !m.id.includes('hovercraft')
+      && m.id !== 'live-flight';
+  }
+
+  function showScenarioSetup(m) {
+    const el = document.getElementById('scenario-setup');
+
+    const PRESETS = [
+      { id: 'CLEAN',   label: 'No failure',       failures: [] },
+      { id: 'PARTIAL', label: '50% power · 30s',  severity: 0.5, ramp: 30, bang: false },
+      { id: 'ROUGH',   label: '30% power · bang',  severity: 0.3, ramp: 20, bang: true  },
+      { id: 'FAILURE', label: 'Full failure',       severity: 0.0, ramp: 15, bang: true  },
+    ];
+
+    let selected = 'CLEAN';
+    let randomTiming = true;
+
+    /* Build preset cards */
+    const cardsEl = document.getElementById('ss-cards');
+    cardsEl.innerHTML = '';
+    PRESETS.forEach(p => {
+      const card = document.createElement('div');
+      card.className = 'ss-card' + (p.id === 'CLEAN' ? ' selected' : '');
+      card.dataset.id = p.id;
+      card.innerHTML = `<div class="ss-card-id">${p.id}</div><div class="ss-card-label">${p.label}</div>`;
+      card.addEventListener('click', () => {
+        selected = p.id;
+        cardsEl.querySelectorAll('.ss-card').forEach(c => c.classList.toggle('selected', c.dataset.id === p.id));
+        document.getElementById('ss-timing').style.display = p.id === 'CLEAN' ? 'none' : 'flex';
+      });
+      cardsEl.appendChild(card);
+    });
+
+    /* Timing controls */
+    const timingEl   = document.getElementById('ss-timing');
+    const randBtn    = document.getElementById('ss-rand-btn');
+    const fixedBtn   = document.getElementById('ss-fixed-btn');
+    const fixedInput = document.getElementById('ss-fixed-input');
+    const timingLbl  = document.getElementById('ss-timing-label');
+
+    timingEl.style.display = 'none'; // hidden until a failure is selected
+
+    randBtn.classList.add('active');
+    fixedBtn.classList.remove('active');
+    fixedInput.style.display = 'none';
+    timingLbl.textContent = '60–300 s';
+
+    randBtn.onclick = () => {
+      randomTiming = true;
+      randBtn.classList.add('active'); fixedBtn.classList.remove('active');
+      fixedInput.style.display = 'none';
+      timingLbl.textContent = '60–300 s';
+    };
+    fixedBtn.onclick = () => {
+      randomTiming = false;
+      fixedBtn.classList.add('active'); randBtn.classList.remove('active');
+      fixedInput.style.display = '';
+      timingLbl.textContent = 's';
+    };
+
+    /* Fly button */
+    document.getElementById('ss-fly-btn').onclick = () => {
+      const preset = PRESETS.find(p => p.id === selected);
+      let injected = [];
+
+      if (preset && preset.id !== 'CLEAN') {
+        const T = randomTiming
+          ? Math.floor(60 + Math.random() * 240)
+          : Math.max(10, parseInt(fixedInput.value) || 120);
+
+        if (preset.bang) {
+          injected.push({ trigger: { type: 'time', t: T     }, type: 'engine_gunfire' });
+          injected.push({ trigger: { type: 'time', t: T + 1 }, type: 'engine_bang' });
+        }
+        injected.push({ trigger: { type: 'time', t: T + (preset.bang ? 1 : 0) }, type: 'engine_power', value: preset.severity, rampTime: preset.ramp });
+      }
+
+      /* Store injected failures on the mission object — init() will merge them */
+      m._scenarioFailures = injected;
+
+      el.classList.remove('visible');
+      setTimeout(() => init(m.id, m.aircraft), 400);
+    };
 
     requestAnimationFrame(() => el.classList.add('visible'));
   }
@@ -2585,6 +2782,13 @@
     loadStatus.textContent = 'loading aircraft…';
 
     await loadMission(inlineMission ?? `missions/${missionId}.json`, `aircraft/${aircraftId}.json`);
+
+    /* Merge scenario failures injected from the scenario setup overlay */
+    const mData2 = MISSIONS.find(m => m.id === missionId);
+    if (mData2?._scenarioFailures?.length && S.mission) {
+      S.mission.failures = [...(S.mission.failures ?? []), ...mData2._scenarioFailures];
+      mData2._scenarioFailures = [];
+    }
 
     /* Re-init COM with mission-specific frequencies now that S.mission is loaded */
     initCOM(document.getElementById('com-container'));
@@ -2912,7 +3116,12 @@
     /* RPM — only meaningful for piston engines */
     const rpm = getCurrentRpm();
     document.getElementById('pv-rpm').textContent = rpm ?? '---';
-    pttEl.classList.toggle('active', isPTTActive());
+    const pttNow = isPTTActive();
+    pttEl.classList.toggle('active', pttNow);
+    /* Log first PTT press after a failure */
+    if (pttNow && S.emergLog?.some(e => e.type === 'failure') && !S.emergLog.some(e => e.type === 'ptt')) {
+      S.emergLog.push({ t: S.time, type: 'ptt' });
+    }
 
     /* Time warp indicator */
     const warpEl = document.getElementById('warp-indicator');
@@ -3019,6 +3228,37 @@
     return val <= good ? 'score-pass' : val <= ok ? 'score-partial' : 'score-fail';
   }
 
+  function _computeEmergScore(crashed) {
+    const log = S.emergLog ?? [];
+    const failureEvent = log.find(e => e.type === 'failure');
+    if (!failureEvent) return null;
+
+    const failT = failureEvent.t;
+
+    /* Best glide speed — sample spd in first 30s after failure */
+    const bestGlide = S.aircraft?.approachSpeed ?? 65;
+    const glideWindow = log.filter(e => e.type === 'failure').length > 0;
+    // We track speed via _apt samples — check average speed 10–30s post failure
+    const glideSpd = _apt.samples.length > 0
+      ? Math.round(_apt.samples.reduce((a, s) => a + s.spd, 0) / _apt.samples.length)
+      : null;
+    const glideDev = glideSpd !== null ? Math.abs(glideSpd - bestGlide) : 99;
+
+    /* 121.5 tuned? */
+    const tuned121 = log.find(e => e.type === 'tune' && e.freq === '121.500');
+    const tune121dt = tuned121 ? Math.round(tuned121.t - failT) : null;
+
+    /* Squawk 7700? */
+    const sq7700 = log.find(e => e.type === 'squawk7700');
+    const sq7700dt = sq7700 ? Math.round(sq7700.t - failT) : null;
+
+    /* PTT keyed? */
+    const ptt = log.find(e => e.type === 'ptt');
+    const pttdt = ptt ? Math.round(ptt.t - failT) : null;
+
+    return { crashed, bestGlide, glideSpd, glideDev, tune121dt, sq7700dt, pttdt };
+  }
+
   /* ── Debrief trigger ── */
   let _debriefShown = false;
   function checkDebrief() {
@@ -3036,20 +3276,54 @@
     } else {
       if (S.alt < 50 && (S.vs ?? 0) < -100) {
         _debriefShown = true;
-        setTimeout(showDebrief, 2000);
+        const hardLanding = (S.vs ?? 0) < -600;
+        setTimeout(() => showDebrief(hardLanding), 2000);
       }
     }
   }
 
-  function showDebrief() {
+  function showDebrief(crashed = false) {
     const el = document.getElementById('debrief');
+    el.querySelector('.debrief-title').textContent = crashed
+      ? `CRASH${S.crashReason ? ' — ' + S.crashReason : ''}`
+      : 'Debrief';
 
     /* Approach score block */
     const sc = _computeApproachScore();
     const scEl = document.getElementById('debrief-scores');
     scEl.innerHTML = '';
+    const em = _computeEmergScore(crashed);
+    if (em) {
+      const glideRow = em.glideSpd !== null
+        ? `<div class="score-row">
+             <span class="score-label">Best glide speed</span>
+             <span class="score-val ${_scoreClass(em.glideDev, 5, 12)}">${em.glideSpd}kt <span style="opacity:0.4;font-weight:400">(target ${em.bestGlide}kt)</span></span>
+           </div>` : '';
+      const sq7700Row = `<div class="score-row">
+             <span class="score-label">Squawk 7700</span>
+             <span class="score-val ${em.sq7700dt !== null ? _scoreClass(em.sq7700dt, 30, 90) : 'score-fail'}">${em.sq7700dt !== null ? em.sq7700dt + 's after failure' : 'Not set'}</span>
+           </div>`;
+      const tune121Row = `<div class="score-row">
+             <span class="score-label">121.5 tuned</span>
+             <span class="score-val ${em.tune121dt !== null ? _scoreClass(em.tune121dt, 30, 90) : 'score-fail'}">${em.tune121dt !== null ? em.tune121dt + 's after failure' : 'Not tuned'}</span>
+           </div>`;
+      const pttRow = `<div class="score-row">
+             <span class="score-label">Mayday called</span>
+             <span class="score-val ${em.pttdt !== null ? _scoreClass(em.pttdt, 45, 120) : 'score-fail'}">${em.pttdt !== null ? em.pttdt + 's after failure' : 'No call made'}</span>
+           </div>`;
+      const survivedRow = `<div class="score-row">
+             <span class="score-label">Survived</span>
+             <span class="score-val ${crashed ? 'score-fail' : 'score-pass'}">${crashed ? 'No' : 'Yes'}</span>
+           </div>`;
+      scEl.innerHTML += `
+        <div class="score-block">
+          <div class="score-block-title">Emergency Response</div>
+          ${survivedRow}${glideRow}${sq7700Row}${tune121Row}${pttRow}
+        </div>`;
+    }
+
     if (sc) {
-      scEl.innerHTML = `
+      scEl.innerHTML += `
         <div class="score-block">
           <div class="score-block-title">Approach Data</div>
           <div class="score-row">
@@ -3258,8 +3532,8 @@
   function checkCrash() {
     if (_crashShown || !S.crashed) return;
     _crashShown = true;
-    document.getElementById('crash-reason').textContent = S.crashReason ?? '';
-    setTimeout(() => document.getElementById('crash-overlay').classList.add('visible'), 800);
+    _debriefShown = true;
+    setTimeout(() => showDebrief(true), 1500);
   }
 
   window.hideCrash = function () {
