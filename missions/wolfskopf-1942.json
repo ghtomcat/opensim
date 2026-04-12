@@ -6,6 +6,7 @@
   "description": "Titovka. Arctic winter. The wolf on your fuselage is blue. You have been flying since dawn.",
   "author": "Markus Leutwyler",
   "book": "Zeitanker — Band IV",
+  "fiction_note": "The pilot and his story are fictional, created for Zeitanker — Band IV by Markus Leutwyler. The aircraft, unit designation, and operational context in the Arctic are historical.",
   "aircraft": "aircraft/bf109.json",
   "weather": {
     "source": "manual",

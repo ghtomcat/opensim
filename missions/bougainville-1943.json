@@ -13,6 +13,7 @@
   "title": "The Wasp · Bougainville",
   "description": "11 November 1943. Armistice Day. Big Ed Beeler. Four kills. VF-17 Jolly Rogers.",
   "author": "Markus Leutwyler",
+  "fiction_note": "Edward Beeler was a real VF-17 Jolly Rogers pilot. 'Big Ed' is a fictional nickname. His call sign 'The Wasp' and four kills in a single day are fictional.",
   "aircraft": "aircraft/f4u1a.json",
   "weather": {
     "source": "manual",

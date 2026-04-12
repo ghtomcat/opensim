@@ -276,6 +276,30 @@
       opacity: 1; transform: none;
     }
 
+    /* ── Approach score block ── */
+    .score-block {
+      width: 100%; max-width: 560px;
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 16px 20px; margin-bottom: 24px;
+    }
+    .score-block-title {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px; letter-spacing: 0.2em;
+      color: rgba(232,237,242,0.35);
+      text-transform: uppercase; margin-bottom: 14px;
+    }
+    .score-row {
+      display: flex; justify-content: space-between;
+      align-items: baseline;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 13px; margin-bottom: 8px;
+    }
+    .score-label { color: rgba(232,237,242,0.5); }
+    .score-val   { font-weight: 600; }
+    .score-pass  { color: #5dd47e; }
+    .score-partial { color: #e8a838; }
+    .score-fail  { color: #ff4444; }
+
     /* ── Hovercraft control panel ── */
     #hc-panel {
       position: fixed; bottom: 0; left: 0; right: 0;
@@ -1357,6 +1381,7 @@
 <!-- Debrief -->
 <div id="debrief">
   <div class="debrief-title">Debrief</div>
+  <div id="debrief-scores"></div>
   <div id="debrief-items"></div>
   <button onclick="hideDebrief()" style="margin-top:20px;padding:10px 28px;background:none;border:1px solid rgba(255,255,255,0.3);color:#e8edf2;font-family:'Syne',sans-serif;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase;">Reset</button>
 </div>
@@ -1562,6 +1587,19 @@
         { id: 'PM',         label: 'Pilot Monitoring' },
         { id: 'INSTRUCTOR', label: 'Instructor' },
       ],
+    },
+    {
+      id: 'grenchen-neuchatel', aircraft: 'c172',
+      acName: 'Cessna 172S Skyhawk', engine: 'Lycoming IO-360 · 180hp',
+      location: 'Grenchen LSZG → Neuchâtel LSGN', title: 'Cross-Country · Schnupperflug Route', era: 'PPL', accent: '#e8a838',
+      briefing: {
+        date: 'LSZG · LSGN · LSZG · VFR',
+        pilot: 'Student Pilot',
+        unit: 'Flugschule Grenchen',
+        aircraft: 'HB-TBD · Cessna 172S · IO-360 180hp',
+        orders: 'Depart Grenchen runway 26. Climb westbound.\nTrack over Bielersee at 4500ft.\nSide approach Neuchâtel from east. Runway 23.\nLand. Fuel if needed. Depart runway 05.\nReturn Grenchen via Bielersee. Runway 26.',
+        atmosphere: 'You flew this route before.\nYou were in the right seat then.\nNow you fly it.',
+      },
     },
     {
       id: 'grenchen-circuit', aircraft: 'robin-dr400',
@@ -2658,6 +2696,12 @@
       obGrid.appendChild(k); obGrid.appendChild(d);
     });
 
+    /* Reset approach tracker */
+    _apt.samples.length = 0;
+    _apt.touchdown = null;
+    document.getElementById('debrief-items').innerHTML = '';
+    document.getElementById('debrief-scores').innerHTML = '';
+
     /* Populate debrief */
     if (S.mission?.debrief) {
       const db = document.getElementById('debrief-items');
@@ -2829,6 +2873,7 @@
       () => updatePanel(),
       () => updateEscTemps(),
       () => updateMetar(),
+      () => _trackApproach(),
       () => checkDebrief(),
       () => checkCrash(),
       () => tickSound(),
@@ -2930,6 +2975,50 @@
     return '16';
   }
 
+  /* ── Approach tracker ── */
+  const _apt = { samples: [], touchdown: null };
+
+  function _trackApproach() {
+    const arr = S.mission?.arrival;
+    if (!arr?.rwyHdg) return;
+    const agl = (S.alt ?? 0) - (arr.elevation ?? 0);
+    if (!S.wow && agl < 600 && agl > 0 && (S.spd ?? 0) > 30) {
+      _apt.samples.push({ hdg: S.hdg ?? 0, spd: S.spd ?? 0, lat: S.lat ?? 0, lon: S.lon ?? 0 });
+      if (_apt.samples.length > 60) _apt.samples.shift();
+    }
+    if (S.wow && _apt.samples.length > 0 && !_apt.touchdown) {
+      _apt.touchdown = { hdg: S.hdg ?? 0, spd: S.spd ?? 0, lat: S.lat ?? 0, lon: S.lon ?? 0 };
+    }
+  }
+
+  function _computeApproachScore() {
+    const arr = S.mission?.arrival;
+    if (!arr?.rwyHdg || !_apt.touchdown) return null;
+    const td = _apt.touchdown;
+
+    /* Alignment */
+    let hdgDev = Math.abs(td.hdg - arr.rwyHdg);
+    if (hdgDev > 180) hdgDev = 360 - hdgDev;
+
+    /* Speed */
+    const targetSpd = S.aircraft?.approachSpeed ?? 65;
+    const spdDev    = Math.abs(td.spd - targetSpd);
+
+    /* Touchdown distance from threshold */
+    let tdDist = null;
+    if (arr.rwyLat && arr.rwyLon) {
+      const dLat = (td.lat - arr.rwyLat) * 111320;
+      const dLon = (td.lon - arr.rwyLon) * 111320 * Math.cos(td.lat * Math.PI / 180);
+      tdDist = Math.round(Math.sqrt(dLat * dLat + dLon * dLon));
+    }
+
+    return { hdgDev: Math.round(hdgDev), spdDev: Math.round(spdDev), tdSpd: Math.round(td.spd), targetSpd, tdDist };
+  }
+
+  function _scoreClass(val, good, ok) {
+    return val <= good ? 'score-pass' : val <= ok ? 'score-partial' : 'score-fail';
+  }
+
   /* ── Debrief trigger ── */
   let _debriefShown = false;
   function checkDebrief() {
@@ -2954,6 +3043,31 @@
 
   function showDebrief() {
     const el = document.getElementById('debrief');
+
+    /* Approach score block */
+    const sc = _computeApproachScore();
+    const scEl = document.getElementById('debrief-scores');
+    scEl.innerHTML = '';
+    if (sc) {
+      scEl.innerHTML = `
+        <div class="score-block">
+          <div class="score-block-title">Approach Data</div>
+          <div class="score-row">
+            <span class="score-label">Alignment</span>
+            <span class="score-val ${_scoreClass(sc.hdgDev, 5, 10)}">±${sc.hdgDev}°</span>
+          </div>
+          <div class="score-row">
+            <span class="score-label">Speed at touchdown</span>
+            <span class="score-val ${_scoreClass(sc.spdDev, 5, 10)}">${sc.tdSpd}kt <span style="opacity:0.4;font-weight:400">(target ${sc.targetSpd}kt)</span></span>
+          </div>
+          ${sc.tdDist !== null ? `
+          <div class="score-row">
+            <span class="score-label">Touchdown point</span>
+            <span class="score-val ${_scoreClass(sc.tdDist, 200, 400)}">${sc.tdDist}m from threshold</span>
+          </div>` : ''}
+        </div>`;
+    }
+
     el.classList.add('visible');
     const items = el.querySelectorAll('.debrief-item');
     items.forEach((item, i) => {

@@ -5,6 +5,7 @@
   "description": "Olenya. Four engines turning. The Barents Sea ahead. No rescue there.",
   "author": "Markus Leutwyler",
   "book": "Zeitanker — Band V",
+  "fiction_note": "The crew and their mission are fictional, created for Zeitanker — Band V by Markus Leutwyler. Olenya Air Base and Tu-95 reconnaissance operations over the Barents Sea are historical.",
   "aircraft": "aircraft/tu95ms.json",
   "weather": {
     "source": "live",

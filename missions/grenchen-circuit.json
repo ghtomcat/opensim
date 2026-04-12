@@ -53,6 +53,20 @@
     "Final: 70kt, flaps 30°?",
     "Threshold: 65kt, idle?"
   ],
+  "com": {
+    "title": "COM 1 — LSZG",
+    "active": "122.275",
+    "standby": "121.500",
+    "freqs": {
+      "122.275": {
+        "label": "LSZG AFIS",
+        "afis": true
+      },
+      "121.500": {
+        "label": "GUARD"
+      }
+    }
+  },
   "failures": [],
   "timeOfDay": 11.0
 }

@@ -13,6 +13,7 @@
   "title": "No Bomber Lost · Rabaul",
   "description": "11 November 1943. Simpson Harbor. Ike Kepford. VF-17 Jolly Rogers. The bombers are counting on you.",
   "author": "Markus Leutwyler",
+  "fiction_note": "Ira 'Ike' Kepford was the leading ace of VF-17 Jolly Rogers and flew at Rabaul on 11 November 1943. The specific combat dialogue and mission outcome in this scenario are fictional.",
   "aircraft": "aircraft/f4u1a.json",
   "weather": {
     "source": "manual",

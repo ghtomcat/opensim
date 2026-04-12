@@ -1,9 +1,9 @@
 {
   "id": "a350",
   "name": "Airbus A350-900",
+  "approachSpeed": 140,
   "callsign": "VisionPilot",
   "icaoType": "A359",
-
   "envelope": {
     "cruiseAlt": 35000,
     "maxAlt": 43000,
@@ -12,28 +12,72 @@
     "spdProfile": {
       "35000": 312,
       "10000": 250,
-      "3000":  180,
-      "1500":  160,
-      "1000":  145,
-      "0":     135
+      "3000": 180,
+      "1500": 160,
+      "1000": 145,
+      "0": 135
     }
   },
-
   "situations": [
-    { "label": "GROUND",   "alt": 1450, "spd": 0,   "hdg": 280, "altT": 1450, "spdT": 0   },
-    { "label": "TAKEOFF",  "alt": 1450, "spd": 160,  "hdg": 280, "altT": 10000,"spdT": 350 },
-    { "label": "CLIMB",    "alt": 10000,"spd": 250,  "hdg": 280, "altT": 35000,"spdT": 280 },
-    { "label": "CRUISE",   "alt": 35000,"spd": 312,  "hdg": 280, "altT": 35000,"spdT": 280 },
-    { "label": "APPROACH", "alt": 3000, "spd": 180,  "hdg": 280, "altT": 2000, "spdT": 180 }
+    {
+      "label": "GROUND",
+      "alt": 1450,
+      "spd": 0,
+      "hdg": 280,
+      "altT": 1450,
+      "spdT": 0
+    },
+    {
+      "label": "TAKEOFF",
+      "alt": 1450,
+      "spd": 160,
+      "hdg": 280,
+      "altT": 10000,
+      "spdT": 350
+    },
+    {
+      "label": "CLIMB",
+      "alt": 10000,
+      "spd": 250,
+      "hdg": 280,
+      "altT": 35000,
+      "spdT": 280
+    },
+    {
+      "label": "CRUISE",
+      "alt": 35000,
+      "spd": 312,
+      "hdg": 280,
+      "altT": 35000,
+      "spdT": 280
+    },
+    {
+      "label": "APPROACH",
+      "alt": 3000,
+      "spd": 180,
+      "hdg": 280,
+      "altT": 2000,
+      "spdT": 180
+    }
   ],
-
   "thrustProfiles": [
-    { "label": "IDLE", "spdT": 0   },
-    { "label": "CLB",  "spdT": 180 },
-    { "label": "MCT",  "spdT": 280 },
-    { "label": "TOGA", "spdT": 350 }
+    {
+      "label": "IDLE",
+      "spdT": 0
+    },
+    {
+      "label": "CLB",
+      "spdT": 180
+    },
+    {
+      "label": "MCT",
+      "spdT": 280
+    },
+    {
+      "label": "TOGA",
+      "spdT": 350
+    }
   ],
-
   "ambient": {
     "type": "turbofan",
     "freqMin": 180,
@@ -42,46 +86,204 @@
     "gainMin": 0.006,
     "gainMax": 0.017
   },
-
-  "displays": ["pfd", "nd", "ecam"],
-
-  "fmaPhases": [
-    { "minAlt": 10000, "vals": ["A/THR", "AP1", "NAV",  "CRZ",   "ALT"],  "cols": ["white","green","green","cyan","white"] },
-    { "minAlt": 3000,  "vals": ["SPEED", "AP1", "NAV",  "DES",   ""],     "cols": ["white","green","green","cyan","white"] },
-    { "minAlt": 1000,  "vals": ["SPEED", "AP1", "LOC*", "G/S*",  "LAND"], "cols": ["white","green","cyan", "cyan","white"] },
-    { "minAlt": 200,   "vals": ["SPEED", "AP1", "LOC",  "G/S",   "LAND"], "cols": ["white","green","green","green","green"] },
-    { "minAlt": 30,    "vals": ["SPEED", "",    "LOC",  "FLARE", "FLARE"],"cols": ["white","white","green","green","green"] },
-    { "minAlt": 0,     "vals": ["SPEED", "",    "",     "ROLLOUT",""],    "cols": ["white","white","white","green","white"] }
+  "displays": [
+    "pfd",
+    "nd",
+    "ecam"
   ],
-
+  "fmaPhases": [
+    {
+      "minAlt": 10000,
+      "vals": [
+        "A/THR",
+        "AP1",
+        "NAV",
+        "CRZ",
+        "ALT"
+      ],
+      "cols": [
+        "white",
+        "green",
+        "green",
+        "cyan",
+        "white"
+      ]
+    },
+    {
+      "minAlt": 3000,
+      "vals": [
+        "SPEED",
+        "AP1",
+        "NAV",
+        "DES",
+        ""
+      ],
+      "cols": [
+        "white",
+        "green",
+        "green",
+        "cyan",
+        "white"
+      ]
+    },
+    {
+      "minAlt": 1000,
+      "vals": [
+        "SPEED",
+        "AP1",
+        "LOC*",
+        "G/S*",
+        "LAND"
+      ],
+      "cols": [
+        "white",
+        "green",
+        "cyan",
+        "cyan",
+        "white"
+      ]
+    },
+    {
+      "minAlt": 200,
+      "vals": [
+        "SPEED",
+        "AP1",
+        "LOC",
+        "G/S",
+        "LAND"
+      ],
+      "cols": [
+        "white",
+        "green",
+        "green",
+        "green",
+        "green"
+      ]
+    },
+    {
+      "minAlt": 30,
+      "vals": [
+        "SPEED",
+        "",
+        "LOC",
+        "FLARE",
+        "FLARE"
+      ],
+      "cols": [
+        "white",
+        "white",
+        "green",
+        "green",
+        "green"
+      ]
+    },
+    {
+      "minAlt": 0,
+      "vals": [
+        "SPEED",
+        "",
+        "",
+        "ROLLOUT",
+        ""
+      ],
+      "cols": [
+        "white",
+        "white",
+        "white",
+        "green",
+        "white"
+      ]
+    }
+  ],
   "checklist": {
     "flaps": [
-      { "alt": 2800, "config": 1, "pf": "flaps one",   "pm": "flaps one"   },
-      { "alt": 1800, "config": 2, "pf": "flaps two",   "pm": "flaps two"   },
-      { "alt": 1400, "config": 3, "pf": "flaps full",  "pm": "flaps full"  }
+      {
+        "alt": 2800,
+        "config": 1,
+        "pf": "flaps one",
+        "pm": "flaps one"
+      },
+      {
+        "alt": 1800,
+        "config": 2,
+        "pf": "flaps two",
+        "pm": "flaps two"
+      },
+      {
+        "alt": 1400,
+        "config": 3,
+        "pf": "flaps full",
+        "pm": "flaps full"
+      }
     ],
     "gear": {
       "alt": 1100,
-      "pf":  "gear down",
-      "pm":  "gear down and locked"
+      "pf": "gear down",
+      "pm": "gear down and locked"
     }
   },
-
   "gpws": [
-    { "alt": 2500, "text": "2 5 0 0",     "speech": "two five hundred", "red": false },
-    { "alt": 1000, "text": "1 0 0 0",     "speech": "one thousand",     "red": false },
-    { "alt": 500,  "text": "5 0 0",       "speech": "five hundred",     "red": false },
-    { "alt": 200,  "text": "MINIMUMS",    "speech": "minimums",         "red": true  },
-    { "alt": 50,   "text": "F I F T Y",   "speech": "fifty",            "red": false },
-    { "alt": 10,   "text": "R E T A R D", "speech": "retard. danke",    "red": false }
+    {
+      "alt": 2500,
+      "text": "2 5 0 0",
+      "speech": "two five hundred",
+      "red": false
+    },
+    {
+      "alt": 1000,
+      "text": "1 0 0 0",
+      "speech": "one thousand",
+      "red": false
+    },
+    {
+      "alt": 500,
+      "text": "5 0 0",
+      "speech": "five hundred",
+      "red": false
+    },
+    {
+      "alt": 200,
+      "text": "MINIMUMS",
+      "speech": "minimums",
+      "red": true
+    },
+    {
+      "alt": 50,
+      "text": "F I F T Y",
+      "speech": "fifty",
+      "red": false
+    },
+    {
+      "alt": 10,
+      "text": "R E T A R D",
+      "speech": "retard. danke",
+      "red": false
+    }
   ],
-
   "pmCallouts": [
-    { "alt": 10000, "speech": "passing ten thousand"   },
-    { "alt": 5000,  "speech": "passing five thousand"  },
-    { "alt": 4000,  "speech": "passing four thousand"  },
-    { "alt": 3000,  "speech": "passing three thousand" },
-    { "alt": 2000,  "speech": "passing two thousand"   },
-    { "alt": 1000,  "speech": "passing one thousand"   }
+    {
+      "alt": 10000,
+      "speech": "passing ten thousand"
+    },
+    {
+      "alt": 5000,
+      "speech": "passing five thousand"
+    },
+    {
+      "alt": 4000,
+      "speech": "passing four thousand"
+    },
+    {
+      "alt": 3000,
+      "speech": "passing three thousand"
+    },
+    {
+      "alt": 2000,
+      "speech": "passing two thousand"
+    },
+    {
+      "alt": 1000,
+      "speech": "passing one thousand"
+    }
   ]
 }

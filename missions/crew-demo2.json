@@ -16,6 +16,7 @@
   "title": "Crew Dragon Demo-2",
   "description": "30 May 2020. Bob Behnken and Doug Hurley. First crewed Dragon. Stage 1 returns to LZ-1.",
   "author": "Markus Leutwyler",
+  "fiction_note": "This mission is a faithful recreation of the real SpaceX Demo-2 launch on 30 May 2020. Bob Behnken and Doug Hurley are real NASA astronauts. The webcast audio is original SpaceX footage.",
   "aircraft": "falcon9-b5-demo2",
   "dragonSepT": 1020,
   "timeOfDay": 0.75,

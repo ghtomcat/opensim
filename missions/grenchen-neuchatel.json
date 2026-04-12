@@ -1,0 +1,92 @@
+{
+  "id": "grenchen-neuchatel",
+  "phase": "ground",
+  "title": "Cross-Country — Grenchen · Neuchâtel · Grenchen",
+  "description": "LSZG → over Bielersee → LSGN → return. Schnupperflug route. C172, VFR.",
+  "author": "Markus Leutwyler",
+  "aircraft": "c172",
+
+  "timeOfDay": 10.5,
+
+  "weather": {
+    "source": "live",
+    "icao": "LSZG",
+    "fallback": {
+      "wdir": 260,
+      "wspd": 6,
+      "altim": 1018,
+      "temp": 14,
+      "dewp": 6,
+      "visib": "6+",
+      "clouds": [
+        { "cover": "FEW", "base": 5000 }
+      ]
+    }
+  },
+
+  "initialState": {
+    "lat":   47.1815,
+    "lon":   7.4172,
+    "alt":   1411,
+    "spd":   0,
+    "hdg":   260,
+    "pitch": 0,
+    "roll":  0
+  },
+
+  "departure": {
+    "name":      "Grenchen LSZG",
+    "elevation": 1411
+  },
+
+  "arrival": {
+    "icao":       "LSZG",
+    "name":       "Grenchen",
+    "runway":     "26",
+    "ils":        null,
+    "elevation":  1411,
+    "rwyLat":     47.1815,
+    "rwyLon":     7.4172,
+    "rwyHdg":     260,
+    "rwyLengthM": 900,
+    "rwyWidthM":  30,
+    "surface":    "asphalt"
+  },
+
+  "com": {
+    "title": "COM 1",
+    "active": "122.275",
+    "standby": "123.600",
+    "freqs": {
+      "122.275": {
+        "label": "LSZG AFIS",
+        "afis": true
+      },
+      "123.600": {
+        "label": "LSGN AFIS",
+        "afis": true
+      },
+      "121.500": {
+        "label": "GUARD"
+      }
+    }
+  },
+
+  "atcClearances": [],
+
+  "narrative": [
+    "Grenchen. Runway 26.",
+    "Climb out westbound.",
+    "Track over Bielersee.",
+    "Side approach into Neuchâtel from the east.",
+    "Runway 23. Land. 15 minutes on the ground.",
+    "Then back. Grenchen is home."
+  ],
+
+  "debrief": [
+    "Did you maintain 4500ft en-route?",
+    "Did you report downwind at Neuchâtel?",
+    "Side approach from the east — were you stable on final?",
+    "Did you find Grenchen on the return?"
+  ]
+}

@@ -16,10 +16,10 @@ const FREQS_DEFAULT = {
                  : S.wow
                  ? `${cs}, Zürich Ground. Vacate runway, taxi to stand via Alpha.`
                  : `${cs}, Zürich Ground. Push and start approved, face east. QNH 1017.` },
-  '121.900': { label: 'LSZH CLEARANCE DELIVERY',   audio: null,
-               checkin: (cs) => `${cs}, Zürich Delivery. Cleared ILS runway 28 via LOBEP, climb 5000 feet, squawk 4721.` },
+  '121.900': { label: 'LSZH CLEARANCE DELIVERY',   audio: null, squawk: true,
+               checkin: (cs) => `${cs}, Zürich Delivery. Cleared ILS runway 28 via LOBEP, climb 5000 feet. Squawk ${XPDR.code.join('')}.` },
   '126.200': { label: 'LSZH ATIS',                 audio: 'audio/atis-zurich.mp3', atis: true },
-  '118.100': { label: 'LSZH TOWER',                audio: null, squawk: true,
+  '118.100': { label: 'LSZH TOWER',                audio: null,
                stream: 'http://d.liveatc.net/lszh1_twr',
                streamPage: 'https://www.liveatc.net/hlisten.php?mount=lszh1_twr&icao=lszh',
                checkin: (cs, alt) => {
@@ -31,7 +31,11 @@ const FREQS_DEFAULT = {
   '119.700': { label: 'LSZH APPROACH',             audio: null,
                stream: 'http://d.liveatc.net/lszh_app_final',
                streamPage: 'https://www.liveatc.net/hlisten.php?mount=lszh_app_final&icao=lszh',
-               checkin: (cs, alt) => `${cs}, Zürich Approach. Radar contact. ${alt ? `Confirm altitude ${Math.round(alt/100)*100} feet. ` : ''}Descend 4000 feet. Expect ILS runway 28. ` },
+               checkin: (cs, alt) => {
+                 const sq = XPDR.code.join('');
+                 const altStr = alt ? `${Math.round(alt/100)*100} feet. ` : '';
+                 return `${cs}, Zürich Approach. Squawk ${sq}, radar contact. ${altStr}Descend 4000 feet. Expect ILS runway 28.`;
+               } },
   '121.500': { label: 'GUARD',                     audio: null },
 };
 
@@ -288,6 +292,23 @@ function _onTune(freq) {
   /* Start LiveATC stream if defined */
   if (info.stream) {
     _startStream(info.stream, info.streamPage);
+  }
+
+  /* AFIS response (VFR uncontrolled aerodromes) */
+  if (info.afis) {
+    const cs  = S.aircraft?.callsign ?? 'Traffic';
+    const arr = S.mission?.arrival;
+    const w   = S.metar ?? S.mission?.weather?.fallback ?? {};
+    const rwy = arr?.runway ?? '26';
+    const wind = w.wspd > 0
+      ? `wind ${String(w.wdir ?? 260).padStart(3,'0')} degrees, ${w.wspd} knots`
+      : 'wind calm';
+    const qnh  = w.altim ? `, QNH ${w.altim}` : '';
+    const surf = arr?.surface === 'grass' ? ' Grass dry.' : '';
+    const name = arr?.name ?? 'Aerodrome';
+    setTimeout(() => speakATC(
+      `${cs}, ${name} Radio. Runway ${rwy} active, ${wind}${qnh}.${surf} Report downwind.`
+    ), 1200);
   }
 
   /* Virtual ATC check-in */

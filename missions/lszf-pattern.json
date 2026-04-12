@@ -63,7 +63,8 @@
         "streamPage": "https://www.liveatc.net/hlisten.php?mount=lszh_app_final&icao=lszh"
       },
       "120.350": {
-        "label": "LSZK AFIS"
+        "label": "LSZK AFIS",
+        "afis": true
       },
       "124.700": {
         "label": "LSZH INFO"

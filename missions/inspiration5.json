@@ -4,6 +4,7 @@
   "title": "Inspiration5 · Commander Leutwyler",
   "description": "2030. Markus Leutwyler commanding. Four civilians. 590 km orbit. Stage 1 returns to LZ-1.",
   "author": "Markus Leutwyler",
+  "fiction_note": "Markus Leutwyler, Lydia Meier, and Pradeep Sapkota are real people. This mission is set in 2030 and has not happened yet. The vehicle, trajectory, and operational procedures are based on real SpaceX Dragon missions.",
   "aircraft": "falcon9-b5-590",
   "dragonSepT": 780,
   "deorbitT": 259200,
