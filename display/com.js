@@ -70,6 +70,24 @@ let _loopBound  = false;   // loop event listeners registered
 
 /* ═══ Public ══════════════════════════════════════════════════ */
 
+/** Swap active/standby — for canvas renderers */
+export function comTransfer() { _transfer(); }
+
+/** Read-only snapshot of COM state — for canvas renderers */
+export function getCOMState() {
+  const freqs = _freqs();
+  return {
+    title:   _comTitle(),
+    active:  COM.active,
+    standby: COM.standby,
+    activeLabel:  freqs[COM.active]?.label  ?? '',
+    standbyLabel: freqs[COM.standby]?.label ?? '',
+    xpdrLabel: _xpdrLabel(),
+    xpdrCode: XPDR.code.join(''),
+    xpdrMode: XPDR.mode,
+  };
+}
+
 export function initCOM(container) {
   _stopStream();
   _stopLoop();

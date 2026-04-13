@@ -1705,19 +1705,24 @@
   import { renderBf109 }       from './display/bf109.js';
   import { renderF4U1A }       from './display/f4u1a.js';
   import { renderHovercraft }  from './display/hovercraft_display.js';
-  import { renderVelisEpsi }   from './display/velis_epsi.js';
+  import { renderVelisEpsi, handleVelisClick } from './display/velis_epsi.js';
   import { initFMA, renderFMA } from './display/fma.js';
   import { initCOM }           from './display/com.js';
   import { initSound, startSound, stopSound, startEngineLifecycle, stopEngineLifecycle, switchEngine, tickSound, getCurrentRpm, silenceAll } from './core/sound.js';
   import { initOutside, tickOutside, outsideInvalidate } from './display/outside.js';
   import { initKneeboard, toggleKneeboard, tickKneeboard } from './display/kneeboard.js';
-  import { initMap, renderMap, toggleMap } from './display/map.js';
+  import { initMap, renderMap, toggleMap, showMap, hideMap } from './display/map.js';
   import { lookupFlight, nearbyFlights, pickAircraft, trackFlight } from './core/liveflight.js';
 
   /* ── DOM refs ── */
   const canvas     = document.getElementById('pfd');
   const ecamCanvas = document.getElementById('ecam');
   const fmaEl      = document.getElementById('fma');
+
+  /* Velis canvas click — switch toggles + COM swap */
+  canvas.addEventListener('click', evt => {
+    if (S.aircraft?.panel === 'velis-epsi') handleVelisClick(canvas, evt);
+  });
   const loadEl     = document.getElementById('loading');
   const loadBar    = document.getElementById('loadBar');
   const loadStatus = document.getElementById('loadStatus');
@@ -2873,6 +2878,10 @@
     /* Re-init COM with mission-specific frequencies now that S.mission is loaded */
     initCOM(document.getElementById('com-container'));
 
+    /* Show/hide map based on aircraft capability */
+    if (S.aircraft?.map === false) hideMap();
+    else showMap();
+
     /* Reset hovercraft panel sliders on mission load */
     if (S.aircraft?.type === 'hovercraft') {
       const isMarkusOnly = S.aircraft?.id === 'hovercraft_markus';
@@ -3059,7 +3068,7 @@
       /* Escape — back to mission selector */
       if (e.key === 'Escape') { history.back(); return; }
       if (e.key === 'k' || e.key === 'K') { toggleKneeboard(); return; }
-      if (e.key === 'n' || e.key === 'N') { toggleMap(); return; }
+      if (e.key === 'n' || e.key === 'N') { if (S.aircraft?.map !== false) toggleMap(); return; }
 
       /* E — Anlasser (v12 only) */
       if ((e.key === 'e' || e.key === 'E') && _hasLifecycle) {
@@ -3158,11 +3167,15 @@
         else if (ecam)               renderECAM(ecamCanvas);
         else                         renderPFD(canvas);
         /* Show/hide hovercraft control panel; hide COM for hovercraft only (rockets get loop selector) */
-        document.getElementById('hc-panel').style.display     = isHover ? 'flex' : 'none';
-        document.getElementById('com-container').style.display = isHover ? 'none' : '';
-        document.getElementById('panel').style.display         = isRocket ? 'none' : '';
-        document.getElementById('keys').style.display          = isRocket ? 'none' : '';
-        document.getElementById('fma').style.display           = isRocket ? 'none' : '';
+        const isVelis = panel === 'velis-epsi';
+        canvas.style.pointerEvents = isVelis ? 'auto' : 'none';
+        document.getElementById('hc-panel').style.display      = isHover ? 'flex' : 'none';
+        document.getElementById('com-container').style.display  = (isHover || isVelis) ? 'none' : '';
+        document.getElementById('panel').style.display          = (isRocket || isVelis) ? 'none' : '';
+        document.getElementById('keys').style.display           = isRocket ? 'none' : '';
+        document.getElementById('fma').style.display            = (isRocket || isVelis) ? 'none' : '';
+        document.getElementById('warning-lights').style.display = isVelis ? 'none' : '';
+        document.getElementById('metar-strip').style.display    = isVelis ? 'none' : '';
         _oskUpdate(isHover, S.aircraft?.manualControl);
       },
       () => renderFMA(),

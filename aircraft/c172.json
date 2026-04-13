@@ -3,6 +3,7 @@
   "name": "Cessna 172S Skyhawk",
   "approachSpeed": 65,
   "panel": "g1000",
+  "map": false,
   "tanks": { "left": 95, "right": 95, "unit": "L" },
   "fuelBurn": 28,
   "hasCarbHeat": true,

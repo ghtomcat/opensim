@@ -4,7 +4,7 @@
    Fetches live METAR if mission.weather.source === 'live'.
    ═══════════════════════════════════════════════════════════════ */
 
-import { setState }      from './state.js';
+import { S, setState }   from './state.js';
 import { resetFailures }  from './failures.js';
 import { resetFuel }      from './fuel.js';
 import { resetBattery }   from './battery.js';
@@ -106,6 +106,12 @@ export async function loadMission(missionPath, aircraftPath) {
   resetFailures();
   resetFuel();
   resetBattery();
+
+  /* Reset cockpit switches — all off at mission start */
+  S.switches.master   = false;
+  S.switches.battEn   = false;
+  S.switches.pwrEn    = false;
+  S.switches.avionics = false;
   setCrewLang(aircraft.crewLang ?? null);
   return { mission, aircraft };
 }

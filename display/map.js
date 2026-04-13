@@ -20,7 +20,7 @@ const ROCKET_H   = 340;        /* px — rocket panel height */
 
 let _el      = null;
 let _canvas  = null;
-let _visible = true;
+let _visible = false;
 let _mode    = 'local';        /* 'local' | 'rocket' */
 
 /* ── Vehicle silhouette panels (rocket mode, left of map) ── */
@@ -93,6 +93,7 @@ function _applySize(mode) {
     box-shadow: 0 2px 16px rgba(0,0,0,0.7);
     z-index: 8000;
     pointer-events: none;
+    display: ${_visible ? '' : 'none'};
   `;
   /* Silhouette panels: same height as map, stacked left of it */
   const silCSS = (rightPx) => `
@@ -124,6 +125,20 @@ export function toggleMap() {
   _el.style.display  = _visible ? '' : 'none';
   if (_silEl)  _silEl.style.display  = _visible ? '' : 'none';
   if (_silEl2) _silEl2.style.display = _visible ? '' : 'none';
+}
+
+export function showMap() {
+  _visible = true;
+  if (_el)     _el.style.display     = '';
+  if (_silEl)  _silEl.style.display  = '';
+  if (_silEl2) _silEl2.style.display = '';
+}
+
+export function hideMap() {
+  _visible = false;
+  if (_el)     _el.style.display     = 'none';
+  if (_silEl)  _silEl.style.display  = 'none';
+  if (_silEl2) _silEl2.style.display = 'none';
 }
 
 export function renderMap() {

@@ -127,6 +127,14 @@ export const S = {
   /* ── Cooling system ── */
   coolantState: 'ok',    // 'ok' | 'leaking' | 'failed' — liquid-cooled aircraft only
 
+  /* ── Cockpit switches (electric aircraft) ── */
+  switches: {
+    master:   false,   // MASTER — gates all electrical
+    battEn:   false,   // BATT EN — enables battery
+    pwrEn:    false,   // PWR EN — enables motor output
+    avionics: false,   // AVIONICS — gates NESIS display
+  },
+
   /* ── Warning lights ── */
   warnings: {},           // { OIL_PRESS: bool, LOW_FUEL: bool, FUEL_SEL_OFF: bool }
 
