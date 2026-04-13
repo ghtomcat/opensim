@@ -2,10 +2,11 @@
    OpenSim — display/g1000.js
    Garmin G1000 glass cockpit — C172 / piston aircraft.
    PFD (left 62%): attitude · tapes · HSI · ILS
-   MFD (right 38%): engine strip · map placeholder
+   MFD (right 38%): engine strip · moving map
    ═══════════════════════════════════════════════════════════════ */
 
-import { S } from '../core/state.js';
+import { S }                  from '../core/state.js';
+import { renderEmbeddedMap }  from './map.js';
 
 const G = {
   bg:      'rgba(18,20,26,0.65)',
@@ -470,18 +471,8 @@ function _mfd(ctx, x, y, w, h) {
   const engW = Math.round(w * 0.38);
   _engineStrip(ctx, x, y, engW, h);
 
-  /* Map placeholder — no background fill, outside shows through */
-  ctx.fillStyle = 'rgba(255,255,255,0.06)';
-  ctx.font = `${Math.round(w * 0.05)}px ${MONO}`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('MOVING MAP', x + engW + (w - engW) / 2, y + h / 2);
-
-  /* Lat/lon */
-  ctx.font = `${Math.round(w * 0.03)}px ${MONO}`;
-  ctx.fillStyle = 'rgba(255,255,255,0.12)';
-  const lat = (S.lat ?? 0).toFixed(4);
-  const lon = (S.lon ?? 0).toFixed(4);
-  ctx.fillText(`${lat}N  ${lon}E`, x + engW + (w - engW) / 2, y + h / 2 + h * 0.06);
+  /* Moving map */
+  renderEmbeddedMap(ctx, x + engW, y, w - engW, h);
 }
 
 function _engineStrip(ctx, x, y, w, h) {

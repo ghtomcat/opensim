@@ -141,6 +141,20 @@ export function hideMap() {
   if (_silEl2) _silEl2.style.display = 'none';
 }
 
+/* ── Embedded map — render local map directly onto any canvas ctx ──
+   x, y, w, h are in the parent canvas's coordinate space (device px).
+   Used by G1000 MFD and Velis EPSI canvas panels. */
+export function renderEmbeddedMap(ctx, x, y, w, h) {
+  const dpr = window.devicePixelRatio || 1;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.beginPath();
+  ctx.rect(0, 0, w, h);
+  ctx.clip();
+  _renderLocalMap(ctx, w, h, dpr);
+  ctx.restore();
+}
+
 export function renderMap() {
   if (!_el || !_visible) return;
 

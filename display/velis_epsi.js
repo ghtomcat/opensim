@@ -17,6 +17,7 @@
 
 import { S }                        from '../core/state.js';
 import { getCOMState, comTransfer } from './com.js';
+import { renderEmbeddedMap }        from './map.js';
 
 /* ── Palette ── */
 const P = {
@@ -678,6 +679,14 @@ function _drawEPSI(ctx, cx, cy, w, h, sc) {
   ctx.fillStyle = flapsIdx === 0 ? P.white : P.cyan;
   ctx.font      = `bold ${20*sc}px ${MONO}`;
   ctx.fillText(flapsLabel, cx + col/2, row3Y + 16*sc);
+
+  /* Moving map — fills gap between data rows and annunciators */
+  const mapTop    = row3Y + 36*sc;
+  const mapBottom = y0 + h - 60*sc;
+  const mapH      = mapBottom - mapTop;
+  const mapS      = Math.min(w - pad*2, mapH);   // square, centered
+  const mapX      = cx - mapS/2;
+  if (mapH > 40*sc) renderEmbeddedMap(ctx, mapX, mapTop, mapS, mapH);
 
   /* Warning annunciators */
   const warnY = y0 + h - 46*sc;
