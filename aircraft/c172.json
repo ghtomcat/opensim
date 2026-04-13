@@ -2,6 +2,8 @@
   "id": "c172",
   "name": "Cessna 172S Skyhawk",
   "approachSpeed": 65,
+  "tanks": { "left": 95, "right": 95, "unit": "L" },
+  "fuelBurn": 28,
   "callsign": "HB-TBD",
   "icaoType": "C172",
   "era": "VFR / PPL(A)",

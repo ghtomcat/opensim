@@ -111,6 +111,14 @@ export const S = {
   hcMThrEscTemp:  25,    // °C — thrust ESC temperature
   hcMEmergency:   false, // emergency landing in progress
 
+  /* ── Fuel system ── */
+  fuelSelector: 'BOTH',  // 'LEFT' | 'RIGHT' | 'BOTH' | 'OFF'
+  fuelLeft:  null,        // litres — null = no fuel system on this aircraft
+  fuelRight: null,
+
+  /* ── Warning lights ── */
+  warnings: {},           // { OIL_PRESS: bool, LOW_FUEL: bool, FUEL_SEL_OFF: bool }
+
   /* ── Emergency log (scored at debrief) ── */
   emergLog: [],   // { t, type: 'failure'|'tune'|'squawk7700'|'ptt', ... }
 

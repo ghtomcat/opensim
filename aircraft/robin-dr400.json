@@ -2,6 +2,8 @@
   "id": "robin-dr400",
   "name": "Robin DR400/140B Dauphin",
   "approachSpeed": 65,
+  "tanks": { "left": 75, "right": 75, "unit": "L" },
+  "fuelBurn": 24,
   "callsign": "HB-KFG",
   "icaoType": "DR40",
   "era": "VFR / PPL(A)",

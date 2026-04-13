@@ -179,6 +179,30 @@
       line-height: 1.5;
     }
 
+    /* ── Warning lights ── */
+    #warning-lights {
+      position: fixed; top: 12px; left: 50%;
+      transform: translateX(-50%);
+      z-index: 50;
+      display: flex; gap: 6px;
+      pointer-events: none;
+    }
+    .warn-light {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px; letter-spacing: 0.12em;
+      padding: 3px 8px;
+      border-radius: 2px;
+      display: none;
+      animation: warn-flash 0.8s ease-in-out infinite;
+    }
+    .warn-light.red   { background: rgba(220,30,30,0.9);  color: #fff; border: 1px solid #ff4444; }
+    .warn-light.amber { background: rgba(200,130,0,0.9);  color: #fff; border: 1px solid #ffaa00; }
+    .warn-light.active { display: block; }
+    @keyframes warn-flash {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.5; }
+    }
+
     /* ── PTT indicator ── */
     #ptt-indicator {
       position: fixed; bottom: 90px; left: 20px;
@@ -1446,10 +1470,25 @@
     <div class="panel-label">Engine</div>
     <div class="panel-value green" id="pv-rpm">---</div>
   </div>
+  <div class="panel-section" id="ps-fuel" style="display:none">
+    <div class="panel-label">Fuel L/R</div>
+    <div class="panel-value green" id="pv-fuel">--- / ---</div>
+  </div>
+  <div class="panel-section" id="ps-fsel" style="display:none">
+    <div class="panel-label">Fuel Sel</div>
+    <div class="panel-value cyan" id="pv-fsel">BOTH</div>
+  </div>
   <div class="panel-section">
     <div class="panel-label" id="pl-audio">Audio</div>
     <div class="panel-value green" id="pv-audio">ON</div>
   </div>
+</div>
+
+<!-- Warning lights -->
+<div id="warning-lights">
+  <div class="warn-light red"   id="wl-oil">OIL PRESS</div>
+  <div class="warn-light amber" id="wl-fuel">LOW FUEL</div>
+  <div class="warn-light amber" id="wl-fsel">FUEL SEL OFF</div>
 </div>
 
 <!-- COM + Transponder -->
@@ -1641,6 +1680,7 @@
   import { tickHovercraft }  from './core/hovercraft_physics.js';
   import { tickRocket, tickBooster } from './core/rocket.js';
   import { tickFailures }    from './core/failures.js';
+  import { cycleFuelSelector } from './core/fuel.js';
   import { initCrew, tickCrew, resetCrew } from './core/crew.js';
   import { initInput, isPTTActive }        from './core/input.js';
   import { startLoop }    from './core/loop.js';
@@ -2889,6 +2929,7 @@
       { key: 'P',      desc: 'Pause' },
       { key: 'M',      desc: 'Audio on/off' },
       { key: 'E / Q',  desc: 'Anlasser / Kraftstoffhahn (Bf 109)' },
+      { key: 'Q',      desc: 'Fuel selector: BOTH → LEFT → RIGHT → OFF' },
       { key: 'R',      desc: 'Role: PF → PM → INSTRUCTOR' },
       { key: 'Space',  desc: 'PTT — Push to Talk' },
     ];
@@ -2988,6 +3029,12 @@
 
       if ((e.key === 'q' || e.key === 'Q') && _hasLifecycle) {
         stopEngineLifecycle();
+        return;
+      }
+
+      /* Q — fuel selector cycle (all manual aircraft with fuel system) */
+      if ((e.key === 'q' || e.key === 'Q') && S.aircraft?.manualControl && S.fuelLeft !== null) {
+        cycleFuelSelector();
         return;
       }
 
@@ -3123,6 +3170,36 @@
       S.emergLog.push({ t: S.time, type: 'ptt' });
     }
 
+    /* Fuel display */
+    const hasFuel = S.fuelLeft !== null;
+    document.getElementById('ps-fuel').style.display = hasFuel ? '' : 'none';
+    document.getElementById('ps-fsel').style.display = hasFuel ? '' : 'none';
+    if (hasFuel) {
+      const fL = Math.round(S.fuelLeft);
+      const fR = Math.round(S.fuelRight);
+      const fuelEl = document.getElementById('pv-fuel');
+      fuelEl.textContent = `${fL} / ${fR} L`;
+      fuelEl.className = 'panel-value ' + ((fL + fR) < 20 ? 'score-fail' : fL < 10 || fR < 10 ? 'amber' : 'green');
+      const fselEl = document.getElementById('pv-fsel');
+      const sel = S.fuelSelector ?? 'BOTH';
+      fselEl.textContent = sel;
+      fselEl.className = 'panel-value ' + (sel === 'OFF' ? 'score-fail' : 'cyan');
+    }
+
+    /* Warning lights + audio cues */
+    const w = S.warnings ?? {};
+    const wlOil  = document.getElementById('wl-oil');
+    const wlFuel = document.getElementById('wl-fuel');
+    const wlFsel = document.getElementById('wl-fsel');
+    const oilWasActive = wlOil.classList.contains('active');
+    const fuelWasActive = wlFuel.classList.contains('active');
+    wlOil.classList.toggle('active',  !!w.OIL_PRESS);
+    wlFuel.classList.toggle('active', !!w.LOW_FUEL);
+    wlFsel.classList.toggle('active', !!w.FUEL_SEL_OFF);
+    /* Audio cues — fire once on activation */
+    if (w.OIL_PRESS && !oilWasActive)  _playWarnTone('red');
+    if (w.LOW_FUEL  && !fuelWasActive) _playWarnTone('amber');
+
     /* Time warp indicator */
     const warpEl = document.getElementById('warp-indicator');
     const warp   = S.warpFactor ?? 1;
@@ -3198,6 +3275,29 @@
     if (S.wow && _apt.samples.length > 0 && !_apt.touchdown) {
       _apt.touchdown = { hdg: S.hdg ?? 0, spd: S.spd ?? 0, lat: S.lat ?? 0, lon: S.lon ?? 0 };
     }
+  }
+
+  /* ── Warning tone ── */
+  function _playWarnTone(type) {
+    try {
+      const ctx  = new AudioContext();
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = type === 'red' ? 880 : 660;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.18, ctx.currentTime);
+      if (type === 'red') {
+        /* Continuous warble — two tones alternating */
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.setValueAtTime(660, ctx.currentTime + 0.15);
+        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.30);
+      }
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (type === 'red' ? 0.5 : 0.3));
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + (type === 'red' ? 0.5 : 0.3));
+      osc.onended = () => ctx.close();
+    } catch(e) { /* audio context unavailable */ }
   }
 
   function _computeApproachScore() {

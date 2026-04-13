@@ -1,6 +1,8 @@
 {
   "id": "f4u1a",
   "name": "Vought F4U-1A Corsair",
+  "tanks": { "left": 375, "right": 375, "unit": "L" },
+  "fuelBurn": 160,
   "callsign": "Jolly 1",
   "icaoType": "CORS",
 
