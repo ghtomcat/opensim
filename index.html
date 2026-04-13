@@ -1478,6 +1478,10 @@
     <div class="panel-label">Fuel Sel</div>
     <div class="panel-value cyan" id="pv-fsel">BOTH</div>
   </div>
+  <div class="panel-section" id="ps-carb" style="display:none">
+    <div class="panel-label">Carb Heat</div>
+    <div class="panel-value" id="pv-carb">OFF</div>
+  </div>
   <div class="panel-section">
     <div class="panel-label" id="pl-audio">Audio</div>
     <div class="panel-value green" id="pv-audio">ON</div>
@@ -1489,6 +1493,7 @@
   <div class="warn-light red"   id="wl-oil">OIL PRESS</div>
   <div class="warn-light amber" id="wl-fuel">LOW FUEL</div>
   <div class="warn-light amber" id="wl-fsel">FUEL SEL OFF</div>
+  <div class="warn-light amber" id="wl-carb">CARB ICE</div>
 </div>
 
 <!-- COM + Transponder -->
@@ -1505,7 +1510,8 @@
   <span id="keys-ap">↑↓ ALT ±500 · ←→ HDG ±5<br></span>
   <span id="keys-manual" style="display:none">↑↓ PITCH · ←→ BANK<br></span>
   <span id="keys-spd">+ / − SPD</span><span id="keys-throttle" style="display:none">+ / − THROTTLE</span> · F1–F4 DETENT<br>
-  f/F flaps ▼▲ · G gear<br>
+  f/F flaps ▼▲ · G gear · Q fuel sel<br>
+  <span id="keys-carb" style="display:none">C carb heat<br></span>
   TAB display · V outside · P pause · R role<br>
   SPACE PTT
 </div>
@@ -2724,11 +2730,20 @@
   function showScenarioSetup(m) {
     const el = document.getElementById('scenario-setup');
 
+    const hasCarbHeat = (() => {
+      /* Look up aircraft from MISSIONS → aircraft JSON already in DOM as a module import? No — use id string. */
+      /* We'll check after aircraft loads. For now, check by id if available from window. */
+      const acId = m.aircraft;
+      /* Aircraft JSONs are fetched in init(), not yet loaded. Use known list. */
+      return ['c172', 'robin-dr400'].includes(acId);
+    })();
+
     const PRESETS = [
-      { id: 'CLEAN',   label: 'No failure',       failures: [] },
-      { id: 'PARTIAL', label: '50% power · 30s',  severity: 0.5, ramp: 30, bang: false },
-      { id: 'ROUGH',   label: '30% power · bang',  severity: 0.3, ramp: 20, bang: true  },
-      { id: 'FAILURE', label: 'Full failure',       severity: 0.0, ramp: 15, bang: true  },
+      { id: 'CLEAN',    label: 'No failure',        failures: [] },
+      ...(hasCarbHeat ? [{ id: 'CARB ICE', label: 'Carb icing · descent', carbIce: true }] : []),
+      { id: 'PARTIAL',  label: '50% power · 30s',   severity: 0.5, ramp: 30, bang: false },
+      { id: 'ROUGH',    label: '30% power · bang',   severity: 0.3, ramp: 20, bang: true  },
+      { id: 'FAILURE',  label: 'Full failure',        severity: 0.0, ramp: 15, bang: true  },
     ];
 
     let selected = 'CLEAN';
@@ -2787,11 +2802,15 @@
           ? Math.floor(60 + Math.random() * 240)
           : Math.max(10, parseInt(fixedInput.value) || 120);
 
-        if (preset.bang) {
-          injected.push({ trigger: { type: 'time', t: T     }, type: 'engine_gunfire' });
-          injected.push({ trigger: { type: 'time', t: T + 1 }, type: 'engine_bang' });
+        if (preset.carbIce) {
+          injected.push({ trigger: { type: 'time', t: T }, type: 'carb_ice' });
+        } else {
+          if (preset.bang) {
+            injected.push({ trigger: { type: 'time', t: T     }, type: 'engine_gunfire' });
+            injected.push({ trigger: { type: 'time', t: T + 1 }, type: 'engine_bang' });
+          }
+          injected.push({ trigger: { type: 'time', t: T + (preset.bang ? 1 : 0) }, type: 'engine_power', value: preset.severity, rampTime: preset.ramp });
         }
-        injected.push({ trigger: { type: 'time', t: T + (preset.bang ? 1 : 0) }, type: 'engine_power', value: preset.severity, rampTime: preset.ramp });
       }
 
       /* Store injected failures on the mission object — init() will merge them */
@@ -3038,6 +3057,12 @@
         return;
       }
 
+      /* C — carb heat toggle */
+      if ((e.key === 'c' || e.key === 'C') && S.aircraft?.hasCarbHeat) {
+        setState({ carbHeat: !S.carbHeat });
+        return;
+      }
+
       if (e.key === 'm' || e.key === 'M') {
         if (!_hasLifecycle) {
           _audioOn = !_audioOn;
@@ -3186,19 +3211,33 @@
       fselEl.className = 'panel-value ' + (sel === 'OFF' ? 'score-fail' : 'cyan');
     }
 
+    /* Carb heat display */
+    const hasCarb = !!S.aircraft?.hasCarbHeat;
+    document.getElementById('ps-carb').style.display = hasCarb ? '' : 'none';
+    if (hasCarb) {
+      const carbEl = document.getElementById('pv-carb');
+      carbEl.textContent = S.carbHeat ? 'ON' : 'OFF';
+      carbEl.className   = 'panel-value ' + (S.carbHeat ? 'green' : '');
+    }
+
     /* Warning lights + audio cues */
     const w = S.warnings ?? {};
     const wlOil  = document.getElementById('wl-oil');
     const wlFuel = document.getElementById('wl-fuel');
     const wlFsel = document.getElementById('wl-fsel');
-    const oilWasActive = wlOil.classList.contains('active');
+    const wlCarb = document.getElementById('wl-carb');
+    const oilWasActive  = wlOil.classList.contains('active');
     const fuelWasActive = wlFuel.classList.contains('active');
+    const carbIcing     = (S.carbIceLevel ?? 0) > 0.08;
+    const carbWasActive = wlCarb.classList.contains('active');
     wlOil.classList.toggle('active',  !!w.OIL_PRESS);
     wlFuel.classList.toggle('active', !!w.LOW_FUEL);
     wlFsel.classList.toggle('active', !!w.FUEL_SEL_OFF);
+    wlCarb.classList.toggle('active', carbIcing);
     /* Audio cues — fire once on activation */
     if (w.OIL_PRESS && !oilWasActive)  _playWarnTone('red');
     if (w.LOW_FUEL  && !fuelWasActive) _playWarnTone('amber');
+    if (carbIcing   && !carbWasActive) _playWarnTone('amber');
 
     /* Time warp indicator */
     const warpEl = document.getElementById('warp-indicator');
@@ -3240,6 +3279,7 @@
     document.getElementById('keys-manual').style.display   = isManual ? 'inline' : 'none';
     document.getElementById('keys-spd').style.display      = isManual ? 'none'   : '';
     document.getElementById('keys-throttle').style.display = isManual ? 'inline' : 'none';
+    document.getElementById('keys-carb').style.display     = S.aircraft?.hasCarbHeat ? '' : 'none';
   }
 
   /* ── METAR ── */
