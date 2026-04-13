@@ -113,3 +113,20 @@ The panel canvas is sized by the browser. Always use `canvas.width` and `canvas.
 - Keep all drawing logic inside the render function or private helpers in the same file
 - Use `requestAnimationFrame` is handled by the main loop — do not start your own loop
 - Name the export `render[PanelName](canvas)`
+
+---
+
+## Gotchas
+
+### Leading zeros in headings
+JSON does not allow numbers with leading zeros. Headings like 080 or 090 must be written without the leading zero:
+
+```json
+// WRONG — SyntaxError
+{ "hdg": 080 }
+
+// CORRECT
+{ "hdg": 80 }
+```
+
+This applies to any numeric field: `hdg`, `alt`, `spd`, `rwyHdg`, etc. The zero looks natural in aviation notation but breaks JSON parsing silently with a confusing "Unexpected number" error.

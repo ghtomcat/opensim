@@ -65,7 +65,7 @@
   "situations": [
     { "label": "GROUND",   "alt": 1411, "spd": 0,  "hdg": 260, "altT": 1411, "spdT": 0  },
     { "label": "TAKEOFF",  "alt": 1411, "spd": 55, "hdg": 260, "altT": 2500, "spdT": 92 },
-    { "label": "CIRCUIT",  "alt": 2200, "spd": 80, "hdg": 080, "altT": 2200, "spdT": 80 },
+    { "label": "CIRCUIT",  "alt": 2200, "spd": 80, "hdg": 80, "altT": 2200, "spdT": 80 },
     { "label": "CRUISE",   "alt": 4000, "spd": 92, "hdg": 280, "altT": 4000, "spdT": 92 }
   ],
 
