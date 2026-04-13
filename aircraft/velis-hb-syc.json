@@ -1,0 +1,260 @@
+{
+  "id": "velis-hb-syc",
+  "name": "Pipistrel Velis Electro HB-SYC",
+  "callsign": "HB-SYC",
+  "icaoType": "POVE",
+  "era": "VFR / PPL(A) · Electric",
+  "engine": "Pipistrel E-811, 57.6 kW max / 47.8 kW continuous",
+
+  "battery": {
+    "capacityKwh": 21.8,
+    "powerDrawKw":  25
+  },
+
+  "envelope": {
+    "cruiseAlt":  4000,
+    "maxAlt":    13000,
+    "cruiseSpd":    92,
+    "maxSpd":      135,
+    "spdProfile": {
+      "13000": 85,
+      "8000":  90,
+      "4000":  92,
+      "2000":  80,
+      "1000":  65,
+      "0":     55
+    }
+  },
+
+  "manualControl": true,
+  "fixedGear":     true,
+
+  "performance": {
+    "mass":      600,
+    "wingArea":  9.51,
+    "thrustMax": 2800,
+    "CL_0":      0.20,
+    "CL_alpha":  5.0,
+    "CL_max":    1.75,
+    "CD_0":      0.027,
+    "inducedK":  0.058,
+    "Vr":        55,
+    "muRoll":    0.05,
+    "muBrake":   0.35
+  },
+
+  "flaps": [
+    { "deg":  0, "dCL_max": 0.0,  "dCD_0": 0.000 },
+    { "deg": 15, "dCL_max": 0.55, "dCD_0": 0.018 }
+  ],
+
+  "handling": {
+    "rollRate":  28,
+    "pitchRate":  5,
+    "spdRate":    2,
+    "maxBank":   60,
+    "maxPitch":  20
+  },
+
+  "sound": {
+    "engineType": "electric"
+  },
+
+  "situations": [
+    { "label": "GROUND",   "alt": 1411, "spd": 0,  "hdg": 260, "altT": 1411, "spdT": 0  },
+    { "label": "TAKEOFF",  "alt": 1411, "spd": 55, "hdg": 260, "altT": 2500, "spdT": 92 },
+    { "label": "CIRCUIT",  "alt": 2200, "spd": 80, "hdg": 080, "altT": 2200, "spdT": 80 },
+    { "label": "CRUISE",   "alt": 4000, "spd": 92, "hdg": 280, "altT": 4000, "spdT": 92 }
+  ],
+
+  "thrustProfiles": [
+    { "label": "IDLE",   "spdT":  0 },
+    { "label": "CLIMB",  "spdT": 70 },
+    { "label": "CRUISE", "spdT": 92 }
+  ],
+
+  "fmaPhases": [
+    { "minAlt": 2000, "vals": ["MAN","","HDG","ALT",""],  "cols": ["white","white","green","cyan","white"] },
+    { "minAlt":    0, "vals": ["MAN","","HDG","CLB",""],  "cols": ["white","white","green","cyan","white"] }
+  ],
+
+  "takeoffCallouts": [
+    { "spd": 55, "speech": "rotate",    "voice": "pm" },
+    { "spd": 70, "speech": "best rate", "voice": "pm" }
+  ],
+
+  "gpws": [
+    { "alt": 1000, "text": "1 0 0 0", "speech": "one thousand", "red": false },
+    { "alt": 500,  "text": "5 0 0",   "speech": "five hundred", "red": false },
+    { "alt": 200,  "text": "2 0 0",   "speech": "two hundred",  "red": true  },
+    { "alt": 50,   "text": "F I F T Y", "speech": "fifty",      "red": false }
+  ],
+
+  "pmCallouts": [
+    { "alt": 3000, "speech": "passing three thousand" },
+    { "alt": 2000, "speech": "passing two thousand"   },
+    { "alt": 1000, "speech": "one thousand"           },
+    { "alt": 500,  "speech": "five hundred"           }
+  ],
+
+  "kneeboard": [
+    {
+      "title": "DEPARTURE BRIEFING",
+      "type": "briefing",
+      "items": [
+        "Runway 26, asphalt, 900m",
+        "Departure: straight out, left crosswind 800ft AGL",
+        "Vr 55kt · Vy 70kt · Best glide 75kt",
+        "Motor failure < 200ft: land ahead, no turns",
+        "Motor failure > 200ft: best glide 75kt, field ahead",
+        "No restart possible — treat as glider",
+        "Takeoff prohibited below 50% SOC"
+      ]
+    },
+    {
+      "title": "BEFORE MOTOR START",
+      "type": "checklist",
+      "items": [
+        "Preflight inspection — complete",
+        "Seats — adjusted and locked",
+        "Harnesses — fastened",
+        "Battery SOC — check (≥ 50% for takeoff)",
+        "BMS status — no fault",
+        "Circuit breakers — in",
+        "Avionics — OFF"
+      ]
+    },
+    {
+      "title": "MOTOR START",
+      "type": "checklist",
+      "items": [
+        "Propeller arc — clear",
+        "Key — rotate to RUN",
+        "EPSI — check (motor ready)",
+        "Avionics — ON",
+        "Altimeter — set QNH",
+        "Radios — set"
+      ]
+    },
+    {
+      "title": "BEFORE TAKEOFF",
+      "type": "checklist",
+      "items": [
+        "Battery SOC — ≥ 50% (no takeoff below this)",
+        "BMS — no fault",
+        "Trim — neutral",
+        "Flaps — 0° (or 15° short field)",
+        "Controls — full and free",
+        "Transponder — ALT",
+        "Departure briefing — complete"
+      ]
+    },
+    {
+      "title": "CLIMB",
+      "type": "checklist",
+      "items": [
+        "Flaps — retract above 200ft AGL",
+        "Airspeed — Vy 70kt",
+        "Power — monitor SOC drain rate",
+        "EPSI — no fault"
+      ]
+    },
+    {
+      "title": "CRUISE",
+      "type": "checklist",
+      "items": [
+        "Power — reduce to cruise (SOC drain ≈ 2%/min)",
+        "Battery SOC — monitor continuously",
+        "Plan return: allow ≥ 27% SOC for landing",
+        "EPSI — no fault"
+      ]
+    },
+    {
+      "title": "BEFORE LANDING",
+      "type": "checklist",
+      "items": [
+        "Battery SOC — note (≥ 27% = go-around possible)",
+        "Flaps — 15° base",
+        "Speed — below 108kt for flaps",
+        "Harness — secure"
+      ]
+    },
+    {
+      "title": "AFTER LANDING",
+      "type": "checklist",
+      "items": [
+        "Flaps — retract",
+        "Trim — neutral",
+        "Transponder — STBY",
+        "Battery SOC — note for logbook"
+      ]
+    },
+    {
+      "title": "SHUTDOWN",
+      "type": "checklist",
+      "items": [
+        "Avionics — OFF",
+        "Key — OFF",
+        "Battery SOC — record",
+        "Plug in charger if available"
+      ]
+    },
+    {
+      "title": "EMERG — MOTOR FAILURE",
+      "type": "checklist",
+      "items": [
+        "Best glide — 75kt",
+        "Field — select, into wind",
+        "Key — check RUN (no restart if SOC = 0)",
+        "Mayday on 121.5",
+        "Squawk 7700",
+        "Flaps — 15° short final",
+        "Key — OFF before touchdown",
+        "Harness — tight"
+      ]
+    },
+    {
+      "title": "SPEEDS",
+      "type": "briefing",
+      "items": [
+        "Vs0 (flaps 15°) ........ 44kt",
+        "Vs1 (clean) ............ 48kt",
+        "Vr ..................... 55kt",
+        "Vy (best rate) ......... 70kt",
+        "Best glide ............. 75kt",
+        "Va (maneuvering) ....... 97kt",
+        "VNO .................... 108kt",
+        "Vne .................... 135kt",
+        "Max flap speed ......... 108kt"
+      ]
+    },
+    {
+      "title": "ENERGY NOTES",
+      "type": "briefing",
+      "items": [
+        "Capacity: 21.8 kWh usable",
+        "Cruise draw: ≈ 25 kW → 2%/min",
+        "Climb draw: ≈ 40 kW → 3.2%/min",
+        "Endurance: ≈ 50 min at cruise",
+        "Reserve: 27% SOC (≈ 15 min)",
+        "BATT LOW warning: 20%",
+        "BATT CRIT warning: 10%",
+        "No restart with 0% SOC",
+        "HB-SYC. Grenchen. The same one."
+      ]
+    }
+  ],
+
+  "onboarding": [
+    { "key": "Mouse (hold) / Arrow keys", "desc": "Stick · Rudder" },
+    { "key": "F",                         "desc": "Flaps (0° / 15°)" },
+    { "key": "F1",                        "desc": "Idle (power off)" },
+    { "key": "+ / −",                     "desc": "Throttle ±" },
+    { "key": "t / T",                     "desc": "Elevator trim" },
+    { "key": "B (hold)",                  "desc": "Brakes" },
+    { "key": "V",                         "desc": "External view" },
+    { "key": "K",                         "desc": "Kneeboard" },
+    { "key": "N",                         "desc": "Map" },
+    { "key": "P",                         "desc": "Pause" }
+  ]
+}

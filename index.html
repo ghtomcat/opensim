@@ -1478,6 +1478,10 @@
     <div class="panel-label">Fuel Sel</div>
     <div class="panel-value cyan" id="pv-fsel">BOTH</div>
   </div>
+  <div class="panel-section" id="ps-batt" style="display:none">
+    <div class="panel-label">Battery</div>
+    <div class="panel-value green" id="pv-batt">100%</div>
+  </div>
   <div class="panel-section" id="ps-carb" style="display:none">
     <div class="panel-label">Carb Heat</div>
     <div class="panel-value" id="pv-carb">OFF</div>
@@ -1495,6 +1499,8 @@
   <div class="warn-light amber" id="wl-fsel">FUEL SEL OFF</div>
   <div class="warn-light amber" id="wl-carb">CARB ICE</div>
   <div class="warn-light red"   id="wl-cool">COOLANT</div>
+  <div class="warn-light amber" id="wl-batt-low">BATT LOW</div>
+  <div class="warn-light red"   id="wl-batt-crit">BATT CRIT</div>
 </div>
 
 <!-- COM + Transponder -->
@@ -1760,6 +1766,19 @@
         aircraft: 'HB-KFG · Robin DR400/140B · O-320 160hp',
         orders: 'Platzrunde links. Platzhöhe 2200ft QNH.\nPiste 26 · Asphalt · 900m.\nCrosswind bei 800ft AGL links eindrehen.\nEndanflug 70kt, Klappen 30°. Aufsetzen bei den Zahlen.',
         atmosphere: 'Low wing. Stick, not yoke.\nYou flew this aircraft already.',
+      },
+    },
+    {
+      id: 'lszg-velis', aircraft: 'velis-hb-syc',
+      acName: 'Pipistrel Velis Electro', engine: 'E-811 · 57.6 kW electric',
+      location: 'Grenchen LSZG', title: 'Electric Circuit · HB-SYC', era: 'PPL · Electric', accent: '#5dd4e8',
+      briefing: {
+        date: 'LSZG · Runway 26 · CTAF 122.275',
+        pilot: 'Student Pilot',
+        unit: 'Flugschule Grenchen',
+        aircraft: 'HB-SYC · Pipistrel Velis Electro · 57.6 kW',
+        orders: 'Left-hand circuit. Circuit altitude 2200ft QNH.\nRunway 26 · Asphalt · 900m.\nVr 55kt · Vy 70kt · Approach 65kt.\nLand with ≥ 27% SOC. No go-around below that.',
+        atmosphere: 'Nearly silent.\nNo magnetos. No carb heat. No mixture.\nWatch the EPSI. Manage your energy.\nHB-SYC. The same one.',
       },
     },
     {
@@ -3212,6 +3231,16 @@
       fselEl.className = 'panel-value ' + (sel === 'OFF' ? 'score-fail' : 'cyan');
     }
 
+    /* Battery display */
+    const hasBatt = S.batteryCharge !== null;
+    document.getElementById('ps-batt').style.display = hasBatt ? '' : 'none';
+    if (hasBatt) {
+      const pct    = Math.round(S.batteryCharge ?? 0);
+      const battEl = document.getElementById('pv-batt');
+      battEl.textContent = pct + '%';
+      battEl.className   = 'panel-value ' + (pct <= 10 ? 'score-fail' : pct <= 20 ? 'amber' : pct <= 27 ? 'warn' : 'green');
+    }
+
     /* Carb heat display */
     const hasCarb = !!S.aircraft?.hasCarbHeat;
     document.getElementById('ps-carb').style.display = hasCarb ? '' : 'none';
@@ -3227,23 +3256,34 @@
     const wlFuel = document.getElementById('wl-fuel');
     const wlFsel = document.getElementById('wl-fsel');
     const wlCarb = document.getElementById('wl-carb');
-    const wlCool = document.getElementById('wl-cool');
-    const oilWasActive  = wlOil.classList.contains('active');
-    const fuelWasActive = wlFuel.classList.contains('active');
-    const carbIcing     = (S.carbIceLevel ?? 0) > 0.08;
-    const carbWasActive = wlCarb.classList.contains('active');
-    const coolLeaking   = S.coolantState === 'leaking' || S.coolantState === 'failed';
-    const coolWasActive = wlCool.classList.contains('active');
-    wlOil.classList.toggle('active',  !!w.OIL_PRESS);
-    wlFuel.classList.toggle('active', !!w.LOW_FUEL);
-    wlFsel.classList.toggle('active', !!w.FUEL_SEL_OFF);
-    wlCarb.classList.toggle('active', carbIcing);
-    wlCool.classList.toggle('active', coolLeaking);
+    const wlCool     = document.getElementById('wl-cool');
+    const wlBattLow  = document.getElementById('wl-batt-low');
+    const wlBattCrit = document.getElementById('wl-batt-crit');
+    const oilWasActive      = wlOil.classList.contains('active');
+    const fuelWasActive     = wlFuel.classList.contains('active');
+    const carbIcing         = (S.carbIceLevel ?? 0) > 0.08;
+    const carbWasActive     = wlCarb.classList.contains('active');
+    const coolLeaking       = S.coolantState === 'leaking' || S.coolantState === 'failed';
+    const coolWasActive     = wlCool.classList.contains('active');
+    const batt              = S.batteryCharge ?? 101;
+    const battLow           = batt <= 20 && batt > 10;
+    const battCrit          = batt <= 10;
+    const battLowWasActive  = wlBattLow.classList.contains('active');
+    const battCritWasActive = wlBattCrit.classList.contains('active');
+    wlOil.classList.toggle('active',      !!w.OIL_PRESS);
+    wlFuel.classList.toggle('active',     !!w.LOW_FUEL);
+    wlFsel.classList.toggle('active',     !!w.FUEL_SEL_OFF);
+    wlCarb.classList.toggle('active',     carbIcing);
+    wlCool.classList.toggle('active',     coolLeaking);
+    wlBattLow.classList.toggle('active',  battLow);
+    wlBattCrit.classList.toggle('active', battCrit);
     /* Audio cues — fire once on activation */
-    if (w.OIL_PRESS  && !oilWasActive)  _playWarnTone('red');
-    if (w.LOW_FUEL   && !fuelWasActive) _playWarnTone('amber');
-    if (carbIcing    && !carbWasActive) _playWarnTone('amber');
-    if (coolLeaking  && !coolWasActive) _playWarnTone('red');
+    if (w.OIL_PRESS  && !oilWasActive)       _playWarnTone('red');
+    if (w.LOW_FUEL   && !fuelWasActive)      _playWarnTone('amber');
+    if (carbIcing    && !carbWasActive)      _playWarnTone('amber');
+    if (coolLeaking  && !coolWasActive)      _playWarnTone('red');
+    if (battLow      && !battLowWasActive)   _playWarnTone('amber');
+    if (battCrit     && !battCritWasActive)  _playWarnTone('red');
 
     /* Time warp indicator */
     const warpEl = document.getElementById('warp-indicator');
@@ -3465,6 +3505,21 @@
         <div class="score-block">
           <div class="score-block-title">Emergency Response</div>
           ${survivedRow}${glideRow}${sq7700Row}${tune121Row}${pttRow}
+        </div>`;
+    }
+
+    /* Battery SOC block — electric aircraft only */
+    if (S.batteryCharge !== null) {
+      const socPct  = Math.round(S.batteryCharge ?? 0);
+      const socCls  = socPct >= 27 ? 'score-pass' : socPct >= 20 ? 'score-partial' : 'score-fail';
+      const socNote = socPct >= 27 ? 'Go-around possible' : socPct >= 20 ? 'Go-around marginal' : 'No go-around margin';
+      scEl.innerHTML += `
+        <div class="score-block">
+          <div class="score-block-title">Energy Management</div>
+          <div class="score-row">
+            <span class="score-label">SOC at landing</span>
+            <span class="score-val ${socCls}">${socPct}% <span style="opacity:0.4;font-weight:400">(${socNote})</span></span>
+          </div>
         </div>`;
     }
 

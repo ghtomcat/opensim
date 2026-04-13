@@ -12,6 +12,7 @@ import { tickCrew }        from './crew.js';
 import { tickGamepad, tickControls } from './input.js';
 import { tickFailures }              from './failures.js';
 import { tickFuel }                  from './fuel.js';
+import { tickBattery }               from './battery.js';
 import { tickTelemetry }            from './telemetry.js';
 
 let _prevTime = null;
@@ -42,6 +43,7 @@ function _tick(now) {
     const prevAlt = S.alt;
     tickFailures(warpDt);
     tickFuel(dt);
+    tickBattery(dt);
     if      (S.aircraft?.vehicleType === 'rocket')    { tickRocket(warpDt); tickBooster(warpDt); }
     else if (S.aircraft?.type       === 'hovercraft') tickHovercraft(warpDt);
     else                                              tickPhysics(dt);

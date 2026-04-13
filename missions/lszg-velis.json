@@ -1,0 +1,84 @@
+{
+  "id": "lszg-velis",
+  "phase": "circuit",
+  "title": "Electric Circuit — Grenchen LSZG · HB-SYC",
+  "description": "Pipistrel Velis Electro. Left-hand circuit at Grenchen. No engine noise. No restart. Manage your energy.",
+  "author": "Markus Leutwyler",
+  "aircraft": "velis-hb-syc",
+
+  "timeOfDay": 10.5,
+
+  "weather": {
+    "source": "live",
+    "icao": "LSZG",
+    "fallback": {
+      "wdir": 260,
+      "wspd": 5,
+      "altim": 1018,
+      "temp": 18,
+      "dewp": 8,
+      "visib": "6+",
+      "clouds": [{ "cover": "FEW", "base": 5000 }]
+    }
+  },
+
+  "initialState": {
+    "lat":   47.1815,
+    "lon":   7.4172,
+    "alt":   1411,
+    "spd":   0,
+    "hdg":   260,
+    "pitch": 0,
+    "roll":  0
+  },
+
+  "departure": {
+    "name":      "Grenchen LSZG",
+    "elevation": 1411
+  },
+
+  "arrival": {
+    "icao":       "LSZG",
+    "name":       "Grenchen",
+    "runway":     "26",
+    "ils":        null,
+    "elevation":  1411,
+    "rwyLat":     47.1815,
+    "rwyLon":     7.4172,
+    "rwyHdg":     260,
+    "rwyLengthM": 900,
+    "rwyWidthM":  30,
+    "surface":    "asphalt"
+  },
+
+  "com": {
+    "title": "COM 1",
+    "active":  "122.275",
+    "standby": "121.500",
+    "freqs": {
+      "122.275": { "label": "LSZG AFIS", "afis": true },
+      "121.500": { "label": "GUARD" }
+    }
+  },
+
+  "atcClearances": [],
+
+  "narrative": [
+    "Grenchen. Runway 26.",
+    "HB-SYC.",
+    "The same one.",
+    "No noise. Just the prop and the wind.",
+    "Watch your SOC.",
+    "You have one chance at this landing."
+  ],
+
+  "debrief": [
+    "Circuit altitude: 2200ft (800ft AGL)?",
+    "Did you land with ≥ 27% SOC remaining?",
+    "Approach speed: 65kt on final?",
+    "Did you manage power vs. energy budget?",
+    "Could you have done a go-around?"
+  ],
+
+  "failures": []
+}

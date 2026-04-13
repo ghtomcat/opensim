@@ -116,6 +116,9 @@ export const S = {
   fuelLeft:  null,        // litres — null = no fuel system on this aircraft
   fuelRight: null,
 
+  /* ── Battery (electric aircraft) ── */
+  batteryCharge: null,   // 0–100 % — null = not an electric aircraft
+
   /* ── Carburettor heat ── */
   carbHeat:     false,   // true = carb heat lever ON
   carbIceLevel: 0,       // 0=clear, 1=fully iced
