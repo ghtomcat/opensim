@@ -72,36 +72,16 @@
   ],
   "failures": [
     {
-      "trigger": {
-        "type": "time",
-        "t": 115
-      },
+      "trigger": { "type": "time", "t": 115 },
       "type": "engine_gunfire"
     },
     {
-      "trigger": {
-        "type": "time",
-        "t": 120
-      },
+      "trigger": { "type": "time", "t": 120 },
       "type": "engine_bang"
     },
     {
-      "trigger": {
-        "type": "time",
-        "t": 120
-      },
-      "type": "engine_power",
-      "value": 0.35,
-      "rampTime": 20
-    },
-    {
-      "trigger": {
-        "type": "time",
-        "t": 160
-      },
-      "type": "engine_power",
-      "value": 0.0,
-      "rampTime": 30
+      "trigger": { "type": "time", "t": 121 },
+      "type": "coolant_leak"
     }
   ],
   "timeOfDay": 9.5

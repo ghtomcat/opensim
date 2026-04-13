@@ -3,6 +3,7 @@
   "name": "Messerschmitt Bf 109 G-4",
   "tanks": { "left": 400, "right": 0, "unit": "L" },
   "fuelBurn": 120,
+  "coolingSystem": "liquid",
   "callsign": "Yellow 1",
   "icaoType": "ME09",
 

@@ -391,6 +391,38 @@ export function engineGunfire() {
   }
 }
 
+export function coolantHiss() {
+  if (!_ctx) return;
+  /* Sustained steam hiss — coolant escaping under pressure, 2.5s fade */
+  const dur  = _ctx.sampleRate * 2.5;
+  const buf  = _ctx.createBuffer(1, dur, _ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < dur; i++) {
+    const env = Math.exp(-i / (dur * 0.5));   // slow exponential fade
+    data[i] = (Math.random() * 2 - 1) * env;
+  }
+
+  const src  = _ctx.createBufferSource();
+  src.buffer = buf;
+
+  const hp = _ctx.createBiquadFilter();
+  hp.type            = 'highpass';
+  hp.frequency.value = 1200;   // steam — high, breathy
+
+  const lp = _ctx.createBiquadFilter();
+  lp.type            = 'lowpass';
+  lp.frequency.value = 5000;
+
+  const gain = _ctx.createGain();
+  gain.gain.value = 1.2;
+
+  src.connect(hp);
+  hp.connect(lp);
+  lp.connect(gain);
+  gain.connect(_ctx.destination);
+  src.start();
+}
+
 export function engineBang() {
   if (!_ctx) return;
   /* Sharp impulse — white noise burst, low-passed, rapid decay */
@@ -1821,6 +1853,7 @@ async function _loadWorkletSilently() {
 export async function startEngineLifecycle() {
   if (_engineType !== 'v12-supercharged' && _engineType !== 'radial-2000hp') { startSound(); return; }
   if (S.engineState === 'starting' || S.engineState === 'running' || S.engineState === 'idle') return;
+  if (S.coolantState === 'failed') return;   // coolant gone — engine seizes on start attempt
 
   if (!_ctx) {
     _ctx    = new AudioContext();

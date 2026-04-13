@@ -121,6 +121,9 @@ export const S = {
   carbIceLevel: 0,       // 0=clear, 1=fully iced
   carbIceActive: false,  // carb_ice failure has been triggered
 
+  /* ── Cooling system ── */
+  coolantState: 'ok',    // 'ok' | 'leaking' | 'failed' — liquid-cooled aircraft only
+
   /* ── Warning lights ── */
   warnings: {},           // { OIL_PRESS: bool, LOW_FUEL: bool, FUEL_SEL_OFF: bool }
 

@@ -10,7 +10,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from './state.js';
-import { engineBang, engineGunfire } from './sound.js';
+import { engineBang, engineGunfire, coolantHiss } from './sound.js';
 
 let _fired    = new Set();   // indices of already-fired failures
 let _ramps    = [];          // active power ramps
@@ -18,7 +18,7 @@ let _ramps    = [];          // active power ramps
 export function resetFailures() {
   _fired.clear();
   _ramps = [];
-  setState({ enginePower: 1.0, emergLog: [], carbHeat: false, carbIceLevel: 0, carbIceActive: false });
+  setState({ enginePower: 1.0, emergLog: [], carbHeat: false, carbIceLevel: 0, carbIceActive: false, coolantState: 'ok' });
 }
 
 export function tickFailures(dt) {
@@ -44,7 +44,7 @@ export function tickFailures(dt) {
       _fired.add(i);
 
       /* Log failure event for emergency scoring */
-      if (f.type === 'engine_power' || f.type === 'engine_bang' || f.type === 'carb_ice') {
+      if (['engine_power', 'engine_bang', 'carb_ice', 'coolant_leak'].includes(f.type)) {
         S.emergLog.push({ t, type: 'failure', failureType: f.type, value: f.value ?? 0 });
       }
 
@@ -69,6 +69,13 @@ export function tickFailures(dt) {
         case 'carb_ice':
           if (S.aircraft?.hasCarbHeat) setState({ carbIceActive: true });
           break;
+
+        case 'coolant_leak':
+          if (S.aircraft?.coolingSystem === 'liquid') {
+            setState({ coolantState: 'leaking' });
+            coolantHiss();
+          }
+          break;
       }
     });
 
@@ -81,6 +88,17 @@ export function tickFailures(dt) {
       power = r.from + (r.target - r.from) * t01;
     }
     if (_ramps.length > 0) setState({ enginePower: power });
+  }
+
+  /* ── Cooling system — runs independently of other failures ── */
+  if (S.coolantState === 'leaking') {
+    /* DB601 overheats — full power death over 80s, cannot restart */
+    const power = Math.max(0, (S.enginePower ?? 1) - (dt / 80));
+    if (power <= 0) {
+      setState({ enginePower: 0, coolantState: 'failed' });
+    } else {
+      setState({ enginePower: power });
+    }
   }
 
   /* ── Carb ice — runs independently of other failures ── */

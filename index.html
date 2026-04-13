@@ -1494,6 +1494,7 @@
   <div class="warn-light amber" id="wl-fuel">LOW FUEL</div>
   <div class="warn-light amber" id="wl-fsel">FUEL SEL OFF</div>
   <div class="warn-light amber" id="wl-carb">CARB ICE</div>
+  <div class="warn-light red"   id="wl-cool">COOLANT</div>
 </div>
 
 <!-- COM + Transponder -->
@@ -3226,18 +3227,23 @@
     const wlFuel = document.getElementById('wl-fuel');
     const wlFsel = document.getElementById('wl-fsel');
     const wlCarb = document.getElementById('wl-carb');
+    const wlCool = document.getElementById('wl-cool');
     const oilWasActive  = wlOil.classList.contains('active');
     const fuelWasActive = wlFuel.classList.contains('active');
     const carbIcing     = (S.carbIceLevel ?? 0) > 0.08;
     const carbWasActive = wlCarb.classList.contains('active');
+    const coolLeaking   = S.coolantState === 'leaking' || S.coolantState === 'failed';
+    const coolWasActive = wlCool.classList.contains('active');
     wlOil.classList.toggle('active',  !!w.OIL_PRESS);
     wlFuel.classList.toggle('active', !!w.LOW_FUEL);
     wlFsel.classList.toggle('active', !!w.FUEL_SEL_OFF);
     wlCarb.classList.toggle('active', carbIcing);
+    wlCool.classList.toggle('active', coolLeaking);
     /* Audio cues — fire once on activation */
-    if (w.OIL_PRESS && !oilWasActive)  _playWarnTone('red');
-    if (w.LOW_FUEL  && !fuelWasActive) _playWarnTone('amber');
-    if (carbIcing   && !carbWasActive) _playWarnTone('amber');
+    if (w.OIL_PRESS  && !oilWasActive)  _playWarnTone('red');
+    if (w.LOW_FUEL   && !fuelWasActive) _playWarnTone('amber');
+    if (carbIcing    && !carbWasActive) _playWarnTone('amber');
+    if (coolLeaking  && !coolWasActive) _playWarnTone('red');
 
     /* Time warp indicator */
     const warpEl = document.getElementById('warp-indicator');
