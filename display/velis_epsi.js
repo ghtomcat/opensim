@@ -81,7 +81,7 @@ export function renderVelisEpsi(canvas) {
 
   /* Instrument radii */
   const R  = Math.min(nhW, H) * 0.40;
-  const Rs = Math.min(bkW * 0.46, H * 0.36);
+  const Rs = Math.min(bkW * 0.44, H * 0.22);
 
   /* ── ZONE 1: Switches + COM ── */
   _drawSwitchPanel(ctx, swX, cy, swW, H, sc);
