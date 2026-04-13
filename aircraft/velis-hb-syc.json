@@ -6,6 +6,8 @@
   "era": "VFR / PPL(A) · Electric",
   "engine": "Pipistrel E-811, 57.6 kW max / 47.8 kW continuous",
 
+  "panel": "velis-epsi",
+
   "battery": {
     "capacityKwh": 21.8,
     "powerDrawKw":  25

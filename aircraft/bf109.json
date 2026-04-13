@@ -4,6 +4,7 @@
   "tanks": { "left": 400, "right": 0, "unit": "L" },
   "fuelBurn": 120,
   "coolingSystem": "liquid",
+  "panel": "bf109",
   "callsign": "Yellow 1",
   "icaoType": "ME09",
 

@@ -1,5 +1,6 @@
 {
   "id": "f4u1a",
+  "panel": "f4u",
   "name": "Vought F4U-1A Corsair",
   "tanks": { "left": 375, "right": 375, "unit": "L" },
   "fuelBurn": 160,
