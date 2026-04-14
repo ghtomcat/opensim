@@ -237,9 +237,10 @@ export function getCurrentRpm() {
 
   const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 350;
   const throttle = Math.max(0, Math.min(1, S.spdT / maxSpd));
-  const ePow     = Math.max(0.05, S.enginePower ?? 1.0);
+  const ePow     = S.enginePower ?? 1.0;
+  if (ePow <= 0) return '---';
   if (_cfg.impulse || _cfg.showRpm) {
-    const rpm = Math.round((_cfg.rpmIdle + (_cfg.rpmMax - _cfg.rpmIdle) * throttle) * ePow);
+    const rpm = Math.round((_cfg.rpmIdle + (_cfg.rpmMax - _cfg.rpmIdle) * throttle) * Math.max(0.05, ePow));
     return rpm + ' RPM';
   } else {
     const n1 = Math.round(20 + 80 * throttle);

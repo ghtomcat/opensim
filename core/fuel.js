@@ -60,7 +60,7 @@ export function tickFuel(dt) {
   /* Fuel selector OFF — starve engine immediately */
   if (sel === 'OFF') {
     if (running) {
-      setState({ enginePower: 0 });
+      setState({ enginePower: 0, engineState: 'off' });
       if (S.emergLog) S.emergLog.push({ t: S.time, type: 'failure', failureType: 'fuel_starvation', value: 0 });
     }
     _updateWarnings();
@@ -101,7 +101,7 @@ export function tickFuel(dt) {
     (sel === 'OFF');
 
   if (selectedEmpty && power > 0) {
-    setState({ enginePower: 0 });
+    setState({ enginePower: 0, engineState: 'off' });
     if (S.emergLog) {
       S.emergLog.push({ t: S.time, type: 'failure', failureType: 'fuel_starvation', value: 0 });
     }
