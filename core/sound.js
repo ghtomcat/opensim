@@ -845,12 +845,14 @@ export function tickSound() {
     }
   }
 
-  /* Knacken — cooling metal ticks, only on coolant failure */
-  const ePowK = S.enginePower ?? 1.0;
-  if (S.coolantState === 'failed' && ePowK < 0.15 && !_knackenActive) {
+  /* Knacken — hot metal cooling in cold rushing air after coolant failure */
+  const ePowK  = S.enginePower ?? 1.0;
+  const spdK   = S.spd ?? 0;
+  const knackenOn = S.coolantState === 'failed' && ePowK < 0.15 && spdK > 40;
+  if (knackenOn && !_knackenActive) {
     _knackenActive = true;
     _scheduleKnacken();
-  } else if (ePowK >= 0.15 && _knackenActive) {
+  } else if (!knackenOn && _knackenActive) {
     _knackenActive = false;
     clearTimeout(_knackenTimeout);
     _knackenTimeout = null;
