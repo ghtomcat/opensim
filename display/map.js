@@ -23,6 +23,15 @@ let _canvas  = null;
 let _visible = false;
 let _mode    = 'local';        /* 'local' | 'rocket' */
 
+/* ── Leaflet (local aircraft map) ── */
+let _lmap       = null;   /* L.map instance */
+let _lmarker    = null;   /* aircraft marker */
+let _lhdgLine   = null;   /* heading vector polyline */
+let _ltrkLine   = null;   /* track vector polyline */
+let _lwptLayer  = null;   /* L.layerGroup for waypoints */
+let _lrouteLine = null;   /* route polyline connecting waypoints */
+let _lLastMission = null; /* detect mission change for waypoint refresh */
+
 /* ── Vehicle silhouette panels (rocket mode, left of map) ── */
 const SIL_W = 130;            /* px — each silhouette panel width */
 let _silEl     = null;        /* main vehicle (S2+Trunk+Dragon or Trunk+Dragon) */
@@ -54,10 +63,56 @@ export function initMap() {
   _el = document.createElement('div');
   _el.id = 'minimap';
   _applySize('local');
-  _canvas = document.createElement('canvas');
-  _canvas.style.cssText = 'display:block;width:100%;height:100%;';
-  _el.appendChild(_canvas);
   document.body.appendChild(_el);
+
+  /* ── Leaflet local map ── */
+  _lmap = L.map(_el, {
+    zoomControl:       false,
+    attributionControl: false,
+    dragging:          false,
+    touchZoom:         false,
+    doubleClickZoom:   false,
+    scrollWheelZoom:   false,
+    keyboard:          false,
+    animate:           false,
+  });
+
+  L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 18 }
+  ).addTo(_lmap);
+
+  /* Aircraft marker — inner div rotates with heading */
+  _lmarker = L.marker([47, 8], {
+    icon: L.divIcon({
+      className: '',
+      html: `<div class="lmap-ac">
+               <svg viewBox="0 0 20 24" width="20" height="24">
+                 <polygon points="10,1 18,22 10,17 2,22"
+                          fill="white" stroke="rgba(0,0,0,0.6)" stroke-width="1"/>
+               </svg>
+             </div>`,
+      iconSize:   [20, 24],
+      iconAnchor: [10, 12],
+    }),
+    zIndexOffset: 1000,
+  }).addTo(_lmap);
+
+  /* Heading and track vectors */
+  _lhdgLine  = L.polyline([], { color: '#ffffff', weight: 2, opacity: 0.9 }).addTo(_lmap);
+  _ltrkLine  = L.polyline([], { color: '#ffb400', weight: 2, opacity: 0.85, dashArray: '5 4' }).addTo(_lmap);
+
+  /* Waypoint layer */
+  _lwptLayer  = L.layerGroup().addTo(_lmap);
+  _lrouteLine = L.polyline([], { color: '#00c8e0', weight: 1.5, opacity: 0.6, dashArray: '6 4' }).addTo(_lmap);
+
+  _lmap.setView([47, 8], 14);
+  console.log('[map] Leaflet initialized', _lmap, _lmarker);
+
+  /* Canvas only used for rocket mode */
+  _canvas = document.createElement('canvas');
+  _canvas.style.cssText = 'display:none;width:100%;height:100%;';
+  _el.appendChild(_canvas);
 
   /* Main vehicle silhouette — hidden until rocket mode */
   _silEl = document.createElement('div');
@@ -165,27 +220,114 @@ export function renderMap() {
   if (newMode !== _mode) {
     _mode = newMode;
     _applySize(_mode);
+    _canvas.style.display = isRocket ? 'block' : 'none';
+    if (_lmap) {
+      if (isRocket) _lmap.getContainer().style.display = 'none';
+      else          { _lmap.getContainer().style.display = ''; _lmap.invalidateSize(); }
+    }
   }
 
+  if (!isRocket) {
+    _renderLeafletLocal();
+    return;
+  }
+
+  /* Rocket mode — canvas */
   const dpr = window.devicePixelRatio || 1;
-  const W   = (isRocket ? ROCKET_W : LOCAL_SIZE) * dpr;
-  const H   = (isRocket ? ROCKET_H  : LOCAL_SIZE) * dpr;
+  const W   = ROCKET_W * dpr;
+  const H   = ROCKET_H * dpr;
   _canvas.width  = W;
   _canvas.height = H;
   const ctx = _canvas.getContext('2d');
+  _updateTrack();
+  const pW = PROFILE_W * dpr;
+  _renderSideProfile(ctx, pW, H, dpr);
+  ctx.save();
+  ctx.translate(pW, 0);
+  _renderWorldMap(ctx, MAP_W * dpr, H, dpr);
+  ctx.restore();
+  _renderSilhouette(dpr);
+}
 
-  if (isRocket) {
-    _updateTrack();
-    const pW = PROFILE_W * dpr;
-    _renderSideProfile(ctx, pW, H, dpr);
-    ctx.save();
-    ctx.translate(pW, 0);
-    _renderWorldMap(ctx, MAP_W * dpr, H, dpr);
-    ctx.restore();
-    _renderSilhouette(dpr);
-  } else {
-    _renderLocalMap(ctx, W, H, dpr);
+/* ── Update Leaflet local map each frame ── */
+function _renderLeafletLocal() {
+  if (!_lmap || !_lmarker) return;
+
+  const lat  = S.lat ?? 47;
+  const lon  = S.lon ?? 8;
+  const hdg  = S.hdg ?? 0;
+  const spd  = (S.spd ?? 0) * 0.5144;   /* kt → m/s */
+
+  /* Pan map to aircraft position */
+  _lmap.setView([lat, lon], 14, { animate: false });
+
+  /* Rotate aircraft icon */
+  const iconEl = _lmarker.getElement()?.querySelector('.lmap-ac');
+  if (iconEl) iconEl.style.transform = `rotate(${hdg}deg)`;
+  _lmarker.setLatLng([lat, lon]);
+
+  /* Heading vector — 0.5 NM forward */
+  const VEC_NM  = 0.5;
+  const hdgRad  = hdg * DEG;
+  const dLatHdg = VEC_NM / 60 * Math.cos(hdgRad);
+  const dLonHdg = VEC_NM / 60 / Math.cos(lat * DEG) * Math.sin(hdgRad);
+  _lhdgLine.setLatLngs([[lat, lon], [lat + dLatHdg, lon + dLonHdg]]);
+
+  /* Track vector — accounts for wind */
+  const wind      = _getWind();
+  const wSpd      = wind.spd * 0.5144;
+  const wRad      = wind.dir * DEG;
+  const gndN      = spd * Math.cos(hdgRad) + wSpd * Math.cos(wRad + Math.PI);
+  const gndE      = spd * Math.sin(hdgRad) + wSpd * Math.sin(wRad + Math.PI);
+  const gndSpd    = Math.sqrt(gndN * gndN + gndE * gndE);
+  const trkRad    = Math.atan2(gndE, gndN);
+  const vecScale  = gndSpd > 1 ? gndSpd / Math.max(1, spd) : 1;
+  const dLatTrk   = VEC_NM * vecScale / 60 * Math.cos(trkRad);
+  const dLonTrk   = VEC_NM * vecScale / 60 / Math.cos(lat * DEG) * Math.sin(trkRad);
+  _ltrkLine.setLatLngs([[lat, lon], [lat + dLatTrk, lon + dLonTrk]]);
+
+  /* Waypoints — refresh when mission changes */
+  const missionId = S.mission?.id ?? null;
+  if (missionId !== _lLastMission) {
+    _lLastMission = missionId;
+    _updateWaypoints();
   }
+}
+
+/* ── Draw mission waypoints on Leaflet map ── */
+function _updateWaypoints() {
+  if (!_lwptLayer || !_lrouteLine) return;
+  _lwptLayer.clearLayers();
+
+  const waypoints = S.mission?.waypoints ?? [];
+  if (!waypoints.length) { _lrouteLine.setLatLngs([]); return; }
+
+  const routeLL = [];
+  waypoints.forEach((wpt, i) => {
+    routeLL.push([wpt.lat, wpt.lon]);
+
+    /* Waypoint circle */
+    L.circleMarker([wpt.lat, wpt.lon], {
+      radius: 6, color: '#00c8e0', weight: 2,
+      fillColor: 'rgba(0,200,224,0.15)', fillOpacity: 1,
+    }).addTo(_lwptLayer);
+
+    /* Label */
+    L.marker([wpt.lat, wpt.lon], {
+      icon: L.divIcon({
+        className: '',
+        html: `<div style="
+          color:#00c8e0; font:bold 10px 'IBM Plex Mono',monospace;
+          white-space:nowrap; text-shadow:0 0 4px #000,0 0 4px #000;
+          margin-left:10px; margin-top:-6px;
+        ">${wpt.label ?? (i + 1)}</div>`,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0],
+      }),
+    }).addTo(_lwptLayer);
+  });
+
+  _lrouteLine.setLatLngs(routeLL);
 }
 
 /* ── Vehicle silhouette panel ── */

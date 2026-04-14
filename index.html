@@ -9,8 +9,14 @@
   <title>OpenSim — ILS Approach LSZH</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=Kalam:wght@400;700&family=Syne:wght@400;700;800&display=swap">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* Leaflet aircraft marker */
+    .lmap-ac { display:flex; align-items:center; justify-content:center;
+               transform-origin: 10px 12px; transition: transform 0.08s linear; }
 
     :root {
       --cyan:   #4dc5dc;
