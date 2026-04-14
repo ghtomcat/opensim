@@ -478,16 +478,15 @@ function _mfd(ctx, canvas, x, y, w, h) {
 }
 
 function _engineStrip(ctx, x, y, w, h) {
-  /* no background fill */
-
-  /* RPM */
   const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 163;
   const throttle = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
   const ePow     = Math.max(0.05, S.enginePower ?? 1.0);
   const rpm      = Math.round((700 + 2000 * throttle) * ePow);
+  const warns    = S.warnings ?? {};
 
+  /* RPM arc */
   const arcCx = x + w / 2;
-  const arcCy = y + h * 0.18;
+  const arcCy = y + h * 0.16;
   const arcR  = w * 0.36;
   _arcGauge(ctx, arcCx, arcCy, arcR, rpm, 0, 2700, 'RPM', rpm.toString(), [
     [0,    1700, G.green],
@@ -495,32 +494,36 @@ function _engineStrip(ctx, x, y, w, h) {
     [2500, 2700, G.amber],
   ]);
 
-  /* Bar gauges */
-  const bx = x + w * 0.08;
-  const bw = w * 0.84;
-  const bh = h * 0.048;
-  const gap = h * 0.075;
-  let gy = y + h * 0.38;
+  /* Bar gauges — real fuel from state, rest simulated */
+  const bx  = x + w * 0.08;
+  const bw  = w * 0.84;
+  const bh  = h * 0.044;
+  const gap = h * 0.068;
+  let gy    = y + h * 0.35;
 
   const oil_t = Math.min(230, 60 + Math.min(1, (S.time ?? 0) / 240) * 160);
   _barGauge(ctx, bx, gy, bw, bh, oil_t, 50, 260, 'OIL °F', Math.round(oil_t), [
     [50, 100, G.amber], [100, 220, G.green], [220, 260, G.red],
   ]); gy += gap;
 
-  const oil_p = 68 + throttle * 12;
+  const oil_p = ePow < 0.3 ? 0 : 68 + throttle * 12;
   _barGauge(ctx, bx, gy, bw, bh, oil_p, 0, 100, 'OIL PSI', Math.round(oil_p), [
     [0, 25, G.red], [25, 55, G.amber], [55, 90, G.green], [90, 100, G.red],
   ]); gy += gap;
 
-  const burn  = (S.time ?? 0) / 3600 * 8;   /* 8 gph */
-  const fuelL = Math.max(0, 20 - burn / 2);
-  const fuelR = Math.max(0, 20 - burn / 2);
-  _barGauge(ctx, bx, gy, bw, bh, fuelL, 0, 25, 'FUEL L', fuelL.toFixed(1), [
-    [0, 4, G.red], [4, 8, G.amber], [8, 25, G.green],
-  ]); gy += gap;
-  _barGauge(ctx, bx, gy, bw, bh, fuelR, 0, 25, 'FUEL R', fuelR.toFixed(1), [
-    [0, 4, G.red], [4, 8, G.amber], [8, 25, G.green],
-  ]); gy += gap;
+  /* Real fuel from fuel.js — litres → US gal (÷ 3.785), max 25 gal per tank */
+  const tanks     = S.aircraft?.tanks;
+  const maxGal    = ((tanks?.left ?? 95) / 3.785);
+  const fuelLgal  = (S.fuelLeft  ?? 0) / 3.785;
+  const fuelRgal  = (S.fuelRight ?? 0) / 3.785;
+  const lowL      = fuelLgal < maxGal * 0.08;
+  const lowR      = fuelRgal < maxGal * 0.08;
+  _barGauge(ctx, bx, gy, bw, bh, fuelLgal, 0, maxGal, 'FUEL L', fuelLgal.toFixed(1), [
+    [0, maxGal*0.08, G.red], [maxGal*0.08, maxGal*0.16, G.amber], [maxGal*0.16, maxGal, G.green],
+  ], lowL ? G.red : null); gy += gap;
+  _barGauge(ctx, bx, gy, bw, bh, fuelRgal, 0, maxGal, 'FUEL R', fuelRgal.toFixed(1), [
+    [0, maxGal*0.08, G.red], [maxGal*0.08, maxGal*0.16, G.amber], [maxGal*0.16, maxGal, G.green],
+  ], lowR ? G.red : null); gy += gap;
 
   const egt = 900 + throttle * 500;
   _barGauge(ctx, bx, gy, bw, bh, egt, 0, 1600, 'EGT °F', Math.round(egt), [
@@ -530,7 +533,34 @@ function _engineStrip(ctx, x, y, w, h) {
   const cht = 250 + throttle * 160;
   _barGauge(ctx, bx, gy, bw, bh, cht, 0, 500, 'CHT °F', Math.round(cht), [
     [0, 100, G.dim], [100, 400, G.green], [400, 500, G.red],
-  ]);
+  ]); gy += gap * 1.2;
+
+  /* ── Caution / Warning annunciators ── */
+  const cautions = [
+    { label: 'LOW FUEL',  active: warns.LOW_FUEL,      color: G.amber },
+    { label: 'OIL PRESS', active: warns.OIL_PRESS,     color: G.red   },
+    { label: 'FUEL SEL',  active: warns.FUEL_SEL_OFF,  color: G.amber },
+    { label: 'CARB ICE',  active: (S.carbIceLevel ?? 0) > 0.15, color: G.amber },
+  ];
+
+  const cw  = bw / 2 - 2;
+  const ch  = h * 0.044;
+  cautions.forEach((c, i) => {
+    const cx = bx + (i % 2) * (cw + 4);
+    const cy = gy + Math.floor(i / 2) * (ch + h * 0.018);
+    const col = c.active ? c.color : 'rgba(255,255,255,0.08)';
+    ctx.fillStyle = col;
+    ctx.fillRect(cx, cy, cw, ch);
+    if (c.active) {
+      ctx.fillStyle = '#000';
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    }
+    ctx.font = `bold ${Math.round(ch * 0.72)}px ${MONO}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(c.label, cx + cw / 2, cy + ch / 2);
+  });
 }
 
 /* ── Arc gauge (RPM) ── */
@@ -568,11 +598,11 @@ function _arcGauge(ctx, cx, cy, r, val, min, max, label, text, bands) {
 }
 
 /* ── Bar gauge ── */
-function _barGauge(ctx, x, y, w, h, val, min, max, label, text, bands) {
+function _barGauge(ctx, x, y, w, h, val, min, max, label, text, bands, labelColor) {
   const fs = Math.round(h * 0.88);
   const lw = w * 0.42;
 
-  ctx.fillStyle = G.dim;
+  ctx.fillStyle = labelColor ?? G.dim;
   ctx.font = `${fs * 0.72}px ${MONO}`;
   ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   ctx.fillText(label, x, y + h / 2);
