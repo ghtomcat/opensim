@@ -57,7 +57,17 @@ export function tickFuel(dt) {
   const power    = S.enginePower  ?? 1.0;
   const running  = power > 0.05;
 
-  if (!running || sel === 'OFF') {
+  /* Fuel selector OFF — starve engine immediately */
+  if (sel === 'OFF') {
+    if (running) {
+      setState({ enginePower: 0 });
+      if (S.emergLog) S.emergLog.push({ t: S.time, type: 'failure', failureType: 'fuel_starvation', value: 0 });
+    }
+    _updateWarnings();
+    return;
+  }
+
+  if (!running) {
     _updateWarnings();
     return;
   }
