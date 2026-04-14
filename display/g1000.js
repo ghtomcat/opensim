@@ -533,7 +533,11 @@ function _engineStrip(ctx, x, y, w, h) {
   const cht = 250 + throttle * 160;
   _barGauge(ctx, bx, gy, bw, bh, cht, 0, 500, 'CHT °F', Math.round(cht), [
     [0, 100, G.dim], [100, 400, G.green], [400, 500, G.red],
-  ]); gy += gap * 1.2;
+  ]); gy += gap * 1.4;
+
+  /* ── Fuel selector rotary ── */
+  _fuelSelector(ctx, x + w / 2, gy, w * 0.82, h * 0.09);
+  gy += h * 0.11;
 
   /* ── Caution / Warning annunciators ── */
   const cautions = [
@@ -561,6 +565,67 @@ function _engineStrip(ctx, x, y, w, h) {
     ctx.textBaseline = 'middle';
     ctx.fillText(c.label, cx + cw / 2, cy + ch / 2);
   });
+}
+
+/* ── Fuel selector rotary ── */
+function _fuelSelector(ctx, cx, y, w, h) {
+  const sel      = S.fuelSelector ?? 'BOTH';
+  const positions = ['LEFT', 'BOTH', 'RIGHT', 'OFF'];
+  const angles    = { LEFT: -60, BOTH: 0, RIGHT: 60, OFF: 180 };  /* degrees from 12-o'clock */
+
+  const r   = h * 0.42;
+  const kcy = y + r + 2;
+
+  /* Label */
+  ctx.fillStyle    = G.dim;
+  ctx.font         = `${Math.round(h * 0.28)}px ${MONO}`;
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('FUEL SEL', cx, y);
+
+  /* Position labels */
+  const labelR = r * 2.1;
+  positions.forEach(pos => {
+    const ang = (angles[pos] - 90) * Math.PI / 180;
+    const lx  = cx + Math.cos(ang) * labelR;
+    const ly  = kcy + Math.sin(ang) * labelR;
+    ctx.fillStyle    = pos === sel ? G.white : 'rgba(255,255,255,0.28)';
+    ctx.font         = `${Math.round(h * 0.26)}px ${MONO}`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(pos, lx, ly);
+  });
+
+  /* Knob bezel */
+  ctx.beginPath();
+  ctx.arc(cx, kcy, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#1a1e26';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+  ctx.lineWidth   = 1.5;
+  ctx.stroke();
+
+  /* Pointer */
+  const pAng = (angles[sel] - 90) * Math.PI / 180;
+  ctx.strokeStyle = sel === 'OFF' ? G.red : G.green;
+  ctx.lineWidth   = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx, kcy);
+  ctx.lineTo(cx + Math.cos(pAng) * r * 0.78, kcy + Math.sin(pAng) * r * 0.78);
+  ctx.stroke();
+
+  /* Centre dot */
+  ctx.beginPath();
+  ctx.arc(cx, kcy, r * 0.12, 0, Math.PI * 2);
+  ctx.fillStyle = G.white;
+  ctx.fill();
+
+  /* Q key hint */
+  ctx.fillStyle    = 'rgba(255,255,255,0.18)';
+  ctx.font         = `${Math.round(h * 0.22)}px ${MONO}`;
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText('[Q]', cx, y + h * 0.02);
 }
 
 /* ── Arc gauge (RPM) ── */
