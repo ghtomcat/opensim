@@ -1859,8 +1859,83 @@ async function _loadWorkletSilently() {
   _workletLoadDone = true;
 }
 
+/* ══════════════════════════════════════════════════
+   LYCOMING IO-360 STARTUP
+   Electric starter whirr (~1.2s) → prop catch → idle
+   ══════════════════════════════════════════════════ */
+function _assembleLycomingStartup(sr) {
+  const dur  = 2.8;   // total seconds: 1.2s starter + 0.4s catch + 1.2s settle
+  const N    = Math.floor(sr * dur);
+  const buf  = new Float32Array(N);
+
+  const starterDur = 1.2;   // electric starter
+  const catchAt    = 1.2;   // first combustion
+  const catchDur   = 0.4;   // rough run-up
+
+  for (let i = 0; i < N; i++) {
+    const t = i / sr;
+    let s = 0;
+
+    /* ── Electric starter — rising DC motor whirr ── */
+    if (t < starterDur + 0.05) {
+      const p    = Math.min(1, t / starterDur);
+      const freq = 60 + 180 * p;            // 60→240 Hz as motor spools
+      const env  = Math.min(1, t * 8) * (t < starterDur ? 1 : Math.max(0, 1 - (t - starterDur) * 10));
+
+      /* Motor fundamental + harmonics */
+      s += 0.30 * env * Math.sin(2 * Math.PI * freq * t);
+      s += 0.15 * env * Math.sin(2 * Math.PI * freq * 2 * t);
+      s += 0.08 * env * Math.sin(2 * Math.PI * freq * 3 * t);
+
+      /* Gear rattle — broadband buzz */
+      const lfsr_t = Math.sin(2 * Math.PI * 380 * t) * Math.sin(2 * Math.PI * 7.3 * t);
+      s += 0.06 * env * lfsr_t;
+    }
+
+    /* ── Prop catch — first cylinders firing, rough ── */
+    if (t >= catchAt && t < catchAt + catchDur) {
+      const p   = (t - catchAt) / catchDur;
+      const rpm = 400 + 500 * p;            // 400→900 RPM rough
+      const cyc = sr * 60 / (rpm * 2);     // samples per 4-stroke cycle (2 rev/firing)
+      const pos = (i - Math.floor(catchAt * sr)) % Math.max(1, Math.floor(cyc));
+      if (pos < 3) {                         // impulse at TDC
+        const bang = (1 - p * 0.3) * 0.9;
+        buf[i] += bang;
+      }
+      /* Rough idle noise */
+      s += 0.12 * (Math.random() * 2 - 1) * (0.3 + 0.7 * p);
+    }
+
+    /* ── Settle to idle — 4-cylinder impulses ── */
+    if (t >= catchAt + catchDur) {
+      const p    = Math.min(1, (t - catchAt - catchDur) / 1.0);
+      const rpm  = 900 + 500 * p * p;       // 900→1400 RPM settling
+      const cyc  = sr * 60 / (rpm * 2);
+      const pos  = (i - Math.floor((catchAt + catchDur) * sr)) % Math.max(1, Math.floor(cyc));
+      if (pos < 3) {
+        buf[i] += 0.6 + 0.3 * p;
+      }
+      /* Exhaust resonance — 95Hz (IO-360 exhaust note) */
+      s += 0.18 * p * Math.sin(2 * Math.PI * 95 * t);
+      s += 0.08 * p * Math.sin(2 * Math.PI * 190 * t);
+      /* Settling noise fades */
+      s += 0.08 * (1 - p) * (Math.random() * 2 - 1);
+    }
+
+    buf[i] = Math.max(-1, Math.min(1, buf[i] + s));
+  }
+
+  /* Gentle fade out at end — worklet takes over */
+  const fadeLen = Math.floor(sr * 0.15);
+  for (let i = 0; i < fadeLen; i++) {
+    buf[N - 1 - i] *= i / fadeLen;
+  }
+
+  return buf;
+}
+
 export async function startEngineLifecycle() {
-  if (_engineType !== 'v12-supercharged' && _engineType !== 'radial-2000hp') { startSound(); return; }
+  if (_engineType !== 'v12-supercharged' && _engineType !== 'radial-2000hp' && _engineType !== 'lycoming-o360') { startSound(); return; }
   if (S.engineState === 'starting' || S.engineState === 'running' || S.engineState === 'idle') return;
   if (S.coolantState === 'failed') return;   // coolant gone — engine seizes on start attempt
 
@@ -1872,10 +1947,13 @@ export async function startEngineLifecycle() {
   }
   if (_ctx.state === 'suspended') await _ctx.resume();
 
-  setState({ engineState: 'starting' });
+  /* Reset engine power so fuel system re-engages after starvation restart */
+  setState({ engineState: 'starting', enginePower: 0.01 });
 
-  const startupBuf = _engineType === 'radial-2000hp'
+  const startupBuf = _engineType === 'radial-2800hp'
     ? _assembleR2800Startup(_ctx.sampleRate)
+    : _engineType === 'lycoming-o360'
+    ? _assembleLycomingStartup(_ctx.sampleRate)
     : _assembleStartup(_ctx.sampleRate);
   const ab  = _ctx.createBuffer(1, startupBuf.length, _ctx.sampleRate);
   ab.copyToChannel(startupBuf, 0);

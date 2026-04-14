@@ -3039,9 +3039,10 @@
     let _viewBeforeNiflheim = 0;
     const audioEl = document.getElementById('pv-audio');
 
-    const _isV12    = engineType === 'v12-supercharged';
-    const _isRadial = engineType === 'radial-2000hp';
-    const _hasLifecycle = _isV12 || _isRadial;
+    const _isV12      = engineType === 'v12-supercharged';
+    const _isRadial   = engineType === 'radial-2000hp';
+    const _isLycoming = engineType === 'lycoming-o360';
+    const _hasLifecycle = _isV12 || _isRadial || _isLycoming;
 
     const dismissOnboarding = () => {
       obEl.classList.remove('visible');
