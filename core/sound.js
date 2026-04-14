@@ -745,12 +745,15 @@ export function tickSound() {
 
   if (_cfg.impulse && _workletNode && _workletReady) {
     const ePow  = S.enginePower ?? 1.0;
-    const rpm   = _cfg.rpmIdle + (_cfg.rpmMax - _cfg.rpmIdle) * throttle * ePow;
+    const dead  = ePow <= 0;
+    const rpm   = dead ? _cfg.rpmIdle * 0.3
+                       : _cfg.rpmIdle + (_cfg.rpmMax - _cfg.rpmIdle) * throttle * ePow;
     _lastRpm    = rpm;
-    const gain  = _cfg.masterGain * (0.4 + 0.6 * throttle) * Math.max(0.05, ePow);
+    const gain  = dead ? 0
+                       : _cfg.masterGain * (0.4 + 0.6 * throttle) * Math.max(0.05, ePow);
 
-    /* Drive _master.gain with throttle — same as oscillator path */
-    _master.gain.setTargetAtTime(gain, now, 0.08);
+    /* Drive _master.gain — spool down over 1.5s when engine dies */
+    _master.gain.setTargetAtTime(gain, now, dead ? 1.5 : 0.08);
 
     /* Supercharger — mechanically coupled, linear with RPM */
     const lFreq = _cfg.superchargerFreqIdle + (_cfg.superchargerFreqMax - _cfg.superchargerFreqIdle) * throttle;
@@ -791,11 +794,13 @@ export function tickSound() {
     _edfRushGain?.gain.setTargetAtTime(rushLevel, now, 0.08);
 
   } else if (!_cfg.impulse) {
-    const slew = _cfg.slewTime ?? 0.12;
-    const freq = _cfg.fundamentalIdle + (_cfg.fundamentalMax - _cfg.fundamentalIdle) * throttle;
+    const slew  = _cfg.slewTime ?? 0.12;
+    const ePow2 = S.enginePower ?? 1.0;
+    const dead2 = ePow2 <= 0;
+    const freq  = _cfg.fundamentalIdle + (_cfg.fundamentalMax - _cfg.fundamentalIdle) * throttle;
     _oscs.forEach(({ osc, mult }) => osc.frequency.setTargetAtTime(freq * mult, now, slew));
-    const gain = _cfg.masterGain * (0.35 + 0.65 * throttle);
-    _master.gain.setTargetAtTime(gain, now, slew);
+    const gain  = dead2 ? 0 : _cfg.masterGain * (0.35 + 0.65 * throttle);
+    _master.gain.setTargetAtTime(gain, now, dead2 ? 1.5 : slew);
     _noiseGain?.gain.setTargetAtTime(_cfg.noiseGain * throttle, now, slew * 1.5);
   }
 
