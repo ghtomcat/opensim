@@ -3085,7 +3085,8 @@
         return;
       }
 
-      if ((e.key === 'q' || e.key === 'Q') && _hasLifecycle) {
+      /* Q — V12/Radial: engine cut-off (mixture/Kraftstoffhahn) */
+      if ((e.key === 'q' || e.key === 'Q') && (_isV12 || _isRadial)) {
         stopEngineLifecycle();
         return;
       }
