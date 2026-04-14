@@ -107,6 +107,8 @@ export function initMap() {
   _lrouteLine = L.polyline([], { color: '#00c8e0', weight: 1.5, opacity: 0.6, dashArray: '6 4' }).addTo(_lmap);
 
   _lmap.setView([47, 8], 14);
+  /* Force Leaflet to re-measure container after CSS is applied */
+  setTimeout(() => { _lmap.invalidateSize(); }, 50);
   console.log('[map] Leaflet initialized', _lmap, _lmarker);
 
   /* Canvas only used for rocket mode */
