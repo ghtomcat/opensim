@@ -826,8 +826,8 @@ export function tickSound() {
     _flapGain.gain.setTargetAtTime(0.20 * flaps * sf, now, 0.4);       // rumble: flaps × speed
   }
 
-  /* Coolant hiss — rises as engine dies, then fades as steam bleeds off */
-  if (_hissGain) {
+  /* Coolant hiss — liquid-cooled engines only (Bf 109, etc.) */
+  if (_hissGain && S.aircraft?.coolingSystem === 'liquid') {
     const ePow   = S.enginePower ?? 1.0;
     const damage = Math.max(0, 1 - ePow);
     /* Track when engine first fully died */
@@ -843,9 +843,9 @@ export function tickSound() {
     _hissGain.gain.setTargetAtTime(hissG, now, 0.8);
   }
 
-  /* Knacken — cooling metal ticks, severely damaged or dead engine */
+  /* Knacken — cooling metal ticks, liquid-cooled only */
   const ePowK = S.enginePower ?? 1.0;
-  if (ePowK < 0.15 && !_knackenActive) {
+  if (S.aircraft?.coolingSystem === 'liquid' && ePowK < 0.15 && !_knackenActive) {
     _knackenActive = true;
     _scheduleKnacken();
   } else if (ePowK >= 0.15 && _knackenActive) {
