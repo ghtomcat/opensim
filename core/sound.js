@@ -826,26 +826,28 @@ export function tickSound() {
     _flapGain.gain.setTargetAtTime(0.20 * flaps * sf, now, 0.4);       // rumble: flaps × speed
   }
 
-  /* Coolant hiss — liquid-cooled engines only (Bf 109, etc.) */
-  if (_hissGain && S.aircraft?.coolingSystem === 'liquid') {
-    const ePow   = S.enginePower ?? 1.0;
-    const damage = Math.max(0, 1 - ePow);
-    /* Track when engine first fully died */
-    if (ePow < 0.05) {
-      if (_hissDeadAt === null) _hissDeadAt = S.time ?? 0;
+  /* Coolant hiss — only when cooling system has actually failed */
+  if (_hissGain) {
+    const failed = S.coolantState === 'failed';
+    if (failed) {
+      const ePow  = S.enginePower ?? 1.0;
+      if (ePow < 0.05) {
+        if (_hissDeadAt === null) _hissDeadAt = S.time ?? 0;
+      } else {
+        _hissDeadAt = null;
+      }
+      const deadSec = _hissDeadAt !== null ? Math.max(0, (S.time ?? 0) - _hissDeadAt) : 0;
+      const decay   = Math.max(0, 1 - deadSec / 90);
+      _hissGain.gain.setTargetAtTime(0.18 * decay, now, 0.8);
     } else {
       _hissDeadAt = null;
+      _hissGain.gain.setTargetAtTime(0, now, 0.5);
     }
-    /* Decay: steam gone after ~90s of dead engine */
-    const deadSec = _hissDeadAt !== null ? Math.max(0, (S.time ?? 0) - _hissDeadAt) : 0;
-    const decay   = Math.max(0, 1 - deadSec / 90);
-    const hissG   = damage > 0.1 ? 0.18 * damage * decay : 0;
-    _hissGain.gain.setTargetAtTime(hissG, now, 0.8);
   }
 
-  /* Knacken — cooling metal ticks, liquid-cooled only */
+  /* Knacken — cooling metal ticks, only on coolant failure */
   const ePowK = S.enginePower ?? 1.0;
-  if (S.aircraft?.coolingSystem === 'liquid' && ePowK < 0.15 && !_knackenActive) {
+  if (S.coolantState === 'failed' && ePowK < 0.15 && !_knackenActive) {
     _knackenActive = true;
     _scheduleKnacken();
   } else if (ePowK >= 0.15 && _knackenActive) {
