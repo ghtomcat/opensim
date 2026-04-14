@@ -3175,15 +3175,17 @@
         else if (ecam)               renderECAM(ecamCanvas);
         else                         renderPFD(canvas);
         /* Show/hide hovercraft control panel; hide COM for hovercraft only (rockets get loop selector) */
-        const isVelis = panel === 'velis-epsi';
+        const isVelis  = panel === 'velis-epsi';
+        const isG1000  = panel === 'g1000';
+        const hasOwnUI = isVelis || isG1000;
         canvas.style.pointerEvents = isVelis ? 'auto' : 'none';
         document.getElementById('hc-panel').style.display      = isHover ? 'flex' : 'none';
-        document.getElementById('com-container').style.display  = (isHover || isVelis) ? 'none' : '';
-        document.getElementById('panel').style.display          = (isRocket || isVelis) ? 'none' : '';
+        document.getElementById('com-container').style.display  = (isHover || hasOwnUI) ? 'none' : '';
+        document.getElementById('panel').style.display          = (isRocket || hasOwnUI) ? 'none' : '';
         document.getElementById('keys').style.display           = isRocket ? 'none' : '';
-        document.getElementById('fma').style.display            = (isRocket || isVelis) ? 'none' : '';
-        document.getElementById('warning-lights').style.display = isVelis ? 'none' : '';
-        document.getElementById('metar-strip').style.display    = isVelis ? 'none' : '';
+        document.getElementById('fma').style.display            = (isRocket || hasOwnUI) ? 'none' : '';
+        document.getElementById('warning-lights').style.display = hasOwnUI ? 'none' : '';
+        document.getElementById('metar-strip').style.display    = hasOwnUI ? 'none' : '';
         _oskUpdate(isHover, S.aircraft?.manualControl);
       },
       () => renderFMA(),
