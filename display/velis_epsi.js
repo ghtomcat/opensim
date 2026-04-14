@@ -17,7 +17,7 @@
 
 import { S }                        from '../core/state.js';
 import { getCOMState, comTransfer } from './com.js';
-import { renderEmbeddedMap }        from './map.js';
+import { updateVelisMapOverlay }    from './map.js';
 
 /* ── Palette ── */
 const P = {
@@ -91,7 +91,7 @@ export function renderVelisEpsi(canvas) {
   _drawNESIS(ctx, nhX, cy, R, sc);
 
   /* ── ZONE 3: EPSI 570 ── */
-  _drawEPSI(ctx, epX, cy, epW * 0.88, H * 0.92, sc);
+  _drawEPSI(ctx, canvas, epX, cy, epW * 0.88, H * 0.92, sc);
 
   /* ── ZONE 4: Backup gauges ── */
   _drawBackupASI(ctx, bkX, cy - Rs * 1.12, Rs, sc);
@@ -554,7 +554,7 @@ function _drawNESIS(ctx, x, y, r, sc) {
 /* ════════════════════════════════════════════════════════════
    ZONE 3: EPSI 570 energy management
    ════════════════════════════════════════════════════════════ */
-function _drawEPSI(ctx, cx, cy, w, h, sc) {
+function _drawEPSI(ctx, canvas, cx, cy, w, h, sc) {
   const x0  = cx - w/2;
   const y0  = cy - h/2;
   const pad = 14*sc;
@@ -686,7 +686,7 @@ function _drawEPSI(ctx, cx, cy, w, h, sc) {
   const mapH      = mapBottom - mapTop;
   const mapS      = Math.min(w - pad*2, mapH);   // square, centered
   const mapX      = cx - mapS/2;
-  if (mapH > 40*sc) renderEmbeddedMap(ctx, mapX, mapTop, mapS, mapH);
+  if (mapH > 40*sc) updateVelisMapOverlay(canvas, mapX, mapTop, mapS, mapH);
 
   /* Warning annunciators */
   const warnY = y0 + h - 46*sc;

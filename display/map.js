@@ -59,6 +59,16 @@ let _dispCLon = null;
 let _dispLatSpan = 12;
 let _dispLonSpan = 20;
 
+/* ── Velis EPSI embedded map overlay ── */
+let _velisEl      = null;
+let _velisMap     = null;
+let _velisMarker  = null;
+let _velisHdgLine = null;
+let _velisTrkLine = null;
+let _velisWptLayer  = null;
+let _velisRouteLine = null;
+let _velisLastMission = null;
+
 export function initMap() {
   _el = document.createElement('div');
   _el.id = 'minimap';
@@ -135,6 +145,130 @@ export function initMap() {
   _silCanvas2.style.cssText = 'display:block;width:100%;height:100%;';
   _silEl2.appendChild(_silCanvas2);
   document.body.appendChild(_silEl2);
+}
+
+/* ── Velis EPSI map overlay — separate Leaflet instance ── */
+export function initVelisMap() {
+  _velisEl = document.createElement('div');
+  _velisEl.id = 'velis-map-overlay';
+  _velisEl.style.cssText = `
+    position: fixed; display: none;
+    z-index: 7500; border-radius: 4px; overflow: hidden;
+    pointer-events: none;
+  `;
+  document.body.appendChild(_velisEl);
+
+  _velisMap = L.map(_velisEl, {
+    zoomControl: false, attributionControl: false,
+    dragging: false, touchZoom: false, doubleClickZoom: false,
+    scrollWheelZoom: false, keyboard: false, animate: false,
+  });
+
+  L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 18 }
+  ).addTo(_velisMap);
+
+  _velisMarker = L.marker([47, 8], {
+    icon: L.divIcon({
+      className: '',
+      html: `<div class="lmap-ac">
+               <svg viewBox="0 0 20 24" width="16" height="20">
+                 <polygon points="10,1 18,22 10,17 2,22"
+                          fill="white" stroke="rgba(0,0,0,0.6)" stroke-width="1"/>
+               </svg>
+             </div>`,
+      iconSize: [16, 20], iconAnchor: [8, 10],
+    }),
+    zIndexOffset: 1000,
+  }).addTo(_velisMap);
+
+  _velisHdgLine  = L.polyline([], { color: '#ffffff', weight: 2, opacity: 0.9 }).addTo(_velisMap);
+  _velisTrkLine  = L.polyline([], { color: '#ffb400', weight: 2, opacity: 0.85, dashArray: '5 4' }).addTo(_velisMap);
+  _velisWptLayer  = L.layerGroup().addTo(_velisMap);
+  _velisRouteLine = L.polyline([], { color: '#00c8e0', weight: 1.5, opacity: 0.6, dashArray: '6 4' }).addTo(_velisMap);
+
+  _velisMap.setView([47, 8], 14);
+}
+
+/* Called each frame from velis_epsi renderVelisEpsi.
+   devX/devY/devW/devH are in device pixels on the canvas. */
+export function updateVelisMapOverlay(canvas, devX, devY, devW, devH) {
+  if (!_velisEl || !_velisMap) return;
+  const dpr  = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const x = rect.left + devX / dpr;
+  const y = rect.top  + devY / dpr;
+  const w = devW / dpr;
+  const h = devH / dpr;
+
+  const changed = _velisEl.style.left   !== x + 'px'
+               || _velisEl.style.width  !== w + 'px';
+
+  _velisEl.style.left   = x + 'px';
+  _velisEl.style.top    = y + 'px';
+  _velisEl.style.width  = w + 'px';
+  _velisEl.style.height = h + 'px';
+  _velisEl.style.display = '';
+
+  if (changed) _velisMap.invalidateSize();
+
+  /* Update marker and vectors */
+  const lat  = S.lat ?? 47;
+  const lon  = S.lon ?? 8;
+  const hdg  = S.hdg ?? 0;
+  const spd  = (S.spd ?? 0) * 0.5144;
+  const hdgRad = hdg * DEG;
+
+  _velisMap.setView([lat, lon], 14, { animate: false });
+  _velisMarker.setLatLng([lat, lon]);
+  const iconEl = _velisMarker.getElement()?.querySelector('.lmap-ac');
+  if (iconEl) iconEl.style.transform = `rotate(${hdg}deg)`;
+
+  const VEC_NM  = 0.3;
+  const dLatHdg = VEC_NM / 60 * Math.cos(hdgRad);
+  const dLonHdg = VEC_NM / 60 / Math.cos(lat * DEG) * Math.sin(hdgRad);
+  _velisHdgLine.setLatLngs([[lat, lon], [lat + dLatHdg, lon + dLonHdg]]);
+
+  const wind   = _getWind();
+  const wSpd   = wind.spd * 0.5144;
+  const wRad   = wind.dir * DEG;
+  const gndN   = spd * Math.cos(hdgRad) + wSpd * Math.cos(wRad + Math.PI);
+  const gndE   = spd * Math.sin(hdgRad) + wSpd * Math.sin(wRad + Math.PI);
+  const trkRad = Math.atan2(gndE, gndN);
+  const scale  = gndN || gndE ? Math.sqrt(gndN*gndN+gndE*gndE) / Math.max(1, spd) : 1;
+  const dLatT  = VEC_NM * scale / 60 * Math.cos(trkRad);
+  const dLonT  = VEC_NM * scale / 60 / Math.cos(lat * DEG) * Math.sin(trkRad);
+  _velisTrkLine.setLatLngs([[lat, lon], [lat + dLatT, lon + dLonT]]);
+
+  const missionId = S.mission?.id ?? null;
+  if (missionId !== _velisLastMission) {
+    _velisLastMission = missionId;
+    _velisWptLayer.clearLayers();
+    const wpts = S.mission?.waypoints ?? [];
+    const routeLL = [];
+    wpts.forEach((wpt, i) => {
+      routeLL.push([wpt.lat, wpt.lon]);
+      L.circleMarker([wpt.lat, wpt.lon], {
+        radius: 5, color: '#00c8e0', weight: 2,
+        fillColor: 'rgba(0,200,224,0.15)', fillOpacity: 1,
+      }).addTo(_velisWptLayer);
+      L.marker([wpt.lat, wpt.lon], {
+        icon: L.divIcon({
+          className: '',
+          html: `<div style="color:#00c8e0;font:bold 9px 'IBM Plex Mono',monospace;
+            white-space:nowrap;text-shadow:0 0 4px #000;margin-left:8px;margin-top:-5px;">
+            ${wpt.label ?? (i+1)}</div>`,
+          iconSize: [0,0], iconAnchor: [0,0],
+        }),
+      }).addTo(_velisWptLayer);
+    });
+    _velisRouteLine.setLatLngs(routeLL);
+  }
+}
+
+export function hideVelisMap() {
+  if (_velisEl) _velisEl.style.display = 'none';
 }
 
 function _applySize(mode) {
