@@ -2,11 +2,11 @@
    OpenSim — display/g1000.js
    Garmin G1000 glass cockpit — C172 / piston aircraft.
    PFD (left 62%): attitude · tapes · HSI · ILS
-   MFD (right 38%): engine strip · moving map
+   MFD (right 38%): engine strip · Leaflet topo map overlay
    ═══════════════════════════════════════════════════════════════ */
 
-import { S }                  from '../core/state.js';
-import { renderEmbeddedMap }  from './map.js';
+import { S }                      from '../core/state.js';
+import { updateG1000MapOverlay }  from './map.js';
 
 const G = {
   bg:      'rgba(18,20,26,0.65)',
@@ -41,7 +41,7 @@ export function renderG1000(canvas) {
 
   const pfdW = Math.round(W * 0.62);
   _pfd(ctx, 0, 0, pfdW, H);
-  _mfd(ctx, pfdW + 3, 0, W - pfdW - 3, H);
+  _mfd(ctx, canvas, pfdW + 3, 0, W - pfdW - 3, H);
 
   ctx.restore();
 }
@@ -467,12 +467,14 @@ function _hsi(ctx, x, y, w, h) {
    MFD
    ══════════════════════════════════════════ */
 
-function _mfd(ctx, x, y, w, h) {
+function _mfd(ctx, canvas, x, y, w, h) {
   const engW = Math.round(w * 0.38);
   _engineStrip(ctx, x, y, engW, h);
 
-  /* Moving map */
-  renderEmbeddedMap(ctx, x + engW, y, w - engW, h);
+  /* Moving map — Leaflet overlay positioned over this zone */
+  const mapX = x + engW;
+  const mapW = w - engW;
+  updateG1000MapOverlay(canvas, mapX, y, mapW, h);
 }
 
 function _engineStrip(ctx, x, y, w, h) {

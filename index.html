@@ -1717,7 +1717,7 @@
   import { initSound, startSound, stopSound, startEngineLifecycle, stopEngineLifecycle, switchEngine, tickSound, getCurrentRpm, silenceAll } from './core/sound.js';
   import { initOutside, tickOutside, outsideInvalidate } from './display/outside.js';
   import { initKneeboard, toggleKneeboard, tickKneeboard } from './display/kneeboard.js';
-  import { initMap, renderMap, toggleMap, showMap, hideMap, initVelisMap, hideVelisMap } from './display/map.js';
+  import { initMap, renderMap, toggleMap, showMap, hideMap, initVelisMap, hideVelisMap, initG1000Map, hideG1000Map } from './display/map.js';
   import { lookupFlight, nearbyFlights, pickAircraft, trackFlight } from './core/liveflight.js';
 
   /* ── DOM refs ── */
@@ -2885,8 +2885,8 @@
     initCOM(document.getElementById('com-container'));
 
     /* Show/hide map based on aircraft capability */
-    if (S.aircraft?.map === false) hideMap();
-    else { showMap(); hideVelisMap(); }
+    if (S.aircraft?.map === false) { hideMap(); hideVelisMap(); hideG1000Map(); }
+    else { showMap(); hideVelisMap(); hideG1000Map(); }
 
     /* Reset hovercraft panel sliders on mission load */
     if (S.aircraft?.type === 'hovercraft') {
@@ -3031,6 +3031,7 @@
     initKneeboard();
     initMap();
     initVelisMap();
+    initG1000Map();
 
     let _audioOn  = true;
     let _viewMode     = 0;   /* 0=PFD · 1=Combined · 2=Outside */
