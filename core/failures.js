@@ -11,6 +11,7 @@
 
 import { S, setState } from './state.js';
 import { engineBang, engineGunfire, coolantHiss } from './sound.js';
+import { bbEvent } from './blackbox.js';
 
 let _fired    = new Set();   // indices of already-fired failures
 let _ramps    = [];          // active power ramps
@@ -46,6 +47,7 @@ export function tickFailures(dt) {
       /* Log failure event for emergency scoring */
       if (['engine_power', 'engine_bang', 'carb_ice', 'coolant_leak'].includes(f.type)) {
         S.emergLog.push({ t, type: 'failure', failureType: f.type, value: f.value ?? 0 });
+        bbEvent({ type: 'failure', failureType: f.type, value: f.value ?? 0 });
       }
 
       switch (f.type) {

@@ -5,6 +5,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from './state.js';
+import { bbEvent } from './blackbox.js';
 
 let _mouseLast  = null;
 let _mouseDown  = false;
@@ -91,12 +92,18 @@ export function tickGamepad() {
   }
 
   /* Flaps — button 1 */
-  if (_btnPressed(btn, GP.BTN_FLAP))
-    setState({ prevFlaps: S.flaps, flaps: Math.min(3, S.flaps + 1) });
+  if (_btnPressed(btn, GP.BTN_FLAP)) {
+    const next = Math.min(3, S.flaps + 1);
+    setState({ prevFlaps: S.flaps, flaps: next });
+    bbEvent({ type: 'flaps', flaps: next });
+  }
 
   /* Gear — button 2 */
-  if (_btnPressed(btn, GP.BTN_GEAR) && !S.aircraft?.fixedGear)
-    setState({ prevGear: S.gear, gear: !S.gear });
+  if (_btnPressed(btn, GP.BTN_GEAR) && !S.aircraft?.fixedGear) {
+    const next = !S.gear;
+    setState({ prevGear: S.gear, gear: next });
+    bbEvent({ type: 'gear', gear: next ? 'down' : 'up' });
+  }
 
   _gpPrevButtons = btn.map(b => b.pressed);
 }
@@ -186,9 +193,9 @@ function _onKeyDown(e) {
   if (e.key === 'T') setState({ trim: Math.max(-10, (S.trim ?? 0) - 0.5) });
 
   /* Flaps — f extend, F retract */
-  if (e.key === 'f') setState({ prevFlaps: S.flaps, flaps: Math.min(3, S.flaps + 1) });
-  if (e.key === 'F') setState({ prevFlaps: S.flaps, flaps: Math.max(0, S.flaps - 1) });
-  if (e.key === 'g' && !S.aircraft?.fixedGear) setState({ prevGear: S.gear, gear: !S.gear });
+  if (e.key === 'f') { const next = Math.min(3, S.flaps + 1); setState({ prevFlaps: S.flaps, flaps: next }); bbEvent({ type: 'flaps', flaps: next }); }
+  if (e.key === 'F') { const next = Math.max(0, S.flaps - 1); setState({ prevFlaps: S.flaps, flaps: next }); bbEvent({ type: 'flaps', flaps: next }); }
+  if (e.key === 'g' && !S.aircraft?.fixedGear) { const next = !S.gear; setState({ prevGear: S.gear, gear: next }); bbEvent({ type: 'gear', gear: next ? 'down' : 'up' }); }
 
   /* Role toggle (for solo sim) */
   if (e.key === 'r') {

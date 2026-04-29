@@ -240,7 +240,7 @@ export function getCurrentRpm() {
   const ePow     = S.enginePower ?? 1.0;
   if (ePow <= 0) return '---';
   if (_cfg.impulse || _cfg.showRpm) {
-    const rpm = Math.round((_cfg.rpmIdle + (_cfg.rpmMax - _cfg.rpmIdle) * throttle) * Math.max(0.05, ePow));
+    const rpm = Math.round((_cfg.rpmIdle + (_cfg.rpmMax - _cfg.rpmIdle) * throttle) * ePow);
     return rpm + ' RPM';
   } else {
     const n1 = Math.round(20 + 80 * throttle);
@@ -1966,9 +1966,13 @@ export async function startEngineLifecycle() {
   src.connect(_master);
   _lifecycleSrc = src;
   _lifecycleStartedAt = _ctx.currentTime;
-  src.start();
+  /* Lycoming startup is only 2.8s — too short to load the worklet concurrently.
+     Await it first so _workletNode is guaranteed set by onended.
+     V12 / R-2800 have 70s+ startups so concurrent load is fine for them. */
+  if (_engineType === 'lycoming-o360') await _loadWorkletSilently();
+  else _loadWorkletSilently();   /* fire-and-forget for long startups */
 
-  _loadWorkletSilently();   /* runs concurrently — worklet ready long before 71s startup ends */
+  src.start();
 
   src.onended = () => {
     _lifecycleSrc = null;
@@ -1976,7 +1980,7 @@ export async function startEngineLifecycle() {
     if (S.engineState !== 'starting') return;   // aborted (M pressed) — don't activate
     if (!_workletNode) { setState({ engineState: 'off' }); return; }
     console.log('[OpenSim] Engine started — worklet active, spdT:', S.spdT);
-    setState({ engineState: 'running', engineTemp: Math.min(1, (S.engineTemp ?? 0) + 0.8) });
+    setState({ engineState: 'running', enginePower: 1.0, engineTemp: Math.min(1, (S.engineTemp ?? 0) + 0.8) });
 
     const now = _ctx.currentTime;
     /* Unmute worklet — _workletMute fades from 0→1 over 0.3s.
@@ -1990,8 +1994,58 @@ export async function startEngineLifecycle() {
   };
 }
 
+function _synthLycomingShutdown(sr, startRpm = 1400) {
+  const duration = 3.0, N = Math.floor(sr * duration), buf = new Float32Array(N);
+  /* 4-cylinder firing angles — 180° apart pairs */
+  const firingAngles = [0, 180, 90, 270].map(a => (a + (Math.random() - 0.5) * 12) % 360);
+  const cylGains     = Array.from({ length: 4 }, () => 0.5 + Math.random() * 0.8);
+  const transDecay   = Math.exp(-400 / sr);
+  let bodyDecay      = Math.exp(-60 / sr);
+  let crankAngle = 0, transient = 0, body = 0;
+  /* Exhaust resonance ~95Hz */
+  const resCos = Math.cos(2 * Math.PI * 95 / sr);
+  const resSin = Math.sin(2 * Math.PI * 95 / sr);
+  const resR   = 0.94;
+  let resX = 0, resY = 0;
+
+  for (let i = 0; i < N; i++) {
+    const t   = i / sr;
+    /* Brief cough at cut-off then fast spool-down */
+    const rpm = Math.max(0, startRpm * Math.exp(-t / 0.9));
+    if (rpm < 5) break;
+
+    if (i % 128 === 0) {
+      const fi   = sr * 10 / Math.max(rpm, 1);
+      const tau  = Math.max(fi / 3, sr * 0.003);
+      bodyDecay  = Math.exp(-1 / tau);
+    }
+
+    const degPerSample = rpm / 60 / sr * 360;
+    const prev         = crankAngle;
+    crankAngle         = (crankAngle + degPerSample) % 360;
+
+    for (let c = 0; c < 4; c++) {
+      const target  = firingAngles[c];
+      const crossed = crankAngle >= prev
+        ? (prev <= target && crankAngle > target)
+        : (prev <= target || crankAngle > target);
+      if (crossed) { transient += cylGains[c]; body += cylGains[c] * 0.6; }
+    }
+    transient *= transDecay;
+    body      *= bodyDecay;
+
+    const raw = transient * 0.35 + body * 0.15;
+    const nx  = resR * (resX * resCos - resY * resSin) + raw;
+    const ny  = resR * (resX * resSin + resY * resCos);
+    resX = nx; resY = ny;
+
+    buf[i] = (raw * 0.1 + nx * 0.9) * (rpm / startRpm) * 0.7;
+  }
+  return buf;
+}
+
 export function stopEngineLifecycle() {
-  if (_engineType !== 'v12-supercharged' && _engineType !== 'radial-2000hp') { stopSound(); return; }
+  if (_engineType !== 'v12-supercharged' && _engineType !== 'radial-2000hp' && _engineType !== 'lycoming-o360') { stopSound(); return; }
   if (S.engineState === 'off' || S.engineState === 'shutdown') return;
 
   _workletReady = false;
@@ -2007,6 +2061,8 @@ export function stopEngineLifecycle() {
   if (_ctx) {
     const shutBuf = _engineType === 'radial-2000hp'
       ? _synthR2800Shutdown(_ctx.sampleRate, _lastRpm)
+      : _engineType === 'lycoming-o360'
+      ? _synthLycomingShutdown(_ctx.sampleRate, _lastRpm)
       : _synthShutdown(_ctx.sampleRate, _lastRpm);
     const ab  = _ctx.createBuffer(1, shutBuf.length, _ctx.sampleRate);
     ab.copyToChannel(shutBuf, 0);
@@ -2019,7 +2075,8 @@ export function stopEngineLifecycle() {
     _master?.gain.setTargetAtTime(0, _ctx.currentTime, 0.3);
   }
 
-  setTimeout(() => { _teardownEngine(); setState({ engineState: 'off' }); }, 5500);
+  const teardownMs = _engineType === 'lycoming-o360' ? 3500 : 5500;
+  setTimeout(() => { _teardownEngine(); setState({ engineState: 'off' }); }, teardownMs);
 }
 
 /* ── Engine bleed tap — for radio chain environment mixing ── */

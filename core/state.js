@@ -135,6 +135,11 @@ export const S = {
     avionics: false,   // AVIONICS — gates NESIS display
   },
 
+  /* ── Robot arm (SO-101) ── */
+  armJoints:    null,   // [j1,j2,j3,j4,j5,j6] degrees — null = not a robot arm mission
+  armGripper:   0,      // 0=open, 1=closed
+  armTargetIdx: 0,      // index into mission.arm.targets
+
   /* ── Warning lights ── */
   warnings: {},           // { OIL_PRESS: bool, LOW_FUEL: bool, FUEL_SEL_OFF: bool }
 

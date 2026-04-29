@@ -5,6 +5,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from './state.js';
+import { bbEvent } from './blackbox.js';
 
 const DEG = Math.PI / 180;
 
@@ -281,6 +282,7 @@ export function tickPhysics(dt) {
     if (justTouched && vs < CRASH_VS_FPM) {
       setState({ crashed: true, crashReason: `HARD LANDING  ${Math.round(vs)} fpm`,
                  enginePower: 0, spdT: 0 });
+      bbEvent({ type: 'crash', reason: `HARD LANDING ${Math.round(vs)} fpm` });
       return;
     }
     // Overspeed: structural failure above VNE × 1.15
@@ -288,6 +290,7 @@ export function tickPhysics(dt) {
     if (newSpd > vne * CRASH_OVERSPD) {
       setState({ crashed: true, crashReason: `OVERSPEED  ${Math.round(newSpd)} kt  (VNE ${Math.round(vne)} kt)`,
                  enginePower: 0, spdT: 0 });
+      bbEvent({ type: 'crash', reason: `OVERSPEED ${Math.round(newSpd)} kt` });
       return;
     }
   }

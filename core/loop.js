@@ -14,6 +14,8 @@ import { tickFailures }              from './failures.js';
 import { tickFuel }                  from './fuel.js';
 import { tickBattery }               from './battery.js';
 import { tickTelemetry }            from './telemetry.js';
+import { bbTick }                   from './blackbox.js';
+import { tickHIL }                  from './hil.js';
 
 let _prevTime = null;
 let _renderers = [];
@@ -35,6 +37,7 @@ function _tick(now) {
   _prevTime = now;
 
   tickGamepad();
+  tickHIL();
   if (!S.paused) tickControls(dt);
 
   if (!S.paused) {
@@ -44,11 +47,13 @@ function _tick(now) {
     tickFailures(warpDt);
     tickFuel(dt);
     tickBattery(dt);
-    if      (S.aircraft?.vehicleType === 'rocket')    { tickRocket(warpDt); tickBooster(warpDt); }
-    else if (S.aircraft?.type       === 'hovercraft') tickHovercraft(warpDt);
-    else                                              tickPhysics(dt);
+    if      (S.aircraft?.vehicleType === 'rocket')     { tickRocket(warpDt); tickBooster(warpDt); }
+    else if (S.aircraft?.type       === 'hovercraft')  tickHovercraft(warpDt);
+    else if (S.aircraft?.vehicleType === 'robot-arm')  { /* arm kinematics — no physics tick */ }
+    else                                               tickPhysics(dt);
     tickCrew(prevAlt, S.alt);
     tickTelemetry(warpDt);
+    bbTick(dt);
   }
 
   for (const render of _renderers) render();

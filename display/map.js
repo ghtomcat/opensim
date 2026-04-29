@@ -66,8 +66,13 @@ export function initMap() {
   _applySize('local');
   document.body.appendChild(_el);
 
+  /* ── Leaflet container — child of _el so hiding it doesn't hide the rocket canvas ── */
+  const _leafletEl = document.createElement('div');
+  _leafletEl.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
+  _el.appendChild(_leafletEl);
+
   /* ── Leaflet local map ── */
-  _lmap = L.map(_el, {
+  _lmap = L.map(_leafletEl, {
     zoomControl:       false,
     attributionControl: false,
     dragging:          false,
@@ -111,12 +116,13 @@ export function initMap() {
 
   /* Leaflet can't measure a hidden container — briefly show, measure, hide */
   _el.style.display = '';
+  _leafletEl.style.display = '';
   _lmap.invalidateSize();
   if (!_visible) _el.style.display = 'none';
 
-  /* Canvas only used for rocket mode */
+  /* Canvas only used for rocket mode — sibling of Leaflet container */
   _canvas = document.createElement('canvas');
-  _canvas.style.cssText = 'display:none;width:100%;height:100%;';
+  _canvas.style.cssText = 'position:absolute;top:0;left:0;display:none;width:100%;height:100%;';
   _el.appendChild(_canvas);
 
   /* Main vehicle silhouette — hidden until rocket mode */

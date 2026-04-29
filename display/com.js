@@ -6,6 +6,7 @@
 
 import { S } from '../core/state.js';
 import { speakATC } from '../core/crew.js';
+import { bbEvent } from '../core/blackbox.js';
 
 /* ── Default LSZH frequency card ── */
 const FREQS_DEFAULT = {
@@ -207,6 +208,7 @@ function _render() {
         _renderXpdrStatus();
         if (XPDR.code.join('') === '7700' && S.emergLog?.some(e => e.type === 'failure')) {
           S.emergLog.push({ t: S.time, type: 'squawk7700' });
+          bbEvent({ type: 'squawk7700' });
         }
       });
       dig.appendChild(span);
@@ -289,6 +291,7 @@ function _onTune(freq) {
   if (inEmerg) {
     S.emergLog.push({ t: S.time, type: 'tune', freq });
   }
+  bbEvent({ type: 'com_tune', freq, inEmergency: inEmerg });
 
   /* Mayday acknowledgement on 121.5 during emergency */
   if (freq === '121.500' && inEmerg) {

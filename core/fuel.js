@@ -10,6 +10,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from './state.js';
+import { bbEvent } from './blackbox.js';
 
 /* Default fuel burn rates litres/hour at full power */
 const BURN_DEFAULTS = {
@@ -62,6 +63,7 @@ export function tickFuel(dt) {
     if (running) {
       setState({ enginePower: 0, engineState: 'off' });
       if (S.emergLog) S.emergLog.push({ t: S.time, type: 'failure', failureType: 'fuel_starvation', value: 0 });
+      bbEvent({ type: 'fuel_selector_cutoff', selector: 'OFF' });
     }
     _updateWarnings();
     return;
@@ -81,10 +83,16 @@ export function tickFuel(dt) {
   let right = S.fuelRight;
 
   if (sel === 'BOTH') {
-    /* Burn equally from both tanks */
-    const half = burnRate / 2;
-    left  = Math.max(0, left  - half);
-    right = Math.max(0, right - half);
+    /* Burn equally from both tanks; if one is empty, drain the other at full rate */
+    if (left <= 0) {
+      right = Math.max(0, right - burnRate);
+    } else if (right <= 0) {
+      left  = Math.max(0, left  - burnRate);
+    } else {
+      const half = burnRate / 2;
+      left  = Math.max(0, left  - half);
+      right = Math.max(0, right - half);
+    }
   } else if (sel === 'LEFT') {
     left  = Math.max(0, left  - burnRate);
   } else if (sel === 'RIGHT') {
@@ -105,6 +113,7 @@ export function tickFuel(dt) {
     if (S.emergLog) {
       S.emergLog.push({ t: S.time, type: 'failure', failureType: 'fuel_starvation', value: 0 });
     }
+    bbEvent({ type: 'fuel_exhausted', selector: sel, fuelLeft: left, fuelRight: right });
   }
 
   _updateWarnings();

@@ -480,15 +480,16 @@ function _mfd(ctx, canvas, x, y, w, h) {
 function _engineStrip(ctx, x, y, w, h) {
   const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 163;
   const throttle = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
-  const ePow     = Math.max(0.05, S.enginePower ?? 1.0);
-  const rpm      = Math.round((700 + 2000 * throttle) * ePow);
+  const ePow     = S.enginePower ?? 1.0;
+  const rpm      = ePow <= 0 ? 0 : Math.round((700 + 2000 * throttle) * ePow);
+  const rpmText  = ePow <= 0 ? '---' : rpm.toString();
   const warns    = S.warnings ?? {};
 
   /* RPM arc */
   const arcCx = x + w / 2;
   const arcCy = y + h * 0.16;
   const arcR  = w * 0.36;
-  _arcGauge(ctx, arcCx, arcCy, arcR, rpm, 0, 2700, 'RPM', rpm.toString(), [
+  _arcGauge(ctx, arcCx, arcCy, arcR, rpm, 0, 2700, 'RPM', rpmText, [
     [0,    1700, G.green],
     [1700, 2500, G.green],
     [2500, 2700, G.amber],

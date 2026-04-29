@@ -11,6 +11,9 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=Kalam:wght@400;700&family=Syne:wght@400;700;800&display=swap">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/three@0.134.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.134.0/examples/js/loaders/STLLoader.js"></script>
+  <script src="https://unpkg.com/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1542,7 +1545,10 @@
   <div class="debrief-title">Debrief</div>
   <div id="debrief-scores"></div>
   <div id="debrief-items"></div>
-  <button onclick="hideDebrief()" style="margin-top:20px;padding:10px 28px;background:none;border:1px solid rgba(255,255,255,0.3);color:#e8edf2;font-family:'Syne',sans-serif;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase;">Reset</button>
+  <div style="display:flex;gap:12px;margin-top:20px;justify-content:center">
+    <button onclick="hideDebrief()" style="padding:10px 28px;background:none;border:1px solid rgba(255,255,255,0.3);color:#e8edf2;font-family:'Syne',sans-serif;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase;">Reset</button>
+    <button onclick="downloadBlackbox()" style="padding:10px 28px;background:none;border:1px solid rgba(255,165,0,0.5);color:#ffa500;font-family:'Syne',sans-serif;font-size:12px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase;">⬛ Black Box</button>
+  </div>
 </div>
 
 <!-- Hovercraft control panel -->
@@ -1699,11 +1705,13 @@
   import { tickHovercraft }  from './core/hovercraft_physics.js';
   import { tickRocket, tickBooster } from './core/rocket.js';
   import { tickFailures }    from './core/failures.js';
-  import { cycleFuelSelector } from './core/fuel.js';
+  import { cycleFuelSelector, tickFuel } from './core/fuel.js';
   import { initCrew, tickCrew, resetCrew } from './core/crew.js';
   import { initInput, isPTTActive }        from './core/input.js';
   import { startLoop }    from './core/loop.js';
+  import { hilInit }      from './core/hil.js';
   import { startTelemetry, downloadTelemetry, downloadTelemetryCSV } from './core/telemetry.js';
+  import { initBlackbox, bbEvent, downloadBlackbox } from './core/blackbox.js';
   import { renderPFD }         from './display/pfd.js';
   import { renderRocket }      from './display/rocket_display.js';
   import { renderG1000 }       from './display/g1000.js';
@@ -1711,6 +1719,7 @@
   import { renderBf109 }       from './display/bf109.js';
   import { renderF4U1A }       from './display/f4u1a.js';
   import { renderHovercraft }  from './display/hovercraft_display.js';
+  import { initRobotArm, renderRobotArm, resetRobotArm } from './display/robot_arm.js';
   import { renderVelisEpsi, handleVelisClick } from './display/velis_epsi.js';
   import { initFMA, renderFMA } from './display/fma.js';
   import { initCOM }           from './display/com.js';
@@ -1935,6 +1944,19 @@
         aircraft: "Markus' Demonstrator · 320×280mm · 0.8 kg · Plenum 0.0896 m²",
         orders: 'Lift EDF: HobbyKing 64mm @ 4S.\nSchwebedruck: 0.8 kg × 9.81 / 0.0896 m² = 87.6 Pa.\nAutonomie: MANUAL · HOVER · TRACK.\nTRACK: Zielpeilung mit Schieberegler setzen.',
         atmosphere: 'Faigle3D H2D — Hovercraft Demonstrator.\nKleiner. Schneller. Autonom.\nGPS-Tracking im Testlauf.',
+      },
+    },
+    {
+      id: 'so101-workspace', aircraft: 'so101',
+      acName: 'SO-101 Robot Arm', engine: 'Feetech STS3215 × 6 · 30 kg·cm · 12V',
+      location: 'Faigle3D Workshop', title: 'Workspace · Familiarisation', era: 'LAB', accent: '#bc8cff',
+      briefing: {
+        date: 'Workshop · Robot Arm Lab',
+        pilot: 'Markus',
+        unit: 'OpenSim Robot Lab',
+        aircraft: 'SO-101 · 6-DOF · Feetech STS3215 × 6 · Reach 280mm · Payload 500g',
+        orders: 'Tab — cycle joint (J1–J6)\n← → — rotate selected joint (Shift = ×5)\nSpace — gripper open / close\nH — home position\n\nMove the arm through targets A → B → C.\nStay within the safe workspace envelope.',
+        atmosphere: 'The architecture made physical.\nSix joints. One black box.\nEvery command logged. Every decision recorded.\n\nHuman always PF.',
       },
     },
     {
@@ -2858,7 +2880,8 @@
   /* ── Init ── */
   async function init(missionId, aircraftId, inlineMission = null) {
     /* Push a history entry with mission data so back/forward work correctly */
-    history.pushState({ missionId, aircraftId }, '', `?mission=${missionId}`);
+    const _hilParam = new URLSearchParams(window.location.search).has('hil') ? '&hil' : '';
+    history.pushState({ missionId, aircraftId }, '', `?mission=${missionId}${_hilParam}`);
 
     /* Stop any ADS-B tracking from a previous live flight */
     if (missionId !== 'live-flight') _stopTracking();
@@ -2872,7 +2895,9 @@
     loadBar.style.width = '20%';
     loadStatus.textContent = 'loading aircraft…';
 
+    resetRobotArm();
     await loadMission(inlineMission ?? `missions/${missionId}.json`, `aircraft/${aircraftId}.json`);
+    initBlackbox();
 
     /* Merge scenario failures injected from the scenario setup overlay */
     const mData2 = MISSIONS.find(m => m.id === missionId);
@@ -2882,7 +2907,15 @@
     }
 
     /* Re-init COM with mission-specific frequencies now that S.mission is loaded */
-    initCOM(document.getElementById('com-container'));
+    const _comEl = document.getElementById('com-container');
+    if (S.aircraft?.vehicleType !== 'robot-arm') initCOM(_comEl);
+    _comEl.style.display = S.aircraft?.vehicleType === 'robot-arm' ? 'none' : '';
+
+    /* Seed robot arm state if applicable — Three.js init happens lazily on first render */
+    if (S.aircraft?.vehicleType === 'robot-arm') {
+      const home = (S.aircraft?.joints ?? []).map(j => j.home ?? 0);
+      setState({ armJoints: home, armGripper: 0, armTargetIdx: 0 });
+    }
 
     /* Show/hide map based on aircraft capability */
     if (S.aircraft?.map === false) { hideMap(); hideVelisMap(); hideG1000Map(); }
@@ -2962,7 +2995,7 @@
     initCrew();
     initInput();
     initFMA(fmaEl);
-    initCOM(document.getElementById('com-container'));
+    if (S.aircraft?.vehicleType !== 'robot-arm') initCOM(document.getElementById('com-container'));
     initOutside();
 
     loadBar.style.width = '90%';
@@ -3023,11 +3056,12 @@
 
     /* Show onboarding — skip for autonomous/slider-controlled vehicles */
     const obEl = document.getElementById('onboarding');
-    const _noKeys = S.aircraft?.vehicleType === 'rocket' || S.aircraft?.type === 'hovercraft';
+    const _isRobotArm = S.aircraft?.vehicleType === 'robot-arm';
+    const _noKeys = S.aircraft?.vehicleType === 'rocket' || S.aircraft?.type === 'hovercraft' || _isRobotArm;
     if (!_noKeys) obEl.classList.add('visible');
     /* Init sound with default engine type from aircraft JSON */
     const engineType = S.aircraft?.sound?.engineType ?? 'geared-turbofan';
-    initSound(engineType);
+    if (engineType !== 'none') initSound(engineType);
     initKneeboard();
     initMap();
     initVelisMap();
@@ -3074,19 +3108,26 @@
         else downloadTelemetry();
         return;
       }
+      if (e.ctrlKey && e.shiftKey && e.key === 'B') {
+        e.preventDefault();
+        downloadBlackbox();
+        return;
+      }
       /* Escape — back to mission selector */
       if (e.key === 'Escape') { history.back(); return; }
       if (e.key === 'k' || e.key === 'K') { toggleKneeboard(); return; }
-      if (e.key === 'n' || e.key === 'N') { if (S.aircraft?.map !== false) toggleMap(); return; }
+      if (e.key === 'n' || e.key === 'N') { if (S.aircraft?.map !== false && S.aircraft?.vehicleType !== 'rocket') toggleMap(); return; }
 
       /* E — Anlasser (v12 only) */
       if ((e.key === 'e' || e.key === 'E') && _hasLifecycle) {
+        bbEvent({ type: 'engine_start_commanded', engineState: S.engineState });
         startEngineLifecycle();
         return;
       }
 
       /* Q — V12/Radial: engine cut-off (mixture/Kraftstoffhahn) */
       if ((e.key === 'q' || e.key === 'Q') && (_isV12 || _isRadial)) {
+        bbEvent({ type: 'engine_cutoff', method: 'mixture' });
         stopEngineLifecycle();
         return;
       }
@@ -3094,12 +3135,15 @@
       /* Q — fuel selector cycle (all manual aircraft with fuel system) */
       if ((e.key === 'q' || e.key === 'Q') && S.aircraft?.manualControl && S.fuelLeft !== null) {
         cycleFuelSelector();
+        bbEvent({ type: 'fuel_selector', selector: S.fuelSelector });
         return;
       }
 
       /* C — carb heat toggle */
       if ((e.key === 'c' || e.key === 'C') && S.aircraft?.hasCarbHeat) {
-        setState({ carbHeat: !S.carbHeat });
+        const next = !S.carbHeat;
+        setState({ carbHeat: next });
+        bbEvent({ type: 'carb_heat', carbHeat: next });
         return;
       }
 
@@ -3159,6 +3203,15 @@
       window.dispatchEvent(new Event('simready'));
     }
 
+    /* HIL — activate with ?hil or ?hil=ws://host:port in URL */
+    {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('hil')) {
+        const hubUrl = params.get('hil') || 'ws://localhost:3000';
+        hilInit(hubUrl.startsWith('ws') ? hubUrl : 'ws://localhost:3000');
+      }
+    }
+
     /* Start loop */
     startLoop([
       () => {
@@ -3168,7 +3221,9 @@
         const panel    = S.aircraft?.panel ?? 'pfd';
         const isHover  = S.aircraft?.type === 'hovercraft';
         const isRocket = S.aircraft?.vehicleType === 'rocket';
-        if      (isHover)            renderHovercraft(canvas);
+        const isArm    = S.aircraft?.vehicleType === 'robot-arm';
+        if      (isArm)              renderRobotArm(canvas);
+        else if (isHover)            renderHovercraft(canvas);
         else if (isRocket)           renderRocket(canvas);
         else if (panel === 'g1000')  renderG1000(canvas);
         else if (panel === 'bf109')  renderBf109(canvas);
@@ -3180,12 +3235,12 @@
         const isVelis  = panel === 'velis-epsi';
         const isG1000  = panel === 'g1000';
         const hasOwnUI = isVelis || isG1000;
-        canvas.style.pointerEvents = isVelis ? 'auto' : 'none';
+        canvas.style.pointerEvents = (isVelis || isArm) ? 'auto' : 'none';
         document.getElementById('hc-panel').style.display      = isHover ? 'flex' : 'none';
-        document.getElementById('com-container').style.display  = (isHover || hasOwnUI) ? 'none' : '';
-        document.getElementById('panel').style.display          = (isRocket || hasOwnUI) ? 'none' : '';
-        document.getElementById('keys').style.display           = isRocket ? 'none' : '';
-        document.getElementById('fma').style.display            = (isRocket || hasOwnUI) ? 'none' : '';
+        document.getElementById('com-container').style.display  = (isHover || hasOwnUI || isArm) ? 'none' : '';
+        document.getElementById('panel').style.display          = (isRocket || hasOwnUI || isArm) ? 'none' : '';
+        document.getElementById('keys').style.display           = (isRocket || isArm) ? 'none' : '';
+        document.getElementById('fma').style.display            = (isRocket || hasOwnUI || isArm) ? 'none' : '';
         document.getElementById('warning-lights').style.display = hasOwnUI ? 'none' : '';
         document.getElementById('metar-strip').style.display    = hasOwnUI ? 'none' : '';
         _oskUpdate(isHover, S.aircraft?.manualControl);
@@ -3197,7 +3252,7 @@
       () => _trackApproach(),
       () => checkDebrief(),
       () => checkCrash(),
-      () => tickSound(),
+      () => { if (engineType !== 'none') tickSound(); },
       () => {
         /* Yrr — auto-switch to outside view for the moment of contact */
         if (S.niflheimVisible && !_niflheimActive) {
@@ -3238,6 +3293,7 @@
     /* Log first PTT press after a failure */
     if (pttNow && S.emergLog?.some(e => e.type === 'failure') && !S.emergLog.some(e => e.type === 'ptt')) {
       S.emergLog.push({ t: S.time, type: 'ptt' });
+      bbEvent({ type: 'mayday_call' });
     }
 
     /* Fuel display */
@@ -3582,6 +3638,8 @@
     loadMission('missions/lszh-approach.json', 'aircraft/a350.json');
   };
 
+  window.downloadBlackbox = downloadBlackbox;
+
   /* ── Hovercraft control panel ── */
   (function _initHcPanel() {
     const lift  = document.getElementById('hc-lift-slider');
@@ -3866,6 +3924,7 @@
       for (let i = 0; i < n; i++) {
         const prevAlt = S.alt;
         tickFailures(dt);
+        tickFuel(dt);
         if      (isRocket) { tickRocket(dt); tickBooster(dt); }
         else if (isHC)     tickHovercraft(dt);
         else               tickPhysics(dt);

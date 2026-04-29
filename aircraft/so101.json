@@ -1,0 +1,37 @@
+{
+  "id":   "so101",
+  "name": "SO-101 Robot Arm",
+  "type": "robot-arm",
+  "vehicleType": "robot-arm",
+  "map": false,
+
+  "specs": {
+    "dof": 6,
+    "payload_kg": 0.5,
+    "reach_mm": 280,
+    "servo": "Feetech STS3215",
+    "torque_kgcm": 30,
+    "voltage": "12V"
+  },
+
+  "links": {
+    "base_height_mm":  90,
+    "upper_arm_mm":   130,
+    "forearm_mm":     120,
+    "wrist_mm":        55,
+    "endeffector_mm":  45
+  },
+
+  "joints": [
+    { "name": "Base Rotation",  "axis": "Z", "min": -180, "max": 180, "home": 0   },
+    { "name": "Shoulder",       "axis": "Y", "min": -90,  "max": 90,  "home": 45  },
+    { "name": "Elbow",          "axis": "Y", "min": -120, "max": 10,  "home": -60 },
+    { "name": "Wrist Pitch",    "axis": "Y", "min": -90,  "max": 90,  "home": 30  },
+    { "name": "Wrist Roll",     "axis": "X", "min": -180, "max": 180, "home": 0   },
+    { "name": "Gripper",        "axis": "X", "min": 0,    "max": 90,  "home": 0   }
+  ],
+
+  "sound": { "engineType": "none" },
+  "manualControl": true,
+  "fixedGear": true
+}
