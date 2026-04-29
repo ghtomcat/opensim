@@ -48,42 +48,42 @@
   ],
   "atcClearances": [
     {
-      "t": 5,
+      "trigger": { "type": "time", "t": 5 },
       "audio": "audio/nordmeer/olenya_zapusk.mp3",
       "voice": "atc"
     },
     {
-      "t": 9,
+      "trigger": { "type": "after", "idx": 0, "delay": 1.5 },
       "audio": "audio/nordmeer/crew_ponyal.mp3",
       "voice": "crew"
     },
     {
-      "t": 90,
+      "trigger": { "type": "airborne" },
       "audio": "audio/nordmeer/olenya_vzlet.mp3",
       "voice": "atc"
     },
     {
-      "t": 94,
+      "trigger": { "type": "after", "idx": 2, "delay": 1.5 },
       "audio": "audio/nordmeer/crew_ponyal.mp3",
       "voice": "crew"
     },
     {
-      "t": 120,
+      "trigger": { "type": "alt_ft", "min": 3000 },
       "audio": "audio/nordmeer/olenya_eshelon.mp3",
       "voice": "atc"
     },
     {
-      "t": 124,
+      "trigger": { "type": "after", "idx": 4, "delay": 1.5 },
       "audio": "audio/nordmeer/crew_nabiraem.mp3",
       "voice": "crew"
     },
     {
-      "t": 200,
+      "trigger": { "type": "alt_ft", "min": 10000 },
       "audio": "audio/nordmeer/olenya_molchanie.mp3",
       "voice": "atc"
     },
     {
-      "t": 204,
+      "trigger": { "type": "after", "idx": 6, "delay": 1.5 },
       "audio": "audio/nordmeer/crew_molchanie.mp3",
       "voice": "crew"
     }

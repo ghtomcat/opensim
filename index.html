@@ -257,6 +257,89 @@
       pointer-events: none;
     }
 
+    /* ── Mission elapsed time — Nixie tube clock ── */
+    #mission-clock {
+      position: fixed; top: 90px; left: 20px;
+      z-index: 20;
+      pointer-events: none;
+      display: none;
+    }
+    #mission-clock.visible { display: flex; align-items: center; }
+
+    .ck-housing {
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      background: #0c0906;
+      border: 1px solid #1e1508;
+      border-radius: 5px;
+      padding: 8px 12px 7px;
+      box-shadow:
+        inset 0 2px 10px rgba(0,0,0,0.95),
+        0 0 28px rgba(255,80,0,0.07),
+        0 1px 0 rgba(255,255,255,0.03);
+    }
+    .ck-digits {
+      display: flex; align-items: center; gap: 5px;
+    }
+    .ck-label {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 8px; font-weight: 400;
+      letter-spacing: 0.18em;
+      color: rgba(255,120,30,0.38);
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .ck-tube {
+      position: relative;
+      width: 28px; height: 46px;
+      background: #050302;
+      border: 1px solid rgba(255,110,20,0.14);
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow:
+        inset 0 0 12px rgba(0,0,0,0.95),
+        inset 1px 0 0 rgba(255,255,255,0.025);
+      overflow: hidden;
+    }
+    /* glass sheen — faint left-side reflection */
+    .ck-tube::before {
+      content: '';
+      position: absolute; left: 2px; top: 4px; bottom: 4px; width: 2px;
+      background: linear-gradient(to bottom, rgba(255,255,255,0.06), transparent);
+      border-radius: 1px;
+    }
+    .ck-digit {
+      position: relative; z-index: 1;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 30px; font-weight: 700;
+      color: #ff8030;
+      text-shadow:
+        0 0 3px #ff7020,
+        0 0 8px #ff5500,
+        0 0 16px rgba(255,50,0,0.65),
+        0 0 30px rgba(255,30,0,0.30);
+      line-height: 1;
+      letter-spacing: -1px;
+    }
+    .ck-digit.tick {
+      animation: ck-tick 0.06s ease-out;
+    }
+    @keyframes ck-tick {
+      0%  { opacity: 0.15; transform: scale(0.82); }
+      100%{ opacity: 1;    transform: scale(1);    }
+    }
+    .ck-sep {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 10px;
+      padding: 0 1px;
+      margin-top: 2px;
+    }
+    .ck-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: #ff6010;
+      box-shadow: 0 0 5px #ff4400, 0 0 10px rgba(255,50,0,0.45);
+    }
+
     /* ── ADS-B tracking badge ── */
     #tracking-badge {
       position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
@@ -1437,6 +1520,23 @@
 
 <!-- Mission title -->
 <div id="mission-title"></div>
+
+<!-- Mission elapsed time — Nixie tube clock -->
+<div id="mission-clock">
+  <div class="ck-housing">
+    <div class="ck-digits">
+      <div class="ck-tube"><span class="ck-digit" id="ck-h1">0</span></div>
+      <div class="ck-tube"><span class="ck-digit" id="ck-h2">0</span></div>
+      <div class="ck-sep"><div class="ck-dot"></div><div class="ck-dot"></div></div>
+      <div class="ck-tube"><span class="ck-digit" id="ck-m1">0</span></div>
+      <div class="ck-tube"><span class="ck-digit" id="ck-m2">0</span></div>
+      <div class="ck-sep"><div class="ck-dot"></div><div class="ck-dot"></div></div>
+      <div class="ck-tube"><span class="ck-digit" id="ck-s1">0</span></div>
+      <div class="ck-tube"><span class="ck-digit" id="ck-s2">0</span></div>
+    </div>
+    <div class="ck-label">ВРЕМЯ ПОЛЁТА</div>
+  </div>
+</div>
 
 <!-- METAR strip -->
 <div id="metar-strip"></div>
@@ -3270,6 +3370,7 @@
       },
       () => tickOutside(),
       () => tickKneeboard(),
+      () => renderMissionClock(),
       () => renderMap(),
     ]);
   }
@@ -3409,6 +3510,41 @@
     document.getElementById('keys-spd').style.display      = isManual ? 'none'   : '';
     document.getElementById('keys-throttle').style.display = isManual ? 'inline' : 'none';
     document.getElementById('keys-carb').style.display     = S.aircraft?.hasCarbHeat ? '' : 'none';
+  }
+
+  /* ── Mission elapsed time counter ── */
+  const _ckEls = {};
+  function _ckInit() {
+    ['h1','h2','m1','m2','s1','s2'].forEach(id => {
+      _ckEls[id] = document.getElementById('ck-' + id);
+    });
+  }
+  function _ckSet(id, val) {
+    const el = _ckEls[id];
+    if (!el) return;
+    const s = String(val);
+    if (el.textContent === s) return;
+    el.textContent = s;
+    el.classList.remove('tick');
+    void el.offsetWidth;
+    el.classList.add('tick');
+  }
+  function renderMissionClock() {
+    const el = document.getElementById('mission-clock');
+    if (!el) return;
+    if (!S.mission) { el.classList.remove('visible'); return; }
+    if (!_ckEls.h1) _ckInit();
+    el.classList.add('visible');
+    const t = Math.max(0, Math.floor(S.time ?? 0));
+    const h = Math.floor(t / 3600);
+    const m = Math.floor((t % 3600) / 60);
+    const s = t % 60;
+    _ckSet('h1', Math.floor(h / 10));
+    _ckSet('h2', h % 10);
+    _ckSet('m1', Math.floor(m / 10));
+    _ckSet('m2', m % 10);
+    _ckSet('s1', Math.floor(s / 10));
+    _ckSet('s2', s % 10);
   }
 
   /* ── METAR ── */

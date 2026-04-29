@@ -83,6 +83,62 @@ const PROFILES = {
     outputGain:    0.80,
   },
 
+  'capsule-dragon': {
+    /* Dragon capsule intercom — Bose A20-style headset, close-mic.
+       Internal crew callouts: no beep, no carrier, very clean.
+       Slight presence peak around the intelligibility band. */
+    bandpass:      [300, 8000],
+    presenceFreq:  2500,
+    presenceGain:  3,
+    presenceQ:     0.6,
+    carrierFreq:   null,
+    carrierGain:   0,
+    whineFreq:     null,
+    whineGain:     0,
+    noiseFloor:    0.003,
+    crackle:       0.001,
+    burstLevel:    0,
+    squelchTail:   false,
+    outputGain:    0.96,
+  },
+
+  'ip-spacex-crew': {
+    /* Dragon crew outgoing comms — mic inside sealed helmet, Comm1 IP link.
+       Helmet cavity cuts lows hard, creates boxy 2-3kHz resonance (tinny).
+       Life-support fan bleed comes via COCKPIT_PROFILES in crew.js. */
+    bandpass:      [500, 4500],
+    presenceFreq:  2600,
+    presenceGain:  7,
+    presenceQ:     1.4,
+    carrierFreq:   null,
+    carrierGain:   0,
+    whineFreq:     null,
+    whineGain:     0,
+    noiseFloor:    0.012,
+    crackle:       0.005,
+    burstLevel:    0.015,
+    squelchTail:   false,
+    outputGain:    0.90,
+    commBeep:      { freq: 2000, durationMs: 280, gain: 0.46 },
+  },
+
+  'ip-spacex-narrate': {
+    /* SpaceX webcast narration — same chain as ip-spacex, no PTT beep */
+    bandpass:      [200, 7000],
+    presenceFreq:  3000,
+    presenceGain:  2,
+    presenceQ:     0.5,
+    carrierFreq:   null,
+    carrierGain:   0,
+    whineFreq:     null,
+    whineGain:     0,
+    noiseFloor:    0.001,
+    crackle:       0,
+    burstLevel:    0,
+    squelchTail:   false,
+    outputGain:    1.0,
+  },
+
   'ip-spacex': {
     /* SpaceX IP backbone — near-phone quality voice, very clean */
     bandpass:      [200, 7000],
@@ -98,6 +154,7 @@ const PROFILES = {
     burstLevel:    0,
     squelchTail:   false,
     outputGain:    1.0,
+    commBeep:      { freq: 2000, durationMs: 280, gain: 0.46 },  // SpaceX PTT tone — measured 1975Hz/280ms from webcast 1:09:53
   },
 
   'cockpit-bf109': {
@@ -303,6 +360,20 @@ export async function playThroughChain(ctx, url, {
   onEnded      = null,
 } = {}) {
 
+  /* Broadcast bypass — narrators play completely dry, no chain */
+  if (profileName === 'broadcast') {
+    const resp     = await fetch(url);
+    const audioBuf = await ctx.decodeAudioData(await resp.arrayBuffer());
+    const source   = ctx.createBufferSource();
+    const out      = ctx.createGain();
+    source.buffer  = audioBuf;
+    source.connect(out);
+    out.connect(destination);
+    source.start();
+    source.onended = () => { try { out.disconnect(); } catch {} onEnded?.(); };
+    return { stop() { try { source.stop(); } catch {} try { out.disconnect(); } catch {} } };
+  }
+
   const [chain, resp] = await Promise.all([
     createRadioChain(ctx, profileName),
     fetch(url),
@@ -325,7 +396,34 @@ export async function playThroughChain(ctx, url, {
   }
 
   chain.output.connect(destination);
-  source.start();
+
+  /* Comm beep — short PTT tone through the same radio chain before the voice */
+  const p = PROFILES[profileName] ?? PROFILES['vhf-aviation'];
+  let voiceOffset = 0;
+  if (p.commBeep) {
+    const b       = p.commBeep;
+    const pk      = b.gain ?? 0.45;
+    const attack  = 0.010;                          // 10 ms ramp up
+    const sustain = 0.225;                          // 225 ms hold
+    const decay   = 0.045;                          // 45 ms fade out
+    const beepDur = attack + sustain + decay;
+    const beepOsc  = ctx.createOscillator();
+    const beepGain = ctx.createGain();
+    beepOsc.type = 'sine';
+    beepOsc.frequency.value = b.freq ?? 900;
+    const t0 = ctx.currentTime;
+    beepGain.gain.setValueAtTime(0.0001, t0);
+    beepGain.gain.linearRampToValueAtTime(pk,     t0 + attack);
+    beepGain.gain.setValueAtTime(pk,              t0 + attack + sustain);
+    beepGain.gain.exponentialRampToValueAtTime(0.0001, t0 + beepDur);
+    beepOsc.connect(beepGain);
+    beepGain.connect(chain.input);
+    beepOsc.start(t0);
+    beepOsc.stop(t0 + beepDur + 0.005);
+    voiceOffset = beepDur + 0.03;
+  }
+
+  source.start(ctx.currentTime + voiceOffset);
 
   source.onended = () => {
     chain.squelchTail();

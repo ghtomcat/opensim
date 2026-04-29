@@ -18,6 +18,7 @@ let _crewLang = null;   // e.g. 'ru-RU' — null = browser default
 
 /* ── State ── */
 const _atcFired       = new Set();  // indices of fired ATC clearances
+const _atcEndedAt     = {};         // idx → S.time when that clearance's audio ended
 let _briefFired       = false;
 let _briefLock        = false;
 let _checklistLock    = false;
@@ -139,6 +140,7 @@ export function tickCrew(prevAlt, currAlt) {
 
 export function resetCrew() {
   _atcFired.clear();
+  for (const k in _atcEndedAt) delete _atcEndedAt[k];
   _briefFired = false;
   _briefLock  = false;
   _checklistLock = false;
@@ -256,15 +258,49 @@ function _checkChecklist(prev, curr, ac) {
   }
 }
 
+/* ── Resolve voice params for a clearance voice name ── */
+function _voiceFor(voiceName) {
+  const female = S.mission?.crewVoice === 'female';
+  switch (voiceName) {
+    case 'pm':        return { voice: _pmVoice,                          rate: 0.92, pitch: 1.18, volume: 0.9  };
+    case 'crew':      return { voice: female ? _pmVoice : _pfVoice,      rate: 0.92, pitch: 0.88, volume: 0.9  };
+    case 'narrator':  return { voice: _narratorVoice,                    rate: 0.95, pitch: 0.88, volume: 1.0  };
+    case 'narrator2': return { voice: _narrator2Voice,                   rate: 0.95, pitch: 1.08, volume: 1.0  };
+    default:          return { voice: _atcVoice,                         rate: 1.00, pitch: 1.00, volume: 1.0  };
+  }
+}
+
+/* ── Evaluate a structured trigger object ── */
+function _evalTrigger(tr) {
+  switch (tr.type) {
+    case 'time':
+      return (S.time ?? 0) >= tr.t;
+    case 'airborne':
+      return !(S.wow ?? false)
+          && (S.alt ?? 0) > ((S.mission?.departure?.elevation ?? 0) + 150);
+    case 'alt_ft':
+      return (S.alt ?? 0) >= tr.min;
+    case 'alt_km':
+      return (S.alt ?? 0) * 0.0003048 >= tr.min;
+    case 'after': {
+      const endT = _atcEndedAt[tr.idx];
+      return endT !== undefined && (S.time ?? 0) >= endT + (tr.delay ?? 1);
+    }
+    default:
+      return false;
+  }
+}
+
 function _checkATC(prev, curr, ms) {
   if (!ms.atcClearances) return;
 
   ms.atcClearances.forEach((clr, idx) => {
     if (_atcFired.has(idx)) return;
 
-    /* Determine trigger */
     let fire = false;
-    if (clr.t !== undefined) {
+    if (clr.trigger) {
+      fire = _evalTrigger(clr.trigger);
+    } else if (clr.t !== undefined) {
       fire = (S.time >= clr.t);
     } else if (clr.alt !== undefined) {
       fire = (curr < prev && prev > clr.alt && curr <= clr.alt);
@@ -274,33 +310,33 @@ function _checkATC(prev, curr, ms) {
     if (!fire) return;
     _atcFired.add(idx);
 
+    const capturedIdx = idx;
     const delay = clr.delay ?? 200;
 
-    /* Single-voice format: { text, voice } or { audio, voice } or { speaker, audio } */
-    if (clr.text !== undefined || clr.audio !== undefined) {
-      /* Pre-recorded audio file — route through radio chain */
-      if (clr.audio !== undefined) {
-        /* Resolve commProfile: callout → character → mission → default */
-        const char    = clr.speaker ? S.mission?.characters?.[clr.speaker] : null;
-        const profile = clr.commProfile ?? char?.commProfile ?? S.mission?.commProfile ?? 'vhf-aviation';
-        setTimeout(() => playRadio(clr.audio, { profile }), delay);
-        return;
-      }
-      const crewSpeak = (S.mission?.crewVoice === 'female') ? speakPM : speakPF;
-      const speak = clr.voice === 'pm'        ? speakPM
-                  : clr.voice === 'crew'      ? crewSpeak
-                  : clr.voice === 'narrator'  ? speakNarrator
-                  : clr.voice === 'narrator2' ? speakNarrator2
-                  : speakATC;
-      if (clr.voice === 'crew') console.log('[crew] crew callout:', clr.text, '| crewVoice:', S.mission?.crewVoice, '| fn:', speak === speakPM ? 'speakPM(Karen)' : 'speakPF(Daniel)');
-      setTimeout(() => speak(clr.text), delay);
+    /* Pre-recorded audio — route through radio chain */
+    if (clr.audio !== undefined) {
+      const charKey = clr.speaker ?? clr.voice;
+      const char    = charKey ? S.mission?.characters?.[charKey] : null;
+      const profile = clr.commProfile ?? char?.commProfile ?? S.mission?.commProfile ?? 'vhf-aviation';
+      setTimeout(() => playRadio(clr.audio, {
+        profile,
+        onEnded: () => { _atcEndedAt[capturedIdx] = S.time; },
+      }), delay);
       return;
     }
 
-    /* Call-response format: { pm, atc } — PM requests, ATC responds */
+    /* TTS single-voice */
+    if (clr.text !== undefined) {
+      const vp = _voiceFor(clr.voice);
+      const u  = _makeUtt(clr.text, vp.voice, { rate: vp.rate, pitch: vp.pitch, volume: vp.volume });
+      u.onend = () => { _atcEndedAt[capturedIdx] = S.time; };
+      setTimeout(() => _safeSpeak(u), delay);
+      return;
+    }
+
+    /* TTS call-response: { pm, atc } — PM requests, ATC responds */
     const pmText  = clr.pm  ?? '';
     const atcText = clr.atc ?? '';
-
     const pmU = _makeUtt(pmText, _pmVoice, { rate: 0.92, pitch: 1.18 });
     pmU.onend = () => {
       setTimeout(() => {
@@ -658,10 +694,11 @@ function _playFile(src, onended) {
    ─────────────────────────────────────────────────────────────── */
 /* Cockpit environments that blend engine noise into received comms */
 const COCKPIT_PROFILES = {
-  'cockpit-bf109':  { bleedLevel: 0.04 },
-  'cockpit-c172':   { bleedLevel: 0.05 },
-  'capsule-dragon': { bleedLevel: 0.04 },
-  'arc-5':          { bleedLevel: 0.09 },  // R-2800 ignition bleeds into AM carrier
+  'cockpit-bf109':   { bleedLevel: 0.04 },
+  'cockpit-c172':    { bleedLevel: 0.05 },
+  'capsule-dragon':  { bleedLevel: 0.04 },
+  'ip-spacex-crew':  { bleedLevel: 0.035 }, // Dragon life-support fan + thruster bleed
+  'arc-5':           { bleedLevel: 0.09 },
 };
 
 export async function playRadio(src, { profile, onEnded } = {}) {
