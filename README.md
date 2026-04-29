@@ -507,6 +507,12 @@ Because somewhere in the permafrost near Titovka, a man is still waiting to be f
 
 ---
 
+## Related projects
+
+**[VotingTriad](https://github.com/ghtomcat/votingtriad)** — Airbus-style envelope protection on three LilyGo T-CAN485 nodes (ESP32 + onboard CAN transceiver). BNO055 IMU + BMP390 barometer per node. Three nodes vote on vehicle state at 50 Hz: 3/3 → Normal Law · 2/3 → Degraded · 1/3 → Direct Law. CRSF parser for ExpressLRS at 420000 baud, RS485 fallback with time-division multiplexing if CAN goes down. Connects to OpenSim's HIL bridge over WebSocket — real RC sticks drive a simulated aircraft through the actual flight computer. An iron-bird rig on a breadboard.
+
+---
+
 ## License
 
 MIT © 2026 Markus Leutwyler
