@@ -313,15 +313,25 @@ function _checkATC(prev, curr, ms) {
     const capturedIdx = idx;
     const delay = clr.delay ?? 200;
 
-    /* Pre-recorded audio — route through radio chain */
+    /* Pre-recorded audio — route through radio chain; fall back to TTS if missing */
     if (clr.audio !== undefined) {
       const charKey = clr.speaker ?? clr.voice;
       const char    = charKey ? S.mission?.characters?.[charKey] : null;
       const profile = clr.commProfile ?? char?.commProfile ?? S.mission?.commProfile ?? 'vhf-aviation';
-      setTimeout(() => playRadio(clr.audio, {
-        profile,
-        onEnded: () => { _atcEndedAt[capturedIdx] = S.time; },
-      }), delay);
+      setTimeout(async () => {
+        const exists = await fetch(clr.audio, { method: 'HEAD' })
+          .then(r => r.ok).catch(() => false);
+        if (exists) {
+          playRadio(clr.audio, { profile, onEnded: () => { _atcEndedAt[capturedIdx] = S.time; } });
+        } else if (clr.text) {
+          const vp = _voiceFor(charKey);
+          const u  = _makeUtt(clr.text, vp.voice, { rate: vp.rate, pitch: vp.pitch, volume: vp.volume });
+          u.onend = () => { _atcEndedAt[capturedIdx] = S.time; };
+          _safeSpeak(u);
+        } else {
+          _atcEndedAt[capturedIdx] = S.time;
+        }
+      }, delay);
       return;
     }
 

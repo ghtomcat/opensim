@@ -362,7 +362,8 @@ export async function playThroughChain(ctx, url, {
 
   /* Broadcast bypass — narrators play completely dry, no chain */
   if (profileName === 'broadcast') {
-    const resp     = await fetch(url);
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`404: ${url}`);
     const audioBuf = await ctx.decodeAudioData(await resp.arrayBuffer());
     const source   = ctx.createBufferSource();
     const out      = ctx.createGain();
@@ -379,6 +380,7 @@ export async function playThroughChain(ctx, url, {
     fetch(url),
   ]);
 
+  if (!resp.ok) throw new Error(`404: ${url}`);
   const arrayBuf = await resp.arrayBuffer();
   const audioBuf = await ctx.decodeAudioData(arrayBuf);
 
