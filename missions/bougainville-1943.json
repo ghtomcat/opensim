@@ -1,13 +1,13 @@
 {
   "id": "bougainville-1943",
   "phase": "cruise",
-  "commProfile": "vhf-aviation",
+  "commProfile": "arc-5",
   "characters": {
     "atc": {
-      "commProfile": "vhf-aviation"
+      "commProfile": "arc-5"
     },
     "pilot": {
-      "commProfile": "vhf-aviation"
+      "commProfile": "arc-5"
     }
   },
   "title": "The Wasp · Bougainville",
@@ -62,7 +62,12 @@
       "voice": "atc"
     },
     {
-      "t": 18,
+      "t": 13,
+      "audio": "audio/bougainville/jolly1_wilco.mp3",
+      "voice": "crew"
+    },
+    {
+      "t": 20,
       "text": "Jolly 1, copy. Tally-ho.",
       "voice": "crew"
     },

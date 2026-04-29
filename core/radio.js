@@ -85,7 +85,7 @@ const PROFILES = {
 
   'ip-spacex': {
     /* SpaceX IP backbone — near-phone quality voice, very clean */
-    bandpass:      [200, 7000],     // wide — essentially wideband voice
+    bandpass:      [200, 7000],
     presenceFreq:  3000,
     presenceGain:  2,
     presenceQ:     0.5,
@@ -98,6 +98,26 @@ const PROFILES = {
     burstLevel:    0,
     squelchTail:   false,
     outputGain:    1.0,
+  },
+
+  'arc-5': {
+    /* Vought ARC-5 AM receiver, VHF 105–145 MHz — WWII US Navy fighter
+       South Pacific, November 1943. R-2800 ignition bleeds at 135 Hz.
+       400 Hz inverter hum. Tropical atmospheric static. Tube soft-clip. */
+    bandpass:      [360, 2400],     // AM voice, narrower than modern VHF
+    presenceFreq:  1400,            // AM intelligibility peak — lower than VHF
+    presenceGain:  9,               // dB — strong tube presence
+    presenceQ:     1.8,             // peaky — hardwired LC filter hardware
+    carrierFreq:   400,             // 400 Hz — US Navy 400 Hz AC inverter hum
+    carrierGain:   0.020,
+    whineFreq:     135,             // R-2800 ignition rate at 1800 RPM cruise (9 × 1800/120)
+    whineGain:     0.014,
+    noiseFloor:    0.065,           // South Pacific atmospheric static
+    crackle:       0.052,
+    burstLevel:    0.22,            // tropical dropouts
+    squelchTail:   true,
+    saturation:    120,             // tube soft-clip amount (0 = bypass)
+    outputGain:    0.76,
   },
 
 };
@@ -199,19 +219,35 @@ export async function createRadioChain(ctx, profileName = 'vhf-aviation') {
     console.warn('[radio] crackle worklet unavailable:', e.message);
   }
 
+  /* ── Tube saturation (optional) — warm even-harmonic soft-clip ── */
+  let satNode = null;
+  if (p.saturation > 0) {
+    satNode = ctx.createWaveShaper();
+    const n = 512, k = p.saturation;
+    const curve = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const x = i * 2 / (n - 1) - 1;
+      curve[i] = (Math.PI + k) * x / (Math.PI + k * Math.abs(x));
+    }
+    satNode.curve     = curve;
+    satNode.oversample = '2x';
+    nodes.push(satNode);
+  }
+
   /* ── Output gain ── */
   const output = ctx.createGain();
   output.gain.value = p.outputGain;
 
   /* ── Wire the chain ──
-     input → hpf → lpf → presence → output
-     noiseFloor ──────────────────────────┘
-     crackle ──────────────────────────────┘
+     input → hpf → lpf → presence → [saturation] → output
+     noiseFloor ─────────────────────────────────────────┘
+     crackle ─────────────────────────────────────────────┘
   ── */
   input.connect(hpf);
   hpf.connect(lpf);
   lpf.connect(presence);
-  presence.connect(output);
+  if (satNode) { presence.connect(satNode); satNode.connect(output); }
+  else           presence.connect(output);
   noiseGain.connect(output);
   if (crackleNode) crackleNode.connect(output);
 

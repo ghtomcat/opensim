@@ -661,6 +661,7 @@ const COCKPIT_PROFILES = {
   'cockpit-bf109':  { bleedLevel: 0.04 },
   'cockpit-c172':   { bleedLevel: 0.05 },
   'capsule-dragon': { bleedLevel: 0.04 },
+  'arc-5':          { bleedLevel: 0.09 },  // R-2800 ignition bleeds into AM carrier
 };
 
 export async function playRadio(src, { profile, onEnded } = {}) {
