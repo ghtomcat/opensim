@@ -153,7 +153,9 @@ function renderWorklet(cfg, rpm = 750, throttle = 0) {
   const tau            = Math.min(firingInterval * 0.50, SR * 0.022);
   const exhaustDecay   = Math.exp(-1 / tau);
   const overlap        = Math.exp(-firingInterval / tau);
-  const noiseScale     = 0.55 * (1 - overlap);
+  const noiseBase      = 1 - overlap;
+  /* noiseScale coefficient: lerp 0.22 (idle/synthesis) → 0.55 (power) with throttle */
+  const noiseScale     = (0.22 + (0.55 - 0.22) * throttle) * noiseBase;
 
   /* Resonator 1 */
   const res1Freq = cyclesPerSec * 9 * cfg.res1Harmonic;

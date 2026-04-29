@@ -139,6 +139,10 @@ class R2800Processor extends AudioWorkletProcessor {
     /* LP filter bandwidths: narrow (synthesis) → wide (power) */
     this.noiseLpCoeff = Math.exp(-2 * Math.PI * L(900,  2200, t) / sampleRate);
     this.lpCoeff      = Math.exp(-2 * Math.PI * L(2000, 3500, t) / sampleRate);
+
+    /* noiseScale — RPM-dependent overlap factor scaled by throttle */
+    if (this._noiseBase !== undefined)
+      this.noiseScale = L(0.22, 0.55, t) * this._noiseBase;
   }
 
   _updateDecay(rpm) {
@@ -148,8 +152,10 @@ class R2800Processor extends AudioWorkletProcessor {
     const tau = Math.min(firingInterval * 0.50, sampleRate * 0.022);
     this.exhaustDecay = Math.exp(-1 / tau);
 
+    /* Store overlap factor — noiseScale coefficient lerps with throttle in _updateParams */
     const overlap   = Math.exp(-firingInterval / tau);
-    this.noiseScale = 0.55 * (1 - overlap);
+    this._noiseBase = 1 - overlap;
+    this.noiseScale = this._lerp(0.22, 0.55, this.throttle) * this._noiseBase;
 
     /* Resonator 1: fundamental */
     const omega  = 2 * Math.PI * cyclesPerSec * 9 / sampleRate;
