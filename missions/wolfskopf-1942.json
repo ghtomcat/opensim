@@ -2,6 +2,10 @@
   "id": "wolfskopf-1942",
   "phase": "cruise",
   "commProfile": "cockpit-bf109",
+  "characters": {
+    "atc":   { "commProfile": "cockpit-bf109" },
+    "pilot": { "commProfile": "cockpit-bf109" }
+  },
   "title": "Wolfskopf — Murmansk 24.01.1942",
   "description": "Titovka. Arctic winter. The wolf on your fuselage is blue. You have been flying since dawn.",
   "author": "Markus Leutwyler",
@@ -63,7 +67,33 @@
       }
     }
   },
-  "atcClearances": [],
+  "atcClearances": [
+    {
+      "t": 10,
+      "audio": "audio/wolfskopf/spatz_geheimmission.mp3",
+      "voice": "atc"
+    },
+    {
+      "t": 14,
+      "audio": "audio/wolfskopf/friedrich_bereit.mp3",
+      "voice": "crew"
+    },
+    {
+      "t": 122,
+      "audio": "audio/wolfskopf/friedrich_schweinehund.mp3",
+      "voice": "crew"
+    },
+    {
+      "t": 126,
+      "audio": "audio/wolfskopf/spatz_melden.mp3",
+      "voice": "atc"
+    },
+    {
+      "t": 135,
+      "audio": "audio/wolfskopf/titovka_kommen.mp3",
+      "voice": "atc"
+    }
+  ],
   "approachBrief": [],
   "debrief": [
     "Did you maintain heading in the crosswind?",

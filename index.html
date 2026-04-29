@@ -2992,6 +2992,7 @@
     loadBar.style.width = '60%';
     loadStatus.textContent = 'loading voices…';
 
+    resetCrew();
     initCrew();
     initInput();
     initFMA(fmaEl);
@@ -3058,7 +3059,7 @@
     const obEl = document.getElementById('onboarding');
     const _isRobotArm = S.aircraft?.vehicleType === 'robot-arm';
     const _noKeys = S.aircraft?.vehicleType === 'rocket' || S.aircraft?.type === 'hovercraft' || _isRobotArm;
-    if (!_noKeys) obEl.classList.add('visible');
+    if (!_noKeys) { obEl.classList.add('visible'); setState({ paused: true }); }
     /* Init sound with default engine type from aircraft JSON */
     const engineType = S.aircraft?.sound?.engineType ?? 'geared-turbofan';
     if (engineType !== 'none') initSound(engineType);
@@ -3083,6 +3084,7 @@
       setTimeout(() => { obEl.style.display = 'none'; }, 500);
       window.removeEventListener('keydown', dismissOnboarding);
       obEl.removeEventListener('click', dismissOnboarding);
+      setState({ paused: false });
       if (_hasLifecycle) {
         if (S.engineState === 'running') {
           /* Airborne start — engine already running, skip startup sequence */

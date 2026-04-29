@@ -58,7 +58,7 @@
   "atcClearances": [
     {
       "t": 10,
-      "text": "Jolly flight, bogeys bearing three-five-zero, angels twelve, thirty miles. Multiple contacts.",
+      "audio": "audio/bougainville/atc_bogeys.mp3",
       "voice": "atc"
     },
     {
@@ -68,32 +68,32 @@
     },
     {
       "t": 20,
-      "text": "Jolly 1, copy. Tally-ho.",
+      "audio": "audio/bougainville/jolly1_tally.mp3",
       "voice": "crew"
     },
     {
       "t": 120,
-      "text": "Jolly 1, splash one. Good kill.",
+      "audio": "audio/bougainville/atc_splash1.mp3",
       "voice": "atc"
     },
     {
       "t": 210,
-      "text": "Jolly 1, splash two.",
+      "audio": "audio/bougainville/atc_splash2.mp3",
       "voice": "atc"
     },
     {
       "t": 310,
-      "text": "Jolly 1, splash three.",
+      "audio": "audio/bougainville/atc_splash3.mp3",
       "voice": "atc"
     },
     {
       "t": 430,
-      "text": "Jolly 1, splash four. Break off. RTB.",
+      "audio": "audio/bougainville/atc_splash4.mp3",
       "voice": "atc"
     },
     {
       "t": 438,
-      "text": "Jolly 1, RTB. The Wasp is coming home.",
+      "audio": "audio/bougainville/jolly1_rtb.mp3",
       "voice": "crew"
     }
   ],

@@ -1,13 +1,13 @@
 {
   "id": "rabaul-1943",
   "phase": "ground",
-  "commProfile": "vhf-aviation",
+  "commProfile": "arc-5",
   "characters": {
     "atc": {
-      "commProfile": "vhf-aviation"
+      "commProfile": "arc-5"
     },
     "pilot": {
-      "commProfile": "vhf-aviation"
+      "commProfile": "arc-5"
     }
   },
   "title": "No Bomber Lost · Rabaul",

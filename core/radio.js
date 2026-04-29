@@ -100,6 +100,26 @@ const PROFILES = {
     outputGain:    1.0,
   },
 
+  'cockpit-bf109': {
+    /* Lorenz FuG 16 VHF AM, 38–42 MHz — Bf 109 South/Eastern Front 1942.
+       50 Hz European power hum. Arctic atmospheric static. Tube soft-clip.
+       No squelch — 1940s AM hardware. Narrow voice bandwidth. */
+    bandpass:      [380, 2600],     // narrow AM voice — narrower than modern VHF
+    presenceFreq:  1300,            // lower intelligibility peak — older AM
+    presenceGain:  8,               // dB — strong tube presence
+    presenceQ:     1.6,             // peaky — German LC filter hardware
+    carrierFreq:   50,              // 50 Hz — European power grid hum
+    carrierGain:   0.018,
+    whineFreq:     150,             // DB 605 ignition rate at cruise RPM
+    whineGain:     0.012,
+    noiseFloor:    0.055,           // Arctic atmospheric static
+    crackle:       0.042,
+    burstLevel:    0.18,            // terrain masking dropouts at low altitude
+    squelchTail:   false,           // no squelch on 1940s AM
+    saturation:    100,             // tube soft-clip
+    outputGain:    0.78,
+  },
+
   'arc-5': {
     /* Vought ARC-5 AM receiver, VHF 105–145 MHz — WWII US Navy fighter
        South Pacific, November 1943. R-2800 ignition bleeds at 135 Hz.
@@ -122,13 +142,13 @@ const PROFILES = {
 
 };
 
-/* ── Worklet registration guard ── */
-let _workletLoaded = false;
+/* ── Worklet registration guard — tracked per AudioContext ── */
+const _workletContexts = new WeakSet();
 
 async function _ensureWorklet(ctx) {
-  if (_workletLoaded) return;
+  if (_workletContexts.has(ctx)) return;
   await ctx.audioWorklet.addModule('./core/radio-crackle-processor.js');
-  _workletLoaded = true;
+  _workletContexts.add(ctx);
 }
 
 /* ── createRadioChain ──────────────────────────────────────────
