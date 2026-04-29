@@ -1,6 +1,10 @@
 {
   "id": "nordmeer-1956",
   "phase": "ground",
+  "commProfile": "vhf-vostok",
+  "characters": {
+    "atc": { "commProfile": "vhf-vostok" }
+  },
   "title": "Aufklärungsflug · Nordmeer 1956",
   "description": "Olenya. Four engines turning. The Barents Sea ahead. No rescue there.",
   "author": "Markus Leutwyler",
@@ -45,23 +49,43 @@
   "atcClearances": [
     {
       "t": 5,
-      "text": "Борт 11, запуск двигателей разрешён.",
+      "audio": "audio/nordmeer/olenya_zapusk.mp3",
       "voice": "atc"
+    },
+    {
+      "t": 9,
+      "audio": "audio/nordmeer/crew_ponyal.mp3",
+      "voice": "crew"
     },
     {
       "t": 90,
-      "text": "Борт 11, к взлёту разрешён, полоса 01.",
+      "audio": "audio/nordmeer/olenya_vzlet.mp3",
       "voice": "atc"
+    },
+    {
+      "t": 94,
+      "audio": "audio/nordmeer/crew_ponyal.mp3",
+      "voice": "crew"
     },
     {
       "t": 120,
-      "text": "Борт 11, набор эшелона 260. Курс 015.",
+      "audio": "audio/nordmeer/olenya_eshelon.mp3",
       "voice": "atc"
     },
     {
+      "t": 124,
+      "audio": "audio/nordmeer/crew_nabiraem.mp3",
+      "voice": "crew"
+    },
+    {
       "t": 200,
-      "text": "Борт 11, радиомолчание после береговой черты.",
+      "audio": "audio/nordmeer/olenya_molchanie.mp3",
       "voice": "atc"
+    },
+    {
+      "t": 204,
+      "audio": "audio/nordmeer/crew_molchanie.mp3",
+      "voice": "crew"
     }
   ],
   "com": {
