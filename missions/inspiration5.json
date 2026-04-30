@@ -213,22 +213,12 @@
       "text": "Copy. Go for launch."
     },
     {
-      "t": 8,
-      "voice": "narrator2",
-      "audio": "audio/inspiration5/nar2_allsystems.mp3",
-      "trigger": {
-        "type": "time",
-        "t": 128
-      },
-      "text": "All systems are green. Falcon 9 is fully fuelled and standing by."
-    },
-    {
       "t": 14,
       "voice": "narrator",
       "audio": "audio/inspiration5/nar_onboard.mp3",
       "trigger": {
         "type": "time",
-        "t": 134
+        "t": 60
       },
       "text": "On board Dragon Inspiration — Commander Markus Leutwyler, Pilot Lydia Meier, Mission Specialist Pradeep Sapkota."
     },
@@ -283,16 +273,6 @@
       "text": "10. 9. 8. 7. 6. 5. 4. 3. 2. 1."
     },
     {
-      "t": 53,
-      "voice": "narrator",
-      "audio": "audio/inspiration5/nar_startup.mp3",
-      "trigger": {
-        "type": "time",
-        "t": 173
-      },
-      "text": "Vehicle in startup."
-    },
-    {
       "t": 57,
       "voice": "narrator2",
       "audio": "audio/inspiration5/nar2_ignition.mp3",
@@ -333,7 +313,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 29,
+        "idx": 27,
         "delay": 2
       },
       "voice": "crew",
@@ -413,7 +393,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 40,
+        "idx": 38,
         "delay": 2
       },
       "voice": "crew",
@@ -432,7 +412,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 42,
+        "idx": 40,
         "delay": 2
       },
       "voice": "crew",
@@ -578,7 +558,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 61,
+        "idx": 59,
         "delay": 2
       },
       "voice": "crew",
@@ -588,7 +568,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 62,
+        "idx": 60,
         "delay": 20
       },
       "voice": "atc",
@@ -615,7 +595,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 65,
+        "idx": 63,
         "delay": 2
       },
       "voice": "crew",
@@ -642,7 +622,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 68,
+        "idx": 66,
         "delay": 2
       },
       "voice": "crew",
@@ -661,7 +641,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 70,
+        "idx": 68,
         "delay": 4
       },
       "voice": "pm",
@@ -751,7 +731,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 81,
+        "idx": 79,
         "delay": 2
       },
       "voice": "crew",
@@ -761,7 +741,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 82,
+        "idx": 80,
         "delay": 2
       },
       "voice": "pm",
