@@ -1,76 +1,106 @@
 {
-  "id":          "falcon9-b5-590",
-  "name":        "Falcon 9 Block 5 — 590 km",
+  "id": "falcon9-b5-590",
+  "name": "Falcon 9 Block 5 — 590 km",
   "vehicleType": "rocket",
-  "ignitionTime": 60,
+  "ignitionTime": 180,
   "manualControl": false,
-  "crewLang":    "en-US",
-
+  "crewLang": "en-US",
   "performance": {
     "massWet": 549054,
-    "Cd":       0.27,
-    "area":     10.75,
-
+    "Cd": 0.27,
+    "area": 10.75,
     "stages": [
       {
-        "name":        "Stage 1 — 9× Merlin 1D+",
+        "name": "Stage 1 — 9× Merlin 1D+",
         "engineCount": 9,
-        "thrustSL":    7607000,
-        "thrustVac":   8227000,
-        "isp":         282,
-        "massWet":     425054,
-        "massDry":     25600
+        "thrustSL": 7607000,
+        "thrustVac": 8227000,
+        "isp": 282,
+        "massWet": 425054,
+        "massDry": 25600
       },
       {
-        "name":        "Stage 2 — Merlin Vacuum",
+        "name": "Stage 2 — Merlin Vacuum",
         "engineCount": 1,
-        "thrustSL":    0,
-        "thrustVac":   934000,
-        "isp":         348,
-        "massWet":     111400,
-        "massDry":     5150
+        "thrustSL": 0,
+        "thrustVac": 934000,
+        "isp": 348,
+        "massWet": 111400,
+        "massDry": 5150
       }
     ],
-
     "payload": 12600,
-
-    "gLimit":     6.0,
-    "qLimit":     50000,
+    "gLimit": 6,
+    "qLimit": 50000,
     "cegCutoffG": 3.8,
     "guidanceDuration": 9999,
-
     "fpaProfile": [
-      [60,   90],
-      [75,   89],
-      [90,   84],
-      [115,  72],
-      [140,  57],
-      [165,  40],
-      [190,  62],
-      [270,  52],
-      [380,  35],
-      [475,  15],
-      [537,   0],
-      [700,   0]
+      [
+        60,
+        90
+      ],
+      [
+        75,
+        89
+      ],
+      [
+        90,
+        84
+      ],
+      [
+        115,
+        72
+      ],
+      [
+        140,
+        57
+      ],
+      [
+        165,
+        40
+      ],
+      [
+        190,
+        62
+      ],
+      [
+        270,
+        52
+      ],
+      [
+        380,
+        35
+      ],
+      [
+        475,
+        15
+      ],
+      [
+        537,
+        0
+      ],
+      [
+        700,
+        0
+      ]
     ],
-
     "recovery": {
-      "rtls":              true,
-      "flipDuration":      20,
-      "boostbackEngines":  3,
-      "boostbackThrottle": 1.00,
+      "rtls": true,
+      "flipDuration": 20,
+      "boostbackEngines": 3,
+      "boostbackThrottle": 1,
       "boostbackDuration": 60,
-      "entryBurnAlt_m":    70000,
-      "entryBurnEngines":  3,
-      "entryBurnThrottle": 0.40,
+      "entryBurnAlt_m": 70000,
+      "entryBurnEngines": 3,
+      "entryBurnThrottle": 0.4,
       "entryBurnDuration": 22,
-      "landingBurnAlt_m":  600,
+      "landingBurnAlt_m": 600,
       "landingBurnEngines": 1
     }
   },
-
-  "sound": { "engineType": "none" },
-
+  "sound": {
+    "engineType": "none"
+  },
   "kneeboard": [
     {
       "title": "FALCON 9 BLOCK 5 — 590 KM",

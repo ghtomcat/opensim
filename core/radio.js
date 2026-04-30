@@ -157,6 +157,23 @@ const PROFILES = {
     commBeep:      { freq: 2000, durationMs: 280, gain: 0.46 },  // SpaceX PTT tone — measured 1975Hz/280ms from webcast 1:09:53
   },
 
+  'launch-control': {
+    /* SpaceX launch control ground loop — ops voice, no PTT beep, slight compression */
+    bandpass:      [250, 6000],
+    presenceFreq:  2800,
+    presenceGain:  3,
+    presenceQ:     0.7,
+    carrierFreq:   null,
+    carrierGain:   0,
+    whineFreq:     null,
+    whineGain:     0,
+    noiseFloor:    0.002,
+    crackle:       0,
+    burstLevel:    0,
+    squelchTail:   false,
+    outputGain:    0.92,
+  },
+
   'cockpit-bf109': {
     /* Lorenz FuG 16 VHF AM, 38–42 MHz — Bf 109 South/Eastern Front 1942.
        50 Hz European power hum. Arctic atmospheric static. Tube soft-clip.

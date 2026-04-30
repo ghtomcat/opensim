@@ -6,8 +6,8 @@
   "author": "Markus Leutwyler",
   "fiction_note": "Markus Leutwyler, Lydia Meier, and Pradeep Sapkota are real people. This mission is set in 2030 and has not happened yet. The vehicle, trajectory, and operational procedures are based on real SpaceX Dragon missions.",
   "aircraft": "falcon9-b5-590",
-  "dragonSepT": 780,
-  "deorbitT": 259200,
+  "dragonSepT": 900,
+  "deorbitT": 259320,
   "deorbitDv": 170,
   "timeOfDay": 0.65,
   "water": false,
@@ -47,29 +47,165 @@
   },
   "atcClearances": [
     {
-      "t": 0,
-      "voice": "narrator",
-      "audio": "audio/inspiration5/nar_tminus60.mp3",
       "trigger": {
         "type": "time",
-        "t": 0
+        "t": 9
       },
-      "text": "T minus 60 seconds. Launch Director is go for launch."
+      "voice": "gl",
+      "audio": "audio/inspiration5/gl_internal_power.mp3",
+      "text": "Dragon has transitioned to terminal count and is on internal power."
+    },
+    {
+      "trigger": {
+        "type": "time",
+        "t": 14
+      },
+      "voice": "gl",
+      "audio": "audio/inspiration5/gl_s1lox.mp3",
+      "text": "Stage 1 LOX load closeout."
+    },
+    {
+      "trigger": {
+        "type": "time",
+        "t": 17
+      },
+      "voice": "narrator",
+      "audio": "audio/inspiration5/nar_s1lox.mp3",
+      "text": "Ok, we're on T-2:43 and stage 1 LOX load has closed out."
     },
     {
       "trigger": {
         "type": "after",
-        "idx": 0,
+        "idx": 2,
         "delay": 1
       },
-      "voice": "atc",
-      "audio": "audio/inspiration5/mc_goforlaunch.mp3",
-      "text": "Dragon Inspiration, Mission Control. You are go for launch."
+      "voice": "narrator",
+      "audio": "audio/inspiration5/nar_s2lox.mp3",
+      "text": "Stage 2 will continue LOX load for another half a minute or so."
+    },
+    {
+      "trigger": {
+        "type": "time",
+        "t": 30
+      },
+      "voice": "narrator",
+      "audio": "audio/inspiration5/nar_vent.mp3",
+      "text": "Once we get to the completion of stage 2 LOX load, we have to vent down the lines so you will see another large white cloud."
+    },
+    {
+      "trigger": {
+        "type": "time",
+        "t": 40
+      },
+      "voice": "gl",
+      "audio": "audio/inspiration5/gl_internal_transition.mp3",
+      "text": "Vehicle is transitioning to internal power."
+    },
+    {
+      "trigger": {
+        "type": "time",
+        "t": 43
+      },
+      "voice": "narrator",
+      "audio": "audio/inspiration5/nar_internal.mp3",
+      "text": "We are going on internal power now."
+    },
+    {
+      "trigger": {
+        "type": "time",
+        "t": 48
+      },
+      "voice": "narrator2",
+      "audio": "audio/inspiration5/nar2_s2loading.mp3",
+      "text": "Just a few minutes away from the stage 2 LOX load complete."
+    },
+    {
+      "trigger": {
+        "type": "time",
+        "t": 72
+      },
+      "voice": "gl",
+      "audio": "audio/inspiration5/gl_s2lox.mp3",
+      "text": "Stage 2 LOX load complete."
+    },
+    {
+      "trigger": {
+        "type": "time",
+        "t": 77
+      },
+      "voice": "gl",
+      "audio": "audio/inspiration5/gl_autoidle.mp3",
+      "text": "Dragon is in auto idle."
+    },
+    {
+      "trigger": {
+        "type": "time",
+        "t": 83
+      },
+      "voice": "narrator2",
+      "audio": "audio/inspiration5/nar2_s2complete.mp3",
+      "text": "Stage 2 LOX load complete. All fuel, all oxidizer on Falcon 9. One minute 31 seconds to go for launch."
+    },
+    {
+      "trigger": {
+        "type": "time",
+        "t": 93
+      },
+      "voice": "gl",
+      "audio": "audio/inspiration5/gl_gas.mp3",
+      "text": "Ground gas closeout is starting."
+    },
+    {
+      "trigger": {
+        "type": "time",
+        "t": 120
+      },
+      "voice": "gl",
+      "audio": "audio/inspiration5/gl_startup.mp3",
+      "text": "Falcon 9 is in startup."
     },
     {
       "trigger": {
         "type": "after",
-        "idx": 1,
+        "idx": 12,
+        "delay": 1
+      },
+      "voice": "gl",
+      "audio": "audio/inspiration5/gl_countdown.mp3",
+      "text": "Dragon is in countdown."
+    },
+    {
+      "trigger": {
+        "type": "after",
+        "idx": 13,
+        "delay": 1
+      },
+      "voice": "gl",
+      "audio": "audio/inspiration5/gl_fts.mp3",
+      "text": "FTS is armed for launch."
+    },
+    {
+      "trigger": {
+        "type": "time",
+        "t": 133
+      },
+      "voice": "narrator2",
+      "audio": "audio/inspiration5/nar2_fts.mp3",
+      "text": "Under a minute now, the Flight Termination System has been armed."
+    },
+    {
+      "trigger": {
+        "type": "time",
+        "t": 135
+      },
+      "voice": "atc",
+      "audio": "audio/inspiration5/mc_ldgo.mp3",
+      "text": "Dragon, SpaceX: go for launch."
+    },
+    {
+      "trigger": {
+        "type": "after",
+        "idx": 16,
         "delay": 2
       },
       "voice": "crew",
@@ -82,7 +218,7 @@
       "audio": "audio/inspiration5/nar2_allsystems.mp3",
       "trigger": {
         "type": "time",
-        "t": 8
+        "t": 128
       },
       "text": "All systems are green. Falcon 9 is fully fuelled and standing by."
     },
@@ -92,7 +228,7 @@
       "audio": "audio/inspiration5/nar_onboard.mp3",
       "trigger": {
         "type": "time",
-        "t": 14
+        "t": 134
       },
       "text": "On board Dragon Inspiration — Commander Markus Leutwyler, Pilot Lydia Meier, Mission Specialist Pradeep Sapkota."
     },
@@ -102,7 +238,7 @@
       "audio": "audio/inspiration5/nar_tminus37.mp3",
       "trigger": {
         "type": "time",
-        "t": 23
+        "t": 143
       },
       "text": "T minus 37 seconds. Auto-sequence start."
     },
@@ -112,7 +248,7 @@
       "audio": "audio/inspiration5/nar2_tminus30.mp3",
       "trigger": {
         "type": "time",
-        "t": 30
+        "t": 150
       },
       "text": "T minus 30."
     },
@@ -122,7 +258,7 @@
       "audio": "audio/inspiration5/nar_tanks.mp3",
       "trigger": {
         "type": "time",
-        "t": 33
+        "t": 153
       },
       "text": "Propellant tanks pressurised for flight."
     },
@@ -132,7 +268,7 @@
       "audio": "audio/inspiration5/nar_tminus15.mp3",
       "trigger": {
         "type": "time",
-        "t": 45
+        "t": 165
       },
       "text": "T minus 15. Vehicle in terminal count."
     },
@@ -142,7 +278,7 @@
       "audio": "audio/inspiration5/nar2_countdown.mp3",
       "trigger": {
         "type": "time",
-        "t": 50
+        "t": 170
       },
       "text": "10. 9. 8. 7. 6. 5. 4. 3. 2. 1."
     },
@@ -152,7 +288,7 @@
       "audio": "audio/inspiration5/nar_startup.mp3",
       "trigger": {
         "type": "time",
-        "t": 53
+        "t": 173
       },
       "text": "Vehicle in startup."
     },
@@ -162,7 +298,7 @@
       "audio": "audio/inspiration5/nar2_ignition.mp3",
       "trigger": {
         "type": "time",
-        "t": 57
+        "t": 177
       },
       "text": "Ignition sequence start."
     },
@@ -172,7 +308,7 @@
       "audio": "audio/inspiration5/nar_fullthrust.mp3",
       "trigger": {
         "type": "time",
-        "t": 59
+        "t": 179
       },
       "text": "Engines at full thrust."
     },
@@ -182,7 +318,7 @@
       "audio": "audio/inspiration5/nar_liftoff.mp3",
       "trigger": {
         "type": "time",
-        "t": 60
+        "t": 180
       },
       "text": "Liftoff. Falcon 9 lifts off with Dragon Inspiration."
     },
@@ -197,7 +333,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 14,
+        "idx": 29,
         "delay": 2
       },
       "voice": "crew",
@@ -207,21 +343,11 @@
     {
       "trigger": {
         "type": "time",
-        "t": 63
+        "t": 183
       },
       "voice": "pm",
       "audio": "audio/inspiration5/pm_clockrunning.mp3",
       "text": "Clock running. All systems go."
-    },
-    {
-      "t": 65,
-      "voice": "narrator2",
-      "audio": "audio/inspiration5/nar2_andliftoff.mp3",
-      "trigger": {
-        "type": "time",
-        "t": 65
-      },
-      "text": "And liftoff of Dragon Inspiration, carrying four people to a 590-kilometre orbit."
     },
     {
       "event": "supersonic",
@@ -287,7 +413,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 25,
+        "idx": 40,
         "delay": 2
       },
       "voice": "crew",
@@ -306,7 +432,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 27,
+        "idx": 42,
         "delay": 2
       },
       "voice": "crew",
@@ -452,7 +578,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 46,
+        "idx": 61,
         "delay": 2
       },
       "voice": "crew",
@@ -462,7 +588,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 47,
+        "idx": 62,
         "delay": 20
       },
       "voice": "atc",
@@ -489,7 +615,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 50,
+        "idx": 65,
         "delay": 2
       },
       "voice": "crew",
@@ -516,7 +642,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 53,
+        "idx": 68,
         "delay": 2
       },
       "voice": "crew",
@@ -535,7 +661,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 55,
+        "idx": 70,
         "delay": 4
       },
       "voice": "pm",
@@ -598,7 +724,7 @@
       "audio": "audio/inspiration5/nar2_3days.mp3",
       "trigger": {
         "type": "time",
-        "t": 259120
+        "t": 259240
       },
       "text": "After three days and approximately 45 orbits of Earth, Dragon Inspiration is preparing to come home."
     },
@@ -608,7 +734,7 @@
       "audio": "audio/inspiration5/nar_strapped.mp3",
       "trigger": {
         "type": "time",
-        "t": 259128
+        "t": 259248
       },
       "text": "The crew is strapped in, suits pressurised, and ready for the deorbit burn."
     },
@@ -618,14 +744,14 @@
       "audio": "audio/inspiration5/mc_deorbit.mp3",
       "trigger": {
         "type": "time",
-        "t": 259140
+        "t": 259260
       },
       "text": "Dragon Inspiration, Mission Control. You are go for deorbit burn."
     },
     {
       "trigger": {
         "type": "after",
-        "idx": 66,
+        "idx": 81,
         "delay": 2
       },
       "voice": "crew",
@@ -635,7 +761,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 67,
+        "idx": 82,
         "delay": 2
       },
       "voice": "pm",
@@ -648,7 +774,7 @@
       "audio": "audio/inspiration5/pm_countdown.mp3",
       "trigger": {
         "type": "time",
-        "t": 259198
+        "t": 259318
       },
       "text": "10. 9. 8. 7. 6. 5. 4. 3. 2. 1. Ignition."
     },
@@ -967,7 +1093,10 @@
       "commProfile": "ip-spacex-crew"
     },
     "pm": {
-      "commProfile": "capsule-dragon"
+      "commProfile": "ip-spacex-crew"
+    },
+    "gl": {
+      "commProfile": "launch-control"
     }
   }
 }
