@@ -330,16 +330,139 @@
       "text": "Clock running. All systems go."
     },
     {
+      "trigger": {
+        "type": "time",
+        "t": 194
+      },
+      "voice": "gl",
+      "audio": "audio/inspiration5/gl_pitching.mp3",
+      "text": "Vehicle is pitching downrange."
+    },
+    {
+      "trigger": {
+        "type": "time",
+        "t": 290
+      },
+      "voice": "narrator",
+      "audio": "audio/inspiration5/nar_smooth.mp3",
+      "text": "Looks like a smooth ride for the crew. Everything looking nominal."
+    },
+    {
+      "trigger": {
+        "type": "gload",
+        "min": 3
+      },
+      "voice": "narrator",
+      "audio": "audio/inspiration5/nar_3g.mp3",
+      "text": "We are passing through three Gs of acceleration."
+    },
+    {
+      "trigger": {
+        "type": "gload",
+        "min": 3.5
+      },
+      "voice": "narrator2",
+      "audio": "audio/inspiration5/nar2_glimit.mp3",
+      "text": "Merlin engines are throttling down for g-limiting."
+    },
+    {
+      "trigger": {
+        "type": "gload",
+        "min": 4
+      },
+      "voice": "narrator2",
+      "audio": "audio/inspiration5/nar2_4g.mp3",
+      "text": "4 Gs, we're holding it there for the crew."
+    },
+    {
+      "trigger": {
+        "type": "gload",
+        "min": 3.7
+      },
+      "voice": "narrator2",
+      "audio": "audio/inspiration5/nar2_premeco.mp3",
+      "text": "Major event coming up will be main engine cutoff."
+    },
+    {
+      "trigger": {
+        "type": "after",
+        "idx": 35,
+        "delay": 0.5
+      },
+      "voice": "narrator2",
+      "audio": "audio/inspiration5/nar2_stagesep.mp3",
+      "text": "Followed by stage separation."
+    },
+    {
+      "trigger": {
+        "type": "meco"
+      },
+      "voice": "gl",
+      "audio": "audio/inspiration5/gl_meco.mp3",
+      "text": "And MECO."
+    },
+    {
+      "trigger": {
+        "type": "after",
+        "idx": 37,
+        "delay": 7
+      },
+      "voice": "gl",
+      "audio": "audio/inspiration5/gl_stagesep.mp3",
+      "text": "Stage separation confirmed."
+    },
+    {
+      "trigger": {
+        "type": "after",
+        "idx": 38,
+        "delay": 3
+      },
+      "voice": "gl",
+      "audio": "audio/inspiration5/gl_mvac.mp3",
+      "text": "MVac ignition."
+    },
+    {
+      "trigger": {
+        "type": "time",
+        "t": 310
+      },
+      "voice": "gl",
+      "audio": "audio/inspiration5/gl_mvacchill.mp3",
+      "text": "MVac chill."
+    },
+    {
       "event": "supersonic",
       "voice": "narrator",
       "audio": "audio/inspiration5/nar_supersonic.mp3",
       "text": "Vehicle is supersonic."
     },
     {
+      "event": "supersonic",
+      "voice": "gl",
+      "audio": "audio/inspiration5/gl_supersonic.mp3",
+      "text": "Supersonic."
+    },
+    {
       "event": "maxq",
       "voice": "narrator2",
       "audio": "audio/inspiration5/nar2_maxq.mp3",
       "text": "Falcon 9 passing through the area of maximum aerodynamic pressure — Max Q. Engines have throttled slightly to reduce stress on the vehicle."
+    },
+    {
+      "event": "maxq",
+      "voice": "gl",
+      "audio": "audio/inspiration5/gl_maxq.mp3",
+      "text": "Max Q."
+    },
+    {
+      "trigger": {
+        "type": "after",
+        "idx": 44,
+        "delay": 8
+      },
+      "voice": "gl",
+      "audio": "audio/inspiration5/gl_throttleup.mp3",
+      "text": "Stage 1, go at throttle up."
     },
     {
       "event": "maxq",
@@ -383,6 +506,33 @@
     },
     {
       "trigger": {
+        "type": "time",
+        "t": 257
+      },
+      "voice": "gl",
+      "audio": "audio/inspiration5/gl_s1nominal.mp3",
+      "text": "Stage 1 propulsion is nominal."
+    },
+    {
+      "trigger": {
+        "type": "time",
+        "t": 264
+      },
+      "voice": "narrator",
+      "audio": "audio/inspiration5/nar_throttlebucket.mp3",
+      "text": "T plus 1 minute 24 seconds, callouts indicate nominal. Inspiration5 onboard Dragon. We're into the throttle bucket."
+    },
+    {
+      "trigger": {
+        "type": "time",
+        "t": 280
+      },
+      "voice": "narrator2",
+      "audio": "audio/inspiration5/nar2_throttledown.mp3",
+      "text": "Throttling down for the period of maximum dynamic pressure."
+    },
+    {
+      "trigger": {
         "type": "alt_km",
         "min": 45
       },
@@ -393,7 +543,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 38,
+        "idx": 55,
         "delay": 2
       },
       "voice": "crew",
@@ -412,7 +562,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 40,
+        "idx": 57,
         "delay": 2
       },
       "voice": "crew",
@@ -558,7 +708,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 59,
+        "idx": 76,
         "delay": 2
       },
       "voice": "crew",
@@ -568,7 +718,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 60,
+        "idx": 77,
         "delay": 20
       },
       "voice": "atc",
@@ -595,7 +745,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 63,
+        "idx": 80,
         "delay": 2
       },
       "voice": "crew",
@@ -622,7 +772,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 66,
+        "idx": 83,
         "delay": 2
       },
       "voice": "crew",
@@ -641,7 +791,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 68,
+        "idx": 85,
         "delay": 4
       },
       "voice": "pm",
@@ -731,7 +881,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 79,
+        "idx": 96,
         "delay": 2
       },
       "voice": "crew",
@@ -741,7 +891,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 80,
+        "idx": 97,
         "delay": 2
       },
       "voice": "pm",

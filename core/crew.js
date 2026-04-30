@@ -282,6 +282,10 @@ function _evalTrigger(tr) {
       return (S.alt ?? 0) >= tr.min;
     case 'alt_km':
       return (S.alt ?? 0) * 0.0003048 >= tr.min;
+    case 'gload':
+      return (S.rocketG ?? 0) >= tr.min;
+    case 'meco':
+      return !!(S.rocketMECO);
     case 'after': {
       const endT = _atcEndedAt[tr.idx];
       return endT !== undefined && (S.time ?? 0) >= endT + (tr.delay ?? 1);

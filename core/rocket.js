@@ -401,6 +401,7 @@ export function tickRocket(dt) {
     /* Burnout — start coast */
     coasting = true;
     coastT   = mT;
+    if (!S.rocketMECO) setState({ rocketMECO: true });
   } else if (mass <= burnoutThreshold && !coasting && stage >= stages.length) {
     /* Last stage burnout — SECO */
     if (!S.rocketSECO) setState({ rocketSECO: true });
