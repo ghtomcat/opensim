@@ -317,6 +317,21 @@ function _checkATC(prev, curr, ms) {
     const capturedIdx = idx;
     const delay = clr.delay ?? 200;
 
+    /* Ambient background audio — no radio filter, non-blocking */
+    if (clr.audio !== undefined && clr.voice === 'ambient') {
+      setTimeout(async () => {
+        const exists = await fetch(clr.audio, { method: 'HEAD' })
+          .then(r => r.ok).catch(() => false);
+        if (exists) {
+          const a = new Audio(clr.audio);
+          a.volume = clr.volume ?? 0.2;
+          a.play().catch(() => {});
+        }
+        _atcEndedAt[capturedIdx] = S.time;
+      }, clr.delay ?? 0);
+      return;
+    }
+
     /* Pre-recorded audio — route through radio chain; fall back to TTS if missing */
     if (clr.audio !== undefined) {
       const charKey = clr.speaker ?? clr.voice;
@@ -386,7 +401,7 @@ function _isInOrbit() {
   const alt_m  = (S.alt ?? 0) * 0.3048;
   const vel_ms = (S.spd ?? 0) * 0.5144;
   const vOrb   = Math.sqrt(3.986004418e14 / (6371000 + alt_m));
-  return vel_ms >= vOrb * 0.99 && Math.abs(S.pitch ?? 90) < 8;
+  return (S.rocketSECO ?? false) && vel_ms >= vOrb * 0.99 && Math.abs(S.pitch ?? 90) < 8;
 }
 
 function _checkRocketEvent(event, clr, prevAlt = 0, currAlt = 0) {

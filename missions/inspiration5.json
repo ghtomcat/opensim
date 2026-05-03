@@ -293,6 +293,17 @@
       "text": "Engines at full thrust."
     },
     {
+      "_uid": "ambient_launch",
+      "trigger": {
+        "type": "time",
+        "t": 180
+      },
+      "voice": "ambient",
+      "audio": "audio/inspiration5/ambient_launch.mp3",
+      "volume": 0.18,
+      "text": ""
+    },
+    {
       "t": 60,
       "voice": "narrator",
       "audio": "audio/inspiration5/nar_liftoff.mp3",
@@ -313,7 +324,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 27,
+        "idx": 28,
         "delay": 2
       },
       "voice": "crew",
@@ -465,28 +476,37 @@
       "text": "Stage 1, go at throttle up."
     },
     {
-      "event": "maxq",
       "_uid": "throttleup",
       "voice": "narrator",
-      "delay": 7000,
       "audio": "audio/inspiration5/nar_throttleup.mp3",
-      "text": "Go at throttle up."
+      "text": "Go at throttle up.",
+      "trigger": {
+        "type": "after",
+        "idx": 46,
+        "delay": 1
+      }
     },
     {
-      "event": "maxq",
       "_uid": "throttleupc",
       "voice": "crew",
-      "delay": 8500,
       "audio": "audio/inspiration5/crew_throttleup.mp3",
-      "text": "Copy, go at throttle up."
+      "text": "Copy, go at throttle up.",
+      "trigger": {
+        "type": "after",
+        "idx": 47,
+        "delay": 1
+      }
     },
     {
-      "event": "maxq",
       "_uid": "throttleuppm",
       "voice": "pm",
-      "delay": 10500,
       "audio": "audio/inspiration5/pm_throttleup.mp3",
-      "text": "Throttle up. Vehicle nominal."
+      "text": "Throttle up. Vehicle nominal.",
+      "trigger": {
+        "type": "after",
+        "idx": 48,
+        "delay": 1
+      }
     },
     {
       "event": "alt",
@@ -494,7 +514,7 @@
       "alt_km": 15,
       "voice": "narrator",
       "audio": "audio/inspiration5/nar_15km.mp3",
-      "text": "Back at full thrust, climbing through 15 kilometres."
+      "text": "Climbing through 15 kilometres. Trajectory nominal."
     },
     {
       "event": "alt",
@@ -516,7 +536,7 @@
     {
       "trigger": {
         "type": "time",
-        "t": 264
+        "t": 232
       },
       "voice": "narrator",
       "audio": "audio/inspiration5/nar_throttlebucket.mp3",
@@ -525,7 +545,7 @@
     {
       "trigger": {
         "type": "time",
-        "t": 280
+        "t": 238
       },
       "voice": "narrator2",
       "audio": "audio/inspiration5/nar2_throttledown.mp3",
@@ -604,14 +624,6 @@
       "delay": 200,
       "audio": "audio/inspiration5/nar_stagesep.mp3",
       "text": "Stage separation confirmed."
-    },
-    {
-      "event": "stagesep",
-      "_uid": "las",
-      "voice": "narrator2",
-      "delay": 3000,
-      "audio": "audio/inspiration5/nar2_las.mp3",
-      "text": "LAS jettison confirmed."
     },
     {
       "event": "stagesep",
@@ -708,7 +720,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 76,
+        "idx": 75,
         "delay": 2
       },
       "voice": "crew",
@@ -717,9 +729,8 @@
     },
     {
       "trigger": {
-        "type": "after",
-        "idx": 77,
-        "delay": 20
+        "type": "alt_km",
+        "min": 560
       },
       "voice": "atc",
       "audio": "audio/inspiration5/mc_orbitinsert.mp3",
@@ -745,7 +756,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 80,
+        "idx": 79,
         "delay": 2
       },
       "voice": "crew",
@@ -772,7 +783,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 83,
+        "idx": 82,
         "delay": 2
       },
       "voice": "crew",
@@ -791,7 +802,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 85,
+        "idx": 84,
         "delay": 4
       },
       "voice": "pm",
@@ -881,7 +892,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 96,
+        "idx": 95,
         "delay": 2
       },
       "voice": "crew",
@@ -891,7 +902,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 97,
+        "idx": 96,
         "delay": 2
       },
       "voice": "pm",
