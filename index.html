@@ -1814,6 +1814,7 @@
   import { initBlackbox, bbEvent, downloadBlackbox } from './core/blackbox.js';
   import { renderPFD }         from './display/pfd.js';
   import { renderRocket }      from './display/rocket_display.js';
+  import { renderDragon, handleDragonClick, isDragonTelemetry } from './display/dragon.js';
   import { renderG1000 }       from './display/g1000.js';
   import { renderECAM }        from './display/ecam.js';
   import { renderBf109 }       from './display/bf109.js';
@@ -1837,6 +1838,7 @@
   /* Velis canvas click — switch toggles + COM swap */
   canvas.addEventListener('click', evt => {
     if (S.aircraft?.panel === 'velis-epsi') handleVelisClick(canvas, evt);
+    if (S.aircraft?.vehicleType === 'rocket' && S.mission?.dragonSepT) handleDragonClick(canvas, evt);
   });
   const loadEl     = document.getElementById('loading');
   const loadBar    = document.getElementById('loadBar');
@@ -3326,6 +3328,10 @@
         const isArm    = S.aircraft?.vehicleType === 'robot-arm';
         if      (isArm)              renderRobotArm(canvas);
         else if (isHover)            renderHovercraft(canvas);
+        else if (isRocket && S.mission?.dragonSepT) {
+          if (isDragonTelemetry()) renderRocket(canvas);
+          renderDragon(canvas);
+        }
         else if (isRocket)           renderRocket(canvas);
         else if (panel === 'g1000')  renderG1000(canvas);
         else if (panel === 'bf109')  renderBf109(canvas);
@@ -3337,7 +3343,8 @@
         const isVelis  = panel === 'velis-epsi';
         const isG1000  = panel === 'g1000';
         const hasOwnUI = isVelis || isG1000;
-        canvas.style.pointerEvents = (isVelis || isArm) ? 'auto' : 'none';
+        const isDragon = isRocket && !!(S.mission?.dragonSepT);
+        canvas.style.pointerEvents = (isVelis || isArm || isDragon) ? 'auto' : 'none';
         document.getElementById('hc-panel').style.display      = isHover ? 'flex' : 'none';
         document.getElementById('com-container').style.display  = (isHover || hasOwnUI || isArm) ? 'none' : '';
         document.getElementById('panel').style.display          = (isRocket || hasOwnUI || isArm) ? 'none' : '';

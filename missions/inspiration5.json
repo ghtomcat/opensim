@@ -535,21 +535,12 @@
     },
     {
       "trigger": {
-        "type": "time",
-        "t": 232
+        "type": "alt_km",
+        "min": 7
       },
       "voice": "narrator",
       "audio": "audio/inspiration5/nar_throttlebucket.mp3",
-      "text": "T plus 1 minute 24 seconds, callouts indicate nominal. Inspiration5 onboard Dragon. We're into the throttle bucket."
-    },
-    {
-      "trigger": {
-        "type": "time",
-        "t": 238
-      },
-      "voice": "narrator2",
-      "audio": "audio/inspiration5/nar2_throttledown.mp3",
-      "text": "Throttling down for the period of maximum dynamic pressure."
+      "text": "Into the throttle bucket. Engines throttling back."
     },
     {
       "trigger": {
@@ -563,7 +554,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 55,
+        "idx": 54,
         "delay": 2
       },
       "voice": "crew",
@@ -582,7 +573,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 57,
+        "idx": 56,
         "delay": 2
       },
       "voice": "crew",
@@ -720,7 +711,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 75,
+        "idx": 74,
         "delay": 2
       },
       "voice": "crew",
@@ -756,7 +747,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 79,
+        "idx": 78,
         "delay": 2
       },
       "voice": "crew",
@@ -783,7 +774,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 82,
+        "idx": 81,
         "delay": 2
       },
       "voice": "crew",
@@ -802,7 +793,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 84,
+        "idx": 83,
         "delay": 4
       },
       "voice": "pm",
@@ -892,7 +883,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 95,
+        "idx": 94,
         "delay": 2
       },
       "voice": "crew",
@@ -902,7 +893,7 @@
     {
       "trigger": {
         "type": "after",
-        "idx": 96,
+        "idx": 95,
         "delay": 2
       },
       "voice": "pm",
