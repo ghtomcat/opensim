@@ -430,7 +430,7 @@ export function tickRocket(dt) {
   const D    = dynQ * (perf.Cd ?? 0.3) * (perf.area ?? 1.73);
 
   /* ── Net accelerations ── */
-  const aNet  = (T - (spd_ms > 0.1 ? D : 0)) / Math.max(1, mass);
+  let aNet  = (T - (spd_ms > 0.1 ? D : 0)) / Math.max(1, mass);
   /* Centrifugal acceleration from horizontal motion (orbital mechanics):
      at orbital velocity, centrifugal = g and the rocket naturally orbits. */
   const centrifugal = vHoriz * vHoriz / (R_EARTH + alt_m);
@@ -438,7 +438,7 @@ export function tickRocket(dt) {
   const aHoriz = aNet * Math.cos(fpa_rad);
 
   /* ── Axial G-load (positive = forward thrust, felt by vehicle) ── */
-  const axialG = aNet / G0;
+  let axialG = aNet / G0;
 
   /* ── G-triggered center-engine cutoff (CECO) ──
      When axial G exceeds cegCutoffG on stage 1 with a multi-engine vehicle
@@ -450,6 +450,15 @@ export function tickRocket(dt) {
     /* Center engine is last in the position array (index totalEngines-1) */
     setState({ rocketActiveEngines: totalEngines - 1, rocketCECO: true,
                rocketCECOEngines: [totalEngines - 1] });
+  }
+
+  /* ── G-load limiter — throttle thrust to keep axial g ≤ gLimit ── */
+  const gLimit = perf.gLimit;
+  if (gLimit && T > 0 && axialG > gLimit) {
+    T     = Math.max(0, gLimit * G0 * mass + (spd_ms > 0.1 ? D : 0));
+    mdot  = T / ((stg.isp ?? 300) * G0);
+    aNet  = (T - (spd_ms > 0.1 ? D : 0)) / Math.max(1, mass);
+    axialG = aNet / G0;
   }
 
   /* ── Integrate velocity ── */

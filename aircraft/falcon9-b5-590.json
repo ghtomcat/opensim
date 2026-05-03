@@ -30,7 +30,7 @@
       }
     ],
     "payload": 12600,
-    "gLimit": 6,
+    "gLimit": 4.0,
     "qLimit": 50000,
     "cegCutoffG": 3.8,
     "guidanceDuration": 9999,

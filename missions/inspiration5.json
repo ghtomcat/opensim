@@ -440,7 +440,7 @@
       "event": "supersonic",
       "voice": "gl",
       "audio": "audio/inspiration5/gl_supersonic.mp3",
-      "text": "Supersonic."
+      "text": "Vehicle is supersonic."
     },
     {
       "event": "maxq",
