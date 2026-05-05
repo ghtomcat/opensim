@@ -340,6 +340,36 @@
       box-shadow: 0 0 5px #ff4400, 0 0 10px rgba(255,50,0,0.45);
     }
 
+    /* ── Dragon MET clock — clean SpaceX style ── */
+    #mission-clock.dragon .ck-housing {
+      background: rgba(3, 6, 10, 0.82);
+      border: 1px solid #1a2a3a;
+      box-shadow: none;
+    }
+    #mission-clock.dragon .ck-tube {
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      width: 22px; height: 40px;
+    }
+    #mission-clock.dragon .ck-tube::before { display: none; }
+    #mission-clock.dragon .ck-digit {
+      color: #e8edf2;
+      font-size: 26px;
+      text-shadow: none;
+    }
+    #mission-clock.dragon .ck-digit.tick { animation: none; }
+    #mission-clock.dragon .ck-sep { gap: 8px; }
+    #mission-clock.dragon .ck-dot {
+      background: #4a6070;
+      box-shadow: none;
+      width: 3px; height: 3px;
+    }
+    #mission-clock.dragon .ck-label {
+      color: #3a5060;
+      letter-spacing: 0.22em;
+    }
+
     /* ── ADS-B tracking badge ── */
     #tracking-badge {
       position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
@@ -1534,7 +1564,7 @@
       <div class="ck-tube"><span class="ck-digit" id="ck-s1">0</span></div>
       <div class="ck-tube"><span class="ck-digit" id="ck-s2">0</span></div>
     </div>
-    <div class="ck-label">ВРЕМЯ ПОЛЁТА</div>
+    <div class="ck-label">MET</div>
   </div>
 </div>
 
@@ -3542,6 +3572,7 @@
     if (!S.mission) { el.classList.remove('visible'); return; }
     if (!_ckEls.h1) _ckInit();
     el.classList.add('visible');
+    el.classList.toggle('dragon', !!(S.mission?.dragonSepT));
     const t = Math.max(0, Math.floor(S.time ?? 0));
     const h = Math.floor(t / 3600);
     const m = Math.floor((t % 3600) / 60);

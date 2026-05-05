@@ -7,6 +7,7 @@
   "fiction_note": "Markus Leutwyler, Lydia Meier, and Pradeep Sapkota are real people. This mission is set in 2030 and has not happened yet. The vehicle, trajectory, and operational procedures are based on real SpaceX Dragon missions.",
   "aircraft": "falcon9-b5-590",
   "dragonSepT": 900,
+  "targetOrbitKm": 590,
   "deorbitT": 259320,
   "deorbitDv": 170,
   "timeOfDay": 0.65,
