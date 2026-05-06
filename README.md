@@ -71,6 +71,9 @@ No build step. No framework. No dependencies. Open `index.html` and fly.
 | `←` / `→` | Roll left/right (manual) · Heading target ±5° (AP) |
 | `+` / `−` | Throttle ±5 kt |
 | `t` / `T` | Trim nose up / nose down |
+| `E` | Engine start (Lycoming / V12 / Radial — cold-start aircraft) |
+| `Q` | Engine cutoff / fuel selector off (cold-start aircraft) |
+| `C` | Carburettor heat toggle |
 | `B` | Brakes (hold) |
 | `f` / `F` | Flaps extend / retract |
 | `g` | Gear toggle |
@@ -87,6 +90,8 @@ No build step. No framework. No dependencies. Open `index.html` and fly.
 | `W` | Time warp — rocket missions only (1× → 10× → 100× → 1000×) |
 | `Ctrl+Shift+T` | Download flight telemetry as JSONL |
 
+**G1000 (C172):** Click any switch in the left panel to toggle it. Click the COM1 frequency in the PFD top bar to show/hide the COM panel.
+
 **Gamepad:** Logitech Extreme 3D Pro out of the box.
 axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1]=flaps · buttons[2]=gear
 
@@ -99,12 +104,15 @@ axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1
 | Aircraft | Engine | Notes |
 |----------|--------|-------|
 | Airbus A350-900 | Rolls-Royce Trent XWB | Autopilot, FMGS |
-| Cessna 172S | Lycoming IO-360 · 180hp | Full kneeboard, grass strip |
-| Robin DR400/140B | Lycoming O-320 · 160hp | Flugschule Grenchen checklists |
+| Cessna 172S Skyhawk | Lycoming IO-360 · 180hp | G1000 glass cockpit, cold-dark startup, grass strip |
+| Robin DR400/140B Dauphin | Lycoming O-320 · 160hp | Flugschule Grenchen checklists |
+| Pipistrel Velis Electro HB-SYC | Pipistrel E-811 · 57.6 kW | EPSI panel, battery SOC management, Grenchen |
+| Vought F4U-1A Corsair | Pratt & Whitney R-2800 · 2000hp | Bent-wing bird, Pacific theatre |
 | Messerschmitt Bf 109 G-4 | Daimler-Benz DB 601 · 1175hp | AudioWorklet 12-cylinder impulse model |
 | Avro 504K | Le Rhône 9J · 110hp | Gyroscopic precession, rotary blip switch |
 | Tupolev Tu-95MS Bear H | Kuznetsov NK-12MV × 4 · 44740kW | Russian crew voices, contra-rotation LFO |
 | Antonov An-225 Mriya | ZMKB Progress D-18T × 6 · 1 377 kN | Ukrainian crew voices, 500 t, Hostomel 2022 |
+| Timo's Hovercraft | EDF lift + thrust | VotingTriad 3-node autonomy, multi-vehicle |
 
 ### Orbit
 
@@ -124,13 +132,18 @@ axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1
 | Mission | Aircraft | Era | What |
 |---------|----------|-----|------|
 | ILS Approach RWY 28 | A350 | Modern | Live METAR, ATC clearances, approach brief |
-| VFR Pattern | C172 | PPL | Grass strip LSZF, takeoff callouts, kneeboard |
-| VFR Circuit | Robin DR400 | PPL | LSZG, Flugschule Grenchen, live METAR |
+| Cross-Country LSZG→LSGN | C172 | PPL | Cold-dark startup, Schnupperflug route, live METAR |
+| VFR Pattern LSZF | C172 | PPL | Grass strip Speck-Fehraltorf, circuits, kneeboard |
+| VFR Circuit LSZG | Robin DR400 | PPL | Grenchen, Flugschule checklists, live METAR |
+| Electric Circuit HB-SYC | Velis Electro | PPL/Electric | EPSI panel, battery SOC, no magnetos |
 | Airshow Ground Run | Bf 109 G-4 | 2025 | DB 601 startup, D-FEML at Hahnweide |
 | Patrol — Marne 1918 | Avro 504K | 1918 | WWI rotary engine, Le Rhône blip switch |
 | Operation Wolfskopf | Bf 109 G-4 | 1942 | Arctic, scripted engine failure, NIFLHEIM |
+| The Wasp · Bougainville | F4U-1A Corsair | 1943 | Pacific patrol, R-2800, ARC-5 radio |
+| No Bomber Lost · Rabaul | F4U-1A Corsair | 1943 | Ground attack, Rabaul harbour |
 | Aufklärungsflug Nordmeer | Tu-95MS Bear H | 1956 | Olenya AB, Soviet ATC, Cold War dossier |
 | Mriya — Die letzte Reise | An-225 | 2022 | Hostomel, Ukrainian ATC, 3 February 2022 |
+| Hovercraft Demo | Timo's Hovercraft | 2026 | VotingTriad lift/thrust, multi-vehicle |
 
 ### Orbit tab
 
@@ -190,6 +203,36 @@ Point-mass gravity turn, programmed FPA profile, extended ISA through 140 km. Th
 
 ---
 
+## G1000 glass cockpit (C172)
+
+The Cessna 172 uses a three-zone canvas layout matching the real G1000 NXi installation:
+
+```
+┌─────────────┬───────────────────────┬───────────────────────┐
+│ Switch panel│       PFD             │       MFD             │
+│  (14%)      │  attitude · tapes     │  engine strip         │
+│             │  HSI · ILS · COM      │  EGT/CHT/OIL · fuel  │
+│  MASTER     │                       │  map overlay          │
+│  AVIONICS   ├───────────────────────┴───────────────────────┤
+│  FUEL PUMP  │   Analog backup: ASI · AI · ALT               │
+│  MAGNETO    │   (always powered — vacuum / standby)         │
+│  LIGHTS     │                                               │
+└─────────────┴───────────────────────────────────────────────┘
+```
+
+**Cold-dark startup sequence:**
+1. MASTER BAT → ON
+2. AVIONICS → ON (powers both screens)
+3. FUEL PUMP → ON (boost pump audible)
+4. MAGNETO → click to cycle: OFF → R → L → BOTH → START
+5. START fires the engine lifecycle — whirr → catch → idle → running
+6. MAGNETO snaps back to BOTH when engine catches
+7. FUEL PUMP → OFF after engine running
+
+**COM panel:** click the COM1 frequency in the PFD top bar to show/hide the full COM + transponder panel. Real mission frequencies from the mission JSON. Appears on the right side of the screen.
+
+---
+
 ## Sound
 
 All engine sound is synthesised. No samples.
@@ -197,11 +240,14 @@ All engine sound is synthesised. No samples.
 | Layer | How |
 |-------|-----|
 | DB 601 / IO-360 / Le Rhône | AudioWorklet impulse model — cylinders fire at individual crankshaft angles |
+| Lycoming startup lifecycle | Electric starter whirr → catch → idle → running (3-phase, ~8s) |
+| Fuel boost pump | Dual sawtooth 241/256 Hz + bandpass noise 370 Hz + 11 Hz LFO, fade in/out |
 | NK-12 turboprop | 3.8Hz LFO contra-rotation beat + slewTime 1.8s |
 | GTF / HBF / LBF | Oscillator harmonics, engine-specific filter and gain |
 | Wind | White noise → bandpass, gain ∝ speed² |
 | Ground creak | Lowpass rumble, WoW × speed |
 | Coolant hiss | Rises as `enginePower` drops |
+| Carb ice / heat | Power reduction as ice builds; restoration on heat ON |
 
 See `docs/db601-synthesis.md` for the full DB 601 physical impulse model.
 
@@ -304,19 +350,23 @@ core/
   crew.js                     — five voices, rocket events, language-aware, radio dispatch
   radio.js                    — commProfile chain: createRadioChain(), playThroughChain()
   radio-crackle-processor.js  — AudioWorklet: crackle, static bursts, squelch tail
-  sound.js                    — procedural engine audio, engine bleed tap
+  sound.js                    — procedural engine audio, startup lifecycle, engine bleed tap
   mission.js                  — loads aircraft + mission JSON, live METAR fetch
   failures.js                 — scripted failure event processor
+  fuel.js                     — fuel system: consumption, tank selection, starvation
   input.js                    — keyboard · mouse · Gamepad API
   loop.js                     — rAF loop: tickFailures → tickPhysics → tickCrew → renders
   telemetry.js                — flight recorder: 2Hz JSONL
 
 display/
+  g1000.js       — Garmin G1000 glass cockpit: PFD, MFD, engine strip, switch panel, backup gauges
   bf109.js       — Bf 109 instrument panel
+  dragon.js      — Dragon capsule crew seat displays (CDR / PLT / MO / MS)
   rocket_display.js — SpaceX-style telemetry, split panel for RTLS
   map.js         — world map (rocket) + local mini-map + vehicle silhouette panels
   terrain.js     — 3D outside view: day/night sky, stars, water, space
   com.js         — COM radio + transponder
+  robot_arm.js   — SO-101 6-DOF arm visualisation
   svg/           — vehicle silhouettes: dragon.svg, trunk.svg, stage2.svg, stage1.svg
 
 aircraft/        — JSON vehicle definitions
@@ -384,6 +434,7 @@ Physics, engine lifecycle, sound parameters, rocket staging, orbital mechanics �
   "commProfile": "vhf-aviation",
   "weather": { "source": "live", "icao": "LSZH" },
   "initialState": { "lat": 47.39, "lon": 8.78, "alt": 1788, "spd": 0, "hdg": 260 },
+  "departure": { "name": "Your Airfield", "elevation": 1788 },
   "atcClearances": [
     { "t": 10, "audio": "audio/your-mission/atc_line1.mp3" },
     { "t": 30, "text": "Radar contact.", "voice": "atc" }
