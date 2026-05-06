@@ -15,9 +15,10 @@
    #warning-lights) are hidden by index.html when this panel is active.
    ═══════════════════════════════════════════════════════════════ */
 
-import { S }                        from '../core/state.js';
-import { getCOMState, comTransfer } from './com.js';
-import { updateVelisMapOverlay }    from './map.js';
+import { S, setState }               from '../core/state.js';
+import { getCOMState, comTransfer }  from './com.js';
+import { updateVelisMapOverlay }     from './map.js';
+import { startSound, stopSound }     from '../core/sound.js';
 
 /* ── Palette ── */
 const P = {
@@ -43,6 +44,20 @@ const _r   = d => (d - 90) * Math.PI / 180;
 
 /* ── Hit regions for click handling — rebuilt each frame ── */
 let _hitRegions = [];
+
+/* Motor state follows switches: MASTER + BATT EN + PWR EN → running */
+function _updateElectricEngine() {
+  const sw = S.switches;
+  const motorReady = sw.master && sw.battEn && sw.pwrEn;
+  const running    = S.engineState === 'running';
+  if (motorReady && !running) {
+    setState({ engineState: 'running', enginePower: 1.0 });
+    startSound('electric');
+  } else if (!motorReady && running) {
+    setState({ engineState: 'off', enginePower: 0 });
+    stopSound();
+  }
+}
 
 /* ════════════════════════════════════════════════════════════
    MAIN ENTRY
@@ -413,7 +428,10 @@ function _drawMasterSwitches(ctx, x0, y0, w, h, sc) {
     /* Hit region for the whole row */
     _hitRegions.push({
       x: x0, y: sy, w: w, h: swH,
-      action: () => { S.switches[def.key] = !S.switches[def.key]; }
+      action: () => {
+        S.switches[def.key] = !S.switches[def.key];
+        _updateElectricEngine();
+      }
     });
 
     /* Row separator */

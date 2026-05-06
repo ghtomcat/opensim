@@ -3212,7 +3212,8 @@
     const _isV12      = engineType === 'v12-supercharged';
     const _isRadial   = engineType === 'radial-2000hp';
     const _isLycoming = engineType === 'lycoming-o360';
-    const _hasLifecycle = _isV12 || _isRadial || _isLycoming;
+    const _isElectric = engineType === 'electric';
+    const _hasLifecycle = _isV12 || _isRadial || _isLycoming || _isElectric;
 
     const dismissOnboarding = () => {
       obEl.classList.remove('visible');
@@ -3226,9 +3227,9 @@
           startSound(engineType);
         } else {
           /* Ground start — engine off, user presses E */
-          audioEl.textContent = _isV12
-            ? 'OFF · E=ANLASSER · Q=AUS'
-            : 'OFF · E=START · Q=CUT OFF';
+          audioEl.textContent = _isV12    ? 'OFF · E=ANLASSER · Q=AUS'
+                              : _isElectric ? 'OFF · MASTER → BATT EN → PWR EN'
+                              :               'OFF · E=START · Q=CUT OFF';
           audioEl.className   = 'panel-value';
         }
       } else {

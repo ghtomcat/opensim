@@ -34,7 +34,7 @@ export async function loadMission(missionPath, aircraftPath) {
 
   /* Engine state: v12 starts 'off' on ground (manual startup sequence via E key).
      All other manualControl aircraft start 'running' — no startup procedure. */
-  const hasColdStart = ['v12-supercharged', 'radial-2000hp', 'lycoming-o360'].includes(aircraft.sound?.engineType);
+  const hasColdStart = ['v12-supercharged', 'radial-2000hp', 'lycoming-o360', 'electric'].includes(aircraft.sound?.engineType);
   const startEngineState = (startOnGround && hasColdStart) ? 'off' : 'running';
 
   setState({
@@ -67,15 +67,20 @@ export async function loadMission(missionPath, aircraftPath) {
     metar: null,
     crashed: false,
     crashReason: null,
-    /* C172 cockpit switches — cold and dark at mission start */
-    magnetos:    'OFF',
-    masterBat:   false,
-    masterAlt:   false,
-    avionicsOn:  false,
-    fuelPump:    false,
-    lights:      { nav: false, beacon: false, strobe: false, landing: false },
     comPanelVisible: false,
   });
+
+  /* G1000 (C172) cockpit switches — cold and dark */
+  if (aircraft.panel === 'g1000') {
+    setState({
+      magnetos:   'OFF',
+      masterBat:  false,
+      masterAlt:  false,
+      avionicsOn: false,
+      fuelPump:   false,
+      lights:     { nav: false, beacon: false, strobe: false, landing: false },
+    });
+  }
 
   /* Live METAR */
   if (mission.weather?.source === 'live' && mission.weather.icao) {
