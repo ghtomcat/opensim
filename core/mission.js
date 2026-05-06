@@ -34,8 +34,8 @@ export async function loadMission(missionPath, aircraftPath) {
 
   /* Engine state: v12 starts 'off' on ground (manual startup sequence via E key).
      All other manualControl aircraft start 'running' — no startup procedure. */
-  const isV12 = ['v12-supercharged', 'radial-2000hp'].includes(aircraft.sound?.engineType);
-  const startEngineState = (startOnGround && isV12) ? 'off' : 'running';
+  const hasColdStart = ['v12-supercharged', 'radial-2000hp', 'lycoming-o360'].includes(aircraft.sound?.engineType);
+  const startEngineState = (startOnGround && hasColdStart) ? 'off' : 'running';
 
   setState({
     aircraft,
@@ -56,7 +56,7 @@ export async function loadMission(missionPath, aircraftPath) {
     athr:  !aircraft.manualControl,
     wow:   startOnGround,
     trim:  0,
-    enginePower: 1.0,
+    enginePower: startEngineState === 'off' ? 0 : 1.0,
     engineState: startEngineState,
     oilTempC:    startOilTempC,
     ilsLoc: 1.2, ilsLocT: 1.2,
@@ -67,6 +67,14 @@ export async function loadMission(missionPath, aircraftPath) {
     metar: null,
     crashed: false,
     crashReason: null,
+    /* C172 cockpit switches — cold and dark at mission start */
+    magnetos:    'OFF',
+    masterBat:   false,
+    masterAlt:   false,
+    avionicsOn:  false,
+    fuelPump:    false,
+    lights:      { nav: false, beacon: false, strobe: false, landing: false },
+    comPanelVisible: false,
   });
 
   /* Live METAR */

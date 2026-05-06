@@ -1938,7 +1938,8 @@ function _assembleLycomingStartup(sr) {
 export async function startEngineLifecycle() {
   if (_engineType !== 'v12-supercharged' && _engineType !== 'radial-2000hp' && _engineType !== 'lycoming-o360') { startSound(); return; }
   if (S.engineState === 'starting' || S.engineState === 'running' || S.engineState === 'idle') return;
-  if (S.coolantState === 'failed') return;   // coolant gone — engine seizes on start attempt
+  if (S.coolantState === 'failed') return;
+  if (S.fuelSelector === 'OFF' && S.fuelLeft !== null) return;   // fuel cut — no start
 
   if (!_ctx) {
     _ctx    = new AudioContext();
@@ -1980,7 +1981,8 @@ export async function startEngineLifecycle() {
     if (S.engineState !== 'starting') return;   // aborted (M pressed) — don't activate
     if (!_workletNode) { setState({ engineState: 'off' }); return; }
     console.log('[OpenSim] Engine started — worklet active, spdT:', S.spdT);
-    setState({ engineState: 'running', enginePower: 1.0, engineTemp: Math.min(1, (S.engineTemp ?? 0) + 0.8) });
+    setState({ engineState: 'running', enginePower: 1.0, engineTemp: Math.min(1, (S.engineTemp ?? 0) + 0.8),
+               magnetos: S.magnetos === 'START' ? 'BOTH' : S.magnetos });
 
     const now = _ctx.currentTime;
     /* Unmute worklet — _workletMute fades from 0→1 over 0.3s.
@@ -2082,6 +2084,78 @@ export function stopEngineLifecycle() {
 /* ── Engine bleed tap — for radio chain environment mixing ── */
 export function getAudioContext()    { return _ctx ?? null; }
 export function getEngineBleedNode() { return (_ctx && _master) ? _master : null; }
+
+/* ══════════════════════════════════════════
+   Fuel boost pump  (C172 electric pump)
+   ══════════════════════════════════════════ */
+
+let _pumpNodes = null;
+
+export async function startFuelPump() {
+  if (_pumpNodes) return;
+
+  if (!_ctx) {
+    _ctx    = new AudioContext();
+    _master = _ctx.createGain();
+    _master.gain.value = 1;
+    _master.connect(_ctx.destination);
+  }
+  if (_ctx.state === 'suspended') await _ctx.resume();
+  if (_master.gain.value < 0.05) _master.gain.setTargetAtTime(1, _ctx.currentTime, 0.2);
+
+  const now = _ctx.currentTime;
+
+  /* Fade-in gain */
+  const gn = _ctx.createGain();
+  gn.gain.setValueAtTime(0, now);
+  gn.gain.linearRampToValueAtTime(0.055, now + 0.5);
+
+  /* Motor hum — two slightly detuned sawtooths for beating */
+  const o1 = _ctx.createOscillator();
+  o1.type = 'sawtooth'; o1.frequency.value = 241;
+  const o2 = _ctx.createOscillator();
+  o2.type = 'sawtooth'; o2.frequency.value = 256;
+  const oGain = _ctx.createGain(); oGain.gain.value = 0.5;
+  o1.connect(oGain); o2.connect(oGain);
+
+  /* Pump turbulence — bandpass-filtered noise */
+  const bufLen = _ctx.sampleRate * 2;
+  const buf    = _ctx.createBuffer(1, bufLen, _ctx.sampleRate);
+  const data   = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+  const noise  = _ctx.createBufferSource();
+  noise.buffer = buf; noise.loop = true;
+  const nbp    = _ctx.createBiquadFilter();
+  nbp.type = 'bandpass'; nbp.frequency.value = 370; nbp.Q.value = 2.8;
+  const nGain  = _ctx.createGain(); nGain.gain.value = 0.28;
+  noise.connect(nbp); nbp.connect(nGain);
+
+  /* Impeller pulse LFO (~11 Hz) */
+  const lfo  = _ctx.createOscillator();
+  lfo.type = 'sine'; lfo.frequency.value = 11;
+  const lgn  = _ctx.createGain(); lgn.gain.value = 0.007;
+  lfo.connect(lgn); lgn.connect(gn.gain);
+
+  /* Low-pass — muffled through floor panels */
+  const lpf = _ctx.createBiquadFilter();
+  lpf.type = 'lowpass'; lpf.frequency.value = 860;
+
+  oGain.connect(gn); nGain.connect(gn);
+  gn.connect(lpf); lpf.connect(_master);
+
+  o1.start(now); o2.start(now); noise.start(now); lfo.start(now);
+  _pumpNodes = { gn, o1, o2, noise, lfo };
+}
+
+export function stopFuelPump() {
+  if (!_pumpNodes || !_ctx) return;
+  const { gn, o1, o2, noise, lfo } = _pumpNodes;
+  gn.gain.setTargetAtTime(0, _ctx.currentTime, 0.15);
+  setTimeout(() => {
+    try { o1.stop(); o2.stop(); noise.stop(); lfo.stop(); } catch (_) {}
+    _pumpNodes = null;
+  }, 700);
+}
 
 /* ── Engine-only teardown — leaves AudioContext + wind + flap alive ── */
 function _teardownEngine() {

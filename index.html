@@ -644,6 +644,9 @@
     body.outside-active #com-container {
       left: auto; right: 20px;
     }
+    body.g1000-active #com-container {
+      left: auto; right: 20px; bottom: 110px;
+    }
 
     .com-panel {
       background: rgba(3,6,10,0.94);
@@ -1845,7 +1848,7 @@
   import { renderPFD }         from './display/pfd.js';
   import { renderRocket }      from './display/rocket_display.js';
   import { renderDragon, handleDragonClick, isDragonTelemetry } from './display/dragon.js';
-  import { renderG1000 }       from './display/g1000.js';
+  import { renderG1000, handleG1000Click } from './display/g1000.js';
   import { renderECAM }        from './display/ecam.js';
   import { renderBf109 }       from './display/bf109.js';
   import { renderF4U1A }       from './display/f4u1a.js';
@@ -1869,6 +1872,7 @@
   canvas.addEventListener('click', evt => {
     if (S.aircraft?.panel === 'velis-epsi') handleVelisClick(canvas, evt);
     if (S.aircraft?.vehicleType === 'rocket' && S.mission?.dragonSepT) handleDragonClick(canvas, evt);
+    if (S.aircraft?.panel === 'g1000') handleG1000Click(canvas, evt);
   });
   const loadEl     = document.getElementById('loading');
   const loadBar    = document.getElementById('loadBar');
@@ -3255,6 +3259,7 @@
       /* E — Anlasser (v12 only) */
       if ((e.key === 'e' || e.key === 'E') && _hasLifecycle) {
         bbEvent({ type: 'engine_start_commanded', engineState: S.engineState });
+        if (S.aircraft?.panel === 'g1000') setState({ magnetos: 'START' });
         startEngineLifecycle();
         return;
       }
@@ -3374,9 +3379,11 @@
         const isG1000  = panel === 'g1000';
         const hasOwnUI = isVelis || isG1000;
         const isDragon = isRocket && !!(S.mission?.dragonSepT);
-        canvas.style.pointerEvents = (isVelis || isArm || isDragon) ? 'auto' : 'none';
+        canvas.style.pointerEvents = (isVelis || isArm || isDragon || isG1000) ? 'auto' : 'none';
+        document.body.classList.toggle('g1000-active', isG1000);
         document.getElementById('hc-panel').style.display      = isHover ? 'flex' : 'none';
-        document.getElementById('com-container').style.display  = (isHover || hasOwnUI || isArm) ? 'none' : '';
+        document.getElementById('com-container').style.display  =
+          (isHover || isVelis || isArm) ? 'none' : (isG1000 ? (S.comPanelVisible ? '' : 'none') : '');
         document.getElementById('panel').style.display          = (isRocket || hasOwnUI || isArm) ? 'none' : '';
         document.getElementById('keys').style.display           = (isRocket || isArm) ? 'none' : '';
         document.getElementById('fma').style.display            = (isRocket || hasOwnUI || isArm) ? 'none' : '';

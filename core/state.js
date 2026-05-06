@@ -111,6 +111,14 @@ export const S = {
   hcMThrEscTemp:  25,    // °C — thrust ESC temperature
   hcMEmergency:   false, // emergency landing in progress
 
+  /* ── C172 switches ── */
+  magnetos:    'OFF',    // 'OFF' | 'R' | 'L' | 'BOTH' | 'START'
+  avionicsOn:  false,
+  masterBat:   false,
+  masterAlt:   false,
+  fuelPump:    false,
+  lights: { nav: false, beacon: false, strobe: false, landing: false },
+
   /* ── Fuel system ── */
   fuelSelector: 'BOTH',  // 'LEFT' | 'RIGHT' | 'BOTH' | 'OFF'
   fuelLeft:  null,        // litres — null = no fuel system on this aircraft
@@ -160,6 +168,9 @@ export const S = {
 
   /* ── Weather (from METAR API) ── */
   metar: null,
+
+  /* ── G1000 overlay visibility ── */
+  comPanelVisible: false,
 };
 
 /* Patch state — safe external write point */
