@@ -356,96 +356,79 @@ function _drawCOMRadio(ctx, x0, y0, w, h, sc) {
 }
 
 function _drawMasterSwitches(ctx, x0, y0, w, h, sc) {
-  const sw = S.switches;
+  const sw  = S.switches;
 
-  ctx.save();
-  _roundRect(ctx, x0, y0, w, h, 6*sc);
-  ctx.fillStyle   = P.recess;
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-  ctx.lineWidth   = 1;
+  /* G1000-style dark panel */
+  ctx.fillStyle = '#0c0e14';
+  ctx.fillRect(x0, y0, w, h);
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x0, y0); ctx.lineTo(x0 + w, y0);   /* top edge */
   ctx.stroke();
-  ctx.clip();
 
-  /* Header */
-  ctx.fillStyle    = 'rgba(255,255,255,0.06)';
-  ctx.fillRect(x0, y0, w, 20*sc);
-  ctx.fillStyle    = P.dim;
-  ctx.font         = `bold ${8*sc}px ${SANS}`;
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('MASTER SWITCHES', x0 + w/2, y0 + 10*sc);
+  const swW  = Math.round(w * 0.40);
+  const swH  = Math.round(h * 0.095);
+  const cx1  = x0 + w * 0.28;
+  const cx2  = x0 + w * 0.72;
+  const rg   = h * 0.014;
 
-  const switches = [
-    { key: 'master',   label: 'MASTER'   },
-    { key: 'battEn',   label: 'BATT EN'  },
-    { key: 'pwrEn',    label: 'PWR EN'   },
-    { key: 'avionics', label: 'AVIONICS' },
-  ];
+  const reg = (cx, sy, action) =>
+    _hitRegions.push({ x: cx - swW / 2, y: sy, w: swW, h: swH, action });
 
-  const swH    = (h - 26*sc) / switches.length;
-  const swPad  = swH * 0.15;
+  const secLabel = (text, ly) => {
+    ctx.fillStyle    = 'rgba(255,255,255,0.22)';
+    ctx.font         = `${Math.round(h * 0.022)}px ${MONO}`;
+    ctx.textAlign    = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(text, x0 + w / 2, ly);
+  };
 
-  switches.forEach((def, i) => {
-    const sy     = y0 + 24*sc + i * swH;
-    const on     = sw[def.key];
-    const togX   = x0 + w - 36*sc;
-    const togY   = sy + swH/2 - 9*sc;
-    const togW   = 28*sc;
-    const togH   = 18*sc;
+  let sy = y0 + h * 0.04;
 
-    /* Label */
-    ctx.fillStyle    = on ? P.white : P.dim;
-    ctx.font         = `${8.5*sc}px ${SANS}`;
-    ctx.textAlign    = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(def.label, x0 + 8*sc, sy + swH/2);
+  /* ── ELECTRICAL ── */
+  secLabel('ELECTRICAL', sy); sy += h * 0.032;
+  _velisToggle(ctx, cx1, sy, swW, swH, sw.master, 'MASTER');
+  reg(cx1, sy, () => { sw.master = !sw.master;  _updateElectricEngine(); });
+  _velisToggle(ctx, cx2, sy, swW, swH, sw.battEn, 'BATT');
+  reg(cx2, sy, () => { sw.battEn = !sw.battEn;  _updateElectricEngine(); });
+  sy += swH + rg * 3;
 
-    /* Toggle track */
-    _roundRect(ctx, togX, togY, togW, togH, togH/2);
-    ctx.fillStyle = on ? 'rgba(0,200,224,0.25)' : 'rgba(255,255,255,0.08)';
-    ctx.fill();
-    ctx.strokeStyle = on ? 'rgba(0,200,224,0.6)' : 'rgba(255,255,255,0.15)';
-    ctx.lineWidth   = 1;
-    ctx.stroke();
+  /* ── MOTOR ── */
+  secLabel('MOTOR', sy); sy += h * 0.032;
+  _velisToggle(ctx, x0 + w / 2, sy, swW, swH, sw.pwrEn, 'PWR EN');
+  reg(x0 + w / 2, sy, () => { sw.pwrEn = !sw.pwrEn; _updateElectricEngine(); });
+  sy += swH + rg * 3;
 
-    /* Toggle knob */
-    const knobX = on ? togX + togW - togH/2 : togX + togH/2;
-    const knobY  = togY + togH/2;
-    ctx.beginPath();
-    ctx.arc(knobX, knobY, togH/2 - 2*sc, 0, Math.PI*2);
-    ctx.fillStyle = on ? P.cyan : 'rgba(255,255,255,0.3)';
-    ctx.fill();
+  /* ── AVIONICS ── */
+  secLabel('AVIONICS', sy); sy += h * 0.032;
+  _velisToggle(ctx, x0 + w / 2, sy, swW, swH, sw.avionics, 'AVNCS');
+  reg(x0 + w / 2, sy, () => { sw.avionics = !sw.avionics; _updateElectricEngine(); });
+}
 
-    /* Indicator dot */
-    if (on) {
-      ctx.beginPath();
-      ctx.arc(knobX, knobY, 3*sc, 0, Math.PI*2);
-      ctx.fillStyle = P.recess;
-      ctx.fill();
-    }
+/* Physical rocker toggle — matches G1000 _toggleSwitch style */
+function _velisToggle(ctx, cx, y, w, h, on, label) {
+  /* housing */
+  const bw = w, bh = h * 0.28, by = y + h * 0.50;
+  ctx.fillStyle   = '#141820';
+  ctx.fillRect(cx - bw / 2, by, bw, bh);
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1;
+  ctx.strokeRect(cx - bw / 2, by, bw, bh);
 
-    /* Hit region for the whole row */
-    _hitRegions.push({
-      x: x0, y: sy, w: w, h: swH,
-      action: () => {
-        S.switches[def.key] = !S.switches[def.key];
-        _updateElectricEngine();
-      }
-    });
-
-    /* Row separator */
-    if (i < switches.length - 1) {
-      ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-      ctx.lineWidth   = 1;
-      ctx.beginPath();
-      ctx.moveTo(x0 + 8*sc, sy + swH - 1);
-      ctx.lineTo(x0 + w - 8*sc, sy + swH - 1);
-      ctx.stroke();
-    }
-  });
-
+  /* lever */
+  const lw = w * 0.46, lh = h * 0.46, tilt = on ? -0.28 : 0.28;
+  ctx.save();
+  ctx.translate(cx, by + bh * 0.5);
+  ctx.rotate(tilt);
+  ctx.fillStyle = on ? '#b8bcc8' : '#44484e';
+  ctx.fillRect(-lw / 2, -lh, lw, lh);
+  ctx.fillStyle = on ? 'rgba(255,255,255,0.20)' : 'rgba(255,255,255,0.06)';
+  ctx.fillRect(-lw / 2 + 2, -lh + 3, lw * 0.36, lh - 6);
   ctx.restore();
+
+  /* label */
+  ctx.fillStyle    = on ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.22)';
+  ctx.font         = `${Math.round(Math.min(w * 0.52, h * 0.14))}px ${MONO}`;
+  ctx.textAlign    = 'center'; ctx.textBaseline = 'bottom';
+  ctx.fillText(label, cx, y + h * 0.98);
 }
 
 /* ════════════════════════════════════════════════════════════
