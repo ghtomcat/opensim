@@ -303,13 +303,39 @@ function _drawPLT(ctx, W, H, tLO, altKm, velKms, gLoad, stage, meco, seco, inOrb
   ctx.fillText(abort.label, W / 2, content * 0.87);
 }
 
+/* ── Mission timeline milestones ── */
+const MILESTONES = [
+  { label: 'LIFTOFF',           check: s => s.tLO >= 0 },
+  { label: 'MACH 1',            check: s => s.velMs >= 340 },
+  { label: 'THROTTLE BUCKET',   check: s => s.altKm >= 7 },
+  { label: 'MAX-Q',             check: s => s.altKm >= 12 },
+  { label: 'THROTTLE UP',       check: s => s.altKm >= 15 },
+  { label: 'ABORT  1-BRAVO',    check: s => s.altKm >= 45 },
+  { label: 'GO FOR STAGING',    check: s => s.altKm >= 65 },
+  { label: 'MECO',              check: s => s.meco },
+  { label: 'STAGE SEPARATION',  check: s => s.stage >= 2 || s.coast },
+  { label: 'ABORT  2-BRAVO',    check: s => (s.stage >= 2 || s.meco) && s.altKm >= 150 },
+  { label: 'ABORT  2-CHARLIE',  check: s => (s.stage >= 2 || s.meco) && s.altKm >= 300 },
+  { label: 'ABORT  2-DELTA',    check: s => (s.stage >= 2 || s.meco) && s.altKm >= 450 },
+  { label: 'GO FOR ORBIT INS.', check: s => (s.stage >= 2 || s.meco) && s.altKm >= 560 },
+  { label: 'SECO',              check: s => s.seco },
+  { label: 'ORBIT',             check: s => s.inOrbit },
+];
+
 /* ══════════════════════════════════════════════════════════
-   MO — Mission phase + crew status
+   MO — Timeline + crew status
    ══════════════════════════════════════════════════════════ */
 function _drawMO(ctx, W, H, tLO, altKm, velKms, gLoad, stage, meco, seco, inOrbit, coast) {
   const content = H * 0.92;
   const abort   = _abortMode(altKm, stage, meco, seco, inOrbit);
-  const phase   = _phase(altKm, tLO, stage, meco, seco, inOrbit, coast);
+  const velMs   = velKms * 1000;
+  const snap    = { tLO, altKm, velMs, stage, meco, seco, inOrbit, coast };
+
+  /* Find current milestone index — last one whose check passes */
+  let cur = -1;
+  for (let i = 0; i < MILESTONES.length; i++) {
+    if (MILESTONES[i].check(snap)) cur = i;
+  }
 
   /* Role label */
   ctx.fillStyle    = '#2a3a4a';
@@ -325,44 +351,68 @@ function _drawMO(ctx, W, H, tLO, altKm, velKms, gLoad, stage, meco, seco, inOrbi
   ctx.textBaseline = 'middle';
   ctx.fillText(_timer(tLO), W / 2, content * 0.10);
 
-  /* Phase box */
-  const phaseColor = inOrbit ? '#5dd47e'
-                   : (phase.includes('MAX-Q') || phase.includes('THROTTLE')) ? '#ffb74d'
-                   : phase.includes('SEP') ? '#ff9a3c'
-                   : '#4dc5dc';
-  const boxW = W * 0.86, boxH = content * 0.26;
-  const boxX = (W - boxW) / 2, boxY = content * 0.20;
+  /* Timeline strip — show cur-2 … cur … cur+2 */
+  const SHOW     = 5;
+  const rowH     = content * 0.118;
+  const stripTop = content * 0.19;
+  const padX     = W * 0.08;
+  const labelSz  = Math.round(H * 0.033);
+  const dotR     = H * 0.016;
+  const lineX    = padX + dotR;
 
-  ctx.strokeStyle = phaseColor;
+  /* vertical connector line */
+  ctx.strokeStyle = '#1a2a3a';
   ctx.lineWidth   = 2;
-  ctx.strokeRect(boxX, boxY, boxW, boxH);
-  ctx.fillStyle   = phaseColor + '10';
-  ctx.fillRect(boxX, boxY, boxW, boxH);
+  ctx.beginPath();
+  ctx.moveTo(lineX, stripTop);
+  ctx.lineTo(lineX, stripTop + rowH * SHOW);
+  ctx.stroke();
 
-  ctx.fillStyle    = phaseColor;
-  ctx.font         = `bold ${Math.round(H * 0.070)}px "Syne", sans-serif`;
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'middle';
-  if (inOrbit) ctx.shadowColor = phaseColor, ctx.shadowBlur = 12;
-  ctx.fillText(phase, W / 2, boxY + boxH / 2);
-  ctx.shadowBlur = 0;
+  for (let offset = -2; offset <= 2; offset++) {
+    const idx   = cur + offset;
+    const rowY  = stripTop + (offset + 2) * rowH + rowH / 2;
+    const past  = offset < 0;
+    const isCur = offset === 0;
+    const future = offset > 0;
 
-  /* Metrics */
-  const mY = content * 0.58;
-  _metric(ctx, W * 0.20, mY, 'ALT',    _fmt(altKm), 'km',   H);
-  _metric(ctx, W * 0.50, mY, 'VEL',    _fmt(velKms), 'km/s', H);
-  _metric(ctx, W * 0.80, mY, 'G-LOAD', _fmt(gLoad), 'G',    H,
-          gLoad >= 3.5 ? '#ffb74d' : '#e8edf2');
+    if (idx < 0 || idx >= MILESTONES.length) continue;
+    const m = MILESTONES[idx];
 
-  /* Abort */
-  ctx.fillStyle    = '#2a3a4a';
-  ctx.font         = `${Math.round(H * 0.026)}px "IBM Plex Mono", monospace`;
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('ABORT MODE', W / 2, content * 0.81);
-  ctx.fillStyle = abort.color;
-  ctx.font      = `bold ${Math.round(H * 0.038)}px "IBM Plex Mono", monospace`;
-  ctx.fillText(abort.label, W / 2, content * 0.86);
+    /* dot */
+    ctx.beginPath();
+    ctx.arc(lineX, rowY, isCur ? dotR * 1.5 : dotR, 0, Math.PI * 2);
+    ctx.fillStyle = isCur
+      ? (inOrbit ? '#5dd47e' : '#e8edf2')
+      : past ? '#1e3040' : '#162030';
+    if (isCur) { ctx.shadowColor = inOrbit ? '#5dd47e' : '#4dc5dc'; ctx.shadowBlur = 8; }
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    /* label */
+    ctx.textAlign    = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.font = isCur
+      ? `bold ${labelSz}px "IBM Plex Mono", monospace`
+      : `${Math.round(labelSz * 0.85)}px "IBM Plex Mono", monospace`;
+    ctx.fillStyle = isCur
+      ? (inOrbit ? '#5dd47e' : '#e8edf2')
+      : past ? '#2a4050' : '#1e3040';
+    ctx.fillText(m.label, lineX + dotR * 2.5, rowY);
+
+    /* current indicator arrow */
+    if (isCur) {
+      ctx.fillStyle    = inOrbit ? '#5dd47e' : '#4dc5dc';
+      ctx.font         = `bold ${Math.round(H * 0.028)}px "IBM Plex Mono", monospace`;
+      ctx.textAlign    = 'right';
+      ctx.fillText('◄', W - padX, rowY);
+    }
+  }
+
+  /* Metrics row */
+  const mY = content * 0.82;
+  _metric(ctx, W * 0.20, mY, 'ALT',    _fmt(altKm), 'km',   H * 0.85);
+  _metric(ctx, W * 0.50, mY, 'VEL',    _fmt(velKms), 'km/s', H * 0.85);
+  _metric(ctx, W * 0.80, mY, 'ABORT',  abort.label, '',    H * 0.85, abort.color);
 }
 
 /* ══════════════════════════════════════════════════════════
