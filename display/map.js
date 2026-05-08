@@ -26,6 +26,7 @@ let _mode    = 'local';        /* 'local' | 'rocket' */
 /* ── Leaflet (local aircraft map) ── */
 let _lmap       = null;   /* L.map instance */
 let _lmarker    = null;   /* aircraft marker */
+let _lconePoly  = null;   /* FOV cone polygon */
 let _lhdgLine   = null;   /* heading vector polyline */
 let _ltrkLine   = null;   /* track vector polyline */
 let _lwptLayer  = null;   /* L.layerGroup for waypoints */
@@ -102,6 +103,12 @@ export function initMap() {
       iconAnchor: [10, 12],
     }),
     zIndexOffset: 1000,
+  }).addTo(_lmap);
+
+  /* Visibility cone — rendered first so it's behind all vectors */
+  _lconePoly = L.polygon([], {
+    fillColor: '#e8f0ff', fillOpacity: 0.07,
+    color: 'rgba(255,255,255,0.16)', weight: 0.8,
   }).addTo(_lmap);
 
   /* Heading and track vectors */
@@ -183,6 +190,10 @@ function _createPanelMap(id) {
     zIndexOffset: 1000,
   }).addTo(lmap);
 
+  const conePoly  = L.polygon([], {
+    fillColor: '#e8f0ff', fillOpacity: 0.07,
+    color: 'rgba(255,255,255,0.16)', weight: 0.8,
+  }).addTo(lmap);
   const hdgLine   = L.polyline([], { color: '#ffffff', weight: 2, opacity: 0.9 }).addTo(lmap);
   const trkLine   = L.polyline([], { color: '#ffb400', weight: 2, opacity: 0.85, dashArray: '5 4' }).addTo(lmap);
   const wptLayer  = L.layerGroup().addTo(lmap);
@@ -193,7 +204,7 @@ function _createPanelMap(id) {
   let lastMission = null;
 
   return {
-    el, lmap, marker, hdgLine, trkLine, wptLayer, routeLine,
+    el, lmap, marker, conePoly, hdgLine, trkLine, wptLayer, routeLine,
     get lastMission() { return lastMission; },
     set lastMission(v) { lastMission = v; },
   };
@@ -219,8 +230,9 @@ function _updatePanelMap(pm, canvas, devX, devY, devW, devH) {
 
   if (changed) pm.lmap.invalidateSize();
 
-  const lat    = S.lat ?? 47;
-  const lon    = S.lon ?? 8;
+  const lat    = Number.isFinite(S.lat) ? S.lat : 47;
+  const lon    = Number.isFinite(S.lon) ? S.lon : 8;
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
   const hdg    = S.hdg ?? 0;
   const spd    = (S.spd ?? 0) * 0.5144;
   const hdgRad = hdg * DEG;
@@ -234,17 +246,22 @@ function _updatePanelMap(pm, canvas, devX, devY, devW, devH) {
   const dLatHdg = VEC_NM / 60 * Math.cos(hdgRad);
   const dLonHdg = VEC_NM / 60 / Math.cos(lat * DEG) * Math.sin(hdgRad);
   pm.hdgLine.setLatLngs([[lat, lon], [lat + dLatHdg, lon + dLonHdg]]);
+  pm.conePoly.setLatLngs(_coneLatLngs(lat, lon, hdg, 2.5, 35));
 
   const wind   = _getWind();
-  const wSpd   = wind.spd * 0.5144;
-  const wRad   = wind.dir * DEG;
+  const wSpd   = Number.isFinite(wind.spd) ? wind.spd * 0.5144 : 0;
+  const wRad   = Number.isFinite(wind.dir) ? wind.dir * DEG : 0;
   const gndN   = spd * Math.cos(hdgRad) + wSpd * Math.cos(wRad + Math.PI);
   const gndE   = spd * Math.sin(hdgRad) + wSpd * Math.sin(wRad + Math.PI);
   const trkRad = Math.atan2(gndE, gndN);
   const scale  = gndN || gndE ? Math.sqrt(gndN*gndN+gndE*gndE) / Math.max(1, spd) : 1;
-  pm.trkLine.setLatLngs([[lat, lon],
-    [lat + VEC_NM*scale/60*Math.cos(trkRad),
-     lon + VEC_NM*scale/60/Math.cos(lat*DEG)*Math.sin(trkRad)]]);
+  if (Number.isFinite(trkRad)) {
+    pm.trkLine.setLatLngs([[lat, lon],
+      [lat + VEC_NM*scale/60*Math.cos(trkRad),
+       lon + VEC_NM*scale/60/Math.cos(lat*DEG)*Math.sin(trkRad)]]);
+  } else {
+    pm.trkLine.setLatLngs([]);
+  }
 
   const missionId = S.mission?.id ?? null;
   if (missionId !== pm.lastMission) {
@@ -253,6 +270,7 @@ function _updatePanelMap(pm, canvas, devX, devY, devW, devH) {
     const wpts = S.mission?.waypoints ?? [];
     const routeLL = [];
     wpts.forEach((wpt, i) => {
+      if (!Number.isFinite(wpt.lat) || !Number.isFinite(wpt.lon)) return;
       routeLL.push([wpt.lat, wpt.lon]);
       L.circleMarker([wpt.lat, wpt.lon], {
         radius: 5, color: '#00c8e0', weight: 2,
@@ -406,6 +424,20 @@ export function renderMap() {
 }
 
 /* ── Update Leaflet local map each frame ── */
+/* Returns polygon points for a heading cone — apex at [lat,lon], arced far edge */
+function _coneLatLngs(lat, lon, hdg, nmAhead, halfDeg) {
+  const pts = [[lat, lon]];
+  for (let i = 0; i <= 8; i++) {
+    const d    = -halfDeg + (i / 8) * halfDeg * 2;
+    const aRad = (hdg + d) * DEG;
+    pts.push([
+      lat + nmAhead / 60 * Math.cos(aRad),
+      lon + nmAhead / 60 / Math.cos(lat * DEG) * Math.sin(aRad),
+    ]);
+  }
+  return pts;
+}
+
 function _renderLeafletLocal() {
   if (!_lmap || !_lmarker) return;
 
@@ -421,6 +453,9 @@ function _renderLeafletLocal() {
   const iconEl = _lmarker.getElement()?.querySelector('.lmap-ac');
   if (iconEl) iconEl.style.transform = `rotate(${hdg}deg)`;
   _lmarker.setLatLng([lat, lon]);
+
+  /* Visibility cone — 70° FOV, 3 NM ahead */
+  if (_lconePoly) _lconePoly.setLatLngs(_coneLatLngs(lat, lon, hdg, 3.0, 35));
 
   /* Heading vector — 0.5 NM forward */
   const VEC_NM  = 0.5;

@@ -72,7 +72,29 @@
     }
   },
 
-  "atcClearances": [],
+  "commProfile": "vhf-aviation",
+
+  "atcClearances": [
+    {
+      "trigger": { "type": "com_active" },
+      "pm":  "Grenchen Information, HB-SYC, good morning, on the apron, VFR to Neuchâtel, request departure information",
+      "atc": "HB-SYC, Grenchen Information, good morning. Runway two-six, QNH one zero one eight, wind two-six-zero at six knots.",
+      "ack": "Runway two-six, QNH one zero one eight, HB-SYC"
+    },
+    {
+      "trigger": { "type": "airborne" },
+      "pm":  "Grenchen Information, HB-SYC, departing two-six, VFR Neuchâtel",
+      "atc": "HB-SYC, roger, have a good flight",
+      "ack": "Thank you, HB-SYC"
+    },
+    {
+      "trigger": { "type": "after", "idx": 1, "delay": 600 },
+      "pm":       "Neuchâtel Information, HB-SYC, bonjour, VFR inbound from Grenchen, five minutes, request landing information",
+      "atc":      "HB-SYC, Neuchâtel Information, bonjour. Runway two-three, QNH one zero one eight, wind two-two-zero at four knots. Report final.",
+      "atcAudio": "audio/grenchen-neuchatel/atc-neuchatel.mp3",
+      "ack":      "Runway two-three, QNH one zero one eight, wilco, HB-SYC"
+    }
+  ],
 
   "narrative": [
     "Grenchen. Runway 26.",

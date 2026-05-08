@@ -25,6 +25,59 @@ const COLS = 26;      /* lateral divisions */
 /* Forward distances per row — log-spaced 0.1 to ~18 nm */
 const ROW_DIST = Array.from({ length: ROWS + 1 }, (_, i) => 0.1 * Math.pow(1.32, i));
 
+/* ── FPS counter ── */
+let _fpsLast = 0, _fpsCount = 0, _fpsDisplay = 0;
+
+/* ── Mapbox Terrain-RGB elevation tiles ── */
+const _TK = 'pk.eyJ1IjoibWJ0b21jYXQiLCJhIjoiY2tlZTl6cXlwMGo4YjJ6a2ZqcmFkdTZ6ciJ9.SxMKsgMdAxwykW1DyYm0Zg';
+const _TZ = 12;
+const _tcache = new Map();  /* 'x/y' → ImageData | 'loading' | 'error' */
+
+function _fetchTile(x, y) {
+  const k = `${x}/${y}`;
+  if (_tcache.has(k)) return;
+  _tcache.set(k, 'loading');
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 256;
+    const tc = c.getContext('2d');
+    tc.drawImage(img, 0, 0);
+    _tcache.set(k, tc.getImageData(0, 0, 256, 256));
+  };
+  img.onerror = () => _tcache.set(k, 'error');
+  img.src = `https://api.mapbox.com/v4/mapbox.terrain-rgb/${_TZ}/${x}/${y}.pngraw?access_token=${_TK}`;
+}
+
+function _sampleElev(lat, lon) {
+  const n  = 1 << _TZ;
+  const lr = lat * DEG;
+  const tx = (lon + 180) / 360 * n;
+  const ty = (1 - Math.log(Math.tan(lr) + 1 / Math.cos(lr)) / Math.PI) / 2 * n;
+  const xi = tx | 0, yi = ty | 0;
+  _fetchTile(xi, yi);
+  const t = _tcache.get(`${xi}/${yi}`);
+  if (!t || typeof t === 'string') return null;
+  const px = Math.min(255, (tx - xi) * 256 | 0);
+  const py = Math.min(255, (ty - yi) * 256 | 0);
+  const i  = (py * 256 + px) * 4;
+  return -10000 + (t.data[i] * 65536 + t.data[i + 1] * 256 + t.data[i + 2]) * 0.1;
+}
+
+function _terrainColor(elevM, dayFrac, depth) {
+  let r, g, b;
+  if      (elevM <    0) { r = 22;  g = 58;  b = 100 }
+  else if (elevM <  500) { r = 38;  g = 82;  b = 24  }
+  else if (elevM < 1000) { r = 52;  g = 100; b = 32  }
+  else if (elevM < 1600) { r = 70;  g = 98;  b = 54  }
+  else if (elevM < 2200) { r = 108; g = 106; b = 82  }
+  else if (elevM < 3000) { r = 136; g = 132; b = 118 }
+  else                   { r = 208; g = 206; b = 198 }
+  const f = (dayFrac * 0.82 + 0.18) * (1 - depth * 0.32);
+  return `rgb(${r * f | 0},${g * f | 0},${b * f | 0})`;
+}
+
 export function renderTerrain(canvas) {
   const W = canvas.width  = canvas.offsetWidth  * devicePixelRatio;
   const H = canvas.height = canvas.offsetHeight * devicePixelRatio;
@@ -74,8 +127,15 @@ export function renderTerrain(canvas) {
   const dayFrac     = Math.max(0, Math.min(1, (sunAlt + 0.15) / 0.25));  // 0=night 1=day
   const goldenFrac  = Math.max(0, 1 - Math.abs(sunAlt) / 0.18);          // peak at sunrise/set
 
+  /* ── Terrain elevation setup ── */
+  const acLat = S.lat ?? 47;
+  const acLon = S.lon ?? 8;
+  const refFt = S.mission?.arrival?.elevation ?? S.mission?.departure?.elevation ?? 0;
+  const refM  = refFt * 0.3048;
+
   /* ── Sky gradient ── */
   const isRocket   = S.aircraft?.vehicleType === 'rocket';
+  const hasTerrain = !isArctic && !isWater && !isRocket;
   const altScale   = isRocket ? 500_000 : 35_000;   // ft: rockets reach space, aircraft don't
   const spaceFrac  = isRocket ? Math.min(1, (S.alt ?? 0) / 350_000) : 0;  // 0=atmo 1=space
   const t = Math.min(1, (S.alt ?? 1000) / altScale);  // altitude tint 0=low 1=high
@@ -189,83 +249,115 @@ export function renderTerrain(canvas) {
   }
 
   /* ── Ground grid — pre-project all vertices ── */
-  const pts = [];
+  const pts   = [];
+  const elevs = [];
   for (let r = 0; r <= ROWS; r++) {
     const d    = ROW_DIST[r];
     const half = d * 1.5;
-    const row  = [];
+    const prow = [], erow = [];
     for (let c = 0; c <= COLS; c++) {
       const right = (c / COLS - 0.5) * 2 * half;
-      row.push(proj(d, right));
+      let elevNm = 0, elevM = refM;
+      if (hasTerrain) {
+        const dN   = d * cosH - right * sinH;
+        const dE   = d * sinH + right * cosH;
+        const lat2 = acLat + dN / 60;
+        const lon2 = acLon + dE / (60 * Math.cos(acLat * DEG));
+        const e    = _sampleElev(lat2, lon2);
+        if (e !== null) { elevM = e; elevNm = (e - refM) * M_NM; }
+      }
+      prow.push(proj(d, right, elevNm));
+      erow.push(elevM);
     }
-    pts.push(row);
+    pts.push(prow);
+    elevs.push(erow);
   }
 
   /* Terrain / water fill */
-  const terrainNear = isArctic ? '#cdd4d8' : isWater ? '#1a3f66' : '#3d6e30';
-  const terrainFar  = isArctic ? '#b8c2c8' : isWater ? '#162f50' : '#2d5a22';
-
-  ctx.beginPath();
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      const tl = pts[r][c],     tr = pts[r][c + 1];
-      const bl = pts[r + 1][c], br = pts[r + 1][c + 1];
-      if (!tl || !tr || !bl || !br) continue;
-      ctx.moveTo(tl[0], tl[1]);
-      ctx.lineTo(tr[0], tr[1]);
-      ctx.lineTo(br[0], br[1]);
-      ctx.lineTo(bl[0], bl[1]);
-      ctx.closePath();
+  if (hasTerrain) {
+    for (let r = 0; r < ROWS; r++) {
+      const depth = r / ROWS;
+      for (let c = 0; c < COLS; c++) {
+        const tl = pts[r][c],   tr = pts[r][c + 1];
+        const bl = pts[r+1][c], br = pts[r+1][c + 1];
+        if (!tl || !tr || !bl || !br) continue;
+        const avgElev = (elevs[r][c] + elevs[r][c+1] + elevs[r+1][c] + elevs[r+1][c+1]) * 0.25;
+        ctx.fillStyle = _terrainColor(avgElev, dayFrac, depth);
+        ctx.beginPath();
+        ctx.moveTo(tl[0], tl[1]);
+        ctx.lineTo(tr[0], tr[1]);
+        ctx.lineTo(br[0], br[1]);
+        ctx.lineTo(bl[0], bl[1]);
+        ctx.closePath();
+        ctx.fill();
+      }
     }
-  }
-  /* Gradient fill front→back */
-  const frontPt = pts[0][Math.floor(COLS / 2)];
-  const backPt  = pts[ROWS][Math.floor(COLS / 2)];
-  if (frontPt && backPt) {
-    const tg = ctx.createLinearGradient(0, frontPt[1], 0, backPt[1]);
-    tg.addColorStop(0, terrainNear);
-    tg.addColorStop(1, terrainFar);
-    ctx.fillStyle = tg;
   } else {
-    ctx.fillStyle = terrainNear;
+    const terrainNear = isArctic ? '#cdd4d8' : isWater ? '#1a3f66' : '#3d6e30';
+    const terrainFar  = isArctic ? '#b8c2c8' : isWater ? '#162f50' : '#2d5a22';
+    ctx.beginPath();
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const tl = pts[r][c],   tr = pts[r][c + 1];
+        const bl = pts[r+1][c], br = pts[r+1][c + 1];
+        if (!tl || !tr || !bl || !br) continue;
+        ctx.moveTo(tl[0], tl[1]);
+        ctx.lineTo(tr[0], tr[1]);
+        ctx.lineTo(br[0], br[1]);
+        ctx.lineTo(bl[0], bl[1]);
+        ctx.closePath();
+      }
+    }
+    const frontPt = pts[0][Math.floor(COLS / 2)];
+    const backPt  = pts[ROWS][Math.floor(COLS / 2)];
+    if (frontPt && backPt) {
+      const tg = ctx.createLinearGradient(0, frontPt[1], 0, backPt[1]);
+      tg.addColorStop(0, terrainNear);
+      tg.addColorStop(1, terrainFar);
+      ctx.fillStyle = tg;
+    } else {
+      ctx.fillStyle = terrainNear;
+    }
+    ctx.fill();
   }
-  ctx.fill();
 
-  /* ── World-fixed ground grid ── */
-  const GRID_NM         = 0.5;
-  const GRID_RANGE_FWD  = 18;
-  const GRID_RANGE_SIDE = 20;
-  const GRID_RANGE_BACK =  3;
+  /* ── World-fixed ground grid (flat missions only) ── */
+  if (!hasTerrain) {
+    const GRID_NM         = 0.5;
+    const GRID_RANGE_FWD  = 18;
+    const GRID_RANGE_SIDE = 20;
+    const GRID_RANGE_BACK =  3;
 
-  const acLatNm = (S.lat ?? 0) * 60;
-  const acLonNm = (S.lon ?? 0) * 60 * Math.cos((S.lat ?? 0) * DEG);
+    const acLatNm = (S.lat ?? 0) * 60;
+    const acLonNm = (S.lon ?? 0) * 60 * Math.cos((S.lat ?? 0) * DEG);
 
-  const gridColor = isArctic ? '#b0bcc4' : isWater ? '#1e4a78' : '#2d5a22';
-  ctx.strokeStyle = gridColor;
-  ctx.lineWidth   = 1 * devicePixelRatio;
-  ctx.setLineDash([]);
+    const gridColor = isArctic ? '#b0bcc4' : isWater ? '#1e4a78' : '#2d5a22';
+    ctx.strokeStyle = gridColor;
+    ctx.lineWidth   = 1 * devicePixelRatio;
+    ctx.setLineDash([]);
 
-  const firstLatNm = Math.ceil((acLatNm  - GRID_RANGE_BACK) / GRID_NM) * GRID_NM;
-  const lastLatNm  = Math.floor((acLatNm + GRID_RANGE_FWD)  / GRID_NM) * GRID_NM;
-  ctx.beginPath();
-  for (let lnm = firstLatNm; lnm <= lastLatNm; lnm += GRID_NM) {
-    const dN = lnm - acLatNm;
-    const p1 = projNE(dN, -GRID_RANGE_SIDE);
-    const p2 = projNE(dN,  GRID_RANGE_SIDE);
-    if (p1 && p2) { ctx.moveTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]); }
+    const firstLatNm = Math.ceil((acLatNm  - GRID_RANGE_BACK) / GRID_NM) * GRID_NM;
+    const lastLatNm  = Math.floor((acLatNm + GRID_RANGE_FWD)  / GRID_NM) * GRID_NM;
+    ctx.beginPath();
+    for (let lnm = firstLatNm; lnm <= lastLatNm; lnm += GRID_NM) {
+      const dN = lnm - acLatNm;
+      const p1 = projNE(dN, -GRID_RANGE_SIDE);
+      const p2 = projNE(dN,  GRID_RANGE_SIDE);
+      if (p1 && p2) { ctx.moveTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]); }
+    }
+    ctx.stroke();
+
+    const firstLonNm = Math.ceil((acLonNm  - GRID_RANGE_SIDE) / GRID_NM) * GRID_NM;
+    const lastLonNm  = Math.floor((acLonNm + GRID_RANGE_SIDE) / GRID_NM) * GRID_NM;
+    ctx.beginPath();
+    for (let lnm = firstLonNm; lnm <= lastLonNm; lnm += GRID_NM) {
+      const dE = lnm - acLonNm;
+      const p1 = projNE(-GRID_RANGE_BACK, dE);
+      const p2 = projNE( GRID_RANGE_FWD,  dE);
+      if (p1 && p2) { ctx.moveTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]); }
+    }
+    ctx.stroke();
   }
-  ctx.stroke();
-
-  const firstLonNm = Math.ceil((acLonNm  - GRID_RANGE_SIDE) / GRID_NM) * GRID_NM;
-  const lastLonNm  = Math.floor((acLonNm + GRID_RANGE_SIDE) / GRID_NM) * GRID_NM;
-  ctx.beginPath();
-  for (let lnm = firstLonNm; lnm <= lastLonNm; lnm += GRID_NM) {
-    const dE = lnm - acLonNm;
-    const p1 = projNE(-GRID_RANGE_BACK, dE);
-    const p2 = projNE( GRID_RANGE_FWD,  dE);
-    if (p1 && p2) { ctx.moveTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]); }
-  }
-  ctx.stroke();
 
   /* ── Atmospheric haze at horizon ── */
   const horizonY = cy + Math.tan(pitch) * focal;
@@ -393,6 +485,22 @@ export function renderTerrain(canvas) {
   }
 
   /* ── Vehicle silhouette HUD (rocket missions only) — rendered by map.js ── */
+
+  /* ── FPS counter ── */
+  const now = performance.now();
+  _fpsCount++;
+  if (now - _fpsLast >= 1000) {
+    _fpsDisplay = _fpsCount;
+    _fpsCount   = 0;
+    _fpsLast    = now;
+  }
+  ctx.save();
+  ctx.font        = `${11 * devicePixelRatio}px 'IBM Plex Mono', monospace`;
+  ctx.fillStyle   = 'rgba(255,255,255,0.5)';
+  ctx.textAlign   = 'right';
+  ctx.textBaseline = 'top';
+  ctx.fillText(`${_fpsDisplay} fps`, W - 8 * devicePixelRatio, 8 * devicePixelRatio);
+  ctx.restore();
 }
 
 /* Lerp colour channel: low-alt value a, high-alt value b */

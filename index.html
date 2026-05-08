@@ -370,6 +370,65 @@
       letter-spacing: 0.22em;
     }
 
+    /* ── Velis MET clock — clean modern aviation LCD ── */
+    #mission-clock.velis .ck-housing {
+      background: rgba(8, 12, 18, 0.92);
+      border: 1px solid rgba(0, 200, 224, 0.18);
+      box-shadow: 0 0 14px rgba(0, 200, 224, 0.04);
+    }
+    #mission-clock.velis .ck-tube {
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      width: 22px; height: 40px;
+    }
+    #mission-clock.velis .ck-tube::before { display: none; }
+    #mission-clock.velis .ck-digit {
+      color: #00c8e0;
+      font-size: 26px;
+      text-shadow: 0 0 6px rgba(0, 200, 224, 0.35);
+    }
+    #mission-clock.velis .ck-digit.tick { animation: ck-tick 0.07s ease-out; }
+    #mission-clock.velis .ck-sep { gap: 8px; }
+    #mission-clock.velis .ck-dot {
+      background: #00c8e0;
+      box-shadow: 0 0 4px rgba(0, 200, 224, 0.50);
+      width: 3px; height: 3px;
+    }
+    #mission-clock.velis .ck-label {
+      color: rgba(0, 200, 224, 0.32);
+      letter-spacing: 0.22em;
+    }
+
+    #mission-clock.g1000 .ck-housing {
+      background: rgba(6, 10, 16, 0.94);
+      border: 1px solid rgba(180, 210, 255, 0.14);
+      box-shadow: none;
+    }
+    #mission-clock.g1000 .ck-tube {
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      width: 22px; height: 40px;
+    }
+    #mission-clock.g1000 .ck-tube::before { display: none; }
+    #mission-clock.g1000 .ck-digit {
+      color: #e8f4ff;
+      font-size: 26px;
+      text-shadow: none;
+    }
+    #mission-clock.g1000 .ck-digit.tick { animation: ck-tick 0.07s ease-out; }
+    #mission-clock.g1000 .ck-sep { gap: 8px; }
+    #mission-clock.g1000 .ck-dot {
+      background: #e8f4ff;
+      box-shadow: none;
+      width: 3px; height: 3px;
+    }
+    #mission-clock.g1000 .ck-label {
+      color: rgba(232, 244, 255, 0.30);
+      letter-spacing: 0.22em;
+    }
+
     /* ── ADS-B tracking badge ── */
     #tracking-badge {
       position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
@@ -647,6 +706,7 @@
     body.g1000-active #com-container {
       left: auto; right: 20px; bottom: 110px;
     }
+
 
     .com-panel {
       background: rgba(3,6,10,0.94);
@@ -3380,7 +3440,8 @@
         const hasOwnUI = isVelis || isG1000;
         const isDragon = isRocket && !!(S.mission?.dragonSepT);
         canvas.style.pointerEvents = (isVelis || isArm || isDragon || isG1000) ? 'auto' : 'none';
-        document.body.classList.toggle('g1000-active', isG1000);
+        document.body.classList.toggle('g1000-active',  isG1000);
+        document.body.classList.toggle('velis-active',  isVelis);
         document.getElementById('hc-panel').style.display      = isHover ? 'flex' : 'none';
         document.getElementById('com-container').style.display  =
           (isHover || isVelis || isArm) ? 'none' : (isG1000 ? (S.comPanelVisible ? '' : 'none') : '');
@@ -3580,6 +3641,8 @@
     if (!_ckEls.h1) _ckInit();
     el.classList.add('visible');
     el.classList.toggle('dragon', !!(S.mission?.dragonSepT));
+    el.classList.toggle('velis',  S.aircraft?.panel === 'velis-epsi');
+    el.classList.toggle('g1000',  S.aircraft?.panel === 'g1000');
     const t = Math.max(0, Math.floor(S.time ?? 0));
     const h = Math.floor(t / 3600);
     const m = Math.floor((t % 3600) / 60);

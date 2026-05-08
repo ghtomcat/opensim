@@ -44,6 +44,7 @@ OpenSim is not a game. It is a modular simulation engine that runs entirely in t
 - **Real aerodynamic physics** — lift, drag, thrust, weight from first principles. Not kinematic approximations.
 - **Procedural sound** — engine sounds synthesised from physics. No samples. Wind rises with airspeed. The DB 601 fires 12 cylinders. The NK-12 turboprop beats at 3.8Hz.
 - **Historically accurate comm chain** — every voice passes through the correct radio equipment for its era. VHF aviation, NASA S-band, Soviet VHF, SpaceX IP backbone. Pre-recorded voices, archival recordings, or TTS — all through the same chain.
+- **Real terrain** — Mapbox Terrain-RGB tiles (Copernicus DEM, 30m resolution) projected onto a flat-earth pinhole camera. Mountain silhouettes, elevation-based colour, atmospheric haze. 61 fps on M2.
 - **Any aircraft** — envelope, performance, handling, sound, crew language, checklists in one JSON file
 - **Any mission** — weather, ATC clearances, classified briefing documents, scripted failures, crew voices in one JSON file
 - **Live radar** — real flights via OpenSky Network, color-coded by destination, route lines to arrival airport, 150/400/1000nm range
@@ -364,7 +365,7 @@ display/
   dragon.js      — Dragon capsule crew seat displays (CDR / PLT / MO / MS)
   rocket_display.js — SpaceX-style telemetry, split panel for RTLS
   map.js         — world map (rocket) + local mini-map + vehicle silhouette panels
-  terrain.js     — 3D outside view: day/night sky, stars, water, space
+  terrain.js     — 3D outside view: Terrain-RGB elevation, day/night sky, stars, water, space
   com.js         — COM radio + transponder
   robot_arm.js   — SO-101 6-DOF arm visualisation
   svg/           — vehicle silhouettes: dragon.svg, trunk.svg, stage2.svg, stage1.svg

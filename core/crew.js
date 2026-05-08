@@ -5,7 +5,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from './state.js';
-import { playThroughChain } from './radio.js';
+import { playThroughChain, createRadioChain } from './radio.js';
 import { getAudioContext, getEngineBleedNode } from './sound.js';
 
 /* ── Voice handles ── */
@@ -26,6 +26,8 @@ let _prevFlaps        = 0;
 let _prevGear         = false;
 let _prevSpd          = 0;
 let _prevWow          = false;
+let _prevComPowered   = false;
+let _radioAtmosphere  = null;   // active radio chain while ATC speaks (TTS path)
 const _pmFired        = new Set();   // altitude callout thresholds already fired
 const _gpwsFired      = new Set();   // GPWS callout altitudes already fired
 const _takeoffFired   = new Set();   // takeoff speed callouts already fired
@@ -110,8 +112,9 @@ export function tickCrew(prevAlt, currAlt) {
   _checkApproachBrief(prevAlt, currAlt, ms);
   _checkTakeoffCallouts(ac);
 
-  _prevSpd = S.spd ?? 0;
-  _prevWow = S.wow ?? false;
+  _prevSpd        = S.spd ?? 0;
+  _prevWow        = S.wow ?? false;
+  _prevComPowered = _isComPowered();
 
   /* Advance rocket prev-state for event edge detection */
   if (ac.vehicleType === 'rocket') {
@@ -152,6 +155,7 @@ export function resetCrew() {
   _gpwsFired.clear();
   _takeoffFired.clear();
   _rocketFired.clear();
+  _prevComPowered = false;
   _prevVelMs = 0; _prevDynQ = 0;
   _prevRocketCoast = false; _prevRocketStage = 1;
   _prevRocketSECO = false; _prevOrbit = false;
@@ -270,6 +274,64 @@ function _voiceFor(voiceName) {
   }
 }
 
+/* ── PTT click — short filtered noise transient, heard in cockpit ── */
+function _pttClick() {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+  const dur  = 0.009;
+  const buf  = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * dur), ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < data.length; i++)
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 1.4);
+  const src  = ctx.createBufferSource();
+  const hpf  = ctx.createBiquadFilter();
+  const gain = ctx.createGain();
+  src.buffer = buf;
+  hpf.type   = 'highpass'; hpf.frequency.value = 700;
+  gain.gain.value = 0.28;
+  src.connect(hpf); hpf.connect(gain); gain.connect(ctx.destination);
+  src.start();
+}
+
+/* ── Radio atmosphere for TTS ATC voice (TTS can't be filtered directly) ── */
+async function _startRadioAtmosphere(profileName) {
+  _stopRadioAtmosphere();
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const chain  = await createRadioChain(ctx, profileName);
+    const silence = ctx.createGain();
+    silence.gain.value = 0;   // no voice source — only noise/crackle generators run
+    silence.connect(chain.input);
+    chain.output.connect(ctx.destination);
+    _radioAtmosphere = chain;
+  } catch (e) {
+    console.warn('[crew] radio atmosphere:', e.message);
+  }
+}
+
+function _stopRadioAtmosphere() {
+  if (!_radioAtmosphere) return;
+  const chain = _radioAtmosphere;
+  _radioAtmosphere = null;
+  chain.squelchTail();
+  setTimeout(() => chain.destroy(), 500);
+}
+
+/* ── COM power state — panel-aware ── */
+function _isComPowered() {
+  const ac = S.aircraft;
+  if (!ac) return true;
+  if (ac.panel === 'velis') {
+    const sw = S.switches;
+    return !!(sw?.master && sw?.battEn && sw?.avionics);
+  }
+  if (ac.panel === 'g1000') {
+    return S.masterBat !== false && S.avionicsOn !== false;
+  }
+  return true;   // rockets, autopilot aircraft — COM always available
+}
+
 /* ── Evaluate a structured trigger object ── */
 function _evalTrigger(tr) {
   switch (tr.type) {
@@ -286,6 +348,8 @@ function _evalTrigger(tr) {
       return (S.rocketG ?? 0) >= tr.min;
     case 'meco':
       return !!(S.rocketMECO);
+    case 'com_active':
+      return _isComPowered() && !_prevComPowered;
     case 'after': {
       const endT = _atcEndedAt[tr.idx];
       return endT !== undefined && (S.time ?? 0) >= endT + (tr.delay ?? 1);
@@ -363,28 +427,86 @@ function _checkATC(prev, curr, ms) {
       return;
     }
 
-    /* TTS call-response: { pm, atc } — PM requests, ATC responds */
-    const pmText  = clr.pm  ?? '';
-    const atcText = clr.atc ?? '';
-    const pmU = _makeUtt(pmText, _pmVoice, { rate: 0.92, pitch: 1.18 });
-    pmU.onend = () => {
+    /* TTS call-response: { pm, atc, ack } — PM calls, ATC responds, PM acknowledges.
+       pmAudio / atcAudio / ackAudio override TTS with pre-recorded files.
+       PM + ack: in-cockpit (direct, PTT click). ATC: radio chain + engine bleed. */
+    const pmText   = clr.pm  ?? '';
+    const atcText  = clr.atc ?? '';
+    const ackText  = clr.ack ?? '';
+    const pmAudio  = clr.pmAudio  ?? null;
+    const atcAudio = clr.atcAudio ?? null;
+    const ackAudio = clr.ackAudio ?? null;
+    const profile  = clr.commProfile ?? S.mission?.commProfile ?? 'vhf-aviation';
+
+    if (!_isComPowered()) return;
+
+    const _head = url => fetch(url, { method: 'HEAD' }).then(r => r.ok).catch(() => false);
+
+    /* Step 3 — PM acknowledges (in-cockpit, direct) */
+    const _doAck = () => {
+      const done = () => { _atcEndedAt[capturedIdx] = S.time; };
+      if (!ackText && !ackAudio) { done(); return; }
       setTimeout(() => {
-        const lower = atcText.toLowerCase();
+        _pttClick();
+        setTimeout(async () => {
+          if (ackAudio && await _head(ackAudio)) {
+            _playFile(ackAudio, () => { _pttClick(); done(); });
+          } else if (ackText) {
+            const u = _makeUtt(ackText, _pmVoice, { rate: 0.92, pitch: 1.18 });
+            u.onend = () => { _pttClick(); done(); };
+            _safeSpeak(u);
+          } else { done(); }
+        }, 80);
+      }, 600);
+    };
+
+    /* Step 2 — ATC responds (over radio chain, variable delay) */
+    const _doAtc = () => {
+      const delay = Math.floor(800 + Math.random() * 600);   // 0.8–1.4 s
+      setTimeout(async () => {
+        const afterAtc = () => { _stopRadioAtmosphere(); _doAck(); };
+
+        if (atcAudio && await _head(atcAudio)) {
+          /* Pre-recorded file — playRadio builds its own chain + engine bleed */
+          playRadio(atcAudio, { profile, onEnded: afterAtc });
+          return;
+        }
+
+        /* TTS fallback — atmosphere opens, brief pause, then voice */
+        _startRadioAtmosphere(profile);
+        await new Promise(r => setTimeout(r, 150));
+        const lower   = atcText.toLowerCase();
         const fileKey = Object.keys(AUDIO_FILES).find(k => lower.includes(k));
         if (fileKey) {
-          const i    = lower.indexOf(fileKey);
+          const i = lower.indexOf(fileKey);
           const pre  = atcText.slice(0, i).trim();
           const post = atcText.slice(i + fileKey.length).trim();
-          const chain = post ? () => setTimeout(() => speakATC(post), 400) : () => {};
+          const chain = post
+            ? () => setTimeout(() => { const u = _makeUtt(post, _atcVoice, { rate: 1.08, pitch: 0.78 }); u.onend = afterAtc; _safeSpeak(u); }, 400)
+            : afterAtc;
           const atcU = _makeUtt(pre || '.', _atcVoice, { rate: 1.08, pitch: 0.78 });
           atcU.onend = () => setTimeout(() => _playFile(AUDIO_FILES[fileKey], chain), 300);
           _safeSpeak(atcU);
         } else {
-          speakATC(atcText);
+          const atcU = _makeUtt(atcText, _atcVoice, { rate: 1.00, pitch: 1.00, volume: 1.0 });
+          atcU.onend = afterAtc;
+          _safeSpeak(atcU);
         }
-      }, 1200);
+      }, delay);
     };
-    _safeSpeak(pmU);
+
+    /* Step 1 — PM calls (in-cockpit, direct) — PTT click, 80 ms, voice */
+    _pttClick();
+    setTimeout(async () => {
+      const afterPM = () => { _pttClick(); _doAtc(); };
+      if (pmAudio && await _head(pmAudio)) {
+        _playFile(pmAudio, afterPM);
+      } else {
+        const pmU = _makeUtt(pmText, _pmVoice, { rate: 0.92, pitch: 1.18 });
+        pmU.onend = afterPM;
+        _safeSpeak(pmU);
+      }
+    }, 80);
   });
 }
 
@@ -723,6 +845,7 @@ function _playFile(src, onended) {
    ─────────────────────────────────────────────────────────────── */
 /* Cockpit environments that blend engine noise into received comms */
 const COCKPIT_PROFILES = {
+  'vhf-aviation':    { bleedLevel: 0.025 }, // subtle engine under received ATC voice
   'cockpit-bf109':   { bleedLevel: 0.04 },
   'cockpit-c172':    { bleedLevel: 0.05 },
   'capsule-dragon':  { bleedLevel: 0.04 },

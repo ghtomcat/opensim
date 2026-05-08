@@ -523,6 +523,31 @@ function _hsi(ctx, x, y, w, h) {
   ctx.strokeStyle = G.white; ctx.lineWidth = 2;
   _line(ctx, cx, cy - r * 0.15, cx, cy + r * 0.15);
   _line(ctx, cx - r * 0.15, cy, cx + r * 0.15, cy);
+
+  /* Flap indicator — bottom-right of HSI, outside compass rose */
+  const flaps_arr = S.aircraft?.flaps ?? [];
+  if (flaps_arr.length > 1) {
+    const fi  = S.flaps ?? 0;
+    const fp  = flaps_arr[fi];
+    const lbl = fi === 0 ? 'UP' : (fp?.deg !== undefined ? fp.deg + '°' : fp?.label ?? 'DN');
+    const dep = fi > 0;
+    const bw  = r * 0.62;
+    const bh  = r * 0.32;
+    const bx  = x + w - bw - r * 0.06;
+    const by  = y + h - bh - h * 0.04;
+    ctx.fillStyle = dep ? 'rgba(255,183,77,0.12)' : 'rgba(0,0,0,0.35)';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = dep ? G.amber : 'rgba(255,255,255,0.14)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx, by, bw, bh);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = G.dim;
+    ctx.font = `${Math.round(bh * 0.30)}px ${MONO}`;
+    ctx.fillText('FLPS', bx + bw / 2, by + bh * 0.30);
+    ctx.fillStyle = dep ? G.amber : G.white;
+    ctx.font = `bold ${Math.round(bh * 0.56)}px ${MONO}`;
+    ctx.fillText(lbl, bx + bw / 2, by + bh * 0.72);
+  }
 }
 
 /* ══════════════════════════════════════════
@@ -684,10 +709,10 @@ function _switchPanel(ctx, x, y, w, h) {
 
   const li   = S.lights ?? {};
   const swW  = Math.round(w * 0.40);   /* toggle width — fits two per row */
-  const swH  = Math.round(h * 0.085);  /* toggle height */
+  const swH  = Math.round(h * 0.070);  /* toggle height */
   const cx1  = x + w * 0.28;
   const cx2  = x + w * 0.72;
-  const rg   = h * 0.014;              /* row gap */
+  const rg   = h * 0.010;              /* row gap */
 
   const reg2 = (cx, sy, action) =>
     _swHits.push({ x: cx - swW / 2, y: sy, w: swW, h: swH, action });
@@ -699,7 +724,9 @@ function _switchPanel(ctx, x, y, w, h) {
     ctx.fillText(text, x + w / 2, ly);
   };
 
-  let sy = y + h * 0.03;
+  /* Start below MET clock (fixed at ~top:90px + ~80px height in CSS).
+     h * 0.24 clears the clock on 768p–1440p at DPR 1–2. */
+  let sy = y + h * 0.24;
 
   /* ── MASTER ── */
   secLabel('MASTER', sy); sy += h * 0.032;
@@ -707,14 +734,14 @@ function _switchPanel(ctx, x, y, w, h) {
   reg2(cx1, sy, () => setState({ masterBat: !S.masterBat }));
   _toggleSwitch(ctx, cx2, sy, swW, swH, S.masterAlt, 'ALT');
   reg2(cx2, sy, () => setState({ masterAlt: !S.masterAlt }));
-  sy += swH + rg * 3;
+  sy += swH + rg * 2;
 
   /* ── AVIONICS ── */
   secLabel('AVIONICS', sy); sy += h * 0.032;
   _toggleSwitch(ctx, x + w / 2, sy, swW, swH, S.avionicsOn, 'AVNCS');
   _swHits.push({ x: x + w / 2 - swW / 2, y: sy, w: swW, h: swH,
                  action: () => setState({ avionicsOn: !S.avionicsOn }) });
-  sy += swH + rg * 3;
+  sy += swH + rg * 2;
 
   /* ── FUEL PUMP ── */
   secLabel('FUEL PUMP', sy); sy += h * 0.032;
@@ -726,7 +753,7 @@ function _switchPanel(ctx, x, y, w, h) {
       if (next) startFuelPump(); else stopFuelPump();
     }
   });
-  sy += swH + rg * 3;
+  sy += swH + rg * 2;
 
   /* ── MAGNETO ── */
   secLabel('MAGNETO', sy); sy += h * 0.032;
@@ -743,7 +770,7 @@ function _switchPanel(ctx, x, y, w, h) {
       if (next === 'OFF')   stopEngineLifecycle();
     }
   });
-  sy = magCy + magR * 1.55 + rg * 3;
+  sy = magCy + magR * 1.55 + rg * 2;
 
   /* ── LIGHTS ── */
   secLabel('LIGHTS', sy); sy += h * 0.032;
@@ -759,33 +786,39 @@ function _switchPanel(ctx, x, y, w, h) {
 }
 
 function _toggleSwitch(ctx, cx, y, w, h, on, label) {
-  /* housing */
-  const bw = w;
-  const bh = h * 0.28;
-  const by = y + h * 0.50;
-  ctx.fillStyle   = '#141820';
-  ctx.fillRect(cx - bw / 2, by, bw, bh);
-  ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1;
-  ctx.strokeRect(cx - bw / 2, by, bw, bh);
+  /* Housing (recessed dark plate) */
+  const hw = w * 0.60, hh = h * 0.38;
+  const hx = cx - hw / 2, hy = y + h * 0.18;
+  _roundRect(ctx, hx, hy, hw, hh, hw * 0.14);
+  ctx.fillStyle = '#0c1018'; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 0.8; ctx.stroke();
 
-  /* lever */
-  const lw   = w * 0.46;
-  const lh   = h * 0.46;
-  const tilt = on ? -0.28 : 0.28;
-  ctx.save();
-  ctx.translate(cx, by + bh * 0.5);
-  ctx.rotate(tilt);
-  ctx.fillStyle = on ? '#b8bcc8' : '#44484e';
-  ctx.fillRect(-lw / 2, -lh, lw, lh);
-  ctx.fillStyle = on ? 'rgba(255,255,255,0.20)' : 'rgba(255,255,255,0.06)';
-  ctx.fillRect(-lw / 2 + 2, -lh + 3, lw * 0.36, lh - 6);
-  ctx.restore();
+  /* Lever — thin bat-handle: UP = ON, DOWN = OFF */
+  const lw = hw * 0.30, lh = h * 0.44;
+  const pvY = hy + hh * 0.50;
+  const levY = on ? pvY - lh : pvY;
+  _roundRect(ctx, cx - lw / 2, levY, lw, lh, lw * 0.30);
+  ctx.fillStyle = on ? '#9eaabf' : '#2c3038'; ctx.fill();
 
-  /* label */
-  ctx.fillStyle    = on ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.22)';
-  ctx.font         = `${Math.round(Math.min(w * 0.52, h * 0.14))}px ${MONO}`;
+  /* Lever highlight */
+  ctx.fillStyle = on ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.04)';
+  ctx.fillRect(cx - lw / 2 + lw * 0.14, levY + lh * 0.12, lw * 0.26, lh * 0.76);
+
+  /* LED indicator dot below housing */
+  const dotR = Math.min(hw, hh) * 0.12;
+  const dotY = hy + hh + dotR * 2.0;
+  ctx.beginPath(); ctx.arc(cx, dotY, dotR, 0, Math.PI * 2);
+  ctx.fillStyle = on ? '#38d060' : '#101810'; ctx.fill();
+  if (on) {
+    ctx.beginPath(); ctx.arc(cx, dotY, dotR * 1.9, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(56,208,96,0.22)'; ctx.lineWidth = dotR * 0.8; ctx.stroke();
+  }
+
+  /* Label */
+  ctx.fillStyle    = on ? 'rgba(255,255,255,0.62)' : 'rgba(255,255,255,0.24)';
+  ctx.font         = `${Math.round(Math.min(w * 0.46, h * 0.115))}px ${MONO}`;
   ctx.textAlign    = 'center'; ctx.textBaseline = 'bottom';
-  ctx.fillText(label, cx, y + h * 0.98);
+  ctx.fillText(label, cx, y + h);
 }
 
 function _magRotary(ctx, cx, cy, r, state) {
@@ -807,9 +840,22 @@ function _magRotary(ctx, cx, cy, r, state) {
   });
 
   /* knob */
+  const kg = ctx.createRadialGradient(cx - r * 0.24, cy - r * 0.24, r * 0.06, cx, cy, r);
+  kg.addColorStop(0, '#2c3040');
+  kg.addColorStop(1, '#141820');
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fillStyle = '#1c2030'; ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = kg; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 1.2; ctx.stroke();
+
+  /* knurling */
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a) * r * 0.74, cy + Math.sin(a) * r * 0.74);
+    ctx.lineTo(cx + Math.cos(a) * r * 0.94, cy + Math.sin(a) * r * 0.94);
+    ctx.stroke();
+  }
 
   /* pointer */
   const pAng = ((pos[state] ?? 0) - 90) * Math.PI / 180;
@@ -1064,4 +1110,14 @@ function _barGauge(ctx, x, y, w, h, val, min, max, label, text, bands, labelColo
 /* ── Util ── */
 function _line(ctx, x1, y1, x2, y2) {
   ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+}
+
+function _roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y,     x + w, y + r);
+  ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x,     y + h, x,     y + h - r);
+  ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
 }

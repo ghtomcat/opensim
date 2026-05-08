@@ -61,7 +61,35 @@
     }
   },
 
-  "atcClearances": [],
+  "commProfile": "vhf-aviation",
+
+  "atcClearances": [
+    {
+      "trigger": { "type": "com_active" },
+      "pm":       "Grenchen Information, HB-SYC, good morning, on the apron, VFR circuit, request airfield information",
+      "atc":      "HB-SYC, Grenchen Information, good morning. Runway two-six, QNH one zero one eight, wind two-six-zero at five knots, left-hand circuit. Report departing.",
+      "atcAudio": "audio/lszg-velis/atc-initial.mp3",
+      "ack":      "Runway two-six, QNH one zero one eight, wilco, HB-SYC"
+    },
+    {
+      "trigger": { "type": "airborne" },
+      "pm":  "Grenchen Information, HB-SYC, departing two-six, circuit left-hand",
+      "atc": "HB-SYC, roger, report downwind",
+      "ack": "Wilco, HB-SYC"
+    },
+    {
+      "trigger": { "type": "after", "idx": 1, "delay": 120 },
+      "pm":  "Grenchen Information, HB-SYC, downwind two-six",
+      "atc": "HB-SYC, number one, runway two-six, report final",
+      "ack": "Number one, runway two-six, HB-SYC"
+    },
+    {
+      "trigger": { "type": "after", "idx": 2, "delay": 60 },
+      "pm":  "Grenchen Information, HB-SYC, final two-six",
+      "atc": "HB-SYC, runway two-six, clear to land, wind two-six-zero at five",
+      "ack": "Clear to land, runway two-six, HB-SYC"
+    }
+  ],
 
   "narrative": [
     "Grenchen. Runway 26.",

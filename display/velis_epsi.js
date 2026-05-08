@@ -109,8 +109,8 @@ export function renderVelisEpsi(canvas) {
   _drawEPSI(ctx, canvas, epX, cy, epW * 0.88, H * 0.92, sc);
 
   /* ── ZONE 4: Backup gauges ── */
-  _drawBackupASI(ctx, bkX, cy - Rs * 1.12, Rs, sc);
-  _drawBackupAlt(ctx, bkX, cy + Rs * 1.12, Rs, sc);
+  _drawBackupASI(ctx, bkX, cy - Rs * 1.12, Rs);
+  _drawBackupAlt(ctx, bkX, cy + Rs * 1.12, Rs);
 
   /* Paused */
   if (S.paused) {
@@ -249,28 +249,44 @@ function _drawSwitchPanel(ctx, cx, cy, zoneW, H, sc) {
   const x0   = cx - zoneW/2 + pad;
   const w    = zoneW - pad*2;
 
-  /* ── COM radio (top half) ── */
-  const comH = H * 0.46;
-  const comY = cy - H/2 + pad;
-  _drawCOMRadio(ctx, x0, comY, w, comH, sc);
-
-  /* ── Master switches (bottom half) ── */
-  const swY = comY + comH + pad;
-  const swH = H - comY - comH - pad * 2;
+  /* ── Master switches (top 65%) ── */
+  const swH = Math.floor(H * 0.65);
+  const swY = cy - H/2 + pad;
   _drawMasterSwitches(ctx, x0, swY, w, swH, sc);
+
+  /* ── COM radio (bottom 33%) ── */
+  const comY = swY + swH + pad;
+  const comH = Math.floor(H * 0.33 - pad);
+  _drawCOMRadio(ctx, x0, comY, w, comH, sc);
 }
 
 function _drawCOMRadio(ctx, x0, y0, w, h, sc) {
+  const sw  = S.switches;
+  const on  = sw.master && sw.battEn && sw.avionics;
   const com = getCOMState();
 
   ctx.save();
   _roundRect(ctx, x0, y0, w, h, 6*sc);
   ctx.fillStyle   = P.recess;
   ctx.fill();
-  ctx.strokeStyle = 'rgba(0,200,224,0.15)';
+  ctx.strokeStyle = on ? 'rgba(0,200,224,0.15)' : 'rgba(255,255,255,0.05)';
   ctx.lineWidth   = 1.2;
   ctx.stroke();
   ctx.clip();
+
+  if (!on) {
+    /* Dark screen — COM unpowered */
+    ctx.fillStyle    = 'rgba(255,255,255,0.08)';
+    ctx.font         = `${8*sc}px ${SANS}`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('COM', x0 + w/2, y0 + h/2 - 8*sc);
+    ctx.fillStyle    = 'rgba(255,255,255,0.04)';
+    ctx.font         = `${6.5*sc}px ${SANS}`;
+    ctx.fillText('NO POWER', x0 + w/2, y0 + h/2 + 8*sc);
+    ctx.restore();
+    return;
+  }
 
   /* Header */
   ctx.fillStyle    = 'rgba(0,200,224,0.08)';
@@ -333,7 +349,7 @@ function _drawCOMRadio(ctx, x0, y0, w, h, sc) {
   ctx.textBaseline = 'middle';
   ctx.fillText('⇅', flipX + flipW/2, flipY + flipH/2);
 
-  /* Register FLIP hit region */
+  /* Register FLIP hit region only when powered */
   _hitRegions.push({
     x: flipX, y: flipY, w: flipW, h: flipH,
     action: () => comTransfer()
@@ -357,78 +373,163 @@ function _drawCOMRadio(ctx, x0, y0, w, h, sc) {
 
 function _drawMasterSwitches(ctx, x0, y0, w, h, sc) {
   const sw  = S.switches;
+  const cpx = x0 + w / 2;
 
-  /* G1000-style dark panel */
+  /* Dark panel */
   ctx.fillStyle = '#0c0e14';
   ctx.fillRect(x0, y0, w, h);
   ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(x0, y0); ctx.lineTo(x0 + w, y0);   /* top edge */
+  ctx.moveTo(x0, y0); ctx.lineTo(x0 + w, y0);
   ctx.stroke();
 
-  const swW  = Math.round(w * 0.40);
-  const swH  = Math.round(h * 0.095);
-  const cx1  = x0 + w * 0.28;
-  const cx2  = x0 + w * 0.72;
-  const rg   = h * 0.014;
+  const swW = Math.round(w * 0.42);
+  const swH = Math.round(h * 0.07);
+  const cx1 = x0 + w * 0.28;
+  const cx2 = x0 + w * 0.72;
 
-  const reg = (cx, sy, action) =>
-    _hitRegions.push({ x: cx - swW / 2, y: sy, w: swW, h: swH, action });
+  const reg = (cx, sy, tw, th, action) =>
+    _hitRegions.push({ x: cx - tw / 2, y: sy, w: tw, h: th, action });
 
   const secLabel = (text, ly) => {
-    ctx.fillStyle    = 'rgba(255,255,255,0.22)';
-    ctx.font         = `${Math.round(h * 0.022)}px ${MONO}`;
+    ctx.fillStyle    = 'rgba(255,255,255,0.20)';
+    ctx.font         = `${Math.round(h * 0.026)}px ${MONO}`;
     ctx.textAlign    = 'center'; ctx.textBaseline = 'top';
-    ctx.fillText(text, x0 + w / 2, ly);
+    ctx.fillText(text, cpx, ly);
   };
 
-  let sy = y0 + h * 0.04;
+  /* Start below MET clock. h = switch zone height (H*0.65).
+     h*0.42 clears the ~170px clock for viewports ≥ 600px; DPR floor catches smaller screens. */
+  let sy = y0 + Math.max(h * 0.42, 185 * devicePixelRatio);
 
-  /* ── ELECTRICAL ── */
-  secLabel('ELECTRICAL', sy); sy += h * 0.032;
-  _velisToggle(ctx, cx1, sy, swW, swH, sw.master, 'MASTER');
-  reg(cx1, sy, () => { sw.master = !sw.master;  _updateElectricEngine(); });
-  _velisToggle(ctx, cx2, sy, swW, swH, sw.battEn, 'BATT');
-  reg(cx2, sy, () => { sw.battEn = !sw.battEn;  _updateElectricEngine(); });
-  sy += swH + rg * 3;
+  /* ── MASTER key rotary ──
+     keyR = min(w*0.15, h*0.09) ensures everything fits after the h*0.42 offset. */
+  const keyR = Math.min(w * 0.15, h * 0.09);
+  const keyY = sy + keyR * 1.60;
+  _velisKey(ctx, cpx, keyY, keyR, sw.master);
+  reg(cpx, sy, keyR * 3.4, keyR * 3.6,
+    () => { S.switches.master = !S.switches.master; _updateElectricEngine(); });
+  sy = keyY + keyR * 2.15 + h * 0.010;
 
-  /* ── MOTOR ── */
-  secLabel('MOTOR', sy); sy += h * 0.032;
-  _velisToggle(ctx, x0 + w / 2, sy, swW, swH, sw.pwrEn, 'PWR EN');
-  reg(x0 + w / 2, sy, () => { sw.pwrEn = !sw.pwrEn; _updateElectricEngine(); });
-  sy += swH + rg * 3;
+  /* ── POWER: BATT EN + PWR EN ── */
+  secLabel('POWER', sy); sy += h * 0.032;
+  _velisToggle(ctx, cx1, sy, swW, swH, sw.battEn, 'BATT EN');
+  reg(cx1, sy, swW, swH, () => { S.switches.battEn = !S.switches.battEn; _updateElectricEngine(); });
+  _velisToggle(ctx, cx2, sy, swW, swH, sw.pwrEn,  'PWR EN');
+  reg(cx2, sy, swW, swH, () => { S.switches.pwrEn  = !S.switches.pwrEn;  _updateElectricEngine(); });
+  sy += swH + h * 0.010;
 
   /* ── AVIONICS ── */
   secLabel('AVIONICS', sy); sy += h * 0.032;
-  _velisToggle(ctx, x0 + w / 2, sy, swW, swH, sw.avionics, 'AVNCS');
-  reg(x0 + w / 2, sy, () => { sw.avionics = !sw.avionics; _updateElectricEngine(); });
+  _velisToggle(ctx, cpx, sy, swW, swH, sw.avionics, 'AVNCS');
+  reg(cpx, sy, swW, swH, () => { S.switches.avionics = !S.switches.avionics; _updateElectricEngine(); });
 }
 
-/* Physical rocker toggle — matches G1000 _toggleSwitch style */
-function _velisToggle(ctx, cx, y, w, h, on, label) {
-  /* housing */
-  const bw = w, bh = h * 0.28, by = y + h * 0.50;
-  ctx.fillStyle   = '#141820';
-  ctx.fillRect(cx - bw / 2, by, bw, bh);
-  ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1;
-  ctx.strokeRect(cx - bw / 2, by, bw, bh);
+/* Key rotary switch — MASTER only (OFF / RUN) */
+function _velisKey(ctx, cx, cy, r, on) {
+  const degOFF = 225, degRUN = 315;
+  const curDeg = on ? degRUN : degOFF;
 
-  /* lever */
-  const lw = w * 0.46, lh = h * 0.46, tilt = on ? -0.28 : 0.28;
+  /* Outer housing plate */
+  ctx.beginPath(); ctx.arc(cx, cy, r * 1.58, 0, Math.PI * 2);
+  ctx.fillStyle = '#0a0c12'; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 0.8; ctx.stroke();
+
+  /* Arc guide between OFF and RUN */
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 1.30, (degOFF - 90) * Math.PI / 180, (degRUN - 90) * Math.PI / 180);
+  ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1.5; ctx.stroke();
+
+  /* Position labels */
+  [{ text: 'OFF', deg: degOFF }, { text: 'RUN', deg: degRUN }].forEach(({ text, deg }) => {
+    const a = (deg - 90) * Math.PI / 180;
+    ctx.fillStyle = curDeg === deg ? P.white : 'rgba(255,255,255,0.28)';
+    ctx.font      = `${Math.round(r * 0.31)}px ${MONO}`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(text, cx + Math.cos(a) * r * 1.30, cy + Math.sin(a) * r * 1.30);
+  });
+
+  /* Knob body */
+  const kg = ctx.createRadialGradient(cx - r * 0.24, cy - r * 0.24, r * 0.06, cx, cy, r);
+  kg.addColorStop(0, '#2c3040');
+  kg.addColorStop(1, '#141820');
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = kg; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 1.2; ctx.stroke();
+
+  /* Knurling lines (grip texture) */
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+    ctx.lineWidth   = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a) * r * 0.74, cy + Math.sin(a) * r * 0.74);
+    ctx.lineTo(cx + Math.cos(a) * r * 0.94, cy + Math.sin(a) * r * 0.94);
+    ctx.stroke();
+  }
+
+  /* Key slot (rectangular notch toward current position) */
+  const pAng = (curDeg - 90) * Math.PI / 180;
   ctx.save();
-  ctx.translate(cx, by + bh * 0.5);
-  ctx.rotate(tilt);
-  ctx.fillStyle = on ? '#b8bcc8' : '#44484e';
-  ctx.fillRect(-lw / 2, -lh, lw, lh);
-  ctx.fillStyle = on ? 'rgba(255,255,255,0.20)' : 'rgba(255,255,255,0.06)';
-  ctx.fillRect(-lw / 2 + 2, -lh + 3, lw * 0.36, lh - 6);
+  ctx.translate(cx, cy);
+  ctx.rotate(pAng);
+  ctx.fillStyle = '#040508';
+  ctx.fillRect(-r * 0.11, r * 0.06, r * 0.22, r * 0.68);
   ctx.restore();
 
-  /* label */
-  ctx.fillStyle    = on ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.22)';
-  ctx.font         = `${Math.round(Math.min(w * 0.52, h * 0.14))}px ${MONO}`;
+  /* Pointer dot */
+  ctx.beginPath();
+  ctx.arc(cx + Math.cos(pAng) * r * 0.74, cy + Math.sin(pAng) * r * 0.74, r * 0.09, 0, Math.PI * 2);
+  ctx.fillStyle = on ? P.green : 'rgba(255,255,255,0.36)';
+  ctx.fill();
+
+  /* Center cap */
+  ctx.beginPath(); ctx.arc(cx, cy, r * 0.14, 0, Math.PI * 2);
+  ctx.fillStyle = '#b8bcc8'; ctx.fill();
+
+  /* MASTER label below */
+  ctx.fillStyle    = on ? 'rgba(255,255,255,0.55)' : P.dim;
+  ctx.font         = `${Math.round(r * 0.34)}px ${MONO}`;
+  ctx.textAlign    = 'center'; ctx.textBaseline = 'top';
+  ctx.fillText('MASTER', cx, cy + r * 1.70);
+}
+
+/* Real aviation bat-handle toggle switch */
+function _velisToggle(ctx, cx, y, w, h, on, label) {
+  /* Housing (recessed dark plate) */
+  const hw = w * 0.60, hh = h * 0.38;
+  const hx = cx - hw / 2, hy = y + h * 0.18;
+  _roundRect(ctx, hx, hy, hw, hh, hw * 0.14);
+  ctx.fillStyle = '#0c1018'; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 0.8; ctx.stroke();
+
+  /* Lever — thin bat-handle: UP = ON, DOWN = OFF */
+  const lw = hw * 0.30, lh = h * 0.44;
+  const pvY = hy + hh * 0.50;
+  const levY = on ? pvY - lh : pvY;
+
+  _roundRect(ctx, cx - lw / 2, levY, lw, lh, lw * 0.30);
+  ctx.fillStyle = on ? '#9eaabf' : '#2c3038'; ctx.fill();
+
+  /* Lever highlight (left-side sheen) */
+  ctx.fillStyle = on ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.04)';
+  ctx.fillRect(cx - lw / 2 + lw * 0.14, levY + lh * 0.12, lw * 0.26, lh * 0.76);
+
+  /* LED indicator dot below housing */
+  const dotR = Math.min(hw, hh) * 0.12;
+  const dotY = hy + hh + dotR * 2.0;
+  ctx.beginPath(); ctx.arc(cx, dotY, dotR, 0, Math.PI * 2);
+  ctx.fillStyle = on ? '#38d060' : '#101810'; ctx.fill();
+  if (on) {
+    ctx.beginPath(); ctx.arc(cx, dotY, dotR * 1.9, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(56,208,96,0.22)'; ctx.lineWidth = dotR * 0.8; ctx.stroke();
+  }
+
+  /* Label */
+  ctx.fillStyle    = on ? 'rgba(255,255,255,0.62)' : 'rgba(255,255,255,0.24)';
+  ctx.font         = `${Math.round(Math.min(w * 0.46, h * 0.115))}px ${MONO}`;
   ctx.textAlign    = 'center'; ctx.textBaseline = 'bottom';
-  ctx.fillText(label, cx, y + h * 0.98);
+  ctx.fillText(label, cx, y + h);
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -676,10 +777,34 @@ function _drawEPSI(ctx, canvas, cx, cy, w, h, sc) {
   ctx.fillText((vs >= 0 ? '+' : '') + Math.round(vs/10)*10 + ' fpm', cx - col/2, row3Y + 16*sc);
 
   ctx.fillStyle = P.dim;   ctx.font = `${8*sc}px ${SANS}`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText('FLAPS', cx + col/2, row3Y);
-  ctx.fillStyle = flapsIdx === 0 ? P.white : P.cyan;
-  ctx.font      = `bold ${20*sc}px ${MONO}`;
-  ctx.fillText(flapsLabel, cx + col/2, row3Y + 16*sc);
+
+  /* Segmented position indicator */
+  const segW   = Math.min(col * 0.38, 28*sc);
+  const segH   = 14*sc;
+  const segGap = 3*sc;
+  const segsW  = flaps.length * segW + (flaps.length - 1) * segGap;
+  const segX0  = cx + col/2 - segsW/2;
+  const segY   = row3Y + 11*sc;
+  flaps.forEach((fp, i) => {
+    const active = i === flapsIdx;
+    const lbl    = i === 0 ? 'UP' : (fp.deg !== undefined ? fp.deg + '°' : fp.label ?? 'DN');
+    const sx     = segX0 + i * (segW + segGap);
+    ctx.fillStyle = active
+      ? (i > 0 ? 'rgba(0,200,224,0.18)' : 'rgba(255,255,255,0.08)')
+      : 'rgba(0,0,0,0.35)';
+    _roundRect(ctx, sx, segY, segW, segH, 2*sc); ctx.fill();
+    ctx.strokeStyle = active
+      ? (i > 0 ? P.cyan : 'rgba(255,255,255,0.28)')
+      : 'rgba(255,255,255,0.07)';
+    ctx.lineWidth = 0.8;
+    _roundRect(ctx, sx, segY, segW, segH, 2*sc); ctx.stroke();
+    ctx.fillStyle = active ? (i > 0 ? P.cyan : P.white) : 'rgba(255,255,255,0.22)';
+    ctx.font = `${active ? 'bold ' : ''}${Math.round(segH * 0.60)}px ${MONO}`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(lbl, sx + segW/2, segY + segH/2);
+  });
 
   /* Moving map — fills gap between data rows and annunciators */
   const mapTop    = row3Y + 36*sc;
@@ -723,68 +848,117 @@ function _drawEPSI(ctx, canvas, cx, cy, w, h, sc) {
 }
 
 /* ════════════════════════════════════════════════════════════
-   ZONE 4 TOP: Backup ASI — 0–140 kt
+   ZONE 4 TOP: Backup ASI — 0–140 kt  (G1000-style dark face)
    ════════════════════════════════════════════════════════════ */
-function _drawBackupASI(ctx, x, y, r, sc) {
-  const s0 = 225, sw = 270, maxV = 140;
-  _bezel(ctx, x, y, r);
-  _ticks(ctx, x, y, r, s0, sw, 7, 5, sc);
-  ctx.textBaseline = 'middle';
-  for (let v = 0; v <= maxV; v += 20) _num(ctx, x, y, r, s0+(v/maxV)*sw, String(v), 7.5, sc);
-  ctx.textBaseline = 'alphabetic';
+function _drawBackupASI(ctx, x, y, r) {
+  const spd  = S.spd ?? 0;
+  const s0   = Math.PI * (4 / 3);
+  const rng  = Math.PI * 1.5;
+  const maxV = 140;
+  const ang  = v => s0 + (Math.max(0, Math.min(maxV, v)) / maxV) * rng;
 
-  /* Arcs */
-  const arc = (a0, a1, color, width) => {
-    ctx.save();
-    ctx.beginPath(); ctx.arc(x, y, r*.95, _r(a0), _r(a1));
-    ctx.strokeStyle = color; ctx.lineWidth = width*sc; ctx.stroke();
-    ctx.restore();
-  };
-  arc(s0, s0+(48/maxV)*sw, '#cc2200', 5);                      // Vs0 red
-  arc(s0+(65/maxV)*sw, s0+(108/maxV)*sw, '#338844', 5);        // normal green
-  arc(s0+(108/maxV)*sw, s0+sw, '#cc2200', 5);                  // Vne red
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#0a0c12'; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = r * 0.04; ctx.stroke();
 
-  ctx.fillStyle    = P.markDim;
-  ctx.font         = `${7*sc}px ${SANS}`;
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillText('kt', x, y + r*.42);
+  /* Speed arcs — Velis Electro limits */
+  const arcs = [
+    [50,  85,  '#d8d8d8'],   // white — flap range
+    [60,  108, P.green],     // green — normal
+    [108, maxV, P.amber],    // amber — caution
+  ];
+  ctx.lineWidth = r * 0.09;
+  arcs.forEach(([lo, hi, col]) => {
+    ctx.strokeStyle = col;
+    ctx.beginPath(); ctx.arc(x, y, r * 0.82, ang(lo), ang(hi)); ctx.stroke();
+  });
+  /* Vne radial at 135 kt */
+  const vneA = ang(135);
+  ctx.strokeStyle = P.red; ctx.lineWidth = r * 0.04;
+  ctx.beginPath();
+  ctx.moveTo(x + r*0.73*Math.cos(vneA), y + r*0.73*Math.sin(vneA));
+  ctx.lineTo(x + r*0.90*Math.cos(vneA), y + r*0.90*Math.sin(vneA));
+  ctx.stroke();
 
-  _needle(ctx, x, y, r, s0+Math.min(1,Math.max(0,(S.spd??0)/maxV))*sw, 0.78, 0.22, sc, P.ndl);
-  _cap(ctx, x, y, 4.5*sc);
-  _label(ctx, x, y, r, 'AIRSPEED', sc);
+  /* Ticks + labels */
+  for (let v = 0; v <= maxV; v += 10) {
+    const a     = ang(v);
+    const major = v % 20 === 0;
+    ctx.strokeStyle = P.white; ctx.lineWidth = major ? r * 0.025 : r * 0.015;
+    ctx.beginPath();
+    ctx.moveTo(x + (major ? r*0.66 : r*0.74)*Math.cos(a), y + (major ? r*0.66 : r*0.74)*Math.sin(a));
+    ctx.lineTo(x + r*0.88*Math.cos(a),                    y + r*0.88*Math.sin(a));
+    ctx.stroke();
+    if (major && v > 0) {
+      ctx.fillStyle = P.white; ctx.font = `${Math.round(r*0.16)}px ${MONO}`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(v, x + r*0.54*Math.cos(a), y + r*0.54*Math.sin(a));
+    }
+  }
+
+  /* Needle */
+  const na = ang(spd);
+  ctx.strokeStyle = P.white; ctx.lineWidth = r * 0.04;
+  ctx.beginPath();
+  ctx.moveTo(x - r*0.14*Math.cos(na), y - r*0.14*Math.sin(na));
+  ctx.lineTo(x + r*0.78*Math.cos(na), y + r*0.78*Math.sin(na));
+  ctx.stroke();
+  ctx.beginPath(); ctx.arc(x, y, r*0.08, 0, Math.PI*2);
+  ctx.fillStyle = '#b0b4be'; ctx.fill();
+
+  ctx.fillStyle = P.dim; ctx.font = `${Math.round(r*0.16)}px ${MONO}`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('IAS', x, y + r * 0.40);
 }
 
 /* ════════════════════════════════════════════════════════════
-   ZONE 4 BOTTOM: Backup altimeter — ×1000 ft
+   ZONE 4 BOTTOM: Backup altimeter — ft  (G1000-style dark face)
    ════════════════════════════════════════════════════════════ */
-function _drawBackupAlt(ctx, x, y, r, sc) {
-  const s0 = 225, sw = 270, maxA = 10000;
-  _bezel(ctx, x, y, r);
-  _ticks(ctx, x, y, r, s0, sw, 10, 5, sc);
-  ctx.textBaseline = 'middle';
-  for (let v = 0; v <= 9; v++) _num(ctx, x, y, r, s0+(v/10)*sw, String(v), 8, sc);
-  ctx.textBaseline = 'alphabetic';
+function _drawBackupAlt(ctx, x, y, r) {
+  const alt = S.alt ?? 0;
+  const s0  = Math.PI * (4 / 3);
+  const rng = Math.PI * 1.5;
 
-  ctx.fillStyle    = P.markDim;
-  ctx.font         = `${7*sc}px ${SANS}`;
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillText('×1000 ft', x, y + r*.42);
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#0a0c12'; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = r * 0.04; ctx.stroke();
 
-  const alt      = S.alt ?? 0;
-  const angFine  = s0 + ((alt % maxA) / maxA) * sw;
-  const angCoarse = s0 + ((alt / 100000) % 1) * sw;
+  /* 50 ticks — 10 major, each major = 1000 ft */
+  for (let i = 0; i <= 50; i++) {
+    const a     = s0 + (i / 50) * rng;
+    const major = i % 5 === 0;
+    ctx.strokeStyle = P.white; ctx.lineWidth = major ? r * 0.025 : r * 0.015;
+    ctx.beginPath();
+    ctx.moveTo(x + (major ? r*0.66 : r*0.76)*Math.cos(a), y + (major ? r*0.66 : r*0.76)*Math.sin(a));
+    ctx.lineTo(x + r*0.88*Math.cos(a),                    y + r*0.88*Math.sin(a));
+    ctx.stroke();
+    if (major) {
+      ctx.fillStyle = P.white; ctx.font = `${Math.round(r*0.16)}px ${MONO}`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText((i / 5) % 10, x + r*0.54*Math.cos(a), y + r*0.54*Math.sin(a));
+    }
+  }
 
-  /* Coarse stub */
-  const ac = _r(angCoarse);
-  ctx.strokeStyle = P.ndlBack; ctx.lineWidth = 2.5*sc;
+  /* Thousands needle (1 rev = 10 000 ft) */
+  const bigA = s0 + ((alt % 10000) / 10000) * rng;
+  ctx.strokeStyle = P.white; ctx.lineWidth = r * 0.04;
   ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.lineTo(x+Math.cos(ac)*r*.42, y+Math.sin(ac)*r*.42);
+  ctx.moveTo(x - r*0.12*Math.cos(bigA), y - r*0.12*Math.sin(bigA));
+  ctx.lineTo(x + r*0.68*Math.cos(bigA), y + r*0.68*Math.sin(bigA));
   ctx.stroke();
 
-  _needle(ctx, x, y, r, angFine, 0.78, 0.22, sc, P.ndl);
-  _cap(ctx, x, y, 4.5*sc);
-  _label(ctx, x, y, r, 'ALTITUDE', sc);
+  /* Hundreds needle (1 rev = 1 000 ft) */
+  const smlA = s0 + ((alt % 1000) / 1000) * rng;
+  ctx.strokeStyle = P.white; ctx.lineWidth = r * 0.025;
+  ctx.beginPath();
+  ctx.moveTo(x - r*0.14*Math.cos(smlA), y - r*0.14*Math.sin(smlA));
+  ctx.lineTo(x + r*0.82*Math.cos(smlA), y + r*0.82*Math.sin(smlA));
+  ctx.stroke();
+
+  ctx.beginPath(); ctx.arc(x, y, r*0.08, 0, Math.PI*2);
+  ctx.fillStyle = '#b0b4be'; ctx.fill();
+
+  ctx.fillStyle = P.dim; ctx.font = `${Math.round(r*0.16)}px ${MONO}`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('ALT', x, y + r * 0.40);
 }
