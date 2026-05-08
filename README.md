@@ -44,7 +44,7 @@ OpenSim is not a game. It is a modular simulation engine that runs entirely in t
 - **Real aerodynamic physics** — lift, drag, thrust, weight from first principles. Not kinematic approximations.
 - **Procedural sound** — engine sounds synthesised from physics. No samples. Wind rises with airspeed. The DB 601 fires 12 cylinders. The NK-12 turboprop beats at 3.8Hz.
 - **Historically accurate comm chain** — every voice passes through the correct radio equipment for its era. VHF aviation, NASA S-band, Soviet VHF, SpaceX IP backbone. Pre-recorded voices, archival recordings, or TTS — all through the same chain.
-- **Real terrain** — Mapbox Terrain-RGB tiles (Copernicus DEM, 30m resolution) projected onto a flat-earth pinhole camera. Mountain silhouettes, elevation-based colour, atmospheric haze. 61 fps on M2.
+- **Real terrain** — Mapbox Terrain-RGB tiles (Copernicus DEM, 30m resolution) projected onto a flat-earth pinhole camera. Mountain silhouettes, elevation-based colour, atmospheric haze. 61 fps on M2. A default public token is included — replace it with your own free token in `display/terrain.js` if you're running a public deployment.
 - **Any aircraft** — envelope, performance, handling, sound, crew language, checklists in one JSON file
 - **Any mission** — weather, ATC clearances, classified briefing documents, scripted failures, crew voices in one JSON file
 - **Live radar** — real flights via OpenSky Network, color-coded by destination, route lines to arrival airport, 150/400/1000nm range
