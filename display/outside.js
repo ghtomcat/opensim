@@ -603,6 +603,191 @@ const _GV_c172 = [
 ];
 
 /* ══════════════════════════════════════════════════════════════
+   Messerschmitt Bf 109G-6
+   Body frame: fwd = nose, right = starboard, up = above
+   Units: NM
+   ══════════════════════════════════════════════════════════════ */
+
+/* Fuselage cross-sections — ry = half-width, rz = half-height */
+const _bcR  = 0.0016, _bcR7 = _bcR  * 0.7071;  // cowl  (near-circular)
+const _bfRy = 0.0011, _bfRy7= _bfRy * 0.7071;  // body  half-width  (narrow!)
+const _bfRz = 0.0015, _bfRz7= _bfRz * 0.7071;  // body  half-height
+const _baRy = 0.0007, _baRy7= _baRy * 0.7071;  // aft   half-width
+const _baRz = 0.0011, _baRz7= _baRz * 0.7071;  // aft   half-height
+const _btRy = 0.0004, _btRy7= _btRy * 0.7071;  // tail  half-width
+const _btRz = 0.0006, _btRz7= _btRz * 0.7071;  // tail  half-height
+const _b9hs = 0.0138;   // half-span
+const _b9dh = 0.0002;   // wing dihedral
+const _b9vH = 0.0078;   // V-stab height above fuselage top
+const _b9hw = 0.0060;   // H-stab half-span
+const _b9pr = 0.0150;   // prop disk radius
+
+const _COLORS_b109 = [
+  [168, 174, 145],  // 0 fuselage — RLM 74 dark grey-green
+  [150, 158, 136],  // 1 wings    — RLM 75 grey-violet
+  [ 50,  54,  46],  // 2 cowl     — dark engine cowl
+  [168, 174, 145],  // 3 tail surfaces — same as fuselage
+];
+
+const _V_b109 = [
+  /* 0  */ [ 0.015,  0,       0          ],  // spinner
+
+  // Ring A — cowl front  (x=+0.011, circular r=_bcR)
+  /* 1  */ [ 0.011,  0,       _bcR       ], /* 2  */ [ 0.011,  _bcR7,  _bcR7  ],
+  /* 3  */ [ 0.011,  _bcR,    0          ], /* 4  */ [ 0.011,  _bcR7, -_bcR7  ],
+  /* 5  */ [ 0.011,  0,      -_bcR       ], /* 6  */ [ 0.011, -_bcR7, -_bcR7  ],
+  /* 7  */ [ 0.011, -_bcR,    0          ], /* 8  */ [ 0.011, -_bcR7,  _bcR7  ],
+
+  // Ring B — cowl rear   (x=+0.006, same r — step to body comes at B→C)
+  /* 9  */ [ 0.006,  0,       _bcR       ], /* 10 */ [ 0.006,  _bcR7,  _bcR7  ],
+  /* 11 */ [ 0.006,  _bcR,    0          ], /* 12 */ [ 0.006,  _bcR7, -_bcR7  ],
+  /* 13 */ [ 0.006,  0,      -_bcR       ], /* 14 */ [ 0.006, -_bcR7, -_bcR7  ],
+  /* 15 */ [ 0.006, -_bcR,    0          ], /* 16 */ [ 0.006, -_bcR7,  _bcR7  ],
+
+  // Ring C — fuselage fwd (x=+0.002, narrow oval: dramatic narrowing from cowl)
+  /* 17 */ [ 0.002,  0,       _bfRz      ], /* 18 */ [ 0.002,  _bfRy7, _bfRz7 ],
+  /* 19 */ [ 0.002,  _bfRy,   0          ], /* 20 */ [ 0.002,  _bfRy7,-_bfRz7 ],
+  /* 21 */ [ 0.002,  0,      -_bfRz      ], /* 22 */ [ 0.002, -_bfRy7,-_bfRz7 ],
+  /* 23 */ [ 0.002, -_bfRy,   0          ], /* 24 */ [ 0.002, -_bfRy7, _bfRz7 ],
+
+  // Ring D — wing station  (x=-0.002, same oval)
+  /* 25 */ [-0.002,  0,       _bfRz      ], /* 26 */ [-0.002,  _bfRy7, _bfRz7 ],
+  /* 27 */ [-0.002,  _bfRy,   0          ], /* 28 */ [-0.002,  _bfRy7,-_bfRz7 ],
+  /* 29 */ [-0.002,  0,      -_bfRz      ], /* 30 */ [-0.002, -_bfRy7,-_bfRz7 ],
+  /* 31 */ [-0.002, -_bfRy,   0          ], /* 32 */ [-0.002, -_bfRy7, _bfRz7 ],
+
+  // Ring E — aft fuselage  (x=-0.007, narrowing)
+  /* 33 */ [-0.007,  0,       _baRz      ], /* 34 */ [-0.007,  _baRy7, _baRz7 ],
+  /* 35 */ [-0.007,  _baRy,   0          ], /* 36 */ [-0.007,  _baRy7,-_baRz7 ],
+  /* 37 */ [-0.007,  0,      -_baRz      ], /* 38 */ [-0.007, -_baRy7,-_baRz7 ],
+  /* 39 */ [-0.007, -_baRy,   0          ], /* 40 */ [-0.007, -_baRy7, _baRz7 ],
+
+  // Ring F — tail          (x=-0.011, very narrow)
+  /* 41 */ [-0.011,  0,       _btRz      ], /* 42 */ [-0.011,  _btRy7, _btRz7 ],
+  /* 43 */ [-0.011,  _btRy,   0          ], /* 44 */ [-0.011,  _btRy7,-_btRz7 ],
+  /* 45 */ [-0.011,  0,      -_btRz      ], /* 46 */ [-0.011, -_btRy7,-_btRz7 ],
+  /* 47 */ [-0.011, -_btRy,   0          ], /* 48 */ [-0.011, -_btRy7, _btRz7 ],
+
+  /* 49 */ [-0.014,  0,       0          ],  // tail tip
+
+  // Wings — mid-low, slight taper, light dihedral
+  /* 50 */ [ 0.004, +_bfRy,  -_bfRz*0.4 ],  // R root LE
+  /* 51 */ [-0.002, +_bfRy,  -_bfRz*0.4 ],  // R root TE
+  /* 52 */ [ 0.001, +_b9hs,  -_bfRz*0.4+_b9dh ], // R tip LE
+  /* 53 */ [-0.004, +_b9hs,  -_bfRz*0.4+_b9dh ], // R tip TE
+  /* 54 */ [ 0.004, -_bfRy,  -_bfRz*0.4 ],  // L root LE
+  /* 55 */ [-0.002, -_bfRy,  -_bfRz*0.4 ],  // L root TE
+  /* 56 */ [ 0.001, -_b9hs,  -_bfRz*0.4+_b9dh ], // L tip LE
+  /* 57 */ [-0.004, -_b9hs,  -_bfRz*0.4+_b9dh ], // L tip TE
+
+  // V-stab (tall, rectangular-ish — BF-109 has a very distinctive large tail)
+  /* 58 */ [-0.007,  0,       _baRz      ],  // LE base (coincident with Ring E top)
+  /* 59 */ [-0.013,  0,       _btRz      ],  // TE base (Ring F level)
+  /* 60 */ [-0.009,  0,       _baRz+_b9vH],  // LE top
+  /* 61 */ [-0.013,  0,       _btRz+_b9vH*0.82], // TE top
+
+  // R h-stab
+  /* 62 */ [-0.010, +_btRy,   _btRz*0.1  ], /* 63 */ [-0.013, +_btRy,  _btRz*0.1 ],
+  /* 64 */ [-0.011, +_b9hw,   0.001      ], /* 65 */ [-0.013, +_b9hw,  0.001     ],
+
+  // L h-stab
+  /* 66 */ [-0.010, -_btRy,   _btRz*0.1  ], /* 67 */ [-0.013, -_btRy,  _btRz*0.1 ],
+  /* 68 */ [-0.011, -_b9hw,   0.001      ], /* 69 */ [-0.013, -_b9hw,  0.001     ],
+
+  /* 70 */ [ 0.015, +_b9pr,   0          ],  // prop disk radius ref
+];
+
+const _F_b109 = [
+  // Nose cone: spinner → Ring A (8 tris)
+  [0,2,1],[0,3,2],[0,4,3],[0,5,4],[0,6,5],[0,7,6],[0,8,7],[0,1,8],
+  // Cowl body: Ring A → Ring B (8 quads)
+  [1,2,10,9],[2,3,11,10],[3,4,12,11],[4,5,13,12],
+  [5,6,14,13],[6,7,15,14],[7,8,16,15],[8,1,9,16],
+  // Cowl→body: Ring B → Ring C (8 quads — dramatic narrowing)
+  [9,10,18,17],[10,11,19,18],[11,12,20,19],[12,13,21,20],
+  [13,14,22,21],[14,15,23,22],[15,16,24,23],[16,9,17,24],
+  // Body: Ring C → Ring D (8 quads)
+  [17,18,26,25],[18,19,27,26],[19,20,28,27],[20,21,29,28],
+  [21,22,30,29],[22,23,31,30],[23,24,32,31],[24,17,25,32],
+  // Aft: Ring D → Ring E (8 quads)
+  [25,26,34,33],[26,27,35,34],[27,28,36,35],[28,29,37,36],
+  [29,30,38,37],[30,31,39,38],[31,32,40,39],[32,25,33,40],
+  // Tail: Ring E → Ring F (8 quads)
+  [33,34,42,41],[34,35,43,42],[35,36,44,43],[36,37,45,44],
+  [37,38,46,45],[38,39,47,46],[39,40,48,47],[40,33,41,48],
+  // Tail cone: Ring F → tip (8 tris)
+  [49,42,41],[49,43,42],[49,44,43],[49,45,44],
+  [49,46,45],[49,47,46],[49,48,47],[49,41,48],
+  // Wings (top + bottom, double-sided)
+  [50,52,53,51],[50,51,53,52],  // R wing
+  [54,55,57,56],[54,56,57,55],  // L wing
+  // V-stab (double-sided)
+  [58,60,61,59],[58,59,61,60],
+  // H-stabs (top + bottom)
+  [62,64,65,63],[62,63,65,64],  // R
+  [66,67,69,68],[66,68,69,67],  // L
+];
+
+const _FN_b109 = _F_b109.map(fi => {
+  const a = _V_b109[fi[0]], b = _V_b109[fi[1]], c = _V_b109[fi[2]];
+  const ab = [b[0]-a[0], b[1]-a[1], b[2]-a[2]];
+  const ac = [c[0]-a[0], c[1]-a[1], c[2]-a[2]];
+  const n  = [ab[1]*ac[2]-ab[2]*ac[1], ab[2]*ac[0]-ab[0]*ac[2], ab[0]*ac[1]-ab[1]*ac[0]];
+  const len = Math.hypot(...n);
+  return len > 1e-10 ? n.map(x => x/len) : [0,0,1];
+});
+
+const _FC_b109 = [
+  2,2,2,2,2,2,2,2,  // nose cone
+  2,2,2,2,2,2,2,2,  // cowl A→B
+  2,2,2,2,2,2,2,2,  // cowl→body B→C
+  0,0,0,0,0,0,0,0,  // body C→D
+  0,0,0,0,0,0,0,0,  // aft D→E
+  0,0,0,0,0,0,0,0,  // tail E→F
+  0,0,0,0,0,0,0,0,  // tail cone
+  1,1,1,1,          // wings
+  3,3,              // V-stab
+  3,3,3,3,          // H-stabs
+];
+
+const _E_b109 = [
+  // Fuselage rings
+  [1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,1],
+  [9,10],[10,11],[11,12],[12,13],[13,14],[14,15],[15,16],[16,9],
+  [17,18],[18,19],[19,20],[20,21],[21,22],[22,23],[23,24],[24,17],
+  [25,26],[26,27],[27,28],[28,29],[29,30],[30,31],[31,32],[32,25],
+  [33,34],[34,35],[35,36],[36,37],[37,38],[38,39],[39,40],[40,33],
+  [41,42],[42,43],[43,44],[44,45],[45,46],[46,47],[47,48],[48,41],
+  // Longerons (top / right / bottom / left)
+  [0,1],[1,9],[9,17],[17,25],[25,33],[33,41],[41,49],
+  [0,3],[3,11],[11,19],[19,27],[27,35],[35,43],[43,49],
+  [0,5],[5,13],[13,21],[21,29],[29,37],[37,45],[45,49],
+  [0,7],[7,15],[15,23],[23,31],[31,39],[39,47],[47,49],
+  // Wings: R perimeter + root attach
+  [50,52],[52,53],[53,51],[51,50],
+  [19,50],[27,51],
+  // Wings: L perimeter + root attach
+  [54,56],[56,57],[57,55],[55,54],
+  [23,54],[31,55],
+  // V-stab: perimeter (v58 coincident with Ring E top v33)
+  [58,60],[60,61],[61,59],[59,58],
+  // H-stabs: R + L perimeter, attach to Ring F right/left
+  [62,64],[64,65],[65,63],[63,62],
+  [43,62],
+  [66,68],[68,69],[69,67],[67,66],
+  [47,66],
+];
+
+const _GV_b109 = [
+  /* 0 */ [ 0.001,  0.0009, -0.0015 ],  // R main top (at fuselage bottom-right)
+  /* 1 */ [ 0.001,  0.0016, -0.0037 ],  // R main wheel (narrow track)
+  /* 2 */ [ 0.001, -0.0009, -0.0015 ],  // L main top
+  /* 3 */ [ 0.001, -0.0016, -0.0037 ],  // L main wheel
+  /* 4 */ [-0.012,  0,      -0.0006 ],  // tail strut top
+  /* 5 */ [-0.012,  0,      -0.0012 ],  // tail wheel
+];
+
+/* ══════════════════════════════════════════════════════════════
    Falcon 9 geometry — Block 5 two-stage rocket + Dragon capsule
    Body frame: fwd = nose, right = starboard, up = any radial
    Units: NM. Origin ≈ centre of mass of full stack.
@@ -800,15 +985,16 @@ const _DOOR = [
 
 /* ── Core wireframe + shading renderer ───────────────────────── */
 function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, wingView = false) {
-  const isC172 = (S.aircraft?.id === 'c172');
-  const isF9   = !isC172 && (S.aircraft?.id?.startsWith('falcon9') || S.aircraft?.vehicleType === 'rocket');
-  const V_   = isC172 ? _V_c172      : isF9 ? _V_f9      : _V;
-  const F_   = isC172 ? _F_c172      : isF9 ? _F_f9      : _F;
-  const FC_  = isC172 ? _FC_c172     : isF9 ? _FC_f9     : _FC;
-  const FN_  = isC172 ? _FN_c172     : isF9 ? _FN_f9     : _FN;
-  const E_   = isC172 ? _E_c172      : isF9 ? _E_f9      : _E;
-  const COL_ = isC172 ? _COLORS_c172 : isF9 ? _COLORS_f9 : _COLORS;
-  const GV_  = isC172 ? _GV_c172     : _GV;
+  const isC172  = (S.aircraft?.id === 'c172');
+  const isF9    = !isC172 && (S.aircraft?.id?.startsWith('falcon9') || S.aircraft?.vehicleType === 'rocket');
+  const isBf109 = !isC172 && !isF9 && (S.aircraft?.id === 'bf109');
+  const V_   = isC172 ? _V_c172      : isF9 ? _V_f9      : isBf109 ? _V_b109      : _V;
+  const F_   = isC172 ? _F_c172      : isF9 ? _F_f9      : isBf109 ? _F_b109      : _F;
+  const FC_  = isC172 ? _FC_c172     : isF9 ? _FC_f9     : isBf109 ? _FC_b109     : _FC;
+  const FN_  = isC172 ? _FN_c172     : isF9 ? _FN_f9     : isBf109 ? _FN_b109     : _FN;
+  const E_   = isC172 ? _E_c172      : isF9 ? _E_f9      : isBf109 ? _E_b109      : _E;
+  const COL_ = isC172 ? _COLORS_c172 : isF9 ? _COLORS_f9 : isBf109 ? _COLORS_b109 : _COLORS;
+  const GV_  = isC172 ? _GV_c172     : isBf109 ? _GV_b109 : _GV;
 
   const P = acPitchDeg * DEG, R = acRollDeg * DEG;
   const cosP = Math.cos(P), sinP = Math.sin(P);
@@ -913,6 +1099,8 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       ? [0, 44, 45, 41, 49, 48]                   // C172: nose, R tip, tail, L tip
       : isF9
       ? [48, 52, 0, 4, 60]                         // F9: nose, fin dorsal, aft top/bot, fin ventral
+      : isBf109
+      ? [0, 52, 53, 49, 57, 56]                    // Bf109: spinner, R tip LE/TE, tail, L tip TE/LE
       : [0, 100, 101, 97, 105, 104];               // A350: nose, R wing tip, tail, L wing tip
     const shadowPts = silVI.map(vi => {
       const [px, py, pz] = verts[vi];
@@ -1134,13 +1322,14 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   }
 
   /* Swiss cross on V-stab — A350 only */
-  if (!isC172 && !isF9) _drawSwissCross(ctx, pts[106], pts[107], pts[109], pts[108]);
+  if (!isC172 && !isF9 && !isBf109) _drawSwissCross(ctx, pts[106], pts[107], pts[109], pts[108]);
 
-  /* Prop disk — C172 only */
-  if (isC172) {
-    const p0 = pts[0], p66 = pts[66];
-    if (p0 && p66) {
-      const r = Math.hypot(p66.x - p0.x, p66.y - p0.y);
+  /* Prop disk — C172 and Bf109 */
+  if (isC172 || isBf109) {
+    const p0    = pts[0];
+    const pProp = isBf109 ? pts[70] : pts[66];
+    if (p0 && pProp) {
+      const r = Math.hypot(pProp.x - p0.x, pProp.y - p0.y);
       if (r > 2) {
         ctx.save();
         ctx.fillStyle = 'rgba(200,210,220,0.22)';
@@ -1388,8 +1577,8 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
   }
 
-  /* Landing gear — always visible on C172, retractable on A350, none for rockets */
-  if (!isF9 && (isC172 || S.gear)) {
+  /* Landing gear — always visible on C172 + Bf109, retractable on A350, none for rockets */
+  if (!isF9 && (isC172 || isBf109 || S.gear)) {
     const gpts = GV_.map(project);
     ctx.save();
     ctx.strokeStyle = 'rgba(200,210,220,0.90)';
