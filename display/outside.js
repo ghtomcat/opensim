@@ -50,8 +50,9 @@ const _FC = [
   4,4,4,4,4,4,4,4,           // L engine rear (8)
 ];
 
-let _canvas  = null;
-let _camMode = 0;
+let _canvas    = null;
+let _camMode   = 0;
+let _finAngle  = 0;   // grid fin fold: 0 = stowed aft, Math.PI/2 = deployed
 
 export function initOutside()        { _canvas = document.getElementById('outside-canvas'); }
 export function setOutsideCamMode(m) { _camMode = m; }
@@ -732,9 +733,9 @@ const _FN_f9 = _F_f9.map(fi => {
 });
 
 const _FC_f9 = [
-  0,0,0,0,0,0,0,0,  // S1 aft→mid
-  0,0,0,0,0,0,0,0,  // S1 mid→top
-  2,2,2,2,2,2,2,2,  // interstage
+  0,0,0,0,0,0,0,0,  // S1 body (Ring0→Ring1)
+  2,2,2,2,2,2,2,2,  // interstage lower (Ring1→Ring2)
+  2,2,2,2,2,2,2,2,  // interstage taper (Ring2→Ring3)
   1,1,1,1,1,1,1,1,  // S2
   5,5,5,5,5,5,5,5,  // Trunk (Ring4→Ring5)
   3,3,3,3,3,3,3,3,  // Dragon nosecone (Ring5→tip)
@@ -880,6 +881,26 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     const dZ  = -Math.sin(fa) * fc;
     verts[99]  = [_V[99][0]+dX,  _V[99][1],  _V[99][2]+dZ];
     verts[103] = [_V[103][0]+dX, _V[103][1], _V[103][2]+dZ];
+  }
+  if (isF9) {
+    /* Grid fin fold: deploy during S1 coast (descent), stow during powered ascent */
+    const finTarget = (S.rocketCoast ?? false) ? Math.PI / 2 : 0;
+    _finAngle += (finTarget - _finAngle) * 0.025;  // ~2-3 s deployment
+    const arm = _gfS - _rf9;
+    const sa = Math.sin(_finAngle), ca = Math.cos(_finAngle);
+    if (verts === V_) verts = _V_f9.map(v => v.slice());
+    /* Fin A (z+): outer verts 51, 52 */
+    verts[51] = [0.005 - arm*ca, 0,             _rf9 + arm*sa];
+    verts[52] = [0.002 - arm*ca, 0,             _rf9 + arm*sa];
+    /* Fin B (y+): outer verts 55, 56 */
+    verts[55] = [0.005 - arm*ca,  _rf9 + arm*sa, 0            ];
+    verts[56] = [0.002 - arm*ca,  _rf9 + arm*sa, 0            ];
+    /* Fin C (z-): outer verts 59, 60 */
+    verts[59] = [0.005 - arm*ca, 0,            -_rf9 - arm*sa ];
+    verts[60] = [0.002 - arm*ca, 0,            -_rf9 - arm*sa ];
+    /* Fin D (y-): outer verts 63, 64 */
+    verts[63] = [0.005 - arm*ca, -_rf9 - arm*sa, 0            ];
+    verts[64] = [0.002 - arm*ca, -_rf9 - arm*sa, 0            ];
   }
   const pts = verts.map(project);
 
