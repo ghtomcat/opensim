@@ -1,0 +1,55 @@
+{
+  "id":      "e190-pfd",
+  "version": "1",
+  "style":   "e190",
+
+  "physical": {
+    "width_mm":  332,
+    "height_mm": 187,
+    "bezel_mm":    8
+  },
+
+  "screen": {
+    "width_px":  1920,
+    "height_px": 1080
+  },
+
+  "layout": [
+    {
+      "h": 0.09,
+      "cols": [
+        { "id": "fma", "widget": "fma", "w": 1.0 }
+      ]
+    },
+    {
+      "h": 0.76,
+      "cols": [
+        { "id": "spd", "widget": "speed_tape", "w": 0.155 },
+        { "id": "ai",  "widget": "ai",          "w": 0.630,
+          "config": { "fpv": true, "ils": true, "bank_arc": true } },
+        { "id": "alt", "widget": "alt_tape",    "w": 0.145 },
+        { "id": "vsi", "widget": "vsi",          "w": 0.070 }
+      ]
+    },
+    {
+      "h": 0.15,
+      "cols": [
+        { "widget": "spacer",   "w": 0.155 },
+        { "id": "hdg", "widget": "hdg_tape",    "w": 0.630 },
+        { "widget": "spacer",   "w": 0.215 }
+      ]
+    }
+  ],
+
+  "hil": {
+    "spd_cw":    { "target": "spd", "action": "inc",       "delta":   1 },
+    "spd_ccw":   { "target": "spd", "action": "inc",       "delta":  -1 },
+    "alt_cw":    { "target": "alt", "action": "inc",       "delta": 100 },
+    "alt_ccw":   { "target": "alt", "action": "inc",       "delta":-100 },
+    "hdg_cw":    { "target": "hdg", "action": "inc",       "delta":   1 },
+    "hdg_ccw":   { "target": "hdg", "action": "inc",       "delta":  -1 },
+    "ap_btn":    { "target": "fma", "action": "toggle_ap"              },
+    "athr_btn":  { "target": "fma", "action": "toggle_athr"            },
+    "ap_disc":   { "target": "fma", "action": "disc_ap"                }
+  }
+}

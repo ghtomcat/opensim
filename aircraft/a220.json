@@ -1,204 +1,120 @@
 {
-  "id": "a350",
-  "name": "Airbus A350-900",
+  "id": "a220",
+  "name": "Airbus A220-300",
   "panel": "airbus",
   "displays": [
     { "id": "pfd", "spec": "airbus-pfd", "screen": 0, "pages": ["airbus-pfd", "airbus-nd"] },
     { "id": "nd",  "spec": "airbus-nd",  "screen": 1, "pages": ["airbus-nd",  "airbus-ecam"] }
   ],
-  "approachSpeed": 140,
-  "callsign": "VisionPilot",
-  "icaoType": "A359",
+  "approachSpeed": 130,
+  "callsign": "Airbaltic",
+  "icaoType": "BCS3",
   "envelope": {
-    "cruiseAlt": 35000,
-    "maxAlt": 43000,
-    "cruiseSpd": 312,
-    "maxSpd": 350,
+    "cruiseAlt": 39000,
+    "maxAlt": 41000,
+    "cruiseSpd": 288,
+    "maxSpd": 335,
     "spdProfile": {
-      "35000": 312,
+      "39000": 288,
       "10000": 250,
-      "3000": 180,
-      "1500": 160,
-      "1000": 145,
-      "0": 135
+      "3000": 165,
+      "1500": 148,
+      "1000": 138,
+      "0": 128
     }
   },
   "situations": [
     {
       "label": "GROUND",
-      "alt": 1450,
+      "alt": 36,
       "spd": 0,
-      "hdg": 280,
-      "altT": 1450,
+      "hdg": 360,
+      "altT": 36,
       "spdT": 0
     },
     {
       "label": "TAKEOFF",
-      "alt": 1450,
-      "spd": 160,
-      "hdg": 280,
+      "alt": 36,
+      "spd": 155,
+      "hdg": 360,
       "altT": 10000,
-      "spdT": 350
+      "spdT": 335
     },
     {
       "label": "CLIMB",
       "alt": 10000,
       "spd": 250,
-      "hdg": 280,
-      "altT": 35000,
-      "spdT": 280
+      "hdg": 360,
+      "altT": 39000,
+      "spdT": 288
     },
     {
       "label": "CRUISE",
-      "alt": 35000,
-      "spd": 312,
-      "hdg": 280,
-      "altT": 35000,
-      "spdT": 280
+      "alt": 39000,
+      "spd": 288,
+      "hdg": 360,
+      "altT": 39000,
+      "spdT": 288
     },
     {
       "label": "APPROACH",
       "alt": 3000,
-      "spd": 180,
-      "hdg": 280,
+      "spd": 165,
+      "hdg": 360,
       "altT": 2000,
-      "spdT": 180
+      "spdT": 165
     }
   ],
   "thrustProfiles": [
-    {
-      "label": "IDLE",
-      "spdT": 0
-    },
-    {
-      "label": "CLB",
-      "spdT": 180
-    },
-    {
-      "label": "MCT",
-      "spdT": 280
-    },
-    {
-      "label": "TOGA",
-      "spdT": 350
-    }
+    { "label": "IDLE",  "spdT": 0 },
+    { "label": "CLB",   "spdT": 165 },
+    { "label": "MCT",   "spdT": 288 },
+    { "label": "TOGA",  "spdT": 335 }
   ],
   "ambient": {
     "type": "turbofan",
-    "freqMin": 180,
-    "freqMax": 380,
-    "detune": 4,
-    "gainMin": 0.006,
-    "gainMax": 0.017
+    "freqMin": 190,
+    "freqMax": 390,
+    "detune": 3,
+    "gainMin": 0.005,
+    "gainMax": 0.015
   },
   "fmaPhases": [
     {
       "minAlt": 10000,
-      "vals": [
-        "A/THR",
-        "AP1",
-        "NAV",
-        "CRZ",
-        "ALT"
-      ],
-      "cols": [
-        "white",
-        "green",
-        "green",
-        "cyan",
-        "white"
-      ]
+      "vals": ["A/THR", "AP1", "NAV", "CRZ", "ALT"],
+      "cols": ["white", "green", "green", "cyan", "white"]
     },
     {
       "minAlt": 3000,
-      "vals": [
-        "SPEED",
-        "AP1",
-        "NAV",
-        "DES",
-        ""
-      ],
-      "cols": [
-        "white",
-        "green",
-        "green",
-        "cyan",
-        "white"
-      ]
+      "vals": ["SPEED", "AP1", "NAV", "DES", ""],
+      "cols": ["white", "green", "green", "cyan", "white"]
     },
     {
       "minAlt": 1000,
-      "vals": [
-        "SPEED",
-        "AP1",
-        "LOC*",
-        "G/S*",
-        "LAND"
-      ],
-      "cols": [
-        "white",
-        "green",
-        "cyan",
-        "cyan",
-        "white"
-      ]
+      "vals": ["SPEED", "AP1", "LOC*", "G/S*", "LAND"],
+      "cols": ["white", "green", "cyan", "cyan", "white"]
     },
     {
       "minAlt": 200,
-      "vals": [
-        "SPEED",
-        "AP1",
-        "LOC",
-        "G/S",
-        "LAND"
-      ],
-      "cols": [
-        "white",
-        "green",
-        "green",
-        "green",
-        "green"
-      ]
+      "vals": ["SPEED", "AP1", "LOC", "G/S", "LAND"],
+      "cols": ["white", "green", "green", "green", "green"]
     },
     {
       "minAlt": 30,
-      "vals": [
-        "SPEED",
-        "",
-        "LOC",
-        "FLARE",
-        "FLARE"
-      ],
-      "cols": [
-        "white",
-        "white",
-        "green",
-        "green",
-        "green"
-      ]
+      "vals": ["SPEED", "", "LOC", "FLARE", "FLARE"],
+      "cols": ["white", "white", "green", "green", "green"]
     },
     {
       "minAlt": 0,
-      "vals": [
-        "SPEED",
-        "",
-        "",
-        "ROLLOUT",
-        ""
-      ],
-      "cols": [
-        "white",
-        "white",
-        "white",
-        "green",
-        "white"
-      ]
+      "vals": ["SPEED", "", "", "ROLLOUT", ""],
+      "cols": ["white", "white", "white", "green", "white"]
     }
   ],
   "checklist": {
     "flaps": [
-      { "alt": 1400, "config": 1, "pf": "flaps one",  "pm": "flaps one"  },
-      { "alt":  900, "config": 2, "pf": "flaps two",  "pm": "flaps two"  },
+      { "alt": 1400, "config": 1, "pf": "flaps one", "pm": "flaps one" },
+      { "alt":  900, "config": 2, "pf": "flaps two", "pm": "flaps two" },
       { "alt":  500, "config": 3, "pf": "flaps full", "pm": "flaps full" }
     ],
     "gear": {
@@ -229,30 +145,12 @@
     { "alt":    5, "text": "R E T A R D", "speech": "retard",          "red": false }
   ],
   "pmCallouts": [
-    {
-      "alt": 10000,
-      "speech": "passing ten thousand"
-    },
-    {
-      "alt": 5000,
-      "speech": "passing five thousand"
-    },
-    {
-      "alt": 4000,
-      "speech": "passing four thousand"
-    },
-    {
-      "alt": 3000,
-      "speech": "passing three thousand"
-    },
-    {
-      "alt": 2000,
-      "speech": "passing two thousand"
-    },
-    {
-      "alt": 1000,
-      "speech": "passing one thousand"
-    }
+    { "alt": 10000, "speech": "passing ten thousand" },
+    { "alt": 5000,  "speech": "passing five thousand" },
+    { "alt": 4000,  "speech": "passing four thousand" },
+    { "alt": 3000,  "speech": "passing three thousand" },
+    { "alt": 2000,  "speech": "passing two thousand" },
+    { "alt": 1000,  "speech": "passing one thousand" }
   ],
 
   "kneeboard": [

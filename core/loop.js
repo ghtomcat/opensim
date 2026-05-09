@@ -41,7 +41,7 @@ function _tick(now) {
   if (!S.paused) tickControls(dt);
 
   if (!S.paused) {
-    const warp    = (S.aircraft?.vehicleType === 'rocket') ? (S.warpFactor ?? 1) : 1;
+    const warp    = (S.aircraft?.vehicleType === 'rocket' || S.aircraft?.panel) ? (S.warpFactor ?? 1) : 1;
     const warpDt  = dt * warp;
     const prevAlt = S.alt;
     tickFailures(warpDt);
@@ -50,7 +50,7 @@ function _tick(now) {
     if      (S.aircraft?.vehicleType === 'rocket')     { tickRocket(warpDt); tickBooster(warpDt); }
     else if (S.aircraft?.type       === 'hovercraft')  tickHovercraft(warpDt);
     else if (S.aircraft?.vehicleType === 'robot-arm')  { /* arm kinematics — no physics tick */ }
-    else                                               tickPhysics(dt);
+    else                                               tickPhysics(warpDt);
     tickCrew(prevAlt, S.alt);
     tickTelemetry(warpDt);
     bbTick(dt);

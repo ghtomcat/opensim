@@ -29,7 +29,7 @@ const ROW_DIST = Array.from({ length: ROWS + 1 }, (_, i) => 0.1 * Math.pow(1.32,
 let _fpsLast = 0, _fpsCount = 0, _fpsDisplay = 0;
 
 /* ── Mapbox Terrain-RGB elevation tiles ── */
-const _TK = 'pk.eyJ1IjoibWJ0b21jYXQiLCJhIjoiY2tlZTl6cXlwMGo4YjJ6a2ZqcmFkdTZ6ciJ9.SxMKsgMdAxwykW1DyYm0Zg';
+const _TK = 'YOUR_MAPBOX_TOKEN_HERE';  // replace with your free token from mapbox.com
 const _TZ = 12;
 const _tcache = new Map();  /* 'x/y' → ImageData | 'loading' | 'error' */
 
@@ -56,6 +56,7 @@ function _sampleElev(lat, lon) {
   const tx = (lon + 180) / 360 * n;
   const ty = (1 - Math.log(Math.tan(lr) + 1 / Math.cos(lr)) / Math.PI) / 2 * n;
   const xi = tx | 0, yi = ty | 0;
+  if (xi < 0 || xi >= n || yi < 0 || yi >= n) return null;
   _fetchTile(xi, yi);
   const t = _tcache.get(`${xi}/${yi}`);
   if (!t || typeof t === 'string') return null;
@@ -65,7 +66,7 @@ function _sampleElev(lat, lon) {
   return -10000 + (t.data[i] * 65536 + t.data[i + 1] * 256 + t.data[i + 2]) * 0.1;
 }
 
-function _terrainColor(elevM, dayFrac, depth) {
+function _terrainColor(elevM, dayFrac, depth, shade) {
   let r, g, b;
   if      (elevM <    0) { r = 22;  g = 58;  b = 100 }
   else if (elevM <  500) { r = 38;  g = 82;  b = 24  }
@@ -74,11 +75,133 @@ function _terrainColor(elevM, dayFrac, depth) {
   else if (elevM < 2200) { r = 108; g = 106; b = 82  }
   else if (elevM < 3000) { r = 136; g = 132; b = 118 }
   else                   { r = 208; g = 206; b = 198 }
-  const f = (dayFrac * 0.82 + 0.18) * (1 - depth * 0.32);
+  const f = (dayFrac * 0.82 + 0.18) * (1 - depth * 0.32) * (shade ?? 1);
   return `rgb(${r * f | 0},${g * f | 0},${b * f | 0})`;
 }
 
-export function renderTerrain(canvas) {
+function _rwyColor(surface, shade, dayFrac) {
+  const f = (dayFrac * 0.78 + 0.22) * (shade ?? 1);
+  if (surface === 'grass') {
+    return `rgb(${58 * f | 0},${72 * f | 0},${34 * f | 0})`;
+  }
+  const base = surface === 'concrete' ? 105 : surface === 'gravel' ? 88 : 62; /* asphalt */
+  const v = base * f | 0;
+  return `rgb(${v},${v},${v})`;
+}
+
+/* ── Water polygon tiles — Mapbox Streets v8, zoom 11 ── */
+const _WZ    = 11;
+const _wcache = new Map();
+const _td    = new TextDecoder();
+
+function _fetchWaterTile(x, y) {
+  const k = `${x}/${y}`;
+  if (_wcache.has(k)) return;
+  _wcache.set(k, 'loading');
+  fetch(`https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/${_WZ}/${x}/${y}.vector.pbf?access_token=${_TK}`)
+    .then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+    .then(ab => _wcache.set(k, _mvtWater(new Uint8Array(ab), x, y)))
+    .catch(() => _wcache.set(k, 'error'));
+}
+
+/* Protobuf varint — returns [value, nextPos] */
+function _vi(b, p) {
+  let v = 0, s = 0;
+  while (b[p] & 128) { v |= (b[p++] & 127) << s; s += 7; }
+  return [v | (b[p] << s), p + 1];
+}
+
+/* Skip one field value, pos is AFTER the tag */
+function _pbSkip(b, p, w) {
+  if (w === 0) { while (b[p++] & 128); return p; }
+  if (w === 1) return p + 8;
+  if (w === 2) { const [l, n] = _vi(b, p); return n + l; }
+  if (w === 5) return p + 4;
+  return p + 1;
+}
+
+/* Parse one MVT feature blob, append polygon rings to rings[] */
+function _mvtFeat(b, extent, rings) {
+  let p = 0, type = 0;
+  const geom = [];
+  while (p < b.length) {
+    const [tag, np] = _vi(b, p); p = np;
+    const f = tag >> 3, w = tag & 7;
+    if (w === 0) {
+      const [v, np2] = _vi(b, p); p = np2;
+      if (f === 3) type = v;
+    } else if (w === 2) {
+      const [len, lp] = _vi(b, p); p = lp;
+      if (f === 4) {           /* geometry — packed repeated uint32 */
+        const e = p + len;
+        while (p < e) { const [v, np2] = _vi(b, p); geom.push(v); p = np2; }
+      } else { p += len; }    /* skip tags + other fields */
+    } else { p = _pbSkip(b, p, w); }
+  }
+  if (type !== 3 || !geom.length) return;  /* polygons only */
+
+  /* Decode MoveTo / LineTo / ClosePath command stream */
+  let x = 0, y = 0, cur = [], i = 0;
+  while (i < geom.length) {
+    const cmd = geom[i++], id = cmd & 7, cnt = cmd >> 3;
+    if (id === 7) {                          /* ClosePath — no params */
+      if (cur.length > 2) rings.push(cur);
+      cur = [];
+    } else {
+      for (let j = 0; j < cnt; j++) {
+        x += (geom[i] >> 1) ^ -(geom[i] & 1); i++;
+        y += (geom[i] >> 1) ^ -(geom[i] & 1); i++;
+        if      (id === 1) { if (cur.length > 2) rings.push(cur); cur = [[x / extent, y / extent]]; }
+        else if (id === 2) cur.push([x / extent, y / extent]);
+      }
+    }
+  }
+  if (cur.length > 2) rings.push(cur);
+}
+
+/* Parse one MVT layer blob → rings[] if name==='water', else null */
+function _mvtLayer(b) {
+  let p = 0, name = '', extent = 4096;
+  const feats = [];
+  while (p < b.length) {
+    const [tag, np] = _vi(b, p); p = np;
+    const f = tag >> 3, w = tag & 7;
+    if (w === 2) {
+      const [len, lp] = _vi(b, p); p = lp;
+      if      (f === 1) name = _td.decode(b.slice(p, p + len));
+      else if (f === 2) feats.push(b.slice(p, p + len));
+      p += len;
+    } else if (w === 0) {
+      const [v, np2] = _vi(b, p); p = np2;
+      if (f === 5) extent = v;
+    } else { p = _pbSkip(b, p, w); }
+  }
+  if (name !== 'water') return null;
+  const rings = [];
+  for (const fb of feats) _mvtFeat(fb, extent, rings);
+  return rings.length ? rings : null;
+}
+
+/* Parse full MVT tile binary → [{xi, yi, rings}] */
+function _mvtWater(buf, xi, yi) {
+  let p = 0;
+  const out = [];
+  while (p < buf.length) {
+    const [tag, np] = _vi(buf, p); p = np;
+    const f = tag >> 3, w = tag & 7;
+    if (w === 2) {
+      const [len, lp] = _vi(buf, p); p = lp;
+      if (f === 3) {
+        const rings = _mvtLayer(buf.slice(p, p + len));
+        if (rings) out.push({ xi, yi, rings });
+      }
+      p += len;
+    } else { p = _pbSkip(buf, p, w); }
+  }
+  return out;
+}
+
+export function renderTerrain(canvas, { outsideView = false } = {}) {
   const W = canvas.width  = canvas.offsetWidth  * devicePixelRatio;
   const H = canvas.height = canvas.offsetHeight * devicePixelRatio;
   const ctx = canvas.getContext('2d');
@@ -128,14 +251,19 @@ export function renderTerrain(canvas) {
   const goldenFrac  = Math.max(0, 1 - Math.abs(sunAlt) / 0.18);          // peak at sunrise/set
 
   /* ── Terrain elevation setup ── */
-  const acLat = S.lat ?? 47;
-  const acLon = S.lon ?? 8;
-  const refFt = S.mission?.arrival?.elevation ?? S.mission?.departure?.elevation ?? 0;
-  const refM  = refFt * 0.3048;
+  const acLat    = S.lat ?? 47;
+  const acLon    = S.lon ?? 8;
+  const cosAcLat = Math.cos(acLat * DEG);
+  const refFt    = S.mission?.arrival?.elevation ?? S.mission?.departure?.elevation ?? 0;
+  const refM     = refFt * 0.3048;
 
   /* ── Sky gradient ── */
   const isRocket   = S.aircraft?.vehicleType === 'rocket';
   const hasTerrain = !isArctic && !isWater && !isRocket;
+
+  /* ── Clip all terrain/sky to the cockpit window (skip for outside cams) ── */
+  ctx.save();
+  if (!outsideView) _clipCockpitWindow(ctx, W, H, S.aircraft?.id ?? '', isRocket);
   const altScale   = isRocket ? 500_000 : 35_000;   // ft: rockets reach space, aircraft don't
   const spaceFrac  = isRocket ? Math.min(1, (S.alt ?? 0) / 350_000) : 0;  // 0=atmo 1=space
   const t = Math.min(1, (S.alt ?? 1000) / altScale);  // altitude tint 0=low 1=high
@@ -273,16 +401,74 @@ export function renderTerrain(canvas) {
     elevs.push(erow);
   }
 
+  /* ── Runway geometry for quad-loop override ── */
+  const _rwyDefs = [];
+  for (const src of [S.mission?.arrival, S.mission?.departure]) {
+    if (!src?.rwyLat || !hasTerrain) continue;
+    const hRad = (src.rwyHdg ?? 0) * DEG;
+    const aN = Math.cos(hRad), aE = Math.sin(hRad);
+    _rwyDefs.push({
+      lat: src.rwyLat, lon: src.rwyLon,
+      aN, aE, xN: -aE, xE: aN,
+      lenNm:  (src.rwyLengthM ?? 800) * M_NM,
+      halfW:  (src.rwyWidthM  ?? 30)  * M_NM * 0.5,
+      surface: src.surface ?? 'asphalt',
+    });
+  }
+
   /* Terrain / water fill */
   if (hasTerrain) {
+    /* Base fill — covers below-horizon area so no sky shows through gaps */
+    const horizonY = cy + Math.tan(pitch) * focal;
+    if (horizonY < H) {
+      ctx.fillStyle = _terrainColor(refM, dayFrac, 0, 1);
+      ctx.fillRect(0, horizonY, W, H - horizonY);
+    }
+
+    /* Sun direction in aircraft frame for slope shading */
+    const sunFwd = Math.cos(sunAltRad) * Math.cos(sunRelAzRad);
+    const sunRgt = Math.cos(sunAltRad) * Math.sin(sunRelAzRad);
+    const sunUp  = Math.sin(sunAltRad);
+
     for (let r = 0; r < ROWS; r++) {
       const depth = r / ROWS;
+      const dr_m  = (ROW_DIST[r + 1] - ROW_DIST[r]) * 1852;
       for (let c = 0; c < COLS; c++) {
         const tl = pts[r][c],   tr = pts[r][c + 1];
         const bl = pts[r+1][c], br = pts[r+1][c + 1];
         if (!tl || !tr || !bl || !br) continue;
         const avgElev = (elevs[r][c] + elevs[r][c+1] + elevs[r+1][c] + elevs[r+1][c+1]) * 0.25;
-        ctx.fillStyle = _terrainColor(avgElev, dayFrac, depth);
+
+        /* Surface normal from elevation gradient, dot with sun */
+        const dc_m       = ROW_DIST[r] * 3.0 / COLS * 1852;
+        const slopeFwd   = (elevs[r+1][c] + elevs[r+1][c+1] - elevs[r][c]   - elevs[r][c+1])  * 0.5;
+        const slopeRight = (elevs[r][c+1]  + elevs[r+1][c+1] - elevs[r][c]  - elevs[r+1][c]) * 0.5;
+        const nx   = -slopeFwd  / dr_m;
+        const ny   = -slopeRight / dc_m;
+        const nmag = Math.sqrt(nx * nx + ny * ny + 1);
+        const dot  = Math.max(0, (nx * sunFwd + ny * sunRgt + sunUp) / nmag);
+        const shade = 0.55 + 0.65 * dot;
+
+        let quadColor = null;
+        if (_rwyDefs.length) {
+          const d_c     = (ROW_DIST[r] + ROW_DIST[r + 1]) * 0.5;
+          const right_c = ((c + 0.5) / COLS - 0.5) * 2 * d_c * 1.5;
+          const dN_c = d_c * cosH - right_c * sinH;
+          const dE_c = d_c * sinH + right_c * cosH;
+          const lat_c = acLat + dN_c / 60;
+          const lon_c = acLon + dE_c / (60 * cosAcLat);
+          for (const rw of _rwyDefs) {
+            const dnT = (lat_c - rw.lat) * 60;
+            const deT = (lon_c - rw.lon) * 60 * cosAcLat;
+            const along  = dnT * rw.aN + deT * rw.aE;
+            const across = dnT * rw.xN + deT * rw.xE;
+            if (along >= 0 && along <= rw.lenNm && Math.abs(across) <= rw.halfW) {
+              quadColor = _rwyColor(rw.surface, shade, dayFrac);
+              break;
+            }
+          }
+        }
+        ctx.fillStyle = quadColor ?? _terrainColor(avgElev, dayFrac, depth, shade);
         ctx.beginPath();
         ctx.moveTo(tl[0], tl[1]);
         ctx.lineTo(tr[0], tr[1]);
@@ -317,6 +503,59 @@ export function renderTerrain(canvas) {
       ctx.fillStyle = tg;
     } else {
       ctx.fillStyle = terrainNear;
+    }
+    ctx.fill();
+  }
+
+  /* ── Water bodies (Streets v8 vector polygons) ── */
+  if (hasTerrain) {
+    const nw   = 1 << _WZ;
+    const lrAc = acLat * DEG;
+    const acTX = (acLon + 180) / 360 * nw | 0;
+    const acTY = (1 - Math.log(Math.tan(lrAc) + 1 / Math.cos(lrAc)) / Math.PI) / 2 * nw | 0;
+    const wR   = dayFrac * 52 + 12 | 0;
+    const wG   = dayFrac * 88 + 22 | 0;
+    const wB   = dayFrac * 148 + 38 | 0;
+    ctx.fillStyle = `rgba(${wR},${wG},${wB},0.88)`;
+
+    /* Batch all water rings into one path — single fill() call instead of one per ring */
+    ctx.beginPath();
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const tx = acTX + dx, ty = acTY + dy;
+        _fetchWaterTile(tx, ty);
+        const cached = _wcache.get(`${tx}/${ty}`);
+        if (!Array.isArray(cached)) continue;
+
+        for (const { xi, yi, rings } of cached) {
+          const latN = Math.atan(Math.sinh(Math.PI * (1 - 2 *  yi      / nw))) / DEG;
+          const latS = Math.atan(Math.sinh(Math.PI * (1 - 2 * (yi + 1) / nw))) / DEG;
+          const lonW = xi       / nw * 360 - 180;
+          const lonE = (xi + 1) / nw * 360 - 180;
+          const dLat = latS - latN, dLon = lonE - lonW;
+
+          for (const ring of rings) {
+            /* Cull ring by distance — skip if centre is more than 22 NM away */
+            const [fx0, fy0] = ring[0];
+            const rlat = latN + dLat * fy0, rlon = lonW + dLon * fx0;
+            const rdN  = (rlat - acLat) * 60, rdE = (rlon - acLon) * 60 * cosAcLat;
+            if (rdN * rdN + rdE * rdE > 22 * 22) continue;
+
+            const eNm = ((_sampleElev(rlat, rlon) ?? refM) - refM) * M_NM;
+
+            let started = false;
+            for (const [fx, fy] of ring) {
+              const dN = (latN + dLat * fy - acLat) * 60;
+              const dE = (lonW + dLon * fx - acLon) * 60 * cosAcLat;
+              const sp = proj(dN * cosH + dE * sinH, dE * cosH - dN * sinH, eNm);
+              if (!sp) continue;
+              if (!started) { ctx.moveTo(sp[0], sp[1]); started = true; }
+              else            ctx.lineTo(sp[0], sp[1]);
+            }
+            if (started) ctx.closePath();
+          }
+        }
+      }
     }
     ctx.fill();
   }
@@ -357,6 +596,53 @@ export function renderTerrain(canvas) {
       if (p1 && p2) { ctx.moveTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]); }
     }
     ctx.stroke();
+  }
+
+  /* ── Procedural cloud layer from METAR ── */
+  if (!isRocket) {
+    const cloudLayers = S.weather?.clouds ?? [];
+    const acLatNm = acLat * 60;
+    const acLonNm = acLon * 60 * cosAcLat;
+    const SPACING = 1.6;  /* NM between cloud anchors */
+
+    for (const layer of cloudLayers) {
+      const coverFrac = { FEW: 0.18, SCT: 0.40, BKN: 0.68, OVC: 0.92 }[layer.cover] ?? 0;
+      if (coverFrac <= 0) continue;
+      const upAdd = ((layer.base ?? 5000) - refFt) * FT_NM;
+      if (upAdd < altNm - 0.08) continue;  /* aircraft well above this layer */
+
+      const gi0 = Math.floor(acLatNm / SPACING) - 11;
+      const gj0 = Math.floor(acLonNm / SPACING) - 11;
+
+      for (let gi = gi0; gi <= gi0 + 22; gi++) {
+        for (let gj = gj0; gj <= gj0 + 22; gj++) {
+          const h = ((gi * 2654435761) ^ (gj * 2246822519)) >>> 0;
+          if (h / 0xFFFFFFFF > coverFrac) continue;
+
+          const dN  = gi * SPACING - acLatNm;
+          const dE  = gj * SPACING - acLonNm;
+          const fwd = dN * cosH + dE * sinH;
+          if (fwd < 0.4 || fwd > 20) continue;
+          const rgt = dE * cosH - dN * sinH;
+
+          const cp = proj(fwd, rgt, upAdd);
+          if (!cp || cp[1] > H * 1.1) continue;
+
+          const sizeNm  = 0.22 + ((h >> 8) & 0xFF) / 255 * 0.52;
+          const screenR = Math.max(5 * devicePixelRatio, sizeNm / fwd * focal);
+          const alpha   = (0.48 + ((h >> 24) & 0xFF) / 255 * 0.32) * (dayFrac * 0.75 + 0.25);
+
+          const grd = ctx.createRadialGradient(cp[0], cp[1], 0, cp[0], cp[1], screenR);
+          grd.addColorStop(0,    `rgba(255,255,255,${alpha.toFixed(2)})`);
+          grd.addColorStop(0.55, `rgba(245,250,255,${(alpha * 0.55).toFixed(2)})`);
+          grd.addColorStop(1,    'rgba(230,240,250,0)');
+          ctx.fillStyle = grd;
+          ctx.beginPath();
+          ctx.arc(cp[0], cp[1], screenR * 1.35, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
   }
 
   /* ── Atmospheric haze at horizon ── */
@@ -486,6 +772,10 @@ export function renderTerrain(canvas) {
 
   /* ── Vehicle silhouette HUD (rocket missions only) — rendered by map.js ── */
 
+  /* ── Cockpit border + heading tape ── */
+  ctx.restore();   /* end cockpit window clip */
+  if (!outsideView) _drawCockpitBorder(ctx, W, H, devicePixelRatio, S.aircraft?.id ?? '', dayFrac, S.hdg ?? 0);
+
   /* ── FPS counter ── */
   const now = performance.now();
   _fpsCount++;
@@ -508,3 +798,172 @@ function _c(a, b, t) { return Math.round(a + (b - a) * (1 - t)); }
 
 /* Linear interpolation */
 function _lerp(a, b, t) { return a + (b - a) * t; }
+
+/* ── Cockpit border helpers ── */
+
+function _clipCockpitWindow(ctx, W, H, acId, isRocket) {
+  /* Only clip for rocket porthole — normal aircraft use a gradient vignette instead */
+  if (!(isRocket || acId.startsWith('falcon9') || acId.startsWith('dragon'))) return;
+  ctx.beginPath();
+  ctx.ellipse(W / 2, H * 0.46, W * 0.38, H * 0.44, 0, 0, Math.PI * 2);
+  ctx.clip();
+}
+
+function _drawHeadingTape(ctx, W, tapeTop, tapeBot, hdgDeg, DPR, dayFrac) {
+  const tapeH   = tapeBot - tapeTop;
+  const bright  = Math.round(200 + 30 * dayFrac);
+  const amber   = `rgba(255,${bright},80,${0.72 + 0.18 * dayFrac})`;
+  const dimAmb  = `rgba(255,${Math.round(bright * 0.78)},55,${0.42 + 0.13 * dayFrac})`;
+  const range   = 80;                           /* degrees shown left-to-right */
+  const pxPerDeg = W / range;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, tapeTop, W, tapeH);
+  ctx.clip();
+
+  const startDeg = Math.ceil((hdgDeg - range / 2) / 5) * 5;
+  for (let d = startDeg; d <= hdgDeg + range / 2 + 5; d += 5) {
+    const x = W / 2 + (d - hdgDeg) * pxPerDeg;
+    if (x < -2 || x > W + 2) continue;
+    const major  = d % 10 === 0;
+    const tickH  = major ? tapeH * 0.34 : tapeH * 0.19;
+    ctx.strokeStyle = major ? amber : dimAmb;
+    ctx.lineWidth   = (major ? 1.5 : 1.0) * DPR;
+    ctx.beginPath();
+    ctx.moveTo(x, tapeTop + 2 * DPR);
+    ctx.lineTo(x, tapeTop + 2 * DPR + tickH);
+    ctx.stroke();
+
+    if (major) {
+      const norm = ((d % 360) + 360) % 360;
+      let label;
+      if      (norm === 0)   label = 'N';
+      else if (norm === 90)  label = 'E';
+      else if (norm === 180) label = 'S';
+      else if (norm === 270) label = 'W';
+      else                   label = String(norm / 10).padStart(2, '0');
+      ctx.fillStyle    = label.length === 1 ? amber : dimAmb;
+      ctx.font         = `${Math.round(10 * DPR)}px 'IBM Plex Mono', monospace`;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(label, x, tapeTop + 2 * DPR + tickH + 2 * DPR);
+    }
+  }
+
+  /* Centre marker — downward triangle */
+  const triW = 5.5 * DPR, triH = 8 * DPR;
+  ctx.fillStyle = amber;
+  ctx.beginPath();
+  ctx.moveTo(W / 2 - triW, tapeTop);
+  ctx.lineTo(W / 2 + triW, tapeTop);
+  ctx.lineTo(W / 2, tapeTop + triH);
+  ctx.closePath();
+  ctx.fill();
+
+  /* Heading readout box */
+  const hdgNorm = Math.round(((hdgDeg % 360) + 360) % 360);
+  const hdgStr  = String(hdgNorm).padStart(3, '0') + '°';
+  const boxW = 46 * DPR, boxH = 17 * DPR;
+  const boxX = W / 2 - boxW / 2, boxY = tapeBot - boxH - 2 * DPR;
+  ctx.fillStyle   = 'rgba(0,0,0,0.68)';
+  ctx.fillRect(boxX, boxY, boxW, boxH);
+  ctx.strokeStyle = amber;
+  ctx.lineWidth   = 1 * DPR;
+  ctx.strokeRect(boxX, boxY, boxW, boxH);
+  ctx.fillStyle    = amber;
+  ctx.font         = `bold ${Math.round(11 * DPR)}px 'IBM Plex Mono', monospace`;
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(hdgStr, W / 2, boxY + boxH / 2);
+
+  ctx.restore();
+}
+
+function _drawPorthole(ctx, W, H, DPR, dayFrac) {
+  const base  = Math.round(10 * (0.55 + 0.45 * dayFrac));
+  const rx = W * 0.38, ry = H * 0.44;
+  const cx = W / 2, cy = H * 0.46;
+
+  ctx.save();
+  ctx.fillStyle = `rgb(${base},${base},${base + 4})`;
+  ctx.beginPath();
+  ctx.rect(0, 0, W, H);
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill('evenodd');
+
+  const ringV = Math.round(90 + 40 * dayFrac);
+  ctx.strokeStyle = `rgba(${ringV},${ringV - 5},${ringV - 10},0.9)`;
+  ctx.lineWidth   = 5 * DPR;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.fillStyle = `rgba(${ringV - 10},${ringV - 15},${ringV - 20},0.88)`;
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.arc(cx + (rx + 9 * DPR) * Math.cos(a), cy + (ry + 9 * DPR) * Math.sin(a), 3.5 * DPR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function _drawCockpitBorder(ctx, W, H, DPR, acId, dayFrac, hdgDeg) {
+  if (acId.startsWith('falcon9') || acId.startsWith('dragon')) {
+    _drawPorthole(ctx, W, H, DPR, dayFrac);
+    return;
+  }
+
+  /* Window insets: fraction of canvas W / H per edge */
+  let iL, iR, iT, iB, hasPost = false;
+  if (acId === 'a350') {
+    iL = 0.04; iR = 0.04; iT = 0.06; iB = 0.03;
+  } else if (acId === 'bf109' || acId === 'f4u1a') {
+    iL = 0.13; iR = 0.13; iT = 0.11; iB = 0.05; hasPost = true;
+  } else if (acId === 'tu95ms' || acId === 'an225') {
+    iL = 0.09; iR = 0.09; iT = 0.09; iB = 0.04; hasPost = true;
+  } else if (acId === 'avro504') {
+    iL = 0.15; iR = 0.15; iT = 0.13; iB = 0.05;
+  } else {
+    iL = 0.07; iR = 0.07; iT = 0.09; iB = 0.04;
+  }
+
+  const wx = iL * W, wy = iT * H;
+  const ww = W - (iL + iR) * W, wh = H - (iT + iB) * H;
+
+  const lv = Math.round(18 + 6 * dayFrac);   /* panel lightness — slightly warmer at day */
+  const panelCol = `rgb(${lv},${lv - 1},${lv - 1})`;
+
+  ctx.save();
+
+  /* Cockpit surround — opaque, even-odd cuts the window opening */
+  ctx.beginPath();
+  ctx.rect(0, 0, W, H);
+  ctx.rect(wx, wy, ww, wh);
+  ctx.fillStyle = panelCol;
+  ctx.fill('evenodd');
+
+  /* Hard window edge — thin dark line */
+  ctx.strokeStyle = `rgba(6,6,6,0.95)`;
+  ctx.lineWidth   = 2 * DPR;
+  ctx.strokeRect(wx, wy, ww, wh);
+
+  /* Centre post for multi-pane canopies */
+  if (hasPost) {
+    const pw = 0.013 * W;
+    ctx.fillStyle   = panelCol;
+    ctx.fillRect(W / 2 - pw / 2, wy, pw, wh);
+    ctx.strokeStyle = `rgba(6,6,6,0.95)`;
+    ctx.lineWidth   = 1.5 * DPR;
+    ctx.beginPath();
+    ctx.moveTo(W / 2 - pw / 2, wy);  ctx.lineTo(W / 2 - pw / 2, wy + wh);
+    ctx.moveTo(W / 2 + pw / 2, wy);  ctx.lineTo(W / 2 + pw / 2, wy + wh);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+
+  /* Heading tape — inside the window, at its bottom edge */
+  _drawHeadingTape(ctx, W, wy + wh - 38 * DPR, wy + wh - 4 * DPR, hdgDeg, DPR, dayFrac);
+}

@@ -1,0 +1,23 @@
+{
+  "id": "e190",
+
+  "colors": {
+    "bg":       "#020407",
+    "tape":     "rgba(4,8,14,0.88)",
+    "dim":      "rgba(210,225,235,0.36)",
+
+    "sky":      "#173860",
+    "ground":   "#4a2e14",
+    "horizon":  "#c8a040",
+
+    "white":    "#e4eaf0",
+    "engaged":  "#00e676",
+    "selected": "#00cfff",
+    "managed":  "#ffc107",
+    "armed":    "#e4eaf0",
+    "caution":  "#ff8f00",
+    "warning":  "#ff3d3d"
+  },
+
+  "font": "mono"
+}

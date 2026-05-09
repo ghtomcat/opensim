@@ -424,6 +424,40 @@ export function coolantHiss() {
   src.start();
 }
 
+/* Airbus AP disconnect — repeating single-frequency tone, 3 pulses × 3 reps */
+/* Measured from real aircraft audio: 1661 Hz, 220ms on / 180ms off */
+export function apDisconnectChime() {
+  if (!_ctx) return;
+  const t0       = _ctx.currentTime + 0.02;
+  const freq     = 1661;
+  const noteDur  = 0.22;
+  const noteGap  = 0.18;
+  const cycleLen = 3 * (noteDur + noteGap);
+  const cycleGap = 0.20;
+
+  for (let rep = 0; rep < 3; rep++) {
+    const repT = t0 + rep * (cycleLen + cycleGap);
+    for (let n = 0; n < 3; n++) {
+      const st   = repT + n * (noteDur + noteGap);
+      const osc  = _ctx.createOscillator();
+      const gain = _ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, st);
+
+      gain.gain.setValueAtTime(0,    st);
+      gain.gain.linearRampToValueAtTime(0.28, st + 0.006);
+      gain.gain.setValueAtTime(0.28, st + noteDur - 0.012);
+      gain.gain.linearRampToValueAtTime(0,    st + noteDur);
+
+      osc.connect(gain);
+      gain.connect(_ctx.destination);
+      osc.start(st);
+      osc.stop(st + noteDur + 0.01);
+    }
+  }
+}
+
 export function engineBang() {
   if (!_ctx) return;
   /* Sharp impulse — white noise burst, low-passed, rapid decay */

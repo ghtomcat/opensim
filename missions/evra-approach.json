@@ -1,0 +1,87 @@
+{
+  "id": "evra-approach",
+  "phase": "approach",
+  "title": "ILS Approach — Rīga EVRA",
+  "description": "ILS approach into Riga runway 36. Live METAR. Full crew loop with Air Baltic crew.",
+  "author": "Markus Leutwyler",
+  "aircraft": "a220",
+  "departure": null,
+  "arrival": {
+    "icao": "EVRA",
+    "name": "Rīga",
+    "runway": "36",
+    "ils": {
+      "freq": "110.300",
+      "course": 360
+    },
+    "elevation": 36
+  },
+  "initialState": {
+    "lat": 55.50,
+    "lon": 24.10,
+    "alt": 39000,
+    "spd": 288,
+    "hdg": 360,
+    "pitch": 2,
+    "roll": 0
+  },
+  "weather": {
+    "source": "live",
+    "icao": "EVRA",
+    "fallback": {
+      "wdir": 180,
+      "wspd": 8,
+      "altim": 1013,
+      "temp": 4,
+      "dewp": -1,
+      "visib": "6+",
+      "clouds": [
+        { "cover": "BKN", "base": 2500 }
+      ]
+    }
+  },
+  "atcClearances": [
+    {
+      "alt": 36000,
+      "pm": "Riga control, Airbaltic, request descent, flight level two four zero",
+      "atc": "Airbaltic, Riga control, descend flight level two four zero, standard pressure"
+    },
+    {
+      "alt": 23000,
+      "pm": "request lower, flight level one eight zero",
+      "atc": "Airbaltic, descend flight level one eight zero"
+    },
+    {
+      "alt": 16000,
+      "pm": "request flight level one zero zero",
+      "atc": "Airbaltic, descend flight level one zero zero, expect ILS approach runway three six"
+    },
+    {
+      "alt": 11000,
+      "pm": "cleared ILS runway three six, Airbaltic",
+      "atc": "Airbaltic, cleared ILS approach runway three six. Contact Riga approach, one one nine decimal five. Labu lidojumu."
+    }
+  ],
+  "approachBrief": [
+    { "v": "pf", "t": "start approach briefing" },
+    { "v": "pf", "t": "destination, Riga, Echo Victor Romeo Alpha. runway three six. ILS approach, frequency one ten decimal three" },
+    { "v": "pm", "t": "confirmed" },
+    { "v": "pf", "t": "initial approach altitude, three thousand feet. final approach course, three six zero degrees" },
+    { "v": "pm", "t": "checked" },
+    { "v": "pf", "t": "decision height, two hundred feet. minimums set" },
+    { "v": "pm", "t": "confirmed" },
+    { "v": "pf", "t": "missed approach: climb runway heading to two thousand, then right turn direct Riga VOR" },
+    { "v": "pm", "t": "understood" },
+    { "v": "pf", "t": "vee app one three zero knots. flaps full. landing checklist after gear down" },
+    { "v": "pm", "t": "ready for approach" }
+  ],
+  "approachBriefAlt": 9500,
+  "debrief": [
+    "Was the approach stabilised at 1000ft?",
+    "Were all GPWS callouts confirmed?",
+    "Was the decision height called correctly?",
+    "How was the Baltic light during approach?"
+  ],
+  "failures": [],
+  "timeOfDay": 14.0
+}

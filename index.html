@@ -47,6 +47,7 @@
     }
     #outside.visible  { display: block; }
     #outside.combined { height: 50vh; }
+    body.panel-dual #outside.combined { top: 9vh; height: calc(50vh - 9vh); }
 
     #outside-canvas {
       position: absolute; top: 0; left: 0;
@@ -66,6 +67,33 @@
     #pfd.combined, #ecam.combined {
       top: 50vh; height: 50vh;
     }
+
+    /* ── FCU (glareshield) strip — shown above PFDs in dual-screen mode ── */
+    #fcu {
+      position: fixed; top: 0; left: 0;
+      width: 100vw; height: 9vh;
+      z-index: 3;
+      pointer-events: auto;
+      display: none;
+      cursor: default;
+    }
+    body.panel-dual #fcu                  { display: block; }
+    body.panel-dual #pfd:not(.combined)   { top: 9vh; height: 91vh; }
+    body.panel-dual #nd:not(.combined)    { top: 9vh; height: 91vh; }
+    body.panel-dual #pfd.combined         { top: 50vh; height: 50vh; }
+    body.panel-dual #nd.combined          { top: 50vh; height: 50vh; }
+
+    /* ── ND (second display) — hidden by default, shown in dual-screen mode ── */
+    #nd {
+      position: fixed; top: 0; left: 50vw;
+      width: 50vw; height: 100vh;
+      z-index: 1;
+      pointer-events: none;
+      display: none;
+    }
+    #nd.combined        { top: 50vh; height: 50vh; }
+    body.panel-dual #pfd { width: 50vw; }
+    body.panel-dual #nd  { display: block; }
 
     /* ── FMA strip ── */
     #fma {
@@ -176,9 +204,22 @@
     .cl-item.active  { color: var(--amber); }
     .cl-item.done    { color: var(--green); }
 
+    /* ── Outside FPS counter ── */
+    #outside-fps {
+      position: fixed; top: 12px; right: 16px;
+      z-index: 20;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      color: rgba(120,140,160,0.5);
+      pointer-events: none;
+    }
+    body.panel-dual #outside-fps,
+    body.g1000-active #outside-fps,
+    body.velis-active #outside-fps { display: none; }
+
     /* ── METAR strip ── */
     #metar-strip {
-      position: fixed; top: 12px; right: 16px;
+      position: fixed; top: 28px; right: 16px;
       z-index: 20;
       font-family: "IBM Plex Mono", monospace;
       font-size: 10px;
@@ -227,6 +268,30 @@
     }
 
     #ptt-indicator.active { opacity: 1; }
+
+    /* ── Time controls bar ── */
+    #time-controls {
+      position: fixed; bottom: 16px; right: 16px;
+      z-index: 25;
+      display: none;
+      align-items: center; gap: 6px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      color: #8899aa;
+      background: rgba(3,6,10,0.82);
+      border: 1px solid #1e2d3d;
+      padding: 4px 10px;
+    }
+    body.panel-dual #time-controls { display: flex; }
+    #fps-counter { color: #556677; min-width: 44px; }
+    .warp-sep { color: #1e2d3d; }
+    .warp-btn {
+      background: none; border: none; cursor: pointer;
+      font-family: inherit; font-size: 11px;
+      color: #556677; padding: 0 3px;
+    }
+    .warp-btn:hover { color: #aabbcc; }
+    .warp-btn.active { color: #f9ca24; }
 
     /* ── Time warp indicator ── */
     #warp-indicator {
@@ -427,6 +492,36 @@
     #mission-clock.g1000 .ck-label {
       color: rgba(232, 244, 255, 0.30);
       letter-spacing: 0.22em;
+    }
+
+    /* ── Airbus / E190 MET clock — clean glass-cockpit style ── */
+    #mission-clock.airbus .ck-housing {
+      background: rgba(2, 4, 8, 0.90);
+      border: 1px solid rgba(220, 230, 240, 0.12);
+      box-shadow: none;
+    }
+    #mission-clock.airbus .ck-tube {
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      width: 22px; height: 38px;
+    }
+    #mission-clock.airbus .ck-tube::before { display: none; }
+    #mission-clock.airbus .ck-digit {
+      color: #e4eaf0;
+      font-size: 24px;
+      text-shadow: none;
+    }
+    #mission-clock.airbus .ck-digit.tick { animation: ck-tick 0.07s ease-out; }
+    #mission-clock.airbus .ck-sep { gap: 8px; }
+    #mission-clock.airbus .ck-dot {
+      background: rgba(220, 230, 240, 0.45);
+      box-shadow: none;
+      width: 3px; height: 3px;
+    }
+    #mission-clock.airbus .ck-label {
+      color: rgba(220, 230, 240, 0.25);
+      letter-spacing: 0.18em;
     }
 
     /* ── ADS-B tracking badge ── */
@@ -706,6 +801,7 @@
     body.g1000-active #com-container {
       left: auto; right: 20px; bottom: 110px;
     }
+    body.panel-dual #com-container { display: none !important; }
 
 
     .com-panel {
@@ -1422,6 +1518,17 @@
       transition: border-color 0.15s, background 0.15s;
     }
     .ss-fly-btn:hover { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.05); }
+    .ss-section { width: 100%; max-width: 720px; margin-bottom: 28px; }
+    .ss-section-label {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 9px; letter-spacing: 0.22em;
+      color: rgba(232,237,242,0.28);
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .ss-card.ss-card-inst { border-color: rgba(255,200,50,0.14); }
+    .ss-card.ss-card-inst .ss-card-id { color: rgba(255,200,50,0.72); }
+    .ss-card.selected.ss-card-inst { border-color: rgba(255,200,50,0.55); }
 
     /* ── On-screen keyboard (touch devices) ── */
     #osk {
@@ -1583,17 +1690,32 @@
 
 <!-- Scenario setup overlay -->
 <div id="scenario-setup">
-  <div class="ss-title">Training Scenario</div>
-  <div class="ss-cards" id="ss-cards"></div>
-  <div class="ss-timing" id="ss-timing">
-    <span>Trigger</span>
-    <div class="ss-timing-toggle">
-      <button class="ss-timing-btn active" id="ss-rand-btn">Random</button>
-      <button class="ss-timing-btn" id="ss-fixed-btn">Fixed</button>
-    </div>
-    <input type="number" id="ss-fixed-input" value="120" min="10" max="3600" style="display:none">
-    <span id="ss-timing-label">60–300 s</span>
+  <div class="ss-title">Scenario Setup</div>
+
+  <div class="ss-section">
+    <div class="ss-section-label">Weather</div>
+    <div class="ss-cards" id="ss-wx-cards"></div>
   </div>
+
+  <div class="ss-section">
+    <div class="ss-section-label">Crew</div>
+    <div class="ss-cards" id="ss-crew-cards"></div>
+  </div>
+
+  <div class="ss-section">
+    <div class="ss-section-label">Failures</div>
+    <div class="ss-cards" id="ss-cards"></div>
+    <div class="ss-timing" id="ss-timing">
+      <span>Trigger</span>
+      <div class="ss-timing-toggle">
+        <button class="ss-timing-btn active" id="ss-rand-btn">Random</button>
+        <button class="ss-timing-btn" id="ss-fixed-btn">Fixed</button>
+      </div>
+      <input type="number" id="ss-fixed-input" value="120" min="10" max="3600" style="display:none">
+      <span id="ss-timing-label">60–300 s</span>
+    </div>
+  </div>
+
   <button class="ss-fly-btn" id="ss-fly-btn">Fly</button>
 </div>
 
@@ -1602,8 +1724,12 @@
   <canvas id="outside-canvas"></canvas>
 </div>
 
+<!-- FCU (glareshield) canvas — above PFDs in dual-screen mode -->
+<canvas id="fcu"></canvas>
+
 <!-- PFD canvas -->
 <canvas id="pfd"></canvas>
+<canvas id="nd"></canvas>
 
 <!-- ECAM canvas -->
 <canvas id="ecam" style="display:none"></canvas>
@@ -1632,6 +1758,7 @@
 </div>
 
 <!-- METAR strip -->
+<div id="outside-fps">-- fps</div>
 <div id="metar-strip"></div>
 
 <!-- Instrument panel (bottom) -->
@@ -1714,14 +1841,24 @@
 <!-- Time warp -->
 <div id="warp-indicator">⏩ 1×</div>
 
+<!-- Time controls + FPS -->
+<div id="time-controls">
+  <span id="fps-counter">-- fps</span>
+  <span class="warp-sep">|</span>
+  <button class="warp-btn active" data-warp="1">1×</button>
+  <button class="warp-btn" data-warp="2">2×</button>
+  <button class="warp-btn" data-warp="5">5×</button>
+  <button class="warp-btn" data-warp="10">10×</button>
+</div>
+
 <!-- Keybinds -->
 <div id="keys">
   <span id="keys-ap">↑↓ ALT ±500 · ←→ HDG ±5<br></span>
   <span id="keys-manual" style="display:none">↑↓ PITCH · ←→ BANK<br></span>
   <span id="keys-spd">+ / − SPD</span><span id="keys-throttle" style="display:none">+ / − THROTTLE</span> · F1–F4 DETENT<br>
   f/F flaps ▼▲ · G gear · Q fuel sel<br>
-  <span id="keys-carb" style="display:none">C carb heat<br></span>
-  TAB display · V outside · P pause · R role<br>
+  <span id="keys-carb" style="display:none">H carb heat<br></span>
+  TAB display · V outside · C cam (chase/side/wing/plume) · P pause · R role<br>
   SPACE PTT
 </div>
 
@@ -1906,6 +2043,7 @@
   import { startTelemetry, downloadTelemetry, downloadTelemetryCSV } from './core/telemetry.js';
   import { initBlackbox, bbEvent, downloadBlackbox } from './core/blackbox.js';
   import { renderPFD }         from './display/pfd.js';
+  import { renderPanel, renderFCU } from './display/panel_renderer.js';
   import { renderRocket }      from './display/rocket_display.js';
   import { renderDragon, handleDragonClick, isDragonTelemetry } from './display/dragon.js';
   import { renderG1000, handleG1000Click } from './display/g1000.js';
@@ -1917,16 +2055,156 @@
   import { renderVelisEpsi, handleVelisClick } from './display/velis_epsi.js';
   import { initFMA, renderFMA } from './display/fma.js';
   import { initCOM }           from './display/com.js';
-  import { initSound, startSound, stopSound, startEngineLifecycle, stopEngineLifecycle, switchEngine, tickSound, getCurrentRpm, silenceAll } from './core/sound.js';
-  import { initOutside, tickOutside, outsideInvalidate } from './display/outside.js';
+  import { initSound, startSound, stopSound, startEngineLifecycle, stopEngineLifecycle, switchEngine, tickSound, getCurrentRpm, silenceAll, apDisconnectChime } from './core/sound.js';
+  import { initOutside, tickOutside, outsideInvalidate, setOutsideCamMode } from './display/outside.js';
   import { initKneeboard, toggleKneeboard, tickKneeboard } from './display/kneeboard.js';
   import { initMap, renderMap, toggleMap, showMap, hideMap, initVelisMap, hideVelisMap, initG1000Map, hideG1000Map } from './display/map.js';
   import { lookupFlight, nearbyFlights, pickAircraft, trackFlight } from './core/liveflight.js';
 
   /* ── DOM refs ── */
   const canvas     = document.getElementById('pfd');
+  const ndCanvas   = document.getElementById('nd');
+  const fcuCanvas  = document.getElementById('fcu');
   const ecamCanvas = document.getElementById('ecam');
   const fmaEl      = document.getElementById('fma');
+
+  /* ── Panel display page state — which spec is active on each screen ── */
+  const _screenPage = { 0: 0, 1: 0 };  // screen index → page index
+
+  function _panelDisplayPages(screenIdx) {
+    const display = S.aircraft?.displays?.find(d => d.screen === screenIdx);
+    return display?.pages ?? (display ? [display.spec] : []);
+  }
+
+  function _currentSpec(screenIdx) {
+    const pages = _panelDisplayPages(screenIdx);
+    return pages[_screenPage[screenIdx] % pages.length] ?? null;
+  }
+
+  /* Tab = cycle right display (ND→ECAM→…); Shift+Tab = cycle left display */
+  window.addEventListener('keydown', e => {
+    if (e.key !== 'Tab') return;
+    const panel = S.aircraft?.panel;
+    if (panel !== 'airbus' && panel !== 'e190') return;
+    e.preventDefault();
+    e.stopPropagation();
+    const screen = e.shiftKey ? 0 : 1;
+    const pages  = _panelDisplayPages(screen);
+    if (pages.length < 2) return;
+    _screenPage[screen] = (_screenPage[screen] + 1) % pages.length;
+  }, { capture: true });
+
+  /* Reset pages when aircraft changes */
+  window.addEventListener('opensim:aircraft-loaded', () => {
+    _screenPage[0] = 0;
+    _screenPage[1] = 0;
+  });
+
+  /* ── FCU interaction — scroll to dial, click to toggle AP/A-THR ── */
+  function _fcuGeometry() {
+    const W     = fcuCanvas.offsetWidth;
+    const padX  = W * 0.028;
+    const inner = W - padX * 2;
+    const spdW  = inner * 0.130;
+    const hdgW  = inner * 0.130;
+    const gapAP = inner * 0.030;
+    const apW   = inner * 0.320;
+    const gapAL = inner * 0.030;
+    const altW  = inner * 0.200;
+    const spdX  = padX;
+    const hdgX  = spdX + spdW;
+    const apX   = hdgX + hdgW + gapAP;
+    const altX  = apX  + apW  + gapAL;
+    const vsX   = altX + altW;
+    return { spdX, spdW, hdgX, hdgW, apX, apW, altX, altW, vsX };
+  }
+
+  fcuCanvas.addEventListener('wheel', evt => {
+    const panel = S.aircraft?.panel;
+    if (panel !== 'airbus' && panel !== 'e190') return;
+    evt.preventDefault();
+    const { spdX, hdgX, apX, altX, vsX } = _fcuGeometry();
+    const rect = fcuCanvas.getBoundingClientRect();
+    const mx   = evt.clientX - rect.left;
+    const dir  = evt.deltaY > 0 ? -1 : 1;
+    if (mx >= spdX && mx < hdgX) {
+      setState({ spdT: Math.max(100, Math.min(350, S.spdT + dir)) });
+    } else if (mx >= hdgX && mx < apX) {
+      setState({ hdgT: ((S.hdgT + dir - 1 + 360) % 360) + 1 });
+    } else if (mx >= altX && mx < vsX) {
+      const step = evt.shiftKey ? 1000 : 100;
+      setState({ altT: Math.max(0, Math.min(43000, Math.round(S.altT / step) * step + dir * step)) });
+    }
+  }, { passive: false });
+
+  fcuCanvas.addEventListener('click', evt => {
+    const panel = S.aircraft?.panel;
+    if (panel !== 'airbus' && panel !== 'e190') return;
+    const { apX, apW } = _fcuGeometry();
+    const rect    = fcuCanvas.getBoundingClientRect();
+    const mx      = evt.clientX - rect.left;
+    if (mx >= apX && mx < apX + apW) {
+      const btnW   = apW / 4;
+      const btnIdx = Math.floor((mx - apX) / btnW);
+      if (btnIdx === 0) setState({ ap:   !S.ap   });   // AP 1
+      if (btnIdx === 3) setState({ athr: !S.athr });   // A/THR
+    }
+  });
+
+  /* FCU drag-to-turn — click + drag up/down on a knob area */
+  let _fcuDrag = null;
+
+  fcuCanvas.addEventListener('mousedown', evt => {
+    const panel = S.aircraft?.panel;
+    if (panel !== 'airbus' && panel !== 'e190') return;
+    const { spdX, hdgX, apX, altX, vsX } = _fcuGeometry();
+    const mx = evt.clientX - fcuCanvas.getBoundingClientRect().left;
+    let knob = null;
+    if      (mx >= spdX && mx < hdgX) { knob = 'spd'; }
+    else if (mx >= hdgX && mx < apX)  { knob = 'hdg'; }
+    else if (mx >= altX && mx < vsX)  { knob = 'alt'; }
+    if (!knob) return;
+    evt.preventDefault();
+    _fcuDrag = { startY: evt.clientY, knob,
+                 startSpd: S.spdT, startHdg: S.hdgT, startAlt: S.altT };
+    fcuCanvas.style.cursor = 'ns-resize';
+  });
+
+  window.addEventListener('mousemove', evt => {
+    if (!_fcuDrag) return;
+    const dy   = _fcuDrag.startY - evt.clientY;   // up = positive
+    const coarse = evt.shiftKey;
+    if (_fcuDrag.knob === 'spd') {
+      setState({ spdT: Math.max(100, Math.min(350,
+        _fcuDrag.startSpd + Math.round(dy / 3))) });
+    } else if (_fcuDrag.knob === 'hdg') {
+      const delta = Math.round(dy / 3);
+      setState({ hdgT: ((_fcuDrag.startHdg + delta - 1 + 7200) % 360) + 1 });
+    } else if (_fcuDrag.knob === 'alt') {
+      const step  = coarse ? 1000 : 100;
+      const delta = Math.round(dy / 2) * step;
+      setState({ altT: Math.max(0, Math.min(43000,
+        Math.round(_fcuDrag.startAlt / step) * step + delta)) });
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (_fcuDrag) { _fcuDrag = null; fcuCanvas.style.cursor = 'default'; }
+  });
+
+  /* FCU cursor — ns-resize over knob areas, pointer over buttons */
+  fcuCanvas.addEventListener('mousemove', evt => {
+    if (_fcuDrag) return;
+    const panel = S.aircraft?.panel;
+    if (panel !== 'airbus' && panel !== 'e190') return;
+    const { spdX, hdgX, apX, altX, vsX, apW } = _fcuGeometry();
+    const mx = evt.clientX - fcuCanvas.getBoundingClientRect().left;
+    const inKnob = (mx >= spdX && mx < hdgX) ||
+                   (mx >= hdgX && mx < apX)   ||
+                   (mx >= altX && mx < vsX);
+    fcuCanvas.style.cursor = inKnob ? 'ns-resize'
+                           : (mx >= apX && mx < apX + apW ? 'pointer' : 'default');
+  });
 
   /* Velis canvas click — switch toggles + COM swap */
   canvas.addEventListener('click', evt => {
@@ -1952,6 +2230,42 @@
         aircraft: 'Airbus A350-900 · FMGS engaged',
         orders: 'Cleared ILS 28. Descend 4000ft.\nExpect vectors from LOBEP. Speed 250kt below FL100.\nGear down abeam threshold. Full flaps by FAP.\nDecision height: 700ft. Go-around: climb 5000ft, track 283°.',
         atmosphere: 'Live METAR active. Weather may differ from brief.\nOpen kneeboard (K) for full approach plate.',
+      },
+      roles: [
+        { id: 'PF',         label: 'Pilot Flying' },
+        { id: 'PM',         label: 'Pilot Monitoring' },
+        { id: 'INSTRUCTOR', label: 'Instructor' },
+      ],
+    },
+    {
+      id: 'lsgg-approach', aircraft: 'e190',
+      acName: 'Embraer E190-E2', engine: 'Pratt & Whitney PW1900G · GTF',
+      location: 'Genève LSGG', title: 'ILS Approach · RWY 23', era: 'MODERN', accent: '#00cfb0',
+      briefing: {
+        date: 'LSGG · RWY 23 · ILS 109.750',
+        pilot: 'Captain / First Officer',
+        unit: 'Geneva Approach 118.700',
+        aircraft: 'Embraer E190-E2 · Helvetic Airways',
+        orders: 'Cleared ILS 23. Descend 4000ft.\nSpeed 250kt below FL100. Expect vectors to localizer.\nGear down and flaps full by FAF.\nDecision height: 200ft AGL. Go-around: climb 4000ft, track 228°.',
+        atmosphere: 'Live METAR active.\nHelvetica — Swiss regional. Clean, efficient, on time.',
+      },
+      roles: [
+        { id: 'PF',         label: 'Pilot Flying' },
+        { id: 'PM',         label: 'Pilot Monitoring' },
+        { id: 'INSTRUCTOR', label: 'Instructor' },
+      ],
+    },
+    {
+      id: 'evra-approach', aircraft: 'a220',
+      acName: 'Airbus A220-300', engine: 'Pratt & Whitney PW1500G · GTF',
+      location: 'Rīga EVRA', title: 'ILS Approach · RWY 36', era: 'MODERN', accent: '#7ec8e3',
+      briefing: {
+        date: 'EVRA · RWY 36 · ILS 110.300',
+        pilot: 'Captain / First Officer',
+        unit: 'Riga Approach 119.500',
+        aircraft: 'Airbus A220-300 · Air Baltic',
+        orders: 'Cleared ILS 36. Descend 3000ft.\nSpeed 250kt below FL100. Expect vectors to localizer.\nGear down and flaps full by FAF.\nDecision height: 200ft AGL. Go-around: climb 2000ft, track 360°.',
+        atmosphere: 'Live METAR active.\nAir Baltic. The whole fleet is A220. Every aircraft, every route.',
       },
       roles: [
         { id: 'PF',         label: 'Pilot Flying' },
@@ -2933,9 +3247,7 @@
       el.classList.remove('visible');
       window.removeEventListener('keydown', dismiss);
       el.removeEventListener('click', dismiss);
-      if (m.roles?.length > 1) {
-        setTimeout(() => showRoleSelect(m), 400);
-      } else if (_hasScenarioSetup(m)) {
+      if (_hasScenarioSetup(m)) {
         setTimeout(() => showScenarioSetup(m), 400);
       } else {
         setTimeout(() => init(m.id, m.aircraft), 400);
@@ -2980,39 +3292,67 @@
   function showScenarioSetup(m) {
     const el = document.getElementById('scenario-setup');
 
-    const hasCarbHeat = (() => {
-      /* Look up aircraft from MISSIONS → aircraft JSON already in DOM as a module import? No — use id string. */
-      /* We'll check after aircraft loads. For now, check by id if available from window. */
-      const acId = m.aircraft;
-      /* Aircraft JSONs are fetched in init(), not yet loaded. Use known list. */
-      return ['c172', 'robin-dr400'].includes(acId);
-    })();
-
-    const PRESETS = [
-      { id: 'CLEAN',    label: 'No failure',        failures: [] },
-      ...(hasCarbHeat ? [{ id: 'CARB ICE', label: 'Carb icing · descent', carbIce: true }] : []),
-      { id: 'PARTIAL',  label: '50% power · 30s',   severity: 0.5, ramp: 30, bang: false },
-      { id: 'ROUGH',    label: '30% power · bang',   severity: 0.3, ramp: 20, bang: true  },
-      { id: 'FAILURE',  label: 'Full failure',        severity: 0.0, ramp: 15, bang: true  },
+    /* ── Weather presets ── */
+    const _wx = (clouds) => ({
+      source: 'manual',
+      manual: { wdir: 270, wspd: 8, altim: 1013, temp: 12, dewp: 5, visib: '10+', clouds },
+    });
+    const WX_PRESETS = [
+      { id: 'LIVE',     label: 'Live METAR',      override: null },
+      { id: 'CLEAR',    label: 'Clear · VFR',      override: _wx([]) },
+      { id: 'FEW 5K',   label: 'Few clouds 5000',  override: _wx([{ cover: 'FEW', base: 5000 }]) },
+      { id: 'SCT 3K',   label: 'Scattered 3000',   override: _wx([{ cover: 'SCT', base: 3000 }]) },
+      { id: 'BKN 2K',   label: 'Broken 2000',      override: { source: 'manual', manual: { wdir: 250, wspd: 12, altim: 1010, temp: 9, dewp: 7, visib: '6+', clouds: [{ cover: 'BKN', base: 2000 }] } } },
+      { id: 'OVC 1500', label: 'Overcast 1500',    override: { source: 'manual', manual: { wdir: 240, wspd: 15, altim: 1008, temp: 8, dewp: 7, visib: '5',   clouds: [{ cover: 'OVC', base: 1500 }] } } },
     ];
 
-    let selected = 'CLEAN';
+    /* ── Crew presets — use mission-defined roles if present ── */
+    const CREW_PRESETS = m.roles?.length > 0 ? m.roles : [
+      { id: 'PF',         label: 'Pilot Flying' },
+      { id: 'PM',         label: 'Pilot Monitoring' },
+      { id: 'INSTRUCTOR', label: 'Instructor mode' },
+    ];
+
+    /* ── Failure presets ── */
+    const hasCarbHeat = ['c172', 'robin-dr400'].includes(m.aircraft);
+    const FAIL_PRESETS = [
+      { id: 'CLEAN',   label: 'No failure',       failures: [] },
+      ...(hasCarbHeat ? [{ id: 'CARB ICE', label: 'Carb icing · descent', carbIce: true }] : []),
+      { id: 'PARTIAL', label: '50% power · 30s',  severity: 0.5, ramp: 30, bang: false },
+      { id: 'ROUGH',   label: '30% power · bang', severity: 0.3, ramp: 20, bang: true  },
+      { id: 'FAILURE', label: 'Full failure',      severity: 0.0, ramp: 15, bang: true  },
+    ];
+
+    let selWx   = 'LIVE';
+    let selCrew = S.role ?? 'PF';
+    let selFail = 'CLEAN';
     let randomTiming = true;
 
-    /* Build preset cards */
-    const cardsEl = document.getElementById('ss-cards');
-    cardsEl.innerHTML = '';
-    PRESETS.forEach(p => {
-      const card = document.createElement('div');
-      card.className = 'ss-card' + (p.id === 'CLEAN' ? ' selected' : '');
-      card.dataset.id = p.id;
-      card.innerHTML = `<div class="ss-card-id">${p.id}</div><div class="ss-card-label">${p.label}</div>`;
-      card.addEventListener('click', () => {
-        selected = p.id;
-        cardsEl.querySelectorAll('.ss-card').forEach(c => c.classList.toggle('selected', c.dataset.id === p.id));
-        document.getElementById('ss-timing').style.display = p.id === 'CLEAN' ? 'none' : 'flex';
+    function _buildCards(containerId, presets, getCurrent, setCurrent, extraClass) {
+      const el2 = document.getElementById(containerId);
+      el2.innerHTML = '';
+      presets.forEach(p => {
+        const isInst = p.id === 'INSTRUCTOR';
+        const card = document.createElement('div');
+        card.className = 'ss-card'
+          + (p.id === getCurrent() ? ' selected' : '')
+          + (isInst ? ' ss-card-inst' : '')
+          + (extraClass ? ' ' + extraClass : '');
+        card.dataset.id = p.id;
+        card.innerHTML = `<div class="ss-card-id${isInst ? ' ss-card-id-inst' : ''}">${p.id}</div><div class="ss-card-label">${p.label}</div>`;
+        card.addEventListener('click', () => {
+          setCurrent(p.id);
+          el2.querySelectorAll('.ss-card').forEach(c => c.classList.toggle('selected', c.dataset.id === p.id));
+        });
+        el2.appendChild(card);
       });
-      cardsEl.appendChild(card);
+    }
+
+    _buildCards('ss-wx-cards',   WX_PRESETS,   () => selWx,   v => { selWx   = v; });
+    _buildCards('ss-crew-cards', CREW_PRESETS, () => selCrew, v => { selCrew = v; });
+    _buildCards('ss-cards',      FAIL_PRESETS, () => selFail, v => {
+      selFail = v;
+      document.getElementById('ss-timing').style.display = v === 'CLEAN' ? 'none' : 'flex';
     });
 
     /* Timing controls */
@@ -3022,8 +3362,7 @@
     const fixedInput = document.getElementById('ss-fixed-input');
     const timingLbl  = document.getElementById('ss-timing-label');
 
-    timingEl.style.display = 'none'; // hidden until a failure is selected
-
+    timingEl.style.display = 'none';
     randBtn.classList.add('active');
     fixedBtn.classList.remove('active');
     fixedInput.style.display = 'none';
@@ -3044,27 +3383,28 @@
 
     /* Fly button */
     document.getElementById('ss-fly-btn').onclick = () => {
-      const preset = PRESETS.find(p => p.id === selected);
+      const wxPreset   = WX_PRESETS.find(p => p.id === selWx);
+      const failPreset = FAIL_PRESETS.find(p => p.id === selFail);
       let injected = [];
 
-      if (preset && preset.id !== 'CLEAN') {
+      if (failPreset && failPreset.id !== 'CLEAN') {
         const T = randomTiming
           ? Math.floor(60 + Math.random() * 240)
           : Math.max(10, parseInt(fixedInput.value) || 120);
-
-        if (preset.carbIce) {
+        if (failPreset.carbIce) {
           injected.push({ trigger: { type: 'time', t: T }, type: 'carb_ice' });
         } else {
-          if (preset.bang) {
+          if (failPreset.bang) {
             injected.push({ trigger: { type: 'time', t: T     }, type: 'engine_gunfire' });
             injected.push({ trigger: { type: 'time', t: T + 1 }, type: 'engine_bang' });
           }
-          injected.push({ trigger: { type: 'time', t: T + (preset.bang ? 1 : 0) }, type: 'engine_power', value: preset.severity, rampTime: preset.ramp });
+          injected.push({ trigger: { type: 'time', t: T + (failPreset.bang ? 1 : 0) }, type: 'engine_power', value: failPreset.severity, rampTime: failPreset.ramp });
         }
       }
 
-      /* Store injected failures on the mission object — init() will merge them */
-      m._scenarioFailures = injected;
+      m._scenarioFailures  = injected;
+      m._weatherOverride   = wxPreset?.override;   /* null = keep LIVE; object = manual */
+      setState({ role: selCrew });
 
       el.classList.remove('visible');
       setTimeout(() => init(m.id, m.aircraft), 400);
@@ -3100,6 +3440,14 @@
     if (mData2?._scenarioFailures?.length && S.mission) {
       S.mission.failures = [...(S.mission.failures ?? []), ...mData2._scenarioFailures];
       mData2._scenarioFailures = [];
+    }
+
+    /* Apply weather override from scenario setup (null = LIVE/keep, object = manual preset) */
+    if (mData2 && '_weatherOverride' in mData2 && S.mission) {
+      if (mData2._weatherOverride !== null) {
+        S.mission.weather = mData2._weatherOverride;
+      }
+      delete mData2._weatherOverride;
     }
 
     /* Re-init COM with mission-specific frequencies now that S.mission is loaded */
@@ -3264,7 +3612,10 @@
     initG1000Map();
 
     let _audioOn  = true;
-    let _viewMode     = 0;   /* 0=PFD · 1=Combined · 2=Outside */
+    let _viewMode       = 0;   /* 0=PFD · 1=Combined · 2=Outside */
+    let _outsideCamMode = 0;   /* 0=cockpit forward · 1=chase cam */
+    let _boosterCamAuto    = false;   // true while auto-switched to booster cam
+    let _camBeforeBooster  = 1;       // cam mode to restore after booster phases
     let _niflheimActive = false;
     let _viewBeforeNiflheim = 0;
     const audioEl = document.getElementById('pv-audio');
@@ -3300,7 +3651,7 @@
     obEl.addEventListener('click', dismissOnboarding);
 
     window.addEventListener('keydown', (e) => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'T') {
+      if (e.ctrlKey && e.shiftKey && e.key === 'X') {
         e.preventDefault();
         if (S.aircraft?.vehicleType === 'rocket') downloadTelemetryCSV();
         else downloadTelemetry();
@@ -3338,12 +3689,11 @@
         return;
       }
 
-      /* C — carb heat toggle */
-      if ((e.key === 'c' || e.key === 'C') && S.aircraft?.hasCarbHeat) {
+      /* H — carb heat toggle */
+      if ((e.key === 'h' || e.key === 'H') && S.aircraft?.hasCarbHeat) {
         const next = !S.carbHeat;
         setState({ carbHeat: next });
         bbEvent({ type: 'carb_heat', carbHeat: next });
-        return;
       }
 
       if (e.key === 'm' || e.key === 'M') {
@@ -3357,6 +3707,16 @@
         _viewMode = (_viewMode + 1) % 3;
         _applyViewMode(_viewMode);
       }
+      if (e.key === 'c' || e.key === 'C') {
+        if (S.aircraft?.vehicleType === 'rocket') {
+          const rocketModes = [0, 1, 2, 4, 5];  // no wing view; 5=booster cam
+          const idx = rocketModes.indexOf(_outsideCamMode);
+          _outsideCamMode = rocketModes[(idx + 1) % rocketModes.length];
+        } else {
+          _outsideCamMode = (_outsideCamMode + 1) % 4;
+        }
+        setOutsideCamMode(_outsideCamMode);
+      }
     });
 
     function _applyViewMode(mode) {
@@ -3364,22 +3724,28 @@
       const pfd     = document.getElementById('pfd');
       const ecam    = document.getElementById('ecam');
       const uiEls   = ['fma','panel','keys','ptt-indicator','com-container','checklist'];
+      const nd = document.getElementById('nd');
       if (mode === 0) {
         outside.classList.remove('visible', 'combined');
         pfd.classList.remove('combined');
+        if (nd) nd.classList.remove('combined');
         pfd.style.display = ''; ecam.style.display = '';
         document.body.classList.remove('outside-active');
         uiEls.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = ''; });
+        _outsideCamMode = 0; setOutsideCamMode(0);
       } else if (mode === 1) {
         outside.classList.add('visible', 'combined');
         pfd.classList.add('combined');
+        if (nd) nd.classList.add('combined');
         pfd.style.display = ''; ecam.style.display = 'none';
         document.body.classList.add('outside-active');
         uiEls.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = ''; });
         outsideInvalidate();
       } else {
+        /* mode === 2 — full outside */
         outside.classList.add('visible'); outside.classList.remove('combined');
         pfd.classList.remove('combined');
+        if (nd) nd.classList.remove('combined');
         pfd.style.display = 'none'; ecam.style.display = 'none';
         document.body.classList.remove('outside-active');
         uiEls.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
@@ -3411,6 +3777,9 @@
       }
     }
 
+    /* AP disconnect chime — fires on true→false transition */
+    let _prevAp = S.ap;
+
     /* Start loop */
     startLoop([
       () => {
@@ -3432,24 +3801,37 @@
         else if (panel === 'bf109')  renderBf109(canvas);
         else if (panel === 'f4u')    renderF4U1A(canvas);
         else if (panel === 'velis-epsi') renderVelisEpsi(canvas);
+        else if (panel === 'airbus' || panel === 'e190') {
+          renderPanel(canvas,   0, _currentSpec(0));
+          renderPanel(ndCanvas, 1, _currentSpec(1));
+          if (S.aircraft?.displays?.some(d => d.screen === 1)) renderFCU(fcuCanvas);
+        }
         else if (ecam)               renderECAM(ecamCanvas);
         else                         renderPFD(canvas);
+        /* AP disconnect chime */
+        if (_prevAp && !S.ap) apDisconnectChime();
+        _prevAp = S.ap;
+
         /* Show/hide hovercraft control panel; hide COM for hovercraft only (rockets get loop selector) */
         const isVelis  = panel === 'velis-epsi';
         const isG1000  = panel === 'g1000';
+        const isPanel  = panel === 'airbus' || panel === 'e190';
+        const hasDual  = isPanel && !!(S.aircraft?.displays?.some(d => d.screen === 1));
         const hasOwnUI = isVelis || isG1000;
         const isDragon = isRocket && !!(S.mission?.dragonSepT);
         canvas.style.pointerEvents = (isVelis || isArm || isDragon || isG1000) ? 'auto' : 'none';
         document.body.classList.toggle('g1000-active',  isG1000);
         document.body.classList.toggle('velis-active',  isVelis);
+        document.body.classList.toggle('panel-dual',    hasDual);
+        if (hasDual) hideMap();
         document.getElementById('hc-panel').style.display      = isHover ? 'flex' : 'none';
         document.getElementById('com-container').style.display  =
-          (isHover || isVelis || isArm) ? 'none' : (isG1000 ? (S.comPanelVisible ? '' : 'none') : '');
+          (isHover || isVelis || isArm || isPanel) ? 'none' : (isG1000 ? (S.comPanelVisible ? '' : 'none') : '');
         document.getElementById('panel').style.display          = (isRocket || hasOwnUI || isArm) ? 'none' : '';
-        document.getElementById('keys').style.display           = (isRocket || isArm) ? 'none' : '';
-        document.getElementById('fma').style.display            = (isRocket || hasOwnUI || isArm) ? 'none' : '';
-        document.getElementById('warning-lights').style.display = hasOwnUI ? 'none' : '';
-        document.getElementById('metar-strip').style.display    = hasOwnUI ? 'none' : '';
+        document.getElementById('keys').style.display           = (isRocket || isArm || isPanel) ? 'none' : '';
+        document.getElementById('fma').style.display            = (isRocket || hasOwnUI || isArm || isPanel) ? 'none' : '';
+        document.getElementById('warning-lights').style.display = (hasOwnUI || isPanel) ? 'none' : '';
+        document.getElementById('metar-strip').style.display    = (hasOwnUI || isPanel) ? 'none' : '';
         _oskUpdate(isHover, S.aircraft?.manualControl);
       },
       () => renderFMA(),
@@ -3473,12 +3855,36 @@
           _niflheimActive = false;
         }
       },
+      () => {
+        /* Auto-switch to booster cam during boostback / entry / landing phases */
+        const _bPhase = S.booster?.phase;
+        const _wantBoosterCam = S.aircraft?.vehicleType === 'rocket'
+          && S.booster?.active && !S.booster?.landed
+          && ['boostback','entry','landing'].includes(_bPhase);
+        if (_wantBoosterCam && !_boosterCamAuto) {
+          _camBeforeBooster = _outsideCamMode;
+          _outsideCamMode = 5;
+          setOutsideCamMode(5);
+          _boosterCamAuto = true;
+        } else if (!_wantBoosterCam && _boosterCamAuto) {
+          _outsideCamMode = _camBeforeBooster;
+          setOutsideCamMode(_camBeforeBooster);
+          _boosterCamAuto = false;
+        }
+      },
       () => tickOutside(),
       () => tickKneeboard(),
       () => renderMissionClock(),
       () => renderMap(),
     ]);
   }
+
+  /* ── FPS tracking ── */
+  let _fpsLastTime  = performance.now();
+  let _fpsFrames    = 0;
+  let _fpsValue     = 0;
+  const _fpsEl      = () => document.getElementById('fps-counter');
+  const _outsideFps = () => document.getElementById('outside-fps');
 
   /* ── Panel updater ── */
   function updatePanel() {
@@ -3578,7 +3984,28 @@
     const warpEl = document.getElementById('warp-indicator');
     const warp   = S.warpFactor ?? 1;
     warpEl.textContent = `⏩ ${warp}×`;
-    warpEl.classList.toggle('active', warp > 1 && S.aircraft?.vehicleType === 'rocket');
+    warpEl.classList.toggle('active', warp > 1 && (S.aircraft?.vehicleType === 'rocket' || S.aircraft?.panel));
+
+    /* FPS tracking — always */
+    _fpsFrames++;
+    const _now    = performance.now();
+    const isPanel = !!(S.aircraft?.panel);
+    const ofpsEl  = _outsideFps();
+    if (ofpsEl) ofpsEl.style.display = isPanel ? 'none' : '';
+    if (_now - _fpsLastTime >= 1000) {
+      _fpsValue    = Math.round(_fpsFrames * 1000 / (_now - _fpsLastTime));
+      _fpsFrames   = 0;
+      _fpsLastTime = _now;
+      const fpsEl = _fpsEl(); if (fpsEl) fpsEl.textContent = `${_fpsValue} fps`;
+      if (ofpsEl) ofpsEl.textContent = `${_fpsValue} fps`;
+    }
+
+    /* Time controls bar — warp buttons (panel only) */
+    if (isPanel) {
+      document.querySelectorAll('.warp-btn').forEach(b => {
+        b.classList.toggle('active', Number(b.dataset.warp) === warp);
+      });
+    }
 
     /* Engine state display — lifecycle engines (v12 + radial) */
     const _et        = S.aircraft?.sound?.engineType;
@@ -3643,6 +4070,7 @@
     el.classList.toggle('dragon', !!(S.mission?.dragonSepT));
     el.classList.toggle('velis',  S.aircraft?.panel === 'velis-epsi');
     el.classList.toggle('g1000',  S.aircraft?.panel === 'g1000');
+    el.classList.toggle('airbus', S.aircraft?.panel === 'airbus' || S.aircraft?.panel === 'e190');
     const t = Math.max(0, Math.floor(S.time ?? 0));
     const h = Math.floor(t / 3600);
     const m = Math.floor((t % 3600) / 60);
@@ -3987,6 +4415,13 @@
       setState({ hcMEmergency: true });
     });
   })();
+
+  /* ── Time controls — warp buttons ── */
+  document.querySelectorAll('.warp-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      setState({ warpFactor: Number(btn.dataset.warp) });
+    });
+  });
 
   /* ── On-screen keyboard ── */
   const _isTouchDevice = navigator.maxTouchPoints > 0;

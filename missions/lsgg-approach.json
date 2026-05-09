@@ -1,0 +1,87 @@
+{
+  "id": "lsgg-approach",
+  "phase": "approach",
+  "title": "ILS Approach — Genève LSGG",
+  "description": "ILS approach into Geneva runway 23. Live METAR. Full crew loop: ATC clearances, approach brief, GPWS callouts.",
+  "author": "Markus Leutwyler",
+  "aircraft": "e190",
+  "departure": null,
+  "arrival": {
+    "icao": "LSGG",
+    "name": "Genève",
+    "runway": "23",
+    "ils": {
+      "freq": "109.750",
+      "course": 228
+    },
+    "elevation": 1411
+  },
+  "initialState": {
+    "lat": 47.20,
+    "lon": 8.10,
+    "alt": 39000,
+    "spd": 278,
+    "hdg": 230,
+    "pitch": 2,
+    "roll": 0
+  },
+  "weather": {
+    "source": "live",
+    "icao": "LSGG",
+    "fallback": {
+      "wdir": 230,
+      "wspd": 10,
+      "altim": 1018,
+      "temp": 8,
+      "dewp": 2,
+      "visib": "6+",
+      "clouds": [
+        { "cover": "FEW", "base": 3500 }
+      ]
+    }
+  },
+  "atcClearances": [
+    {
+      "alt": 36000,
+      "pm": "Geneva control, Helvetic, request descent, flight level two four zero",
+      "atc": "Helvetic, Geneva control, descend flight level two four zero, standard pressure"
+    },
+    {
+      "alt": 23000,
+      "pm": "request lower, flight level one eight zero",
+      "atc": "Helvetic, cleared flight level one eight zero"
+    },
+    {
+      "alt": 16000,
+      "pm": "request flight level one zero zero",
+      "atc": "Helvetic, descend flight level one zero zero, expect ILS approach runway two three"
+    },
+    {
+      "alt": 11000,
+      "pm": "request ILS runway two three, Helvetic",
+      "atc": "Helvetic, cleared ILS approach runway two three. Contact Geneva approach, one one eight decimal seven. Bonne arrivée."
+    }
+  ],
+  "approachBrief": [
+    { "v": "pf", "t": "start approach briefing" },
+    { "v": "pf", "t": "destination, Geneva, Lima Sierra Golf Golf. runway two three. ILS approach, frequency one zero niner decimal seven five zero" },
+    { "v": "pm", "t": "confirmed" },
+    { "v": "pf", "t": "initial approach altitude, four thousand feet. final approach course, two two eight degrees" },
+    { "v": "pm", "t": "checked" },
+    { "v": "pf", "t": "decision height, two hundred feet. minimums set. auto-call out armed" },
+    { "v": "pm", "t": "confirmed" },
+    { "v": "pf", "t": "missed approach: climb runway heading to four thousand, then right turn direct Geneva VOR" },
+    { "v": "pm", "t": "understood" },
+    { "v": "pf", "t": "vee app one three five knots. flaps full. landing checklist after gear down" },
+    { "v": "pm", "t": "ready for approach" }
+  ],
+  "approachBriefAlt": 9500,
+  "debrief": [
+    "Was the approach stabilised at 1000ft AGL?",
+    "Were all GPWS callouts confirmed?",
+    "Was the decision height called correctly?",
+    "Lake Geneva off the left — did terrain not cause distraction?"
+  ],
+  "failures": [],
+  "timeOfDay": 11.0
+}

@@ -337,30 +337,19 @@ function _applySize(mode) {
     z-index: 8000;
     pointer-events: none;
   `;
-  if (mode === 'rocket') {
-    /* Main vehicle: directly left of map */
-    if (_silEl)  _silEl.style.cssText  = silCSS(12 + w + 8);
-    /* Booster: left of main vehicle (position managed in _renderSilhouette) */
-    if (_silEl2) _silEl2.style.cssText = silCSS(12 + w + 8 + SIL_W + 6);
-  } else {
-    if (_silEl)  _silEl.style.display  = 'none';
-    if (_silEl2) _silEl2.style.display = 'none';
-  }
+  if (_silEl)  _silEl.style.display  = 'none';
+  if (_silEl2) _silEl2.style.display = 'none';
 }
 
 export function toggleMap() {
   _visible = !_visible;
-  _el.style.display  = _visible ? '' : 'none';
-  if (_silEl)  _silEl.style.display  = _visible ? '' : 'none';
-  if (_silEl2) _silEl2.style.display = _visible ? '' : 'none';
+  _el.style.display = _visible ? '' : 'none';
 }
 
 export function showMap() {
   _visible = true;
-  if (_el)     _el.style.display     = '';
-  if (_silEl)  _silEl.style.display  = '';
-  if (_silEl2) _silEl2.style.display = '';
-  if (_lmap)   _lmap.invalidateSize();
+  if (_el)   _el.style.display = '';
+  if (_lmap) _lmap.invalidateSize();
 }
 
 export function hideMap() {
@@ -420,7 +409,7 @@ export function renderMap() {
   ctx.translate(pW, 0);
   _renderWorldMap(ctx, MAP_W * dpr, H, dpr);
   ctx.restore();
-  _renderSilhouette(dpr);
+  /* silhouette panels removed */
 }
 
 /* ── Update Leaflet local map each frame ── */

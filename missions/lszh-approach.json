@@ -17,11 +17,11 @@
     "elevation": 1416
   },
   "initialState": {
-    "lat": 47.55,
-    "lon": 8.85,
-    "alt": 35000,
+    "lat": 47.20,
+    "lon": 11.00,
+    "alt": 39000,
     "spd": 312,
-    "hdg": 360,
+    "hdg": 280,
     "pitch": 2,
     "roll": 0
   },
@@ -117,6 +117,12 @@
     "Were all callouts made and confirmed?",
     "Was the go/no-go decision point identified?",
     "What would trigger a go-around?"
+  ],
+  "waypoints": [
+    { "name": "RITEB", "lat": 47.364, "lon": 9.374, "alt": 8000, "type": "IAF" },
+    { "name": "LOBEP", "lat": 47.416, "lon": 8.937, "alt": 5000, "type": "IF"  },
+    { "name": "ZH430", "lat": 47.436, "lon": 8.767, "alt": 3500, "type": "FAF" },
+    { "name": "RW28",  "lat": 47.462, "lon": 8.549, "alt": 1616, "type": "MAP" }
   ],
   "failures": [],
   "timeOfDay": 9.5

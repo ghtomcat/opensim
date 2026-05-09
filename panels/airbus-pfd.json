@@ -1,0 +1,63 @@
+{
+  "id":      "airbus-pfd",
+  "version": "1",
+  "style":   "airbus",
+
+  "physical": {
+    "width_mm":  332,
+    "height_mm": 187,
+    "bezel_mm":    8
+  },
+
+  "screen": {
+    "width_px":  1920,
+    "height_px": 1080
+  },
+
+  "layout": [
+    {
+      "h": 0.09,
+      "cols": [
+        { "id": "fma",  "widget": "fma",  "w": 1.0 }
+      ]
+    },
+    {
+      "h": 0.76,
+      "cols": [
+        { "id": "spd",  "widget": "speed_tape", "w": 0.165 },
+        { "id": "ai",   "widget": "ai",          "w": 0.610,
+          "config": { "fpv": true, "ils": true, "bank_arc": true } },
+        { "id": "alt",  "widget": "alt_tape",    "w": 0.155 },
+        { "id": "vsi",  "widget": "vsi",          "w": 0.070 }
+      ]
+    },
+    {
+      "h": 0.15,
+      "cols": [
+        { "widget": "spacer",   "w": 0.165 },
+        { "id": "hdg",  "widget": "hdg_tape",    "w": 0.610 },
+        { "widget": "spacer",   "w": 0.225 }
+      ]
+    }
+  ],
+
+  "hil": {
+    "spd_cw":        { "state": "spdT", "op": "inc",    "step":   1, "min":    0, "max":  350 },
+    "spd_ccw":       { "state": "spdT", "op": "inc",    "step":  -1, "min":    0, "max":  350 },
+    "alt_cw":        { "state": "altT", "op": "inc",    "step": 100, "min":    0, "max": 43000, "snap": 100 },
+    "alt_ccw":       { "state": "altT", "op": "inc",    "step":-100, "min":    0, "max": 43000, "snap": 100 },
+    "alt_cw_fast":   { "state": "altT", "op": "inc",    "step":1000, "min":    0, "max": 43000, "snap": 1000 },
+    "alt_ccw_fast":  { "state": "altT", "op": "inc",    "step":-1000,"min":    0, "max": 43000, "snap": 1000 },
+    "hdg_cw":        { "state": "hdgT", "op": "hdg",    "step":   1 },
+    "hdg_ccw":       { "state": "hdgT", "op": "hdg",    "step":  -1 },
+    "hdg_cw_fast":   { "state": "hdgT", "op": "hdg",    "step":  10 },
+    "hdg_ccw_fast":  { "state": "hdgT", "op": "hdg",    "step": -10 },
+    "ap_btn":        { "op": "toggle",  "state": "ap"               },
+    "athr_btn":      { "op": "toggle",  "state": "athr"             },
+    "ap_disc":       { "op": "set",     "state": "ap",   "value": false },
+    "alt_pull":      { "op": "call",    "fn": "alt_selected_mode"   },
+    "alt_push":      { "op": "call",    "fn": "alt_managed_mode"    },
+    "spd_pull":      { "op": "call",    "fn": "spd_selected_mode"   },
+    "spd_push":      { "op": "call",    "fn": "spd_managed_mode"    }
+  }
+}

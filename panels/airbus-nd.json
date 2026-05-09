@@ -1,0 +1,32 @@
+{
+  "id":      "airbus-nd",
+  "version": "1",
+  "style":   "airbus",
+
+  "physical": {
+    "width_mm":  332,
+    "height_mm": 187,
+    "bezel_mm":    8
+  },
+
+  "screen": {
+    "width_px":  1920,
+    "height_px": 1080
+  },
+
+  "layout": [
+    {
+      "h": 1.0,
+      "cols": [
+        { "id": "map", "widget": "nd_map", "w": 1.0,
+          "config": { "mode": "arc", "range_nm": 20 } }
+      ]
+    }
+  ],
+
+  "hil": {
+    "range_cw":  { "target": "map", "action": "range_inc" },
+    "range_ccw": { "target": "map", "action": "range_dec" },
+    "mode_btn":  { "target": "map", "action": "cycle_mode" }
+  }
+}

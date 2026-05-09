@@ -1,0 +1,12 @@
+{
+  "id":    "airbus-ecam",
+  "style": "airbus",
+  "layout": [
+    {
+      "h": 1.0,
+      "cols": [
+        { "widget": "ecam_ewd", "w": 1.0 }
+      ]
+    }
+  ]
+}

@@ -4,7 +4,7 @@
    Data-driven from aircraft.json + mission.json via S.aircraft / S.mission.
    ═══════════════════════════════════════════════════════════════ */
 
-import { S } from './state.js';
+import { S, setState } from './state.js';
 import { playThroughChain, createRadioChain } from './radio.js';
 import { getAudioContext, getEngineBleedNode } from './sound.js';
 
@@ -63,6 +63,7 @@ const AUDIO_FILES = {
 
 export function initCrew() {
   _loadVoices();
+  window._testGPWS = (speech = 'minimums', red = false) => _playGPWS(speech, red);
 }
 
 /** Switch crew language — call after aircraft JSON loads */
@@ -215,8 +216,10 @@ function _checkTakeoffCallouts(ac) {
 function _checkPMCallouts(prev, curr, ac) {
   if (!ac.pmCallouts) return;
   if (curr >= prev) return;   // only on descent
+  const fieldElev = S.mission?.arrival?.elevation ?? S.mission?.departure?.elevation ?? 0;
   for (const { alt, speech } of ac.pmCallouts) {
-    if (prev > alt && curr <= alt && !_pmFired.has(alt)) {
+    const abs = alt + fieldElev;
+    if (prev > abs && curr <= abs && !_pmFired.has(alt)) {
       _pmFired.add(alt);
       setTimeout(() => speakPM(speech), 600);
     }
@@ -226,13 +229,92 @@ function _checkPMCallouts(prev, curr, ac) {
 function _checkGPWS(prev, curr, ac) {
   if (!ac.gpws) return;
   if (curr >= prev) return;
+  const fieldElev = S.mission?.arrival?.elevation ?? S.mission?.departure?.elevation ?? 0;
   for (const { alt, speech, red } of ac.gpws) {
-    if (prev > alt && curr <= alt && !_gpwsFired.has(alt)) {
+    const abs = alt + fieldElev;
+    if (prev > abs && curr <= abs && !_gpwsFired.has(alt)) {
       _gpwsFired.add(alt);
-      const pitch = red ? 1.4 : 1.2;
-      setTimeout(() => _speak(speech, null, { rate: 1.0, pitch, volume: 1.0 }), 200);
+      setTimeout(() => _playGPWS(speech, red), 200);
     }
   }
+}
+
+/* ── GPWS audio chain ───────────────────────────────────────────
+   Tries assets/gpws/<slug>.mp3 first; falls back to TTS.
+   Chain: highpass(300) → lowpass(3400) → compressor → soft-clip → gain
+   ─────────────────────────────────────────────────────────────── */
+const _gpwsCache = new Map();   // slug → AudioBuffer | 'missing'
+
+function _gpwsSlug(speech) {
+  return speech.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/, '');
+}
+
+function _buildGPWSCurve() {
+  const n = 512, k = 60;
+  const c = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = (i * 2) / n - 1;
+    c[i] = (Math.PI + k) * x / (Math.PI + k * Math.abs(x));
+  }
+  return c;
+}
+
+async function _playGPWS(speech, red = false) {
+  const slug = _gpwsSlug(speech);
+  const ctx  = getAudioContext();
+
+  let buf = _gpwsCache.get(slug);
+
+  if (!buf) {
+    try {
+      const resp = await fetch(`assets/gpws/${slug}.mp3`);
+      if (!resp.ok) throw new Error('not found');
+      const ab  = await resp.arrayBuffer();
+      buf = await ctx.decodeAudioData(ab);
+      _gpwsCache.set(slug, buf);
+    } catch {
+      _gpwsCache.set(slug, 'missing');
+      buf = 'missing';
+    }
+  }
+
+  if (buf === 'missing' || !ctx) {
+    const pitch = red ? 1.4 : 1.2;
+    _speak(speech, null, { rate: 1.0, pitch, volume: 1.0 });
+    return;
+  }
+
+  const src  = ctx.createBufferSource();
+  src.buffer = buf;
+
+  const hp   = ctx.createBiquadFilter();
+  hp.type    = 'highpass';
+  hp.frequency.value = 300;
+
+  const lp   = ctx.createBiquadFilter();
+  lp.type    = 'lowpass';
+  lp.frequency.value = 3400;
+
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -18;
+  comp.knee.value      = 3;
+  comp.ratio.value     = 14;
+  comp.attack.value    = 0.003;
+  comp.release.value   = 0.10;
+
+  const shaper  = ctx.createWaveShaper();
+  shaper.curve  = _buildGPWSCurve();
+
+  const gain    = ctx.createGain();
+  gain.gain.value = red ? 1.6 : 1.4;
+
+  src.connect(hp);
+  hp.connect(lp);
+  lp.connect(comp);
+  comp.connect(shaper);
+  shaper.connect(gain);
+  gain.connect(ctx.destination);
+  src.start();
 }
 
 function _checkChecklist(prev, curr, ac) {
@@ -240,20 +322,27 @@ function _checkChecklist(prev, curr, ac) {
   if (curr >= prev) return;
 
   const { flaps, gear } = ac.checklist;
+  const fieldElev = S.mission?.arrival?.elevation ?? S.mission?.departure?.elevation ?? 0;
 
   /* Gear down */
-  if (gear && prev > gear.alt && curr <= gear.alt && !S.gear && S.prevGear === false) {
-    _checklistLock = true;
-    sndCrew(gear.pf, gear.pm, 800);
-    setTimeout(() => { _checklistLock = false; }, 4000);
-    return;
+  if (gear) {
+    const gearAbs = gear.alt + fieldElev;
+    if (prev > gearAbs && curr <= gearAbs && !S.gear && S.prevGear === false) {
+      _checklistLock = true;
+      setState({ gear: true });
+      sndCrew(gear.pf, gear.pm, 800);
+      setTimeout(() => { _checklistLock = false; }, 4000);
+      return;
+    }
   }
 
   /* Flaps — find next config not yet set */
   if (flaps) {
     for (const step of flaps) {
-      if (prev > step.alt && curr <= step.alt && S.flaps < step.config) {
+      const stepAbs = step.alt + fieldElev;
+      if (prev > stepAbs && curr <= stepAbs && S.flaps < step.config) {
         _checklistLock = true;
+        setState({ flaps: step.config });
         sndCrew(step.pf, step.pm, 800);
         setTimeout(() => { _checklistLock = false; }, 4000);
         return;

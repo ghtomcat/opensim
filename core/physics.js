@@ -190,13 +190,21 @@ export function tickPhysics(dt) {
 
   } else {
     /* ── Autopilot convergence ── */
-    const altRate   = Math.min(Math.abs(S.altT - S.alt), 2400 * dt / 60);
+    const apGround = S.mission?.arrival?.elevation ?? S.mission?.departure?.elevation
+                  ?? ac.situations?.[0]?.alt ?? 0;
+    const agl      = S.alt - apGround;
+
+    /* Cap descent rate by AGL: full 2400 fpm above 500 ft,
+       700 fpm on final (< 500 ft), 250 fpm flare (< 50 ft) */
+    const maxDescentFpm = agl < 50 ? 250 : agl < 500 ? 700 : 2400;
+    const descentFpm    = S.altT < S.alt ? maxDescentFpm : 2400;
+    const altRate   = Math.min(Math.abs(S.altT - S.alt), descentFpm * dt / 60);
     const spdRate   = 8  * dt;
     const hdgRate   = 3  * dt;
     const pitchRate = 1.5 * dt;
     const rollRate  = 3  * dt;
 
-    newAlt   = converge(S.alt,   S.altT,    altRate);
+    newAlt   = Math.max(apGround, converge(S.alt, S.altT, altRate));
     newSpd   = converge(S.spd,   spdTarget, spdRate);
     newHdg   = convergeHdg(S.hdg, S.hdgT,  hdgRate);
     newPitch = converge(S.pitch, S.pitchT,  pitchRate);
@@ -237,7 +245,7 @@ export function tickPhysics(dt) {
   /* ── FMA phase from aircraft config ── */
   let fma = S.fma;
   if (ac.fmaPhases) {
-    const phase = [...ac.fmaPhases].reverse().find(p => newAlt >= p.minAlt);
+    const phase = ac.fmaPhases.find(p => newAlt >= p.minAlt);
     if (phase) {
       fma = phase.vals.map((val, i) => ({
         sub:   S.fma[i]?.sub ?? '',

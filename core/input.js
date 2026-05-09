@@ -41,18 +41,30 @@ export function tickControls(dt) {
   const h = S.aircraft.handling ?? {};
   const maxBank  = h.maxBank  ?? 60;
   const maxPitch = h.maxPitch ?? 20;
-  const rollRate = (h.rollRate  ?? 30) * dt;
-  const pitchRate= (h.pitchRate ?? 5)  * dt;
+  const rollRate  = (h.rollRate  ?? 30) * dt;
+  const pitchRate = (h.pitchRate ?? 5)  * dt;
+  const rollRelax = (h.rollRelax ?? 20) * dt;  // spring-back rate when stick released
 
   const aileronIn  = (_held.has('ArrowRight') ? 1 : 0) - (_held.has('ArrowLeft')  ? 1 : 0);
   const elevatorIn = (_held.has('ArrowUp')    ? 1 : 0) - (_held.has('ArrowDown')  ? 1 : 0);
 
-  if (aileronIn !== 0 || elevatorIn !== 0) {
-    setState({
-      rollT:  Math.max(-maxBank,  Math.min(maxBank,  S.rollT  + aileronIn  * rollRate)),
-      pitchT: Math.max(-maxPitch, Math.min(maxPitch, S.pitchT + elevatorIn * pitchRate)),
-    });
+  /* On ground: ailerons have no meaningful effect — snap rollT to 0 to avoid
+     post-takeoff spiral from accumulated ground-roll inputs */
+  const patch = {};
+  if (S.wow) {
+    if (S.rollT !== 0) patch.rollT = 0;
+  } else if (aileronIn !== 0) {
+    patch.rollT = Math.max(-maxBank, Math.min(maxBank, S.rollT + aileronIn * rollRate));
+  } else if (S.rollT !== 0) {
+    /* No input in flight: spring back toward wings level */
+    const step = Math.min(Math.abs(S.rollT), rollRelax);
+    const next = S.rollT - Math.sign(S.rollT) * step;
+    patch.rollT = Math.abs(next) < 0.1 ? 0 : next;
   }
+  if (elevatorIn !== 0) {
+    patch.pitchT = Math.max(-maxPitch, Math.min(maxPitch, S.pitchT + elevatorIn * pitchRate));
+  }
+  if (Object.keys(patch).length) setState(patch);
 }
 
 export function isPTTActive() { return _pttActive; }
@@ -136,9 +148,9 @@ function _onKeyDown(e) {
     return;
   }
 
-  /* Time warp — rockets only */
-  if ((e.key === 'w' || e.key === 'W') && S.aircraft?.vehicleType === 'rocket') {
-    const steps = [1, 10, 100, 1000];
+  /* Time warp — rockets and panel aircraft */
+  if ((e.key === 'w' || e.key === 'W') && (S.aircraft?.vehicleType === 'rocket' || S.aircraft?.panel)) {
+    const steps = S.aircraft?.panel ? [1, 2, 5, 10] : [1, 10, 100, 1000];
     const next  = steps[(steps.indexOf(S.warpFactor ?? 1) + 1) % steps.length];
     setState({ warpFactor: next });
     return;
@@ -147,9 +159,11 @@ function _onKeyDown(e) {
   /* Brakes — hold B */
   if (e.key === 'b' || e.key === 'B') { setState({ braking: true }); return; }
 
-  /* Cycle display mode: Tab */
+  /* Cycle display mode: Tab — panel aircraft handle this in index.html */
   if (e.key === 'Tab') {
     e.preventDefault();
+    const panel = S.aircraft?.panel;
+    if (panel === 'airbus' || panel === 'e190') return;
     const modes = ['PFD', 'ECAM'];
     const i = modes.indexOf(S.mode);
     setState({ mode: modes[(i + 1) % modes.length] });
@@ -226,8 +240,8 @@ function _onMouseMove(e) {
   const h = S.aircraft?.handling ?? {};
   const maxBank  = h.maxBank  ?? 60;
   const maxPitch = h.maxPitch ?? 20;
-  setState({
-    rollT:  Math.max(-maxBank,  Math.min(maxBank,  S.rollT  + dx * 0.15)),
-    pitchT: Math.max(-maxPitch, Math.min(maxPitch, S.pitchT - dy * 0.08)),
-  });
+  const mp = {};
+  if (!S.wow) mp.rollT  = Math.max(-maxBank,  Math.min(maxBank,  S.rollT  + dx * 0.15));
+  mp.pitchT = Math.max(-maxPitch, Math.min(maxPitch, S.pitchT - dy * 0.08));
+  setState(mp);
 }

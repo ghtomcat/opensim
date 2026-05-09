@@ -1,0 +1,23 @@
+{
+  "id": "airbus",
+
+  "colors": {
+    "bg":       "#020508",
+    "tape":     "rgba(4,8,16,0.86)",
+    "dim":      "rgba(220,230,240,0.38)",
+
+    "sky":      "#1b3f66",
+    "ground":   "#4d3018",
+    "horizon":  "#d4a843",
+
+    "white":    "#e8ecf0",
+    "engaged":  "#3ddc6e",
+    "selected": "#00d4ff",
+    "managed":  "#ffb400",
+    "armed":    "#e8ecf0",
+    "caution":  "#ff8c00",
+    "warning":  "#ff3333"
+  },
+
+  "font": "mono"
+}

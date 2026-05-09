@@ -44,7 +44,8 @@ OpenSim is not a game. It is a modular simulation engine that runs entirely in t
 - **Real aerodynamic physics** — lift, drag, thrust, weight from first principles. Not kinematic approximations.
 - **Procedural sound** — engine sounds synthesised from physics. No samples. Wind rises with airspeed. The DB 601 fires 12 cylinders. The NK-12 turboprop beats at 3.8Hz.
 - **Historically accurate comm chain** — every voice passes through the correct radio equipment for its era. VHF aviation, NASA S-band, Soviet VHF, SpaceX IP backbone. Pre-recorded voices, archival recordings, or TTS — all through the same chain.
-- **Real terrain** — Mapbox Terrain-RGB tiles (Copernicus DEM, 30m resolution) projected onto a flat-earth pinhole camera. Mountain silhouettes, elevation-based colour, atmospheric haze. 61 fps on M2. A default public token is included — replace it with your own free token in `display/terrain.js` if you're running a public deployment.
+- **Real terrain** — Mapbox Terrain-RGB tiles (Copernicus DEM, 30m resolution) projected onto a flat-earth pinhole camera. Mountain silhouettes, elevation-based colour, atmospheric haze, space skybox with stars. 60 fps on M2. A default public token is included — replace it with your own free token in `display/terrain.js` if you're running a public deployment.
+- **3D wireframe aircraft at 60 fps** — flat-shaded painter's algorithm in pure Canvas 2D. Back-face culling, depth sorting, light-direction shading. No WebGL. No Three.js. No dependencies. Chase cam · side cam · wing view · plume cam · booster cam. For Falcon 9: engine plumes, LOX vent clouds, grid fins, S2 Merlin Vacuum bell, landing legs that deploy.
 - **Any aircraft** — envelope, performance, handling, sound, crew language, checklists in one JSON file
 - **Any mission** — weather, ATC clearances, classified briefing documents, scripted failures, crew voices in one JSON file
 - **Live radar** — real flights via OpenSky Network, color-coded by destination, route lines to arrival airport, 150/400/1000nm range
@@ -83,6 +84,7 @@ No build step. No framework. No dependencies. Open `index.html` and fly.
 | `k` | Kneeboard (briefings + checklists) |
 | `n` | Mini map (heading, track made good, wind) |
 | `v` | Cycle view: instruments / combined / outside |
+| `c` | Cycle outside camera: cockpit fwd → chase → side → plume cam → booster cam |
 | `Tab` | Cycle display mode |
 | `p` | Pause |
 | `m` | Audio on/off |
@@ -105,6 +107,8 @@ axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1
 | Aircraft | Engine | Notes |
 |----------|--------|-------|
 | Airbus A350-900 | Rolls-Royce Trent XWB | Autopilot, FMGS |
+| Airbus A220-300 | Pratt & Whitney PW1500G | Airbaltic livery, Airbus-style PFD/ND/ECAM |
+| Embraer E190-E2 | Pratt & Whitney PW1700G | Helvetic Airways, E-Jets glass cockpit |
 | Cessna 172S Skyhawk | Lycoming IO-360 · 180hp | G1000 glass cockpit, cold-dark startup, grass strip |
 | Robin DR400/140B Dauphin | Lycoming O-320 · 160hp | Flugschule Grenchen checklists |
 | Pipistrel Velis Electro HB-SYC | Pipistrel E-811 · 57.6 kW | EPSI panel, battery SOC management, Grenchen |
@@ -133,6 +137,8 @@ axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1
 | Mission | Aircraft | Era | What |
 |---------|----------|-----|------|
 | ILS Approach RWY 28 | A350 | Modern | Live METAR, ATC clearances, approach brief |
+| ILS Approach LSGG RWY 23 | A220 | Modern | Geneva, live METAR, full crew loop |
+| ILS Approach EVRA RWY 36 | E190 | Modern | Rīga, live METAR, Air Baltic crew voices |
 | Cross-Country LSZG→LSGN | C172 | PPL | Cold-dark startup, Schnupperflug route, live METAR |
 | VFR Pattern LSZF | C172 | PPL | Grass strip Speck-Fehraltorf, circuits, kneeboard |
 | VFR Circuit LSZG | Robin DR400 | PPL | Grenchen, Flugschule checklists, live METAR |
@@ -198,7 +204,7 @@ Point-mass gravity turn, programmed FPA profile, extended ISA through 140 km. Th
 
 **Deorbit + reentry** — retrograde ΔV at `deorbitT`, drag below 140 km, drogue at 5 500 m, mains at 1 800 m, terminal ~6 m/s.
 
-**Booster RTLS** — flip → boostback → coast → glide → landing. Single engine proportional throttle `v²/2h`.
+**Booster RTLS** — flip → boostback → coast → entry → glide → landing. Single engine proportional throttle `v²/2h`. Landing legs deploy over 5 s from start of landing phase. Booster cam (mode 5) auto-activates during boostback, entry burn, landing burn, and landing, then restores the previous camera.
 
 **Time warp** — `W` key cycles 1× → 10× → 100× → 1000×. A 3-day Inspiration5 orbit takes ~4 minutes real time at 1000×.
 
@@ -360,15 +366,20 @@ core/
   telemetry.js                — flight recorder: 2Hz JSONL
 
 display/
-  g1000.js       — Garmin G1000 glass cockpit: PFD, MFD, engine strip, switch panel, backup gauges
-  bf109.js       — Bf 109 instrument panel
-  dragon.js      — Dragon capsule crew seat displays (CDR / PLT / MO / MS)
+  g1000.js          — Garmin G1000 glass cockpit: PFD, MFD, engine strip, switch panel, backup gauges
+  panel_renderer.js — generic panel renderer: drives Airbus PFD/ND/ECAM and E190 PFD from panel JSON
+  pfd_instruments.js — reusable PFD instrument primitives (attitude, tape, HSI, FMA)
+  bf109.js          — Bf 109 instrument panel
+  dragon.js         — Dragon capsule crew seat displays (CDR / PLT / MO / MS)
   rocket_display.js — SpaceX-style telemetry, split panel for RTLS
-  map.js         — world map (rocket) + local mini-map + vehicle silhouette panels
-  terrain.js     — 3D outside view: Terrain-RGB elevation, day/night sky, stars, water, space
-  com.js         — COM radio + transponder
-  robot_arm.js   — SO-101 6-DOF arm visualisation
-  svg/           — vehicle silhouettes: dragon.svg, trunk.svg, stage2.svg, stage1.svg
+  map.js            — world map (rocket) + local mini-map + vehicle silhouette panels
+  terrain.js        — 3D outside view: Terrain-RGB elevation, day/night sky, stars, water, space
+  outside.js        — 3D wireframe aircraft: painter's algorithm, flat shading, 60 fps Canvas 2D
+  com.js            — COM radio + transponder
+  robot_arm.js      — SO-101 6-DOF arm visualisation
+  svg/              — vehicle silhouettes: dragon.svg, trunk.svg, stage2.svg, stage1.svg
+
+panels/            — aircraft panel layout JSON: airbus-pfd, airbus-nd, airbus-ecam, e190-pfd
 
 aircraft/        — JSON vehicle definitions
 missions/        — JSON mission definitions

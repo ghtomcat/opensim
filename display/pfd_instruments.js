@@ -1,0 +1,988 @@
+/* ═══════════════════════════════════════════════════════════════
+   OpenSim — display/pfd_instruments.js
+   Reusable PFD instrument drawing primitives.
+   Signature: draw___(ctx, box, style, config?)
+     box   = { x, y, w, h }  canvas pixels (DPR-scaled)
+     style = { colors:{...}, font: "mono"|"ui" }
+   All functions read from S (global state) — no state params.
+   ═══════════════════════════════════════════════════════════════ */
+
+import { S } from '../core/state.js';
+
+const _MONO = '"IBM Plex Mono","Courier New",monospace';
+const _UI   = '"Syne","Helvetica Neue",sans-serif';
+
+function _f(style)      { return style.font === 'ui' ? _UI : _MONO; }
+function _c(style, key) { return style.colors[key] ?? key; }
+
+function _fmaCol(col, style) {
+  switch (col) {
+    case 'green':   return _c(style, 'engaged');
+    case 'cyan':    return _c(style, 'selected');
+    case 'amber':   return _c(style, 'managed');
+    case 'white':   return _c(style, 'white');
+    case 'magenta': return '#d47bcc';
+    default:        return col;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   FMA — Flight Mode Annunciator
+   ════════════════════════════════════════════════════════════ */
+export function drawFMA(ctx, box, style) {
+  const { x, y, w, h } = box;
+  const f  = _f(style);
+  const cw = w / 5;
+
+  ctx.save();
+  ctx.fillStyle = _c(style, 'bg');
+  ctx.fillRect(x, y, w, h);
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 1;
+  for (let i = 1; i < 5; i++) {
+    ctx.beginPath();
+    ctx.moveTo(x + i * cw, y + h * 0.08);
+    ctx.lineTo(x + i * cw, y + h * 0.92);
+    ctx.stroke();
+  }
+
+  const SUBS = ['SPEED','AUTOPILOT','LATERAL','VERTICAL','ALTITUDE'];
+
+  for (let i = 0; i < 5; i++) {
+    const fma = S.fma[i];
+    if (!fma) continue;
+    const cx = x + i * cw + cw / 2;
+
+    ctx.font      = `${h * 0.26}px ${f}`;
+    ctx.fillStyle = 'rgba(200,215,225,0.45)';
+    ctx.textAlign = 'center';
+    ctx.fillText(fma.sub || SUBS[i], cx, y + h * 0.33);
+
+    if (fma.val) {
+      ctx.font      = `bold ${h * 0.46}px ${f}`;
+      ctx.fillStyle = _fmaCol(fma.col ?? 'white', style);
+      ctx.fillText(fma.val, cx, y + h * 0.79);
+    }
+  }
+
+  ctx.restore();
+}
+
+/* ════════════════════════════════════════════════════════════
+   ATTITUDE INDICATOR
+   ════════════════════════════════════════════════════════════ */
+export function drawAI(ctx, box, style, config = {}) {
+  const { x, y, w, h } = box;
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+
+  const pxPerDeg = h * 0.013;
+  const pitchPx  = S.pitch * pxPerDeg;
+  const rollRad  = S.roll  * Math.PI / 180;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+
+  ctx.translate(cx, cy);
+  ctx.rotate(-rollRad);
+
+  ctx.fillStyle = _c(style, 'sky');
+  ctx.fillRect(-w * 2, -h * 2, w * 4, h * 2 + pitchPx);
+
+  ctx.fillStyle = _c(style, 'ground');
+  ctx.fillRect(-w * 2, pitchPx, w * 4, h * 2);
+
+  ctx.strokeStyle = _c(style, 'horizon');
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-w * 2, pitchPx);
+  ctx.lineTo(w * 2, pitchPx);
+  ctx.stroke();
+
+  _pitchLadder(ctx, pitchPx, pxPerDeg, style, w, h);
+
+  ctx.restore();
+
+  _aircraftRef(ctx, box, style);
+  if (config.fpv)      _fpv(ctx, box, style);
+  if (config.ils)      _ils(ctx, box, style);
+  if (config.bank_arc) _bankArc(ctx, box, style);
+}
+
+function _pitchLadder(ctx, pitchPx, pxPerDeg, style, bw, bh) {
+  const white = _c(style, 'white');
+  const warn  = _c(style, 'caution');
+  const full  = Math.min(bw * 0.48, bh * 0.18);
+  const half  = full * 0.5;
+  const fs    = bh * 0.022;
+
+  ctx.textAlign   = 'center';
+  ctx.textBaseline = 'middle';
+
+  for (let deg = -30; deg <= 30; deg += 5) {
+    if (deg === 0) continue;
+    const py  = pitchPx - deg * pxPerDeg;
+    const w2  = deg % 10 === 0 ? full : half;
+    const col = deg > 0 ? white : warn;
+
+    ctx.strokeStyle = col;
+    ctx.lineWidth   = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-w2 / 2, py);
+    ctx.lineTo( w2 / 2, py);
+    ctx.stroke();
+
+    if (deg % 10 === 0) {
+      ctx.font      = `${fs}px ${_MONO}`;
+      ctx.fillStyle = col;
+      ctx.fillText(Math.abs(deg), -w2 / 2 - fs * 1.2, py);
+      ctx.fillText(Math.abs(deg),  w2 / 2 + fs * 1.2, py);
+    }
+  }
+
+  ctx.textBaseline = 'alphabetic';
+}
+
+function _aircraftRef(ctx, box, style) {
+  const cx  = box.x + box.w / 2;
+  const cy  = box.y + box.h / 2;
+  const arm = box.h * 0.038;
+  const col = _c(style, 'white');
+
+  ctx.save();
+  ctx.strokeStyle = col;
+  ctx.fillStyle   = col;
+  ctx.lineWidth   = 2.5;
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(cx - arm * 3, cy);
+  ctx.lineTo(cx - arm,     cy);
+  ctx.moveTo(cx + arm,     cy);
+  ctx.lineTo(cx + arm * 3, cy);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx, cy - arm * 1.6);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function _fpv(ctx, box, style) {
+  const cx    = box.x + box.w / 2;
+  const cy    = box.y + box.h / 2;
+  const sc    = box.h / 800;
+  const fpvY  = cy - S.vs * 0.004 * sc;
+  const fpvX  = cx + S.roll * 0.5 * sc;
+  const r     = 10 * sc;
+
+  ctx.save();
+  ctx.strokeStyle = _c(style, 'engaged');
+  ctx.lineWidth   = 2;
+
+  ctx.beginPath();
+  ctx.arc(fpvX, fpvY, r, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(fpvX + r,            fpvY);
+  ctx.lineTo(fpvX + r + 18 * sc, fpvY);
+  ctx.moveTo(fpvX - r,            fpvY);
+  ctx.lineTo(fpvX - r - 18 * sc, fpvY);
+  ctx.moveTo(fpvX,                fpvY - r);
+  ctx.lineTo(fpvX,                fpvY - r - 10 * sc);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function _ils(ctx, box, style) {
+  const cx    = box.x + box.w / 2;
+  const cy    = box.y + box.h / 2;
+  const sp    = box.h * 0.05;
+  const dotR  = Math.max(3, box.h * 0.005);
+  const sel   = _c(style, 'selected');
+  const dim   = _c(style, 'dim');
+
+  ctx.save();
+  ctx.globalAlpha = 0.85;
+
+  const locY = cy + box.h * 0.15;
+  ctx.strokeStyle = dim;
+  ctx.lineWidth   = 1.5;
+  for (const d of [-2, -1, 1, 2]) {
+    ctx.beginPath();
+    ctx.arc(cx + d * sp, locY, dotR, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.fillStyle = sel;
+  ctx.beginPath();
+  ctx.arc(cx + S.ilsLoc * sp, locY, dotR + 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  const gsX = cx + box.w * 0.22;
+  for (const d of [-2, -1, 1, 2]) {
+    ctx.beginPath();
+    ctx.arc(gsX, cy + d * sp, dotR, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.fillStyle = sel;
+  ctx.beginPath();
+  ctx.arc(gsX, cy - S.ilsGs * sp, dotR + 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function _bankArc(ctx, box, style) {
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h / 2;
+  const r  = Math.min(box.w, box.h) * 0.44;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  ctx.strokeStyle = _c(style, 'white');
+  ctx.lineWidth   = 1.5;
+
+  for (const deg of [10, 20, 30, 45, 60, -10, -20, -30, -45, -60]) {
+    const rad = (deg - 90) * Math.PI / 180;
+    const len = Math.abs(deg) % 30 === 0 ? 14 : 8;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(rad) * r,         Math.sin(rad) * r);
+    ctx.lineTo(Math.cos(rad) * (r - len), Math.sin(rad) * (r - len));
+    ctx.stroke();
+  }
+
+  const ptr = (-S.roll - 90) * Math.PI / 180;
+  const px  = Math.cos(ptr) * (r - 2);
+  const py  = Math.sin(ptr) * (r - 2);
+
+  ctx.fillStyle = _c(style, 'white');
+  ctx.beginPath();
+  ctx.moveTo(px - Math.sin(ptr) * 8, py + Math.cos(ptr) * 8);
+  ctx.lineTo(px + Math.sin(ptr) * 8, py - Math.cos(ptr) * 8);
+  ctx.lineTo(Math.cos(ptr) * (r - 18), Math.sin(ptr) * (r - 18));
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+}
+
+/* ════════════════════════════════════════════════════════════
+   SPEED TAPE
+   ════════════════════════════════════════════════════════════ */
+export function drawSpeedTape(ctx, box, style) {
+  const { x, y, w, h } = box;
+  const cy   = y + h / 2;
+  const spd  = S.spd;
+  const spdT = S.spdT;
+  const f    = _f(style);
+
+  ctx.fillStyle = _c(style, 'tape');
+  ctx.fillRect(x, y, w, h);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+
+  const pxPerKt = h / 80;
+  const tw1     = w * 0.28;
+  const tw2     = w * 0.44;
+
+  ctx.strokeStyle = _c(style, 'dim');
+  ctx.lineWidth   = 1;
+  ctx.fillStyle   = _c(style, 'white');
+  ctx.font        = `${h * 0.020}px ${f}`;
+  ctx.textAlign   = 'right';
+
+  const vMin = Math.floor((spd - 42) / 5) * 5;
+  const vMax = Math.ceil((spd + 42) / 5) * 5;
+
+  for (let v = vMin; v <= vMax; v += 5) {
+    if (v < 0) continue;
+    const vy = cy + (spd - v) * pxPerKt;
+    const tw = v % 10 === 0 ? tw2 : tw1;
+    ctx.beginPath();
+    ctx.moveTo(x + w - tw, vy);
+    ctx.lineTo(x + w,      vy);
+    ctx.stroke();
+    if (v % 20 === 0) {
+      ctx.fillText(v, x + w - tw2 - w * 0.06, vy + h * 0.010);
+    }
+  }
+
+  ctx.restore();
+
+  // target speed bug — notch on right edge
+  const tgtY = cy + (spd - spdT) * pxPerKt;
+  if (tgtY >= y && tgtY <= y + h) {
+    const bh = h * 0.025;
+    const bw = w * 0.22;
+    ctx.fillStyle = _c(style, 'selected');
+    ctx.beginPath();
+    ctx.moveTo(x + w,      tgtY);
+    ctx.lineTo(x + w - bw, tgtY - bh);
+    ctx.lineTo(x + w - bw, tgtY + bh);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // current speed readout box
+  const rh = h * 0.075;
+  const ry = cy - rh / 2;
+
+  ctx.fillStyle = 'rgba(6,10,16,0.88)';
+  ctx.fillRect(x, ry, w, rh);
+  ctx.strokeStyle = _c(style, 'white');
+  ctx.lineWidth   = 1.5;
+  ctx.strokeRect(x, ry, w, rh);
+
+  ctx.font      = `bold ${rh * 0.68}px ${f}`;
+  ctx.fillStyle = _c(style, 'white');
+  ctx.textAlign = 'center';
+  ctx.fillText(Math.round(spd), x + w / 2, ry + rh * 0.75);
+}
+
+/* ════════════════════════════════════════════════════════════
+   ALTITUDE TAPE
+   ════════════════════════════════════════════════════════════ */
+export function drawAltTape(ctx, box, style) {
+  const { x, y, w, h } = box;
+  const cy  = y + h / 2;
+  const alt = S.alt;
+  const altT = S.altT;
+  const f   = _f(style);
+
+  ctx.fillStyle = _c(style, 'tape');
+  ctx.fillRect(x, y, w, h);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+
+  const pxPerFt = h / 1600;
+  const tw1     = w * 0.25;
+  const tw2     = w * 0.42;
+
+  ctx.strokeStyle = _c(style, 'dim');
+  ctx.lineWidth   = 1;
+  ctx.fillStyle   = _c(style, 'white');
+  ctx.font        = `${h * 0.020}px ${f}`;
+  ctx.textAlign   = 'right';
+
+  const vMin = Math.floor((alt - 850) / 100) * 100;
+  const vMax = Math.ceil((alt + 850) / 100) * 100;
+
+  for (let v = vMin; v <= vMax; v += 100) {
+    if (v < 0) continue;
+    const vy = cy + (alt - v) * pxPerFt;
+    const tw = v % 200 === 0 ? tw2 : tw1;
+    ctx.beginPath();
+    ctx.moveTo(x,      vy);
+    ctx.lineTo(x + tw, vy);
+    ctx.stroke();
+    if (v % 200 === 0) {
+      ctx.fillText(Math.round(v / 100), x + w - w * 0.06, vy + h * 0.010);
+    }
+  }
+
+  ctx.restore();
+
+  // target alt bug — notch on left edge
+  const tgtY = cy + (alt - altT) * pxPerFt;
+  if (tgtY >= y && tgtY <= y + h) {
+    const bh = h * 0.02;
+    const bw = w * 0.22;
+    ctx.fillStyle = _c(style, 'selected');
+    ctx.beginPath();
+    ctx.moveTo(x,      tgtY);
+    ctx.lineTo(x + bw, tgtY - bh);
+    ctx.lineTo(x + bw, tgtY + bh);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // current alt readout box
+  const rh = h * 0.065;
+  const ry = cy - rh / 2;
+
+  ctx.fillStyle = 'rgba(6,10,16,0.88)';
+  ctx.fillRect(x, ry, w, rh);
+  ctx.strokeStyle = _c(style, 'white');
+  ctx.lineWidth   = 1.5;
+  ctx.strokeRect(x, ry, w, rh);
+
+  ctx.font      = `bold ${rh * 0.66}px ${f}`;
+  ctx.fillStyle = _c(style, 'white');
+  ctx.textAlign = 'center';
+  ctx.fillText(Math.round(alt), x + w / 2, ry + rh * 0.75);
+
+  /* ── Radio altitude — shown below 2500 ft AGL ── */
+  const fieldElev = S.mission?.arrival?.elevation
+                 ?? S.mission?.departure?.elevation
+                 ?? S.aircraft?.situations?.[0]?.alt
+                 ?? 0;
+  const ra = Math.round(alt - fieldElev);
+  if (ra < 2500) {
+    const raH = rh * 0.85;
+    const raY = y + h - raH * 1.1;
+    ctx.font      = `bold ${raH * 0.7}px ${f}`;
+    ctx.fillStyle = ra < 200 ? _c(style, 'caution') : _c(style, 'engaged');
+    ctx.textAlign = 'right';
+    ctx.fillText(`RA  ${Math.max(0, ra)}`, x + w - w * 0.06, raY + raH * 0.78);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   VSI — Vertical Speed Indicator
+   ════════════════════════════════════════════════════════════ */
+export function drawVSI(ctx, box, style) {
+  const { x, y, w, h } = box;
+  const cy   = y + h / 2;
+  const maxV = 4000;
+  const halfH = h * 0.44;
+  const barW  = w * 0.45;
+  const bx    = x + (w - barW) / 2;
+
+  ctx.fillStyle = _c(style, 'tape');
+  ctx.fillRect(x, y, w, h);
+
+  const vsCap = Math.max(-maxV, Math.min(maxV, S.vs));
+  const barH  = (vsCap / maxV) * halfH;
+
+  ctx.fillStyle = vsCap >= 0 ? _c(style, 'engaged') : _c(style, 'caution');
+  if (barH >= 0) ctx.fillRect(bx, cy - barH, barW, barH);
+  else           ctx.fillRect(bx, cy,          barW, -barH);
+
+  ctx.strokeStyle = _c(style, 'dim');
+  ctx.lineWidth   = 1;
+  for (const v of [1000, 2000, 4000, -1000, -2000, -4000]) {
+    const my = cy - (v / maxV) * halfH;
+    ctx.beginPath();
+    ctx.moveTo(x,     my);
+    ctx.lineTo(x + w, my);
+    ctx.stroke();
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   HEADING TAPE
+   ════════════════════════════════════════════════════════════ */
+export function drawHdgTape(ctx, box, style) {
+  const { x, y, w, h } = box;
+  const cx   = x + w / 2;
+  const hdg  = S.hdg;
+  const hdgT = S.hdgT;
+  const f    = _f(style);
+
+  ctx.fillStyle = _c(style, 'tape');
+  ctx.fillRect(x, y, w, h);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+
+  const pxPerDeg = w / 60;
+  const th1      = h * 0.26;
+  const th2      = h * 0.40;
+
+  ctx.strokeStyle = _c(style, 'dim');
+  ctx.lineWidth   = 1;
+  ctx.fillStyle   = _c(style, 'white');
+  ctx.font        = `${h * 0.33}px ${f}`;
+  ctx.textAlign   = 'center';
+
+  for (let d = -32; d <= 32; d += 5) {
+    const deg = ((hdg + d) % 360 + 360) % 360;
+    const px  = cx + d * pxPerDeg;
+    const th  = d % 10 === 0 ? th2 : th1;
+
+    ctx.beginPath();
+    ctx.moveTo(px, y);
+    ctx.lineTo(px, y + th);
+    ctx.stroke();
+
+    if (d % 10 === 0) {
+      const lbl = deg === 0   ? 'N'
+                : deg === 90  ? 'E'
+                : deg === 180 ? 'S'
+                : deg === 270 ? 'W'
+                : String(Math.round(deg / 10));
+      ctx.fillText(lbl, px, y + h * 0.84);
+    }
+  }
+
+  ctx.restore();
+
+  // current heading triangle (top center)
+  const tw = w * 0.022;
+  const tt = h * 0.30;
+  ctx.fillStyle = _c(style, 'white');
+  ctx.beginPath();
+  ctx.moveTo(cx,      y);
+  ctx.lineTo(cx - tw, y + tt);
+  ctx.lineTo(cx + tw, y + tt);
+  ctx.closePath();
+  ctx.fill();
+
+  // heading readout (bottom center of tape)
+  ctx.font      = `bold ${h * 0.38}px ${f}`;
+  ctx.fillStyle = _c(style, 'white');
+  ctx.textAlign = 'center';
+  ctx.fillText(String(Math.round(hdg)).padStart(3, '0') + '°', cx, y + h * 0.60);
+
+  // target heading bug
+  const dDiff = ((hdgT - hdg + 540) % 360) - 180;
+  const bugX  = cx + dDiff * pxPerDeg;
+  if (bugX >= x && bugX <= x + w) {
+    const bw = w * 0.018;
+    const bh = h * 0.26;
+    ctx.fillStyle = _c(style, 'selected');
+    ctx.beginPath();
+    ctx.moveTo(bugX,      y + bh);
+    ctx.lineTo(bugX - bw, y);
+    ctx.lineTo(bugX + bw, y);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   ND MAP — Navigation Display (heading-up compass rose)
+   ════════════════════════════════════════════════════════════ */
+export function drawNDMap(ctx, box, style, config = {}) {
+  const { x, y, w, h } = box;
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  const f  = _f(style);
+  const r  = Math.min(w, h) * 0.38;
+  const rangeNm   = config.range_nm ?? 20;
+  const pxPerNm   = r / rangeNm;
+  const hdgRad    = S.hdg * Math.PI / 180;
+  const cosH      = Math.cos(hdgRad);
+  const sinH      = Math.sin(hdgRad);
+  const acLat     = S.lat ?? 0;
+  const acLon     = S.lon ?? 0;
+  const cosAcLat  = Math.cos(acLat * Math.PI / 180);
+
+  ctx.fillStyle = '#030609';
+  ctx.fillRect(x, y, w, h);
+
+  /* Compass rose */
+  ctx.strokeStyle = 'rgba(180,210,225,0.35)';
+  ctx.lineWidth   = 1;
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.font         = `${h * 0.025}px ${f}`;
+  ctx.fillStyle    = 'rgba(200,220,230,0.65)';
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+
+  const LBLS = ['N','3','6','E','12','15','S','21','24','W','30','33'];
+  for (let d = 0; d < 360; d += 10) {
+    /* Rose ticks rotate with heading (heading-up: aircraft hdg points up) */
+    const rel = (d - S.hdg + 360) % 360;
+    const rad = (rel - 90) * Math.PI / 180;
+    const len = d % 30 === 0 ? 16 : 7;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(rad) * r,       cy + Math.sin(rad) * r);
+    ctx.lineTo(cx + Math.cos(rad) * (r-len), cy + Math.sin(rad) * (r-len));
+    ctx.stroke();
+    if (d % 30 === 0) {
+      const lr = r - len - h * 0.025;
+      ctx.fillText(LBLS[d / 30], cx + Math.cos(rad) * lr, cy + Math.sin(rad) * lr);
+    }
+  }
+
+  ctx.textBaseline = 'alphabetic';
+
+  /* Helper: geo → screen (heading-up, aircraft at centre) */
+  function _wptScreen(lat, lon) {
+    const dN = (lat - acLat) * 60;
+    const dE = (lon - acLon) * 60 * cosAcLat;
+    const fwd =  dN * cosH + dE * sinH;
+    const rgt = -dN * sinH + dE * cosH;
+    return [cx + rgt * pxPerNm, cy - fwd * pxPerNm];
+  }
+
+  /* Waypoint route */
+  const wpts = S.mission?.waypoints;
+  if (wpts?.length) {
+    /* Route line */
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth   = 1.5;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    let started = false;
+    for (const w of wpts) {
+      const [sx, sy] = _wptScreen(w.lat, w.lon);
+      if (!started) { ctx.moveTo(sx, sy); started = true; }
+      else            ctx.lineTo(sx, sy);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    /* Waypoint symbols + labels */
+    for (const wp of wpts) {
+      const [sx, sy] = _wptScreen(wp.lat, wp.lon);
+      const inside = sx >= x && sx <= x+w && sy >= y && sy <= y+h;
+      if (!inside) continue;
+
+      const isFAF = wp.type === 'FAF';
+      const isMAP = wp.type === 'MAP';
+      const sz    = h * 0.018;
+
+      ctx.strokeStyle = isFAF ? _c(style, 'selected') : isMAP ? _c(style, 'caution') : _c(style, 'white');
+      ctx.lineWidth   = 1.5;
+      ctx.fillStyle   = 'transparent';
+
+      /* Triangle symbol */
+      ctx.beginPath();
+      ctx.moveTo(sx,        sy - sz * 1.3);
+      ctx.lineTo(sx + sz,   sy + sz * 0.7);
+      ctx.lineTo(sx - sz,   sy + sz * 0.7);
+      ctx.closePath();
+      ctx.stroke();
+
+      /* Name label */
+      ctx.font      = `${h * 0.024}px ${f}`;
+      ctx.fillStyle = ctx.strokeStyle;
+      ctx.textAlign = 'left';
+      ctx.fillText(wp.name, sx + sz + 3, sy + sz * 0.4);
+
+      /* Altitude constraint */
+      if (wp.alt) {
+        ctx.font      = `${h * 0.019}px ${f}`;
+        ctx.fillStyle = 'rgba(200,220,230,0.45)';
+        ctx.fillText(Math.round(wp.alt / 100) * 100, sx + sz + 3, sy + sz * 0.4 + h * 0.025);
+      }
+    }
+  }
+
+  /* Heading vector (aircraft → 6 NM ahead) */
+  const [hx, hy] = _wptScreen(acLat + cosH * 6 / 60, acLon + sinH * 6 / (60 * cosAcLat));
+  ctx.strokeStyle = 'rgba(0,200,100,0.65)';
+  ctx.lineWidth   = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(hx, hy);
+  ctx.stroke();
+
+  /* Aircraft symbol */
+  ctx.fillStyle = '#e8ecf0';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  /* Data tags */
+  ctx.font      = `${h * 0.028}px ${f}`;
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(0,200,100,0.8)';
+  ctx.fillText(`${Math.round(S.spd)}KT`, x + w * 0.04, y + h * 0.06);
+  ctx.fillText(`FL${String(Math.round(S.alt / 100)).padStart(3, '0')}`, x + w * 0.04, y + h * 0.10);
+  ctx.fillStyle = 'rgba(180,210,225,0.6)';
+  ctx.fillText(`HDG ${String(Math.round(S.hdg)).padStart(3, '0')}`, x + w * 0.04, y + h * 0.14);
+
+  /* Range ring label */
+  ctx.font      = `${h * 0.022}px ${f}`;
+  ctx.fillStyle = 'rgba(180,210,225,0.35)';
+  ctx.textAlign = 'center';
+  ctx.fillText(`${rangeNm}NM`, cx + r + w * 0.01, cy + h * 0.025);
+}
+
+/* ════════════════════════════════════════════════════════════
+   FCU — Flight Control Unit (glareshield)
+   Called with raw canvas W/H (not a box) — fills the canvas.
+   ════════════════════════════════════════════════════════════ */
+export function drawFCU(ctx, W, H, style) {
+  const f = _MONO;
+
+  ctx.fillStyle = '#181c24';
+  ctx.fillRect(0, 0, W, H);
+
+  // Bottom edge separator
+  ctx.fillStyle = 'rgba(255,255,255,0.07)';
+  ctx.fillRect(0, H - 1, W, 1);
+
+  // Section geometry
+  const padX  = W * 0.028;
+  const inner = W - padX * 2;
+
+  const spdW  = inner * 0.130;
+  const hdgW  = inner * 0.130;
+  const gapAP = inner * 0.030;
+  const apW   = inner * 0.320;
+  const gapAL = inner * 0.030;
+  const altW  = inner * 0.200;
+  const vsW   = inner * 0.160;
+
+  const spdX = padX;
+  const hdgX = spdX + spdW;
+  const apX  = hdgX + hdgW + gapAP;
+  const altX = apX  + apW  + gapAL;
+  const vsX  = altX + altW;
+
+  // Vertical separators between major sections
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+  ctx.lineWidth   = 1;
+  for (const sx of [hdgX + hdgW + gapAP * 0.5, apX + apW + gapAL * 0.5]) {
+    ctx.beginPath();
+    ctx.moveTo(sx, H * 0.08);
+    ctx.lineTo(sx, H * 0.92);
+    ctx.stroke();
+  }
+
+  function _sec(label, value, x, sw) {
+    const cx  = x + sw / 2;
+    const bh  = H * 0.44;
+    const bw  = sw * 0.82;
+    const bx  = x + (sw - bw) / 2;
+    const by  = H * 0.50;
+
+    // Knob arc above the display window
+    const kr  = Math.min(sw, H) * 0.130;
+    const kcy = by - kr * 0.55;
+    ctx.strokeStyle = 'rgba(200,215,228,0.28)';
+    ctx.lineWidth   = Math.max(1, H * 0.018);
+    ctx.lineCap     = 'round';
+    ctx.beginPath();
+    ctx.arc(cx, kcy, kr, Math.PI * 0.72, Math.PI * 0.28, false);
+    ctx.stroke();
+    // Pointer tick at top
+    const tickLen = kr * 0.28;
+    ctx.strokeStyle = 'rgba(200,215,228,0.55)';
+    ctx.lineWidth   = Math.max(1, H * 0.016);
+    ctx.beginPath();
+    ctx.moveTo(cx, kcy - kr + tickLen * 0.2);
+    ctx.lineTo(cx, kcy - kr + tickLen);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+
+    // Label (below knob, above window)
+    ctx.font      = `${H * 0.130}px ${f}`;
+    ctx.fillStyle = 'rgba(175,188,205,0.32)';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, cx, by - H * 0.03);
+
+    // Display window
+    ctx.fillStyle = '#090d14';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = 'rgba(200,212,228,0.11)';
+    ctx.lineWidth   = 1;
+    ctx.strokeRect(bx, by, bw, bh);
+
+    ctx.font      = `bold ${H * 0.340}px ${f}`;
+    ctx.fillStyle = '#d4cba4';
+    ctx.textAlign = 'center';
+    ctx.fillText(value, cx, by + bh * 0.78);
+  }
+
+  // ── Speed ──
+  _sec('SPD  MACH', Math.round(S.spdT).toString(), spdX, spdW);
+
+  // ── Heading ──
+  const hdgDisp = String(Math.round(S.hdgT) % 360 || 360).padStart(3, '0');
+  _sec('HDG  TRK', hdgDisp, hdgX, hdgW);
+
+  // ── Altitude ──
+  _sec('ALT', String(Math.round(S.altT)).padStart(5, '0'), altX, altW);
+
+  // ── Vertical speed ──
+  const vsRaw  = Math.round(S.vs / 100) * 100;
+  const vsDisp = vsRaw === 0 ? '+0000' : (vsRaw > 0 ? '+' : '') + vsRaw;
+  _sec('V/S  FPA', vsDisp, vsX, vsW);
+
+  // ── AP / A-THR button cluster ──
+  const btns = [
+    { label: 'AP 1',  lit: S.ap,   litCol: '#3ec55a' },
+    { label: 'APPR',  lit: false,  litCol: '#4dc5dc' },
+    { label: 'AP 2',  lit: false,  litCol: '#3ec55a' },
+    { label: 'A/THR', lit: S.athr, litCol: '#3ec55a' },
+  ];
+
+  const btnW   = apW / btns.length;
+  const btnH   = H * 0.60;
+  const btnY   = (H - btnH) / 2;
+  const btnPad = btnW * 0.09;
+
+  for (let i = 0; i < btns.length; i++) {
+    const { label, lit, litCol } = btns[i];
+    const bx  = apX + i * btnW + btnPad;
+    const bwi = btnW - btnPad * 2;
+    const bcx = bx + bwi / 2;
+
+    ctx.fillStyle   = lit ? `${litCol}1a` : 'rgba(255,255,255,0.025)';
+    ctx.fillRect(bx, btnY, bwi, btnH);
+    ctx.strokeStyle = lit ? litCol : 'rgba(255,255,255,0.16)';
+    ctx.lineWidth   = lit ? 1.5 : 0.8;
+    ctx.strokeRect(bx, btnY, bwi, btnH);
+
+    const dotR = H * 0.038;
+    const dotY = btnY + btnH * 0.26;
+    ctx.fillStyle = lit ? litCol : 'rgba(255,255,255,0.07)';
+    ctx.beginPath();
+    ctx.arc(bcx, dotY, dotR, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.font      = `bold ${H * 0.178}px ${f}`;
+    ctx.fillStyle = lit ? litCol : 'rgba(195,210,225,0.40)';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, bcx, btnY + btnH * 0.75);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   ECAM EWD — Engine / Warning Display
+   ════════════════════════════════════════════════════════════ */
+export function drawECAM(ctx, box, style) {
+  const { x, y, w, h } = box;
+  const f   = _MONO;
+  const grn = _c(style, 'engaged');   // green
+  const amb = _c(style, 'managed');   // amber
+  const red = '#ff3b3b';
+  const wht = _c(style, 'white');
+  const dim = 'rgba(200,215,225,0.35)';
+
+  ctx.fillStyle = '#030609';
+  ctx.fillRect(x, y, w, h);
+
+  /* ── Zones ── */
+  const warnH  = h * 0.28;   // warning messages
+  const engH   = h * 0.48;   // engine parameters
+  const memoH  = h * 0.24;   // memo / status
+
+  const warnY  = y;
+  const engY   = warnY + warnH;
+  const memoY  = engY  + engH;
+
+  /* ─ Warning zone ─ */
+  const hasWarn = Object.values(S.warnings ?? {}).some(Boolean);
+  if (hasWarn) {
+    let wy = warnY + h * 0.06;
+    for (const [key, active] of Object.entries(S.warnings ?? {})) {
+      if (!active) continue;
+      ctx.font      = `bold ${h * 0.055}px ${f}`;
+      ctx.fillStyle = key.startsWith('LOW') || key.startsWith('FUEL') ? amb : red;
+      ctx.textAlign = 'left';
+      ctx.fillText(key.replace(/_/g, ' '), x + w * 0.04, wy);
+      wy += h * 0.065;
+    }
+  } else {
+    ctx.font      = `${h * 0.042}px ${f}`;
+    ctx.fillStyle = dim;
+    ctx.textAlign = 'center';
+    ctx.fillText('NORMAL', x + w * 0.5, warnY + warnH * 0.52);
+  }
+
+  /* Separator */
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth   = 1;
+  ctx.beginPath(); ctx.moveTo(x, engY); ctx.lineTo(x + w, engY); ctx.stroke();
+
+  /* ─ Engine zone — two columns ─ */
+  const n1   = S.enginePower * 92;
+  const egt  = 390 + S.enginePower * 470;
+  const n2   = S.enginePower * 94 + 2;
+  const ff   = S.enginePower * 2800;
+  const engW = w * 0.46;
+
+  function _eng(ex, label) {
+    const cx = ex + engW / 2;
+
+    ctx.font      = `${h * 0.040}px ${f}`;
+    ctx.fillStyle = dim;
+    ctx.textAlign = 'center';
+    ctx.fillText(label, cx, engY + h * 0.058);
+
+    /* N1 — large */
+    ctx.font      = `bold ${h * 0.110}px ${f}`;
+    ctx.fillStyle = n1 > 93 ? amb : grn;
+    ctx.textAlign = 'right';
+    ctx.fillText(n1.toFixed(1), ex + engW * 0.76, engY + h * 0.200);
+    ctx.font      = `${h * 0.038}px ${f}`;
+    ctx.fillStyle = dim;
+    ctx.fillText('%N1', ex + engW * 0.98, engY + h * 0.200);
+
+    /* EGT */
+    ctx.font      = `bold ${h * 0.065}px ${f}`;
+    ctx.fillStyle = egt > 800 ? amb : grn;
+    ctx.textAlign = 'right';
+    ctx.fillText(Math.round(egt), ex + engW * 0.76, engY + h * 0.310);
+    ctx.font      = `${h * 0.032}px ${f}`;
+    ctx.fillStyle = dim;
+    ctx.fillText('EGT °C', ex + engW * 0.98, engY + h * 0.310);
+
+    /* N2 */
+    ctx.font      = `bold ${h * 0.052}px ${f}`;
+    ctx.fillStyle = grn;
+    ctx.textAlign = 'right';
+    ctx.fillText(n2.toFixed(1), ex + engW * 0.76, engY + h * 0.385);
+    ctx.font      = `${h * 0.028}px ${f}`;
+    ctx.fillStyle = dim;
+    ctx.fillText('%N2', ex + engW * 0.98, engY + h * 0.385);
+
+    /* FF */
+    ctx.font      = `bold ${h * 0.052}px ${f}`;
+    ctx.fillStyle = grn;
+    ctx.textAlign = 'right';
+    ctx.fillText(Math.round(ff), ex + engW * 0.76, engY + h * 0.450);
+    ctx.font      = `${h * 0.028}px ${f}`;
+    ctx.fillStyle = dim;
+    ctx.fillText('FF KG/H', ex + engW * 0.98, engY + h * 0.450);
+  }
+
+  _eng(x + w * 0.04, 'ENG 1');
+  _eng(x + w * 0.52, 'ENG 2');
+
+  /* Center vertical separator between engines */
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.beginPath();
+  ctx.moveTo(x + w * 0.5, engY + h * 0.02);
+  ctx.lineTo(x + w * 0.5, engY + engH - h * 0.02);
+  ctx.stroke();
+
+  /* ─ Memo zone ─ */
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.beginPath(); ctx.moveTo(x, memoY); ctx.lineTo(x + w, memoY); ctx.stroke();
+
+  const flapsLabel = ['CLEAN', 'CONF 1', 'CONF 2', 'CONF 3'][Math.min(S.flaps ?? 0, 3)];
+  const gearLabel  = S.gear ? 'DN' : 'UP';
+  const gearCol    = S.gear ? grn : wht;
+
+  const memos = [
+    { lbl: 'GEAR',  val: gearLabel,  col: gearCol },
+    { lbl: 'FLAPS', val: flapsLabel, col: S.flaps > 0 ? amb : grn },
+    { lbl: 'SEAT BELTS', val: 'ON',  col: wht },
+    { lbl: 'LDG LTS',    val: 'ON',  col: wht },
+  ];
+
+  const memoFs = h * 0.040;
+  const cols   = 2;
+  const memoW  = w / cols;
+  memos.forEach((m, i) => {
+    const mx = x + (i % cols) * memoW + memoW * 0.04;
+    const my = memoY + h * 0.062 + Math.floor(i / cols) * h * 0.070;
+    ctx.font      = `${memoFs}px ${f}`;
+    ctx.fillStyle = dim;
+    ctx.textAlign = 'left';
+    ctx.fillText(m.lbl, mx, my);
+    ctx.font      = `bold ${memoFs}px ${f}`;
+    ctx.fillStyle = m.col;
+    ctx.fillText(m.val, mx + memoW * 0.42, my);
+  });
+}
