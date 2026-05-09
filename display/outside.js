@@ -1498,16 +1498,13 @@ function _drawSwissCross(ctx, p0, p1, p2, p3) {
   ctx.restore();
 }
 
-/* ── Plume cam — engine cluster from the interstage, looking aft ─
-   Used for Falcon 9. Terrain is rendered looking straight down;
-   the engine octaweb + exhaust plume is composited on top.        */
-const PLUME_IS_X = 0.005;   // interstage x in body frame
+/* ── Rocket cam — interstage looking aft/down at engine cluster ──
+   Camera sits inside S1 near the top (body x = CAM_X), looking aft.
+   Terrain rendered pitch=-90 for background; body rings frame the view. */
+const _RCAM_X = 0.002;   // camera body-x position (inside S1 near top)
 
 function _renderPlumeCam(canvas) {
-  const acP = S.pitch ?? 90;
-  const acR = S.roll  ?? 0;
-
-  /* Terrain: look straight down from rocket position */
+  /* Background: terrain straight down from rocket position */
   const sP = S.pitch, sR = S.roll;
   S.pitch = -90;
   S.roll  = 0;
@@ -1520,86 +1517,79 @@ function _renderPlumeCam(canvas) {
   const cx = W / 2, cy = H / 2;
   const focal = (W / 2) / Math.tan(FOV_H / 2 * DEG);
 
-  /* Custom projection: camera at body [PLUME_IS_X, 0, 0], looking AFT.
-     "fwd" for this camera = -body_x (toward engines).
-     "right" = body_y, "up" = body_z.
-     Aircraft pitch/roll tilt the FOV but don't affect the aft view logic. */
-  const P = acP * DEG, R = acR * DEG;
-  const cosP = Math.cos(P), sinP = Math.sin(P);
-  const cosR = Math.cos(R), sinR = Math.sin(R);
+  /* Projection: camera at [_RCAM_X, 0, 0] looking aft (-body_x).
+     body_y → screen right, body_z → screen up.                    */
+  const projDown = ([vF, vR, vU]) => {
+    const d = _RCAM_X - vF;
+    if (d < 0.0001) return null;
+    return { x: cx + vR / d * focal, y: cy - vU / d * focal, d };
+  };
 
-  function projectAft([vF, vR, vU]) {
-    /* Shift origin to interstage, negate fwd so "aft" = positive depth */
-    const lF = -(vF - PLUME_IS_X);   // depth from camera (positive = AFT)
-    const lR = vR;
-    const lU = vU;
-    if (lF < 0.0005) return null;
-    return { x: cx + lR / lF * focal, y: cy - lU / lF * focal, d: lF };
+  /* ── Vignette: dark edges simulate the interstage ring frame ── */
+  const vig = ctx.createRadialGradient(cx, cy, W * 0.28, cx, cy, W * 0.62);
+  vig.addColorStop(0,   'rgba(0,0,0,0)');
+  vig.addColorStop(0.5, 'rgba(0,0,0,0.30)');
+  vig.addColorStop(1,   'rgba(0,0,0,0.90)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, W, H);
+
+  /* ── S1 body rings — two rings create tube perspective ── */
+  for (const [vis, alpha] of [[[8,9,10,11,12,13,14,15], 0.55], [[0,1,2,3,4,5,6,7], 0.35]]) {
+    const pts = vis.map(i => projDown(_V_f9[i]));
+    if (pts.every(Boolean)) {
+      ctx.save();
+      ctx.strokeStyle = `rgba(195,210,228,${alpha})`;
+      ctx.lineWidth = Math.max(1, 1.5 * dpr);
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let k = 1; k < pts.length; k++) ctx.lineTo(pts[k].x, pts[k].y);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
-  /* Exhaust plume glow — from engines outward (screen centre = engine cluster) */
-  const aftEngineDepth = PLUME_IS_X - (-0.018);  // ~0.026 NM
-  const pC = projectAft([-0.018, 0, 0]);
+  /* ── Engine nozzles (octaweb + centre Merlin) ── */
+  const nozzleVI = [65,66,67,68,69,70,71,72,73];
+  const nPts = nozzleVI.map(vi => projDown(_V_f9[vi]));
+  const nCtr = nPts[0], nEdge = nPts[1];
+  if (nCtr && nEdge) {
+    const nR = Math.hypot(nEdge.x - nCtr.x, nEdge.y - nCtr.y) * 0.46;
+    ctx.save();
+    ctx.fillStyle = 'rgba(12,14,20,0.95)';
+    ctx.beginPath();
+    ctx.arc(nCtr.x, nCtr.y, Math.hypot(nEdge.x - nCtr.x, nEdge.y - nCtr.y) + nR * 1.4, 0, Math.PI*2);
+    ctx.fill();
+    for (let k = 0; k < nPts.length; k++) {
+      const pt = nPts[k];
+      if (!pt) continue;
+      const r = k === 0 ? nR * 1.15 : nR;
+      const g = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, r);
+      g.addColorStop(0,    'rgba(255,225,130,0.92)');
+      g.addColorStop(0.45, 'rgba(220,130, 55,0.65)');
+      g.addColorStop(1,    'rgba( 35, 38, 48,0.96)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(pt.x, pt.y, r, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /* ── Engine exhaust plume (contained radius) ── */
+  const pC = projDown([-0.018, 0, 0]);
   if (pC) {
-    const plumeR = W * 0.55;
+    const plumeR = W * 0.20;
     const grad = ctx.createRadialGradient(pC.x, pC.y, 0, pC.x, pC.y, plumeR);
-    grad.addColorStop(0,    'rgba(255,220,100,0.60)');
-    grad.addColorStop(0.12, 'rgba(255,130, 40,0.45)');
-    grad.addColorStop(0.35, 'rgba(180, 60, 15,0.20)');
-    grad.addColorStop(0.70, 'rgba( 80, 20,  5,0.08)');
-    grad.addColorStop(1,    'rgba(  0,  0,  0,0)');
+    grad.addColorStop(0,    'rgba(255,210,90,0.50)');
+    grad.addColorStop(0.20, 'rgba(255,120,35,0.28)');
+    grad.addColorStop(0.55, 'rgba(160, 55,12,0.10)');
+    grad.addColorStop(1,    'rgba(  0,  0, 0,0)');
     ctx.save();
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
     ctx.restore();
   }
 
-  /* Rocket body ring (stage 1, as seen from interstage looking aft) */
-  const bodyPts = [0,1,2,3,4,5,6,7].map(i => projectAft(_V_f9[i + 16]));  // ring 2 (S1 top)
-  if (bodyPts.every(Boolean)) {
-    ctx.save();
-    ctx.strokeStyle = 'rgba(210,218,230,0.75)';
-    ctx.lineWidth = Math.max(2, 2.5 * dpr);
-    ctx.beginPath();
-    ctx.moveTo(bodyPts[0].x, bodyPts[0].y);
-    for (let k = 1; k < bodyPts.length; k++) ctx.lineTo(bodyPts[k].x, bodyPts[k].y);
-    ctx.closePath();
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  /* Engine nozzles in aft projection */
-  const nozzleVI = [65,66,67,68,69,70,71,72,73];
-  const nPts = nozzleVI.map(vi => projectAft(_V_f9[vi]));
-  const nCtr = nPts[0];
-  const nEdge = nPts[1];
-  if (nCtr && nEdge) {
-    const nR = Math.hypot(nEdge.x - nCtr.x, nEdge.y - nCtr.y) * 0.46;
-    ctx.save();
-    /* Octaweb plate */
-    ctx.fillStyle = 'rgba(15,17,22,0.92)';
-    ctx.beginPath();
-    ctx.arc(nCtr.x, nCtr.y, Math.hypot(nEdge.x-nCtr.x, nEdge.y-nCtr.y) + nR * 1.2, 0, Math.PI*2);
-    ctx.fill();
-    /* Individual nozzles */
-    for (let k = 0; k < nozzleVI.length; k++) {
-      const pt = nPts[k];
-      if (!pt) continue;
-      const r = k === 0 ? nR * 1.15 : nR;
-      const grad2 = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, r);
-      grad2.addColorStop(0,   'rgba(255,220,120,0.85)');
-      grad2.addColorStop(0.45,'rgba(210,120, 50,0.60)');
-      grad2.addColorStop(1,   'rgba( 35, 35, 42,0.95)');
-      ctx.fillStyle = grad2;
-      ctx.beginPath(); ctx.arc(pt.x, pt.y, r, 0, Math.PI*2); ctx.fill();
-      ctx.strokeStyle = 'rgba(130,140,155,0.70)';
-      ctx.lineWidth = Math.max(0.5, 0.6 * dpr);
-      ctx.beginPath(); ctx.arc(pt.x, pt.y, r, 0, Math.PI*2); ctx.stroke();
-    }
-    ctx.restore();
-  }
-
-  _drawLabel(canvas, 'PLUME CAM');
+  _drawLabel(canvas, 'ROCKET CAM');
 }
 
 /* ── Booster cam — close side view of the returning Stage 1 ───── */

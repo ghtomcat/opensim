@@ -29,7 +29,7 @@ const ROW_DIST = Array.from({ length: ROWS + 1 }, (_, i) => 0.1 * Math.pow(1.32,
 let _fpsLast = 0, _fpsCount = 0, _fpsDisplay = 0;
 
 /* ── Mapbox Terrain-RGB elevation tiles ── */
-const _TK = 'YOUR_MAPBOX_TOKEN_HERE';  // replace with your free token from mapbox.com
+const _TK = localStorage.getItem('mapboxToken') ?? '';  // set once: localStorage.setItem('mapboxToken','pk.eyJ1...')
 const _TZ = 12;
 const _tcache = new Map();  /* 'x/y' → ImageData | 'loading' | 'error' */
 
@@ -200,6 +200,31 @@ function _mvtWater(buf, xi, yi) {
   }
   return out;
 }
+
+/* ── Earth radius (nm) and continent outlines for globe view ── */
+const _R_E = 3438.19;
+const _LAND = [
+  /* Africa */
+  [[37,10],[37,37],[22,38],[12,44],[11,42],[-1,42],[-12,40],[-26,33],[-35,27],[-35,18],[-17,12],[0,9],[5,-2],[5,-8],[15,-17],[30,-9]],
+  /* Europe */
+  [[71,28],[70,15],[57,8],[47,2],[37,-9],[37,9],[38,26],[42,28],[45,12],[48,8],[54,8],[60,10],[65,15]],
+  /* W Russia + Central Asia */
+  [[71,28],[65,35],[55,35],[42,28],[37,38],[37,58],[45,58],[55,58],[65,60],[70,60]],
+  /* Siberia + Far East */
+  [[70,60],[70,90],[70,140],[68,180],[60,168],[55,140],[45,135],[55,85],[65,85]],
+  /* China + E Asia */
+  [[52,132],[45,132],[40,122],[30,122],[22,115],[15,108],[10,104],[5,103],[5,100],[22,108],[30,120],[45,135]],
+  /* India */
+  [[28,67],[28,88],[21,88],[8,80],[8,77],[21,75]],
+  /* North America */
+  [[70,-140],[70,-80],[50,-55],[45,-65],[42,-70],[40,-73],[25,-80],[25,-90],[15,-83],[8,-77],[8,-83],[15,-90],[22,-105],[30,-118],[50,-125],[60,-140]],
+  /* South America */
+  [[12,-72],[12,-60],[0,-50],[-10,-37],[-20,-40],[-33,-52],[-55,-65],[-55,-68],[-30,-68],[-18,-70],[-5,-80],[8,-77]],
+  /* Australia */
+  [[-17,122],[-15,136],[-12,136],[-12,145],[-20,148],[-38,147],[-38,140],[-35,135],[-32,115],[-22,114]],
+  /* Greenland */
+  [[60,-44],[70,-25],[83,-25],[83,-55],[76,-68],[68,-53]],
+];
 
 export function renderTerrain(canvas, { outsideView = false } = {}) {
   const W = canvas.width  = canvas.offsetWidth  * devicePixelRatio;
@@ -373,6 +398,94 @@ export function renderTerrain(canvas, { outsideView = false } = {}) {
         ctx.arc(sx, sy, radius, 0, Math.PI * 2);
         ctx.fill();
       }
+    }
+  }
+
+  /* ── Earth globe (high altitude) ── */
+  if (isRocket && altNm > 32) {
+    const globeAlpha = Math.min(1, (altNm - 32) / 22);
+    const R_ac    = _R_E + altNm;
+    const acLatR  = acLat * DEG, acLonR = acLon * DEG;
+    const sinAcLat = Math.sin(acLatR);
+    const cosAcLon = Math.cos(acLonR), sinAcLon = Math.sin(acLonR);
+    /* ECEF unit vectors: up = nadir-to-aircraft, n = north, e = east */
+    const upEx = cosAcLat * cosAcLon, upEy = cosAcLat * sinAcLon, upEz = sinAcLat;
+    const nEx  = -sinAcLat * cosAcLon, nEy = -sinAcLat * sinAcLon, nEz = cosAcLat;
+    const eEx  = -sinAcLon, eEy = cosAcLon, eEz = 0;
+    /* Body fwd/right rotated by heading from local N/E */
+    const fEx = nEx*cosH+eEx*sinH, fEy = nEy*cosH+eEy*sinH, fEz = nEz*cosH+eEz*sinH;
+    const rEx = eEx*cosH-nEx*sinH, rEy = eEy*cosH-nEy*sinH, rEz = eEz*cosH-nEz*sinH;
+    const acX = R_ac*upEx, acY = R_ac*upEy, acZ = R_ac*upEz;
+
+    const projGlobe = (lat, lon) => {
+      const lr = lat*DEG, lnr = lon*DEG;
+      const cLat = Math.cos(lr), sLat = Math.sin(lr);
+      const cLon = Math.cos(lnr), sLon = Math.sin(lnr);
+      /* skip points on far hemisphere */
+      if (cLat*cLon*upEx + cLat*sLon*upEy + sLat*upEz < 0) return null;
+      const px = _R_E*cLat*cLon - acX;
+      const py = _R_E*cLat*sLon - acY;
+      const pz = _R_E*sLat      - acZ;
+      return proj(px*fEx+py*fEy+pz*fEz,
+                  px*rEx+py*rEy+pz*rEz,
+                  px*upEx+py*upEy+pz*upEz + altNm);
+    };
+
+    /* Limb circle: angular radius θ where cos(θ) = R_E / R_ac */
+    const limbCos = _R_E / R_ac;
+    const limbSin = Math.sqrt(1 - limbCos*limbCos);
+    const limbPts = [];
+    for (let i = 0; i < 90; i++) {
+      const β = (i / 90) * 2 * Math.PI;
+      const sL = sinAcLat*limbCos + cosAcLat*limbSin*Math.cos(β);
+      const lr = Math.asin(Math.max(-1, Math.min(1, sL)));
+      const dl = Math.atan2(Math.sin(β)*limbSin*cosAcLat, limbCos - sinAcLat*sL);
+      limbPts.push(projGlobe(lr/DEG, (acLonR+dl)/DEG));
+    }
+
+    const validLimb = limbPts.filter(Boolean);
+    if (validLimb.length > 10) {
+      /* Ocean disc + clip region */
+      ctx.save();
+      ctx.globalAlpha = globeAlpha;
+      ctx.beginPath();
+      let f = true;
+      for (const p of limbPts) {
+        if (!p) continue;
+        if (f) { ctx.moveTo(p[0], p[1]); f = false; } else ctx.lineTo(p[0], p[1]);
+      }
+      ctx.closePath();
+      ctx.fillStyle = '#1a3a5c';
+      ctx.fill();
+      ctx.clip();
+
+      /* Continents */
+      ctx.fillStyle = '#2d5c2e';
+      for (const poly of _LAND) {
+        ctx.beginPath();
+        let mv = false;
+        for (const [lat, lon] of poly) {
+          const p = projGlobe(lat, lon);
+          if (!p) { mv = false; continue; }
+          if (!mv) { ctx.moveTo(p[0], p[1]); mv = true; } else ctx.lineTo(p[0], p[1]);
+        }
+        if (mv) { ctx.closePath(); ctx.fill(); }
+      }
+      ctx.restore();
+
+      /* Atmosphere glow ring (outside clip) */
+      let sx = 0, sy = 0, mr = 0;
+      for (const p of validLimb) { sx += p[0]; sy += p[1]; }
+      const gcx = sx/validLimb.length, gcy = sy/validLimb.length;
+      for (const p of validLimb) { const d = Math.hypot(p[0]-gcx,p[1]-gcy); if (d>mr) mr=d; }
+      const atmo = ctx.createRadialGradient(gcx, gcy, mr*0.9, gcx, gcy, mr*1.18);
+      atmo.addColorStop(0,   `rgba(80,160,255,${(0.35*globeAlpha).toFixed(3)})`);
+      atmo.addColorStop(0.4, `rgba(80,160,255,${(0.10*globeAlpha).toFixed(3)})`);
+      atmo.addColorStop(1,   'rgba(80,160,255,0)');
+      ctx.fillStyle = atmo;
+      ctx.beginPath();
+      ctx.arc(gcx, gcy, mr*1.18, 0, Math.PI*2);
+      ctx.fill();
     }
   }
 
@@ -561,11 +674,11 @@ export function renderTerrain(canvas, { outsideView = false } = {}) {
   }
 
   /* ── World-fixed ground grid (flat missions only) ── */
+  const GRID_RANGE_FWD  = 18;
+  const GRID_RANGE_SIDE = 20;
+  const GRID_RANGE_BACK =  3;
   if (!hasTerrain) {
-    const GRID_NM         = 0.5;
-    const GRID_RANGE_FWD  = 18;
-    const GRID_RANGE_SIDE = 20;
-    const GRID_RANGE_BACK =  3;
+    const GRID_NM = 0.5;
 
     const acLatNm = (S.lat ?? 0) * 60;
     const acLonNm = (S.lon ?? 0) * 60 * Math.cos((S.lat ?? 0) * DEG);

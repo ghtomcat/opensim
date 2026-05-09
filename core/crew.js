@@ -664,8 +664,8 @@ function _checkRocketEvent(event, clr, prevAlt = 0, currAlt = 0) {
       break;
 
     case 'stagesep':
-      /* Coast just ended, stage 2 active — unique per callout using index */
-      if (!(S.rocketCoast ?? false) && _prevRocketCoast && (S.rocketStage ?? 1) === 2) {
+      /* Coast just started (booster falls away) — same tick as meco, separate uid tracking */
+      if ((S.rocketCoast ?? false) && !_prevRocketCoast && (S.rocketStage ?? 1) === 1) {
         _rocketFired.add(uid); return true;
       }
       break;
