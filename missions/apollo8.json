@@ -1,0 +1,207 @@
+{
+  "id": "apollo8",
+  "phase": "launch",
+  "commProfile": "sband-apollo",
+  "title": "Apollo 8 — First to the Moon",
+  "description": "21 December 1968. Frank Borman, James Lovell, William Anders. First crewed lunar orbit. Saturn V AS-503, LC-39A.",
+  "author": "Markus Leutwyler",
+  "fiction_note": "Faithful recreation of the Apollo 8 launch timeline. Crew: Borman (CDR), Lovell (CMP), Anders (LMP). CapCom: Michael Collins.",
+  "aircraft": "saturn-v",
+  "timeOfDay": 0.325,
+
+  "weather": {
+    "source": "manual",
+    "manual": {
+      "wdir": 90,
+      "wspd": 8,
+      "turbulence": 0.04,
+      "altim": 1017,
+      "temp": 16
+    }
+  },
+
+  "initialState": {
+    "lat": 28.608,
+    "lon": -80.604,
+    "alt": 46,
+    "spd": 0,
+    "hdg": 72,
+    "pitch": 90,
+    "roll": 0
+  },
+
+  "departure": {
+    "name": "Kennedy Space Center LC-39A",
+    "elevation": 6
+  },
+  "arrival": null,
+
+  "atcClearances": [
+    {
+      "t": 0,
+      "text": "T-3 minutes and counting. All systems Go.",
+      "voice": "atc"
+    },
+    {
+      "t": 60,
+      "text": "T-2 minutes. Launch vehicle on internal power.",
+      "voice": "atc"
+    },
+    {
+      "t": 120,
+      "text": "T-1 minute and counting.",
+      "voice": "atc"
+    },
+    {
+      "t": 150,
+      "text": "T-30 seconds. Guidance is internal.",
+      "voice": "atc"
+    },
+    {
+      "t": 168,
+      "text": "T-12. Ignition sequence start.",
+      "voice": "atc"
+    },
+    {
+      "t": 174,
+      "text": "Six, five, four, three, two, one.",
+      "voice": "atc"
+    },
+    {
+      "t": 180,
+      "text": "Liftoff. We have liftoff of Apollo 8.",
+      "voice": "atc"
+    },
+    {
+      "t": 192,
+      "text": "Roll program.",
+      "voice": "atc"
+    },
+    {
+      "t": 193,
+      "text": "Roll program, Houston. Go.",
+      "voice": "crew"
+    },
+    {
+      "t": 218,
+      "text": "Apollo 8, you are Go at thirty seconds.",
+      "voice": "atc"
+    },
+    {
+      "t": 240,
+      "text": "Trajectory and guidance nominal.",
+      "voice": "atc"
+    },
+    {
+      "event": "maxq",
+      "text": "Max Q.",
+      "voice": "atc"
+    },
+    {
+      "event": "maxq",
+      "_uid": "throttleup",
+      "text": "Go at throttle up.",
+      "voice": "atc",
+      "delay": 4000
+    },
+    {
+      "t": 315,
+      "text": "Center engine cutoff.",
+      "voice": "atc"
+    },
+    {
+      "event": "meco",
+      "text": "S-IC cutoff confirmed.",
+      "voice": "atc"
+    },
+    {
+      "event": "stagesep",
+      "_uid": "sep1",
+      "text": "Stage one separation confirmed.",
+      "voice": "atc",
+      "delay": 200
+    },
+    {
+      "event": "stagesep",
+      "_uid": "sii",
+      "text": "S-II ignition.",
+      "voice": "atc",
+      "delay": 1800
+    },
+    {
+      "t": 377,
+      "text": "LES jettison confirmed.",
+      "voice": "atc"
+    },
+    {
+      "t": 480,
+      "text": "Apollo 8, you are Go for orbit.",
+      "voice": "atc"
+    },
+    {
+      "t": 482,
+      "text": "Go for orbit. Thank you, Houston.",
+      "voice": "crew"
+    },
+    {
+      "t": 670,
+      "text": "S-II performance nominal.",
+      "voice": "atc"
+    },
+    {
+      "event": "ceco",
+      "text": "S-II cutoff.",
+      "voice": "atc"
+    },
+    {
+      "t": 745,
+      "text": "S-IVB ignition.",
+      "voice": "atc"
+    },
+    {
+      "t": 864,
+      "text": "Apollo 8, you are in Earth orbit. Nominal insertion.",
+      "voice": "atc"
+    },
+    {
+      "t": 866,
+      "text": "Confirmed. We have arrived.",
+      "voice": "crew"
+    }
+  ],
+
+  "debrief": [
+    "Were all five F-1 engines at full thrust on liftoff?",
+    "Did the vehicle clear the tower cleanly at T+8s?",
+    "Max Q — was the throttle-back visible in the thrust profile?",
+    "S-IC staging: clean separation and S-II ignition confirmed?",
+    "Apollo 8 reached lunar orbit on Christmas Eve, 1968.",
+    "Anders: \"We came all this way to explore the Moon, and the most important thing is that we discovered the Earth.\""
+  ],
+
+  "failures": [],
+
+  "atmosphere": "December 21, 1968. The world watches from Cape Kennedy.\nFrank Borman, James Lovell, William Anders.\nThe first human beings to leave Earth's gravity.\nBound for the Moon.",
+
+  "kneeboard": [
+    {
+      "title": "APOLLO 8",
+      "type": "briefing",
+      "items": [
+        "AS-503 / Saturn V",
+        "LC-39A, Kennedy Space Center",
+        "21 December 1968 — 12:51 UTC",
+        "—",
+        "CDR: Frank Borman",
+        "CMP: James Lovell",
+        "LMP: William Anders",
+        "CapCom: Michael Collins",
+        "—",
+        "Launch azimuth: 072°",
+        "Parking orbit: 190 km circular",
+        "TLI: T+2h 50m 37s",
+        "Lunar orbit: 24 December 1968"
+      ]
+    }
+  ]
+}

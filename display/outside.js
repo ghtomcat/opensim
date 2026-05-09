@@ -618,15 +618,18 @@ const _btRy = 0.0004, _btRy7= _btRy * 0.7071;  // tail  half-width
 const _btRz = 0.0006, _btRz7= _btRz * 0.7071;  // tail  half-height
 const _b9hs = 0.0138;   // half-span
 const _b9dh = 0.0002;   // wing dihedral
-const _b9vH = 0.0078;   // V-stab height above fuselage top
-const _b9hw = 0.0060;   // H-stab half-span
-const _b9pr = 0.0150;   // prop disk radius
+const _b9vH = 0.0038;   // V-stab height above fuselage top
+const _b9hw = 0.0045;   // H-stab half-span
+const _b9pr = 0.0042;   // prop disk radius
+const _bCzH = 0.0010;   // canopy height above fuselage top
+const _bCyW = 0.0007;   // canopy half-width
 
 const _COLORS_b109 = [
   [168, 174, 145],  // 0 fuselage — RLM 74 dark grey-green
   [150, 158, 136],  // 1 wings    — RLM 75 grey-violet
   [ 50,  54,  46],  // 2 cowl     — dark engine cowl
   [168, 174, 145],  // 3 tail surfaces — same as fuselage
+  [ 38,  52,  68],  // 4 canopy glass — dark tinted
 ];
 
 const _V_b109 = [
@@ -695,6 +698,16 @@ const _V_b109 = [
   /* 68 */ [-0.011, -_b9hw,   0.001      ], /* 69 */ [-0.013, -_b9hw,  0.001     ],
 
   /* 70 */ [ 0.015, +_b9pr,   0          ],  // prop disk radius ref
+
+  // Cockpit canopy — sits on fuselage top, windscreen fwd of ring C
+  /* 71 */ [ 0.004, -_bCyW,        _bfRz             ],  // windscreen base L
+  /* 72 */ [ 0.004, +_bCyW,        _bfRz             ],  // windscreen base R
+  /* 73 */ [ 0.003, +_bCyW * 0.70, _bfRz + _bCzH * 0.70 ],  // windscreen top R
+  /* 74 */ [ 0.003, -_bCyW * 0.70, _bfRz + _bCzH * 0.70 ],  // windscreen top L
+  /* 75 */ [-0.001, -_bCyW * 0.70, _bfRz + _bCzH    ],  // crown top L
+  /* 76 */ [-0.001, +_bCyW * 0.70, _bfRz + _bCzH    ],  // crown top R
+  /* 77 */ [-0.003, +_bCyW,        _bfRz             ],  // aft base R
+  /* 78 */ [-0.003, -_bCyW,        _bfRz             ],  // aft base L
 ];
 
 const _F_b109 = [
@@ -726,6 +739,12 @@ const _F_b109 = [
   // H-stabs (top + bottom)
   [62,64,65,63],[62,63,65,64],  // R
   [66,67,69,68],[66,68,69,67],  // L
+  // Cockpit canopy (5 faces)
+  [71,72,73,74],   // windscreen front
+  [72,77,76,73],   // R glass panel
+  [71,74,75,78],   // L glass panel
+  [74,73,76,75],   // crown top
+  [78,75,76,77],   // aft fairing
 ];
 
 const _FN_b109 = _F_b109.map(fi => {
@@ -748,6 +767,7 @@ const _FC_b109 = [
   1,1,1,1,          // wings
   3,3,              // V-stab
   3,3,3,3,          // H-stabs
+  4,4,4,4,4,        // canopy
 ];
 
 const _E_b109 = [
@@ -776,6 +796,11 @@ const _E_b109 = [
   [43,62],
   [66,68],[68,69],[69,67],[67,66],
   [47,66],
+  // Canopy outline
+  [71,72],[72,73],[73,74],[74,71],
+  [75,76],[76,77],[77,78],[78,75],
+  [73,76],[74,75],
+  [71,78],[72,77],
 ];
 
 const _GV_b109 = [
@@ -785,6 +810,139 @@ const _GV_b109 = [
   /* 3 */ [ 0.001, -0.0016, -0.0037 ],  // L main wheel
   /* 4 */ [-0.012,  0,      -0.0006 ],  // tail strut top
   /* 5 */ [-0.012,  0,      -0.0012 ],  // tail wheel
+];
+
+/* ══════════════════════════════════════════════════════════════
+   Saturn V geometry — Apollo-era launch vehicle (Step 1: body)
+   Body frame: fwd = nose (+x), right = starboard, up = +z
+   Units: NM. Origin ≈ centre of mass.
+   ══════════════════════════════════════════════════════════════ */
+
+const _sv1r  = 0.0028, _sv1r7 = _sv1r * 0.7071;  // S-IC / S-II radius (10.1 m dia)
+const _sv3r  = 0.0018, _sv3r7 = _sv3r * 0.7071;  // S-IVB radius (6.6 m dia)
+const _svcr  = 0.0011, _svcr7 = _svcr * 0.7071;  // CSM radius (3.9 m dia)
+const _svcr2 = _svcr  * 0.55,  _svcr27= _svcr2 * 0.7071;  // CM nose
+
+const _COLORS_sv = [
+  [240, 238, 230],  // 0 body — warm off-white (NASA standard white)
+  [ 20,  20,  26],  // 1 interstage — near-black
+  [ 52,  55,  64],  // 2 forward skirt — dark grey
+];
+
+const _V_sv = [
+  // Ring 0 — S-IC aft base  (x = -0.030)
+  /* 0 */[-0.030,  0,       _sv1r ], /* 1 */[-0.030,  _sv1r7,  _sv1r7],
+  /* 2 */[-0.030,  _sv1r,   0     ], /* 3 */[-0.030,  _sv1r7, -_sv1r7],
+  /* 4 */[-0.030,  0,      -_sv1r ], /* 5 */[-0.030, -_sv1r7, -_sv1r7],
+  /* 6 */[-0.030, -_sv1r,   0     ], /* 7 */[-0.030, -_sv1r7,  _sv1r7],
+
+  // Ring 1 — S-IC top / interstage base  (x = -0.009)
+  /* 8 */[-0.009,  0,       _sv1r ], /* 9 */[-0.009,  _sv1r7,  _sv1r7],
+  /*10 */[-0.009,  _sv1r,   0     ], /*11 */[-0.009,  _sv1r7, -_sv1r7],
+  /*12 */[-0.009,  0,      -_sv1r ], /*13 */[-0.009, -_sv1r7, -_sv1r7],
+  /*14 */[-0.009, -_sv1r,   0     ], /*15 */[-0.009, -_sv1r7,  _sv1r7],
+
+  // Ring 2 — interstage top / S-II base  (x = -0.006)
+  /*16 */[-0.006,  0,       _sv1r ], /*17 */[-0.006,  _sv1r7,  _sv1r7],
+  /*18 */[-0.006,  _sv1r,   0     ], /*19 */[-0.006,  _sv1r7, -_sv1r7],
+  /*20 */[-0.006,  0,      -_sv1r ], /*21 */[-0.006, -_sv1r7, -_sv1r7],
+  /*22 */[-0.006, -_sv1r,   0     ], /*23 */[-0.006, -_sv1r7,  _sv1r7],
+
+  // Ring 3 — S-II top / forward skirt base  (x = +0.007)
+  /*24 */[ 0.007,  0,       _sv1r ], /*25 */[ 0.007,  _sv1r7,  _sv1r7],
+  /*26 */[ 0.007,  _sv1r,   0     ], /*27 */[ 0.007,  _sv1r7, -_sv1r7],
+  /*28 */[ 0.007,  0,      -_sv1r ], /*29 */[ 0.007, -_sv1r7, -_sv1r7],
+  /*30 */[ 0.007, -_sv1r,   0     ], /*31 */[ 0.007, -_sv1r7,  _sv1r7],
+
+  // Ring 4 — forward skirt top / S-IVB base  (x = +0.010, r = _sv3r — step down)
+  /*32 */[ 0.010,  0,       _sv3r ], /*33 */[ 0.010,  _sv3r7,  _sv3r7],
+  /*34 */[ 0.010,  _sv3r,   0     ], /*35 */[ 0.010,  _sv3r7, -_sv3r7],
+  /*36 */[ 0.010,  0,      -_sv3r ], /*37 */[ 0.010, -_sv3r7, -_sv3r7],
+  /*38 */[ 0.010, -_sv3r,   0     ], /*39 */[ 0.010, -_sv3r7,  _sv3r7],
+
+  // Ring 5 — S-IVB top / SLA base  (x = +0.019)
+  /*40 */[ 0.019,  0,       _sv3r ], /*41 */[ 0.019,  _sv3r7,  _sv3r7],
+  /*42 */[ 0.019,  _sv3r,   0     ], /*43 */[ 0.019,  _sv3r7, -_sv3r7],
+  /*44 */[ 0.019,  0,      -_sv3r ], /*45 */[ 0.019, -_sv3r7, -_sv3r7],
+  /*46 */[ 0.019, -_sv3r,   0     ], /*47 */[ 0.019, -_sv3r7,  _sv3r7],
+
+  // Ring 6 — SLA top / CSM base  (x = +0.024, r = _svcr — taper)
+  /*48 */[ 0.024,  0,       _svcr ], /*49 */[ 0.024,  _svcr7,  _svcr7],
+  /*50 */[ 0.024,  _svcr,   0     ], /*51 */[ 0.024,  _svcr7, -_svcr7],
+  /*52 */[ 0.024,  0,      -_svcr ], /*53 */[ 0.024, -_svcr7, -_svcr7],
+  /*54 */[ 0.024, -_svcr,   0     ], /*55 */[ 0.024, -_svcr7,  _svcr7],
+
+  // Ring 7 — CM top  (x = +0.030, r = _svcr2 — narrowing)
+  /*56 */[ 0.030,  0,       _svcr2 ], /*57 */[ 0.030,  _svcr27, _svcr27],
+  /*58 */[ 0.030,  _svcr2,  0      ], /*59 */[ 0.030,  _svcr27,-_svcr27],
+  /*60 */[ 0.030,  0,      -_svcr2 ], /*61 */[ 0.030, -_svcr27,-_svcr27],
+  /*62 */[ 0.030, -_svcr2,  0      ], /*63 */[ 0.030, -_svcr27, _svcr27],
+
+  /*64 */[ 0.037,  0,        0     ],  // LES tower tip
+];
+
+const _F_sv = [
+  // S-IC body: Ring 0→1
+  [0,1,9,8],[1,2,10,9],[2,3,11,10],[3,4,12,11],
+  [4,5,13,12],[5,6,14,13],[6,7,15,14],[7,0,8,15],
+  // Interstage S-IC/S-II: Ring 1→2
+  [8,9,17,16],[9,10,18,17],[10,11,19,18],[11,12,20,19],
+  [12,13,21,20],[13,14,22,21],[14,15,23,22],[15,8,16,23],
+  // S-II body: Ring 2→3
+  [16,17,25,24],[17,18,26,25],[18,19,27,26],[19,20,28,27],
+  [20,21,29,28],[21,22,30,29],[22,23,31,30],[23,16,24,31],
+  // Forward skirt (S-II/S-IVB): Ring 3→4 — tapers from _sv1r to _sv3r
+  [24,25,33,32],[25,26,34,33],[26,27,35,34],[27,28,36,35],
+  [28,29,37,36],[29,30,38,37],[30,31,39,38],[31,24,32,39],
+  // S-IVB body: Ring 4→5
+  [32,33,41,40],[33,34,42,41],[34,35,43,42],[35,36,44,43],
+  [36,37,45,44],[37,38,46,45],[38,39,47,46],[39,32,40,47],
+  // SLA adapter: Ring 5→6 — tapers from _sv3r to _svcr
+  [40,41,49,48],[41,42,50,49],[42,43,51,50],[43,44,52,51],
+  [44,45,53,52],[45,46,54,53],[46,47,55,54],[47,40,48,55],
+  // Service + Command Module: Ring 6→7
+  [48,49,57,56],[49,50,58,57],[50,51,59,58],[51,52,60,59],
+  [52,53,61,60],[53,54,62,61],[54,55,63,62],[55,48,56,63],
+  // CM nose cone: Ring 7→tip
+  [64,57,56],[64,58,57],[64,59,58],[64,60,59],
+  [64,61,60],[64,62,61],[64,63,62],[64,56,63],
+];
+
+const _FN_sv = _F_sv.map(fi => {
+  const a = _V_sv[fi[0]], b = _V_sv[fi[1]], c = _V_sv[fi[2]];
+  const ab = [b[0]-a[0], b[1]-a[1], b[2]-a[2]];
+  const ac = [c[0]-a[0], c[1]-a[1], c[2]-a[2]];
+  const n  = [ab[1]*ac[2]-ab[2]*ac[1], ab[2]*ac[0]-ab[0]*ac[2], ab[0]*ac[1]-ab[1]*ac[0]];
+  const len = Math.hypot(...n);
+  return len > 1e-10 ? n.map(x => x/len) : [0,0,1];
+});
+
+const _FC_sv = [
+  0,0,0,0,0,0,0,0,  // S-IC body
+  1,1,1,1,1,1,1,1,  // interstage
+  0,0,0,0,0,0,0,0,  // S-II body
+  2,2,2,2,2,2,2,2,  // forward skirt
+  0,0,0,0,0,0,0,0,  // S-IVB body
+  0,0,0,0,0,0,0,0,  // SLA adapter
+  0,0,0,0,0,0,0,0,  // CM
+  0,0,0,0,0,0,0,0,  // CM nose
+];
+
+const _E_sv = [
+  // Rings
+  [0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,0],
+  [8,9],[9,10],[10,11],[11,12],[12,13],[13,14],[14,15],[15,8],
+  [16,17],[17,18],[18,19],[19,20],[20,21],[21,22],[22,23],[23,16],
+  [24,25],[25,26],[26,27],[27,28],[28,29],[29,30],[30,31],[31,24],
+  [32,33],[33,34],[34,35],[35,36],[36,37],[37,38],[38,39],[39,32],
+  [40,41],[41,42],[42,43],[43,44],[44,45],[45,46],[46,47],[47,40],
+  [48,49],[49,50],[50,51],[51,52],[52,53],[53,54],[54,55],[55,48],
+  [56,57],[57,58],[58,59],[59,60],[60,61],[61,62],[62,63],[63,56],
+  // Longerons — top, right, bottom, left
+  [0,8],[8,16],[16,24],[24,32],[32,40],[40,48],[48,56],[56,64],
+  [2,10],[10,18],[18,26],[26,34],[34,42],[42,50],[50,58],[58,64],
+  [4,12],[12,20],[20,28],[28,36],[36,44],[44,52],[52,60],[60,64],
+  [6,14],[14,22],[22,30],[30,38],[38,46],[46,54],[54,62],[62,64],
 ];
 
 /* ══════════════════════════════════════════════════════════════
@@ -986,14 +1144,15 @@ const _DOOR = [
 /* ── Core wireframe + shading renderer ───────────────────────── */
 function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, wingView = false) {
   const isC172  = (S.aircraft?.id === 'c172');
-  const isF9    = !isC172 && (S.aircraft?.id?.startsWith('falcon9') || S.aircraft?.vehicleType === 'rocket');
-  const isBf109 = !isC172 && !isF9 && (S.aircraft?.id === 'bf109');
-  const V_   = isC172 ? _V_c172      : isF9 ? _V_f9      : isBf109 ? _V_b109      : _V;
-  const F_   = isC172 ? _F_c172      : isF9 ? _F_f9      : isBf109 ? _F_b109      : _F;
-  const FC_  = isC172 ? _FC_c172     : isF9 ? _FC_f9     : isBf109 ? _FC_b109     : _FC;
-  const FN_  = isC172 ? _FN_c172     : isF9 ? _FN_f9     : isBf109 ? _FN_b109     : _FN;
-  const E_   = isC172 ? _E_c172      : isF9 ? _E_f9      : isBf109 ? _E_b109      : _E;
-  const COL_ = isC172 ? _COLORS_c172 : isF9 ? _COLORS_f9 : isBf109 ? _COLORS_b109 : _COLORS;
+  const isSV    = !isC172 && (S.aircraft?.id === 'saturn-v');
+  const isF9    = !isC172 && !isSV && (S.aircraft?.id?.startsWith('falcon9') || S.aircraft?.vehicleType === 'rocket');
+  const isBf109 = !isC172 && !isF9 && !isSV && (S.aircraft?.id === 'bf109');
+  const V_   = isC172 ? _V_c172      : isF9 ? _V_f9      : isBf109 ? _V_b109      : isSV ? _V_sv      : _V;
+  const F_   = isC172 ? _F_c172      : isF9 ? _F_f9      : isBf109 ? _F_b109      : isSV ? _F_sv      : _F;
+  const FC_  = isC172 ? _FC_c172     : isF9 ? _FC_f9     : isBf109 ? _FC_b109     : isSV ? _FC_sv     : _FC;
+  const FN_  = isC172 ? _FN_c172     : isF9 ? _FN_f9     : isBf109 ? _FN_b109     : isSV ? _FN_sv     : _FN;
+  const E_   = isC172 ? _E_c172      : isF9 ? _E_f9      : isBf109 ? _E_b109      : isSV ? _E_sv      : _E;
+  const COL_ = isC172 ? _COLORS_c172 : isF9 ? _COLORS_f9 : isBf109 ? _COLORS_b109 : isSV ? _COLORS_sv : _COLORS;
   const GV_  = isC172 ? _GV_c172     : isBf109 ? _GV_b109 : _GV;
 
   const P = acPitchDeg * DEG, R = acRollDeg * DEG;
@@ -1101,6 +1260,8 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       ? [48, 52, 0, 4, 60]                         // F9: nose, fin dorsal, aft top/bot, fin ventral
       : isBf109
       ? [0, 52, 53, 49, 57, 56]                    // Bf109: spinner, R tip LE/TE, tail, L tip TE/LE
+      : isSV
+      ? [64, 0, 2, 4, 6]                           // Saturn V: tip, aft base cardinal points
       : [0, 100, 101, 97, 105, 104];               // A350: nose, R wing tip, tail, L wing tip
     const shadowPts = silVI.map(vi => {
       const [px, py, pz] = verts[vi];
@@ -1322,10 +1483,10 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   }
 
   /* Swiss cross on V-stab — A350 only */
-  if (!isC172 && !isF9 && !isBf109) _drawSwissCross(ctx, pts[106], pts[107], pts[109], pts[108]);
+  if (!isC172 && !isF9 && !isBf109 && !isSV) _drawSwissCross(ctx, pts[106], pts[107], pts[109], pts[108]);
 
-  /* Prop disk — C172 and Bf109 */
-  if (isC172 || isBf109) {
+  /* Prop disk — C172 and Bf109, only while engine running */
+  if ((isC172 || isBf109) && S.engineState === 'running') {
     const p0    = pts[0];
     const pProp = isBf109 ? pts[70] : pts[66];
     if (p0 && pProp) {
@@ -1410,7 +1571,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   }
 
   /* Cabin + cockpit windows and doors — A350 only */
-  if (!isC172 && !isF9) {
+  if (!isC172 && !isF9 && !isBf109 && !isSV) {
     const dpr = devicePixelRatio;
     {
       const ww = Math.max(2, 2 * dpr), wh = Math.max(3, 3.5 * dpr);
@@ -1578,7 +1739,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   }
 
   /* Landing gear — always visible on C172 + Bf109, retractable on A350, none for rockets */
-  if (!isF9 && (isC172 || isBf109 || S.gear)) {
+  if (!isF9 && !isSV && (isC172 || isBf109 || S.gear)) {
     const gpts = GV_.map(project);
     ctx.save();
     ctx.strokeStyle = 'rgba(200,210,220,0.90)';

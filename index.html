@@ -2484,6 +2484,20 @@
       },
     },
     {
+      id: 'apollo8', aircraft: 'saturn-v',
+      acName: 'Saturn V', engine: 'F-1 × 5 · Rocketdyne',
+      location: 'Kennedy Space Center · LC-39A', title: 'Apollo 8 · First to the Moon', era: 'ORBIT', eraLabel: '1968', accent: '#b8c4a0',
+      briefing: {
+        classification: 'NASA · MISSION SUMMARY',
+        date: '21 December 1968 · 12:51 UTC',
+        pilot: 'CDR: Frank Borman · CMP: James Lovell · LMP: William Anders',
+        unit: 'NASA Manned Spacecraft Center · Houston',
+        aircraft: 'Saturn V AS-503 · S-IC: 5 × F-1 · 33.4 MN · S-II: 5 × J-2 · S-IVB: 1 × J-2',
+        orders: 'Launch site: Kennedy Space Center LC-39A.\nTarget: Lunar orbit, 112 × 114 km.\n\nFlight sequence:\nT+00:00  F-1 ignition · Liftoff\nT+00:12  Roll/pitch program\nT+01:21  Max Q · 13 km altitude\nT+02:15  Center F-1 cutoff\nT+02:42  S-IC cutoff · 67 km\nT+02:44  S-IC / S-II separation\nT+09:11  S-II cutoff · 185 km\nT+09:25  S-IVB ignition\nT+11:24  Earth parking orbit achieved\nT+2h 50m  Translunar injection burn',
+        atmosphere: 'December 21, 1968.\nFrank Borman, James Lovell, William Anders.\nThe first human beings to leave Earth\'s gravity.\n\nOn Christmas Eve, orbiting the Moon, they read from Genesis.\nAnders photographed Earthrise.\n\n"We came all this way to explore the Moon,\nand the most important thing is that we discovered the Earth."',
+      },
+    },
+    {
       id: 'falcon1-omelek', aircraft: 'falcon1',
       acName: 'Falcon 1', engine: 'Merlin 1C + Kestrel · SpaceX',
       location: 'Omelek Island · Marshall Islands', title: 'First Orbit · Flight 4', era: 'ORBIT', eraLabel: '2008', accent: '#c0c8d8',
@@ -3823,7 +3837,6 @@
         document.body.classList.toggle('g1000-active',  isG1000);
         document.body.classList.toggle('velis-active',  isVelis);
         document.body.classList.toggle('panel-dual',    hasDual);
-        if (hasDual) hideMap();
         document.getElementById('hc-panel').style.display      = isHover ? 'flex' : 'none';
         document.getElementById('com-container').style.display  =
           (isHover || isVelis || isArm || isPanel) ? 'none' : (isG1000 ? (S.comPanelVisible ? '' : 'none') : '');

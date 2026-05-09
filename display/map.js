@@ -430,10 +430,10 @@ function _coneLatLngs(lat, lon, hdg, nmAhead, halfDeg) {
 function _renderLeafletLocal() {
   if (!_lmap || !_lmarker) return;
 
-  const lat  = S.lat ?? 47;
-  const lon  = S.lon ?? 8;
-  const hdg  = S.hdg ?? 0;
-  const spd  = (S.spd ?? 0) * 0.5144;   /* kt → m/s */
+  const lat  = Number.isFinite(S.lat) ? S.lat : 47;
+  const lon  = Number.isFinite(S.lon) ? S.lon : 8;
+  const hdg  = Number.isFinite(S.hdg) ? S.hdg : 0;
+  const spd  = Number.isFinite(S.spd) ? S.spd * 0.5144 : 0;   /* kt → m/s */
 
   /* Pan map to aircraft position */
   _lmap.setView([lat, lon], 14, { animate: false });
@@ -455,8 +455,8 @@ function _renderLeafletLocal() {
 
   /* Track vector — accounts for wind */
   const wind      = _getWind();
-  const wSpd      = wind.spd * 0.5144;
-  const wRad      = wind.dir * DEG;
+  const wSpd      = Number.isFinite(wind.spd) ? wind.spd * 0.5144 : 0;
+  const wRad      = Number.isFinite(wind.dir) ? wind.dir * DEG    : 0;
   const gndN      = spd * Math.cos(hdgRad) + wSpd * Math.cos(wRad + Math.PI);
   const gndE      = spd * Math.sin(hdgRad) + wSpd * Math.sin(wRad + Math.PI);
   const gndSpd    = Math.sqrt(gndN * gndN + gndE * gndE);

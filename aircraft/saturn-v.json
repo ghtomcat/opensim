@@ -1,0 +1,89 @@
+{
+  "id":          "saturn-v",
+  "name":        "Saturn V",
+  "vehicleType": "rocket",
+  "ignitionTime": 180,
+  "manualControl": false,
+  "map": false,
+  "panel": "f9",
+  "callsign": "Apollo 8",
+  "icaoType": "SATV",
+
+  "performance": {
+    "massWet": 2970000,
+    "Cd":      0.35,
+    "area":    80.1,
+
+    "stages": [
+      {
+        "name":        "S-IC — 5× Rocketdyne F-1",
+        "engineCount": 5,
+        "thrustSL":    33360000,
+        "thrustVac":   38703000,
+        "isp":         304,
+        "massWet":     2286217,
+        "massDry":     130900
+      },
+      {
+        "name":        "S-II — 5× Rocketdyne J-2",
+        "engineCount": 5,
+        "thrustSL":    0,
+        "thrustVac":   5165000,
+        "isp":         421,
+        "massWet":     490778,
+        "massDry":     36200
+      },
+      {
+        "name":        "S-IVB — 1× Rocketdyne J-2",
+        "engineCount": 1,
+        "thrustSL":    0,
+        "thrustVac":   1033000,
+        "isp":         421,
+        "massWet":     119900,
+        "massDry":     13300
+      }
+    ],
+
+    "payload": 29000,
+
+    "gLimit":            4.0,
+    "qLimit":            35000,
+    "cegCutoffG":        2.3,
+    "guidanceDuration":  9999,
+
+    "fpaProfile": [
+      [180,  90],
+      [193,  89],
+      [210,  85],
+      [240,  74],
+      [270,  60],
+      [310,  44],
+      [340,  28],
+      [360,  16],
+      [400,   8],
+      [500,   3],
+      [700,   0]
+    ],
+
+    "recovery": {
+      "rtls": false
+    }
+  },
+
+  "sound": { "engineType": "none" },
+
+  "fmaPhases": [
+    { "minAlt": 0, "vals": ["MAN", "", "", "", ""], "cols": ["white","white","white","white","white"] }
+  ],
+
+  "gpws": [],
+  "pmCallouts": [],
+  "ambient": {
+    "type": "turbofan",
+    "freqMin": 60,
+    "freqMax": 180,
+    "detune": 8,
+    "gainMin": 0.01,
+    "gainMax": 0.04
+  }
+}
