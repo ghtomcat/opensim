@@ -216,8 +216,8 @@ const _LAND = [
   [[52,132],[45,132],[40,122],[30,122],[22,115],[15,108],[10,104],[5,103],[5,100],[22,108],[30,120],[45,135]],
   /* India */
   [[28,67],[28,88],[21,88],[8,80],[8,77],[21,75]],
-  /* North America */
-  [[70,-140],[70,-80],[50,-55],[45,-65],[42,-70],[40,-73],[25,-80],[25,-90],[15,-83],[8,-77],[8,-83],[15,-90],[22,-105],[30,-118],[50,-125],[60,-140]],
+  /* North America — Florida traced for KSC area */
+  [[70,-140],[70,-80],[50,-55],[45,-65],[42,-70],[40,-73],[35,-75.5],[30,-81],[28.5,-80.5],[27,-80],[25,-80],[25,-90],[15,-83],[8,-77],[8,-83],[15,-90],[22,-105],[30,-118],[50,-125],[60,-140]],
   /* South America */
   [[12,-72],[12,-60],[0,-50],[-10,-37],[-20,-40],[-33,-52],[-55,-65],[-55,-68],[-30,-68],[-18,-70],[-5,-80],[8,-77]],
   /* Australia */
@@ -225,6 +225,22 @@ const _LAND = [
   /* Greenland */
   [[60,-44],[70,-25],[83,-25],[83,-55],[76,-68],[68,-53]],
 ];
+
+/* Ray-casting point-in-polygon for lat/lon arrays */
+function _ptInPoly(lat, lon, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const yi = poly[i][0], xi = poly[i][1];
+    const yj = poly[j][0], xj = poly[j][1];
+    if ((yi > lat) !== (yj > lat) && lon < (xj - xi) * (lat - yi) / (yj - yi) + xi)
+      inside = !inside;
+  }
+  return inside;
+}
+function _isOcean(lat, lon) {
+  for (const poly of _LAND) { if (_ptInPoly(lat, lon, poly)) return false; }
+  return true;
+}
 
 export function renderTerrain(canvas, { outsideView = false } = {}) {
   const W = canvas.width  = canvas.offsetWidth  * devicePixelRatio;
@@ -591,6 +607,33 @@ export function renderTerrain(canvas, { outsideView = false } = {}) {
         ctx.fill();
       }
     }
+  } else if (isRocket) {
+    /* Per-quad ocean/land coloring using _LAND polygon check */
+    const landPath = new Path2D(), oceanPath = new Path2D();
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const tl = pts[r][c],   tr = pts[r][c + 1];
+        const bl = pts[r+1][c], br = pts[r+1][c + 1];
+        if (!tl || !tr || !bl || !br) continue;
+        const d_c     = (ROW_DIST[r] + ROW_DIST[r + 1]) * 0.5;
+        const right_c = ((c + 0.5) / COLS - 0.5) * 2 * d_c * 1.5;
+        const lat_c   = acLat + (d_c * cosH - right_c * sinH) / 60;
+        const lon_c   = acLon + (d_c * sinH + right_c * cosH) / (60 * cosAcLat);
+        const p = _isOcean(lat_c, lon_c) ? oceanPath : landPath;
+        p.moveTo(tl[0], tl[1]); p.lineTo(tr[0], tr[1]);
+        p.lineTo(br[0], br[1]); p.lineTo(bl[0], bl[1]);
+        p.closePath();
+      }
+    }
+    const frontPt = pts[0][Math.floor(COLS / 2)];
+    const backPt  = pts[ROWS][Math.floor(COLS / 2)];
+    const _rGrad = (near, far) => {
+      if (!frontPt || !backPt) return near;
+      const g = ctx.createLinearGradient(0, frontPt[1], 0, backPt[1]);
+      g.addColorStop(0, near); g.addColorStop(1, far); return g;
+    };
+    ctx.fillStyle = _rGrad('#3d6e30', '#2d5a22'); ctx.fill(landPath);
+    ctx.fillStyle = _rGrad('#1a4a78', '#122f50'); ctx.fill(oceanPath);
   } else {
     const terrainNear = isArctic ? '#cdd4d8' : isWater ? '#1a3f66' : '#3d6e30';
     const terrainFar  = isArctic ? '#b8c2c8' : isWater ? '#162f50' : '#2d5a22';
@@ -673,11 +716,11 @@ export function renderTerrain(canvas, { outsideView = false } = {}) {
     ctx.fill();
   }
 
-  /* ── World-fixed ground grid (flat missions only) ── */
+  /* ── World-fixed ground grid (flat missions only, not rockets) ── */
   const GRID_RANGE_FWD  = 18;
   const GRID_RANGE_SIDE = 20;
   const GRID_RANGE_BACK =  3;
-  if (!hasTerrain) {
+  if (!hasTerrain && !isRocket) {
     const GRID_NM = 0.5;
 
     const acLatNm = (S.lat ?? 0) * 60;

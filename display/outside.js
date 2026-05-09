@@ -620,9 +620,10 @@ const _nzSk7  = _nzSk  * 0.7071;
 const _COLORS_f9 = [
   [252, 252, 254],  // 0 Stage 1  — bright white
   [248, 250, 254],  // 1 Stage 2  — slightly cooler white
-  [170, 178, 190],  // 2 Interstage — dark lattice
+  [ 18,  20,  26],  // 2 Interstage — near-black (carbon lattice)
   [246, 247, 252],  // 3 Dragon capsule — warm white
   [ 60,  66,  78],  // 4 Grid fins — titanium
+  [ 52,  58,  72],  // 5 Trunk — dark structural / solar panels
 ];
 
 const _V_f9 = [
@@ -651,11 +652,11 @@ const _V_f9 = [
   /*34 */ [ 0.014,  _rf9,   0    ], /*35 */ [ 0.014,  _rf7,  -_rf7 ],
   /*36 */ [ 0.014,  0,     -_rf9 ], /*37 */ [ 0.014, -_rf7,  -_rf7 ],
   /*38 */ [ 0.014, -_rf9,   0    ], /*39 */ [ 0.014, -_rf7,   _rf7 ],
-  // Ring 5 — Dragon cone mid (x=+0.020, r=54%)
-  /*40 */ [ 0.020,  0,      _rf9*0.54], /*41 */ [ 0.020,  _rf7*0.54, _rf7*0.54],
-  /*42 */ [ 0.020,  _rf9*0.54, 0     ], /*43 */ [ 0.020,  _rf7*0.54,-_rf7*0.54],
-  /*44 */ [ 0.020,  0,     -_rf9*0.54], /*45 */ [ 0.020, -_rf7*0.54,-_rf7*0.54],
-  /*46 */ [ 0.020, -_rf9*0.54, 0     ], /*47 */ [ 0.020, -_rf7*0.54, _rf7*0.54],
+  // Ring 5 — Trunk top / Dragon base (x=+0.020, full radius)
+  /*40 */ [ 0.020,  0,      _rf9 ], /*41 */ [ 0.020,  _rf7,   _rf7 ],
+  /*42 */ [ 0.020,  _rf9,   0    ], /*43 */ [ 0.020,  _rf7,  -_rf7 ],
+  /*44 */ [ 0.020,  0,     -_rf9 ], /*45 */ [ 0.020, -_rf7,  -_rf7 ],
+  /*46 */ [ 0.020, -_rf9,   0    ], /*47 */ [ 0.020, -_rf7,   _rf7 ],
   // Dragon nosecone tip
   /*48 */ [ 0.024,  0,      0    ],
   // Grid fins — 4 fins × 4 verts (v49-v64), straddling Ring 2 at x=+0.004
@@ -735,8 +736,8 @@ const _FC_f9 = [
   0,0,0,0,0,0,0,0,  // S1 mid→top
   2,2,2,2,2,2,2,2,  // interstage
   1,1,1,1,1,1,1,1,  // S2
-  3,3,3,3,3,3,3,3,  // Dragon cone base
-  3,3,3,3,3,3,3,3,  // Dragon nosecone
+  5,5,5,5,5,5,5,5,  // Trunk (Ring4→Ring5)
+  3,3,3,3,3,3,3,3,  // Dragon nosecone (Ring5→tip)
   4,4,4,4,4,4,4,4,  // grid fins
   4,4,4,4,4,4,4,4,  // S2 MVac nozzle bell
   4,4,4,4,4,4,4,4,  // S2 MVac exit cap
