@@ -994,6 +994,11 @@ const _E_sv = [
   [6,74],[74,76],[76,75],[75,6],  // -y fin
 ];
 
+/* Stage separation tumble animations — module state */
+let _svSepLastAcId = null;
+let _svSepPrevStage = 1;
+const _svSepAnims = [];   // [{ stage, t0 }]
+
 /* ══════════════════════════════════════════════════════════════
    Falcon 9 geometry — Block 5 two-stage rocket + Dragon capsule
    Body frame: fwd = nose, right = starboard, up = any radial
@@ -1430,6 +1435,19 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
 
   /* Booster projection (F9 stage separation) */
   const rStage = (isF9 || isSV) ? (S.rocketStage ?? 1) : 0;
+
+  /* Detect Saturn V stage separation to start tumble animations */
+  if (isSV) {
+    if (_svSepLastAcId !== S.aircraft?.id) {
+      _svSepLastAcId = S.aircraft?.id;
+      _svSepPrevStage = rStage;
+      _svSepAnims.length = 0;
+    } else if (rStage > _svSepPrevStage) {
+      _svSepAnims.push({ stage: _svSepPrevStage, t0: Date.now() });
+      _svSepPrevStage = rStage;
+    }
+  }
+
   let bPts = null, cosdP = 1, sindP = 0;
   let bOffF = 0, bOffR = 0, bOffU = 0;
   if (isF9 && rStage >= 2 && S.booster?.active) {
@@ -1760,6 +1778,69 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     for (let k = 1; k < ps.length; k++) ctx.lineTo(ps[k].x, ps[k].y);
     ctx.closePath();
     ctx.fill();
+  }
+
+  /* ── Stage separation tumble animations (Saturn V) ─────────────── */
+  if (isSV && _svSepAnims.length > 0) {
+    const ANIM_DUR = 14;   // seconds until fully faded
+    const now = Date.now();
+
+    for (let ai = _svSepAnims.length - 1; ai >= 0; ai--) {
+      const anim  = _svSepAnims[ai];
+      const elapsed = (now - anim.t0) / 1000;
+      if (elapsed > ANIM_DUR) { _svSepAnims.splice(ai, 1); continue; }
+
+      const alpha = Math.pow(Math.max(0, 1 - elapsed / ANIM_DUR), 0.55);
+      if (alpha < 0.01) continue;
+
+      /* Drift aft (rocket accelerates away) + end-over-end tumble */
+      const drift = Math.pow(elapsed, 1.7) * 0.060;   // NM behind rocket
+      const θ     = elapsed * Math.PI * 0.80;          // ~144 deg/sec tumble
+
+      /* Which faces to animate, and the stage's centre of mass in vF */
+      let fMin, fMax, finFaces, pivotVF;
+      if (anim.stage === 1) {
+        fMin = 0; fMax = 15; finFaces = true; pivotVF = -0.018;
+      } else {
+        fMin = 16; fMax = 31; finFaces = false; pivotVF = 0.0005;
+      }
+
+      /* Pre-transform: tumble around vR axis + drift in -vF */
+      const sepProj = ([vF, vR_, vU_]) => {
+        const dF = vF - pivotVF;
+        const rF = dF * Math.cos(θ) - vU_ * Math.sin(θ) + pivotVF - drift;
+        const rU = dF * Math.sin(θ) + vU_ * Math.cos(θ);
+        return project([rF, vR_, rU]);
+      };
+
+      const sPts = _V_sv.map(v => sepProj(v));
+
+      const drawRange = (start, end) => {
+        const sf = [];
+        for (let fi = start; fi <= end; fi++) {
+          const ps = _F_sv[fi].map(vi => sPts[vi]);
+          if (ps.some(p => !p)) continue;
+          const p0=ps[0], p1=ps[1], p2=ps[2];
+          if ((p1.x-p0.x)*(p2.y-p0.y)-(p1.y-p0.y)*(p2.x-p0.x) < 0) continue;
+          const avgD = ps.reduce((s,p)=>s+p.d,0)/ps.length;
+          sf.push({ ps, avgD, col: _COLORS_sv[_FC_sv[fi]] });
+        }
+        sf.sort((a,b) => b.avgD - a.avgD);
+        for (const { ps, col } of sf) {
+          ctx.fillStyle = `rgb(${col[0]},${col[1]},${col[2]})`;
+          ctx.beginPath();
+          ctx.moveTo(ps[0].x, ps[0].y);
+          for (let k=1; k<ps.length; k++) ctx.lineTo(ps[k].x, ps[k].y);
+          ctx.closePath(); ctx.fill();
+        }
+      };
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      drawRange(fMin, fMax);
+      if (finFaces) drawRange(64, 71);
+      ctx.restore();
+    }
   }
 
   /* Swiss cross on V-stab — A350 only */
