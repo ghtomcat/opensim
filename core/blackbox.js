@@ -68,6 +68,12 @@ export function bbTick(dt) {
     crashed:      S.crashed ?? false,
     lat:          +(S.lat ?? 0).toFixed(5),
     lon:          +(S.lon ?? 0).toFixed(5),
+    /* Rocket fields — null for non-rocket missions */
+    rocketStage:  S.rocketStage  ?? null,
+    rocketMass:   S.rocketMass   != null ? Math.round(S.rocketMass) : null,
+    rocketSECO:   S.rocketSECO   ?? null,
+    rocketTLI:    S.rocketTLI    ?? null,
+    rocketG:      S.rocketG      != null ? +(S.rocketG).toFixed(2)  : null,
   });
 
   _persist();

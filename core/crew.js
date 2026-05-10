@@ -495,20 +495,10 @@ function _checkATC(prev, curr, ms) {
               }, 100);
             }, Math.max(0, fadeStart));
           };
-          if (clr.startTime) {
-            /* Listener added before src is set — guaranteed to fire after load */
-            a.addEventListener('loadedmetadata', () => {
-              a.currentTime = clr.startTime;
-              a.play().catch(() => {});
-              _schedFade();
-            }, { once: true });
-            a.src = clr.audio;
-            a.load();
-          } else {
-            a.src = clr.audio;
-            a.play().catch(() => {});
-            _schedFade();
-          }
+          a.src = clr.audio;
+          if (clr.startTime != null) a.currentTime = clr.startTime;
+          a.play().catch(() => {});
+          _schedFade();
         }
         _atcEndedAt[capturedIdx] = S.time;
       }, clr.delay ?? 0);

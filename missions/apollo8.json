@@ -54,11 +54,11 @@
       "text": ""
     },
     {
-      "t": 180,
-      "audio": "assets/apollo8/highlights.mp3",
+      "t": 176,
+      "audio": "assets/apollo8/launch.mp3",
       "voice": "ambient",
-      "volume": 0.65,
-      "startTime": 15,
+      "volume": 0.70,
+      "startTime": 21,
       "duration": 180,
       "text": ""
     },

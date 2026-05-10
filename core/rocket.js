@@ -399,8 +399,9 @@ export function tickRocket(dt) {
           mass:        stg.massDry ?? 22000,
         }});
       }
-      /* Jettison spent stage dry mass, advance to next stage */
-      mass  -= stg.massDry ?? 0;
+      /* Jettison entire spent stage — discard unburned propellant too.
+         massAbove = all remaining stages wet + payload = correct post-sep mass. */
+      mass  = massAbove;
       stage += 1;
       coasting = false;
       /* Reset engine state for new stage */
