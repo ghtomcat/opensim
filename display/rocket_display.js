@@ -886,6 +886,241 @@ function _drawFDAI(ctx, cx, cy, r, pitchDeg, rollDeg) {
   ctx.stroke();
 }
 
+/* ════════════════════════════════════════════════════════════════
+   DSKY — Apollo Guidance Computer Display & Keyboard
+   Renders the iconic electroluminescent panel on the CMP view.
+   ════════════════════════════════════════════════════════════════ */
+
+/* 7-segment patterns: [a(top), b(tr), c(br), d(bot), e(bl), f(tl), g(mid)] */
+const _DSKY_SEG = {
+  '0':[1,1,1,1,1,1,0], '1':[0,1,1,0,0,0,0], '2':[1,1,0,1,1,0,1],
+  '3':[1,1,1,1,0,0,1], '4':[0,1,1,0,0,1,1], '5':[1,0,1,1,0,1,1],
+  '6':[1,0,1,1,1,1,1], '7':[1,1,1,0,0,0,0], '8':[1,1,1,1,1,1,1],
+  '9':[1,1,1,1,0,1,1], '-':[0,0,0,0,0,0,1], ' ':[0,0,0,0,0,0,0],
+};
+
+function _seg7(ctx, ox, oy, sw, sh, ch, onCol, offCol) {
+  const p = _DSKY_SEG[ch] ?? _DSKY_SEG[' '];
+  const t = Math.max(1, sw * 0.13);
+  const iw = sw - t * 2, ih = sh * 0.5 - t * 2;
+  function r(x, y, w, h, on) { ctx.fillStyle = on ? onCol : offCol; ctx.fillRect(x, y, w, h); }
+  r(ox+t,      oy,             iw, t,  p[0]); // a top
+  r(ox+sw-t,   oy+t,           t, ih, p[1]); // b top-right
+  r(ox+sw-t,   oy+sh*.5+t,    t, ih, p[2]); // c bot-right
+  r(ox+t,      oy+sh-t,       iw, t,  p[3]); // d bottom
+  r(ox,        oy+sh*.5+t,    t, ih, p[4]); // e bot-left
+  r(ox,        oy+t,           t, ih, p[5]); // f top-left
+  r(ox+t,      oy+sh*.5-t*.5, iw, t,  p[6]); // g middle
+}
+
+function _dskyStr(ctx, str, ox, oy, sw, sh, onCol, offCol) {
+  const gap = sw * 0.22;
+  for (let i = 0; i < str.length; i++)
+    _seg7(ctx, ox + i*(sw+gap), oy, sw, sh, str[i], onCol, offCol);
+}
+
+/* Compute current DSKY program state from S */
+function _getDSKYState() {
+  const mT   = S.time ?? 0;
+  const ignT = S.aircraft?.ignitionTime ?? 0;
+  const tLO  = mT - ignT;
+  const tliT = S.mission?.tliT;
+
+  const altM   = (S.alt ?? 0) * 0.3048;
+  const altNm  = altM / 1852;
+  const velMs  = (S.spd ?? 0) * 0.5144;
+  const velFps = velMs * 3.28084;
+  const vsFps  = (S.vs ?? 0) / 60;
+
+  const f5  = n => String(Math.abs(Math.round(n))).padStart(5, '0').slice(-5);
+  const fmt = n => (n < 0 ? '-' : ' ') + f5(n);
+
+  if (tLO < 0)
+    return { prog:'00', verb:'00', noun:'00', r1:' 00000', r2:' 00000', r3:' 00000', compActy:false };
+
+  /* TLI burn active */
+  if (S.rocketTLI && tliT) {
+    const elapsed  = Math.max(0, mT - tliT);
+    const burnLeft = Math.max(0, 317 - elapsed);
+    const dvTotal  = 3147 * 3.28084;
+    if (burnLeft > 0) {
+      return { prog:'40', verb:'16', noun:'40',
+        r1: ' ' + f5(Math.round(dvTotal * burnLeft / 317)),
+        r2: ' ' + f5(Math.round(burnLeft)),
+        r3: ' ' + f5(Math.round(dvTotal * elapsed / 317)),
+        compActy: true };
+    }
+    /* Post-TLI coast */
+    return { prog:'00', verb:'16', noun:'62',
+      r1: fmt(velFps), r2: fmt(vsFps), r3: ' ' + f5(altNm), compActy: false };
+  }
+
+  /* Approaching TLI — within 10 minutes */
+  if (S.rocketSECO && tliT && (tliT - mT) > 0 && (tliT - mT) < 600) {
+    return { prog:'30', verb:'16', noun:'33',
+      r1: ' ' + f5(Math.round(3147 * 3.28084)),
+      r2: ' ' + f5(Math.round(tliT - mT)),
+      r3: ' 00000', compActy: true };
+  }
+
+  /* Parking orbit / post-SECO */
+  if (S.rocketSECO) {
+    return { prog:'00', verb:'16', noun:'62',
+      r1: fmt(velFps), r2: fmt(vsFps), r3: ' ' + f5(altNm), compActy: false };
+  }
+
+  /* Ascent — P11 Earth Orbit Insertion Monitor */
+  return { prog:'11', verb:'16', noun:'62',
+    r1: fmt(velFps), r2: fmt(vsFps), r3: ' ' + f5(altNm),
+    compActy: !!(S.rocketCoast) === false };
+}
+
+function _drawDSKY(ctx, cx, cy, w, h) {
+  const st = _getDSKYState();
+  const x  = Math.round(cx - w / 2);
+  const y  = Math.round(cy - h / 2);
+  const p  = Math.round(w * 0.045);
+
+  const ON  = '#a8f050';   // electroluminescent green-yellow
+  const OFF = '#0c1808';   // ghost / inactive segment
+  const LBL = '#3a4a30';   // dim label
+  const LIT = '#38b030';   // indicator light on
+  const DIM = '#0a1208';   // indicator light off
+
+  /* Panel body */
+  ctx.fillStyle = '#141810';
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, Math.round(w * 0.04));
+  ctx.fill();
+  ctx.strokeStyle = '#252e20';
+  ctx.lineWidth = Math.max(1, w * 0.008);
+  ctx.stroke();
+
+  /* Inner bezel */
+  const bx = x+p, by = y+p, bw = w-p*2, bh = h-p*2;
+  ctx.fillStyle = '#0c1008';
+  ctx.fillRect(bx, by, bw, bh);
+
+  const lblSz  = `${Math.round(h * 0.048)}px "IBM Plex Mono",monospace`;
+  const liteSz = `${Math.round(h * 0.040)}px "IBM Plex Mono",monospace`;
+  ctx.textBaseline = 'middle';
+
+  /* ── PROG / VERB / NOUN ── */
+  const pvnH   = Math.round(bh * 0.29);
+  const segBW  = Math.round(w * 0.09);
+  const segBH  = Math.round(pvnH * 0.52);
+  const segBGp = Math.round(segBW * 0.22);
+  const pvnSec = Math.round(bw / 3);
+
+  for (let i = 0; i < 3; i++) {
+    const label = ['PROG','VERB','NOUN'][i];
+    const val   = [st.prog, st.verb, st.noun][i];
+    const gx    = bx + pvnSec * i;
+    const gcx   = gx + Math.round(pvnSec / 2);
+    const digW  = 2 * segBW + segBGp;
+
+    ctx.fillStyle = LBL;
+    ctx.font = lblSz;
+    ctx.textAlign = 'center';
+    ctx.fillText(label, gcx, by + Math.round(pvnH * 0.18));
+
+    const digY = by + Math.round(pvnH * 0.36);
+    _dskyStr(ctx, val, gcx - Math.round(digW / 2), digY, segBW, segBH, ON, OFF);
+  }
+
+  /* Separator */
+  const sep1Y = by + pvnH;
+  ctx.fillStyle = '#1a2218';
+  ctx.fillRect(bx, sep1Y, bw, Math.max(1, Math.round(h * 0.008)));
+
+  /* ── Warning lights ── */
+  const liteSec = Math.round(bh * 0.24);
+  const liteY   = sep1Y + Math.round(liteSec * 0.04);
+  const liteRows = 5;
+  const liteRH  = Math.round(liteSec / liteRows);
+  const dotW    = Math.round(liteRH * 0.5);
+  const dotH    = Math.round(liteRH * 0.45);
+
+  const mT = S.time ?? 0;
+  const blink = Math.floor(mT * 2) % 2 === 0;
+
+  const leftL  = [
+    { n:'COMP ACTY',  on: st.compActy && blink },
+    { n:'UPLINK ACTY',on: false },
+    { n:'TEMP',       on: false },
+    { n:'KEY REL',    on: false },
+    { n:'OPR ERR',    on: false },
+  ];
+  const rightL = [
+    { n:'PROG',    on: st.prog !== '00' },
+    { n:'GIML LK', on: false },
+    { n:'STBY',    on: false },
+    { n:'RESTART', on: false },
+    { n:'TRACKER', on: false },
+  ];
+
+  ctx.font = liteSz;
+  const col2X = bx + Math.round(bw * 0.52);
+
+  for (let i = 0; i < liteRows; i++) {
+    const rowCy = liteY + i * liteRH + Math.round(liteRH * 0.5);
+
+    /* Left light */
+    const ll = leftL[i];
+    ctx.fillStyle = ll.on ? LIT : DIM;
+    ctx.fillRect(bx, rowCy - Math.round(dotH/2), dotW, dotH);
+    ctx.fillStyle = ll.on ? '#7acc60' : '#222e1c';
+    ctx.textAlign = 'left';
+    ctx.fillText(ll.n, bx + dotW + Math.round(p * 0.4), rowCy);
+
+    /* Right light */
+    const rl = rightL[i];
+    ctx.fillStyle = rl.on ? LIT : DIM;
+    ctx.fillRect(col2X, rowCy - Math.round(dotH/2), dotW, dotH);
+    ctx.fillStyle = rl.on ? '#7acc60' : '#222e1c';
+    ctx.textAlign = 'left';
+    ctx.fillText(rl.n, col2X + dotW + Math.round(p * 0.4), rowCy);
+  }
+
+  /* Separator */
+  const sep2Y = liteY + liteSec;
+  ctx.fillStyle = '#1a2218';
+  ctx.fillRect(bx, sep2Y, bw, Math.max(1, Math.round(h * 0.008)));
+
+  /* ── R1 / R2 / R3 ── */
+  const dataY  = sep2Y + Math.round(h * 0.01);
+  const dataH  = by + bh - dataY;
+  const rowH   = Math.round(dataH / 3);
+  const segSW  = Math.round(w * 0.068);
+  const segSH  = Math.round(rowH * 0.60);
+  const segSGp = Math.round(segSW * 0.18);
+
+  ctx.font = liteSz;
+  for (const [i, row] of [[0, st.r1],[1, st.r2],[2, st.r3]]) {
+    const ry  = dataY + i * rowH;
+    const rcy = ry + Math.round(rowH * 0.5);
+    const sy  = rcy - Math.round(segSH * 0.5);
+
+    /* Row label */
+    ctx.fillStyle = LBL;
+    ctx.textAlign = 'left';
+    ctx.fillText(`R${i+1}`, bx, rcy);
+    const lblW = ctx.measureText(`R${i+1}`).width + Math.round(p * 0.4);
+
+    /* Vertical divider after label */
+    ctx.fillStyle = '#1a2218';
+    ctx.fillRect(bx + lblW - Math.round(p*0.2), ry + Math.round(rowH*0.12),
+                 Math.max(1,Math.round(w*0.005)), Math.round(rowH*0.76));
+
+    /* Sign digit */
+    const signX = bx + lblW;
+    _seg7(ctx, signX, sy, segSW * 0.6, segSH, row[0] === '-' ? '-' : ' ', ON, OFF);
+
+    /* 5 data digits */
+    _dskyStr(ctx, row.slice(1), signX + segSW * 0.7, sy, segSW, segSH, ON, OFF);
+  }
+}
+
 /* ── Altimeter arc gauge (CMP) — 0 to maxKm ── */
 function _drawAltimeterArc(ctx, cx, cy, r, altKm, maxKm = 600) {
   const startA = (210 - 90) * DEG;
@@ -1205,16 +1440,21 @@ export function renderApollo(canvas) {
     _row('ABORT MODE', abortMode, { color: '#f0c040', font: mSz });
   }
 
-  /* ═══ CMP: Altimeter arc + velocity / orbit / abort ═══ */
+  /* ═══ CMP: DSKY + velocity / orbit / abort ═══ */
   else if (role === 'CMP') {
-    _drawAltimeterArc(ctx, gaugeCX, gaugeCY, gaugeR, altKm);
+    const dskyW = Math.round(gaugeCol * 0.90);
+    const dskyH = Math.round(mainH   * 0.88);
+    _drawDSKY(ctx, gaugeCX, gaugeCY, dskyW, dskyH);
+
     _row('VELOCITY', `${(velMs / 1000).toFixed(2)} km/s`);
     _apolloText(ctx, `${Math.round(velFps).toLocaleString()} fps`, rightX, _rowY, { font: `${Math.round(H*0.028)}px "IBM Plex Mono",monospace`, color: '#506060', base: 'top' });
     _rowY += Math.round(H * 0.030) + Math.round(mainH * 0.02);
     _bar(orbitFrac, inOrbit ? '#5dd47e' : '#4dc5dc', rightW, inOrbit ? 'ORBIT ACHIEVED' : `${Math.round(orbitFrac * 100)}% ORBITAL VEL`);
     _gap(0.03);
+    _row('ALT', `${altKm.toFixed(1)} km`, { color: '#c8d4bc', font: mSz });
+    _gap(0.02);
     _row('FPA', `${Math.round(pitch)}°`, { color: '#c8d4bc', font: mSz });
-    _gap(0.04);
+    _gap(0.03);
     _row('ABORT MODE', abortMode, { color: '#f0c040', font: mSz });
   }
 
