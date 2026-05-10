@@ -493,7 +493,11 @@ function _checkATC(prev, curr, ms) {
           /* Create with no src + preload=none so loadedmetadata hasn't fired yet */
           const a = new Audio();
           a.preload = 'none';
+          a.loop    = false;
           a.volume  = clr.volume ?? 0.2;
+          const _removeAmbient = () => {
+            const i = _ambientAudio.indexOf(a); if (i >= 0) _ambientAudio.splice(i, 1);
+          };
           const _schedFade = () => {
             if (!clr.duration) return;
             const fadeStart = (clr.duration - 2) * 1000;
@@ -503,16 +507,16 @@ function _checkATC(prev, curr, ms) {
               const iv = setInterval(() => {
                 t += 100;
                 a.volume = Math.max(0, vol0 * (1 - t / 2000));
-                if (t >= 2000) { clearInterval(iv); a.pause(); }
+                if (t >= 2000) { clearInterval(iv); a.pause(); _removeAmbient(); }
               }, 100);
             }, Math.max(0, fadeStart));
           };
           a.src = clr.audio;
-          if (clr.startTime != null) a.currentTime = clr.startTime;
+          if (clr.startTime != null) {
+            a.addEventListener('loadedmetadata', () => { a.currentTime = clr.startTime; }, { once: true });
+          }
           _ambientAudio.push(a);
-          a.addEventListener('ended', () => {
-            const i = _ambientAudio.indexOf(a); if (i >= 0) _ambientAudio.splice(i, 1);
-          }, { once: true });
+          a.addEventListener('ended', _removeAmbient, { once: true });
           a.play().catch(() => {});
           _schedFade();
         }

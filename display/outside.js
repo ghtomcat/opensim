@@ -1639,10 +1639,11 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
 
   if (isSV && pastIgnition && !(S.rocketCoast ?? false) && !S.rocketSECO) {
     const svStage = S.rocketStage ?? 1;
-    /* S-IC — 5× F-1, RP-1/LOX orange plume, base at Ring 0 (x=-0.030) */
+    /* S-IC — 5× F-1, RP-1/LOX orange plume, emits from nozzle exit plane */
     if (svStage === 1) {
-      const pNoz = project([-0.030, 0, 0]);
-      _drawPlume(pNoz, _sv1r, [-0.030, 0, 0], 0.026, 0.72 * _engFrac);
+      const _nzExit = -0.030 - _sv1r * 0.58;
+      const pNoz = project([_nzExit, 0, 0]);
+      _drawPlume(pNoz, _sv1r, [_nzExit, 0, 0], 0.026, 0.72 * _engFrac);
     }
     /* S-II — 5× J-2, LH2/LOX blue-white, base at Ring 2 (x=-0.006) */
     else if (svStage === 2) {
@@ -1653,6 +1654,48 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     else if (svStage >= 3) {
       const pNoz = project([0.010, 0, 0]);
       _drawPlume(pNoz, _sv3r, [0.010, 0, 0], 0.018, 0.28 * _engFrac, 'lh2');
+    }
+  }
+
+  /* ── F1 engine nozzles — Saturn V S-IC, 5× truncated bell frustums ─ */
+  if (isSV && rStage === 1) {
+    const nNoz  = 8;              // octagon cross-section
+    const nzVF  = -0.030;         // S-IC aft base
+    const nzLen = _sv1r * 0.58;   // nozzle length aft of base  (F1 ≈ 2.9 m)
+    const nzRt  = _sv1r * 0.20;   // radius at attachment
+    const nzRx  = _sv1r * 0.38;   // radius at exit  (F1 exit dia ≈ 3.76 m)
+    const nzE   = _sv1r * 0.68;   // outer engine radial offset  (≈ 3.4 m)
+
+    for (const [cR, cU] of [[0,0],[nzE,0],[-nzE,0],[0,nzE],[0,-nzE]]) {
+      const topR = [], botR = [];
+      for (let i = 0; i < nNoz; i++) {
+        const a = (i / nNoz) * Math.PI * 2;
+        topR.push(project([nzVF,         cR + nzRt * Math.cos(a), cU + nzRt * Math.sin(a)]));
+        botR.push(project([nzVF - nzLen, cR + nzRx * Math.cos(a), cU + nzRx * Math.sin(a)]));
+      }
+
+      /* Lateral bell faces — back-face culled, shaded by outward radial normal */
+      for (let i = 0; i < nNoz; i++) {
+        const j  = (i + 1) % nNoz;
+        const ps = [topR[i], topR[j], botR[j], botR[i]];
+        if (ps.some(p => !p)) continue;
+        const p0 = ps[0], p1 = ps[1], p2 = ps[2];
+        if ((p1.x-p0.x)*(p2.y-p0.y) - (p1.y-p0.y)*(p2.x-p0.x) < 0) continue;
+        const aMid = ((i + 0.5) / nNoz) * Math.PI * 2;
+        const [nF, nR, nU] = rotateNormal([0, Math.cos(aMid), Math.sin(aMid)]);
+        const dot  = Math.max(0, nF * _LD[0] + nR * _LD[1] + nU * _LD[2]);
+        const avgD = ps.reduce((s, p) => s + p.d, 0) / 4;
+        faces.push({ ps, br: 0.14 + 0.82 * dot, avgD, col: [44, 38, 32] });
+      }
+
+      /* Exit disc — open bell interior, very dark */
+      if (!botR.some(p => !p)) {
+        const p0 = botR[0], p1 = botR[1], p2 = botR[2];
+        if ((p1.x-p0.x)*(p2.y-p0.y) - (p1.y-p0.y)*(p2.x-p0.x) >= 0) {
+          const avgD = botR.reduce((s, p) => s + p.d, 0) / nNoz;
+          faces.push({ ps: botR, br: 0.07, avgD, col: [22, 18, 15] });
+        }
+      }
     }
   }
 
