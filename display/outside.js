@@ -1398,6 +1398,10 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     /* F9 stage sep: main vehicle = S2 + Dragon + MVac nozzle (faces 24-47 + 56-71) */
     if (isF9 && rStage >= 2 && (i < 24 || (i > 47 && i < 56))) return null;
 
+    /* Saturn V staging: hide spent stage geometry */
+    if (isSV && rStage >= 2 && (i <= 15 || i >= 64)) return null;  // S-IC body + interstage + fins
+    if (isSV && rStage >= 3 && i <= 31) return null;                // S-II body + forward skirt
+
     const ps = fi.map(vi => pts[vi]);
     if (ps.some(p => !p)) return null;
 
@@ -1737,6 +1741,9 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
     /* Saturn V LES jettison: hide tower lattice (mid-ring verts 77-80 + diagonals) */
     if (isSV && S.lesJettisoned && (a >= 77 || b >= 77)) continue;
+    /* Saturn V staging: hide spent stage edges */
+    if (isSV && rStage >= 2 && ((a <= 15 || (a >= 65 && a <= 76)) || (b <= 15 || (b >= 65 && b <= 76)))) continue;
+    if (isSV && rStage >= 3 && ((a >= 16 && a <= 31) || (b >= 16 && b <= 31))) continue;
     const pa = pts[a], pb = pts[b];
     if (!pa || !pb) continue;
     ctx.moveTo(pa.x, pa.y);
