@@ -478,10 +478,8 @@ function _checkATC(prev, curr, ms) {
         if (exists) {
           const a = new Audio(clr.audio);
           a.volume = clr.volume ?? 0.2;
-          if (clr.startTime) a.currentTime = clr.startTime;
-          a.play().catch(() => {});
-          /* Optional hard stop with 2-second fade-out */
-          if (clr.duration) {
+          const _schedFade = () => {
+            if (!clr.duration) return;
             const fadeStart = (clr.duration - 2) * 1000;
             setTimeout(() => {
               const vol0 = a.volume;
@@ -492,6 +490,18 @@ function _checkATC(prev, curr, ms) {
                 if (t >= 2000) { clearInterval(iv); a.pause(); }
               }, 100);
             }, Math.max(0, fadeStart));
+          };
+          if (clr.startTime) {
+            /* Seek only after metadata is loaded — setting currentTime earlier is ignored */
+            a.addEventListener('loadedmetadata', () => {
+              a.currentTime = clr.startTime;
+              a.play().catch(() => {});
+              _schedFade();
+            }, { once: true });
+            a.load();
+          } else {
+            a.play().catch(() => {});
+            _schedFade();
           }
         }
         _atcEndedAt[capturedIdx] = S.time;
