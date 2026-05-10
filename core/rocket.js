@@ -532,6 +532,21 @@ export function tickRocket(dt) {
     setState({ lesJettisoned: true });
   }
 
+  /* ── Roll program — rotate vehicle around longitudinal axis ── */
+  const rp = perf.rollProgram;
+  let rocketRoll = S.rocketRoll ?? 0;
+  if (rp) {
+    const tSinceLiftoff = mT - ignitionTime;
+    const rpStart = rp.startT   ?? 13;
+    const rpDur   = rp.duration ?? 13;
+    const rpAngle = rp.angle    ?? 0;
+    if (tSinceLiftoff >= rpStart) {
+      const t = Math.min(1, (tSinceLiftoff - rpStart) / rpDur);
+      const ease = t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t);
+      rocketRoll = rpAngle * ease;
+    }
+  }
+
   setState({
     spd:   newSpd_ms / 0.5144,
     spdT:  newSpd_ms / 0.5144,
@@ -547,6 +562,7 @@ export function tickRocket(dt) {
     rocketCoastT: coastT,
     rocketG:      axialG,
     rocketDynQ:   dynQ,
+    rocketRoll,
     time:  mT + dt,
   });
 }

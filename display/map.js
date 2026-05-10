@@ -711,6 +711,121 @@ function _updateTrack() {
   }
 }
 
+/* ── Day/night terminator ─────────────────────────────────────────
+   Shades the night hemisphere and draws the terminator polyline.
+   Uses equinox approximation (sunLat = 0): terminator is two vertical
+   meridians in equirectangular. Works correctly for all lonSpan/latSpan.
+   ─────────────────────────────────────────────────────────────────── */
+function _drawTerminator(ctx, W, H, dpr, proj, minLon, maxLon, minLat, maxLat, timeOfDay) {
+  /* Normalize: rocket missions store timeOfDay as 0-1 fraction, GA as hours 0-24 */
+  const todH   = timeOfDay < 1 ? timeOfDay * 24 : timeOfDay;
+  /* Subsolar longitude advances westward at 15°/h as Earth rotates */
+  const simH   = (S.time ?? 0) / 3600;
+  const sunLon = (12 - todH) * 15 - simH * 15;
+  const sunLat = 0;                    /* solar declination — equinox approx */
+  const sunLatR   = sunLat * DEG;
+  const tanSunLat = Math.tan(sunLatR);
+
+  const lonSpan = maxLon - minLon;
+  const latSpan = maxLat - minLat;
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 8, 30, 0.52)';
+
+  /* Scanline fill: for each 1° lat strip, compute night lon range */
+  for (let la = Math.floor(minLat); la < Math.ceil(maxLat); la++) {
+    const laR    = la * DEG;
+    const cosLon = Math.abs(sunLat) < 0.1 ? 0 : -tanSunLat * Math.tan(laR);
+
+    const y0 = Math.min(H, (maxLat - la)       / latSpan * H);
+    const y1 = Math.max(0, (maxLat - la - 1)   / latSpan * H);
+    const sy = Math.min(y0, y1);
+    const sh = Math.max(1, Math.abs(y0 - y1));
+
+    if (cosLon >= 1) {
+      /* Entirely night at this latitude */
+      ctx.fillRect(0, sy, W, sh);
+    } else if (cosLon > -1) {
+      const dLon = Math.acos(cosLon) * (180 / Math.PI);
+      /* Night spans from (sunLon + dLon) eastward to (sunLon - dLon + 360) */
+      const n1 = sunLon + dLon;
+      const n2 = n1 + (360 - 2 * dLon);
+
+      /* Normalize n1 into [minLon, minLon+360] */
+      let nn1 = n1;
+      while (nn1 < minLon) nn1 += 360;
+      while (nn1 > minLon + 360) nn1 -= 360;
+      const nn2 = nn1 + (n2 - n1);
+
+      /* Fill primary night segment */
+      const x1a = Math.max(0, (nn1 - minLon) / lonSpan * W);
+      const x2a = Math.min(W, (Math.min(nn2, maxLon + 0.5) - minLon) / lonSpan * W);
+      if (x2a > x1a) ctx.fillRect(x1a, sy, x2a - x1a, sh);
+
+      /* Fill wrapped segment (if night crosses the map edge) */
+      if (nn2 > maxLon + 0.5) {
+        const x2b = Math.min(W, (nn2 - 360 - minLon) / lonSpan * W);
+        if (x2b > 0) ctx.fillRect(0, sy, x2b, sh);
+      }
+    }
+    /* cosLon <= -1: entirely day — skip */
+  }
+
+  /* Terminator polylines */
+  ctx.strokeStyle = 'rgba(255, 195, 90, 0.65)';
+  ctx.lineWidth   = 1.5 * dpr;
+  ctx.lineJoin    = 'round';
+
+  const rightPts = [], leftPts = [];
+  for (let la = Math.floor(minLat); la <= Math.ceil(maxLat); la += 2) {
+    const laR    = la * DEG;
+    const cosLon = Math.abs(sunLat) < 0.1 ? 0 : -tanSunLat * Math.tan(laR);
+    if (Math.abs(cosLon) > 1) continue;
+    const dLon = Math.acos(Math.max(-1, Math.min(1, cosLon))) * (180 / Math.PI);
+    rightPts.push({ lat: la, lon: sunLon + dLon });
+    leftPts.push(  { lat: la, lon: sunLon - dLon });
+  }
+
+  const _strokePts = (pts) => {
+    if (pts.length < 2) return;
+    ctx.beginPath();
+    let first = true;
+    for (const p of pts) {
+      let lo = p.lon;
+      while (lo < minLon - 5)  lo += 360;
+      while (lo > maxLon + 5)  lo -= 360;
+      if (lo < minLon - 5 || lo > maxLon + 5) { first = true; continue; }
+      const { x, y } = proj(p.lat, lo);
+      if (first) { ctx.moveTo(x, y); first = false; }
+      else        ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  };
+  _strokePts(rightPts);
+  _strokePts(leftPts);
+
+  /* ── Sun / moon icons — centered in day and night hemispheres ── */
+  const _midLat  = (minLat + maxLat) / 2;
+  const _iconPx  = Math.max(11, Math.round(14 * dpr));
+  ctx.font         = `${_iconPx}px sans-serif`;
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+
+  const _placeIcon = (lon, glyph, color) => {
+    /* Normalise lon into [minLon, minLon+360) then clip to visible range */
+    let lo = ((lon - minLon) % 360 + 360) % 360 + minLon;
+    if (lo < minLon || lo > maxLon) return;
+    const { x, y } = proj(_midLat, lo);
+    ctx.fillStyle = color;
+    ctx.fillText(glyph, x, y);
+  };
+
+  _placeIcon(sunLon,       '☀', 'rgba(255, 220, 80, 0.90)');
+  _placeIcon(sunLon + 180, '☽', 'rgba(180, 195, 220, 0.85)');
+
+  ctx.restore();
+}
+
 /* ── Rocket world map ── */
 function _renderWorldMap(ctx, W, H, dpr) {
   /* Clip everything to the map canvas — prevents tracks from escaping the panel */
@@ -797,6 +912,11 @@ function _renderWorldMap(ctx, W, H, dpr) {
     ctx.stroke();
   }
   ctx.restore();
+
+  /* Day/night terminator — only on wide-angle views (>30° lon span) */
+  if (lonSpan > 30 && S.mission?.timeOfDay != null) {
+    _drawTerminator(ctx, W, H, dpr, proj, minLon, maxLon, minLat, maxLat, S.mission.timeOfDay);
+  }
 
   /* Grid */
   const gridStep = lonSpan > 50 ? 10 : 5;

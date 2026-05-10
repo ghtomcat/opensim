@@ -43,7 +43,7 @@
         "isp":          421,
         "massWet":      119900,
         "massDry":      13300,
-        "burnDuration": 145
+        "burnDuration": 188
       }
     ],
 
@@ -63,10 +63,10 @@
       [310,  44],
       [340,  30],
       [360,  20],
-      [400,  12],
-      [500,   6],
-      [650,   3],
-      [760,   1],
+      [400,  10],
+      [500,   5],
+      [640,   3],
+      [740,   1],
       [860,   0]
     ],
 
@@ -74,7 +74,13 @@
       "rtls": false
     },
 
-    "lesJettisonT": 191
+    "lesJettisonT": 191,
+
+    "rollProgram": {
+      "startT":   13,
+      "duration": 13,
+      "angle":    121.5
+    }
   },
 
   "sound": { "engineType": "none" },

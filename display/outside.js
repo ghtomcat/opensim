@@ -73,7 +73,7 @@ export function tickOutside() {
 function _renderChaseCam(canvas) {
   const hdgRad = (S.hdg  ?? 0) * DEG;
   const acP    =  S.pitch ?? 0;
-  const acR    =  S.roll  ?? 0;
+  const acR    = S.aircraft?.vehicleType === 'rocket' ? (S.rocketRoll ?? 0) : (S.roll ?? 0);
   const cosLat = Math.cos((S.lat ?? 47) * DEG);
   const dN = -Math.cos(hdgRad) * CHASE_BACK;
   const dE = -Math.sin(hdgRad) * CHASE_BACK;
@@ -95,23 +95,31 @@ function _renderChaseCam(canvas) {
 function _renderSideCam(canvas) {
   const hdgRad   = (S.hdg  ?? 0) * DEG;
   const acP      =  S.pitch ?? 0;
-  const acR      =  S.roll  ?? 0;
+  const acR      = S.aircraft?.vehicleType === 'rocket' ? (S.rocketRoll ?? 0) : (S.roll ?? 0);
   const cosLat   = Math.cos((S.lat ?? 47) * DEG);
   const rightRad = hdgRad + Math.PI / 2;
-  const dN = Math.cos(rightRad) * SIDE_SIDE;
-  const dE = Math.sin(rightRad) * SIDE_SIDE;
+
+  /* For rockets, scale camera distance with altitude so the globe stays
+     in frame — at 175 km orbit this gives ~24 nm side / ~5 nm up.     */
+  const isRocket = S.aircraft?.vehicleType === 'rocket';
+  const altNm    = (S.alt ?? 0) * FT_NM;
+  const sideDist = isRocket ? Math.max(SIDE_SIDE, altNm * 0.25) : SIDE_SIDE;
+  const sideUp   = isRocket ? Math.max(SIDE_UP,   altNm * 0.05) : SIDE_UP;
+
+  const dN = Math.cos(rightRad) * sideDist;
+  const dE = Math.sin(rightRad) * sideDist;
 
   const sL=S.lat,sLo=S.lon,sA=S.alt,sH=S.hdg,sP=S.pitch,sR=S.roll;
   S.lat   = (S.lat??47)   + dN / 60;
   S.lon   = (S.lon??8)    + dE / (60 * cosLat);
-  S.alt   = (S.alt??3000) + SIDE_UP / FT_NM;
+  S.alt   = (S.alt??3000) + sideUp / FT_NM;
   S.hdg   = ((S.hdg??0) - 90 + 360) % 360;
-  S.pitch = Math.atan2(-SIDE_UP, SIDE_SIDE) / DEG;
+  S.pitch = Math.atan2(-sideUp, sideDist) / DEG;
   S.roll  = 0;
   renderTerrain(canvas, { outsideView: true });
   S.lat=sL;S.lon=sLo;S.alt=sA;S.hdg=sH;S.pitch=sP;S.roll=sR;
 
-  _drawWireframe(canvas, acP, acR, 0, SIDE_UP, SIDE_SIDE);
+  _drawWireframe(canvas, acP, acR, 0, sideUp, sideDist);
   _drawLabel(canvas, 'SIDE CAM');
 }
 
@@ -122,7 +130,7 @@ const WING_UP   = 0.0025;  // NM — slightly above wing plane
 function _renderWingView(canvas) {
   const hdgRad   = (S.hdg  ?? 0) * DEG;
   const acP      =  S.pitch ?? 0;
-  const acR      =  S.roll  ?? 0;
+  const acR      = S.aircraft?.vehicleType === 'rocket' ? (S.rocketRoll ?? 0) : (S.roll ?? 0);
   const cosLat   = Math.cos((S.lat ?? 47) * DEG);
   const rightRad = hdgRad + Math.PI / 2;
   const dN = Math.cos(rightRad) * WING_SIDE;
@@ -1199,6 +1207,9 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const P = acPitchDeg * DEG, R = acRollDeg * DEG;
   const cosP = Math.cos(P), sinP = Math.sin(P);
   const cosR = Math.cos(R), sinR = Math.sin(R);
+  /* Rockets spin around their longitudinal axis (pre-roll before pitch).
+     Aircraft bank around the camera forward axis (post-pitch roll). */
+  const isBodyRoll = isSV || isF9;
 
   const W = canvas.width, H = canvas.height;
   const ctx   = canvas.getContext('2d');
@@ -1217,16 +1228,34 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     const PAD    = 1.15;
     let maxCR = 0, maxCU = 0;
     for (const [vF, vR, vU] of V_) {
-      const fP =  vF * cosP - vU * sinP;
-      const uP =  vF * sinP + vU * cosP;
-      const rR =  vR * cosR + uP * sinR;
-      const uR = -vR * sinR + uP * cosR;
+      let fP, rR, uR;
+      if (isBodyRoll) {
+        const vR2 =  vR * cosR - vU * sinR;
+        const vU2 =  vR * sinR + vU * cosR;
+        fP = vF * cosP - vU2 * sinP; rR = vR2; uR = vF * sinP + vU2 * cosP;
+      } else {
+        fP =  vF * cosP - vU * sinP;
+        const uP =  vF * sinP + vU * cosP;
+        rR =  vR * cosR + uP * sinR; uR = -vR * sinR + uP * cosR;
+      }
       if (camSide > 0) {
         maxCR = Math.max(maxCR, Math.abs(fP));  // side cam horizontal
         maxCU = Math.max(maxCU, Math.abs(uR));  // side cam vertical
       } else {
         maxCR = Math.max(maxCR, Math.abs(rR));  // chase cam horizontal
         maxCU = Math.max(maxCU, Math.abs(uR));  // chase cam vertical
+      }
+    }
+    /* Include launch tower in auto-fit only while still near the pad */
+    if ((isSV || isF9) && camSide > 0) {
+      const _padNm = (S.mission?.departure?.elevation ?? 0) * FT_NM;
+      const _rise  = Math.max(0, (S.alt ?? 0) * FT_NM - _padNm);
+      if (_rise < 0.050) {
+        const _tR  = isSV ? 0.0028 : 0.0020;
+        const _top = (isSV ? 0.038 : 0.024) + _tR * 2;
+        const _bot = (isSV ? -0.030 : -0.016) - 0.004;
+        maxCU = Math.max(maxCU, Math.abs(_top), Math.abs(_bot));
+        maxCR = Math.max(maxCR, _tR * 9.8);
       }
     }
     const d = Math.max(maxCR * PAD / Math.tan(hfH), maxCU * PAD / Math.tan(hfV));
@@ -1240,10 +1269,16 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
 
   /* Project body-frame vertex → { x, y, d } (d = cam fwd depth for sorting) */
   function project([vF, vR, vU]) {
-    const fP =  vF * cosP - vU * sinP;
-    const uP =  vF * sinP + vU * cosP;
-    const rR =  vR * cosR + uP * sinR;
-    const uR = -vR * sinR + uP * cosR;
+    let fP, rR, uR;
+    if (isBodyRoll) {
+      const vR2 =  vR * cosR - vU * sinR;
+      const vU2 =  vR * sinR + vU * cosR;
+      fP = vF * cosP - vU2 * sinP; rR = vR2; uR = vF * sinP + vU2 * cosP;
+    } else {
+      fP =  vF * cosP - vU * sinP;
+      const uP =  vF * sinP + vU * cosP;
+      rR =  vR * cosR + uP * sinR; uR = -vR * sinR + uP * cosR;
+    }
     const fR =  fP;
 
     let cfW, crW, cuW;
@@ -1322,8 +1357,6 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   /* Ground shadow — visible below ~500 ft AGL, fades with altitude */
   const alt_nm = (S.alt ?? 0) * FT_NM;
   if (alt_nm < 0.082) {
-    const slopeX = _LD[0] / _LD[2];
-    const slopeY = _LD[1] / _LD[2];
     const silVI  = isC172
       ? [0, 44, 45, 41, 49, 48]                   // C172: nose, R tip, tail, L tip
       : isF9
@@ -1333,12 +1366,43 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       : isSV
       ? [64, 0, 2, 4, 6]                           // Saturn V: tip, aft base cardinal points
       : [0, 100, 101, 97, 105, 104];               // A350: nose, R wing tip, tail, L wing tip
-    const shadowPts = silVI.map(vi => {
-      const [px, py, pz] = verts[vi];
-      const sx = px - slopeX * (pz + alt_nm);
-      const sy = py - slopeY * (pz + alt_nm);
-      return project([sx, sy, -alt_nm]);
+
+    /* Rotate each silhouette vertex into world-aligned frame (same as project()) */
+    const rotated = silVI.map(vi => {
+      const [vF, vR, vU] = verts[vi];
+      let fR, rR, uR;
+      if (isBodyRoll) {
+        const vR2 =  vR * cosR - vU * sinR;
+        const vU2 =  vR * sinR + vU * cosR;
+        fR = vF * cosP - vU2 * sinP; rR = vR2; uR = vF * sinP + vU2 * cosP;
+      } else {
+        const fP =  vF * cosP - vU * sinP;
+        const uP =  vF * sinP + vU * cosP;
+        fR = fP; rR = vR * cosR + uP * sinR; uR = -vR * sinR + uP * cosR;
+      }
+      return { fR, rR, uR };
+    });
+
+    /* Ground level: for rockets use lowest vertex (vertical body), for aircraft use AGL */
+    const groundUR = (isSV || isF9)
+      ? Math.min(...rotated.map(v => v.uR))
+      : -alt_nm;
+
+    /* Project each vertex along light direction to ground plane, then to screen */
+    const shadowPts = rotated.map(({ fR, rR, uR }) => {
+      const t   = _LD[2] > 0 ? (uR - groundUR) / _LD[2] : 0;
+      const sfR = fR - t * _LD[0];
+      const srR = rR - t * _LD[1];
+      const suR = groundUR;
+      const cfW = camSide > 0 ? camSide - srR : camBack + sfR;
+      const crW = camSide > 0 ? sfR           : srR;
+      const cuW = suR - camUp;
+      const cf  = cfW * cosCP + cuW * sinCP;
+      const cu  = cuW * cosCP - cfW * sinCP;
+      if (cf < 0.002) return null;
+      return { x: cx + crW / cf * focal, y: cy - cu / cf * focal };
     }).filter(Boolean);
+
     if (shadowPts.length >= 3) {
       const t       = alt_nm / 0.082;
       const opacity = (1 - t) * 0.38;
@@ -1957,6 +2021,129 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       ctx.restore();
     }
   }
+
+  /* ── Launch pad — MLP box + LUT lattice tower (LC-39A) ─────────── */
+  if (isSV || isF9) {
+    const _padNm  = (S.mission?.departure?.elevation ?? 0) * FT_NM;
+    const riseNm  = Math.max(0, alt_nm - _padNm);
+  if (riseNm < 0.150) {
+    const padAlpha = Math.min(1, Math.max(0, (0.150 - riseNm) / 0.100));
+    const _r      = isSV ? 0.0028 : 0.0020;
+    const _vFbase = isSV ? -0.030 : -0.016;
+    const _vFtop  = isSV ?  0.038 :  0.024;
+    /* tvF0: MLP top in body-frame. As rocket rises by riseNm, MLP slides down
+       by the same amount — keeping it world-anchored to the pad elevation. */
+    const tvF0    = _vFbase - riseNm;
+
+    /* Pitch-only project: tower is fixed in world space, doesn't roll with rocket */
+    const pw = ([vF, vR_, vU_]) => {
+      const fP  = vF * cosP - vU_ * sinP;
+      const uR  = vF * sinP + vU_ * cosP;
+      const cfW = camSide > 0 ? camSide - vR_ : camBack + fP;
+      const crW = camSide > 0 ? fP : vR_;
+      const cuW = uR - camUp;
+      const cf  = cfW * cosCP + cuW * sinCP;
+      const cu  = cuW * cosCP - cfW * sinCP;
+      if (cf < 0.002) return null;
+      return { x: cx + crW / cf * focal, y: cy - cu / cf * focal };
+    };
+
+    const _drawPadSegs = (segs, color, lw) => {
+      ctx.save();
+      ctx.globalAlpha = padAlpha;
+      ctx.strokeStyle = color;
+      ctx.lineWidth   = lw;
+      ctx.beginPath();
+      for (const [a, b] of segs) {
+        const pa = pw(a), pb = pw(b);
+        if (!pa || !pb) continue;
+        ctx.moveTo(pa.x, pa.y);
+        ctx.lineTo(pb.x, pb.y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    };
+
+    /* MLP (Mobile Launcher Platform) — solid grey platform, painter's algorithm */
+    /* mlpSvR small: at pitch=90° vR is the side-cam depth axis, so a wide
+       vR extent causes the near edge to drop below the rocket ring (~15px gap
+       at 4.8r). 1.5r keeps it within 2px of the rocket ring's own variation. */
+    const mlpH      = 0.004;
+    const mlpSvU    = _r * 4.8;    // +vU side (away from LUT)
+    const mlpSvUlut = _r * 10.2;   // -vU side (extends to cover LUT outer legs at 9.8r)
+    const mlpSvR = _r * 1.5;   // depth   (into/out-of side cam — kept small)
+    const mlpT = tvF0, mlpB = tvF0 - mlpH;
+    const mc = [
+      [mlpT,-mlpSvR,-mlpSvUlut],[mlpT,+mlpSvR,-mlpSvUlut],[mlpT,+mlpSvR,+mlpSvU],[mlpT,-mlpSvR,+mlpSvU],
+      [mlpB,-mlpSvR,-mlpSvUlut],[mlpB,+mlpSvR,-mlpSvUlut],[mlpB,+mlpSvR,+mlpSvU],[mlpB,-mlpSvR,+mlpSvU],
+    ];
+    const mcpd = mc.map(([vF, vR_, vU_]) => {
+      const fP  = vF * cosP - vU_ * sinP;
+      const uR_ = vF * sinP + vU_ * cosP;
+      const cfW = camSide > 0 ? camSide - vR_ : camBack + fP;
+      const crW = camSide > 0 ? fP : vR_;
+      const cuW = uR_ - camUp;
+      const cf  = cfW * cosCP + cuW * sinCP;
+      const cu  = cuW * cosCP - cfW * sinCP;
+      if (cf < 0.002) return null;
+      return { x: cx + crW / cf * focal, y: cy - cu / cf * focal, d: cfW };
+    });
+    const mlpFaces = [
+      { idx: [0,3,2,1], col: '#707580' },  // top
+      { idx: [7,6,5,4], col: '#1e2230' },  // bottom
+      { idx: [0,4,7,3], col: '#404855' },  // -vR (far from camera)
+      { idx: [0,1,5,4], col: '#4a5260' },  // -vU side
+      { idx: [3,7,6,2], col: '#4a5260' },  // +vU side
+      { idx: [1,2,6,5], col: '#5a6270' },  // +vR (near camera)
+    ];
+    mlpFaces.sort((a, b) => {
+      const da = a.idx.reduce((s, i) => s + (mcpd[i]?.d ?? 0), 0) / 4;
+      const db = b.idx.reduce((s, i) => s + (mcpd[i]?.d ?? 0), 0) / 4;
+      return db - da;  // farthest first
+    });
+    for (const { idx, col } of mlpFaces) {
+      const ps = idx.map(i => mcpd[i]);
+      if (ps.some(p => !p)) continue;
+      ctx.save();
+      ctx.globalAlpha = padAlpha;
+      ctx.fillStyle = col;
+      ctx.strokeStyle = 'rgba(130,140,155,0.5)';
+      ctx.lineWidth = Math.max(0.5, 0.5 * dpr);
+      ctx.beginPath();
+      ctx.moveTo(ps[0].x, ps[0].y);
+      for (let k = 1; k < ps.length; k++) ctx.lineTo(ps[k].x, ps[k].y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    /* LUT (Launch Umbilical Tower) — rust-orange lattice to rocket's right */
+    const vUi = -_r * 4.5, vUo = -_r * 9.8, vRh = _r;
+    const lutTop = tvF0 + (_vFtop - _vFbase) + _r * 2;
+    const nLev = 7;
+    const lvs = Array.from({ length: nLev }, (_, i) =>
+      tvF0 + (i / (nLev - 1)) * (lutTop - tvF0));
+    const lutSegs = [];
+    for (const [vR_, vU_] of [[-vRh,vUi],[+vRh,vUi],[-vRh,vUo],[+vRh,vUo]])
+      lutSegs.push([[tvF0, vR_, vU_], [lutTop, vR_, vU_]]);
+    for (const lv of lvs) {
+      lutSegs.push(
+        [[lv,-vRh,vUi],[lv,+vRh,vUi]], [[lv,-vRh,vUo],[lv,+vRh,vUo]],
+        [[lv,-vRh,vUi],[lv,-vRh,vUo]], [[lv,+vRh,vUi],[lv,+vRh,vUo]],
+      );
+    }
+    for (let i = 0; i < nLev - 1; i++) {
+      const l0 = lvs[i], l1 = lvs[i + 1];
+      /* X bracing on inner face */
+      lutSegs.push([[l0,-vRh,vUi],[l1,+vRh,vUi]], [[l0,+vRh,vUi],[l1,-vRh,vUi]]);
+      /* Alternating diagonals on side faces */
+      const vU0 = i % 2 === 0 ? vUi : vUo, vU1 = i % 2 === 0 ? vUo : vUi;
+      lutSegs.push([[l0,-vRh,vU0],[l1,-vRh,vU1]], [[l0,+vRh,vU0],[l1,+vRh,vU1]]);
+    }
+    _drawPadSegs(lutSegs, '#b06830', Math.max(1.5, 1.5 * dpr));
+  } // riseNm < 0.150
+  } // isSV || isF9
 }
 
 /* ── Swiss cross on V-stab tail fin ──────────────────────────── */

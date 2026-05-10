@@ -32,6 +32,10 @@ const _pmFired        = new Set();   // altitude callout thresholds already fire
 const _gpwsFired      = new Set();   // GPWS callout altitudes already fired
 const _takeoffFired   = new Set();   // takeoff speed callouts already fired
 
+/* ── Active ambient Audio elements (stopped on resetCrew) ── */
+const _ambientAudio = [];
+let _crewGen = 0;   // incremented on every resetCrew(); captured by pending timeouts
+
 /* ── Rocket event tracking ── */
 let _prevVelMs        = 0;
 let _prevDynQ         = 0;
@@ -143,6 +147,11 @@ export function tickCrew(prevAlt, currAlt) {
 }
 
 export function resetCrew() {
+  /* Invalidate all pending ambient audio timeouts, then stop active elements */
+  _crewGen++;
+  for (const a of _ambientAudio) { try { a.pause(); a.src = ''; } catch {} }
+  _ambientAudio.length = 0;
+
   _atcFired.clear();
   for (const k in _atcEndedAt) delete _atcEndedAt[k];
   _briefFired = false;
@@ -474,9 +483,12 @@ function _checkATC(prev, curr, ms) {
 
     /* Ambient background audio — no radio filter, non-blocking */
     if (clr.audio !== undefined && clr.voice === 'ambient') {
+      const _gen = _crewGen;
       setTimeout(async () => {
+        if (_crewGen !== _gen) return;   // mission changed while we were waiting
         const exists = await fetch(clr.audio, { method: 'HEAD' })
           .then(r => r.ok).catch(() => false);
+        if (_crewGen !== _gen) return;   // mission changed during fetch
         if (exists) {
           /* Create with no src + preload=none so loadedmetadata hasn't fired yet */
           const a = new Audio();
@@ -497,6 +509,10 @@ function _checkATC(prev, curr, ms) {
           };
           a.src = clr.audio;
           if (clr.startTime != null) a.currentTime = clr.startTime;
+          _ambientAudio.push(a);
+          a.addEventListener('ended', () => {
+            const i = _ambientAudio.indexOf(a); if (i >= 0) _ambientAudio.splice(i, 1);
+          }, { once: true });
           a.play().catch(() => {});
           _schedFade();
         }

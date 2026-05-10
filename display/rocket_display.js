@@ -197,6 +197,28 @@ export function renderRocket(canvas) {
   ctx.fillText(stageStr, labelCX, H * 0.20);
   ctx.restore();
 
+  /* ── Next-event countdown ── */
+  {
+    const _tliT = S.mission?.tliT;
+    let _nl = null, _nd = null;
+    if (tLO < 0)            { _nl = 'LIFTOFF';  _nd = -tLO; }
+    else if (_tliT && !S.rocketTLI) { _nl = 'TLI IGN'; _nd = Math.max(0, _tliT - mT); }
+    if (_nl !== null) {
+      const _nhh = Math.floor(_nd / 3600);
+      const _nmm = Math.floor((_nd % 3600) / 60);
+      const _nss = Math.floor(_nd % 60);
+      const _nFmt = _nhh > 0
+        ? `${String(_nhh).padStart(2,'0')}:${String(_nmm).padStart(2,'0')}:${String(_nss).padStart(2,'0')}`
+        : `${String(_nmm).padStart(2,'0')}:${String(_nss).padStart(2,'0')}`;
+      ctx.save();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font      = `${Math.round(H * 0.038)}px "IBM Plex Mono", monospace`;
+      ctx.fillStyle = '#7acc8a';
+      ctx.fillText(`${_nl}  ${_nFmt}`, labelCX, H * 0.235);
+      ctx.restore();
+    }
+  }
+
   /* ── Peak trackers ── */
   if (_peakAcId !== ac.id) { _peakG = 0; _peakQ = 0; _peakAcId = ac.id; }
   _peakG = Math.max(_peakG, Math.abs(S.rocketG   ?? 0));
@@ -1078,7 +1100,7 @@ function _drawDSKY(ctx, cx, cy, w, h) {
   const p  = Math.round(w * 0.045);
 
   const ON  = '#a8f050';   // electroluminescent green-yellow
-  const OFF = '#0c1808';   // ghost / inactive segment
+  const OFF = '#1c2c14';   // ghost / inactive segment
   const LBL = '#3a4a30';   // dim label
   const LIT = '#38b030';   // indicator light on
   const DIM = '#0a1208';   // indicator light off
@@ -1103,10 +1125,10 @@ function _drawDSKY(ctx, cx, cy, w, h) {
 
   /* ── PROG / VERB / NOUN ── */
   const pvnH   = Math.round(bh * 0.29);
-  const segBW  = Math.round(w * 0.09);
-  const segBH  = Math.round(pvnH * 0.52);
-  const segBGp = Math.round(segBW * 0.22);
   const pvnSec = Math.round(bw / 3);
+  const segBH  = Math.round(pvnH * 0.62);
+  const segBW  = Math.round(Math.min(segBH * 0.52, pvnSec * 0.36));
+  const segBGp = Math.round(segBW * 0.22);
 
   for (let i = 0; i < 3; i++) {
     const label = ['PROG','VERB','NOUN'][i];
@@ -1184,8 +1206,8 @@ function _drawDSKY(ctx, cx, cy, w, h) {
   const dataY  = sep2Y + Math.round(h * 0.01);
   const dataH  = by + bh - dataY;
   const rowH   = Math.round(dataH / 3);
-  const segSW  = Math.round(w * 0.068);
-  const segSH  = Math.round(rowH * 0.60);
+  const segSH  = Math.round(rowH * 0.72);
+  const segSW  = Math.round(segSH * 0.52);
   const segSGp = Math.round(segSW * 0.18);
 
   ctx.font = liteSz;
@@ -1723,6 +1745,12 @@ export function renderApollo(canvas) {
   const ss   = Math.floor(absT % 60);
   const met  = `${tLO >= 0 ? 'T+' : 'T−'} ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
 
+  /* Next-event countdown */
+  const tliT = S.mission?.tliT;
+  let _nextLabel = null, _nextDt = null;
+  if (tLO < 0)                      { _nextLabel = 'LIFTOFF';  _nextDt = -tLO; }
+  else if (tliT && !S.rocketTLI)    { _nextLabel = 'TLI IGN';  _nextDt = Math.max(0, tliT - mT); }
+
   /* Layout zones */
   const tabH  = Math.round(H * 0.072);
   const hdH   = Math.round(H * 0.10);   /* header height */
@@ -1749,7 +1777,21 @@ export function renderApollo(canvas) {
   const roleLabel = crewName ? `${role}  ${crewName}` : role;
   _apolloText(ctx, callsign,  pad,     Math.round(hdH * 0.6), { font: `${Math.round(H*0.042)}px "IBM Plex Mono",monospace`, color: '#c8d4bc', base: 'middle' });
   _apolloText(ctx, roleLabel, W / 2,   Math.round(hdH * 0.6), { font: lSz, color: '#7a8a72', align: 'center', base: 'middle' });
-  _apolloText(ctx, met,       W - pad, Math.round(hdH * 0.6), { font: `${Math.round(H*0.040)}px "IBM Plex Mono",monospace`, color: '#5dd47e', align: 'right', base: 'middle' });
+  _apolloText(ctx, met,       W - pad, Math.round(hdH * 0.52), { font: `${Math.round(H*0.038)}px "IBM Plex Mono",monospace`, color: '#5dd47e', align: 'right', base: 'middle' });
+
+  if (_nextLabel !== null && _nextDt !== null) {
+    const nAbs = _nextDt;
+    const nhh  = Math.floor(nAbs / 3600);
+    const nmm  = Math.floor((nAbs % 3600) / 60);
+    const nss  = Math.floor(nAbs % 60);
+    const nFmt = nhh > 0
+      ? `${String(nhh).padStart(2,'0')}:${String(nmm).padStart(2,'0')}:${String(nss).padStart(2,'0')}`
+      : `${String(nmm).padStart(2,'0')}:${String(nss).padStart(2,'0')}`;
+    _apolloText(ctx, `${_nextLabel}  ${nFmt}`, W - pad, Math.round(hdH * 0.84), {
+      font: `${Math.round(H*0.026)}px "IBM Plex Mono",monospace`,
+      color: '#7acc8a', align: 'right', base: 'middle',
+    });
+  }
 
   ctx.strokeStyle = '#1e2c20'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(pad, hdH); ctx.lineTo(W - pad, hdH); ctx.stroke();
