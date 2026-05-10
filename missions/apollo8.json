@@ -7,6 +7,11 @@
   "author": "Markus Leutwyler",
   "fiction_note": "Faithful recreation of the Apollo 8 launch timeline. Crew: Borman (CDR), Lovell (CMP), Anders (LMP). CapCom: Michael Collins.",
   "aircraft": "saturn-v",
+  "crew": {
+    "CDR": "Borman",
+    "CMP": "Lovell",
+    "LMP": "Anders"
+  },
   "timeOfDay": 0.325,
 
   "weather": {
@@ -38,135 +43,32 @@
 
   "atcClearances": [
     {
-      "t": 0,
-      "text": "T-3 minutes and counting. All systems Go.",
-      "voice": "atc"
+      "t": 164,
+      "audio": "assets/apollo8/highlights.mp3",
+      "voice": "ambient",
+      "volume": 0.65,
+      "duration": 195,
+      "text": ""
     },
     {
-      "t": 60,
-      "text": "T-2 minutes. Launch vehicle on internal power.",
-      "voice": "atc"
-    },
-    {
-      "t": 120,
-      "text": "T-1 minute and counting.",
-      "voice": "atc"
-    },
-    {
-      "t": 150,
-      "text": "T-30 seconds. Guidance is internal.",
-      "voice": "atc"
-    },
-    {
-      "t": 168,
-      "text": "T-12. Ignition sequence start.",
-      "voice": "atc"
-    },
-    {
-      "t": 174,
-      "text": "Six, five, four, three, two, one.",
-      "voice": "atc"
-    },
-    {
-      "t": 180,
-      "text": "Liftoff. We have liftoff of Apollo 8.",
-      "voice": "atc"
-    },
-    {
-      "t": 192,
-      "text": "Roll program.",
-      "voice": "atc"
-    },
-    {
-      "t": 193,
-      "text": "Roll program, Houston. Go.",
-      "voice": "crew"
-    },
-    {
-      "t": 218,
-      "text": "Apollo 8, you are Go at thirty seconds.",
-      "voice": "atc"
-    },
-    {
-      "t": 240,
-      "text": "Trajectory and guidance nominal.",
-      "voice": "atc"
-    },
-    {
-      "event": "maxq",
-      "text": "Max Q.",
-      "voice": "atc"
-    },
-    {
-      "event": "maxq",
-      "_uid": "throttleup",
-      "text": "Go at throttle up.",
+      "trigger": { "type": "alt_km", "min": 45 },
       "voice": "atc",
-      "delay": 4000
+      "text": "Apollo 8, abort mode 1-Bravo."
     },
     {
-      "t": 315,
-      "text": "Center engine cutoff.",
-      "voice": "atc"
+      "trigger": { "type": "after", "idx": 1, "delay": 2 },
+      "voice": "crew",
+      "text": "Copy. 1-Bravo."
     },
     {
-      "event": "meco",
-      "text": "S-IC cutoff confirmed.",
-      "voice": "atc"
-    },
-    {
-      "event": "stagesep",
-      "_uid": "sep1",
-      "text": "Stage one separation confirmed.",
+      "trigger": { "type": "alt_km", "min": 150 },
       "voice": "atc",
-      "delay": 200
+      "text": "Apollo 8, abort mode 2-Bravo."
     },
     {
-      "event": "stagesep",
-      "_uid": "sii",
-      "text": "S-II ignition.",
-      "voice": "atc",
-      "delay": 1800
-    },
-    {
-      "t": 377,
-      "text": "LES jettison confirmed.",
-      "voice": "atc"
-    },
-    {
-      "t": 480,
-      "text": "Apollo 8, you are Go for orbit.",
-      "voice": "atc"
-    },
-    {
-      "t": 482,
-      "text": "Go for orbit. Thank you, Houston.",
-      "voice": "crew"
-    },
-    {
-      "t": 670,
-      "text": "S-II performance nominal.",
-      "voice": "atc"
-    },
-    {
-      "event": "ceco",
-      "text": "S-II cutoff.",
-      "voice": "atc"
-    },
-    {
-      "t": 745,
-      "text": "S-IVB ignition.",
-      "voice": "atc"
-    },
-    {
-      "t": 864,
-      "text": "Apollo 8, you are in Earth orbit. Nominal insertion.",
-      "voice": "atc"
-    },
-    {
-      "t": 866,
-      "text": "Confirmed. We have arrived.",
-      "voice": "crew"
+      "trigger": { "type": "after", "idx": 3, "delay": 2 },
+      "voice": "crew",
+      "text": "Copy. 2-Bravo."
     }
   ],
 

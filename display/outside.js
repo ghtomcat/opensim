@@ -822,6 +822,8 @@ const _sv1r  = 0.0028, _sv1r7 = _sv1r * 0.7071;  // S-IC / S-II radius (10.1 m d
 const _sv3r  = 0.0018, _sv3r7 = _sv3r * 0.7071;  // S-IVB radius (6.6 m dia)
 const _svcr  = 0.0011, _svcr7 = _svcr * 0.7071;  // CSM radius (3.9 m dia)
 const _svcr2 = _svcr  * 0.55,  _svcr27= _svcr2 * 0.7071;  // CM nose
+const _svFS  = 0.0026;  // stabilizer fin radial span (~4.8 m)
+const _svLT  = _svcr2 * 0.70;  // LES tower mid-ring radius (tapered)
 
 const _COLORS_sv = [
   [240, 238, 230],  // 0 body — warm off-white (NASA standard white)
@@ -879,6 +881,26 @@ const _V_sv = [
   /*62 */[ 0.030, -_svcr2,  0      ], /*63 */[ 0.030, -_svcr27, _svcr27],
 
   /*64 */[ 0.037,  0,        0     ],  // LES tower tip
+
+  // S-IC stabilizer fins — 3 new verts per fin at Ring 0 base (shared body vert = 0/2/4/6)
+  /*65 */[-0.024,  0,                   _sv1r             ],  // +z fin root fwd
+  /*66 */[-0.030,  0,                   _sv1r + _svFS     ],  // +z fin tip aft
+  /*67 */[-0.025,  0,                   _sv1r + _svFS*0.5 ],  // +z fin tip fwd
+  /*68 */[-0.024,  _sv1r,               0                 ],  // +y fin root fwd
+  /*69 */[-0.030,  _sv1r + _svFS,       0                 ],  // +y fin tip aft
+  /*70 */[-0.025,  _sv1r + _svFS*0.5,   0                 ],  // +y fin tip fwd
+  /*71 */[-0.024,  0,                  -_sv1r             ],  // -z fin root fwd
+  /*72 */[-0.030,  0,                 -(_sv1r + _svFS)    ],  // -z fin tip aft
+  /*73 */[-0.025,  0,                 -(_sv1r + _svFS*0.5)],  // -z fin tip fwd
+  /*74 */[-0.024, -_sv1r,               0                 ],  // -y fin root fwd
+  /*75 */[-0.030, -(_sv1r + _svFS),     0                 ],  // -y fin tip aft
+  /*76 */[-0.025, -(_sv1r + _svFS*0.5), 0                 ],  // -y fin tip fwd
+
+  // LES tower lattice mid-ring  (x = +0.034, slightly tapered from CM base)
+  /*77 */[ 0.034,  0,       _svLT ],  // +z leg
+  /*78 */[ 0.034,  _svLT,   0     ],  // +y leg
+  /*79 */[ 0.034,  0,      -_svLT ],  // -z leg
+  /*80 */[ 0.034, -_svLT,   0     ],  // -y leg
 ];
 
 const _F_sv = [
@@ -906,6 +928,11 @@ const _F_sv = [
   // CM nose cone: Ring 7→tip
   [64,57,56],[64,58,57],[64,59,58],[64,60,59],
   [64,61,60],[64,62,61],[64,63,62],[64,56,63],
+  // S-IC stabilizer fins — double-sided (two faces each for correct lighting)
+  [0, 65, 67, 66], [0, 66, 67, 65],  // +z fin
+  [2, 68, 70, 69], [2, 69, 70, 68],  // +y fin
+  [4, 71, 73, 72], [4, 72, 73, 71],  // -z fin
+  [6, 74, 76, 75], [6, 75, 76, 74],  // -y fin
 ];
 
 const _FN_sv = _F_sv.map(fi => {
@@ -926,6 +953,7 @@ const _FC_sv = [
   0,0,0,0,0,0,0,0,  // SLA adapter
   0,0,0,0,0,0,0,0,  // CM
   0,0,0,0,0,0,0,0,  // CM nose
+  0,0,0,0,0,0,0,0,  // stabilizer fins (off-white)
 ];
 
 const _E_sv = [
@@ -938,11 +966,23 @@ const _E_sv = [
   [40,41],[41,42],[42,43],[43,44],[44,45],[45,46],[46,47],[47,40],
   [48,49],[49,50],[50,51],[51,52],[52,53],[53,54],[54,55],[55,48],
   [56,57],[57,58],[58,59],[59,60],[60,61],[61,62],[62,63],[63,56],
-  // Longerons — top, right, bottom, left
-  [0,8],[8,16],[16,24],[24,32],[32,40],[40,48],[48,56],[56,64],
-  [2,10],[10,18],[18,26],[26,34],[34,42],[42,50],[50,58],[58,64],
-  [4,12],[12,20],[20,28],[28,36],[36,44],[44,52],[52,60],[60,64],
-  [6,14],[14,22],[22,30],[30,38],[38,46],[46,54],[54,62],[62,64],
+  // Longerons — top, right, bottom, left (LES section splits through mid-ring)
+  [0,8],[8,16],[16,24],[24,32],[32,40],[40,48],[48,56],[56,77],[77,64],
+  [2,10],[10,18],[18,26],[26,34],[34,42],[42,50],[50,58],[58,78],[78,64],
+  [4,12],[12,20],[20,28],[28,36],[36,44],[44,52],[52,60],[60,79],[79,64],
+  [6,14],[14,22],[22,30],[30,38],[38,46],[46,54],[54,62],[62,80],[80,64],
+  // LES lattice: diagonal cross-bracing between adjacent legs
+  [56,78],[58,77],  // +z/+y face
+  [58,79],[60,78],  // +y/-z face
+  [60,80],[62,79],  // -z/-y face
+  [62,77],[56,80],  // -y/+z face
+  // LES lattice: mid-ring outline
+  [77,78],[78,79],[79,80],[80,77],
+  // Stabilizer fin outlines
+  [0,65],[65,67],[67,66],[66,0],  // +z fin
+  [2,68],[68,70],[70,69],[69,2],  // +y fin
+  [4,71],[71,73],[73,72],[72,4],  // -z fin
+  [6,74],[74,76],[76,75],[75,6],  // -y fin
 ];
 
 /* ══════════════════════════════════════════════════════════════
@@ -1163,6 +1203,32 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const ctx   = canvas.getContext('2d');
   const cx    = W / 2, cy = H / 2;
   const focal = (W / 2) / Math.tan(FOV_H / 2 * DEG);
+
+  // Auto-fit: project vertices through attitude rotation, then fit screen extents.
+  // Must happen after cosP/sinP/cosR/sinR are computed.
+  if (!wingView) {
+    const aspect = W / H;
+    const hfH    = FOV_H / 2 * DEG;
+    const hfV    = Math.atan(Math.tan(hfH) / aspect);
+    const PAD    = 1.15;
+    let maxCR = 0, maxCU = 0;
+    for (const [vF, vR, vU] of V_) {
+      const fP =  vF * cosP - vU * sinP;
+      const uP =  vF * sinP + vU * cosP;
+      const rR =  vR * cosR + uP * sinR;
+      const uR = -vR * sinR + uP * cosR;
+      if (camSide > 0) {
+        maxCR = Math.max(maxCR, Math.abs(fP));  // side cam horizontal
+        maxCU = Math.max(maxCU, Math.abs(uR));  // side cam vertical
+      } else {
+        maxCR = Math.max(maxCR, Math.abs(rR));  // chase cam horizontal
+        maxCU = Math.max(maxCU, Math.abs(uR));  // chase cam vertical
+      }
+    }
+    const d = Math.max(maxCR * PAD / Math.tan(hfH), maxCU * PAD / Math.tan(hfV));
+    if (camSide > 0) { camSide = d; camUp = 0; }
+    else              { camBack = d; camUp = d * 0.18; }
+  }
 
   const camDist  = camSide > 0 ? camSide : camBack;
   const camPitch = Math.atan2(-camUp, camDist);

@@ -2044,7 +2044,7 @@
   import { initBlackbox, bbEvent, downloadBlackbox } from './core/blackbox.js';
   import { renderPFD }         from './display/pfd.js';
   import { renderPanel, renderFCU } from './display/panel_renderer.js';
-  import { renderRocket }      from './display/rocket_display.js';
+  import { renderRocket, renderApollo, handleApolloClick } from './display/rocket_display.js';
   import { renderDragon, handleDragonClick, isDragonTelemetry } from './display/dragon.js';
   import { renderG1000, handleG1000Click } from './display/g1000.js';
   import { renderECAM }        from './display/ecam.js';
@@ -2210,6 +2210,7 @@
   canvas.addEventListener('click', evt => {
     if (S.aircraft?.panel === 'velis-epsi') handleVelisClick(canvas, evt);
     if (S.aircraft?.vehicleType === 'rocket' && S.mission?.dragonSepT) handleDragonClick(canvas, evt);
+    if (S.aircraft?.id === 'saturn-v') handleApolloClick(canvas, evt);
     if (S.aircraft?.panel === 'g1000') handleG1000Click(canvas, evt);
   });
   const loadEl     = document.getElementById('loading');
@@ -2496,6 +2497,11 @@
         orders: 'Launch site: Kennedy Space Center LC-39A.\nTarget: Lunar orbit, 112 × 114 km.\n\nFlight sequence:\nT+00:00  F-1 ignition · Liftoff\nT+00:12  Roll/pitch program\nT+01:21  Max Q · 13 km altitude\nT+02:15  Center F-1 cutoff\nT+02:42  S-IC cutoff · 67 km\nT+02:44  S-IC / S-II separation\nT+09:11  S-II cutoff · 185 km\nT+09:25  S-IVB ignition\nT+11:24  Earth parking orbit achieved\nT+2h 50m  Translunar injection burn',
         atmosphere: 'December 21, 1968.\nFrank Borman, James Lovell, William Anders.\nThe first human beings to leave Earth\'s gravity.\n\nOn Christmas Eve, orbiting the Moon, they read from Genesis.\nAnders photographed Earthrise.\n\n"We came all this way to explore the Moon,\nand the most important thing is that we discovered the Earth."',
       },
+      roles: [
+        { id: 'CDR', label: 'Commander — Borman' },
+        { id: 'CMP', label: 'Command Module Pilot — Lovell' },
+        { id: 'LMP', label: 'Lunar Module Pilot — Anders' },
+      ],
     },
     {
       id: 'falcon1-omelek', aircraft: 'falcon1',
@@ -3466,8 +3472,9 @@
 
     /* Re-init COM with mission-specific frequencies now that S.mission is loaded */
     const _comEl = document.getElementById('com-container');
-    if (S.aircraft?.vehicleType !== 'robot-arm') initCOM(_comEl);
-    _comEl.style.display = S.aircraft?.vehicleType === 'robot-arm' ? 'none' : '';
+    const _hidecom = S.aircraft?.vehicleType === 'robot-arm' || S.aircraft?.vehicleType === 'rocket';
+    if (!_hidecom) initCOM(_comEl);
+    _comEl.style.display = _hidecom ? 'none' : '';
 
     /* Seed robot arm state if applicable — Three.js init happens lazily on first render */
     if (S.aircraft?.vehicleType === 'robot-arm') {
@@ -3679,7 +3686,7 @@
       /* Escape — back to mission selector */
       if (e.key === 'Escape') { history.back(); return; }
       if (e.key === 'k' || e.key === 'K') { toggleKneeboard(); return; }
-      if (e.key === 'n' || e.key === 'N') { if (S.aircraft?.map !== false && S.aircraft?.vehicleType !== 'rocket') toggleMap(); return; }
+      if (e.key === 'n' || e.key === 'N') { if (S.aircraft?.map !== false) toggleMap(); return; }
 
       /* E — Anlasser (v12 only) */
       if ((e.key === 'e' || e.key === 'E') && _hasLifecycle) {
@@ -3723,7 +3730,8 @@
       }
       if (e.key === 'c' || e.key === 'C') {
         if (S.aircraft?.vehicleType === 'rocket') {
-          const rocketModes = [0, 1, 2, 4, 5];  // no wing view; 5=booster cam
+          /* Saturn V has no booster cam (mode 5 uses F9 geometry) */
+          const rocketModes = S.aircraft?.id === 'saturn-v' ? [0, 1, 2, 4] : [0, 1, 2, 4, 5];
           const idx = rocketModes.indexOf(_outsideCamMode);
           _outsideCamMode = rocketModes[(idx + 1) % rocketModes.length];
         } else {
@@ -3810,6 +3818,7 @@
           if (isDragonTelemetry()) renderRocket(canvas);
           renderDragon(canvas);
         }
+        else if (isRocket && S.aircraft?.id === 'saturn-v') renderApollo(canvas);
         else if (isRocket)           renderRocket(canvas);
         else if (panel === 'g1000')  renderG1000(canvas);
         else if (panel === 'bf109')  renderBf109(canvas);
@@ -3833,7 +3842,8 @@
         const hasDual  = isPanel && !!(S.aircraft?.displays?.some(d => d.screen === 1));
         const hasOwnUI = isVelis || isG1000;
         const isDragon = isRocket && !!(S.mission?.dragonSepT);
-        canvas.style.pointerEvents = (isVelis || isArm || isDragon || isG1000) ? 'auto' : 'none';
+        const isApollo = isRocket && S.aircraft?.id === 'saturn-v';
+        canvas.style.pointerEvents = (isVelis || isArm || isDragon || isG1000 || isApollo) ? 'auto' : 'none';
         document.body.classList.toggle('g1000-active',  isG1000);
         document.body.classList.toggle('velis-active',  isVelis);
         document.body.classList.toggle('panel-dual',    hasDual);

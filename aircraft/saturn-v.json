@@ -4,7 +4,7 @@
   "vehicleType": "rocket",
   "ignitionTime": 180,
   "manualControl": false,
-  "map": false,
+  "map": true,
   "panel": "f9",
   "callsign": "Apollo 8",
   "icaoType": "SATV",

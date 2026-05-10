@@ -479,6 +479,19 @@ function _checkATC(prev, curr, ms) {
           const a = new Audio(clr.audio);
           a.volume = clr.volume ?? 0.2;
           a.play().catch(() => {});
+          /* Optional hard stop with 2-second fade-out */
+          if (clr.duration) {
+            const fadeStart = (clr.duration - 2) * 1000;
+            setTimeout(() => {
+              const vol0 = a.volume;
+              let t = 0;
+              const iv = setInterval(() => {
+                t += 100;
+                a.volume = Math.max(0, vol0 * (1 - t / 2000));
+                if (t >= 2000) { clearInterval(iv); a.pause(); }
+              }, 100);
+            }, Math.max(0, fadeStart));
+          }
         }
         _atcEndedAt[capturedIdx] = S.time;
       }, clr.delay ?? 0);

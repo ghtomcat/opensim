@@ -705,3 +705,517 @@ function _drawProfile(ctx, W, H, tLO, ac) {
   ctx.fillText('Ctrl+Shift+T  ↓ CSV', padL + pw, padT + 4);
   ctx.restore();
 }
+
+/* ══════════════════════════════════════════════════════════════
+   Apollo CM instrument panel — role-based display
+   CDR: FDAI attitude ball + digital readouts
+   CMP: altimeter arc gauge + velocity / orbit
+   LMP: G-meter arc gauge + stage / propellant / dyn-Q
+   Tabs at bottom allow switching role.
+   Crew names driven by S.mission.crew — no hardcoding.
+   ══════════════════════════════════════════════════════════════ */
+
+const APOLLO_ROLES = ['CDR', 'CMP', 'LMP'];
+let _apolloRole     = 'CDR';
+let _apolloTabRects = [];
+
+export function setApolloRole(r) { if (APOLLO_ROLES.includes(r)) _apolloRole = r; }
+
+export function handleApolloClick(canvas, evt) {
+  const DPR  = devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const x    = (evt.clientX - rect.left) * DPR;
+  const y    = (evt.clientY - rect.top)  * DPR;
+  for (const t of _apolloTabRects) {
+    if (x >= t.x && x <= t.x + t.w && y >= t.y && y <= t.y + t.h) {
+      _apolloRole = t.role;
+      return true;
+    }
+  }
+  return false;
+}
+
+/* ── Helpers ── */
+
+function _apolloText(ctx, text, x, y, { font = '14px "IBM Plex Mono",monospace', color = '#a0aab8', align = 'left', base = 'alphabetic' } = {}) {
+  ctx.save();
+  ctx.font = font; ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = base;
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
+function _apolloBar(ctx, x, y, w, h, frac, color, bgColor = '#1a2030') {
+  ctx.fillStyle = bgColor;
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = color;
+  ctx.fillRect(x, y, Math.round(w * Math.min(1, Math.max(0, frac))), h);
+}
+
+/* ── Tab row at bottom ── */
+function _drawApolloTabs(ctx, W, H, crew) {
+  _apolloTabRects = [];
+  const tabH = Math.round(H * 0.072);
+  const tabY = H - tabH;
+  const tabW = W / APOLLO_ROLES.length;
+
+  APOLLO_ROLES.forEach((r, i) => {
+    const x      = i * tabW;
+    const active = r === _apolloRole;
+    const name   = crew?.[r] ? `${r}  ${crew[r].toUpperCase()}` : r;
+    ctx.fillStyle = active ? '#1a2a1a' : '#080f0a';
+    ctx.fillRect(x, tabY, tabW - 2, tabH);
+    ctx.fillStyle   = active ? '#c8d4bc' : '#3a4a3a';
+    ctx.font        = `bold ${Math.round(H * 0.028)}px "IBM Plex Mono", monospace`;
+    ctx.textAlign   = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(name, x + tabW / 2, tabY + tabH / 2);
+    _apolloTabRects.push({ role: r, x, y: tabY, w: tabW - 2, h: tabH });
+  });
+
+  ctx.strokeStyle = '#1e2c20';
+  ctx.lineWidth   = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, tabY);
+  ctx.lineTo(W, tabY);
+  ctx.stroke();
+}
+
+/* ── FDAI attitude ball (CDR) ── */
+function _drawFDAI(ctx, cx, cy, r, pitchDeg, rollDeg) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.clip();
+
+  ctx.translate(cx, cy);
+  ctx.rotate(-rollDeg * DEG);
+
+  /* positive pitch → nose up → horizon below center (all sky) */
+  const horizY = (pitchDeg / 90) * r;
+
+  ctx.fillStyle = '#0d1e3e'; /* sky */
+  ctx.fillRect(-r * 2, -r * 2, r * 4, r * 2 + horizY);
+  ctx.fillStyle = '#3a1f08'; /* earth */
+  ctx.fillRect(-r * 2, horizY, r * 4, r * 2);
+
+  /* Horizon line */
+  ctx.strokeStyle = '#d4a840';
+  ctx.lineWidth   = Math.max(1.5, r * 0.016);
+  ctx.beginPath();
+  ctx.moveTo(-r * 1.2, horizY);
+  ctx.lineTo(r * 1.2, horizY);
+  ctx.stroke();
+
+  /* Pitch ladder every 10°, labeled at ±30° */
+  for (let p = -60; p <= 60; p += 10) {
+    if (Math.abs(p) < 5) continue;
+    const lineY  = horizY - (p * r / 90);
+    const halfW  = Math.abs(p) % 30 === 0 ? r * 0.38 : r * 0.22;
+    const alpha  = Math.abs(p) % 30 === 0 ? 0.7 : 0.4;
+    ctx.strokeStyle = `rgba(212,168,64,${alpha})`;
+    ctx.lineWidth   = Math.abs(p) % 30 === 0 ? 1.5 : 1;
+    ctx.beginPath();
+    ctx.moveTo(-halfW, lineY);
+    ctx.lineTo(halfW, lineY);
+    ctx.stroke();
+    if (Math.abs(p) % 30 === 0) {
+      ctx.font         = `${Math.round(r * 0.18)}px "IBM Plex Mono",monospace`;
+      ctx.fillStyle    = 'rgba(212,168,64,0.65)';
+      ctx.textAlign    = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(Math.abs(p)), -halfW - r * 0.06, lineY);
+    }
+  }
+
+  ctx.restore();
+
+  /* Fixed aircraft reference wings (not rotated) */
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth   = Math.max(2, r * 0.025);
+  ctx.lineCap     = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.38, 0); ctx.lineTo(-r * 0.12, 0);
+  ctx.moveTo( r * 0.12, 0); ctx.lineTo( r * 0.38, 0);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.045, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.restore();
+
+  /* Roll index marks around rim */
+  for (const a of [-60, -45, -30, -20, -10, 0, 10, 20, 30, 45, 60]) {
+    const rad = (a - 90) * DEG;
+    const len = Math.abs(a) % 30 === 0 ? r * 0.10 : r * 0.06;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(rad) * r, Math.sin(rad) * r);
+    ctx.lineTo(Math.cos(rad) * (r - len), Math.sin(rad) * (r - len));
+    ctx.strokeStyle = `rgba(180,200,200,${Math.abs(a) % 30 === 0 ? 0.55 : 0.30})`;
+    ctx.lineWidth   = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /* Roll pointer triangle (moves with roll) */
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(-rollDeg * DEG);
+  ctx.beginPath();
+  ctx.moveTo(0, -r + 2);
+  ctx.lineTo(-r * 0.055, -r + r * 0.11);
+  ctx.lineTo( r * 0.055, -r + r * 0.11);
+  ctx.closePath();
+  ctx.fillStyle = '#d4a840';
+  ctx.fill();
+  ctx.restore();
+
+  /* Outer ring */
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.strokeStyle = '#3a4a4a';
+  ctx.lineWidth   = Math.max(2, r * 0.02);
+  ctx.stroke();
+}
+
+/* ── Altimeter arc gauge (CMP) — 0 to maxKm ── */
+function _drawAltimeterArc(ctx, cx, cy, r, altKm, maxKm = 600) {
+  const startA = (210 - 90) * DEG;
+  const sweep  = 300 * DEG;
+  const frac   = Math.min(1, Math.max(0, altKm / maxKm));
+
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  /* Background disc */
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#0a1218';
+  ctx.fill();
+
+  /* Track arc */
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.84, startA, startA + sweep);
+  ctx.strokeStyle = '#1e2c38';
+  ctx.lineWidth   = r * 0.09;
+  ctx.stroke();
+
+  /* Filled progress arc */
+  if (frac > 0.001) {
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.84, startA, startA + sweep * frac);
+    ctx.strokeStyle = '#4dc5dc';
+    ctx.lineWidth   = r * 0.09;
+    ctx.stroke();
+  }
+
+  /* Tick marks at each 100 km */
+  for (let km = 0; km <= maxKm; km += 50) {
+    const f   = km / maxKm;
+    const ang = startA + sweep * f;
+    const big = km % 100 === 0;
+    const r0  = r;
+    const r1  = big ? r * 0.74 : r * 0.80;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(ang) * r0, Math.sin(ang) * r0);
+    ctx.lineTo(Math.cos(ang) * r1, Math.sin(ang) * r1);
+    ctx.strokeStyle = `rgba(160,210,230,${big ? 0.55 : 0.25})`;
+    ctx.lineWidth   = big ? 1.5 : 1;
+    ctx.stroke();
+    if (big && km > 0 && km < maxKm) {
+      const tr = r * 0.63;
+      ctx.font         = `${Math.round(r * 0.14)}px "IBM Plex Mono",monospace`;
+      ctx.fillStyle    = 'rgba(140,190,210,0.55)';
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(km / 100), Math.cos(ang) * tr, Math.sin(ang) * tr);
+    }
+  }
+
+  /* Needle */
+  const needleA = startA + sweep * frac;
+  ctx.beginPath();
+  ctx.moveTo(Math.cos(needleA) * r * 0.1, Math.sin(needleA) * r * 0.1);
+  ctx.lineTo(Math.cos(needleA) * r * 0.80, Math.sin(needleA) * r * 0.80);
+  ctx.strokeStyle = '#e8edf2';
+  ctx.lineWidth   = Math.max(2, r * 0.025);
+  ctx.lineCap     = 'round';
+  ctx.stroke();
+
+  /* Hub */
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.06, 0, Math.PI * 2);
+  ctx.fillStyle = '#4dc5dc';
+  ctx.fill();
+
+  /* Digital readout */
+  const altStr  = altKm >= 1 ? `${altKm.toFixed(0)}` : `${Math.round(altKm * 1000)}`;
+  const unitStr = altKm >= 1 ? 'km' : 'm';
+  ctx.font         = `bold ${Math.round(r * 0.26)}px "IBM Plex Mono",monospace`;
+  ctx.fillStyle    = '#e8edf2';
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(altStr, 0, r * 0.22);
+  ctx.font      = `${Math.round(r * 0.14)}px "IBM Plex Mono",monospace`;
+  ctx.fillStyle = '#607080';
+  ctx.fillText(unitStr, 0, r * 0.42);
+
+  ctx.restore();
+}
+
+/* ── G-meter arc gauge (LMP) — 0 to 4 g ── */
+function _drawGMeterArc(ctx, cx, cy, r, gLoad) {
+  const startA    = (210 - 90) * DEG;
+  const sweep     = 300 * DEG;
+  const frac      = Math.min(1, Math.max(0, gLoad / 4));
+  const cecoFrac  = 2.3 / 4;
+  const redFrac   = 3.5 / 4;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  /* Background disc */
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#0a1218';
+  ctx.fill();
+
+  /* Track arc */
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.84, startA, startA + sweep);
+  ctx.strokeStyle = '#1e2c38';
+  ctx.lineWidth   = r * 0.09;
+  ctx.stroke();
+
+  /* Color zones */
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.84, startA, startA + sweep * cecoFrac);
+  ctx.strokeStyle = '#4dc5dc';
+  ctx.lineWidth   = r * 0.09;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.84, startA + sweep * cecoFrac, startA + sweep * redFrac);
+  ctx.strokeStyle = '#f0c040';
+  ctx.lineWidth   = r * 0.09;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.84, startA + sweep * redFrac, startA + sweep);
+  ctx.strokeStyle = '#ff4040';
+  ctx.lineWidth   = r * 0.09;
+  ctx.stroke();
+
+  /* Tick marks */
+  for (let g = 0; g <= 4; g += 0.5) {
+    const f   = g / 4;
+    const ang = startA + sweep * f;
+    const big = Number.isInteger(g);
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(ang) * r, Math.sin(ang) * r);
+    ctx.lineTo(Math.cos(ang) * (big ? r * 0.74 : r * 0.80), Math.sin(ang) * (big ? r * 0.74 : r * 0.80));
+    ctx.strokeStyle = `rgba(160,210,230,${big ? 0.55 : 0.25})`;
+    ctx.lineWidth   = big ? 1.5 : 1;
+    ctx.stroke();
+    if (big) {
+      const tr = r * 0.63;
+      ctx.font         = `${Math.round(r * 0.15)}px "IBM Plex Mono",monospace`;
+      ctx.fillStyle    = 'rgba(140,190,210,0.55)';
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(g), Math.cos(ang) * tr, Math.sin(ang) * tr);
+    }
+  }
+
+  /* CECO marker line */
+  const cecoA = startA + sweep * cecoFrac;
+  ctx.beginPath();
+  ctx.moveTo(Math.cos(cecoA) * r * 0.74, Math.sin(cecoA) * r * 0.74);
+  ctx.lineTo(Math.cos(cecoA) * r * 0.60, Math.sin(cecoA) * r * 0.60);
+  ctx.strokeStyle = '#f0c040';
+  ctx.lineWidth   = 1.5;
+  ctx.stroke();
+
+  /* Needle */
+  const needleA = startA + sweep * frac;
+  const gCol    = gLoad >= 3.5 ? '#ff4040' : gLoad >= 2.3 ? '#f0c040' : '#e8edf2';
+  ctx.beginPath();
+  ctx.moveTo(Math.cos(needleA) * r * 0.1, Math.sin(needleA) * r * 0.1);
+  ctx.lineTo(Math.cos(needleA) * r * 0.80, Math.sin(needleA) * r * 0.80);
+  ctx.strokeStyle = gCol;
+  ctx.lineWidth   = Math.max(2, r * 0.028);
+  ctx.lineCap     = 'round';
+  ctx.stroke();
+
+  /* Hub */
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.06, 0, Math.PI * 2);
+  ctx.fillStyle = '#4a5a6a';
+  ctx.fill();
+
+  /* Digital G value */
+  ctx.font         = `bold ${Math.round(r * 0.30)}px "IBM Plex Mono",monospace`;
+  ctx.fillStyle    = gCol;
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(gLoad.toFixed(1), 0, r * 0.18);
+  ctx.font      = `${Math.round(r * 0.14)}px "IBM Plex Mono",monospace`;
+  ctx.fillStyle = '#607080';
+  ctx.fillText('g', 0, r * 0.38);
+
+  ctx.restore();
+}
+
+export function renderApollo(canvas) {
+  const DPR = devicePixelRatio || 1;
+  const W   = canvas.width  = canvas.offsetWidth  * DPR;
+  const H   = canvas.height = canvas.offsetHeight * DPR;
+  const ctx = canvas.getContext('2d');
+
+  const ac   = S.aircraft;
+  const msn  = S.mission;
+  ctx.fillStyle = '#03060a';
+  ctx.fillRect(0, 0, W, H);
+  if (!ac) return;
+
+  /* Role: tab selection overrides S.role */
+  const role = _apolloRole;
+  const crew = msn?.crew ?? {};
+  const crewName = crew[role] ? crew[role].toUpperCase() : '';
+
+  const mT   = S.time ?? 0;
+  const ignT = ac.ignitionTime ?? 0;
+  const tLO  = mT - ignT;
+
+  /* Derived state */
+  const altM    = (S.alt ?? 0) * 0.3048;
+  const altKm   = altM / 1000;
+  const velMs   = (S.spd ?? 0) * 0.5144;
+  const velFps  = velMs * 3.28084;
+  const gLoad   = S.rocketG     ?? 0;
+  const dynQ    = S.rocketDynQ  ?? 0;
+  const stage   = S.rocketStage ?? 1;
+  const mass    = S.rocketMass  ?? (ac.performance?.massWet ?? 1);
+  const coast   = S.rocketCoast ?? false;
+  const pitch   = S.pitch ?? 90;
+  const rollDeg = S.roll  ?? 0;
+  const engines = S.rocketActiveEngines ?? (ac.performance?.stages?.[stage - 1]?.engineCount ?? 0);
+
+  const stageNames = ac.performance?.stages?.map(s => s.name) ?? ['S-IC', 'S-II', 'S-IVB'];
+  const stageName  = stageNames[stage - 1] ?? `STAGE ${stage}`;
+
+  const massWet   = ac.performance?.massWet ?? 1;
+  const propFrac  = Math.max(0, Math.min(1, mass / massWet));
+  const abortMode = altKm < 45 ? '1' : altKm < 150 ? '1-BRAVO' : '2-BRAVO';
+
+  const vOrbMs    = Math.sqrt(GM_EARTH / (R_EARTH_M + altM));
+  const orbitFrac = Math.min(1, velMs / vOrbMs);
+  const inOrbit   = !!(S.rocketOrbit);
+
+  /* MET clock */
+  const absT = Math.abs(tLO);
+  const hh   = Math.floor(absT / 3600);
+  const mm   = Math.floor((absT % 3600) / 60);
+  const ss   = Math.floor(absT % 60);
+  const met  = `${tLO >= 0 ? 'T+' : 'T−'} ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+
+  /* Layout zones */
+  const tabH  = Math.round(H * 0.072);
+  const hdH   = Math.round(H * 0.10);   /* header height */
+  const pad   = Math.round(W * 0.025);
+  const mainT = hdH + Math.round(H * 0.015);
+  const mainH = H - tabH - mainT;
+
+  const gaugeCol  = Math.round(W * 0.42);
+  const rightX    = gaugeCol + pad;
+  const rightW    = W - rightX - pad;
+
+  /* Gauge: centred in left column */
+  const gaugeR = Math.round(Math.min(gaugeCol, mainH) * 0.42);
+  const gaugeCX = Math.round(gaugeCol / 2);
+  const gaugeCY = mainT + Math.round(mainH / 2);
+
+  /* Font sizes */
+  const lSz  = `${Math.round(H * 0.028)}px "IBM Plex Mono",monospace`;
+  const vSz  = `${Math.round(H * 0.068)}px "IBM Plex Mono",monospace`;
+  const mSz  = `${Math.round(H * 0.050)}px "IBM Plex Mono",monospace`;
+
+  /* ── Header ── */
+  const callsign  = (ac.callsign ?? 'APOLLO').toUpperCase();
+  const roleLabel = crewName ? `${role}  ${crewName}` : role;
+  _apolloText(ctx, callsign,  pad,     Math.round(hdH * 0.6), { font: `${Math.round(H*0.042)}px "IBM Plex Mono",monospace`, color: '#c8d4bc', base: 'middle' });
+  _apolloText(ctx, roleLabel, W / 2,   Math.round(hdH * 0.6), { font: lSz, color: '#7a8a72', align: 'center', base: 'middle' });
+  _apolloText(ctx, met,       W - pad, Math.round(hdH * 0.6), { font: `${Math.round(H*0.040)}px "IBM Plex Mono",monospace`, color: '#5dd47e', align: 'right', base: 'middle' });
+
+  ctx.strokeStyle = '#1e2c20'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad, hdH); ctx.lineTo(W - pad, hdH); ctx.stroke();
+
+  /* Vertical divider between gauge and data columns */
+  ctx.beginPath(); ctx.moveTo(gaugeCol, mainT + mainH * 0.05); ctx.lineTo(gaugeCol, mainT + mainH * 0.95); ctx.stroke();
+
+  /* ── Right-column row helper ── */
+  let _rowY = mainT + Math.round(mainH * 0.06);
+  function _row(label, value, { color = '#e8edf2', font = vSz, gap = mainH * 0.02 } = {}) {
+    _apolloText(ctx, label, rightX, _rowY, { font: lSz, color: '#607080', base: 'top' });
+    _rowY += Math.round(H * 0.028) + 2;
+    _apolloText(ctx, value, rightX, _rowY, { font, color, base: 'top' });
+    _rowY += Math.round(parseFloat(font)) + Math.round(gap);
+  }
+  function _bar(frac, color, w = rightW, note = '') {
+    const barH = Math.round(H * 0.022);
+    _apolloBar(ctx, rightX, _rowY, w, barH, frac, color);
+    _rowY += barH + 2;
+    if (note) {
+      _apolloText(ctx, note, rightX, _rowY, { font: `${Math.round(H*0.022)}px "IBM Plex Mono",monospace`, color: '#4a6050', base: 'top' });
+      _rowY += Math.round(H * 0.024) + Math.round(mainH * 0.02);
+    }
+  }
+  function _gap(h = 0.04) { _rowY += Math.round(mainH * h); }
+
+  /* ═══ CDR: FDAI + attitude / stage / abort ═══ */
+  if (role === 'CDR') {
+    _drawFDAI(ctx, gaugeCX, gaugeCY, gaugeR, pitch, rollDeg);
+    _row('PITCH', `${pitch >= 0 ? '+' : ''}${Math.round(pitch)}°`);
+    _row('ROLL',  `${rollDeg >= 0 ? '+' : ''}${Math.round(rollDeg)}°`);
+    _gap(0.03);
+    _row('STAGE', stageName, { color: '#c8d4bc', font: mSz });
+    _gap(0.04);
+    const gStr = gLoad.toFixed(2) + ' g';
+    const gCol = gLoad >= 3.5 ? '#ff4040' : gLoad >= 2.3 ? '#f0c040' : '#e8edf2';
+    _row('G-LOAD', gStr, { color: gCol });
+    _gap(0.03);
+    _row('ABORT MODE', abortMode, { color: '#f0c040', font: mSz });
+  }
+
+  /* ═══ CMP: Altimeter arc + velocity / orbit / abort ═══ */
+  else if (role === 'CMP') {
+    _drawAltimeterArc(ctx, gaugeCX, gaugeCY, gaugeR, altKm);
+    _row('VELOCITY', `${(velMs / 1000).toFixed(2)} km/s`);
+    _apolloText(ctx, `${Math.round(velFps).toLocaleString()} fps`, rightX, _rowY, { font: `${Math.round(H*0.028)}px "IBM Plex Mono",monospace`, color: '#506060', base: 'top' });
+    _rowY += Math.round(H * 0.030) + Math.round(mainH * 0.02);
+    _bar(orbitFrac, inOrbit ? '#5dd47e' : '#4dc5dc', rightW, inOrbit ? 'ORBIT ACHIEVED' : `${Math.round(orbitFrac * 100)}% ORBITAL VEL`);
+    _gap(0.03);
+    _row('FPA', `${Math.round(pitch)}°`, { color: '#c8d4bc', font: mSz });
+    _gap(0.04);
+    _row('ABORT MODE', abortMode, { color: '#f0c040', font: mSz });
+  }
+
+  /* ═══ LMP: G-meter arc + stage / propellant / dyn-Q ═══ */
+  else {
+    _drawGMeterArc(ctx, gaugeCX, gaugeCY, gaugeR, gLoad);
+    _row('STAGE', stageName, { color: '#c8d4bc', font: mSz });
+    _apolloText(ctx, coast ? 'COAST' : `${engines} ENG FIRING`, rightX, _rowY, { font: lSz, color: coast ? '#f0c040' : '#5dd47e', base: 'top' });
+    _rowY += Math.round(H * 0.030) + Math.round(mainH * 0.04);
+    _row('PROPELLANT', `${Math.round(propFrac * 100)} %`, { color: propFrac < 0.15 ? '#ff4040' : '#e8edf2' });
+    _bar(propFrac, propFrac < 0.15 ? '#ff4040' : '#4dc5dc');
+    _gap(0.02);
+    _row('DYN Q', `${(dynQ / 1000).toFixed(1)} kPa`, { color: '#e8edf2', font: mSz });
+    _gap(0.03);
+    _row('ABORT MODE', abortMode, { color: '#f0c040', font: mSz });
+  }
+
+  _drawApolloTabs(ctx, W, H, crew);
+}
