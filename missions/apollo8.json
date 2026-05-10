@@ -41,6 +41,9 @@
   },
   "arrival": null,
 
+  "tliT":  10417,
+  "tliDv": 3147,
+
   "atcClearances": [
     {
       "t": 120,
@@ -58,6 +61,16 @@
       "startTime": 15,
       "duration": 180,
       "text": ""
+    },
+    {
+      "trigger": { "type": "tli" },
+      "voice": "crew",
+      "text": "Ignition. TLI."
+    },
+    {
+      "trigger": { "type": "time", "t": 10734 },
+      "voice": "crew",
+      "text": "Shutdown. We're on our way to the Moon."
     },
     {
       "trigger": { "type": "ceco" },

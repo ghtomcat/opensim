@@ -65,6 +65,17 @@ const MAINS_ALT     = 1_800;  // m
 const BLACKOUT_ALT  = 80_000; // m  comms blackout entry
 const BLACKOUT_EXIT = 35_000; // m  signal reacquired
 
+/* ── TLI burn — apply prograde ΔV to escape Earth orbit ─────── */
+function _applyTLIBurn(dv_ms) {
+  const v   = S.orbitVec;
+  const spd = Math.sqrt(v.vx*v.vx + v.vy*v.vy + v.vz*v.vz);
+  const f   = dv_ms / spd;
+  setState({
+    rocketTLI: true,
+    orbitVec: { ...v, vx: v.vx*(1+f), vy: v.vy*(1+f), vz: v.vz*(1+f) },
+  });
+}
+
 /* ── Deorbit burn — apply retrograde ΔV to orbitVec ─────────── */
 function _applyDeorbitBurn(dv_ms) {
   const v   = S.orbitVec;
@@ -308,6 +319,11 @@ export function tickRocket(dt) {
     const sepT = S.mission?.dragonSepT;
     if (sepT && !S.dragonSep && mT >= sepT) _captureDragonSep();
     if (S.dragonSep && S.s2Vec) _tickS2(dt);
+
+    /* TLI burn — S-IVB re-ignition for trans-lunar injection */
+    const tliT  = S.mission?.tliT;
+    const tliDv = S.mission?.tliDv ?? 3147;
+    if (tliT && !S.rocketTLI && mT >= tliT) _applyTLIBurn(tliDv);
 
     /* Deorbit burn */
     const deorbitT = S.mission?.deorbitT;

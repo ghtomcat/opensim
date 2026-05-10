@@ -102,6 +102,7 @@ export async function loadMission(missionPath, aircraftPath) {
       rocketFailedEngines: [],
       rocketCECO:          false,
       rocketCECOEngines:   [],
+      rocketTLI:           false,
       booster:             null,
       dragonSep:           false,
       s2Vec:               null,
