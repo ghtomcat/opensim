@@ -43,11 +43,20 @@
 
   "atcClearances": [
     {
-      "t": 164,
+      "t": 120,
+      "audio": "assets/apollo8/day1.mp3",
+      "voice": "ambient",
+      "volume": 0.70,
+      "duration": 63,
+      "text": ""
+    },
+    {
+      "t": 180,
       "audio": "assets/apollo8/highlights.mp3",
       "voice": "ambient",
       "volume": 0.65,
-      "duration": 195,
+      "startTime": 15,
+      "duration": 180,
       "text": ""
     },
     {

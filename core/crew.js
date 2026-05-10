@@ -478,6 +478,7 @@ function _checkATC(prev, curr, ms) {
         if (exists) {
           const a = new Audio(clr.audio);
           a.volume = clr.volume ?? 0.2;
+          if (clr.startTime) a.currentTime = clr.startTime;
           a.play().catch(() => {});
           /* Optional hard stop with 2-second fade-out */
           if (clr.duration) {
