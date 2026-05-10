@@ -493,6 +493,12 @@ export function tickRocket(dt) {
   const dLat    = (dHoriz * Math.cos(hdg_rad)) / (R_EARTH * DEG);
   const dLon    = (dHoriz * Math.sin(hdg_rad)) / (R_EARTH * Math.cos((S.lat ?? 0) * DEG) * DEG);
 
+  /* ── LES jettison ── */
+  const lesT = perf.lesJettisonT;
+  if (lesT && !S.lesJettisoned && mT >= ignitionTime + lesT) {
+    setState({ lesJettisoned: true });
+  }
+
   setState({
     spd:   newSpd_ms / 0.5144,
     spdT:  newSpd_ms / 0.5144,

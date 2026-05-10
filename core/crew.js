@@ -694,6 +694,27 @@ function _checkRocketEvent(event, clr, prevAlt = 0, currAlt = 0) {
       }
       break;
 
+    case 'meco_s2':
+      /* S-II burnout — coast starts while stage index is 2 */
+      if ((S.rocketCoast ?? false) && !_prevRocketCoast && (S.rocketStage ?? 1) === 2) {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
+    case 's2_ignition':
+      /* S-II lights up — stage just advanced from 1 to 2, no longer coasting */
+      if ((S.rocketStage ?? 1) === 2 && _prevRocketStage === 1 && !(S.rocketCoast ?? false)) {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
+    case 's3_ignition':
+      /* S-IVB lights up — stage just advanced from 2 to 3, no longer coasting */
+      if ((S.rocketStage ?? 1) === 3 && _prevRocketStage === 2 && !(S.rocketCoast ?? false)) {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
     case 'seco':
       if ((S.rocketSECO ?? false) && !_prevRocketSECO) {
         _rocketFired.add(uid); return true;

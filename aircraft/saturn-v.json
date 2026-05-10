@@ -67,7 +67,9 @@
 
     "recovery": {
       "rtls": false
-    }
+    },
+
+    "lesJettisonT": 191
   },
 
   "sound": { "engineType": "none" },

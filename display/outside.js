@@ -1547,14 +1547,22 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     ctx.closePath(); ctx.fill(); ctx.restore();
   }
 
+  /* Engine fraction — scales plume width by √(active/total) so a partial
+     engine cluster (CECO, engine-out) produces a visibly smaller plume. */
+  const _plumeStgIdx  = (S.rocketStage ?? 1) - 1;
+  const _plumeStg     = (S.aircraft?.performance?.stages ?? [])[_plumeStgIdx] ?? {};
+  const _plumeTotalEng = _plumeStg.engineCount ?? 1;
+  const _plumeActEng   = S.rocketActiveEngines ?? _plumeTotalEng;
+  const _engFrac       = Math.sqrt(_plumeTotalEng > 0 ? _plumeActEng / _plumeTotalEng : 1);
+
   if (isF9) {
     /* S1 plume: ignition → MECO */
     if (pastIgnition && rStage < 2 && !S.rocketCoast && !S.rocketMECO)
-      _drawPlume(pts[65], _nzO, [-0.018, 0, 0], 0.030, 2.8);
+      _drawPlume(pts[65], _nzO, [-0.018, 0, 0], 0.030, 2.8 * _engFrac);
 
     /* S2 plume: coast ends → SECO */
     if (rStage >= 2 && !S.rocketCoast && !S.rocketSECO)
-      _drawPlume(pts[90], _nzVac, [0.003, 0, 0], 0.032, 3.2);
+      _drawPlume(pts[90], _nzVac, [0.003, 0, 0], 0.032, 3.2 * _engFrac);
   }
 
   if (isSV && pastIgnition && !(S.rocketCoast ?? false)) {
@@ -1562,17 +1570,17 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     /* S-IC — 5× F-1, RP-1/LOX orange plume, base at Ring 0 (x=-0.030) */
     if (svStage === 1) {
       const pNoz = project([-0.030, 0, 0]);
-      _drawPlume(pNoz, _sv1r, [-0.030, 0, 0], 0.026, 0.72);
+      _drawPlume(pNoz, _sv1r, [-0.030, 0, 0], 0.026, 0.72 * _engFrac);
     }
     /* S-II — 5× J-2, LH2/LOX blue-white, base at Ring 2 (x=-0.006) */
     else if (svStage === 2) {
       const pNoz = project([-0.006, 0, 0]);
-      _drawPlume(pNoz, _sv1r, [-0.006, 0, 0], 0.022, 0.45, 'lh2');
+      _drawPlume(pNoz, _sv1r, [-0.006, 0, 0], 0.022, 0.45 * _engFrac, 'lh2');
     }
     /* S-IVB — 1× J-2, LH2/LOX, base at Ring 4 (x=+0.010) */
     else if (svStage >= 3) {
       const pNoz = project([0.010, 0, 0]);
-      _drawPlume(pNoz, _sv3r, [0.010, 0, 0], 0.018, 0.28, 'lh2');
+      _drawPlume(pNoz, _sv3r, [0.010, 0, 0], 0.018, 0.28 * _engFrac, 'lh2');
     }
   }
 
@@ -1727,6 +1735,8 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       const inMain = v => (v >= 24 && v <= 48) || (v >= 74 && v <= 90);
       if (!inMain(a) || !inMain(b)) continue;
     }
+    /* Saturn V LES jettison: hide tower lattice (mid-ring verts 77-80 + diagonals) */
+    if (isSV && S.lesJettisoned && (a >= 77 || b >= 77)) continue;
     const pa = pts[a], pb = pts[b];
     if (!pa || !pb) continue;
     ctx.moveTo(pa.x, pa.y);

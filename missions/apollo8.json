@@ -58,6 +58,36 @@
       "startTime": 15,
       "duration": 180,
       "text": ""
+    },
+    {
+      "trigger": { "type": "ceco" },
+      "voice": "crew",
+      "text": "Center engine out."
+    },
+    {
+      "trigger": { "type": "meco" },
+      "voice": "crew",
+      "text": "Shutdown. Thrust is negative."
+    },
+    {
+      "trigger": { "type": "s2_ignition" },
+      "voice": "crew",
+      "text": "Ignition. S-II."
+    },
+    {
+      "trigger": { "type": "meco_s2" },
+      "voice": "crew",
+      "text": "Shutdown. S-II out."
+    },
+    {
+      "trigger": { "type": "s3_ignition" },
+      "voice": "crew",
+      "text": "Ignition. S-IVB."
+    },
+    {
+      "trigger": { "type": "seco" },
+      "voice": "crew",
+      "text": "Shutdown. We're in orbit."
     }
   ],
 
