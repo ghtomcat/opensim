@@ -715,11 +715,12 @@ function _drawProfile(ctx, W, H, tLO, ac) {
    Crew names driven by S.mission.crew — no hardcoding.
    ══════════════════════════════════════════════════════════════ */
 
-const APOLLO_ROLES = ['CDR', 'CMP', 'LMP'];
+const APOLLO_ROLES = ['CDR', 'CMP', 'LMP', 'TELEM'];
 let _apolloRole     = 'CDR';
 let _apolloTabRects = [];
 
-export function setApolloRole(r) { if (APOLLO_ROLES.includes(r)) _apolloRole = r; }
+export function setApolloRole(r)      { if (APOLLO_ROLES.includes(r)) _apolloRole = r; }
+export function isApolloTelemetry()   { return _apolloRole === 'TELEM'; }
 
 export function handleApolloClick(canvas, evt) {
   const DPR  = devicePixelRatio || 1;
@@ -761,10 +762,11 @@ function _drawApolloTabs(ctx, W, H, crew) {
   APOLLO_ROLES.forEach((r, i) => {
     const x      = i * tabW;
     const active = r === _apolloRole;
-    const name   = crew?.[r] ? `${r}  ${crew[r].toUpperCase()}` : r;
-    ctx.fillStyle = active ? '#1a2a1a' : '#080f0a';
+    const isTelem = r === 'TELEM';
+    const name   = (!isTelem && crew?.[r]) ? `${r}  ${crew[r].toUpperCase()}` : r;
+    ctx.fillStyle   = active ? (isTelem ? '#1a1200' : '#1a2a1a') : '#080f0a';
     ctx.fillRect(x, tabY, tabW - 2, tabH);
-    ctx.fillStyle   = active ? '#c8d4bc' : '#3a4a3a';
+    ctx.fillStyle   = active ? (isTelem ? '#ffb74d' : '#c8d4bc') : (isTelem ? '#2a1a00' : '#3a4a3a');
     ctx.font        = `bold ${Math.round(H * 0.028)}px "IBM Plex Mono", monospace`;
     ctx.textAlign   = 'center';
     ctx.textBaseline = 'middle';
@@ -1071,6 +1073,16 @@ function _drawGMeterArc(ctx, cx, cy, r, gLoad) {
 
 export function renderApollo(canvas) {
   const DPR = devicePixelRatio || 1;
+
+  /* TELEM mode: renderRocket already painted the canvas — just overlay tabs */
+  if (_apolloRole === 'TELEM') {
+    const W   = canvas.width;
+    const H   = canvas.height;
+    const ctx = canvas.getContext('2d');
+    _drawApolloTabs(ctx, W, H, S.mission?.crew ?? {});
+    return;
+  }
+
   const W   = canvas.width  = canvas.offsetWidth  * DPR;
   const H   = canvas.height = canvas.offsetHeight * DPR;
   const ctx = canvas.getContext('2d');

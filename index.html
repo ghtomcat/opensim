@@ -2044,7 +2044,7 @@
   import { initBlackbox, bbEvent, downloadBlackbox } from './core/blackbox.js';
   import { renderPFD }         from './display/pfd.js';
   import { renderPanel, renderFCU } from './display/panel_renderer.js';
-  import { renderRocket, renderApollo, handleApolloClick } from './display/rocket_display.js';
+  import { renderRocket, renderApollo, handleApolloClick, isApolloTelemetry } from './display/rocket_display.js';
   import { renderDragon, handleDragonClick, isDragonTelemetry } from './display/dragon.js';
   import { renderG1000, handleG1000Click } from './display/g1000.js';
   import { renderECAM }        from './display/ecam.js';
@@ -3818,7 +3818,10 @@
           if (isDragonTelemetry()) renderRocket(canvas);
           renderDragon(canvas);
         }
-        else if (isRocket && S.aircraft?.id === 'saturn-v') renderApollo(canvas);
+        else if (isRocket && S.aircraft?.id === 'saturn-v') {
+          if (isApolloTelemetry()) { renderRocket(canvas); renderApollo(canvas); }
+          else renderApollo(canvas);
+        }
         else if (isRocket)           renderRocket(canvas);
         else if (panel === 'g1000')  renderG1000(canvas);
         else if (panel === 'bf109')  renderBf109(canvas);
