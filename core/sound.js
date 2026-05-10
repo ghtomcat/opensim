@@ -691,6 +691,10 @@ function _niflheimStop() {
 }
 
 export function startSound(engineType) {
+  if (engineType === 'none') {
+    if (!_ctx) _ctx = new AudioContext();
+    return;
+  }
   if (engineType) _cfg = ENGINES[engineType] ?? ENGINES['geared-turbofan'];
   if (!_cfg) _cfg = ENGINES['geared-turbofan'];
   if (_started) _teardown();

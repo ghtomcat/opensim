@@ -524,6 +524,36 @@
       letter-spacing: 0.18em;
     }
 
+    /* ── Apollo DSKY-style MET clock — green phosphor ── */
+    #mission-clock.apollo .ck-housing {
+      background: #040806;
+      border: 1px solid #0a2010;
+      box-shadow: none;
+    }
+    #mission-clock.apollo .ck-tube {
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      width: 22px; height: 38px;
+    }
+    #mission-clock.apollo .ck-tube::before { display: none; }
+    #mission-clock.apollo .ck-digit {
+      color: #00e060;
+      font-size: 26px;
+      text-shadow: 0 0 4px rgba(0,224,96,0.5), 0 0 10px rgba(0,200,80,0.25);
+    }
+    #mission-clock.apollo .ck-digit.tick { animation: none; }
+    #mission-clock.apollo .ck-sep { gap: 8px; }
+    #mission-clock.apollo .ck-dot {
+      background: #00b050;
+      box-shadow: 0 0 4px rgba(0,180,80,0.4);
+      width: 3px; height: 3px;
+    }
+    #mission-clock.apollo .ck-label {
+      color: rgba(0,180,60,0.45);
+      letter-spacing: 0.18em;
+    }
+
     /* ── ADS-B tracking badge ── */
     #tracking-badge {
       position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
@@ -4097,6 +4127,7 @@
     el.classList.toggle('velis',  S.aircraft?.panel === 'velis-epsi');
     el.classList.toggle('g1000',  S.aircraft?.panel === 'g1000');
     el.classList.toggle('airbus', S.aircraft?.panel === 'airbus' || S.aircraft?.panel === 'e190');
+    el.classList.toggle('apollo', S.aircraft?.id === 'saturn-v');
     const t = Math.max(0, Math.floor(S.time ?? 0));
     const h = Math.floor(t / 3600);
     const m = Math.floor((t % 3600) / 60);

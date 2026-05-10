@@ -1495,7 +1495,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
 
   /* style: 'rp1' = RP-1/LOX orange (F-1, Merlin)
             'lh2' = LH2/LOX blue-white (J-2)          */
-  function _drawPlume(pN, pEdge, originVec, baseLen, widthScale, style = 'rp1') {
+  function _drawPlume(pN, bodyR, originVec, baseLen, widthScale, style = 'rp1') {
     const altM  = (S.alt ?? 0) * 0.3048;
     const altT  = Math.min(1, altM / 65000);          /* 0 = pad, 1 = 65 km */
     const len   = baseLen * (1 + altT * 2.8);         /* plume lengthens in vacuum */
@@ -1508,9 +1508,13 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     const pxLen = Math.hypot(dx, dy);
     if (pxLen < 2) return;
     const px = -dy / pxLen, py = dx / pxLen;
-    const nozR = (pEdge
-      ? Math.hypot(pEdge.x - pN.x, pEdge.y - pN.y) * widthScale
-      : 9 * devicePixelRatio) * flick;
+    /* Billboard: project nozzle radius in both transverse body axes, take max.
+       Prevents plume collapsing to a sliver in side/front/any-angle views. */
+    const pEy = project([originVec[0], originVec[1] + bodyR, originVec[2]]);
+    const pEz = project([originVec[0], originVec[1], originVec[2] + bodyR]);
+    const ry = pEy ? Math.hypot(pEy.x - pN.x, pEy.y - pN.y) : 0;
+    const rz = pEz ? Math.hypot(pEz.x - pN.x, pEz.y - pN.y) : 0;
+    const nozR = Math.max(ry, rz, 4 * devicePixelRatio) * widthScale * flick;
 
     /* Tip flares wider at altitude (vacuum expansion) */
     const tipS = 2.8 + altT * 5.0;
@@ -1546,11 +1550,11 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   if (isF9) {
     /* S1 plume: ignition → MECO */
     if (pastIgnition && rStage < 2 && !S.rocketCoast && !S.rocketMECO)
-      _drawPlume(pts[65], pts[66], [-0.018, 0, 0], 0.030, 2.8);
+      _drawPlume(pts[65], _nzO, [-0.018, 0, 0], 0.030, 2.8);
 
     /* S2 plume: coast ends → SECO */
     if (rStage >= 2 && !S.rocketCoast && !S.rocketSECO)
-      _drawPlume(pts[90], pts[82], [0.003, 0, 0], 0.032, 3.2);
+      _drawPlume(pts[90], _nzVac, [0.003, 0, 0], 0.032, 3.2);
   }
 
   if (isSV && pastIgnition && !(S.rocketCoast ?? false)) {
@@ -1558,17 +1562,17 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     /* S-IC — 5× F-1, RP-1/LOX orange plume, base at Ring 0 (x=-0.030) */
     if (svStage === 1) {
       const pNoz = project([-0.030, 0, 0]);
-      _drawPlume(pNoz, pts[2], [-0.030, 0, 0], 0.026, 0.72);
+      _drawPlume(pNoz, _sv1r, [-0.030, 0, 0], 0.026, 0.72);
     }
     /* S-II — 5× J-2, LH2/LOX blue-white, base at Ring 2 (x=-0.006) */
     else if (svStage === 2) {
       const pNoz = project([-0.006, 0, 0]);
-      _drawPlume(pNoz, pts[18], [-0.006, 0, 0], 0.022, 0.45, 'lh2');
+      _drawPlume(pNoz, _sv1r, [-0.006, 0, 0], 0.022, 0.45, 'lh2');
     }
     /* S-IVB — 1× J-2, LH2/LOX, base at Ring 4 (x=+0.010) */
     else if (svStage >= 3) {
       const pNoz = project([0.010, 0, 0]);
-      _drawPlume(pNoz, pts[34], [0.010, 0, 0], 0.018, 0.28, 'lh2');
+      _drawPlume(pNoz, _sv3r, [0.010, 0, 0], 0.018, 0.28, 'lh2');
     }
   }
 

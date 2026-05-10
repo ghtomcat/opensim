@@ -58,26 +58,6 @@
       "startTime": 15,
       "duration": 180,
       "text": ""
-    },
-    {
-      "trigger": { "type": "alt_km", "min": 45 },
-      "voice": "atc",
-      "text": "Apollo 8, abort mode 1-Bravo."
-    },
-    {
-      "trigger": { "type": "after", "idx": 1, "delay": 2 },
-      "voice": "crew",
-      "text": "Copy. 1-Bravo."
-    },
-    {
-      "trigger": { "type": "alt_km", "min": 150 },
-      "voice": "atc",
-      "text": "Apollo 8, abort mode 2-Bravo."
-    },
-    {
-      "trigger": { "type": "after", "idx": 3, "delay": 2 },
-      "voice": "crew",
-      "text": "Copy. 2-Bravo."
     }
   ],
 
