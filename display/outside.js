@@ -1493,32 +1493,53 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const t0 = S.aircraft?.ignitionTime ?? 0;
   const pastIgnition = (S.time ?? 0) >= t0;
 
-  function _drawPlume(pN, pEdge, plumeOriginVec, plumeLen, widthScale) {
-    const plumeEnd = project(plumeOriginVec.map((v, i) => i === 0 ? v - plumeLen : v));
+  /* style: 'rp1' = RP-1/LOX orange (F-1, Merlin)
+            'lh2' = LH2/LOX blue-white (J-2)          */
+  function _drawPlume(pN, pEdge, originVec, baseLen, widthScale, style = 'rp1') {
+    const altM  = (S.alt ?? 0) * 0.3048;
+    const altT  = Math.min(1, altM / 65000);          /* 0 = pad, 1 = 65 km */
+    const len   = baseLen * (1 + altT * 2.8);         /* plume lengthens in vacuum */
+    const flick = 1 + 0.04 * Math.sin(Date.now() * 0.047)
+                    + 0.025 * Math.sin(Date.now() * 0.083);
+
+    const plumeEnd = project(originVec.map((v, i) => i === 0 ? v - len : v));
     if (!pN || !plumeEnd) return;
     const dx = plumeEnd.x - pN.x, dy = plumeEnd.y - pN.y;
-    const len = Math.hypot(dx, dy);
-    if (len < 2) return;
-    const px = -dy / len, py = dx / len;
-    const nozR = pEdge
+    const pxLen = Math.hypot(dx, dy);
+    if (pxLen < 2) return;
+    const px = -dy / pxLen, py = dx / pxLen;
+    const nozR = (pEdge
       ? Math.hypot(pEdge.x - pN.x, pEdge.y - pN.y) * widthScale
-      : 9 * devicePixelRatio;
+      : 9 * devicePixelRatio) * flick;
+
+    /* Tip flares wider at altitude (vacuum expansion) */
+    const tipS = 2.8 + altT * 5.0;
+    const midS = 1.6 + altT * 2.2;
+    const mx   = (pN.x + plumeEnd.x) / 2, my = (pN.y + plumeEnd.y) / 2;
+
     ctx.save();
     const grad = ctx.createLinearGradient(pN.x, pN.y, plumeEnd.x, plumeEnd.y);
-    grad.addColorStop(0,    'rgba(255,240,160,0.80)');
-    grad.addColorStop(0.08, 'rgba(255,165, 60,0.65)');
-    grad.addColorStop(0.25, 'rgba(210, 80, 18,0.38)');
-    grad.addColorStop(0.55, 'rgba(130, 28,  5,0.15)');
-    grad.addColorStop(1.0,  'rgba(  0,  0,  0,0.00)');
+    if (style === 'lh2') {
+      grad.addColorStop(0,    `rgba(215,240,255,${(0.90 * flick).toFixed(2)})`);
+      grad.addColorStop(0.10, 'rgba(170,215,255,0.68)');
+      grad.addColorStop(0.30, 'rgba( 90,155,245,0.36)');
+      grad.addColorStop(0.60, 'rgba( 50, 90,210,0.12)');
+      grad.addColorStop(1.0,  'rgba(  0,  0,  0,0.00)');
+    } else {
+      grad.addColorStop(0,    `rgba(255,240,160,${(0.88 * flick).toFixed(2)})`);
+      grad.addColorStop(0.08, 'rgba(255,165, 60,0.72)');
+      grad.addColorStop(0.25, 'rgba(210, 80, 18,0.42)');
+      grad.addColorStop(0.55, 'rgba(130, 28,  5,0.18)');
+      grad.addColorStop(1.0,  'rgba(  0,  0,  0,0.00)');
+    }
     ctx.fillStyle = grad;
-    const mx = (pN.x + plumeEnd.x) / 2, my = (pN.y + plumeEnd.y) / 2;
     ctx.beginPath();
-    ctx.moveTo(pN.x + px * nozR, pN.y + py * nozR);
-    ctx.quadraticCurveTo(mx + px * nozR * 2.2, my + py * nozR * 2.2,
-                         plumeEnd.x + px * nozR * 3.8, plumeEnd.y + py * nozR * 3.8);
-    ctx.lineTo(plumeEnd.x - px * nozR * 3.8, plumeEnd.y - py * nozR * 3.8);
-    ctx.quadraticCurveTo(mx - px * nozR * 2.2, my - py * nozR * 2.2,
-                         pN.x - px * nozR, pN.y - py * nozR);
+    ctx.moveTo(pN.x + px * nozR,       pN.y + py * nozR);
+    ctx.quadraticCurveTo(mx + px * nozR * midS, my + py * nozR * midS,
+                         plumeEnd.x + px * nozR * tipS, plumeEnd.y + py * nozR * tipS);
+    ctx.lineTo(plumeEnd.x - px * nozR * tipS,   plumeEnd.y - py * nozR * tipS);
+    ctx.quadraticCurveTo(mx - px * nozR * midS, my - py * nozR * midS,
+                         pN.x - px * nozR,       pN.y - py * nozR);
     ctx.closePath(); ctx.fill(); ctx.restore();
   }
 
@@ -1530,6 +1551,25 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     /* S2 plume: coast ends → SECO */
     if (rStage >= 2 && !S.rocketCoast && !S.rocketSECO)
       _drawPlume(pts[90], pts[82], [0.003, 0, 0], 0.032, 3.2);
+  }
+
+  if (isSV && pastIgnition && !(S.rocketCoast ?? false)) {
+    const svStage = S.rocketStage ?? 1;
+    /* S-IC — 5× F-1, RP-1/LOX orange plume, base at Ring 0 (x=-0.030) */
+    if (svStage === 1) {
+      const pNoz = project([-0.030, 0, 0]);
+      _drawPlume(pNoz, pts[2], [-0.030, 0, 0], 0.026, 0.72);
+    }
+    /* S-II — 5× J-2, LH2/LOX blue-white, base at Ring 2 (x=-0.006) */
+    else if (svStage === 2) {
+      const pNoz = project([-0.006, 0, 0]);
+      _drawPlume(pNoz, pts[18], [-0.006, 0, 0], 0.022, 0.45, 'lh2');
+    }
+    /* S-IVB — 1× J-2, LH2/LOX, base at Ring 4 (x=+0.010) */
+    else if (svStage >= 3) {
+      const pNoz = project([0.010, 0, 0]);
+      _drawPlume(pNoz, pts[34], [0.010, 0, 0], 0.018, 0.28, 'lh2');
+    }
   }
 
   /* Painter's algorithm: farthest first */
