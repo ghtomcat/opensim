@@ -389,14 +389,30 @@ export function tickRocket(dt) {
       coasting = false;
       /* Reset engine state for new stage */
       const nextStg = stages[stage - 1] ?? {};
-      setState({ rocketActiveEngines: nextStg.engineCount ?? 1, rocketFailedEngines: [], rocketCECO: false, rocketCECOEngines: [] });
+      setState({ rocketActiveEngines: nextStg.engineCount ?? 1, rocketFailedEngines: [], rocketCECO: false, rocketCECOEngines: [],
+                 rocketStageIgnitionT: mT });
     }
   } else if (mass > burnoutThreshold && S.engineState === 'running') {
-    /* Thrusting — scale thrust by active engine fraction */
-    const thrustSL  = stg.thrustSL  ?? 0;
-    const thrustVac = stg.thrustVac ?? stg.thrustSL ?? 0;
-    T    = (thrustSL * atmFrac + thrustVac * (1 - atmFrac)) * engineFrac;
-    mdot = T / ((stg.isp ?? 300) * G0);
+    /* Check time-based burnout — caps burn to historical duration */
+    const stgIgnT    = S.rocketStageIgnitionT ?? ignitionTime;
+    const burnDur    = stg.burnDuration;
+    const timeCutoff = burnDur && (mT - stgIgnT) >= burnDur;
+
+    if (timeCutoff) {
+      /* Force burnout at the historical time */
+      if (stage < stages.length) {
+        coasting = true; coastT = mT;
+        if (!S.rocketMECO) setState({ rocketMECO: true });
+      } else {
+        if (!S.rocketSECO) setState({ rocketSECO: true });
+      }
+    } else {
+      /* Thrusting — scale thrust by active engine fraction */
+      const thrustSL  = stg.thrustSL  ?? 0;
+      const thrustVac = stg.thrustVac ?? stg.thrustSL ?? 0;
+      T    = (thrustSL * atmFrac + thrustVac * (1 - atmFrac)) * engineFrac;
+      mdot = T / ((stg.isp ?? 300) * G0);
+    }
   } else if (mass <= burnoutThreshold && !coasting && stage < stages.length) {
     /* Burnout — start coast */
     coasting = true;

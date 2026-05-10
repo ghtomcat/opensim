@@ -90,10 +90,11 @@ export async function loadMission(missionPath, aircraftPath) {
   /* Rocket-specific state init */
   if (aircraft.vehicleType === 'rocket') {
     setState({
-      rocketMass:   aircraft.performance?.massWet ?? 28000,
-      rocketStage:  1,
-      rocketCoast:  false,
-      rocketCoastT: 0,
+      rocketMass:          aircraft.performance?.massWet ?? 28000,
+      rocketStage:         1,
+      rocketCoast:         false,
+      rocketCoastT:        0,
+      rocketStageIgnitionT: aircraft.ignitionTime ?? 0,
       rocketSECO:   false,
       rocketG:            0,
       rocketDynQ:         0,

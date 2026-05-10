@@ -68,7 +68,7 @@ function _buildRef(ac) {
   const points = [];
 
   let spd = 0, altM = 0, mass = perf.massWet ?? 28000;
-  let si = 0, coasting = false, coastStart = 0;
+  let si = 0, coasting = false, coastStart = 0, stgIgnT = ignT;
 
   for (let mT = ignT; mT <= maxRun; mT += DT) {
     const fpaR = _fpa(mT, profile) * DEG;
@@ -77,14 +77,21 @@ function _buildRef(ac) {
     if (coasting) {
       if (mT - coastStart >= 6) {
         if (si < stages.length - 1) {
-          mass -= stages[si].massDry ?? 0;
-          si   += 1;
+          mass    -= stages[si].massDry ?? 0;
+          si      += 1;
           coasting = false;
+          stgIgnT  = mT;
         } else break;
       }
     } else if (si < stages.length && mass > burnouts[si]) {
-      thrust = stages[si].thrustVac ?? 0;
-      isp    = stages[si].isp ?? 300;
+      const bd = stages[si].burnDuration;
+      if (bd && (mT - stgIgnT) >= bd) {
+        if (si < stages.length - 1) { coasting = true; coastStart = mT; }
+        else break;
+      } else {
+        thrust = stages[si].thrustVac ?? 0;
+        isp    = stages[si].isp ?? 300;
+      }
     } else if (si < stages.length) {
       if (si < stages.length - 1) { coasting = true; coastStart = mT; }
       else break;
@@ -223,7 +230,7 @@ export function renderRocket(canvas) {
       sub: null,                                                          color: '#e8edf2' },
     { label: 'VELOCITY',  value: velKms.toFixed(2),      unit: 'km/s',
       sub: `M ${mach.toFixed(2)}  ·  ${Math.round(velKmh).toLocaleString()} km/h`,  color: '#e8edf2' },
-    { label: 'DOWNRANGE', value: downrangeKm.toFixed(0), unit: 'km',
+    { label: 'DOWNRANGE', value: (downrangeKm * 0.621371).toFixed(0), unit: 'mi',
       sub: null,                                                          color: '#e8edf2' },
     lastMetric,
   ];

@@ -16,31 +16,34 @@
 
     "stages": [
       {
-        "name":        "S-IC — 5× Rocketdyne F-1",
-        "engineCount": 5,
-        "thrustSL":    33360000,
-        "thrustVac":   38703000,
-        "isp":         304,
-        "massWet":     2286217,
-        "massDry":     130900
+        "name":         "S-IC — 5× Rocketdyne F-1",
+        "engineCount":  5,
+        "thrustSL":     33360000,
+        "thrustVac":    38703000,
+        "isp":          304,
+        "massWet":      2286217,
+        "massDry":      130900,
+        "burnDuration": 161
       },
       {
-        "name":        "S-II — 5× Rocketdyne J-2",
-        "engineCount": 5,
-        "thrustSL":    0,
-        "thrustVac":   5165000,
-        "isp":         421,
-        "massWet":     490778,
-        "massDry":     36200
+        "name":         "S-II — 5× Rocketdyne J-2",
+        "engineCount":  5,
+        "thrustSL":     0,
+        "thrustVac":    5165000,
+        "isp":          421,
+        "massWet":      490778,
+        "massDry":      36200,
+        "burnDuration": 386
       },
       {
-        "name":        "S-IVB — 1× Rocketdyne J-2",
-        "engineCount": 1,
-        "thrustSL":    0,
-        "thrustVac":   1033000,
-        "isp":         421,
-        "massWet":     119900,
-        "massDry":     13300
+        "name":         "S-IVB — 1× Rocketdyne J-2",
+        "engineCount":  1,
+        "thrustSL":     0,
+        "thrustVac":    1033000,
+        "isp":          421,
+        "massWet":      119900,
+        "massDry":      13300,
+        "burnDuration": 128
       }
     ],
 

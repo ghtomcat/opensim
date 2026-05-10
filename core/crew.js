@@ -476,8 +476,10 @@ function _checkATC(prev, curr, ms) {
         const exists = await fetch(clr.audio, { method: 'HEAD' })
           .then(r => r.ok).catch(() => false);
         if (exists) {
-          const a = new Audio(clr.audio);
-          a.volume = clr.volume ?? 0.2;
+          /* Create with no src + preload=none so loadedmetadata hasn't fired yet */
+          const a = new Audio();
+          a.preload = 'none';
+          a.volume  = clr.volume ?? 0.2;
           const _schedFade = () => {
             if (!clr.duration) return;
             const fadeStart = (clr.duration - 2) * 1000;
@@ -492,14 +494,16 @@ function _checkATC(prev, curr, ms) {
             }, Math.max(0, fadeStart));
           };
           if (clr.startTime) {
-            /* Seek only after metadata is loaded — setting currentTime earlier is ignored */
+            /* Listener added before src is set — guaranteed to fire after load */
             a.addEventListener('loadedmetadata', () => {
               a.currentTime = clr.startTime;
               a.play().catch(() => {});
               _schedFade();
             }, { once: true });
+            a.src = clr.audio;
             a.load();
           } else {
+            a.src = clr.audio;
             a.play().catch(() => {});
             _schedFade();
           }
