@@ -346,6 +346,15 @@ export function toggleMap() {
   _el.style.display = _visible ? '' : 'none';
 }
 
+/** Pixels reserved on the right side of the viewport by the visible map panel.
+    Returns 0 when the map is hidden. Used by outside.js to keep the
+    aircraft/rocket centred in the visible (non-map) portion of the canvas. */
+export function getMapReservedRight() {
+  if (!_visible) return 0;
+  const w = _mode === 'rocket' ? ROCKET_W : LOCAL_SIZE;
+  return w + 12 + 8;   // panel width + right margin + gap
+}
+
 export function showMap() {
   _visible = true;
   if (_el)   _el.style.display = '';

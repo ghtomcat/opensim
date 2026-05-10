@@ -6,6 +6,7 @@
 
 import { S } from '../core/state.js';
 import { renderTerrain } from './terrain.js';
+import { getMapReservedRight } from './map.js';
 
 const DEG   = Math.PI / 180;
 const FT_NM = 1 / 6076.12;
@@ -1201,7 +1202,10 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
 
   const W = canvas.width, H = canvas.height;
   const ctx   = canvas.getContext('2d');
-  const cx    = W / 2, cy = H / 2;
+  const dpr   = devicePixelRatio || 1;
+  const mapPx = getMapReservedRight() * dpr;
+  const cx    = (W - mapPx) / 2;
+  const cy    = H / 2;
   const focal = (W / 2) / Math.tan(FOV_H / 2 * DEG);
 
   // Auto-fit: project vertices through attitude rotation, then fit screen extents.
@@ -1569,7 +1573,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       _drawPlume(pts[90], _nzVac, [0.003, 0, 0], 0.032, 3.2 * _engFrac);
   }
 
-  if (isSV && pastIgnition && !(S.rocketCoast ?? false)) {
+  if (isSV && pastIgnition && !(S.rocketCoast ?? false) && !S.rocketSECO) {
     const svStage = S.rocketStage ?? 1;
     /* S-IC — 5× F-1, RP-1/LOX orange plume, base at Ring 0 (x=-0.030) */
     if (svStage === 1) {
@@ -2013,7 +2017,8 @@ function _renderPlumeCam(canvas) {
   const W = canvas.width, H = canvas.height;
   const ctx = canvas.getContext('2d');
   const dpr = devicePixelRatio;
-  const cx = W / 2, cy = H / 2;
+  const _mapPx = getMapReservedRight() * dpr;
+  const cx = (W - _mapPx) / 2, cy = H / 2;
   const focal = (W / 2) / Math.tan(FOV_H / 2 * DEG);
 
   /* Projection: camera at [_RCAM_X, 0, 0] looking aft (-body_x).
