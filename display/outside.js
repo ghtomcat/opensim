@@ -1645,15 +1645,17 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       const pNoz = project([_nzExit, 0, 0]);
       _drawPlume(pNoz, _sv1r, [_nzExit, 0, 0], 0.026, 0.72 * _engFrac);
     }
-    /* S-II — 5× J-2, LH2/LOX blue-white, base at Ring 2 (x=-0.006) */
+    /* S-II — 5× J-2, LH2/LOX blue-white, emits from nozzle exit plane */
     else if (svStage === 2) {
-      const pNoz = project([-0.006, 0, 0]);
-      _drawPlume(pNoz, _sv1r, [-0.006, 0, 0], 0.022, 0.45 * _engFrac, 'lh2');
+      const _s2Exit = -0.006 - _sv1r * 0.36;
+      const pNoz = project([_s2Exit, 0, 0]);
+      _drawPlume(pNoz, _sv1r, [_s2Exit, 0, 0], 0.022, 0.45 * _engFrac, 'lh2');
     }
-    /* S-IVB — 1× J-2, LH2/LOX, base at Ring 4 (x=+0.010) */
+    /* S-IVB — 1× J-2, LH2/LOX, emits from nozzle exit plane */
     else if (svStage >= 3) {
-      const pNoz = project([0.010, 0, 0]);
-      _drawPlume(pNoz, _sv3r, [0.010, 0, 0], 0.018, 0.28 * _engFrac, 'lh2');
+      const _sivbExit = 0.010 - _sv3r * 0.36;
+      const pNoz = project([_sivbExit, 0, 0]);
+      _drawPlume(pNoz, _sv3r, [_sivbExit, 0, 0], 0.018, 0.28 * _engFrac, 'lh2');
     }
   }
 
@@ -1697,6 +1699,51 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         }
       }
     }
+  }
+
+  /* ── J-2 nozzle helper — shared by S-II (5×) and S-IVB (1×) ────── */
+  const _drawJ2Nozzles = (baseVF, bodyR, engCenters) => {
+    const nNoz  = 8;
+    const nzLen = bodyR * 0.36;   // J-2 nozzle length  (≈ 1.78 m)
+    const nzRt  = bodyR * 0.12;   // radius at attachment
+    const nzRx  = bodyR * 0.28;   // radius at exit  (J-2 exit dia ≈ 2.74 m)
+    for (const [cR, cU] of engCenters) {
+      const topR = [], botR = [];
+      for (let i = 0; i < nNoz; i++) {
+        const a = (i / nNoz) * Math.PI * 2;
+        topR.push(project([baseVF,         cR + nzRt * Math.cos(a), cU + nzRt * Math.sin(a)]));
+        botR.push(project([baseVF - nzLen, cR + nzRx * Math.cos(a), cU + nzRx * Math.sin(a)]));
+      }
+      for (let i = 0; i < nNoz; i++) {
+        const j  = (i + 1) % nNoz;
+        const ps = [topR[i], topR[j], botR[j], botR[i]];
+        if (ps.some(p => !p)) continue;
+        const p0 = ps[0], p1 = ps[1], p2 = ps[2];
+        if ((p1.x-p0.x)*(p2.y-p0.y) - (p1.y-p0.y)*(p2.x-p0.x) < 0) continue;
+        const aMid = ((i + 0.5) / nNoz) * Math.PI * 2;
+        const [nF, nR, nU] = rotateNormal([0, Math.cos(aMid), Math.sin(aMid)]);
+        const dot  = Math.max(0, nF * _LD[0] + nR * _LD[1] + nU * _LD[2]);
+        const avgD = ps.reduce((s, p) => s + p.d, 0) / 4;
+        faces.push({ ps, br: 0.18 + 0.78 * dot, avgD, col: [52, 50, 48] });
+      }
+      if (!botR.some(p => !p)) {
+        const p0 = botR[0], p1 = botR[1], p2 = botR[2];
+        if ((p1.x-p0.x)*(p2.y-p0.y) - (p1.y-p0.y)*(p2.x-p0.x) >= 0) {
+          faces.push({ ps: botR, br: 0.07, avgD: botR.reduce((s,p)=>s+p.d,0)/nNoz, col: [20,18,16] });
+        }
+      }
+    }
+  };
+
+  /* S-II — 5× J-2, visible from stage 2 onward */
+  if (isSV && rStage === 2) {
+    const nzE = _sv1r * 0.55;   // outer engine radial offset  (≈ 2.75 m)
+    _drawJ2Nozzles(-0.006, _sv1r, [[0,0],[nzE,0],[-nzE,0],[0,nzE],[0,-nzE]]);
+  }
+
+  /* S-IVB — 1× J-2, centered, visible from stage 3 onward */
+  if (isSV && rStage >= 3) {
+    _drawJ2Nozzles(0.010, _sv3r, [[0, 0]]);
   }
 
   /* Painter's algorithm: farthest first */
