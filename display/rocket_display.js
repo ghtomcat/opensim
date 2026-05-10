@@ -56,47 +56,48 @@ function _buildRef(ac) {
   const ignT    = ac.ignitionTime ?? 0;
   const payload = perf.payload ?? 0;
 
-  const s1 = stages[0] ?? {}, s2 = stages[1] ?? {};
-  const massAbove1 = (s2.massWet ?? 0) + payload;
-  const burnout1   = (s1.massDry ?? 0) + massAbove1 + 5;
-  const burnout2   = (s2.massDry ?? 0) + payload + 5;
+  /* Burnout threshold per stage: own dry mass + all upper stages (wet) + payload */
+  const burnouts = stages.map((stg, idx) => {
+    let above = payload;
+    for (let i = idx + 1; i < stages.length; i++) above += stages[i].massWet ?? 0;
+    return (stg.massDry ?? 0) + above + 5;
+  });
 
-  const DT     = 1;   // 1s integration step
+  const DT     = 1;
+  const maxRun = ignT + Math.max(800, stages.length * 350);
   const points = [];
 
   let spd = 0, altM = 0, mass = perf.massWet ?? 28000;
-  let stg = 1, coasting = false, coastStart = 0;
+  let si = 0, coasting = false, coastStart = 0;
 
-  for (let mT = ignT; mT <= ignT + 750; mT += DT) {
+  for (let mT = ignT; mT <= maxRun; mT += DT) {
     const fpaR = _fpa(mT, profile) * DEG;
 
     let thrust = 0, isp = 300;
     if (coasting) {
-      if (mT - coastStart >= 6 && stg < stages.length) {
-        mass    -= s1.massDry ?? 0;
-        stg      = 2;
-        coasting = false;
+      if (mT - coastStart >= 6) {
+        if (si < stages.length - 1) {
+          mass -= stages[si].massDry ?? 0;
+          si   += 1;
+          coasting = false;
+        } else break;
       }
-    } else if (stg === 1 && mass > burnout1) {
-      thrust = s1.thrustVac ?? 400000;
-      isp    = s1.isp ?? 280;
-    } else if (stg === 1 && mass <= burnout1) {
-      coasting = true;
-      coastStart = mT;
-    } else if (stg === 2 && mass > burnout2) {
-      thrust = s2.thrustVac ?? 31000;
-      isp    = s2.isp ?? 317;
+    } else if (si < stages.length && mass > burnouts[si]) {
+      thrust = stages[si].thrustVac ?? 0;
+      isp    = stages[si].isp ?? 300;
+    } else if (si < stages.length) {
+      if (si < stages.length - 1) { coasting = true; coastStart = mT; }
+      else break;
     }
 
     const mdot = thrust > 0 ? thrust / (isp * G0) : 0;
-    mass   = Math.max(payload, mass - mdot * DT);
+    mass  = Math.max(payload, mass - mdot * DT);
     const a = thrust / Math.max(1, mass) - G0 * Math.sin(fpaR);
-    spd    = Math.max(0, spd + a * DT);
-    altM   = Math.max(0, altM + spd * Math.sin(fpaR) * DT);
+    spd   = Math.max(0, spd + a * DT);
+    altM  = Math.max(0, altM + spd * Math.sin(fpaR) * DT);
 
-    points.push({ t: mT - ignT, altKm: altM / 1000, stage: stg });
-
-    if (altM / 1000 > 680 && stg === 2) break;
+    points.push({ t: mT - ignT, altKm: altM / 1000, stage: si + 1 });
+    if (altM / 1000 > 700) break;
   }
 
   return points;
@@ -583,51 +584,44 @@ function _drawProfile(ctx, W, H, tLO, ac) {
   ctx.fillText('km', padL - 5, padT - axisFontSz * 0.7);
   ctx.restore();
 
-  /* Split ref into stage 1 / stage 2 */
-  const sepIdx = ref.findIndex(p => p.stage === 2);
-  const s1ref  = sepIdx >= 0 ? ref.slice(0, sepIdx + 1) : ref;
-  const s2ref  = sepIdx >= 0 ? ref.slice(sepIdx)        : [];
+  /* Stage colors — cyan S1 / green S2 / amber S3 */
+  const STGC = ['#4dc5dc', '#5dd47e', '#ffb74d'];
+  const STGD = ['rgba(77,197,220,0.22)', 'rgba(93,212,126,0.22)', 'rgba(255,183,77,0.22)'];
+
+  const numStages = Math.max(...ref.map(p => p.stage));
+  const stagePts  = Array.from({ length: numStages }, (_, i) => ref.filter(p => p.stage === i + 1));
 
   /* Reference paths (dim) */
   ctx.save();
   ctx.lineWidth = 1.5;
-
-  ctx.strokeStyle = 'rgba(77,197,220,0.22)';
-  ctx.beginPath();
-  s1ref.forEach((p, i) => { const x = tx(p.t), y = ty(p.altKm); i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
-  ctx.stroke();
-
-  ctx.strokeStyle = 'rgba(93,212,126,0.22)';
-  ctx.beginPath();
-  s2ref.forEach((p, i) => { const x = tx(p.t), y = ty(p.altKm); i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
-  ctx.stroke();
+  stagePts.forEach((seg, i) => {
+    if (seg.length < 2) return;
+    ctx.strokeStyle = STGD[i] ?? STGD[STGD.length - 1];
+    ctx.beginPath();
+    seg.forEach((p, j) => { const x = tx(p.t), y = ty(p.altKm); j === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
+    ctx.stroke();
+  });
   ctx.restore();
 
   /* Flown trajectory */
-  const curT    = Math.max(0, tLO);
-  const flown1  = ref.filter(p => p.stage === 1 && p.t <= curT);
-  const flown2  = ref.filter(p => p.stage === 2 && p.t <= curT);
-
+  const curT = Math.max(0, tLO);
   ctx.save();
   ctx.lineWidth = 2.5;
-
-  if (flown1.length > 1) {
-    ctx.strokeStyle = '#4dc5dc';
+  stagePts.forEach((seg, i) => {
+    const flown = seg.filter(p => p.t <= curT);
+    if (flown.length < 2) return;
+    ctx.strokeStyle = STGC[i] ?? STGC[STGC.length - 1];
     ctx.beginPath();
-    flown1.forEach((p, i) => { const x = tx(p.t), y = ty(p.altKm); i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
+    flown.forEach((p, j) => { const x = tx(p.t), y = ty(p.altKm); j === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
     ctx.stroke();
-  }
-  if (flown2.length > 1) {
-    ctx.strokeStyle = '#5dd47e';
-    ctx.beginPath();
-    flown2.forEach((p, i) => { const x = tx(p.t), y = ty(p.altKm); i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
-    ctx.stroke();
-  }
+  });
   ctx.restore();
 
-  /* Stage-separation marker */
-  if (sepIdx >= 0) {
-    const sepT = ref[sepIdx].t;
+  /* Stage-separation markers — one per transition */
+  for (let s = 2; s <= numStages; s++) {
+    const sepPt = ref.find(p => p.stage === s);
+    if (!sepPt) continue;
+    const sepT = sepPt.t;
     ctx.save();
     ctx.strokeStyle = 'rgba(255,183,77,0.4)';
     ctx.lineWidth   = 1;
@@ -641,7 +635,7 @@ function _drawProfile(ctx, W, H, tLO, ac) {
     ctx.fillStyle    = 'rgba(255,183,77,0.55)';
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText('SEP', tx(sepT), padT + 4);
+    ctx.fillText(`SEP ${s - 1}`, tx(sepT), padT + 4);
     ctx.restore();
   }
 
@@ -677,8 +671,10 @@ function _drawProfile(ctx, W, H, tLO, ac) {
   ctx.textAlign = 'left';
   ctx.fillText('T+0', padL, xLblY);
 
-  if (sepIdx >= 0) {
-    const sepT  = ref[sepIdx].t;
+  for (let s = 2; s <= numStages; s++) {
+    const sepPt = ref.find(p => p.stage === s);
+    if (!sepPt) continue;
+    const sepT  = sepPt.t;
     const sepMm = Math.floor(sepT / 60);
     const sepSs = Math.floor(sepT % 60);
     ctx.textAlign = 'center';
@@ -696,10 +692,10 @@ function _drawProfile(ctx, W, H, tLO, ac) {
   ctx.font         = `${axisFontSz}px "IBM Plex Mono", monospace`;
   ctx.textBaseline = 'top';
   ctx.textAlign    = 'left';
-  ctx.fillStyle    = '#4dc5dc';
-  ctx.fillText('── STAGE 1', padL + 4, padT + 4);
-  ctx.fillStyle    = '#5dd47e';
-  ctx.fillText('── STAGE 2', padL + 4 + Math.round(W * 0.14), padT + 4);
+  for (let i = 0; i < numStages; i++) {
+    ctx.fillStyle = STGC[i] ?? STGC[STGC.length - 1];
+    ctx.fillText(`── STAGE ${i + 1}`, padL + 4 + Math.round(W * 0.14) * i, padT + 4);
+  }
   ctx.fillStyle    = 'rgba(232,237,242,0.18)';
   ctx.textAlign    = 'right';
   ctx.fillText('Ctrl+Shift+T  ↓ CSV', padL + pw, padT + 4);

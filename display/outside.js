@@ -1361,7 +1361,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   }
 
   /* Booster projection (F9 stage separation) */
-  const rStage = isF9 ? (S.rocketStage ?? 1) : 0;
+  const rStage = (isF9 || isSV) ? (S.rocketStage ?? 1) : 0;
   let bPts = null, cosdP = 1, sindP = 0;
   let bOffF = 0, bOffR = 0, bOffU = 0;
   if (isF9 && rStage >= 2 && S.booster?.active) {
