@@ -136,6 +136,54 @@
         "TLI: T+2h 50m 37s",
         "Lunar orbit: 24 December 1968"
       ]
+    },
+    {
+      "title": "AGC — PARKING ORBIT",
+      "type": "dsky",
+      "items": [
+        {
+          "step": "V 16  N 62  ENTR",
+          "desc": "State vector monitor — continuous display",
+          "dsky": { "verb": "16", "noun": "62" },
+          "registers": ["R1 velocity (fps)", "R2 VS (fps)", "R3 altitude (nm)"]
+        },
+        {
+          "step": "V 16  N 44  ENTR",
+          "desc": "Orbital elements — period, apoapsis, periapsis",
+          "dsky": { "verb": "16", "noun": "44" },
+          "registers": ["R1 period (MMSS)", "R2 apoapsis (nm)", "R3 periapsis (nm)"]
+        },
+        {
+          "step": "V 37  N 00  ENTR",
+          "desc": "Select P00 — return AGC to idle / standby",
+          "dsky": { "verb": "16", "noun": "62" },
+          "registers": ["Clears program — AGC accepts keyboard input"]
+        }
+      ]
+    },
+    {
+      "title": "AGC — PRE-TLI",
+      "type": "dsky",
+      "items": [
+        {
+          "step": "V 16  N 65  ENTR",
+          "desc": "TLI targeting — ΔV required, time to ignition, velocity now",
+          "dsky": { "verb": "16", "noun": "65" },
+          "registers": ["R1 ΔV required (fps)", "R2 T-TLI (sec)", "R3 velocity now (fps)"]
+        },
+        {
+          "step": "V 16  N 62  ENTR",
+          "desc": "Return to state vector — confirm parking orbit stable",
+          "dsky": { "verb": "16", "noun": "62" },
+          "registers": ["R1 velocity (fps)", "R2 VS (fps)", "R3 altitude (nm)"]
+        },
+        {
+          "step": "V 37  N 40  ENTR",
+          "desc": "Select P40 — TLI maneuver monitor (auto-activates at TLI ignition)",
+          "dsky": { "verb": "16", "noun": "65" },
+          "registers": ["DSKY switches to P40 V16 N40 at ignition"]
+        }
+      ]
     }
   ]
 }

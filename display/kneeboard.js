@@ -1,22 +1,21 @@
 /* ═══════════════════════════════════════════════════════════════
    OpenSim — display/kneeboard.js
-   Kneeboard overlay: briefings + checklists.
+   Kneeboard overlay: briefings + checklists + DSKY procedures.
    Toggle with K key. HTML overlay, not canvas.
    ═══════════════════════════════════════════════════════════════ */
 
-import { S } from '../core/state.js';
+import { S }                              from '../core/state.js';
+import { loadDSKYProgram, setApolloRole } from './rocket_display.js';
 
-let _el       = null;   // kneeboard DOM element
+let _el       = null;
 let _visible  = false;
 let _page     = 0;
-let _checked  = {};     // { "pageIndex-itemIndex": true }
+let _checked  = {};   // { "pageIndex-itemIndex": true }
 
 export function initKneeboard() {
   _el = document.createElement('div');
   _el.id = 'kneeboard';
-  _el.innerHTML = '';
   document.body.appendChild(_el);
-
   _applyStyles();
   _render();
 }
@@ -28,7 +27,6 @@ export function toggleKneeboard() {
 
 export function isKneeboardVisible() { return _visible; }
 
-/* Called each frame — re-renders if aircraft changes */
 let _lastAircraftId = null;
 export function tickKneeboard() {
   const id = S.aircraft?.id ?? null;
@@ -40,12 +38,14 @@ export function tickKneeboard() {
   }
 }
 
-/* ── Internal ── */
-
+/* ── Pages: mission first, then aircraft ── */
 function _pages() {
-  return S.aircraft?.kneeboard ?? [];
+  const mp = S.mission?.kneeboard  ?? [];
+  const ap = S.aircraft?.kneeboard ?? [];
+  return [...mp, ...ap];
 }
 
+/* ── Render ── */
 function _render() {
   if (!_el) return;
   const pages = _pages();
@@ -58,6 +58,7 @@ function _render() {
   const p = pages[_page];
 
   const isBriefing = p.type === 'briefing';
+  const isDSKY     = p.type === 'dsky';
 
   let html = `
     <div class="kb-header">
@@ -66,39 +67,60 @@ function _render() {
       <button class="kb-nav" id="kb-next" ${_page === pages.length - 1 ? 'disabled' : ''}>▶</button>
     </div>
     <div class="kb-page-indicator">${_page + 1} / ${pages.length}</div>
-    <div class="kb-items">
+    <div class="kb-items ${isDSKY ? 'kb-items-dsky' : ''}">
   `;
 
   p.items.forEach((item, i) => {
-    const key     = `${_page}-${i}`;
-    const checked = !!_checked[key];
+    const key = `${_page}-${i}`;
+
     if (isBriefing) {
       html += `<div class="kb-briefing-item">${item}</div>`;
+
+    } else if (isDSKY) {
+      /* item = { step, desc, dsky: { verb, noun }, registers: [...] } */
+      const seq   = item.step  ?? '';
+      const desc  = item.desc  ?? '';
+      const regs  = item.registers ?? [];
+      const hasLoad = !!(item.dsky?.verb);
+      html += `
+        <div class="kb-dsky-item" data-i="${i}">
+          <div class="kb-dsky-top">
+            <span class="kb-dsky-seq">${seq}</span>
+            ${hasLoad ? `<button class="kb-dsky-load" data-verb="${item.dsky.verb}" data-noun="${item.dsky.noun}">→ DSKY</button>` : ''}
+          </div>
+          ${desc  ? `<div class="kb-dsky-desc">${desc}</div>` : ''}
+          ${regs.length ? `<div class="kb-dsky-regs">${regs.join('  ·  ')}</div>` : ''}
+        </div>
+      `;
+
     } else {
+      /* Standard checklist */
+      const checked = !!_checked[key];
+      const text    = typeof item === 'string' ? item : (item.text ?? '');
       html += `
         <label class="kb-check-item ${checked ? 'kb-done' : ''}" data-key="${key}">
           <span class="kb-box">${checked ? '✓' : ''}</span>
-          <span class="kb-text">${item}</span>
+          <span class="kb-text">${text}</span>
         </label>
       `;
     }
   });
 
-  if (!isBriefing) {
-    const total   = p.items.length;
-    const done    = p.items.filter((_, i) => !!_checked[`${_page}-${i}`]).length;
+  if (!isBriefing && !isDSKY) {
+    const total = p.items.length;
+    const done  = p.items.filter((_, i) => !!_checked[`${_page}-${i}`]).length;
     html += `<div class="kb-progress">${done} / ${total}</div>`;
   }
 
   html += `</div>`;
 
-  if (!isBriefing) {
+  if (!isBriefing && !isDSKY) {
     html += `<button class="kb-clear" id="kb-clear">Clear</button>`;
   }
 
   _el.innerHTML = html;
 
-  /* Events */
+  /* Nav */
   _el.querySelector('#kb-prev')?.addEventListener('click', () => { _page--; _render(); });
   _el.querySelector('#kb-next')?.addEventListener('click', () => { _page++; _render(); });
   _el.querySelector('#kb-clear')?.addEventListener('click', () => {
@@ -106,11 +128,22 @@ function _render() {
     _render();
   });
 
+  /* Checklist toggle */
   _el.querySelectorAll('.kb-check-item').forEach(el => {
     el.addEventListener('click', () => {
-      const key = el.dataset.key;
-      _checked[key] = !_checked[key];
+      _checked[el.dataset.key] = !_checked[el.dataset.key];
       _render();
+    });
+  });
+
+  /* DSKY LOAD buttons */
+  _el.querySelectorAll('.kb-dsky-load').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const verb = btn.dataset.verb;
+      const noun = btn.dataset.noun;
+      loadDSKYProgram(verb, noun);
+      setApolloRole('CMP');   /* switch to CMP so user sees the DSKY update */
     });
   });
 }
@@ -124,7 +157,9 @@ function _applyStyles() {
       right: 12px;
       transform: translateX(110%) translateY(-50%);
       transition: transform 0.25s ease;
-      width: 260px;
+      width: 280px;
+      max-height: 80vh;
+      overflow-y: auto;
       background: #f5f0e8;
       border: 2px solid #8b7355;
       border-radius: 6px;
@@ -146,7 +181,7 @@ function _applyStyles() {
     }
     .kb-title {
       font-weight: bold;
-      font-size: 11px;
+      font-size: 10px;
       letter-spacing: 0.08em;
       text-align: center;
       flex: 1;
@@ -158,7 +193,6 @@ function _applyStyles() {
       cursor: pointer;
       font-size: 14px;
       padding: 0 4px;
-      opacity: 0.9;
     }
     .kb-nav:disabled { opacity: 0.25; cursor: default; }
     .kb-page-indicator {
@@ -174,6 +208,11 @@ function _applyStyles() {
       display: flex;
       flex-direction: column;
       gap: 5px;
+    }
+    .kb-items-dsky {
+      background: #0e1410;
+      padding: 10px;
+      gap: 0;
     }
     .kb-briefing-item {
       padding: 4px 0;
@@ -232,6 +271,53 @@ function _applyStyles() {
       padding: 16px;
       color: #666;
       font-size: 11px;
+    }
+
+    /* ── DSKY procedure items ── */
+    .kb-dsky-item {
+      border-left: 2px solid #2a4a30;
+      margin-bottom: 10px;
+      padding: 6px 0 6px 8px;
+    }
+    .kb-dsky-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+    .kb-dsky-seq {
+      font-family: 'IBM Plex Mono', 'Courier New', monospace;
+      font-size: 13px;
+      font-weight: bold;
+      color: #a0d890;
+      letter-spacing: 0.12em;
+    }
+    .kb-dsky-load {
+      background: #182518;
+      border: 1px solid #2a4a30;
+      color: #6ab870;
+      border-radius: 3px;
+      padding: 3px 8px;
+      font-family: 'IBM Plex Mono', 'Courier New', monospace;
+      font-size: 10px;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .kb-dsky-load:hover { background: #223522; color: #b0e890; border-color: #4a7a50; }
+    .kb-dsky-load:active { background: #1a4020; }
+    .kb-dsky-desc {
+      margin-top: 3px;
+      font-size: 10px;
+      color: #5a7a60;
+      line-height: 1.3;
+    }
+    .kb-dsky-regs {
+      margin-top: 2px;
+      font-size: 9px;
+      color: #3a5040;
+      letter-spacing: 0.04em;
+      font-family: 'IBM Plex Mono', 'Courier New', monospace;
     }
   `;
   document.head.appendChild(style);

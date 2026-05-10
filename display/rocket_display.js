@@ -718,9 +718,39 @@ function _drawProfile(ctx, W, H, tLO, ac) {
    Crew names driven by S.mission.crew — no hardcoding.
    ══════════════════════════════════════════════════════════════ */
 
-const APOLLO_ROLES = ['CDR', 'CMP', 'LMP', 'TELEM'];
+const APOLLO_ROLES = ['CDR', 'CMP', 'LMP', 'IU', 'TELEM'];
 let _apolloRole     = 'CDR';
 let _apolloTabRects = [];
+
+/* ── DSKY keyboard input state ── */
+let _dskyMode    = null;   // null | 'verb' | 'noun'
+let _dskyDigits  = '';     // digits being entered (up to 2 chars)
+let _dskyVerbOv  = null;   // manually entered verb override
+let _dskyNounOv  = null;   // manually entered noun override
+let _dskyKeyRects = [];    // clickable key regions (rebuilt each frame)
+
+function _dskyKeyPress(key) {
+  if (key === 'VERB')    { _dskyMode = 'verb'; _dskyDigits = ''; return; }
+  if (key === 'NOUN')    { _dskyMode = 'noun'; _dskyDigits = ''; return; }
+  if (key === 'CLR')     { _dskyMode = null;   _dskyDigits = ''; _dskyVerbOv = null; _dskyNounOv = null; return; }
+  if (key === 'KEY REL') { _dskyMode = null;   _dskyDigits = ''; return; }
+  if (key === 'RSET')    { _dskyMode = null;   _dskyDigits = ''; return; }
+  if (key === 'PRO')     { _dskyVerbOv = null; _dskyNounOv = null; _dskyMode = null; _dskyDigits = ''; return; }
+  if (key === 'ENTR') {
+    if (_dskyMode === 'verb' && _dskyDigits.length > 0) _dskyVerbOv = _dskyDigits.padStart(2, '0');
+    if (_dskyMode === 'noun' && _dskyDigits.length > 0) _dskyNounOv = _dskyDigits.padStart(2, '0');
+    _dskyMode = null; _dskyDigits = '';
+    return;
+  }
+  if ('0123456789'.includes(key) && _dskyMode && _dskyDigits.length < 2) {
+    _dskyDigits += key;
+    if (_dskyDigits.length === 2) {  /* auto-complete on second digit */
+      if (_dskyMode === 'verb') _dskyVerbOv = _dskyDigits;
+      if (_dskyMode === 'noun') _dskyNounOv = _dskyDigits;
+      _dskyMode = null; _dskyDigits = '';
+    }
+  }
+}
 
 export function setApolloRole(r)      { if (APOLLO_ROLES.includes(r)) _apolloRole = r; }
 export function isApolloTelemetry()   { return _apolloRole === 'TELEM'; }
@@ -730,6 +760,17 @@ export function handleApolloClick(canvas, evt) {
   const rect = canvas.getBoundingClientRect();
   const x    = (evt.clientX - rect.left) * DPR;
   const y    = (evt.clientY - rect.top)  * DPR;
+
+  /* DSKY keyboard (CMP panel only) */
+  if (_apolloRole === 'CMP') {
+    for (const k of _dskyKeyRects) {
+      if (x >= k.x && x <= k.x + k.w && y >= k.y && y <= k.y + k.h) {
+        _dskyKeyPress(k.key);
+        return true;
+      }
+    }
+  }
+
   for (const t of _apolloTabRects) {
     if (x >= t.x && x <= t.x + t.w && y >= t.y && y <= t.y + t.h) {
       _apolloRole = t.role;
@@ -765,11 +806,13 @@ function _drawApolloTabs(ctx, W, H, crew) {
   APOLLO_ROLES.forEach((r, i) => {
     const x      = i * tabW;
     const active = r === _apolloRole;
-    const isTelem = r === 'TELEM';
-    const name   = (!isTelem && crew?.[r]) ? `${r}  ${crew[r].toUpperCase()}` : r;
-    ctx.fillStyle   = active ? (isTelem ? '#1a1200' : '#1a2a1a') : '#080f0a';
+    const isTelem  = r === 'TELEM';
+    const isIU     = r === 'IU';
+    const name     = (!isTelem && !isIU && crew?.[r]) ? `${r}  ${crew[r].toUpperCase()}` : r;
+    ctx.fillStyle  = active ? (isTelem ? '#1a1200' : isIU ? '#0a1620' : '#1a2a1a') : '#080f0a';
     ctx.fillRect(x, tabY, tabW - 2, tabH);
-    ctx.fillStyle   = active ? (isTelem ? '#ffb74d' : '#c8d4bc') : (isTelem ? '#2a1a00' : '#3a4a3a');
+    ctx.fillStyle  = active ? (isTelem ? '#ffb74d' : isIU ? '#4dc5dc' : '#c8d4bc')
+                            : (isTelem ? '#2a1a00'  : isIU ? '#0e2230' : '#3a4a3a');
     ctx.font        = `bold ${Math.round(H * 0.028)}px "IBM Plex Mono", monospace`;
     ctx.textAlign   = 'center';
     ctx.textBaseline = 'middle';
@@ -919,6 +962,14 @@ function _dskyStr(ctx, str, ox, oy, sw, sh, onCol, offCol) {
     _seg7(ctx, ox + i*(sw+gap), oy, sw, sh, str[i], onCol, offCol);
 }
 
+/* Load a DSKY program directly (called from kneeboard) */
+export function loadDSKYProgram(verb, noun) {
+  _dskyVerbOv = verb;
+  _dskyNounOv = noun;
+  _dskyMode   = null;
+  _dskyDigits = '';
+}
+
 /* Compute current DSKY program state from S */
 function _getDSKYState() {
   const mT   = S.time ?? 0;
@@ -934,6 +985,43 @@ function _getDSKYState() {
 
   const f5  = n => String(Math.abs(Math.round(n))).padStart(5, '0').slice(-5);
   const fmt = n => (n < 0 ? '-' : ' ') + f5(n);
+
+  /* ── Committed V/N query overrides — respond with matching data ── */
+  if (_dskyVerbOv !== null && _dskyNounOv !== null && _dskyMode === null) {
+    const vn = _dskyVerbOv + _dskyNounOv;
+
+    /* V16 N44 — Orbital elements: period / apoapsis / periapsis */
+    if (vn === '1644') {
+      const a   = 1 / (2 / (R_EARTH_M + altM) - (velMs * velMs) / GM_EARTH);
+      const T   = 2 * Math.PI * Math.sqrt((a * a * a) / GM_EARTH);
+      const apNm = Math.round(Math.max(0, (a - R_EARTH_M) / 1852));
+      const peMod = Math.max(0, apNm - Math.round(altNm * 0.004));  /* slight eccentricity */
+      const pMM  = Math.floor(T / 60);
+      const pSS  = Math.floor(T % 60);
+      return { prog:'00', verb:'16', noun:'44',
+        r1: ' ' + String(Math.min(99999, pMM * 100 + pSS)).padStart(5, '0'),
+        r2: ' ' + String(Math.min(99999, apNm)).padStart(5, '0'),
+        r3: ' ' + String(Math.min(99999, peMod > 0 ? peMod : apNm)).padStart(5, '0'),
+        compActy: false };
+    }
+
+    /* V16 N65 — TLI targeting: ΔV required / time-to-TLI / velocity now */
+    if (vn === '1665') {
+      const tliDv = S.mission?.tliDv ?? 3147;
+      const toTli = tliT ? Math.max(0, Math.round(tliT - mT)) : 0;
+      return { prog:'30', verb:'16', noun:'65',
+        r1: ' ' + f5(Math.round(tliDv * 3.28084)),
+        r2: ' ' + f5(toTli),
+        r3: fmt(velFps),
+        compActy: toTli > 0 };
+    }
+
+    /* V16 N62 — State vector (explicit override, same as auto default) */
+    if (vn === '1662') {
+      return { prog:'00', verb:'16', noun:'62',
+        r1: fmt(velFps), r2: fmt(vsFps), r3: ' ' + f5(altNm), compActy: false };
+    }
+  }
 
   if (tLO < 0)
     return { prog:'00', verb:'00', noun:'00', r1:' 00000', r2:' 00000', r3:' 00000', compActy:false };
@@ -976,7 +1064,15 @@ function _getDSKYState() {
 }
 
 function _drawDSKY(ctx, cx, cy, w, h) {
-  const st = _getDSKYState();
+  const st    = _getDSKYState();
+  const flash = Math.floor((S.time ?? 0) * 2) % 2 === 0;
+
+  /* Apply manual verb/noun overrides; show partially-entered digits flashing */
+  if (_dskyMode === 'verb')       st.verb = flash ? _dskyDigits.padEnd(2, ' ') : '  ';
+  else if (_dskyVerbOv !== null)  st.verb = _dskyVerbOv;
+  if (_dskyMode === 'noun')       st.noun = flash ? _dskyDigits.padEnd(2, ' ') : '  ';
+  else if (_dskyNounOv !== null)  st.noun = _dskyNounOv;
+
   const x  = Math.round(cx - w / 2);
   const y  = Math.round(cy - h / 2);
   const p  = Math.round(w * 0.045);
@@ -1041,11 +1137,8 @@ function _drawDSKY(ctx, cx, cy, w, h) {
   const dotW    = Math.round(liteRH * 0.5);
   const dotH    = Math.round(liteRH * 0.45);
 
-  const mT = S.time ?? 0;
-  const blink = Math.floor(mT * 2) % 2 === 0;
-
   const leftL  = [
-    { n:'COMP ACTY',  on: st.compActy && blink },
+    { n:'COMP ACTY',  on: st.compActy && flash },
     { n:'UPLINK ACTY',on: false },
     { n:'TEMP',       on: false },
     { n:'KEY REL',    on: false },
@@ -1119,6 +1212,264 @@ function _drawDSKY(ctx, cx, cy, w, h) {
     /* 5 data digits */
     _dskyStr(ctx, row.slice(1), signX + segSW * 0.7, sy, segSW, segSH, ON, OFF);
   }
+}
+
+/* ── DSKY keyboard ── */
+function _drawDSKYKeyboard(ctx, x, y, w, h) {
+  _dskyKeyRects = [];
+
+  const COLS = 5, ROWS = 5;
+  const gap  = Math.max(2, Math.round(w * 0.018));
+  const kw   = (w - gap * (COLS + 1)) / COLS;
+  const kh   = (h - gap * (ROWS + 1)) / ROWS;
+
+  ctx.fillStyle = '#0b1209';
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, Math.round(w * 0.04));
+  ctx.fill();
+  ctx.strokeStyle = '#1a2218';
+  ctx.lineWidth   = 1;
+  ctx.stroke();
+
+  const keys = [
+    { k:'VERB',    c:0, r:0, cs:2, type:'vn'   },
+    { k:'NOUN',    c:2, r:0, cs:2, type:'vn'   },
+    { k:'+',       c:0, r:1, type:'sign' },
+    { k:'7',       c:1, r:1, type:'num'  },
+    { k:'8',       c:2, r:1, type:'num'  },
+    { k:'9',       c:3, r:1, type:'num'  },
+    { k:'CLR',     c:4, r:1, type:'fn'   },
+    { k:'-',       c:0, r:2, type:'sign' },
+    { k:'4',       c:1, r:2, type:'num'  },
+    { k:'5',       c:2, r:2, type:'num'  },
+    { k:'6',       c:3, r:2, type:'num'  },
+    { k:'PRO',     c:4, r:2, type:'fn'   },
+    { k:'1',       c:1, r:3, type:'num'  },
+    { k:'2',       c:2, r:3, type:'num'  },
+    { k:'3',       c:3, r:3, type:'num'  },
+    { k:'KEY REL', c:4, r:3, type:'fn', fs:0.50 },
+    { k:'0',       c:1, r:4, type:'num'  },
+    { k:'ENTR',    c:2, r:4, cs:2, type:'fn'   },
+    { k:'RSET',    c:4, r:4, type:'fn'   },
+  ];
+
+  for (const key of keys) {
+    const cs  = key.cs ?? 1;
+    const kx  = x + gap + key.c * (kw + gap);
+    const ky  = y + gap + key.r * (kh + gap);
+    const kkw = kw * cs + gap * (cs - 1);
+    const kkh = kh;
+
+    const active = (key.k === 'VERB' && _dskyMode === 'verb') ||
+                   (key.k === 'NOUN' && _dskyMode === 'noun');
+
+    const bg = active       ? '#1e3020'
+             : key.type === 'vn'   ? '#0e1c0e'
+             : key.type === 'num'  ? '#121810'
+             : key.type === 'sign' ? '#0f1a10'
+             :                       '#0d1610';
+
+    ctx.fillStyle   = bg;
+    ctx.strokeStyle = active ? '#3a5a38' : '#1e2c1c';
+    ctx.lineWidth   = 1;
+    ctx.beginPath();
+    ctx.roundRect(kx, ky, kkw, kkh, Math.round(kkh * 0.15));
+    ctx.fill();
+    ctx.stroke();
+
+    const fontSize = Math.round(kkh * (key.fs ?? 0.40));
+    ctx.font         = `${fontSize}px "IBM Plex Mono",monospace`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle    = active       ? '#c0e8a0'
+                     : key.type === 'vn'   ? '#8ab878'
+                     : key.type === 'num'  ? '#7aaa60'
+                     : key.type === 'sign' ? '#5a8048'
+                     :                       '#5a7850';
+    ctx.fillText(key.k, kx + kkw / 2, ky + kkh / 2);
+
+    if (key.k) _dskyKeyRects.push({ key: key.k, x: kx, y: ky, w: kkw, h: kkh });
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   IU — Saturn V Instrument Unit / LVDC telemetry panel
+   ══════════════════════════════════════════════════════════════ */
+
+function _getLVDCState(tLO, stage, coast, seco, tli, mT, tliT) {
+  if (tLO < 0) return { prog: '———',          phase: 'PRE-LAUNCH',    status: 'INITIALIZED' };
+  if (coast) {
+    if (stage === 1) return { prog: 'SEP SEQUENCE', phase: 'S-IC / S-II',    status: 'STAGING' };
+    if (stage === 2) return { prog: 'SEP SEQUENCE', phase: 'S-II / S-IVB',   status: 'STAGING' };
+    return             { prog: 'ORBITAL',       phase: 'PARKING ORBIT',   status: 'COAST' };
+  }
+  if (tli)   return { prog: 'IGM',            phase: 'TLI BURN',       status: 'ACTIVE' };
+  if (seco && tli) return { prog: 'TRANSLUNAR',   phase: 'TLI COMPLETE',   status: 'NOMINAL' };
+  if (seco && tliT && (tliT - mT) > 0 && (tliT - mT) < 600)
+             return { prog: 'TLI TARGET',      phase: 'TLI PREP',       status: 'COMPUTING' };
+  if (seco)  return { prog: 'ORBITAL',         phase: 'PARKING ORBIT',  status: 'COAST' };
+  if (stage === 1) return { prog: 'Q-GUIDANCE', phase: 'S-IC BOOST',    status: 'NOMINAL' };
+  if (stage === 2) return { prog: 'IGM',        phase: 'S-II BOOST',    status: 'NOMINAL' };
+  if (stage === 3) return { prog: 'IGM',        phase: 'S-IVB BOOST',   status: 'NOMINAL' };
+  return             { prog: '———',            phase: '———',            status: 'NOMINAL' };
+}
+
+function _drawIUPanel(ctx, W, H, mainT, mainH, ac) {
+  const pad   = Math.round(W * 0.025);
+  const mT    = S.time ?? 0;
+  const ignT  = ac?.ignitionTime ?? 0;
+  const tLO   = mT - ignT;
+  const stage = S.rocketStage ?? 1;
+  const coast = S.rocketCoast ?? false;
+  const seco  = S.rocketSECO  ?? false;
+  const tli   = S.rocketTLI   ?? false;
+  const tliT  = S.mission?.tliT;
+
+  const altM  = (S.alt ?? 0) * 0.3048;
+  const velMs = (S.spd ?? 0) * 0.5144;
+  const pitch = S.pitch ?? 0;
+  const roll  = S.roll  ?? 0;
+
+  /* Velocity vector — use orbitVec when available, otherwise decompose from speed+pitch */
+  let vx = velMs * Math.cos(pitch * DEG);
+  let vy = velMs * Math.sin(pitch * DEG);
+  let vz = 0;
+  if (S.orbitVec) { vx = S.orbitVec.vx ?? vx; vy = S.orbitVec.vy ?? vy; vz = S.orbitVec.vz ?? 0; }
+  const vMag = Math.sqrt(vx * vx + vy * vy + vz * vz);
+
+  const lvdc = _getLVDCState(tLO, stage, coast, seco, tli, mT, tliT);
+
+  /* Engine / propulsion data */
+  const stages    = ac?.performance?.stages ?? [];
+  const stg       = stages[stage - 1] ?? {};
+  const engCnt    = stg.engineCount ?? 1;
+  const activeEng = S.rocketActiveEngines ?? engCnt;
+  const thrusting = !coast && !seco;
+  const thrustNow = thrusting ? (stg.thrustVac ?? 0) * (activeEng / engCnt) : 0;
+  const nomPc     = stage === 1 ? 70.3 : 52.2;
+  const Pc        = thrusting ? nomPc * (activeEng / engCnt) : 0;
+
+  /* Propellant fraction for current stage */
+  let massAbove = ac?.performance?.payload ?? 0;
+  for (let i = stage; i < stages.length; i++) massAbove += stages[i]?.massWet ?? 0;
+  const burnout  = (stg.massDry ?? 0) + massAbove + 5;
+  const initProp = (stg.massWet ?? 0) - (stg.massDry ?? 0) - 5;
+  const propFrac = initProp > 0 ? Math.max(0, Math.min(1, ((S.rocketMass ?? 0) - burnout) / initProp)) : 0;
+
+  /* TGO / T-TLI */
+  const bd     = stg.burnDuration;
+  const ignStg = S.rocketStageIgnitionT ?? ignT;
+  const tgoSec = (bd && thrusting) ? Math.max(0, bd - (mT - ignStg)) : null;
+  const tgoStr = (() => {
+    if (seco && tliT && !tli) {
+      const s = Math.max(0, tliT - mT);
+      return `T-TLI  ${String(Math.floor(s / 3600)).padStart(2,'0')}:${String(Math.floor((s % 3600) / 60)).padStart(2,'0')}:${String(Math.floor(s % 60)).padStart(2,'0')}`;
+    }
+    if (tgoSec !== null)
+      return `${String(Math.floor(tgoSec / 60)).padStart(2,'0')}:${String(Math.floor(tgoSec % 60)).padStart(2,'0')}`;
+    return '——:——';
+  })();
+
+  const vOrbMs = Math.sqrt(GM_EARTH / (R_EARTH_M + altM));
+
+  /* Palette */
+  const DIM   = '#2a4030';
+  const NOM   = '#6ab870';
+  const BRT   = '#a0d890';
+  const CYAN  = '#4dc5dc';
+  const AMBER = '#f0c040';
+  const RED   = '#ff6060';
+
+  /* ── Status banner ── */
+  const banH = Math.round(mainH * 0.11);
+  ctx.fillStyle = '#090e0b';
+  ctx.fillRect(0, mainT, W, banH);
+  ctx.strokeStyle = '#182618'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, mainT + banH); ctx.lineTo(W, mainT + banH); ctx.stroke();
+
+  const banCY    = mainT + Math.round(banH * 0.5);
+  const lblOffset = Math.round(H * 0.018);
+  const valOffset = Math.round(H * 0.008);
+  const bnL = `${Math.round(H * 0.022)}px "IBM Plex Mono",monospace`;
+  const bnV = `${Math.round(H * 0.034)}px "IBM Plex Mono",monospace`;
+  const statusColor = lvdc.status === 'ACTIVE' ? CYAN : lvdc.status === 'COMPUTING' ? AMBER : NOM;
+
+  ctx.textBaseline = 'middle';
+  [[pad, 'left', 'PROGRAM', lvdc.prog, BRT],
+   [W / 2, 'center', 'PHASE', lvdc.phase, CYAN],
+   [W - pad, 'right', 'STATUS', lvdc.status, statusColor]
+  ].forEach(([x, align, label, value, color]) => {
+    ctx.textAlign = align;
+    ctx.font = bnL; ctx.fillStyle = DIM;  ctx.fillText(label, x, banCY - lblOffset);
+    ctx.font = bnV; ctx.fillStyle = color; ctx.fillText(value, x, banCY + valOffset);
+  });
+
+  /* ── 2×2 data blocks ── */
+  const blkT   = mainT + banH + Math.round(mainH * 0.025);
+  const blkGap = Math.round(mainH * 0.025);
+  const blkH   = (mainT + mainH - blkT - blkGap) / 2 - Math.round(mainH * 0.01);
+  const blkW   = (W - pad * 3) / 2;
+  const blkR   = pad * 2 + blkW;
+  const blkB   = blkT + blkH + blkGap;
+
+  const lblSz = `${Math.round(H * 0.024)}px "IBM Plex Mono",monospace`;
+  const valSz = `${Math.round(H * 0.036)}px "IBM Plex Mono",monospace`;
+  const titSz = `${Math.round(H * 0.022)}px "IBM Plex Mono",monospace`;
+
+  function _block(bx, by, title, rows) {
+    ctx.fillStyle = '#0b1009'; ctx.strokeStyle = '#172216'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(bx, by, blkW, blkH, Math.round(blkH * 0.04)); ctx.fill(); ctx.stroke();
+
+    ctx.font = titSz; ctx.fillStyle = '#274535'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText(title, bx + Math.round(blkW * 0.04), by + Math.round(blkH * 0.06));
+
+    const rowH  = (blkH * 0.78) / rows.length;
+    const rowY0 = by + blkH * 0.24;
+
+    for (let i = 0; i < rows.length; i++) {
+      const { label, value, color = NOM, dim = false } = rows[i];
+      const ry = rowY0 + i * rowH + rowH * 0.5;
+      ctx.font = lblSz; ctx.fillStyle = DIM; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(label, bx + Math.round(blkW * 0.04), ry);
+      ctx.font = valSz; ctx.fillStyle = dim ? DIM : color; ctx.textAlign = 'right';
+      ctx.fillText(value, bx + blkW - Math.round(blkW * 0.04), ry);
+    }
+  }
+
+  /* TL — Guidance */
+  _block(pad, blkT, 'GUIDANCE  ·  LVDC', [
+    { label: 'ALGORITHM', value: lvdc.prog },
+    { label: 'CUTOFF V',  value: `${(vOrbMs / 1000).toFixed(3)} km/s`, color: CYAN },
+    { label: 'VEL NOW',   value: `${(vMag   / 1000).toFixed(3)} km/s` },
+    { label: 'TGO',       value: tgoStr, color: tgoSec !== null && tgoSec < 10 ? RED : NOM },
+  ]);
+
+  /* TR — Inertial Platform */
+  _block(blkR, blkT, 'INERTIAL PLATFORM  ·  ST-124M', [
+    { label: 'VX  DWNRNG', value: `${(vx / 1000).toFixed(3)} km/s` },
+    { label: 'VY  RADIAL', value: `${(vy / 1000).toFixed(3)} km/s` },
+    { label: 'VZ  CROSS',  value: `${(vz / 1000).toFixed(3)} km/s`, dim: Math.abs(vz) < 1 },
+    { label: '|V|',        value: `${(vMag / 1000).toFixed(3)} km/s`, color: BRT },
+  ]);
+
+  /* BL — Attitude */
+  _block(pad, blkB, 'ATTITUDE  ·  ST-124M IMU', [
+    { label: 'PITCH',  value: `${pitch >= 0 ? '+' : ''}${pitch.toFixed(1)}°` },
+    { label: 'YAW',    value: '+0.0°',                                           dim: true },
+    { label: 'ROLL',   value: `${roll >= 0 ? '+' : ''}${roll.toFixed(1)}°` },
+    { label: 'FPA',    value: `${pitch >= 0 ? '+' : ''}${pitch.toFixed(1)}°`, color: CYAN },
+  ]);
+
+  /* BR — Propulsion */
+  const engStr   = thrusting ? `${activeEng} / ${engCnt}` : `0 / ${engCnt}`;
+  const engColor = !thrusting ? DIM : activeEng < engCnt ? AMBER : NOM;
+  const propColor = propFrac < 0.10 ? RED : propFrac < 0.20 ? AMBER : NOM;
+  _block(blkR, blkB, `PROPULSION  ·  STAGE ${stage}`, [
+    { label: 'ENGINES', value: engStr,                                   color: engColor },
+    { label: 'Pc',      value: `${Pc.toFixed(1)} bar`,                   color: Pc === 0 ? DIM : NOM },
+    { label: 'THRUST',  value: `${Math.round(thrustNow).toLocaleString()} kN` },
+    { label: 'PROP',    value: `${Math.round(propFrac * 100)}%`,         color: propColor },
+  ]);
 }
 
 /* ── Altimeter arc gauge (CMP) — 0 to maxKm ── */
@@ -1440,11 +1791,17 @@ export function renderApollo(canvas) {
     _row('ABORT MODE', abortMode, { color: '#f0c040', font: mSz });
   }
 
-  /* ═══ CMP: DSKY + velocity / orbit / abort ═══ */
+  /* ═══ CMP: DSKY display + keyboard + velocity / orbit / abort ═══ */
   else if (role === 'CMP') {
-    const dskyW = Math.round(gaugeCol * 0.90);
-    const dskyH = Math.round(mainH   * 0.88);
-    _drawDSKY(ctx, gaugeCX, gaugeCY, dskyW, dskyH);
+    const dskyW  = Math.round(gaugeCol * 0.90);
+    const dskyH  = Math.round(mainH * 0.50);
+    const dskyCY = mainT + Math.round(dskyH / 2);
+    _drawDSKY(ctx, gaugeCX, dskyCY, dskyW, dskyH);
+
+    const kbdH = Math.round(mainH * 0.43);
+    const kbdY = mainT + dskyH + Math.round(mainH * 0.02);
+    const kbdX = Math.round(gaugeCX - dskyW / 2);
+    _drawDSKYKeyboard(ctx, kbdX, kbdY, dskyW, kbdH);
 
     _row('VELOCITY', `${(velMs / 1000).toFixed(2)} km/s`);
     _apolloText(ctx, `${Math.round(velFps).toLocaleString()} fps`, rightX, _rowY, { font: `${Math.round(H*0.028)}px "IBM Plex Mono",monospace`, color: '#506060', base: 'top' });
@@ -1456,6 +1813,11 @@ export function renderApollo(canvas) {
     _row('FPA', `${Math.round(pitch)}°`, { color: '#c8d4bc', font: mSz });
     _gap(0.03);
     _row('ABORT MODE', abortMode, { color: '#f0c040', font: mSz });
+  }
+
+  /* ═══ IU: Saturn V instrument unit — LVDC telemetry ═══ */
+  else if (role === 'IU') {
+    _drawIUPanel(ctx, W, H, mainT, mainH, ac);
   }
 
   /* ═══ LMP: G-meter arc + stage / propellant / dyn-Q ═══ */
