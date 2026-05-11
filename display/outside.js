@@ -61,8 +61,9 @@ let _orbitDragX = null;  // non-null while drag is active
 export function initOutside() {
   _canvas = document.getElementById('outside-canvas');
 
-  /* Drag-to-orbit: only active when paused + side cam */
-  _canvas.addEventListener('mousedown', e => {
+  /* Drag-to-orbit: only active when paused + side cam.
+     #outside-canvas has pointer-events:none so listen on window. */
+  window.addEventListener('mousedown', e => {
     if (S.paused && _camMode === 2) _orbitDragX = e.clientX;
   });
   window.addEventListener('mousemove', e => {
@@ -72,6 +73,13 @@ export function initOutside() {
     }
   });
   window.addEventListener('mouseup', () => { _orbitDragX = null; });
+
+  /* Trackpad horizontal swipe → orbit (deltaX), vertical swipe ignored while paused */
+  window.addEventListener('wheel', e => {
+    if (!S.paused || _camMode !== 2) return;
+    e.preventDefault();
+    _orbitAz = ((_orbitAz - e.deltaX * 0.35) % 360 + 360) % 360;
+  }, { passive: false });
 
   /* 0 key: reset orbit to starboard (0°) while paused */
   window.addEventListener('keydown', e => {
