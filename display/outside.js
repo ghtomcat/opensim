@@ -1424,8 +1424,9 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   }
   const pts = verts.map(project);
 
-  /* Ground shadow — visible below ~500 ft AGL, fades with altitude */
-  const alt_nm = (S.alt ?? 0) * FT_NM;
+  /* Rise from pad — used to gate pad-structure geometry and nozzle visibility */
+  const alt_nm   = (S.alt ?? 0) * FT_NM;
+  const _svRise  = Math.max(0, alt_nm - (S.mission?.departure?.elevation ?? 0) * FT_NM);
   if (alt_nm < 0.082) {
     const silVI  = isC172
       ? [0, 44, 45, 41, 49, 48]                   // C172: nose, R tip, tail, L tip
@@ -1752,8 +1753,9 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
   }
 
-  /* ── F1 engine nozzles — Saturn V S-IC, 5× truncated bell frustums ─ */
-  if (isSV && rStage === 1) {
+  /* ── F1 engine nozzles — Saturn V S-IC, 5× truncated bell frustums ─
+     Hidden while inside MLP slab (riseNm < nozzle length ≈ 0.0016 NM).  */
+  if (isSV && rStage === 1 && _svRise > _sv1r * 0.58) {
     const nNoz  = 8;              // octagon cross-section
     const nzVF  = -0.030;         // S-IC aft base
     const nzLen = _sv1r * 0.58;   // nozzle length aft of base  (F1 ≈ 2.9 m)
@@ -2271,8 +2273,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
 
   /* ── Launch pad — MLP box + LUT lattice tower (LC-39A) ─────────── */
   if (isSV || isF9) {
-    const _padNm  = (S.mission?.departure?.elevation ?? 0) * FT_NM;
-    const riseNm  = Math.max(0, alt_nm - _padNm);
+    const riseNm  = _svRise;
   if (riseNm < 0.150) {
     const padAlpha = Math.min(1, Math.max(0, (0.150 - riseNm) / 0.100));
     const _r      = isSV ? 0.0028 : 0.0020;
@@ -2311,58 +2312,98 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       ctx.restore();
     };
 
-    /* MLP (Mobile Launcher Platform) — solid grey platform, painter's algorithm */
-    /* mlpSvR small: at pitch=90° vR is the side-cam depth axis, so a wide
-       vR extent causes the near edge to drop below the rocket ring (~15px gap
-       at 4.8r). 1.5r keeps it within 2px of the rocket ring's own variation. */
+    /* MLP (Mobile Launcher Platform) — two solid slabs with flame trench between.
+       mlpSvR kept small (1.5r): at pitch=90° vR is the depth axis; wider extents
+       cause the near edge to drop below the rocket ring in screen space.          */
     const mlpH      = 0.004;
-    const mlpSvU    = _r * 4.8;    // +vU side (away from LUT)
-    const mlpSvUlut = _r * 10.2;   // -vU side (extends to cover LUT outer legs at 9.8r)
-    const mlpSvR = _r * 1.5;   // depth   (into/out-of side cam — kept small)
+    const mlpSvU    = _r * 4.8;    // +vU extent (away from LUT)
+    const mlpSvUlut = _r * 10.2;   // -vU extent (toward LUT, covers outer LUT legs)
+    const mlpSvR    = _r * 1.5;
     const mlpT = tvF0, mlpB = tvF0 - mlpH;
-    const mc = [
-      [mlpT,-mlpSvR,-mlpSvUlut],[mlpT,+mlpSvR,-mlpSvUlut],[mlpT,+mlpSvR,+mlpSvU],[mlpT,-mlpSvR,+mlpSvU],
-      [mlpB,-mlpSvR,-mlpSvUlut],[mlpB,+mlpSvR,-mlpSvUlut],[mlpB,+mlpSvR,+mlpSvU],[mlpB,-mlpSvR,+mlpSvU],
-    ];
-    const mcpd = mc.map(([vF, vR_, vU_]) => {
-      const fP  = vF * cosP - vU_ * sinP;
-      const uR_ = vF * sinP + vU_ * cosP;
-      const cfW = camSide > 0 ? camSide - vR_ : camBack + fP;
-      const crW = camSide > 0 ? fP : vR_;
-      const cuW = uR_ - camUp;
-      const cf  = cfW * cosCP + cuW * sinCP;
-      const cu  = cuW * cosCP - cfW * sinCP;
-      if (cf < 0.002) return null;
-      return { x: cx + crW / cf * focal, y: cy - cu / cf * focal, d: cfW };
-    });
-    const mlpFaces = [
-      { idx: [0,3,2,1], col: '#707580' },  // top
-      { idx: [7,6,5,4], col: '#1e2230' },  // bottom
-      { idx: [0,4,7,3], col: '#404855' },  // -vR (far from camera)
-      { idx: [0,1,5,4], col: '#4a5260' },  // -vU side
-      { idx: [3,7,6,2], col: '#4a5260' },  // +vU side
-      { idx: [1,2,6,5], col: '#5a6270' },  // +vR (near camera)
-    ];
-    mlpFaces.sort((a, b) => {
-      const da = a.idx.reduce((s, i) => s + (mcpd[i]?.d ?? 0), 0) / 4;
-      const db = b.idx.reduce((s, i) => s + (mcpd[i]?.d ?? 0), 0) / 4;
-      return db - da;  // farthest first
-    });
-    for (const { idx, col } of mlpFaces) {
-      const ps = idx.map(i => mcpd[i]);
-      if (ps.some(p => !p)) continue;
-      ctx.save();
-      ctx.globalAlpha = padAlpha;
-      ctx.fillStyle = col;
-      ctx.strokeStyle = 'rgba(130,140,155,0.5)';
-      ctx.lineWidth = Math.max(0.5, 0.5 * dpr);
-      ctx.beginPath();
-      ctx.moveTo(ps[0].x, ps[0].y);
-      for (let k = 1; k < ps.length; k++) ctx.lineTo(ps[k].x, ps[k].y);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.restore();
+
+    /* Flame trench: rectangular gap centred on the rocket, running in vR (depth).
+       Width ≈ 4.4r  ≈ 12.3 m — matches LC-39A trench opening.                   */
+    const trenchH = isSV ? _r * 2.2 : _r * 1.6;   // half-width in vU
+
+    const _drawMlpSlice = (vUlo, vUhi) => {
+      const mc = [
+        [mlpT,-mlpSvR,vUlo],[mlpT,+mlpSvR,vUlo],[mlpT,+mlpSvR,vUhi],[mlpT,-mlpSvR,vUhi],
+        [mlpB,-mlpSvR,vUlo],[mlpB,+mlpSvR,vUlo],[mlpB,+mlpSvR,vUhi],[mlpB,-mlpSvR,vUhi],
+      ];
+      const mcpd = mc.map(([vF, vR_, vU_]) => {
+        const fP  = vF * cosP - vU_ * sinP;
+        const uR_ = vF * sinP + vU_ * cosP;
+        const cfW = camSide > 0 ? camSide - vR_ : camBack + fP;
+        const crW = camSide > 0 ? fP : vR_;
+        const cuW = uR_ - camUp;
+        const cf  = cfW * cosCP + cuW * sinCP;
+        const cu  = cuW * cosCP - cfW * sinCP;
+        if (cf < 0.002) return null;
+        return { x: cx + crW / cf * focal, y: cy - cu / cf * focal, d: cfW };
+      });
+      const mFaces = [
+        { idx: [0,3,2,1], col: '#707580' },  // top
+        { idx: [7,6,5,4], col: '#1e2230' },  // bottom
+        { idx: [0,4,7,3], col: '#404855' },  // -vR side (far)
+        { idx: [0,1,5,4], col: '#4a5260' },  // vUlo end
+        { idx: [3,7,6,2], col: '#4a5260' },  // vUhi end
+        { idx: [1,2,6,5], col: '#5a6270' },  // +vR side (near cam)
+      ];
+      mFaces.sort((a, b) => {
+        const da = a.idx.reduce((s, i) => s + (mcpd[i]?.d ?? 0), 0) / 4;
+        const db = b.idx.reduce((s, i) => s + (mcpd[i]?.d ?? 0), 0) / 4;
+        return db - da;
+      });
+      for (const { idx, col } of mFaces) {
+        const ps = idx.map(i => mcpd[i]);
+        if (ps.some(p => !p)) continue;
+        ctx.save();
+        ctx.globalAlpha = padAlpha;
+        ctx.fillStyle   = col;
+        ctx.strokeStyle = 'rgba(130,140,155,0.5)';
+        ctx.lineWidth   = Math.max(0.5, 0.5 * dpr);
+        ctx.beginPath();
+        ctx.moveTo(ps[0].x, ps[0].y);
+        for (let k = 1; k < ps.length; k++) ctx.lineTo(ps[k].x, ps[k].y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+    };
+
+    _drawMlpSlice(-mlpSvUlut, -trenchH);   // LUT side
+    _drawMlpSlice(+trenchH, +mlpSvU);      // away-from-LUT side
+
+    /* Holddown arms — 4× L-shaped steel brackets at fin positions.
+       Visible from side cam: the ±vU arms project left/right of rocket.
+       The ±vR arms are depth-on but still drawn for other camera angles. */
+    if (isSV) {
+      const armFw  = _r * 0.28;   // arm half-width (square cross-section)
+      const armTop = mlpT + _r * 2.1;   // arm crown ≈ fin root level
+      const holdSegs = [];
+      for (const [aR, aU] of [[0, _sv1r],[0,-_sv1r],[_sv1r,0],[-_sv1r,0]]) {
+        const vUa = aU - armFw, vUb = aU + armFw;
+        const vRa = aR - armFw, vRb = aR + armFw;
+        // Four vertical edges of the bracket box
+        holdSegs.push(
+          [[mlpT, vRa, vUa],[armTop, vRa, vUa]],
+          [[mlpT, vRb, vUa],[armTop, vRb, vUa]],
+          [[mlpT, vRa, vUb],[armTop, vRa, vUb]],
+          [[mlpT, vRb, vUb],[armTop, vRb, vUb]],
+          // Top crown ring
+          [[armTop, vRa, vUa],[armTop, vRb, vUa]],
+          [[armTop, vRa, vUb],[armTop, vRb, vUb]],
+          [[armTop, vRa, vUa],[armTop, vRa, vUb]],
+          [[armTop, vRb, vUa],[armTop, vRb, vUb]],
+          // Base ring on MLP deck
+          [[mlpT, vRa, vUa],[mlpT, vRb, vUa]],
+          [[mlpT, vRa, vUb],[mlpT, vRb, vUb]],
+          [[mlpT, vRa, vUa],[mlpT, vRa, vUb]],
+          [[mlpT, vRb, vUa],[mlpT, vRb, vUb]],
+        );
+      }
+      _drawPadSegs(holdSegs, 'rgba(190,200,205,0.85)', Math.max(1, 1 * dpr));
     }
 
     /* LUT (Launch Umbilical Tower) — rust-orange lattice to rocket's right */
