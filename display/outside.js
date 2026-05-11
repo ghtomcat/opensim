@@ -2512,50 +2512,49 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
     _drawPadSegs(lutSegs, '#b06830', Math.max(1.5, 1.5 * dpr));
 
-    /* Exhaust / steam clouds — billow from trench sides when engines firing.
-       Two radial-gradient blobs per side, growing with engine power × rise fade. */
+    /* Exhaust / steam clouds — start at engine ignition, grow for ~8 s
+       (F-1 spin-up / hold-down period), then fade as rocket climbs. */
     if (isSV) {
-      const engPow = S.enginePower ?? 0;
-      if (engPow > 0.05) {
-        const steamFade = Math.max(0, 1 - riseNm / 0.040);  // fades as rocket climbs
-        const steamAlpha = padAlpha * steamFade * Math.min(1, engPow * 2);
-        if (steamAlpha > 0.01) {
-          /* Steam origins: both ends of the trench in the vU direction */
-          const steamSides = [
-            { vU: -(trenchH + _r * 0.5), dirU: -1 },   // LUT side
-            { vU: +(trenchH + _r * 0.5), dirU: +1 },   // far side
-          ];
-          const steamR = (_r * 6 + riseNm * 4) * focal / Math.max(0.01, camSide);
-          for (const { vU: sU, dirU } of steamSides) {
-            /* Project cloud centre — at trench mouth level */
-            const cPt = pw([mlpT, 0, sU]);
-            if (!cPt) continue;
-            /* Outer blob (white steam) */
-            const g1 = ctx.createRadialGradient(cPt.x, cPt.y, 0, cPt.x, cPt.y, steamR);
-            g1.addColorStop(0,   `rgba(240,240,235,${(steamAlpha * 0.70).toFixed(3)})`);
-            g1.addColorStop(0.5, `rgba(230,230,225,${(steamAlpha * 0.35).toFixed(3)})`);
-            g1.addColorStop(1,   `rgba(210,215,220,0)`);
+      const ignT        = S.aircraft?.ignitionTime ?? 0;
+      const sinceIgn    = Math.max(0, (S.time ?? 0) - ignT);
+      const growFactor  = Math.min(1, sinceIgn / 8.0);   // 0→1 over first 8 s
+      const steamFade   = Math.max(0, 1 - riseNm / 0.040);
+      const steamAlpha  = padAlpha * steamFade * growFactor;
+
+      if (steamAlpha > 0.01) {
+        const steamSides = [
+          { vU: -(trenchH + _r * 0.5) },   // LUT side
+          { vU: +(trenchH + _r * 0.5) },   // far side
+        ];
+        const steamR = growFactor * (_r * 6 + riseNm * 4) * focal / Math.max(0.01, camSide);
+        for (const { vU: sU } of steamSides) {
+          const cPt = pw([mlpT, 0, sU]);
+          if (!cPt) continue;
+          /* Outer white steam cloud */
+          const g1 = ctx.createRadialGradient(cPt.x, cPt.y, 0, cPt.x, cPt.y, steamR);
+          g1.addColorStop(0,   `rgba(240,240,235,${(steamAlpha * 0.70).toFixed(3)})`);
+          g1.addColorStop(0.5, `rgba(230,230,225,${(steamAlpha * 0.35).toFixed(3)})`);
+          g1.addColorStop(1,   `rgba(210,215,220,0)`);
+          ctx.save();
+          ctx.fillStyle = g1;
+          ctx.beginPath();
+          ctx.arc(cPt.x, cPt.y, steamR, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+          /* Inner amber exhaust glow at trench level */
+          const hotPt = pw([mlpT - _r * 0.5, 0, sU * 0.5]);
+          if (hotPt) {
+            const hotR = steamR * 0.45;
+            const g2 = ctx.createRadialGradient(hotPt.x, hotPt.y, 0, hotPt.x, hotPt.y, hotR);
+            g2.addColorStop(0,   `rgba(255,200,80,${(steamAlpha * 0.55).toFixed(3)})`);
+            g2.addColorStop(0.6, `rgba(220,120,40,${(steamAlpha * 0.20).toFixed(3)})`);
+            g2.addColorStop(1,   `rgba(180,90,20,0)`);
             ctx.save();
-            ctx.fillStyle = g1;
+            ctx.fillStyle = g2;
             ctx.beginPath();
-            ctx.arc(cPt.x, cPt.y, steamR, 0, Math.PI * 2);
+            ctx.arc(hotPt.x, hotPt.y, hotR, 0, Math.PI * 2);
             ctx.fill();
             ctx.restore();
-            /* Inner hot-exhaust glow (amber/orange near nozzle height) */
-            const hotPt = pw([mlpT - _r * 0.5, 0, sU * 0.5]);
-            if (hotPt) {
-              const hotR = steamR * 0.45;
-              const g2 = ctx.createRadialGradient(hotPt.x, hotPt.y, 0, hotPt.x, hotPt.y, hotR);
-              g2.addColorStop(0,   `rgba(255,200,80,${(steamAlpha * 0.55).toFixed(3)})`);
-              g2.addColorStop(0.6, `rgba(220,120,40,${(steamAlpha * 0.20).toFixed(3)})`);
-              g2.addColorStop(1,   `rgba(180,90,20,0)`);
-              ctx.save();
-              ctx.fillStyle = g2;
-              ctx.beginPath();
-              ctx.arc(hotPt.x, hotPt.y, hotR, 0, Math.PI * 2);
-              ctx.fill();
-              ctx.restore();
-            }
           }
         }
       }
