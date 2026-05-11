@@ -55,7 +55,29 @@ let _canvas    = null;
 let _camMode   = 0;
 let _finAngle  = 0;   // grid fin fold: 0 = stowed aft, Math.PI/2 = deployed
 
-export function initOutside()        { _canvas = document.getElementById('outside-canvas'); }
+let _orbitAz    = 0;     // side-cam orbit around rocket axis (degrees, 0 = starboard)
+let _orbitDragX = null;  // non-null while drag is active
+
+export function initOutside() {
+  _canvas = document.getElementById('outside-canvas');
+
+  /* Drag-to-orbit: only active when paused + side cam */
+  _canvas.addEventListener('mousedown', e => {
+    if (S.paused && _camMode === 2) _orbitDragX = e.clientX;
+  });
+  window.addEventListener('mousemove', e => {
+    if (_orbitDragX !== null) {
+      _orbitAz    = ((_orbitAz + (e.clientX - _orbitDragX) * 0.4) % 360 + 360) % 360;
+      _orbitDragX = e.clientX;
+    }
+  });
+  window.addEventListener('mouseup', () => { _orbitDragX = null; });
+
+  /* 0 key: reset orbit to starboard (0°) while paused */
+  window.addEventListener('keydown', e => {
+    if (e.key === '0' && S.paused && _camMode === 2) _orbitAz = 0;
+  });
+}
 export function setOutsideCamMode(m) { _camMode = m; }
 export function outsideInvalidate()  { /* redraws every frame */ }
 
@@ -119,8 +141,15 @@ function _renderSideCam(canvas) {
   renderTerrain(canvas, { outsideView: true });
   S.lat=sL;S.lon=sLo;S.alt=sA;S.hdg=sH;S.pitch=sP;S.roll=sR;
 
-  _drawWireframe(canvas, acP, acR, 0, sideUp, sideDist);
+  /* Apply orbit: user manual + director shot contribution */
+  let renderOrbit = _orbitAz;
+  {
+    const db = _dirBlend();
+    if (db > 0 && _dir.shot) renderOrbit += (_DIR_SHOTS[_dir.shot].orbitAz ?? 0) * db;
+  }
+  _drawWireframe(canvas, acP, acR + renderOrbit, 0, sideUp, sideDist);
   _drawLabel(canvas, 'SIDE CAM');
+  if (S.paused) _drawPauseOverlay(canvas);
 }
 
 /* ── Wing view — close-up from cockpit level, left wing ───────── */
@@ -1006,10 +1035,10 @@ const _svSepAnims = [];   // [{ stage, t0 }]
 const _dir = { shot: null, t0: 0, _tliWas: false };
 
 const _DIR_SHOTS = {
-  //              zoom   lookAtF   dur    easeIn easeOut
-  sic_sep: { zoom: 0.44, lF: -0.018, dur: 5200, eIn: 380, eOut: 750 },
-  sii_sep: { zoom: 0.52, lF:  0.002, dur: 4500, eIn: 380, eOut: 650 },
-  tli:     { zoom: 1.55, lF:  0.014, dur: 8000, eIn:1000, eOut:1500 },
+  //              zoom   lookAtF   orbitAz  dur    easeIn easeOut
+  sic_sep: { zoom: 0.44, lF: -0.018, orbitAz:   0, dur: 5200, eIn:  380, eOut:  750 },
+  sii_sep: { zoom: 0.52, lF:  0.002, orbitAz:   0, dur: 4500, eIn:  380, eOut:  650 },
+  tli:     { zoom: 1.55, lF:  0.014, orbitAz:   0, dur: 8000, eIn: 1000, eOut: 1500 },
 };
 
 function _dirBlend() {
@@ -1740,8 +1769,9 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         botR.push(project([nzVF - nzLen, cR + nzRx * Math.cos(a), cU + nzRx * Math.sin(a)]));
       }
 
-      /* Lateral bell faces — back-face culled, shaded by outward radial normal */
-      for (let i = 0; i < nNoz; i++) {
+      /* Lateral bell faces — side cam only (chase cam depth-sorting fails for
+         faces inside the body cylinder; exit discs cover the chase-cam view) */
+      if (camSide > 0) for (let i = 0; i < nNoz; i++) {
         const j  = (i + 1) % nNoz;
         const ps = [topR[i], topR[j], botR[j], botR[i]];
         if (ps.some(p => !p)) continue;
@@ -1778,7 +1808,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         topR.push(project([baseVF,         cR + nzRt * Math.cos(a), cU + nzRt * Math.sin(a)]));
         botR.push(project([baseVF - nzLen, cR + nzRx * Math.cos(a), cU + nzRx * Math.sin(a)]));
       }
-      for (let i = 0; i < nNoz; i++) {
+      if (camSide > 0) for (let i = 0; i < nNoz; i++) {
         const j  = (i + 1) % nNoz;
         const ps = [topR[i], topR[j], botR[j], botR[i]];
         if (ps.some(p => !p)) continue;
@@ -2681,6 +2711,46 @@ function _renderBoosterCam(canvas) {
 }
 
 /* ── Label ────────────────────────────────────────────────────── */
+function _drawPauseOverlay(canvas) {
+  const ctx = canvas.getContext('2d');
+  const dpr = devicePixelRatio;
+  const W = canvas.width, H = canvas.height;
+  ctx.save();
+
+  /* ⏸ top-right */
+  ctx.font      = `bold ${12 * dpr}px "IBM Plex Mono", monospace`;
+  ctx.fillStyle = 'rgba(255,210,60,0.92)';
+  ctx.textAlign = 'right';
+  ctx.fillText('⏸  PAUSED', W - 14 * dpr, 22 * dpr);
+
+  /* orbit + hints — bottom-left */
+  ctx.textAlign = 'left';
+  ctx.font      = `${10 * dpr}px "IBM Plex Mono", monospace`;
+  const pad   = 14 * dpr;
+  const lineH = 15 * dpr;
+
+  /* normalise to −180…+180 */
+  const az = ((_orbitAz + 180) % 360 + 360) % 360 - 180;
+  const lines = [
+    `AZ  ${az >= 0 ? '+' : ''}${az.toFixed(0)}°   drag to orbit · 0 reset · P resume`,
+  ];
+  if (_dir.shot) {
+    const sh = _DIR_SHOTS[_dir.shot];
+    lines.unshift(`shot: ${_dir.shot}   zoom ${sh.zoom}   lF ${sh.lF}   orbitAz ${sh.orbitAz ?? 0}`);
+  }
+
+  const boxH = lines.length * lineH + 10 * dpr;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(pad - 6 * dpr, H - pad - boxH + 4 * dpr, 480 * dpr, boxH);
+
+  ctx.fillStyle = 'rgba(180,220,255,0.90)';
+  lines.forEach((line, i) => {
+    ctx.fillText(line, pad, H - pad - (lines.length - 1 - i) * lineH);
+  });
+
+  ctx.restore();
+}
+
 function _drawLabel(canvas, text) {
   const ctx = canvas.getContext('2d');
   const dpr = devicePixelRatio;
