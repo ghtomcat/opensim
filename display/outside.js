@@ -55,8 +55,10 @@ let _canvas    = null;
 let _camMode   = 0;
 let _finAngle  = 0;   // grid fin fold: 0 = stowed aft, Math.PI/2 = deployed
 
-let _orbitAz    = 0;     // side-cam orbit around rocket axis (degrees, 0 = starboard)
+let _orbitAz    = 0;     // side-cam orbit azimuth (degrees, 0 = starboard)
+let _orbitEl    = 12;    // elevation above horizontal (degrees, +12 = slightly above)
 let _orbitDragX = null;  // non-null while drag is active
+let _orbitDragY = null;
 
 export function initOutside() {
   _canvas = document.getElementById('outside-canvas');
@@ -64,26 +66,28 @@ export function initOutside() {
   /* Drag-to-orbit: only active when paused + side cam.
      #outside-canvas has pointer-events:none so listen on window. */
   window.addEventListener('mousedown', e => {
-    if (S.paused && _camMode === 2) _orbitDragX = e.clientX;
+    if (S.paused && _camMode === 2) { _orbitDragX = e.clientX; _orbitDragY = e.clientY; }
   });
   window.addEventListener('mousemove', e => {
     if (_orbitDragX !== null) {
-      _orbitAz    = ((_orbitAz + (e.clientX - _orbitDragX) * 0.4) % 360 + 360) % 360;
-      _orbitDragX = e.clientX;
+      _orbitAz = ((_orbitAz + (e.clientX - _orbitDragX) * 0.4) % 360 + 360) % 360;
+      _orbitEl = Math.max(-85, Math.min(85, _orbitEl - (e.clientY - _orbitDragY) * 0.3));
+      _orbitDragX = e.clientX; _orbitDragY = e.clientY;
     }
   });
-  window.addEventListener('mouseup', () => { _orbitDragX = null; });
+  window.addEventListener('mouseup', () => { _orbitDragX = null; _orbitDragY = null; });
 
-  /* Trackpad horizontal swipe → orbit (deltaX), vertical swipe ignored while paused */
+  /* Trackpad: horizontal → azimuth, vertical → elevation */
   window.addEventListener('wheel', e => {
     if (!S.paused || _camMode !== 2) return;
     e.preventDefault();
     _orbitAz = ((_orbitAz - e.deltaX * 0.35) % 360 + 360) % 360;
+    _orbitEl = Math.max(-85, Math.min(85, _orbitEl - e.deltaY * 0.25));
   }, { passive: false });
 
-  /* 0 key: reset orbit to starboard (0°) while paused */
+  /* 0 key: reset orbit to default (Az=0, El=12) while paused */
   window.addEventListener('keydown', e => {
-    if (e.key === '0' && S.paused && _camMode === 2) _orbitAz = 0;
+    if (e.key === '0' && S.paused && _camMode === 2) { _orbitAz = 0; _orbitEl = 12; }
   });
 }
 export function setOutsideCamMode(m) { _camMode = m; }
@@ -155,7 +159,7 @@ function _renderSideCam(canvas) {
     const db = _dirBlend();
     if (db > 0 && _dir.shot) renderOrbit += (_DIR_SHOTS[_dir.shot].orbitAz ?? 0) * db;
   }
-  _drawWireframe(canvas, acP, acR + renderOrbit, 0, sideUp, sideDist);
+  _drawWireframe(canvas, acP, acR + renderOrbit, 0, sideUp, sideDist, false, renderOrbit, _orbitEl);
   _drawLabel(canvas, 'SIDE CAM');
   if (S.paused) _drawPauseOverlay(canvas);
 }
@@ -1255,7 +1259,7 @@ const _DOOR = [
 ];
 
 /* ── Core wireframe + shading renderer ───────────────────────── */
-function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, wingView = false) {
+function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, wingView = false, orbitAzDeg = 0, orbitElDeg = 0) {
   const isC172  = (S.aircraft?.id === 'c172');
   const isSV    = !isC172 && (S.aircraft?.id === 'saturn-v');
   const isF9    = !isC172 && !isSV && (S.aircraft?.id?.startsWith('falcon9') || S.aircraft?.vehicleType === 'rocket');
@@ -1344,6 +1348,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const camDist  = camSide > 0 ? camSide : camBack;
   const camPitch = Math.atan2(-camUp, camDist);
   const cosCP = Math.cos(camPitch), sinCP = Math.sin(camPitch);
+  const sinEl = Math.sin(orbitElDeg * DEG), cosEl = Math.cos(orbitElDeg * DEG);
 
   /* Project body-frame vertex → { x, y, d } (d = cam fwd depth for sorting) */
   function project([vF, vR, vU]) {
@@ -1357,13 +1362,19 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       const uP =  vF * sinP + vU * cosP;
       rR =  vR * cosR + uP * sinR; uR = -vR * sinR + uP * cosR;
     }
-    const fR =  fP;
+
+    /* Elevation orbit: tilt the scene up/down around the camera horizontal axis */
+    if (orbitElDeg !== 0 && camSide > 0) {
+      const fP2 = fP * cosEl + rR * sinEl;
+      rR = -fP * sinEl + rR * cosEl;
+      fP = fP2;
+    }
 
     let cfW, crW, cuW;
     if (camSide > 0) {
-      cfW = camSide - rR; crW = fR;
+      cfW = camSide - rR; crW = fP;
     } else {
-      cfW = camBack + fR; crW = rR;
+      cfW = camBack + fP; crW = rR;
     }
     cuW = uR - camUp;
 
@@ -2291,17 +2302,31 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
        by the same amount — keeping it world-anchored to the pad elevation. */
     const tvF0    = _vFbase - riseNm;
 
-    /* Pitch-only project: tower is fixed in world space, doesn't roll with rocket */
+    /* Orbit: camera rotates around the rocket's longitudinal axis.
+       Applied to pad geometry (which has no body roll) so it moves with
+       the rocket body when the user drags to orbit.                     */
+    const cosO = Math.cos(orbitAzDeg * DEG), sinO = Math.sin(orbitAzDeg * DEG);
+
+    /* Pitch-only project: tower is fixed in world space, doesn't roll with rocket.
+       Orbit rotation applied to vR/vU so pad tracks camera just like the body. */
     const pw = ([vF, vR_, vU_]) => {
-      const fP  = vF * cosP - vU_ * sinP;
-      const uR  = vF * sinP + vU_ * cosP;
-      const cfW = camSide > 0 ? camSide - vR_ : camBack + fP;
-      const crW = camSide > 0 ? fP : vR_;
+      const vR2 = vR_ * cosO - vU_ * sinO;
+      const vU2 = vR_ * sinO + vU_ * cosO;
+      let   fP  = vF * cosP - vU2 * sinP;
+      const uR  = vF * sinP + vU2 * cosP;
+      let   vR3 = vR2;
+      if (orbitElDeg !== 0) {
+        const fP2 = fP * cosEl + vR2 * sinEl;
+        vR3 = -fP * sinEl + vR2 * cosEl;
+        fP  = fP2;
+      }
+      const cfW = camSide > 0 ? camSide - vR3 : camBack + fP;
+      const crW = camSide > 0 ? fP : vR3;
       const cuW = uR - camUp;
       const cf  = cfW * cosCP + cuW * sinCP;
       const cu  = cuW * cosCP - cfW * sinCP;
       if (cf < 0.002) return null;
-      return { x: cx + crW / cf * focal, y: cy - cu / cf * focal };
+      return { x: cx + crW / cf * focal, y: cy - cu / cf * focal, d: cfW };
     };
 
     const _drawPadSegs = (segs, color, lw) => {
@@ -2338,17 +2363,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         [mlpT,-mlpSvR,vUlo],[mlpT,+mlpSvR,vUlo],[mlpT,+mlpSvR,vUhi],[mlpT,-mlpSvR,vUhi],
         [mlpB,-mlpSvR,vUlo],[mlpB,+mlpSvR,vUlo],[mlpB,+mlpSvR,vUhi],[mlpB,-mlpSvR,vUhi],
       ];
-      const mcpd = mc.map(([vF, vR_, vU_]) => {
-        const fP  = vF * cosP - vU_ * sinP;
-        const uR_ = vF * sinP + vU_ * cosP;
-        const cfW = camSide > 0 ? camSide - vR_ : camBack + fP;
-        const crW = camSide > 0 ? fP : vR_;
-        const cuW = uR_ - camUp;
-        const cf  = cfW * cosCP + cuW * sinCP;
-        const cu  = cuW * cosCP - cfW * sinCP;
-        if (cf < 0.002) return null;
-        return { x: cx + crW / cf * focal, y: cy - cu / cf * focal, d: cfW };
-      });
+      const mcpd = mc.map(pw);
       const mFaces = [
         { idx: [0,3,2,1], col: '#707580' },  // top
         { idx: [7,6,5,4], col: '#1e2230' },  // bottom
@@ -2383,35 +2398,93 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     _drawMlpSlice(-mlpSvUlut, -trenchH);   // LUT side
     _drawMlpSlice(+trenchH, +mlpSvU);      // away-from-LUT side
 
-    /* Holddown arms — 4× L-shaped steel brackets at fin positions.
-       Visible from side cam: the ±vU arms project left/right of rocket.
-       The ±vR arms are depth-on but still drawn for other camera angles. */
-    if (isSV) {
-      const armFw  = _r * 0.28;   // arm half-width (square cross-section)
-      const armTop = mlpT + _r * 2.1;   // arm crown ≈ fin root level
-      const holdSegs = [];
-      for (const [aR, aU] of [[0, _sv1r],[0,-_sv1r],[_sv1r,0],[-_sv1r,0]]) {
-        const vUa = aU - armFw, vUb = aU + armFw;
-        const vRa = aR - armFw, vRb = aR + armFw;
-        // Four vertical edges of the bracket box
-        holdSegs.push(
-          [[mlpT, vRa, vUa],[armTop, vRa, vUa]],
-          [[mlpT, vRb, vUa],[armTop, vRb, vUa]],
-          [[mlpT, vRa, vUb],[armTop, vRa, vUb]],
-          [[mlpT, vRb, vUb],[armTop, vRb, vUb]],
-          // Top crown ring
-          [[armTop, vRa, vUa],[armTop, vRb, vUa]],
-          [[armTop, vRa, vUb],[armTop, vRb, vUb]],
-          [[armTop, vRa, vUa],[armTop, vRa, vUb]],
-          [[armTop, vRb, vUa],[armTop, vRb, vUb]],
-          // Base ring on MLP deck
-          [[mlpT, vRa, vUa],[mlpT, vRb, vUa]],
-          [[mlpT, vRa, vUb],[mlpT, vRb, vUb]],
-          [[mlpT, vRa, vUa],[mlpT, vRa, vUb]],
-          [[mlpT, vRb, vUa],[mlpT, vRb, vUb]],
-        );
+    /* Trench inner near-wall — dark fill drawn on top of the two slabs so the
+       gap reads clearly as a hole rather than empty space behind the rocket. */
+    {
+      const tPts = [
+        [mlpT, +mlpSvR, -trenchH],
+        [mlpT, +mlpSvR, +trenchH],
+        [mlpB, +mlpSvR, +trenchH],
+        [mlpB, +mlpSvR, -trenchH],
+      ].map(pw);
+      if (tPts.every(Boolean)) {
+        ctx.save();
+        ctx.globalAlpha = padAlpha;
+        ctx.fillStyle = '#0c0f18';
+        ctx.beginPath();
+        ctx.moveTo(tPts[0].x, tPts[0].y);
+        tPts.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
       }
-      _drawPadSegs(holdSegs, 'rgba(190,200,205,0.85)', Math.max(1, 1 * dpr));
+    }
+
+    /* Holddown arms — solid steel columns at the four fin positions.
+       Tilt outward as rocket rises (swing-arm release). */
+    if (isSV) {
+      const armFw   = _r * 0.32;
+      const armLen  = _r * 2.1;
+      const armTop  = mlpT + armLen;
+      /* Tilt angle: 0 while static, swings to 80° as rocket rises first 0.005 NM */
+      const tilt    = Math.min(80, (riseNm / (_r * 1.8)) * 80) * DEG;
+      const sinTlt  = Math.sin(tilt), cosTlt = Math.cos(tilt);
+
+      for (const [aR, aU] of [[0,_sv1r],[0,-_sv1r],[_sv1r,0],[-_sv1r,0]]) {
+        /* Outward direction (away from rocket center) */
+        const mag  = Math.hypot(aR, aU) || 1;
+        const oR   = aR / mag, oU = aU / mag;
+        /* Top crown: rotated outward by tilt angle around base */
+        const dUp  = armLen * cosTlt - armLen;   // vF delta (shortens vertically)
+        const dOut = armLen * sinTlt;             // displacement outward
+        const vFtop = armTop + dUp;              // top vF (lower than armTop when tilted)
+        const vUbase_lo = aU - armFw, vUbase_hi = aU + armFw;
+        const vRbase_lo = aR - armFw, vRbase_hi = aR + armFw;
+        const topOffU = oU * dOut, topOffR = oR * dOut;
+
+        /* Draw as a tilted solid: base box vertices share base coords;
+           top box vertices are offset outward by tilt */
+        const bc = [
+          [vFtop, vRbase_lo + topOffR, vUbase_lo + topOffU],
+          [vFtop, vRbase_hi + topOffR, vUbase_lo + topOffU],
+          [vFtop, vRbase_hi + topOffR, vUbase_hi + topOffU],
+          [vFtop, vRbase_lo + topOffR, vUbase_hi + topOffU],
+          [mlpT,  vRbase_lo,           vUbase_lo          ],
+          [mlpT,  vRbase_hi,           vUbase_lo          ],
+          [mlpT,  vRbase_hi,           vUbase_hi          ],
+          [mlpT,  vRbase_lo,           vUbase_hi          ],
+        ].map(pw);
+        if (bc.some(p => !p)) continue;
+        const bFaces = [
+          { idx:[0,3,2,1], col:'#6a7880' },
+          { idx:[7,6,5,4], col:'#252830' },
+          { idx:[0,4,7,3], col:'#4a5560' },
+          { idx:[0,1,5,4], col:'#505c68' },
+          { idx:[3,7,6,2], col:'#505c68' },
+          { idx:[1,2,6,5], col:'#7a8b98' },
+        ];
+        bFaces.sort((a, b) => {
+          const da = a.idx.reduce((s, i) => s + (bc[i]?.d ?? 0), 0) / 4;
+          const db = b.idx.reduce((s, i) => s + (bc[i]?.d ?? 0), 0) / 4;
+          return db - da;
+        });
+        for (const { idx, col } of bFaces) {
+          const ps = idx.map(i => bc[i]);
+          if (ps.some(p => !p)) continue;
+          ctx.save();
+          ctx.globalAlpha = padAlpha;
+          ctx.fillStyle = col;
+          ctx.strokeStyle = 'rgba(110,125,140,0.4)';
+          ctx.lineWidth = 0.5 * dpr;
+          ctx.beginPath();
+          ctx.moveTo(ps[0].x, ps[0].y);
+          for (let k = 1; k < ps.length; k++) ctx.lineTo(ps[k].x, ps[k].y);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
     }
 
     /* LUT (Launch Umbilical Tower) — rust-orange lattice to rocket's right */
@@ -2438,6 +2511,55 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       lutSegs.push([[l0,-vRh,vU0],[l1,-vRh,vU1]], [[l0,+vRh,vU0],[l1,+vRh,vU1]]);
     }
     _drawPadSegs(lutSegs, '#b06830', Math.max(1.5, 1.5 * dpr));
+
+    /* Exhaust / steam clouds — billow from trench sides when engines firing.
+       Two radial-gradient blobs per side, growing with engine power × rise fade. */
+    if (isSV) {
+      const engPow = S.enginePower ?? 0;
+      if (engPow > 0.05) {
+        const steamFade = Math.max(0, 1 - riseNm / 0.040);  // fades as rocket climbs
+        const steamAlpha = padAlpha * steamFade * Math.min(1, engPow * 2);
+        if (steamAlpha > 0.01) {
+          /* Steam origins: both ends of the trench in the vU direction */
+          const steamSides = [
+            { vU: -(trenchH + _r * 0.5), dirU: -1 },   // LUT side
+            { vU: +(trenchH + _r * 0.5), dirU: +1 },   // far side
+          ];
+          const steamR = (_r * 6 + riseNm * 4) * focal / Math.max(0.01, camSide);
+          for (const { vU: sU, dirU } of steamSides) {
+            /* Project cloud centre — at trench mouth level */
+            const cPt = pw([mlpT, 0, sU]);
+            if (!cPt) continue;
+            /* Outer blob (white steam) */
+            const g1 = ctx.createRadialGradient(cPt.x, cPt.y, 0, cPt.x, cPt.y, steamR);
+            g1.addColorStop(0,   `rgba(240,240,235,${(steamAlpha * 0.70).toFixed(3)})`);
+            g1.addColorStop(0.5, `rgba(230,230,225,${(steamAlpha * 0.35).toFixed(3)})`);
+            g1.addColorStop(1,   `rgba(210,215,220,0)`);
+            ctx.save();
+            ctx.fillStyle = g1;
+            ctx.beginPath();
+            ctx.arc(cPt.x, cPt.y, steamR, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+            /* Inner hot-exhaust glow (amber/orange near nozzle height) */
+            const hotPt = pw([mlpT - _r * 0.5, 0, sU * 0.5]);
+            if (hotPt) {
+              const hotR = steamR * 0.45;
+              const g2 = ctx.createRadialGradient(hotPt.x, hotPt.y, 0, hotPt.x, hotPt.y, hotR);
+              g2.addColorStop(0,   `rgba(255,200,80,${(steamAlpha * 0.55).toFixed(3)})`);
+              g2.addColorStop(0.6, `rgba(220,120,40,${(steamAlpha * 0.20).toFixed(3)})`);
+              g2.addColorStop(1,   `rgba(180,90,20,0)`);
+              ctx.save();
+              ctx.fillStyle = g2;
+              ctx.beginPath();
+              ctx.arc(hotPt.x, hotPt.y, hotR, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.restore();
+            }
+          }
+        }
+      }
+    }
   } // riseNm < 0.150
   } // isSV || isF9
 }
@@ -2780,8 +2902,9 @@ function _drawPauseOverlay(canvas) {
 
   /* normalise to −180…+180 */
   const az = ((_orbitAz + 180) % 360 + 360) % 360 - 180;
+  const el = _orbitEl;
   const lines = [
-    `AZ  ${az >= 0 ? '+' : ''}${az.toFixed(0)}°   drag to orbit · 0 reset · P resume`,
+    `AZ ${az >= 0 ? '+' : ''}${az.toFixed(0)}°  EL ${el >= 0 ? '+' : ''}${el.toFixed(0)}°   drag to orbit · 0 reset · P resume`,
   ];
   if (_dir.shot) {
     const sh = _DIR_SHOTS[_dir.shot];
