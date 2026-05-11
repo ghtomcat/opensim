@@ -999,6 +999,28 @@ let _svSepLastAcId = null;
 let _svSepPrevStage = 1;
 const _svSepAnims = [];   // [{ stage, t0 }]
 
+/* ── Auto-director ─────────────────────────────────────────────────
+   Triggers cinematic camera cuts on key mission events.
+   Each shot blends camSide (zoom) and a vertical look-at offset (cy shift)
+   smoothly in/out, then returns control to the normal auto-fit camera.   */
+const _dir = { shot: null, t0: 0, _tliWas: false };
+
+const _DIR_SHOTS = {
+  //              zoom   lookAtF   dur    easeIn easeOut
+  sic_sep: { zoom: 0.44, lF: -0.018, dur: 5200, eIn: 380, eOut: 750 },
+  sii_sep: { zoom: 0.52, lF:  0.002, dur: 4500, eIn: 380, eOut: 650 },
+  tli:     { zoom: 1.55, lF:  0.014, dur: 8000, eIn:1000, eOut:1500 },
+};
+
+function _dirBlend() {
+  if (!_dir.shot) return 0;
+  const sh = _DIR_SHOTS[_dir.shot];
+  const t  = Date.now() - _dir.t0;
+  if (t >= sh.dur) { _dir.shot = null; return 0; }
+  const raw = Math.min(t / sh.eIn, 1, (sh.dur - t) / sh.eOut);
+  return raw * raw * (3 - 2 * raw);   // smoothstep
+}
+
 /* ══════════════════════════════════════════════════════════════
    Falcon 9 geometry — Block 5 two-stage rocket + Dragon capsule
    Body frame: fwd = nose, right = starboard, up = any radial
@@ -1221,7 +1243,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const dpr   = devicePixelRatio || 1;
   const mapPx = getMapReservedRight() * dpr;
   const cx    = (W - mapPx) / 2;
-  const cy    = H / 2;
+  let   cy    = H / 2;          // mutable — auto-director shifts this for look-at offset
   const focal = (W / 2) / Math.tan(FOV_H / 2 * DEG);
 
   // Auto-fit: project vertices through attitude rotation, then fit screen extents.
@@ -1266,6 +1288,20 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     const d = Math.max(maxCR * PAD / Math.tan(hfH), maxCU * PAD / Math.tan(hfV));
     if (camSide > 0) { camSide = d; camUp = 0; }
     else              { camBack = d; camUp = d * 0.18; }
+
+    /* ── Auto-director: blend camSide (zoom) + cy (look-at shift) ── */
+    if (isSV && camSide > 0) {
+      const dBlend = _dirBlend();
+      if (dBlend > 0 && _dir.shot) {
+        const sh  = _DIR_SHOTS[_dir.shot];
+        const dOrig = camSide;
+        camSide = dOrig * (1 - dBlend + dBlend * sh.zoom);
+        /* cy shift: bring vF=sh.lF to screen center.
+           A vertex at uR=sh.lF projects to y = cy + sh.lF * focal/camSide (approx),
+           so shifting cy down by that amount re-centers it. */
+        cy -= sh.lF * dBlend * focal / camSide;
+      }
+    }
   }
 
   const camDist  = camSide > 0 ? camSide : camBack;
@@ -1436,16 +1472,26 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   /* Booster projection (F9 stage separation) */
   const rStage = (isF9 || isSV) ? (S.rocketStage ?? 1) : 0;
 
-  /* Detect Saturn V stage separation to start tumble animations */
+  /* Detect Saturn V stage separation — tumble animation + director cut */
   if (isSV) {
     if (_svSepLastAcId !== S.aircraft?.id) {
-      _svSepLastAcId = S.aircraft?.id;
+      _svSepLastAcId  = S.aircraft?.id;
       _svSepPrevStage = rStage;
       _svSepAnims.length = 0;
+      _dir.shot = null;
+      _dir._tliWas = !!(S.rocketTLI);   // don't re-trigger on mission reload mid-TLI
     } else if (rStage > _svSepPrevStage) {
-      _svSepAnims.push({ stage: _svSepPrevStage, t0: Date.now() });
+      const sepStage = _svSepPrevStage;
       _svSepPrevStage = rStage;
+      _svSepAnims.push({ stage: sepStage, t0: Date.now() });
+      /* Cinematic cut: zoom into separation plane */
+      _dir.shot = sepStage === 1 ? 'sic_sep' : 'sii_sep';
+      _dir.t0   = Date.now();
     }
+    /* TLI ignition cut */
+    const tliNow = !!(S.rocketTLI);
+    if (tliNow && !_dir._tliWas) { _dir.shot = 'tli'; _dir.t0 = Date.now(); }
+    _dir._tliWas = tliNow;
   }
 
   let bPts = null, cosdP = 1, sindP = 0;
