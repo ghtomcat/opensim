@@ -2,6 +2,14 @@
   "id": "a350",
   "name": "Airbus A350-900",
   "panel": "airbus",
+  "livery": {
+    "colors": [null, null, [200, 16, 46], null, null, [20, 22, 28], null]
+  },
+  "engine": {
+    "model": "trent-xwb",
+    "chevrons": true,
+    "thrustReverser": true
+  },
   "displays": [
     { "id": "pfd", "spec": "airbus-pfd", "screen": 0, "pages": ["airbus-pfd", "airbus-nd"] },
     { "id": "nd",  "spec": "airbus-nd",  "screen": 1, "pages": ["airbus-nd",  "airbus-ecam"] }

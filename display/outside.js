@@ -78,6 +78,9 @@ const _COLORS = [
   [200,  16,  46], // 2 v-stab  — Swiss red
   [200, 210, 218], // 3 h-stabs — slightly lighter than wings
   [ 45,  50,  60], // 4 engines  — near-black
+  [ 20,  22,  28], // 5 cockpit band (bandit) — near-black surround
+  [215, 218, 222], // 6 radome   — slightly lighter than fuselage
+  [ 45,  50,  60], // 7 TR zone  — same shade as engine; sentinel for TR deploy skip
 ];
 
 let _canvas    = null;
@@ -265,134 +268,189 @@ const _wy  = _hs  - 0.0010;
 const { V_: _V, F_: _F, FC_: _FC, E_: _E } = (() => {
   const N = 16, N4 = 4, N2 = 8, N3 = 12;
   const { V_, F_, FC_, E_, rb } = buildTube(N, [
-    { vF:  0.019, r: _nr1, col: 0 },   // ring1 → ring2: nose
-    { vF:  0.017, r: _nr2, col: 0 },   // ring2 → ring3: nose
-    { vF:  0.015, r: _nr3, col: 0 },   // ring3 → fwd
-    { vF:  0.013, r: _r,   col: 0 },   // fwd → wing-stn
-    { vF:  0.001, r: _r,   col: 0 },   // wing-stn → rear
-    { vF: -0.010, r: _r,   col: 0 },   // rear → tail
-    { vF: -0.017, r: _r,   col: 0 },   // tail → taper
-    { vF: -0.019, r: _nr2          },   // taper (terminal)
+    { vF:  0.020, r: _nr1*0.55, col: 6 },  // ring0: radome tip
+    { vF:  0.019, r: _nr1,      col: 0 },  // ring1: nose upper
+    { vF:  0.017, r: _nr2,      col: 0 },  // ring2: nose mid
+    { vF:  0.015, r: _nr3,      col: 5 },  // ring3: cockpit band (bandit)
+    { vF:  0.013, r: _r,        col: 0 },  // ring4: fwd body
+    { vF:  0.001, r: _r,        col: 0 },  // ring5: wing-stn
+    { vF: -0.010, r: _r,        col: 0 },  // ring6: rear
+    { vF: -0.014, r: _r,        col: 0 },  // ring7: tail fwd
+    { vF: -0.017, r: _nr3, cz:  0.0008 },  // ring8: tail sweep
+    { vF: -0.019, r: _nr2, cz:  0.0018 },  // ring9: APU (terminal)
   ]);
-  // rb: [0,16,32,48,64,80,96,112]  noseTip=128  tailTip=129  extra=130+
+  // rb: [0,16,32,48,64,80,96,112,128,144]  noseTip=160  tailTip=161  extra=162+
 
   const noseTip = V_.length;  V_.push([ 0.021, 0, 0]);
   const tailTip = V_.length;  V_.push([-0.021, 0, 0]);
 
-  V_.push(  /* non-tube vertices — indices 130-201 */
-    [ 0.005,  _r,      -_r      ],  //  130 R wing root LE
-    [-0.004,  _r,      -_r      ],  //  131 R wing root TE
-    [-0.001,  _hs,      _dh     ],  // 132 R wing tip LE
-    [-0.009,  _hs,      _dh     ],  // 133 R wing tip TE
-    [ 0.005, -_r,      -_r      ],  // 134 L wing root LE
-    [-0.004, -_r,      -_r      ],  // 135 L wing root TE
-    [-0.001, -_hs,      _dh     ],  // 136 L wing tip LE
-    [-0.009, -_hs,      _dh     ],  // 137 L wing tip TE
-    [-0.013,  0,        _r      ],  // 138 V-stab base fwd
-    [-0.019,  0,        _r      ],  // 139 V-stab base aft
-    [-0.015,  0,        0.008   ],  // 140 V-stab top fwd
-    [-0.020,  0,        0.007   ],  // 141 V-stab top aft
-    [-0.017,  _r,       0.001   ],  // 142 R h-stab root fwd
-    [-0.020,  _r,       0.001   ],  // 143 R h-stab root aft
-    [-0.018,  0.008,    0.002   ],  // 144 R h-stab tip fwd
-    [-0.021,  0.008,    0.002   ],  // 145 R h-stab tip aft
-    [-0.017, -_r,       0.001   ],  // 146 L h-stab root fwd
-    [-0.020, -_r,       0.001   ],  // 147 L h-stab root aft
-    [-0.018, -0.008,    0.002   ],  // 148 L h-stab tip fwd
-    [-0.021, -0.008,    0.002   ],  // 149 L h-stab tip aft
-    /* R engine — intake(150-157), mid(158-165), exhaust(166-173) */
-    [ 0.008, _ey,      _ez+_er  ],[ 0.008, _ey+_e7,  _ez+_e7  ],
-    [ 0.008, _ey+_er,  _ez      ],[ 0.008, _ey+_e7,  _ez-_e7  ],
-    [ 0.008, _ey,      _ez-_er  ],[ 0.008, _ey-_e7,  _ez-_e7  ],
-    [ 0.008, _ey-_er,  _ez      ],[ 0.008, _ey-_e7,  _ez+_e7  ],
+  V_.push(  /* non-tube vertices — indices 162-265 */
+    [ 0.005,  _r,      -_r      ],  //  162 R wing root LE
+    [-0.004,  _r,      -_r      ],  //  163 R wing root TE
+    [-0.001,  _hs,      _dh     ],  //  164 R wing tip LE
+    [-0.009,  _hs,      _dh     ],  //  165 R wing tip TE
+    [ 0.005, -_r,      -_r      ],  //  166 L wing root LE
+    [-0.004, -_r,      -_r      ],  //  167 L wing root TE
+    [-0.001, -_hs,      _dh     ],  //  168 L wing tip LE
+    [-0.009, -_hs,      _dh     ],  //  169 L wing tip TE
+    [-0.013,  0,        _r      ],  //  170 V-stab base fwd
+    [-0.019,  0,        _r      ],  //  171 V-stab base aft
+    [-0.015,  0,        0.008   ],  //  172 V-stab top fwd
+    [-0.020,  0,        0.007   ],  //  173 V-stab top aft
+    [-0.017,  _r,       0.001   ],  //  174 R h-stab root fwd
+    [-0.020,  _r,       0.001   ],  //  175 R h-stab root aft
+    [-0.018,  0.008,    0.002   ],  //  176 R h-stab tip fwd
+    [-0.021,  0.008,    0.002   ],  //  177 R h-stab tip aft
+    [-0.017, -_r,       0.001   ],  //  178 L h-stab root fwd
+    [-0.020, -_r,       0.001   ],  //  179 L h-stab root aft
+    [-0.018, -0.008,    0.002   ],  //  180 L h-stab tip fwd
+    [-0.021, -0.008,    0.002   ],  //  181 L h-stab tip aft
+    /* R engine — intake(182-189), fan(190-197), TR_fwd(198-205), TR_aft(206-213), nozzle(214-221) */
+    [ 0.009, _ey,      _ez+_er  ],[ 0.009, _ey+_e7,  _ez+_e7  ],
+    [ 0.009, _ey+_er,  _ez      ],[ 0.009, _ey+_e7,  _ez-_e7  ],
+    [ 0.009, _ey,      _ez-_er  ],[ 0.009, _ey-_e7,  _ez-_e7  ],
+    [ 0.009, _ey-_er,  _ez      ],[ 0.009, _ey-_e7,  _ez+_e7  ],
+    [ 0.001, _ey,      _ez+_er  ],[ 0.001, _ey+_e7,  _ez+_e7  ],
+    [ 0.001, _ey+_er,  _ez      ],[ 0.001, _ey+_e7,  _ez-_e7  ],
+    [ 0.001, _ey,      _ez-_er  ],[ 0.001, _ey-_e7,  _ez-_e7  ],
+    [ 0.001, _ey-_er,  _ez      ],[ 0.001, _ey-_e7,  _ez+_e7  ],
     [-0.001, _ey,      _ez+_er  ],[-0.001, _ey+_e7,  _ez+_e7  ],
     [-0.001, _ey+_er,  _ez      ],[-0.001, _ey+_e7,  _ez-_e7  ],
     [-0.001, _ey,      _ez-_er  ],[-0.001, _ey-_e7,  _ez-_e7  ],
     [-0.001, _ey-_er,  _ez      ],[-0.001, _ey-_e7,  _ez+_e7  ],
+    [-0.002, _ey,      _ez+_er  ],[-0.002, _ey+_e7,  _ez+_e7  ],
+    [-0.002, _ey+_er,  _ez      ],[-0.002, _ey+_e7,  _ez-_e7  ],
+    [-0.002, _ey,      _ez-_er  ],[-0.002, _ey-_e7,  _ez-_e7  ],
+    [-0.002, _ey-_er,  _ez      ],[-0.002, _ey-_e7,  _ez+_e7  ],
     [-0.003, _ey,      _ez+_erc ],[-0.003, _ey+_e7c, _ez+_e7c ],
     [-0.003, _ey+_erc, _ez      ],[-0.003, _ey+_e7c, _ez-_e7c ],
     [-0.003, _ey,      _ez-_erc ],[-0.003, _ey-_e7c, _ez-_e7c ],
     [-0.003, _ey-_erc, _ez      ],[-0.003, _ey-_e7c, _ez+_e7c ],
-    /* L engine — intake(174-181), mid(182-189), exhaust(190-197) */
-    [ 0.008, -_ey,      _ez+_er  ],[ 0.008, -_ey-_e7,  _ez+_e7  ],
-    [ 0.008, -_ey-_er,  _ez      ],[ 0.008, -_ey-_e7,  _ez-_e7  ],
-    [ 0.008, -_ey,      _ez-_er  ],[ 0.008, -_ey+_e7,  _ez-_e7  ],
-    [ 0.008, -_ey+_er,  _ez      ],[ 0.008, -_ey+_e7,  _ez+_e7  ],
+    /* L engine — intake(222-229), fan(230-237), TR_fwd(238-245), TR_aft(246-253), nozzle(254-261) */
+    [ 0.009, -_ey,      _ez+_er  ],[ 0.009, -_ey-_e7,  _ez+_e7  ],
+    [ 0.009, -_ey-_er,  _ez      ],[ 0.009, -_ey-_e7,  _ez-_e7  ],
+    [ 0.009, -_ey,      _ez-_er  ],[ 0.009, -_ey+_e7,  _ez-_e7  ],
+    [ 0.009, -_ey+_er,  _ez      ],[ 0.009, -_ey+_e7,  _ez+_e7  ],
+    [ 0.001, -_ey,      _ez+_er  ],[ 0.001, -_ey-_e7,  _ez+_e7  ],
+    [ 0.001, -_ey-_er,  _ez      ],[ 0.001, -_ey-_e7,  _ez-_e7  ],
+    [ 0.001, -_ey,      _ez-_er  ],[ 0.001, -_ey+_e7,  _ez-_e7  ],
+    [ 0.001, -_ey+_er,  _ez      ],[ 0.001, -_ey+_e7,  _ez+_e7  ],
     [-0.001, -_ey,      _ez+_er  ],[-0.001, -_ey-_e7,  _ez+_e7  ],
     [-0.001, -_ey-_er,  _ez      ],[-0.001, -_ey-_e7,  _ez-_e7  ],
     [-0.001, -_ey,      _ez-_er  ],[-0.001, -_ey+_e7,  _ez-_e7  ],
     [-0.001, -_ey+_er,  _ez      ],[-0.001, -_ey+_e7,  _ez+_e7  ],
+    [-0.002, -_ey,      _ez+_er  ],[-0.002, -_ey-_e7,  _ez+_e7  ],
+    [-0.002, -_ey-_er,  _ez      ],[-0.002, -_ey-_e7,  _ez-_e7  ],
+    [-0.002, -_ey,      _ez-_er  ],[-0.002, -_ey+_e7,  _ez-_e7  ],
+    [-0.002, -_ey+_er,  _ez      ],[-0.002, -_ey+_e7,  _ez+_e7  ],
     [-0.003, -_ey,      _ez+_erc ],[-0.003, -_ey-_e7c, _ez+_e7c ],
     [-0.003, -_ey-_erc, _ez      ],[-0.003, -_ey-_e7c, _ez-_e7c ],
     [-0.003, -_ey,      _ez-_erc ],[-0.003, -_ey+_e7c, _ez-_e7c ],
     [-0.003, -_ey+_erc, _ez      ],[-0.003, -_ey+_e7c, _ez+_e7c ],
-    /* Winglets (198-201) */
+    /* Winglets (262-265) */
     [-0.005,  _wy, _wz],[-0.012,  _wy, _wz],
     [-0.005, -_wy, _wz],[-0.012, -_wy, _wz],
   );
 
-  /* Nose tris: noseTip → ring1 (outward normals) */
-  for (let si = 0; si < N; si++) { F_.push([noseTip, rb[0]+(si+1)%N, rb[0]+si]); FC_.push(0); }
-  /* Tail tris: ring8 → tailTip (outward normals) */
-  for (let si = 0; si < N; si++) { F_.push([tailTip, rb[7]+si, rb[7]+(si+1)%N]); FC_.push(0); }
+  /* Nose tris: noseTip → ring0 (outward normals) */
+  for (let si = 0; si < N; si++) { F_.push([noseTip, rb[0]+(si+1)%N, rb[0]+si]); FC_.push(6); }
+  /* Tail tris: ring9 → tailTip (outward normals) */
+  for (let si = 0; si < N; si++) { F_.push([tailTip, rb[9]+si, rb[9]+(si+1)%N]); FC_.push(0); }
 
-  /* Non-tube faces — all reference v98-201 (indices unchanged) */
+  /* Non-tube faces — all reference v162-265 */
   F_.push(
-    [130,132,133,131],[130,131,133,132],          // R wing (×2 sides)
-    [134,135,137,136],[134,136,137,135],       // L wing
-    [132,133,199,198],[132,198,199,133],       // R winglet
-    [136,200,201,137],[136,137,201,200],       // L winglet
-    [138,139,141,140],[138,140,141,139],       // V-stab (×2 sides)
-    [142,143,145,144],[142,144,145,143],       // R h-stab
-    [146,147,149,148],[146,148,149,147],       // L h-stab
-    [150,151,159,158],[151,152,160,159],[152,153,161,160],[153,154,162,161],
-    [154,155,163,162],[155,156,164,163],[156,157,165,164],[157,150,158,165],
-    [158,159,167,166],[159,160,168,167],[160,161,169,168],[161,162,170,169],
-    [162,163,171,170],[163,164,172,171],[164,165,173,172],[165,158,166,173],
-    [174,182,183,175],[175,183,184,176],[176,184,185,177],[177,185,186,178],
-    [178,186,187,179],[179,187,188,180],[180,188,189,181],[181,189,182,174],
-    [182,190,191,183],[183,191,192,184],[184,192,193,185],[185,193,194,186],
-    [186,194,195,187],[187,195,196,188],[188,196,197,189],[189,197,190,182],
+    [162,164,165,163],[162,163,165,164],          // R wing (×2 sides)
+    [166,167,169,168],[166,168,169,167],           // L wing
+    [164,165,263,262],[164,262,263,165],           // R winglet
+    [168,264,265,169],[168,169,265,264],           // L winglet
+    [170,171,173,172],[170,172,173,171],           // V-stab (×2 sides)
+    [174,175,177,176],[174,176,177,175],           // R h-stab
+    [178,179,181,180],[178,180,181,179],           // L h-stab
+    /* R engine A→B (intake → fan cowl) */
+    [182,183,191,190],[183,184,192,191],[184,185,193,192],[185,186,194,193],
+    [186,187,195,194],[187,188,196,195],[188,189,197,196],[189,182,190,197],
+    /* R engine B→C (fan cowl → TR front) */
+    [190,191,199,198],[191,192,200,199],[192,193,201,200],[193,194,202,201],
+    [194,195,203,202],[195,196,204,203],[196,197,205,204],[197,190,198,205],
+    /* R engine C→D (TR zone — col 7, skipped when TR deployed) */
+    [198,199,207,206],[199,200,208,207],[200,201,209,208],[201,202,210,209],
+    [202,203,211,210],[203,204,212,211],[204,205,213,212],[205,198,206,213],
+    /* R engine D→E (TR aft → nozzle exit) */
+    [206,207,215,214],[207,208,216,215],[208,209,217,216],[209,210,218,217],
+    [210,211,219,218],[211,212,220,219],[212,213,221,220],[213,206,214,221],
+    /* L engine A→B */
+    [222,230,231,223],[223,231,232,224],[224,232,233,225],[225,233,234,226],
+    [226,234,235,227],[227,235,236,228],[228,236,237,229],[229,237,230,222],
+    /* L engine B→C */
+    [230,238,239,231],[231,239,240,232],[232,240,241,233],[233,241,242,234],
+    [234,242,243,235],[235,243,244,236],[236,244,245,237],[237,245,238,230],
+    /* L engine C→D (TR zone — col 7) */
+    [238,246,247,239],[239,247,248,240],[240,248,249,241],[241,249,250,242],
+    [242,250,251,243],[243,251,252,244],[244,252,253,245],[245,253,246,238],
+    /* L engine D→E */
+    [246,254,255,247],[247,255,256,248],[248,256,257,249],[249,257,258,250],
+    [250,258,259,251],[251,259,260,252],[252,260,261,253],[253,261,254,246],
   );
+  /* col 7 = TR zone sentinel — same shade as engine; skipped and replaced when TR deployed */
   FC_.push(
-    1,1,1,1, 1,1,1,1,             // wings + winglets
-    2,2, 3,3,3,3,                 // v-stab + h-stabs
-    4,4,4,4,4,4,4,4, 4,4,4,4,4,4,4,4,   // R engine front + rear
-    4,4,4,4,4,4,4,4, 4,4,4,4,4,4,4,4,   // L engine front + rear
+    1,1,1,1, 1,1,1,1,             // wings + winglets (8)
+    2,2, 3,3,3,3,                 // v-stab + h-stabs (6)
+    4,4,4,4,4,4,4,4, 4,4,4,4,4,4,4,4,   // R engine A→B + B→C (16)
+    7,7,7,7,7,7,7,7,                     // R engine C→D TR zone (8)
+    4,4,4,4,4,4,4,4,                     // R engine D→E (8)
+    4,4,4,4,4,4,4,4, 4,4,4,4,4,4,4,4,   // L engine A→B + B→C (16)
+    7,7,7,7,7,7,7,7,                     // L engine C→D TR zone (8)
+    4,4,4,4,4,4,4,4,                     // L engine D→E (8)
   );
 
   /* Longerons: noseTip ↔ all rings ↔ tailTip at 4 cardinal si */
   for (const si of [0, N4, N2, N3]) {
     E_.push([noseTip, rb[0]+si]);
-    for (let ri = 0; ri < 7; ri++) E_.push([rb[ri]+si, rb[ri+1]+si]);
-    E_.push([rb[7]+si, tailTip]);
+    for (let ri = 0; ri < 9; ri++) E_.push([rb[ri]+si, rb[ri+1]+si]);
+    E_.push([rb[9]+si, tailTip]);
   }
-  /* Fuselage ↔ non-tube connections (updated indices: all -1 vs original) */
-  const wStn = rb[4], tail = rb[6];
+  /* Fuselage ↔ non-tube connections */
+  const wStn = rb[5], tail = rb[7];
   E_.push(
-    [wStn+N2, 130],[wStn+N2, 131],[wStn+N2, 134],[wStn+N2, 135],
-    [tail,    138],[tail,    139],
-    [tail+N4, 142], [tail+N3, 146],
+    [wStn+N2, 162],[wStn+N2, 163],[wStn+N2, 166],[wStn+N2, 167],
+    [tail,    170],[tail,    171],
+    [tail+N4, 174], [tail+N3, 178],
   );
-  /* Non-tube edges (indices unchanged — all reference v98-201) */
+  /* Non-tube edges — all reference v162-265 */
   E_.push(
-    [130,132],[131,133],[130,131],[132,133],
-    [134,136],[135,137],[134,135],[136,137],
-    [138,140],[139,141],[140,141],[138,139],
-    [142,144],[143,145],[142,143],[144,145],
-    [146,148],[147,149],[146,147],[148,149],
-    [132,198],[133,199],[198,199],
-    [136,200],[137,201],[200,201],
-    [150,151],[151,152],[152,153],[153,154],[154,155],[155,156],[156,157],[157,150],
-    [158,159],[159,160],[160,161],[161,162],[162,163],[163,164],[164,165],[165,158],
-    [166,167],[167,168],[168,169],[169,170],[170,171],[171,172],[172,173],[173,166],
-    [150,158],[152,160],[154,162],[156,164],[158,166],[160,168],[162,170],[164,172],
-    [150,130],[166,131],
-    [174,175],[175,176],[176,177],[177,178],[178,179],[179,180],[180,181],[181,174],
+    [162,164],[163,165],[162,163],[164,165],
+    [166,168],[167,169],[166,167],[168,169],
+    [170,172],[171,173],[172,173],[170,171],
+    [174,176],[175,177],[174,175],[176,177],
+    [178,180],[179,181],[178,179],[180,181],
+    [164,262],[165,263],[262,263],
+    [168,264],[169,265],[264,265],
+    /* R engine rings A-E */
     [182,183],[183,184],[184,185],[185,186],[186,187],[187,188],[188,189],[189,182],
     [190,191],[191,192],[192,193],[193,194],[194,195],[195,196],[196,197],[197,190],
-    [174,182],[176,184],[178,186],[180,188],[182,190],[184,192],[186,194],[188,196],
-    [174,134],[190,135],
+    [198,199],[199,200],[200,201],[201,202],[202,203],[203,204],[204,205],[205,198],
+    [206,207],[207,208],[208,209],[209,210],[210,211],[211,212],[212,213],[213,206],
+    [214,215],[215,216],[216,217],[217,218],[218,219],[219,220],[220,221],[221,214],
+    /* R engine longerons A→B→C→D→E at alternating vertices */
+    [182,190],[184,192],[186,194],[188,196],
+    [190,198],[192,200],[194,202],[196,204],
+    [198,206],[200,208],[202,210],[204,212],
+    [206,214],[208,216],[210,218],[212,220],
+    /* R engine-to-wing */
+    [182,162],[214,163],
+    /* L engine rings A-E */
+    [222,223],[223,224],[224,225],[225,226],[226,227],[227,228],[228,229],[229,222],
+    [230,231],[231,232],[232,233],[233,234],[234,235],[235,236],[236,237],[237,230],
+    [238,239],[239,240],[240,241],[241,242],[242,243],[243,244],[244,245],[245,238],
+    [246,247],[247,248],[248,249],[249,250],[250,251],[251,252],[252,253],[253,246],
+    [254,255],[255,256],[256,257],[257,258],[258,259],[259,260],[260,261],[261,254],
+    /* L engine longerons */
+    [222,230],[224,232],[226,234],[228,236],
+    [230,238],[232,240],[234,242],[236,244],
+    [238,246],[240,248],[242,250],[244,252],
+    [246,254],[248,256],[250,258],[252,260],
+    /* L engine-to-wing */
+    [222,166],[254,167],
   );
 
   return { V_, F_, FC_, E_ };
@@ -920,7 +978,9 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const FC_  = isC172 ? _FC_c172     : isF9 ? _FC_f9     : isBf109 ? _FC_b109     : isSV ? _FC_sv     : _FC;
   const FN_  = isC172 ? _FN_c172     : isF9 ? _FN_f9     : isBf109 ? _FN_b109     : isSV ? _FN_sv     : _FN;
   const E_   = isC172 ? _E_c172      : isF9 ? _E_f9      : isBf109 ? _E_b109      : isSV ? _E_sv      : _E;
-  const COL_ = isC172 ? _COLORS_c172 : isF9 ? _COLORS_f9 : isBf109 ? _COLORS_b109 : isSV ? _COLORS_sv : _COLORS;
+  const _livCol = S.aircraft?.livery?.colors;
+  const COL_ = isC172 ? _COLORS_c172 : isF9 ? _COLORS_f9 : isBf109 ? _COLORS_b109 : isSV ? _COLORS_sv
+             : _livCol ? _COLORS.map((c, i) => _livCol[i] ?? c) : _COLORS;
   const GV_  = isC172 ? _GV_c172     : isBf109 ? _GV_b109 : _GV;
 
   const P = acPitchDeg * DEG, R = acRollDeg * DEG;
@@ -1240,10 +1300,15 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
 
   const _DBG_CULL = false;  // ← set true to paint front=blue, back=red
 
+  const _trActive = !isF9 && !isSV && !isC172 && !isBf109 && !!(S.thrustReverser);
+
   /* Build shaded face list with average depth */
   const faces = F_.map((fi, i) => {
     /* F9 stage sep: main vehicle = S2 + Dragon + MVac nozzle (faces 48-95 + 96-103) */
     if (isF9 && rStage >= 2 && (i < 48 || (i > 95 && i < 104))) return null;
+
+    /* TR zone: skip C→D faces and replace with cascade overlay */
+    if (_trActive && FC_[i] === 7) return null;
 
     /* Saturn V staging: hide spent stage geometry
        10-ring layout face ranges:
@@ -1620,6 +1685,9 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     _drawJ2Nozzles(0.010, _sv3r, [[0, 0]], j2On);
   }
 
+  /* Engine overlays: thrust-reverser cascade + chevrons */
+  if (!isF9 && !isSV && !isC172 && !isBf109) _engineOverlays(pts, faces, S.aircraft?.engine);
+
   /* Painter's algorithm: farthest first */
   faces.sort((a, b) => b.avgD - a.avgD);
 
@@ -1705,7 +1773,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   }
 
   /* Swiss cross on V-stab — A350 only */
-  if (!isC172 && !isF9 && !isBf109 && !isSV) _drawSwissCross(ctx, pts[138], pts[139], pts[141], pts[140]);
+  if (!isC172 && !isF9 && !isBf109 && !isSV) _drawSwissCross(ctx, pts[170], pts[171], pts[173], pts[172]);
 
   /* Prop disk — C172 and Bf109, only while engine running */
   if ((isC172 || isBf109) && S.engineState === 'running') {
@@ -2430,6 +2498,66 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
   } // riseNm < 0.150
   } // isSV || isF9
+}
+
+/* ── Engine overlays: thrust-reverser cascade + nozzle chevrons ── */
+function _engineOverlays(pts, faces, acEng) {
+  const trOn  = !!(S.thrustReverser);
+  const chev  = !!(acEng?.chevrons);
+
+  /* R/L nozzle exit rings and TR zone ring indices */
+  const engines = [
+    { trFwd: 198, trAft: 206, noz: 214, sign:  1 },  // R engine
+    { trFwd: 238, trAft: 246, noz: 254, sign: -1 },  // L engine
+  ];
+
+  for (const { trFwd, trAft, noz, sign } of engines) {
+    /* Collect projected ring points — bail if any missing */
+    const pFwd  = Array.from({length: 8}, (_, i) => pts[trFwd + i]);
+    const pAft  = Array.from({length: 8}, (_, i) => pts[trAft + i]);
+    const pNoz  = Array.from({length: 8}, (_, i) => pts[noz   + i]);
+    if (pFwd.some(p => !p) || pAft.some(p => !p) || pNoz.some(p => !p)) continue;
+
+    /* Thrust-reverser cascade: replace C→D faces with lighter cascade panels */
+    if (trOn) {
+      const cascadeCol = [130, 120, 110];
+      for (let i = 0; i < 8; i++) {
+        const j = (i + 1) % 8;
+        const ps = [pFwd[i], pFwd[j], pAft[j], pAft[i]];
+        const avgD = ps.reduce((s, p) => s + p.d, 0) / 4;
+        faces.push({ ps, br: 0.85, avgD: avgD + 0.0001, col: cascadeCol });
+      }
+      /* Blocker door: partial cap at nozzle exit (blocks ~40% of flow) */
+      const nozPts = pNoz.filter(Boolean);
+      if (nozPts.length >= 3) {
+        const cx = nozPts.reduce((s, p) => s + p.x, 0) / nozPts.length;
+        const cy = nozPts.reduce((s, p) => s + p.y, 0) / nozPts.length;
+        const avgD = nozPts.reduce((s, p) => s + p.d, 0) / nozPts.length;
+        for (let i = 0; i < 4; i++) {
+          const j = (i + 1) % 8;
+          const half = { x: cx, y: cy, d: avgD };
+          faces.push({ ps: [pNoz[i*2], pNoz[j*2], half], br: 0.6, avgD: avgD + 0.0002, col: cascadeCol });
+        }
+      }
+    }
+
+    /* Chevron tabs at nozzle exit — each tab is a triangle pointing inward */
+    if (chev) {
+      const chevCol = [30, 32, 38];
+      for (let i = 0; i < 8; i++) {
+        const j = (i + 1) % 8;
+        const pA = pNoz[i], pB = pNoz[j];
+        /* Tip: midpoint pushed slightly toward engine center (inward) */
+        const mx = (pA.x + pB.x) * 0.5, my = (pA.y + pB.y) * 0.5;
+        /* Engine center in screen is midpoint of all nozzle pts */
+        const ex = pNoz.reduce((s, p) => s + p.x, 0) / 8;
+        const ey = pNoz.reduce((s, p) => s + p.y, 0) / 8;
+        const tip = { x: mx + (ex - mx) * 0.28, y: my + (ey - my) * 0.28, d: (pA.d + pB.d) * 0.5 };
+        const avgD = (pA.d + pB.d + tip.d) / 3;
+        faces.push({ ps: [pA, pB, tip], br: 0.55, avgD: avgD + 0.00005, col: chevCol });
+      }
+    }
+  }
 }
 
 /* ── Swiss cross on V-stab tail fin ──────────────────────────── */

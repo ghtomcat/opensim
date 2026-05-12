@@ -311,12 +311,17 @@ export function tickPhysics(dt) {
   const _oilNow    = S.oilTempC ?? 15;
   const newOilTempC = _oilNow + (_oilTarget - _oilNow) * (dt / _tau);
 
+  /* Thrust reverser: auto-deploy on rollout above 60 kt, auto-stow below */
+  const _trCapable = !!(ac.engine?.thrustReverser);
+  const _trOn = _trCapable && newWow && newSpd > 60 && (S.spdT === 0 || S.braking);
+  const _trPatch = _trCapable ? { thrustReverser: _trOn } : {};
+
   setState({ alt: newAlt, spd: newSpd, hdg: newHdg, pitch: newPitch, roll: newRoll,
              rollRate: newRollRate, pitchRate: newPitchRate,
              vs, ilsLoc, ilsGs, fma, lat: newLat, lon: newLon,
              prevAlt: S.alt, time: S.time + dt,
              wow: newWow, touchdownVS: newTouchdownVS,
-             oilTempC: newOilTempC });
+             oilTempC: newOilTempC, ..._trPatch });
 }
 
 export function resetApproach() {
