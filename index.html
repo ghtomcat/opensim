@@ -1879,6 +1879,8 @@
   <button class="warp-btn" data-warp="2">2×</button>
   <button class="warp-btn" data-warp="5">5×</button>
   <button class="warp-btn" data-warp="10">10×</button>
+  <button class="warp-btn" data-warp="100">100×</button>
+  <button class="warp-btn" id="warp-next-event" title="Skip to 1 min before next event">⏭</button>
 </div>
 
 <!-- Keybinds -->
@@ -4039,7 +4041,8 @@
     /* Time warp indicator */
     const warpEl = document.getElementById('warp-indicator');
     const warp   = S.warpFactor ?? 1;
-    warpEl.textContent = `⏩ ${warp}×`;
+    const warpLabel = S.warpTargetLabel ? ` → ${S.warpTargetLabel}` : '';
+    warpEl.textContent = `⏩ ${warp}×${warpLabel}`;
     warpEl.classList.toggle('active', warp > 1 && (S.aircraft?.vehicleType === 'rocket' || S.aircraft?.panel));
 
     /* FPS tracking — always */
@@ -4058,9 +4061,11 @@
 
     /* Time controls bar — warp buttons (panel only) */
     if (isPanel) {
-      document.querySelectorAll('.warp-btn').forEach(b => {
-        b.classList.toggle('active', Number(b.dataset.warp) === warp);
+      document.querySelectorAll('.warp-btn[data-warp]').forEach(b => {
+        b.classList.toggle('active', Number(b.dataset.warp) === warp && !S.warpTarget);
       });
+      document.getElementById('warp-next-event')
+        ?.classList.toggle('active', !!S.warpTarget);
     }
 
     /* Engine state display — lifecycle engines (v12 + radial) */
@@ -4474,10 +4479,51 @@
   })();
 
   /* ── Time controls — warp buttons ── */
-  document.querySelectorAll('.warp-btn').forEach(btn => {
+  document.querySelectorAll('.warp-btn[data-warp]').forEach(btn => {
     btn.addEventListener('click', () => {
-      setState({ warpFactor: Number(btn.dataset.warp) });
+      setState({ warpFactor: Number(btn.dataset.warp), warpTarget: null });
     });
+  });
+
+  /* Returns the next upcoming rocket event as { t, label } or null.
+     Events are pre-computed from mission + aircraft stage burn durations.
+     Returns events > mT + 90 s so we don't jump to something already imminent. */
+  function _getNextRocketEvent() {
+    const mT    = S.time ?? 0;
+    const ac    = S.aircraft;
+    const perf  = ac?.performance ?? {};
+    const stages = perf.stages ?? [];
+    const ignT  = ac?.ignitionTime ?? 0;
+    const COAST = 6;   // seconds between stage burnout and next ignition
+
+    let t = ignT;
+    const events = [{ t, label: 'IGNITION' }];
+    for (let i = 0; i < stages.length; i++) {
+      const dur = stages[i]?.burnDuration;
+      if (!dur) break;
+      t += dur;
+      const isLast = i === stages.length - 1;
+      events.push({ t, label: isLast ? 'SECO' : `MECO S-${i + 1}` });
+      if (!isLast) {
+        t += COAST;
+        events.push({ t, label: `S-${i + 2} IGN` });
+      }
+    }
+    const tliT = S.mission?.tliT;
+    if (tliT) events.push({ t: tliT, label: 'TLI' });
+
+    /* Mission-specific events (e.g. LOI, TEI, reentry) from mission JSON */
+    for (const e of (S.mission?.events ?? [])) {
+      events.push({ t: e.t, label: e.label });
+    }
+
+    return events.filter(e => e.t > mT + 90).sort((a, b) => a.t - b.t)[0] ?? null;
+  }
+
+  document.getElementById('warp-next-event')?.addEventListener('click', () => {
+    const ev = _getNextRocketEvent();
+    if (!ev) return;
+    setState({ warpFactor: 1000, warpTarget: ev.t - 60, warpTargetLabel: ev.label });
   });
 
   /* ── On-screen keyboard ── */

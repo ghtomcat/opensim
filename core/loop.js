@@ -4,7 +4,7 @@
    Call startLoop(renderers) once after init.
    ═══════════════════════════════════════════════════════════════ */
 
-import { S } from './state.js';
+import { S, setState } from './state.js';
 import { tickPhysics }     from './physics.js';
 import { tickHovercraft }  from './hovercraft_physics.js';
 import { tickRocket, tickBooster } from './rocket.js';
@@ -19,6 +19,7 @@ import { tickHIL }                  from './hil.js';
 
 let _prevTime = null;
 let _renderers = [];
+let _running   = false;
 
 /**
  * renderers: array of functions called each frame with no arguments.
@@ -26,6 +27,8 @@ let _renderers = [];
  */
 export function startLoop(renderers = []) {
   _renderers = renderers;
+  if (_running) return;   // already ticking — just swap renderers
+  _running = true;
   requestAnimationFrame(_tick);
 }
 
@@ -54,6 +57,12 @@ function _tick(now) {
     tickCrew(prevAlt, S.alt);
     tickTelemetry(warpDt);
     bbTick(dt);
+
+    /* Warp target: auto-drop when we reach 60 s before the next event */
+    const wT = S.warpTarget;
+    if (wT != null && (S.time ?? 0) >= wT) {
+      setState({ warpFactor: 1, warpTarget: null, warpTargetLabel: null });
+    }
   }
 
   for (const render of _renderers) render();

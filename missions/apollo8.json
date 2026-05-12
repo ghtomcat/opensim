@@ -44,6 +44,16 @@
   "tliT":  10417,
   "tliDv": 3147,
 
+  "events": [
+    { "t": 10734, "label": "TLI CUTOFF"  },
+    { "t": 12360, "label": "S-IVB SEP"   },
+    { "t": 39780, "label": "MCC-1"        },
+    { "t": 248580, "label": "LOI"         },
+    { "t": 270180, "label": "EARTHRISE"   },
+    { "t": 321780, "label": "TEI"         },
+    { "t": 529380, "label": "REENTRY"     }
+  ],
+
   "atcClearances": [
     {
       "t": 120,

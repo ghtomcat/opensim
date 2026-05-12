@@ -7,6 +7,30 @@
 import { S, setState } from './state.js';
 import { bbEvent } from './blackbox.js';
 
+/* Next upcoming rocket event — mirrors the logic in index.html's _getNextRocketEvent */
+function _nextRocketEvent() {
+  const mT   = S.time ?? 0;
+  const ac   = S.aircraft;
+  const perf = ac?.performance ?? {};
+  const ignT = ac?.ignitionTime ?? 0;
+  const COAST = 6;
+  let t = ignT;
+  const evs = [{ t, label: 'IGNITION' }];
+  const stages = perf.stages ?? [];
+  for (let i = 0; i < stages.length; i++) {
+    const dur = stages[i]?.burnDuration;
+    if (!dur) break;
+    t += dur;
+    const isLast = i === stages.length - 1;
+    evs.push({ t, label: isLast ? 'SECO' : `MECO S-${i + 1}` });
+    if (!isLast) { t += COAST; evs.push({ t, label: `S-${i + 2} IGN` }); }
+  }
+  const tliT = S.mission?.tliT;
+  if (tliT) evs.push({ t: tliT, label: 'TLI' });
+  for (const e of (S.mission?.events ?? [])) evs.push({ t: e.t, label: e.label });
+  return evs.filter(e => e.t > mT + 90).sort((a, b) => a.t - b.t)[0] ?? null;
+}
+
 let _mouseLast  = null;
 let _mouseDown  = false;
 let _pttActive  = false;
@@ -148,11 +172,21 @@ function _onKeyDown(e) {
     return;
   }
 
-  /* Time warp — rockets and panel aircraft */
+  /* Time warp — rockets: W skips to next event (press again to cancel).
+     Panel-only aircraft: cycle through fixed warp steps.              */
   if ((e.key === 'w' || e.key === 'W') && (S.aircraft?.vehicleType === 'rocket' || S.aircraft?.panel)) {
-    const steps = S.aircraft?.panel ? [1, 2, 5, 10] : [1, 10, 100, 1000];
-    const next  = steps[(steps.indexOf(S.warpFactor ?? 1) + 1) % steps.length];
-    setState({ warpFactor: next });
+    if (S.aircraft?.vehicleType === 'rocket') {
+      if (S.warpTarget != null) {
+        setState({ warpFactor: 1, warpTarget: null, warpTargetLabel: null });
+      } else {
+        const ev = _nextRocketEvent();
+        if (ev) setState({ warpFactor: 1000, warpTarget: ev.t - 60, warpTargetLabel: ev.label });
+      }
+    } else {
+      const steps = [1, 2, 5, 10, 100];
+      const next  = steps[(steps.indexOf(S.warpFactor ?? 1) + 1) % steps.length];
+      setState({ warpFactor: next, warpTarget: null });
+    }
     return;
   }
 

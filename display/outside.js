@@ -1564,9 +1564,10 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
      baseVF      vF of the aft base ring where nozzles attach
      bodyR       body radius at that ring (scales nozzle proportions)
      engCenters  array of [cR, cU] radial offsets for each engine centre
-     Renders: lateral bell faces (side cam only) + exit disc (always).
-     Exit disc color: _PLUME_OFF.lh2 (cold dark teal) — J-2 uses LH2.  */
-  const _drawJ2Nozzles = (baseVF, bodyR, engCenters) => {
+     j2On        true while engines are burning (gates glow colours)
+     Renders: lateral bell faces (side cam only), exit disc + top cap.
+     Colours coupled to _PLUME_HOT/OFF.lh2 — LH2/LOX blue-white.      */
+  const _drawJ2Nozzles = (baseVF, bodyR, engCenters, j2On) => {
     const nNoz  = 8;
     const nzLen = bodyR * 0.36;   // J-2 nozzle length  (≈ 1.78 m)
     const nzRt  = bodyR * 0.12;   // radius at attachment
@@ -1593,21 +1594,30 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       if (!botR.some(p => !p)) {
         const p0 = botR[0], p1 = botR[1], p2 = botR[2];
         if ((p1.x-p0.x)*(p2.y-p0.y) - (p1.y-p0.y)*(p2.x-p0.x) >= 0) {
-          faces.push({ ps: botR, br: 0.07, avgD: botR.reduce((s,p)=>s+p.d,0)/nNoz, col: _PLUME_OFF.lh2 });
+          const avgD = botR.reduce((s,p)=>s+p.d,0)/nNoz;
+          faces.push({ ps: botR, br: j2On ? 1.0 : 0.07, avgD,
+                       col: j2On ? _PLUME_HOT.lh2 : _PLUME_OFF.lh2 });
         }
+      }
+      if (!topR.some(p => !p)) {
+        const avgD = topR.reduce((s,p)=>s+p.d,0)/nNoz;
+        faces.push({ ps: topR, br: j2On ? 1.0 : 0.06, avgD,
+                     col: j2On ? _PLUME_HOT.lh2 : _PLUME_OFF.lh2 });
       }
     }
   };
 
+  const j2On = pastIgnition && !(S.rocketCoast ?? false) && !S.rocketSECO;
+
   /* S-II — 5× J-2, visible from stage 2 onward */
   if (isSV && rStage === 2) {
     const nzE = _sv1r * 0.55;   // outer engine radial offset  (≈ 2.75 m)
-    _drawJ2Nozzles(-0.006, _sv1r, [[0,0],[nzE,0],[-nzE,0],[0,nzE],[0,-nzE]]);
+    _drawJ2Nozzles(-0.006, _sv1r, [[0,0],[nzE,0],[-nzE,0],[0,nzE],[0,-nzE]], j2On);
   }
 
   /* S-IVB — 1× J-2, centered, visible from stage 3 onward */
   if (isSV && rStage >= 3) {
-    _drawJ2Nozzles(0.010, _sv3r, [[0, 0]]);
+    _drawJ2Nozzles(0.010, _sv3r, [[0, 0]], j2On);
   }
 
   /* Painter's algorithm: farthest first */
