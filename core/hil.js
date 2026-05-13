@@ -40,12 +40,20 @@ export function hilInit(hubUrl = 'ws://localhost:3000', room = 'hil-corsair') {
     const p = msg.patch;
     if (!p) return;
 
-    // Apply control inputs from ESP32 to sim state
+    // Apply control inputs from hardware to sim state.
+    // Aircraft controls:
     const update = {};
     if (p.rollT  !== undefined) update.rollT  = p.rollT;
     if (p.pitchT !== undefined) update.pitchT = p.pitchT;
     if (p.spdT   !== undefined) update.spdT   = p.spdT;
     if (p.ap     !== undefined) update.ap     = p.ap;
+    // Robot arm — actual joint positions reported by ESP32 telemetry:
+    if (p.armJoints  !== undefined) update.armJoints  = p.armJoints;
+    if (p.armGripper !== undefined) update.armGripper = p.armGripper;
+    if (p.armTemp    !== undefined) update.armTemp    = p.armTemp;
+    if (p.armLoad    !== undefined) update.armLoad    = p.armLoad;
+    if (p.armVolt    !== undefined) update.armVolt    = p.armVolt;
+    if (p.armAlert   !== undefined) update.armAlert   = p.armAlert;
     if (Object.keys(update).length) {
       setState(update);
       console.log('[HIL] rx:', update);
@@ -64,19 +72,23 @@ export function tickHIL() {
   if (now - _lastSend < SEND_INTERVAL_MS) return;
   _lastSend = now;
 
-  // Send current sim state to ESP32
-  _ws.send(JSON.stringify({
-    type:  'STATE_PATCH',
-    room:  _room,
-    patch: {
-      hdg:   S.hdg,
-      pitch: S.pitch,
-      roll:  S.roll,
-      alt:   S.alt,     // feet
-      vs:    S.vs,      // ft/min
-      spd:   S.spd,     // knots
-    },
-  }));
+  // Build patch for whatever vehicle type is active.
+  const patch = {
+    hdg:   S.hdg,
+    pitch: S.pitch,
+    roll:  S.roll,
+    alt:   S.alt,   // feet
+    vs:    S.vs,    // ft/min
+    spd:   S.spd,   // knots
+  };
+
+  // Robot arm: forward commanded joint angles to robot_bridge.js → ESP32.
+  if (S.armJoints !== null && S.armJoints !== undefined) {
+    patch.armJoints  = S.armJoints;
+    patch.armGripper = S.armGripper ?? 0;
+  }
+
+  _ws.send(JSON.stringify({ type: 'STATE_PATCH', room: _room, patch }));
 }
 
 export function hilIsConnected() { return _connected; }
