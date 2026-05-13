@@ -50,8 +50,9 @@ export async function loadMission(missionPath, aircraftPath) {
     lat:   lat ?? 48.13,
     lon:   lon ?? 8.55,
     flaps: 0, prevFlaps: 0,
-    gear:  aircraft.fixedGear ? true : startOnGround,
+    gear:     aircraft.fixedGear ? true : startOnGround,
     prevGear: aircraft.fixedGear ? true : startOnGround,
+    gearAnim: aircraft.fixedGear ? 1 : (startOnGround ? 1 : 0),
     ap:    !aircraft.manualControl,
     athr:  !aircraft.manualControl,
     wow:   startOnGround,
@@ -80,6 +81,8 @@ export async function loadMission(missionPath, aircraftPath) {
       fuelPump:   false,
       lights:     { nav: false, beacon: false, strobe: false, landing: false },
     });
+  } else if (aircraft.panel === 'airbus' || aircraft.panel === 'e190') {
+    setState({ lights: { nav: true, beacon: true, strobe: true, landing: false } });
   }
 
   /* Live METAR */

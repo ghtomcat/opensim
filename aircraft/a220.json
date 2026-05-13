@@ -3,7 +3,7 @@
   "name": "Airbus A220-300",
   "panel": "airbus",
   "livery": {
-    "colors": [null, null, [200, 16, 46], null, null, [20, 22, 28], null]
+    "colors": [null, null, [0, 100, 72], null, null, [20, 22, 28], null]
   },
   "engine": {
     "model": "pw1500g",

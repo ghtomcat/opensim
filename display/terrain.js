@@ -28,6 +28,10 @@ const ROW_DIST = Array.from({ length: ROWS + 1 }, (_, i) => 0.1 * Math.pow(1.32,
 /* ── FPS counter ── */
 let _fpsLast = 0, _fpsCount = 0, _fpsDisplay = 0;
 
+/* ── Lunar phase constants ── */
+const _MOON_REF_MS    = new Date('2000-01-06T18:14:00Z').getTime();  // reference new moon
+const _MOON_SYNODIC   = 29.530589 * 86400000;                        // ms per synodic month
+
 /* ── Mapbox Terrain-RGB elevation tiles ── */
 const _TK = localStorage.getItem('mapboxToken') ?? '';  // set once: localStorage.setItem('mapboxToken','pk.eyJ1...')
 const _TZ = 12;
@@ -437,6 +441,104 @@ export function renderTerrain(canvas, { outsideView = false } = {}) {
         ctx.beginPath();
         ctx.arc(sx, sy, radius, 0, Math.PI * 2);
         ctx.fill();
+      }
+    }
+  }
+
+  /* ── Moon disc ── */
+  if (effectiveDayFrac < 0.9 && !isArctic) {
+    /* Real-world lunar phase — synodic month from 2000-01-06 new moon reference */
+    const moonPhase = ((Date.now() - _MOON_REF_MS) % _MOON_SYNODIC + _MOON_SYNODIC) % _MOON_SYNODIC / _MOON_SYNODIC;
+    /* Position: moon's effective local time is offset from sun by phase angle.
+       New moon (0) = same time as sun; full moon (0.5) = 12 h opposite. */
+    const moonTOD      = ((timeOfDay + moonPhase * 24) % 24 + 24) % 24;
+    const moonAlt      = Math.sin((moonTOD - 6) / 12 * Math.PI);
+    const moonAzDeg    = (180 + (moonTOD - 12) * 15 + 360) % 360;
+    const moonAltRad   = Math.asin(Math.max(-1, Math.min(1, moonAlt)));
+    const moonRelAzRad = ((moonAzDeg - (S.hdg ?? 0) + 540) % 360 - 180) * DEG;
+
+    if (moonAlt > -0.05) {
+      const mFwd  = Math.cos(moonAltRad) * Math.cos(moonRelAzRad);
+      const mRgt  = Math.cos(moonAltRad) * Math.sin(moonRelAzRad);
+      const mUp   = Math.sin(moonAltRad);
+      const mcf   = mFwd * cosP + mUp  * sinP;
+      const mcu   = mUp  * cosP - mFwd * sinP;
+      const mcr2  = mRgt * cosR + mcu  * sinR;
+      const mcu2  = mcu  * cosR - mRgt * sinR;
+
+      if (mcf > 0.01) {
+        const mx = cx + mcr2 / mcf * focal;
+        const my = cy - mcu2 / mcf * focal;
+        if (mx > -200 && mx < W + 200 && my > -200 && my < H + 200) {
+          const moonAlpha  = Math.min(1, (1 - effectiveDayFrac) * 3) * 0.92;
+          const illuminated = (1 - Math.cos(moonPhase * 2 * Math.PI)) / 2;
+          const R = 14 * devicePixelRatio;
+
+          ctx.save();
+          ctx.globalAlpha = moonAlpha;
+
+          /* Glow — brighter at full moon */
+          const glowStr = 0.07 + illuminated * 0.16;
+          const mglow = ctx.createRadialGradient(mx, my, 0, mx, my, R * 3.5);
+          mglow.addColorStop(0,   `rgba(200,210,180,${glowStr})`);
+          mglow.addColorStop(0.5, `rgba(180,195,160,${glowStr * 0.4})`);
+          mglow.addColorStop(1,   'rgba(180,195,160,0)');
+          ctx.fillStyle = mglow;
+          ctx.beginPath();
+          ctx.arc(mx, my, R * 3.5, 0, Math.PI * 2);
+          ctx.fill();
+
+          /* Phase disc — clip, fill lit surface, draw shadow */
+          ctx.save();
+          ctx.translate(mx, my);
+          ctx.beginPath();
+          ctx.arc(0, 0, R, 0, Math.PI * 2);
+          ctx.clip();
+
+          ctx.fillStyle = 'rgb(215, 210, 180)';
+          ctx.fillRect(-R, -R, 2*R, 2*R);
+
+          const tx    = Math.cos(moonPhase * 2 * Math.PI) * R;
+          const absTx = Math.abs(tx);
+          ctx.fillStyle = 'rgba(0, 3, 20, 0.97)';
+
+          if (moonPhase < 0.01 || moonPhase > 0.99) {
+            /* New moon — fill disc dark */
+            ctx.fillRect(-R, -R, 2*R, 2*R);
+          } else if (moonPhase < 0.5) {
+            /* Waxing: shadow on left */
+            ctx.beginPath();
+            if (tx >= 0) {
+              /* Crescent — shadow covers left + big right portion */
+              ctx.arc(0, 0, R, -Math.PI/2, Math.PI/2, true);
+              ctx.ellipse(0, 0, tx, R, 0, Math.PI/2, -Math.PI/2, true);
+            } else {
+              /* Gibbous — thin sliver on left */
+              ctx.ellipse(0, 0, absTx, R, 0, -Math.PI/2, Math.PI/2, true);
+              ctx.arc(0, 0, R, Math.PI/2, -Math.PI/2, false);
+            }
+            ctx.closePath();
+            ctx.fill();
+          } else if (moonPhase > 0.51) {
+            /* Waning: shadow on right */
+            ctx.beginPath();
+            if (tx <= 0) {
+              /* Gibbous — thin sliver on right */
+              ctx.ellipse(0, 0, absTx, R, 0, -Math.PI/2, Math.PI/2, false);
+              ctx.arc(0, 0, R, Math.PI/2, -Math.PI/2, true);
+            } else {
+              /* Crescent — shadow covers right + big left portion */
+              ctx.arc(0, 0, R, -Math.PI/2, Math.PI/2, false);
+              ctx.ellipse(0, 0, tx, R, 0, Math.PI/2, -Math.PI/2, false);
+            }
+            ctx.closePath();
+            ctx.fill();
+          }
+          /* Full moon (0.49–0.51): no shadow drawn */
+
+          ctx.restore();  // pop translate + clip
+          ctx.restore();  // pop globalAlpha
+        }
       }
     }
   }

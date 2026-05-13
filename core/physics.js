@@ -316,12 +316,22 @@ export function tickPhysics(dt) {
   const _trOn = _trCapable && newWow && newSpd > 60 && (S.spdT === 0 || S.braking);
   const _trPatch = _trCapable ? { thrustReverser: _trOn } : {};
 
+  /* Gear animation — 12-second transit (not for fixed-gear aircraft) */
+  const GEAR_TIME = 12;
+  const gearTarget = S.gear ? 1 : 0;
+  const gearCur    = S.gearAnim ?? gearTarget;
+  const gearDelta  = dt / GEAR_TIME;
+  const newGearAnim = gearTarget > gearCur
+    ? Math.min(1, gearCur + gearDelta)
+    : Math.max(0, gearCur - gearDelta);
+  const _gearPatch = !ac.fixedGear ? { gearAnim: newGearAnim } : {};
+
   setState({ alt: newAlt, spd: newSpd, hdg: newHdg, pitch: newPitch, roll: newRoll,
              rollRate: newRollRate, pitchRate: newPitchRate,
              vs, ilsLoc, ilsGs, fma, lat: newLat, lon: newLon,
              prevAlt: S.alt, time: S.time + dt,
              wow: newWow, touchdownVS: newTouchdownVS,
-             oilTempC: newOilTempC, ..._trPatch });
+             oilTempC: newOilTempC, ..._trPatch, ..._gearPatch });
 }
 
 export function resetApproach() {

@@ -149,8 +149,11 @@ export function tickCrew(prevAlt, currAlt) {
 export function resetCrew() {
   /* Invalidate all pending ambient audio timeouts, then stop active elements */
   _crewGen++;
-  for (const a of _ambientAudio) { try { a.pause(); a.src = ''; } catch {} }
+  for (const a of _ambientAudio) { try { if (typeof a.stop === 'function') a.stop(); else { a.pause(); a.src = ''; } } catch {} }
   _ambientAudio.length = 0;
+  /* Kill any lingering TTS queue and radio atmosphere from previous mission */
+  try { if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel(); } catch {}
+  _stopRadioAtmosphere();
 
   _atcFired.clear();
   for (const k in _atcEndedAt) delete _atcEndedAt[k];
@@ -477,48 +480,62 @@ function _checkATC(prev, curr, ms) {
     }
     if (!fire) return;
     _atcFired.add(idx);
+    console.log(`[crew] ATC fire idx=${idx} t=${(S.time??0).toFixed(1)} gen=${_crewGen}`, clr.trigger ?? clr.t ?? clr.event ?? clr.alt ?? '?');
 
     const capturedIdx = idx;
     const delay = clr.delay ?? 200;
 
-    /* Ambient background audio — no radio filter, non-blocking */
+    /* Ambient background audio — decoded into memory so startTime is exact and
+       no error-retry loop can occur (unlike HTML5 Audio with preload=none).     */
     if (clr.audio !== undefined && clr.voice === 'ambient') {
       const _gen = _crewGen;
       setTimeout(async () => {
-        if (_crewGen !== _gen) return;   // mission changed while we were waiting
-        const exists = await fetch(clr.audio, { method: 'HEAD' })
-          .then(r => r.ok).catch(() => false);
-        if (_crewGen !== _gen) return;   // mission changed during fetch
-        if (exists) {
-          /* Create with no src + preload=none so loadedmetadata hasn't fired yet */
-          const a = new Audio();
-          a.preload = 'none';
-          a.loop    = false;
-          a.volume  = clr.volume ?? 0.2;
+        if (_crewGen !== _gen) return;
+        try {
+          const resp = await fetch(clr.audio);
+          if (!resp.ok || _crewGen !== _gen) return;
+          const ab  = await resp.arrayBuffer();
+          if (_crewGen !== _gen) return;
+          const ctx = getAudioContext();
+          if (!ctx) return;
+          const buf = await ctx.decodeAudioData(ab);
+          if (_crewGen !== _gen) return;
+
+          const startOff = clr.startTime ?? 0;
+          const maxPlay  = Math.min(buf.duration - startOff,
+                                    clr.duration ?? (buf.duration - startOff));
+          const vol      = clr.volume ?? 0.2;
+
+          const src  = ctx.createBufferSource();
+          src.buffer = buf;
+          src.loop   = false;
+          const gain = ctx.createGain();
+          gain.gain.value = vol;
+          src.connect(gain);
+          gain.connect(ctx.destination);
+
+          const handle = { stop() { try { src.stop(); } catch {} try { gain.disconnect(); } catch {} } };
+          _ambientAudio.push(handle);
+
           const _removeAmbient = () => {
-            const i = _ambientAudio.indexOf(a); if (i >= 0) _ambientAudio.splice(i, 1);
+            const i = _ambientAudio.indexOf(handle);
+            if (i >= 0) _ambientAudio.splice(i, 1);
+            handle.stop();
           };
-          const _schedFade = () => {
-            if (!clr.duration) return;
-            const fadeStart = (clr.duration - 2) * 1000;
-            setTimeout(() => {
-              const vol0 = a.volume;
-              let t = 0;
-              const iv = setInterval(() => {
-                t += 100;
-                a.volume = Math.max(0, vol0 * (1 - t / 2000));
-                if (t >= 2000) { clearInterval(iv); a.pause(); _removeAmbient(); }
-              }, 100);
-            }, Math.max(0, fadeStart));
-          };
-          a.src = clr.audio;
-          if (clr.startTime != null) {
-            a.addEventListener('loadedmetadata', () => { a.currentTime = clr.startTime; }, { once: true });
-          }
-          _ambientAudio.push(a);
-          a.addEventListener('ended', _removeAmbient, { once: true });
-          a.play().catch(() => {});
-          _schedFade();
+
+          src.onended = () => { _removeAmbient(); };
+
+          /* Schedule fade + stop in AudioContext time — avoids setTimeout drift
+             and the Chrome bug where onended doesn't fire on natural buffer end. */
+          const t0      = ctx.currentTime;
+          const fadeLen = Math.min(2, maxPlay * 0.15);
+          gain.gain.setValueAtTime(vol, t0);
+          gain.gain.setValueAtTime(vol, t0 + maxPlay - fadeLen);
+          gain.gain.linearRampToValueAtTime(0, t0 + maxPlay);
+          src.start(t0, startOff);
+          src.stop(t0 + maxPlay);   // explicit stop → onended always fires
+        } catch (e) {
+          console.warn('[crew] ambient load failed:', clr.audio, e.message);
         }
         _atcEndedAt[capturedIdx] = S.time;
       }, clr.delay ?? 0);
@@ -530,9 +547,12 @@ function _checkATC(prev, curr, ms) {
       const charKey = clr.speaker ?? clr.voice;
       const char    = charKey ? S.mission?.characters?.[charKey] : null;
       const profile = clr.commProfile ?? char?.commProfile ?? S.mission?.commProfile ?? 'vhf-aviation';
+      const _gen = _crewGen;
       setTimeout(async () => {
+        if (_crewGen !== _gen) return;
         const exists = await fetch(clr.audio, { method: 'HEAD' })
           .then(r => r.ok).catch(() => false);
+        if (_crewGen !== _gen) return;
         if (exists) {
           playRadio(clr.audio, { profile, onEnded: () => { _atcEndedAt[capturedIdx] = S.time; } });
         } else if (clr.text) {
@@ -549,10 +569,11 @@ function _checkATC(prev, curr, ms) {
 
     /* TTS single-voice */
     if (clr.text !== undefined) {
+      const _gen = _crewGen;
       const vp = _voiceFor(clr.voice);
       const u  = _makeUtt(clr.text, vp.voice, { rate: vp.rate, pitch: vp.pitch, volume: vp.volume });
       u.onend = () => { _atcEndedAt[capturedIdx] = S.time; };
-      setTimeout(() => _safeSpeak(u), delay);
+      setTimeout(() => { if (_crewGen === _gen) _safeSpeak(u); }, delay);
       return;
     }
 
@@ -566,6 +587,7 @@ function _checkATC(prev, curr, ms) {
     const atcAudio = clr.atcAudio ?? null;
     const ackAudio = clr.ackAudio ?? null;
     const profile  = clr.commProfile ?? S.mission?.commProfile ?? 'vhf-aviation';
+    const _gen = _crewGen;
 
     if (!_isComPowered()) return;
 
@@ -573,11 +595,14 @@ function _checkATC(prev, curr, ms) {
 
     /* Step 3 — PM acknowledges (in-cockpit, direct) */
     const _doAck = () => {
+      if (_crewGen !== _gen) return;
       const done = () => { _atcEndedAt[capturedIdx] = S.time; };
       if (!ackText && !ackAudio) { done(); return; }
       setTimeout(() => {
+        if (_crewGen !== _gen) return;
         _pttClick();
         setTimeout(async () => {
+          if (_crewGen !== _gen) return;
           if (ackAudio && await _head(ackAudio)) {
             _playFile(ackAudio, () => { _pttClick(); done(); });
           } else if (ackText) {
@@ -591,8 +616,10 @@ function _checkATC(prev, curr, ms) {
 
     /* Step 2 — ATC responds (over radio chain, variable delay) */
     const _doAtc = () => {
+      if (_crewGen !== _gen) return;
       const delay = Math.floor(800 + Math.random() * 600);   // 0.8–1.4 s
       setTimeout(async () => {
+        if (_crewGen !== _gen) return;
         const afterAtc = () => { _stopRadioAtmosphere(); _doAck(); };
 
         if (atcAudio && await _head(atcAudio)) {
@@ -604,6 +631,7 @@ function _checkATC(prev, curr, ms) {
         /* TTS fallback — atmosphere opens, brief pause, then voice */
         _startRadioAtmosphere(profile);
         await new Promise(r => setTimeout(r, 150));
+        if (_crewGen !== _gen) return;
         const lower   = atcText.toLowerCase();
         const fileKey = Object.keys(AUDIO_FILES).find(k => lower.includes(k));
         if (fileKey) {
@@ -627,6 +655,7 @@ function _checkATC(prev, curr, ms) {
     /* Step 1 — PM calls (in-cockpit, direct) — PTT click, 80 ms, voice */
     _pttClick();
     setTimeout(async () => {
+      if (_crewGen !== _gen) return;
       const afterPM = () => { _pttClick(); _doAtc(); };
       if (pmAudio && await _head(pmAudio)) {
         _playFile(pmAudio, afterPM);
@@ -640,6 +669,10 @@ function _checkATC(prev, curr, ms) {
 }
 
 /* ── Rocket event detection ── */
+
+function _slowToRealtime() {
+  setState({ warpFactor: 1 });
+}
 
 function _rhoSimple(alt_m) {
   if (alt_m <= 11000)  return 1.225 * Math.pow((288.15 - 6.5e-3 * alt_m) / 288.15, 4.2559);
@@ -699,41 +732,41 @@ function _checkRocketEvent(event, clr, prevAlt = 0, currAlt = 0) {
     case 'meco':
       /* Stage 1 just started coasting (burnout) */
       if ((S.rocketCoast ?? false) && !_prevRocketCoast && (S.rocketStage ?? 1) === 1) {
-        _rocketFired.add(uid); return true;
+        _rocketFired.add(uid); _slowToRealtime(); return true;
       }
       break;
 
     case 'stagesep':
       /* Coast just started (booster falls away) — same tick as meco, separate uid tracking */
       if ((S.rocketCoast ?? false) && !_prevRocketCoast && (S.rocketStage ?? 1) === 1) {
-        _rocketFired.add(uid); return true;
+        _rocketFired.add(uid); _slowToRealtime(); return true;
       }
       break;
 
     case 'meco_s2':
       /* S-II burnout — coast starts while stage index is 2 */
       if ((S.rocketCoast ?? false) && !_prevRocketCoast && (S.rocketStage ?? 1) === 2) {
-        _rocketFired.add(uid); return true;
+        _rocketFired.add(uid); _slowToRealtime(); return true;
       }
       break;
 
     case 's2_ignition':
       /* S-II lights up — stage just advanced from 1 to 2, no longer coasting */
       if ((S.rocketStage ?? 1) === 2 && _prevRocketStage === 1 && !(S.rocketCoast ?? false)) {
-        _rocketFired.add(uid); return true;
+        _rocketFired.add(uid); _slowToRealtime(); return true;
       }
       break;
 
     case 's3_ignition':
       /* S-IVB lights up — stage just advanced from 2 to 3, no longer coasting */
       if ((S.rocketStage ?? 1) === 3 && _prevRocketStage === 2 && !(S.rocketCoast ?? false)) {
-        _rocketFired.add(uid); return true;
+        _rocketFired.add(uid); _slowToRealtime(); return true;
       }
       break;
 
     case 'seco':
       if ((S.rocketSECO ?? false) && !_prevRocketSECO) {
-        _rocketFired.add(uid); return true;
+        _rocketFired.add(uid); _slowToRealtime(); return true;
       }
       break;
 
@@ -979,6 +1012,7 @@ function _makeUtt(text, voice, { rate = 1, pitch = 1, volume = 0.9 } = {}) {
 
 function _safeSpeak(utt) {
   if (typeof speechSynthesis === 'undefined') return;
+  console.log(`[crew] speak: "${utt.text.slice(0, 60)}" pending=${speechSynthesis.pending} speaking=${speechSynthesis.speaking}`);
   speechSynthesis.speak(utt);
 }
 

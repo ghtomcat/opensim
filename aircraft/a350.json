@@ -2,8 +2,9 @@
   "id": "a350",
   "name": "Airbus A350-900",
   "panel": "airbus",
+  "swissCross": true,
   "livery": {
-    "colors": [null, null, [200, 16, 46], null, null, [20, 22, 28], null]
+    "colors": [null, null, [200, 16, 46], null, null, [20, 22, 28], null, null, null, [200, 16, 46]]
   },
   "engine": {
     "model": "trent-xwb",

@@ -330,8 +330,11 @@ function _onTune(freq) {
     _startStream(info.stream, info.streamPage);
   }
 
-  /* AFIS response (VFR uncontrolled aerodromes) */
-  if (info.afis) {
+  /* AFIS response (VFR uncontrolled aerodromes)
+     Skip if the mission already handles AFIS via a com_active clearance — avoids double play */
+  const _hasComActiveClearance = S.mission?.atcClearances?.some(c => c.trigger?.type === 'com_active');
+  console.log(`[com] _onTune ${freq} afis=${!!info.afis} hasComActive=${_hasComActiveClearance}`);
+  if (info.afis && !_hasComActiveClearance) {
     const cs  = S.aircraft?.callsign ?? 'Traffic';
     const arr = S.mission?.arrival;
     const w   = S.metar ?? S.mission?.weather?.fallback ?? {};
