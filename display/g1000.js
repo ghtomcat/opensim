@@ -1121,3 +1121,10 @@ function _roundRect(ctx, x, y, w, h, r) {
   ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
   ctx.closePath();
 }
+
+/* ── Panel renderer bridge exports ── */
+export function drawG1000PFD(ctx, x, y, w, h)         { _pfd(ctx, x, y, w, h); }
+export function drawG1000MFD(ctx, canvas, x, y, w, h) { _mfd(ctx, canvas, x, y, w, h); }
+export function drawG1000Bezel(ctx, x, y, w, h)        { _screenBezel(ctx, x, y, w, h); }
+export function drawMagRotary(ctx, cx, cy, r, state)   { _magRotary(ctx, cx, cy, r, state); }
+export function drawFuelSel(ctx, x, y, w, h)           { _fuelSelectorCompact(ctx, x, y, w, h); }

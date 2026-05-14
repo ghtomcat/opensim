@@ -374,6 +374,9 @@ export function renderTerrain(canvas, { outsideView = false } = {}) {
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, H);
 
+  /* ── Lunar phase (real-world synodic cycle) ── */
+  const moonPhase = ((Date.now() - _MOON_REF_MS) % _MOON_SYNODIC + _MOON_SYNODIC) % _MOON_SYNODIC / _MOON_SYNODIC;
+
   /* ── Stars (night or space) ── */
   const effectiveDayFrac = dayFrac * (1 - spaceFrac);  // space overrides time of day
   if (effectiveDayFrac < 0.95 && !isArctic) {
@@ -447,8 +450,6 @@ export function renderTerrain(canvas, { outsideView = false } = {}) {
 
   /* ── Moon disc ── */
   if (effectiveDayFrac < 0.9 && !isArctic) {
-    /* Real-world lunar phase — synodic month from 2000-01-06 new moon reference */
-    const moonPhase = ((Date.now() - _MOON_REF_MS) % _MOON_SYNODIC + _MOON_SYNODIC) % _MOON_SYNODIC / _MOON_SYNODIC;
     /* Position: moon's effective local time is offset from sun by phase angle.
        New moon (0) = same time as sun; full moon (0.5) = 12 h opposite. */
     const moonTOD      = ((timeOfDay + moonPhase * 24) % 24 + 24) % 24;
@@ -1099,6 +1100,108 @@ export function renderTerrain(canvas, { outsideView = false } = {}) {
   ctx.textBaseline = 'top';
   ctx.fillText(`${_fpsDisplay} fps`, W - 8 * devicePixelRatio, 8 * devicePixelRatio);
   ctx.restore();
+
+  /* ── Clock + moon phase — top-centre overlay ── */
+  {
+    const _clockTotal = ((_todH + _simH) % 24 + 24) % 24;
+    const DPR         = devicePixelRatio;
+    const clockType   = S.aircraft?.clock;
+    let   _clockBottomY = 0;
+
+    if (clockType === 'digital') {
+      const _hh = String(Math.floor(_clockTotal)).padStart(2, '0');
+      const _mm = String(Math.floor((_clockTotal % 1) * 60)).padStart(2, '0');
+      const _ss = String(Math.floor(((_clockTotal * 60) % 1) * 60)).padStart(2, '0');
+      ctx.save();
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'top';
+      ctx.font         = `${13 * DPR}px 'IBM Plex Mono', monospace`;
+      ctx.fillStyle    = 'rgba(255,240,200,0.72)';
+      ctx.fillText(`${_hh}:${_mm}:${_ss} UTC`, W / 2, 8 * DPR);
+      ctx.restore();
+      _clockBottomY = 24 * DPR;
+    } else if (clockType === 'met') {
+      const ignT  = S.aircraft?.ignitionTime ?? 0;
+      const met   = (S.time ?? 0) - ignT;
+      const sign  = met < 0 ? 'T-' : 'T+';
+      const abs   = Math.abs(met);
+      const mm    = String(Math.floor(abs / 60)).padStart(2, '0');
+      const ss    = String(Math.floor(abs % 60)).padStart(2, '0');
+      ctx.save();
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'top';
+      ctx.font         = `${13 * DPR}px 'IBM Plex Mono', monospace`;
+      ctx.fillStyle    = 'rgba(255,240,200,0.72)';
+      ctx.fillText(`MET  ${sign}${mm}:${ss}`, W / 2, 8 * DPR);
+      ctx.restore();
+      _clockBottomY = 24 * DPR;
+    } else if (clockType === 'analog') {
+      const _h   = _clockTotal % 12;
+      const _m   = (_clockTotal * 60) % 60;
+      const _s   = (_clockTotal * 3600) % 60;
+      const hAng = (_h / 12) * Math.PI * 2 - Math.PI / 2;
+      const mAng = (_m / 60) * Math.PI * 2 - Math.PI / 2;
+      const sAng = (_s / 60) * Math.PI * 2 - Math.PI / 2;
+      const R    = 18 * DPR;
+      const cx   = W / 2, cy = 26 * DPR;
+
+      ctx.save();
+      ctx.globalAlpha = 0.82;
+
+      /* Face */
+      ctx.fillStyle = 'rgba(18,18,22,0.88)';
+      ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+
+      /* Bezel */
+      ctx.strokeStyle = 'rgba(160,155,140,0.7)';
+      ctx.lineWidth   = 1.5 * DPR;
+      ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+
+      /* Tick marks */
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        const major = i % 3 === 0;
+        ctx.strokeStyle = major ? 'rgba(220,215,200,0.9)' : 'rgba(150,145,130,0.7)';
+        ctx.lineWidth   = (major ? 1.5 : 1.0) * DPR;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(a) * R * (major ? 0.72 : 0.82), cy + Math.sin(a) * R * (major ? 0.72 : 0.82));
+        ctx.lineTo(cx + Math.cos(a) * (R - 1.5 * DPR),           cy + Math.sin(a) * (R - 1.5 * DPR));
+        ctx.stroke();
+      }
+
+      /* Hour hand */
+      ctx.strokeStyle = 'rgba(235,228,210,0.95)';
+      ctx.lineWidth   = 2.5 * DPR;
+      ctx.beginPath();
+      ctx.moveTo(cx - Math.cos(hAng) * R * 0.12, cy - Math.sin(hAng) * R * 0.12);
+      ctx.lineTo(cx + Math.cos(hAng) * R * 0.55, cy + Math.sin(hAng) * R * 0.55);
+      ctx.stroke();
+
+      /* Minute hand */
+      ctx.lineWidth = 1.8 * DPR;
+      ctx.beginPath();
+      ctx.moveTo(cx - Math.cos(mAng) * R * 0.12, cy - Math.sin(mAng) * R * 0.12);
+      ctx.lineTo(cx + Math.cos(mAng) * R * 0.78, cy + Math.sin(mAng) * R * 0.78);
+      ctx.stroke();
+
+      /* Second hand */
+      ctx.strokeStyle = 'rgba(220,60,40,0.9)';
+      ctx.lineWidth   = 1.0 * DPR;
+      ctx.beginPath();
+      ctx.moveTo(cx - Math.cos(sAng) * R * 0.25, cy - Math.sin(sAng) * R * 0.25);
+      ctx.lineTo(cx + Math.cos(sAng) * R * 0.88, cy + Math.sin(sAng) * R * 0.88);
+      ctx.stroke();
+
+      /* Centre dot */
+      ctx.fillStyle = 'rgba(220,60,40,0.9)';
+      ctx.beginPath(); ctx.arc(cx, cy, 2 * DPR, 0, Math.PI * 2); ctx.fill();
+
+      ctx.restore();
+      _clockBottomY = (cy + R + 6 * DPR);
+    }
+
+  }
 }
 
 /* Lerp colour channel: low-alt value a, high-alt value b */

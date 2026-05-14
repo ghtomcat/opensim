@@ -43,6 +43,11 @@
 
   "tliT":  10417,
   "tliDv": 3147,
+  "loiT":  248580,
+  "loiDv": 1067,
+  "teiT":  321780,
+  "teiDv": 1070,
+  "moonRefAngle": 12,
 
   "events": [
     { "t": 10734, "label": "TLI CUTOFF"  },

@@ -1,6 +1,7 @@
 {
   "id":          "falcon9-b5-demo2",
   "name":        "Falcon 9 Block 5 — Demo-2",
+  "clock":       "met",
   "vehicleType": "rocket",
   "ignitionTime": 178,
   "manualControl": false,

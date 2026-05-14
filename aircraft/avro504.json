@@ -1,6 +1,7 @@
 {
   "id": "avro504",
   "name": "Avro 504K",
+  "clock": "analog",
   "callsign": "Wolfskopf",
   "icaoType": "AV04",
   "era": "WWI / 1918",

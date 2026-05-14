@@ -17,12 +17,13 @@ An aircraft is a single JSON file in `aircraft/`. A mission pairs it with a scen
 
 ```
 aircraft/
-  a350.json      ← Airbus A350 (wide-body AP jet)
-  a220.json      ← Airbus A220 (narrow-body AP jet)
-  e190.json      ← Embraer E190 (narrow-body AP jet, e190 panel)
-  c172.json      ← Cessna 172 (piston, manual control, G1000)
-  bf109.json     ← Bf 109 (WWII fighter, manual control)
-  velis-hb-syc.json  ← Pipistrel Velis Electro (electric, manual)
+  a350.json           ← Airbus A350 (wide-body AP jet)
+  a220.json           ← Airbus A220 (narrow-body AP jet)
+  e190.json           ← Embraer E190 (narrow-body AP jet, e190 panel)
+  c172.json           ← Cessna 172 (piston, manual control, G1000)
+  robin-dr400.json    ← Robin DR400/140B (piston, manual control, Garmin GTN)
+  bf109.json          ← Bf 109 (WWII fighter, manual control)
+  velis-hb-syc.json   ← Pipistrel Velis Electro (electric, manual)
 ```
 
 ---
@@ -54,18 +55,56 @@ The `panel` field controls which 3D cockpit and instrument renderer is used.
 |---|---|---|
 | `"airbus"` | Airbus EFIS — PFD + ND + ECAM | A350, A220 |
 | `"e190"` | Embraer Primus-style EFIS | E190 |
-| `"g1000"` | Garmin G1000 glass cockpit | C172 |
+| `"g1000"` | Garmin G1000 glass cockpit (data-driven) | C172 |
+| `"dr400"` | Robin DR-400 cockpit — Garmin GTN + analog gauges (data-driven) | Robin DR-400 |
 | `"bf109"` | Bf 109 analog steam gauges | Bf 109 |
 | `"f4u"` | F4U Corsair analog gauges | F4U-1A |
 | `"velis-epsi"` | Velis Electro EPSI panel | Velis HB-SYC |
 
 The 3D outside model (fuselage, wings, engines) is also driven by `panel`:
 - `"airbus"` or `"e190"` → wide-body jet renderer (`_buildWB`) with twin turbofan engines, swept wings, proper aileron/flap animation.
-- `"g1000"` → C172 high-wing geometry.
+- `"g1000"` or `"dr400"` → piston-single high-wing geometry (C172 base model).
 - `"bf109"` → Bf 109 propeller fighter geometry.
 - Everything else → default wide-body fallback.
 
 For `"airbus"` panel you must also add a `displays` array (see below).
+
+### Data-driven GA cockpits (`"g1000"`, `"dr400"`)
+
+GA panels use a JSON layout system — no code changes needed to rearrange instruments:
+
+- **`panels/{panel}.json`** — Row/column layout tree. Each cell names a widget and passes config.
+- **`panels/styles/{panel}.json`** — Color palette for that cockpit.
+
+Widgets available:
+
+| Widget | Description |
+|---|---|
+| `grid` | Recursive sub-layout (rows/cols inside a cell) |
+| `g1000_screen` | Dual Garmin G1000 (PFD left + MFD right) |
+| `garmin_gtn` | Single Garmin GTN/G5xx screen (MFD content) |
+| `analog_asi` | Analog airspeed indicator |
+| `analog_ai` | Analog attitude indicator |
+| `analog_alt` | Analog altimeter |
+| `rocker_strip` | Row of large illuminated annunciator switches |
+| `bottom_switches` | Toggle switches with bat-handle style |
+| `magneto_knob` | Rotary magneto selector (OFF/R/L/BOTH/START) |
+| `fuel_selector` | Fuel selector knob (LEFT/BOTH/RIGHT/OFF) |
+| `radio_stack` | Simplified COM/XPDR radio stack |
+| `aircraft_tag` | Type + callsign plate (reads from aircraft JSON) |
+| `spacer` | Empty fill |
+
+#### `rocker_strip` switch config
+
+```json
+{ "label": "BAT", "state": "masterBat", "color": "red", "guarded": true }
+```
+
+| Field | Values | Description |
+|---|---|---|
+| `state` | state key or `"lights.nav"` dot-path | State to toggle. Dot-paths resolve to nested state. |
+| `color` | `"red"`, `"amber"`, `"green"`, `"beige"` | Face color when ON. Omit for default dark. |
+| `guarded` | `true`/`false` | Adds a red protective cover. Requires two clicks: first lifts the guard, second throws the switch. Turning off collapses the guard automatically. |
 
 ---
 

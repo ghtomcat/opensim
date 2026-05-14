@@ -1,6 +1,7 @@
 {
   "id": "bf109",
   "name": "Messerschmitt Bf 109 G-4",
+  "clock": "analog",
   "tanks": { "left": 400, "right": 0, "unit": "L" },
   "fuelBurn": 120,
   "coolingSystem": "liquid",

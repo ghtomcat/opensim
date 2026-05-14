@@ -445,19 +445,19 @@ const _WB_NP = {
   /* 737-800: narrowbody r=0.00195; CFM56-7 closer inboard + lower; shorter swept wing */
   b737: {
     r: 0.00195, ey: 0.00380, ez: -0.00190, er: 0.00096, erc: 0.00063, pz: -0.00062,
-    tipX: 0.020, tipCz: 0.0001,
+    tipX: 0.018, tipCz: 0.0,
     noseRings: [
-      { vF: 0.019, r: 0.000373, col: 6 },   // rounded 737 tip  (0.5 × nr1 at r=0.00195)
-      { vF: 0.017, r: 0.000634, col: 0 },   // 0.85 × nr1
-      { vF: 0.015, r: 0.001379, col: 0 },   // nr2
-      { vF: 0.013, r: 0.001802, col: 5 },   // nr3 (cockpit band)
-      { vF: 0.012, r: 0.00195,  col: 0 },   // full-width cylinder
+      /* 737 has a blunt, rounded nose — expands quickly to full diameter */
+      { vF: 0.017, r: 0.000746, col: 6 },   // nr1 full — broad rounded tip
+      { vF: 0.016, r: 0.001379, col: 0 },   // nr2 — rapid expansion
+      { vF: 0.014, r: 0.001802, col: 5 },   // nr3 cockpit band
+      { vF: 0.013, r: 0.00195,  col: 0 },   // full width
     ],
     windows: [
-      [ 0.017,  0.0002,  0.0008],[ 0.013,  0.0003,  0.0015],  // R: compact rows
-      [ 0.013,  0.0010,  0.0011],[ 0.017,  0.0005,  0.0005],
-      [ 0.017, -0.0002,  0.0008],[ 0.013, -0.0003,  0.0015],
-      [ 0.013, -0.0010,  0.0011],[ 0.017, -0.0005,  0.0005],
+      [ 0.016,  0.0002,  0.0010],[ 0.013,  0.0003,  0.0016],  // R cockpit glass
+      [ 0.013,  0.0011,  0.0012],[ 0.016,  0.0006,  0.0006],
+      [ 0.016, -0.0002,  0.0010],[ 0.013, -0.0003,  0.0016],
+      [ 0.013, -0.0011,  0.0012],[ 0.016, -0.0006,  0.0006],
     ],
     wing: {
       span:      0.01320,
@@ -621,10 +621,10 @@ function _buildWB(np) {
     _leN(WV[24], WV[30]),  // b+156 L break LE nose
     _leN(WV[26], WV[32]),  // b+157 L tip   LE nose
   );
-  /* Fan face centers — projected in _drawWireframe for _drawTurbofanFace */
+  /* Fan face centers at intake plane — projected in _drawWireframe for _drawTurbofanFace */
   V_.push(
-    [0.001,  ey, ez],  // b+158 R fan center
-    [0.001, -ey, ez],  // b+159 L fan center
+    [0.005,  ey, ez],  // b+158 R intake center
+    [0.005, -ey, ez],  // b+159 L intake center
   );
 
   /* Nose tris: noseTip → ring0 (outward normals) */
@@ -793,7 +793,7 @@ function _buildWB(np) {
     [b+68,b+114],[b+68,b+115],[b+114,b+115],
   );
 
-  return { V_, F_, FC_, E_, b, anim: { r_rt, r_hs, r_ail } };
+  return { V_, F_, FC_, E_, b, r, anim: { r_rt, r_hs, r_ail } };
 }
 
 /* Build + cache geometry per aircraft nose profile */
@@ -2250,7 +2250,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   /* Advance fan rotation angle — capped so it doesn't spin during static frames */
   _fanAngle = (_fanAngle + Math.min(0.06, (S.enginePower ?? 0) * 0.35)) % (Math.PI * 2);
 
-  const isC172  = (S.aircraft?.panel === 'g1000');
+  const isC172  = (S.aircraft?.panel === 'g1000' || S.aircraft?.panel === 'dr400');
   const isSV    = !isC172 && (S.aircraft?.id === 'saturn-v');
   const isF9    = !isC172 && !isSV && (S.aircraft?.id?.startsWith('falcon9') || S.aircraft?.vehicleType === 'rocket');
   const isBf109 = !isC172 && !isF9 && !isSV && (S.aircraft?.id === 'bf109');
@@ -3147,8 +3147,8 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   if (!isC172 && !isF9 && !isBf109 && !isF4U && !isSV) {
     const ePow = S.enginePower ?? 0;
     if (ePow > 0 || S.engineState === 'running') {
-      _drawTurbofanFace(ctx, pts[_b+158], pts[_b+28], ePow, dpr, 22);  // R engine
-      _drawTurbofanFace(ctx, pts[_b+159], pts[_b+68], ePow, dpr, 22);  // L engine
+      _drawTurbofanFace(ctx, pts[_b+158], pts[_b+20], ePow, dpr, 22);  // R engine (rim = intake ring top)
+      _drawTurbofanFace(ctx, pts[_b+159], pts[_b+60], ePow, dpr, 22);  // L engine
     }
   }
 
@@ -3474,16 +3474,17 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       ctx.fillStyle   = `rgba(22,27,35,${fillA})`;    ctx.fill();
       ctx.strokeStyle = `rgba(148,162,178,${strokeA})`; ctx.stroke();
     };
+    const _gdR = _wbGeo?.r ?? _r;  // per-aircraft fuselage radius for gear door pivot
     /* Nose: 2 clamshell halves — hinge at y=0, swing outward + down */
     const nX1=0.011, nX2=0.007, nH=0.0013;
     const ndy = nH * cθ, ndz = -nH * sθ;
-    _dDoor([[nX1,0,-_r],[nX2,0,-_r],[nX2, ndy,-_r+ndz],[nX1, ndy,-_r+ndz]], fa, sa);  // R half
-    _dDoor([[nX1,0,-_r],[nX2,0,-_r],[nX2,-ndy,-_r+ndz],[nX1,-ndy,-_r+ndz]], fa, sa);  // L half
+    _dDoor([[nX1,0,-_gdR],[nX2,0,-_gdR],[nX2, ndy,-_gdR+ndz],[nX1, ndy,-_gdR+ndz]], fa, sa);  // R half
+    _dDoor([[nX1,0,-_gdR],[nX2,0,-_gdR],[nX2,-ndy,-_gdR+ndz],[nX1,-ndy,-_gdR+ndz]], fa, sa);  // L half
     /* Main: 1 large outboard door per side — hinge at inboard edge, swings outboard + down */
     const mX1=0.002, mX2=-0.004, mHi=0.0013, mW=0.0055;
     const mdy = mW * cθ, mdz = -mW * sθ;
-    _dDoor([[mX1, mHi,-_r],[mX2, mHi,-_r],[mX2, mHi+mdy,-_r+mdz],[mX1, mHi+mdy,-_r+mdz]], fa, sa);         // R
-    _dDoor([[mX1,-mHi,-_r],[mX2,-mHi,-_r],[mX2,-(mHi+mdy),-_r+mdz],[mX1,-(mHi+mdy),-_r+mdz]], fa, sa);    // L
+    _dDoor([[mX1, mHi,-_gdR],[mX2, mHi,-_gdR],[mX2, mHi+mdy,-_gdR+mdz],[mX1, mHi+mdy,-_gdR+mdz]], fa, sa);         // R
+    _dDoor([[mX1,-mHi,-_gdR],[mX2,-mHi,-_gdR],[mX2,-(mHi+mdy),-_gdR+mdz],[mX1,-(mHi+mdy),-_gdR+mdz]], fa, sa);    // L
     ctx.restore();
   }
 
@@ -3510,25 +3511,28 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     ctx.save();
     ctx.lineWidth = Math.max(0.75, devicePixelRatio * 0.75);
 
-    /* Window row — cabin section x = 0.011 → −0.008, on fuselage side (y = ±_r) */
-    const hw = _r * 0.120;  // half-width in body units
-    const hh = _r * 0.170;  // half-height
-    const wZ = _r * 0.18;   // slightly above equator
+    /* Use per-aircraft fuselage radius so narrow-body windows sit on the body surface */
+    const _wbR = _wbGeo?.r ?? _r;
+
+    /* Window row — cabin section x = 0.011 → −0.008, on fuselage side (y = ±_wbR) */
+    const hw = _wbR * 0.120;  // half-width in body units
+    const hh = _wbR * 0.170;  // half-height
+    const wZ = _wbR * 0.18;   // slightly above equator
     const nW = 12, xA = 0.011, xB = -0.008;
     const wFill   = 'rgba(55,85,130,0.82)';
     const wStroke = 'rgba(130,155,185,0.55)';
     for (let i = 0; i < nW; i++) {
       const wx = xA + (xB - xA) * (i / (nW - 1));
-      _quad3d(wx,  _r, wZ, hw, hh, wFill, wStroke);
-      _quad3d(wx, -_r, wZ, hw, hh, wFill, wStroke);
+      _quad3d(wx,  _wbR, wZ, hw, hh, wFill, wStroke);
+      _quad3d(wx, -_wbR, wZ, hw, hh, wFill, wStroke);
     }
 
     /* Doors — fwd pair (L1/R1) + aft pair (L2/R2), outlines only */
-    const dhw = _r * 0.170;
-    const dhh = _r * 0.325;
-    const dZ  = _r * 0.08;
+    const dhw = _wbR * 0.170;
+    const dhh = _wbR * 0.325;
+    const dZ  = _wbR * 0.08;
     const dStroke = 'rgba(145,160,178,0.70)';
-    for (const [dx, dy] of [[0.010, _r],[0.010,-_r],[-0.006, _r],[-0.006,-_r]]) {
+    for (const [dx, dy] of [[0.010, _wbR],[0.010,-_wbR],[-0.006, _wbR],[-0.006,-_wbR]]) {
       _quad3d(dx, dy, dZ, dhw, dhh, null, dStroke);
     }
 

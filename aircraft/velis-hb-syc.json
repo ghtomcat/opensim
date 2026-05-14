@@ -1,6 +1,7 @@
 {
   "id": "velis-hb-syc",
   "name": "Pipistrel Velis Electro HB-SYC",
+  "clock": "digital",
   "callsign": "HB-SYC",
   "icaoType": "POVE",
   "era": "VFR / PPL(A) · Electric",

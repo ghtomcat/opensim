@@ -1,6 +1,7 @@
 {
   "id": "a350",
   "name": "Airbus A350-900",
+  "clock": "digital",
   "panel": "airbus",
   "swissCross": true,
   "livery": {

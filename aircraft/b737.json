@@ -1,6 +1,7 @@
 {
   "id": "b737",
   "name": "Boeing 737-800",
+  "clock": "digital",
   "panel": "airbus",
   "livery": {
     "colors": [null, null, [30, 60, 120], null, null, [15, 18, 24], null, null, null, [30, 60, 120]]

@@ -57,6 +57,15 @@
       pointer-events: none;
     }
 
+    /* ── Cislunar map ── */
+    #cislunar {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      z-index: 2;
+      display: none;
+    }
+    #cislunar.visible { display: block; }
+    #cislunar-canvas  { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; }
+
     /* ── Display canvases — full viewport ── */
     #pfd, #ecam {
       position: fixed; top: 0; left: 0;
@@ -1754,6 +1763,11 @@
   <canvas id="outside-canvas"></canvas>
 </div>
 
+<!-- Cislunar navigation map (view mode 3, rockets only) -->
+<div id="cislunar">
+  <canvas id="cislunar-canvas"></canvas>
+</div>
+
 <!-- FCU (glareshield) canvas — above PFDs in dual-screen mode -->
 <canvas id="fcu"></canvas>
 
@@ -2078,7 +2092,7 @@
   import { renderPanel, renderFCU, renderCockpit, handleCockpitClick } from './display/panel_renderer.js';
   import { renderRocket, renderApollo, handleApolloClick, isApolloTelemetry } from './display/rocket_display.js';
   import { renderDragon, handleDragonClick, isDragonTelemetry } from './display/dragon.js';
-  import { renderG1000, handleG1000Click } from './display/g1000.js';
+  import './display/g1000.js';  /* bridge exports used by panel_renderer */
   import { renderECAM }        from './display/ecam.js';
   import { renderBf109 }       from './display/bf109.js';
   import { renderF4U1A }       from './display/f4u1a.js';
@@ -2091,6 +2105,7 @@
   import { initOutside, tickOutside, outsideInvalidate, setOutsideCamMode } from './display/outside.js';
   import { initKneeboard, toggleKneeboard, tickKneeboard } from './display/kneeboard.js';
   import { initMap, renderMap, toggleMap, showMap, hideMap, initVelisMap, hideVelisMap, initG1000Map, hideG1000Map } from './display/map.js';
+  import { renderCislunar } from './display/cislunar.js';
   import { lookupFlight, nearbyFlights, pickAircraft, trackFlight } from './core/liveflight.js';
 
   /* ── DOM refs ── */
@@ -2243,8 +2258,7 @@
     if (S.aircraft?.panel === 'velis-epsi') handleVelisClick(canvas, evt);
     if (S.aircraft?.vehicleType === 'rocket' && S.mission?.dragonSepT) handleDragonClick(canvas, evt);
     if (S.aircraft?.id === 'saturn-v') handleApolloClick(canvas, evt);
-    if (S.aircraft?.panel === 'g1000') handleG1000Click(canvas, evt);
-    if (S.aircraft?.panel === 'dr400') handleCockpitClick(canvas, evt);
+    if (S.aircraft?.panel === 'g1000' || S.aircraft?.panel === 'dr400') handleCockpitClick(canvas, evt);
   });
   const loadEl     = document.getElementById('loading');
   const loadBar    = document.getElementById('loadBar');
@@ -3776,7 +3790,8 @@
         }
       }
       if (e.key === 'v' || e.key === 'V') {
-        _viewMode = (_viewMode + 1) % 3;
+        const nModes = (S.aircraft?.vehicleType === 'rocket' && S.rocketOrbit) ? 4 : 3;
+        _viewMode = (_viewMode + 1) % nModes;
         _applyViewMode(_viewMode);
       }
       if (e.key === 'c' || e.key === 'C') {
@@ -3793,11 +3808,25 @@
     });
 
     function _applyViewMode(mode) {
-      const outside = document.getElementById('outside');
-      const pfd     = document.getElementById('pfd');
-      const ecam    = document.getElementById('ecam');
-      const uiEls   = ['fma','panel','keys','ptt-indicator','com-container','checklist'];
+      const outside  = document.getElementById('outside');
+      const cislunar = document.getElementById('cislunar');
+      const pfd      = document.getElementById('pfd');
+      const ecam     = document.getElementById('ecam');
+      const uiEls    = ['fma','panel','keys','ptt-indicator','com-container','checklist'];
       const nd = document.getElementById('nd');
+      /* Cislunar mode 3 — hide everything, show cislunar canvas */
+      if (mode === 3) {
+        outside.classList.remove('visible', 'combined');
+        if (cislunar) cislunar.classList.add('visible');
+        pfd.classList.remove('combined');
+        if (nd) nd.classList.remove('combined');
+        pfd.style.display = 'none'; ecam.style.display = 'none';
+        document.body.classList.remove('outside-active');
+        uiEls.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+        return;
+      }
+      /* All other modes hide cislunar */
+      if (cislunar) cislunar.classList.remove('visible');
       if (mode === 0) {
         outside.classList.remove('visible', 'combined');
         pfd.classList.remove('combined');
@@ -3875,7 +3904,7 @@
         }
         else if (isRocket)           renderRocket(canvas);
         else if (panel === 'dr400')  renderCockpit(canvas);
-        else if (panel === 'g1000')  renderG1000(canvas);
+        else if (panel === 'g1000')  renderCockpit(canvas);
         else if (panel === 'bf109')  renderBf109(canvas);
         else if (panel === 'f4u')    renderF4U1A(canvas);
         else if (panel === 'velis-epsi') renderVelisEpsi(canvas);
@@ -3955,6 +3984,7 @@
       () => tickKneeboard(),
       () => renderMissionClock(),
       () => renderMap(),
+      () => { if (document.getElementById('cislunar')?.classList.contains('visible')) renderCislunar(); },
     ]);
   }
 
@@ -4062,7 +4092,9 @@
     /* Time warp indicator */
     const warpEl = document.getElementById('warp-indicator');
     const warp   = S.warpFactor ?? 1;
-    const warpLabel = S.warpTargetLabel ? ` → ${S.warpTargetLabel}` : '';
+    const warpLabel = S.warpTargetLabel
+      ? ` → ${S.warpTargetLabel}`
+      : (() => { const ev = _getNextEvent(); return ev ? `  ·  ${ev.label}` : ''; })();
     warpEl.textContent = `⏩ ${warp}×${warpLabel}`;
     warpEl.classList.toggle('active', warp > 1 && (S.aircraft?.vehicleType === 'rocket' || S.aircraft?.panel));
 
@@ -4509,43 +4541,35 @@
     });
   });
 
-  /* Returns the next upcoming rocket event as { t, label } or null.
-     Events are pre-computed from mission + aircraft stage burn durations.
-     Returns events > mT + 90 s so we don't jump to something already imminent. */
-  function _getNextRocketEvent() {
+  /* Returns the next upcoming timed event for any aircraft type, or null. */
+  function _getNextEvent() {
     const mT    = S.time ?? 0;
     const ac    = S.aircraft;
-    const perf  = ac?.performance ?? {};
-    const stages = perf.stages ?? [];
-    const ignT  = ac?.ignitionTime ?? 0;
-    const COAST = 6;   // seconds between stage burnout and next ignition
-
-    let t = ignT;
-    const events = [{ t, label: 'IGNITION' }];
-    for (let i = 0; i < stages.length; i++) {
-      const dur = stages[i]?.burnDuration;
-      if (!dur) break;
-      t += dur;
-      const isLast = i === stages.length - 1;
-      events.push({ t, label: isLast ? 'SECO' : `MECO S-${i + 1}` });
-      if (!isLast) {
-        t += COAST;
-        events.push({ t, label: `S-${i + 2} IGN` });
+    const events = [];
+    if (ac?.vehicleType === 'rocket') {
+      const perf  = ac?.performance ?? {};
+      const stages = perf.stages ?? [];
+      const ignT  = ac?.ignitionTime ?? 0;
+      const COAST = 6;
+      let t = ignT;
+      events.push({ t, label: 'IGNITION' });
+      for (let i = 0; i < stages.length; i++) {
+        const dur = stages[i]?.burnDuration;
+        if (!dur) break;
+        t += dur;
+        const isLast = i === stages.length - 1;
+        events.push({ t, label: isLast ? 'SECO' : `MECO S-${i + 1}` });
+        if (!isLast) { t += COAST; events.push({ t, label: `S-${i + 2} IGN` }); }
       }
+      const tliT = S.mission?.tliT;
+      if (tliT) events.push({ t: tliT, label: 'TLI' });
     }
-    const tliT = S.mission?.tliT;
-    if (tliT) events.push({ t: tliT, label: 'TLI' });
-
-    /* Mission-specific events (e.g. LOI, TEI, reentry) from mission JSON */
-    for (const e of (S.mission?.events ?? [])) {
-      events.push({ t: e.t, label: e.label });
-    }
-
+    for (const e of (S.mission?.events ?? [])) events.push({ t: e.t, label: e.label });
     return events.filter(e => e.t > mT + 90).sort((a, b) => a.t - b.t)[0] ?? null;
   }
 
   document.getElementById('warp-next-event')?.addEventListener('click', () => {
-    const ev = _getNextRocketEvent();
+    const ev = _getNextEvent();
     if (!ev) return;
     setState({ warpFactor: 1000, warpTarget: ev.t - 60, warpTargetLabel: ev.label });
   });

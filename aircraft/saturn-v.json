@@ -1,6 +1,7 @@
 {
   "id":          "saturn-v",
   "name":        "Saturn V",
+  "clock":       "met",
   "vehicleType": "rocket",
   "ignitionTime": 180,
   "manualControl": false,

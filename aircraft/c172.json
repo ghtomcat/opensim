@@ -1,6 +1,7 @@
 {
   "id": "c172",
   "name": "Cessna 172S Skyhawk",
+  "clock": "digital",
   "approachSpeed": 65,
   "panel": "g1000",
   "map": false,

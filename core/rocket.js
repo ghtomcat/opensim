@@ -19,6 +19,11 @@ const DEG     = Math.PI / 180;
 const R_EARTH = 6_371_000;   // m
 const G0      = 9.80665;     // m/s²
 const GM      = 3.986004418e14;  // m³/s² — Earth's gravitational parameter
+const GM_MOON = 4.9048695e12;    // m³/s²
+const MOON_SMA = 384_400_000;    // m — mean Earth-Moon distance
+const MOON_T_S = 27.32166 * 86400; // s — sidereal period
+
+let _lastTrailT = -1e9;
 
 /* ── Extended atmosphere — sea level through low Earth orbit ──
    Returns air density kg/m³ at altitude in metres.             */
@@ -65,6 +70,13 @@ const MAINS_ALT     = 1_800;  // m
 const BLACKOUT_ALT  = 80_000; // m  comms blackout entry
 const BLACKOUT_EXIT = 35_000; // m  signal reacquired
 
+/* ── Moon position in ECI (XY plane, z=0) ───────────────────── */
+export function moonECI(mT) {
+  const refAngle = (S.mission?.moonRefAngle ?? 0) * DEG;
+  const angle    = refAngle + mT * (2 * Math.PI / MOON_T_S);
+  return { mx: MOON_SMA * Math.cos(angle), my: MOON_SMA * Math.sin(angle) };
+}
+
 /* ── TLI burn — apply prograde ΔV to escape Earth orbit ─────── */
 function _applyTLIBurn(dv_ms) {
   const v   = S.orbitVec;
@@ -72,6 +84,28 @@ function _applyTLIBurn(dv_ms) {
   const f   = dv_ms / spd;
   setState({
     rocketTLI: true,
+    orbitVec: { ...v, vx: v.vx*(1+f), vy: v.vy*(1+f), vz: v.vz*(1+f) },
+  });
+}
+
+/* ── LOI burn — retrograde ΔV for lunar orbit insertion ─────── */
+function _applyLOIBurn(dv_ms) {
+  const v   = S.orbitVec;
+  const spd = Math.sqrt(v.vx*v.vx + v.vy*v.vy + v.vz*v.vz);
+  const f   = dv_ms / spd;
+  setState({
+    rocketLOI: true,
+    orbitVec: { ...v, vx: v.vx*(1-f), vy: v.vy*(1-f), vz: v.vz*(1-f) },
+  });
+}
+
+/* ── TEI burn — prograde ΔV for trans-Earth injection ───────── */
+function _applyTEIBurn(dv_ms) {
+  const v   = S.orbitVec;
+  const spd = Math.sqrt(v.vx*v.vx + v.vy*v.vy + v.vz*v.vz);
+  const f   = dv_ms / spd;
+  setState({
+    rocketTEI: true,
     orbitVec: { ...v, vx: v.vx*(1+f), vy: v.vy*(1+f), vz: v.vz*(1+f) },
   });
 }
@@ -137,27 +171,44 @@ function _captureOrbitVec() {
 
 function _tickOrbit(dt) {
   const { rx, ry, rz, vx, vy, vz } = S.orbitVec;
+  const mT = S.time ?? 0;
 
-  /* Velocity Verlet — symplectic, conserves orbital energy.
-     Step 1: accelerate current position */
+  /* Moon position in ECI at current time */
+  const { mx, my } = moonECI(mT);
+
+  /* ── Velocity Verlet — Earth + Moon gravity ─────────────────
+     Step 1: acceleration at current position */
   const r2  = rx*rx + ry*ry + rz*rz;
   const r3  = r2 * Math.sqrt(r2);
   const k   = -GM / r3;
-  const ax = k * rx, ay = k * ry, az = k * rz;
+  const dmx = rx - mx, dmy = ry - my;                         // spacecraft → Moon vector
+  const mr2 = dmx*dmx + dmy*dmy + rz*rz;
+  const mr3 = mr2 * Math.sqrt(mr2);
+  const mk  = -GM_MOON / mr3;
+  const ax  = k * rx + mk * dmx;
+  const ay  = k * ry + mk * dmy;
+  const az  = k * rz + mk * rz;                               // mz = 0
 
-  /* Step 2: advance position with current v + half-kick */
+  /* Step 2: advance position */
   const dt2 = dt * dt;
   const nrx = rx + vx * dt + 0.5 * ax * dt2;
   const nry = ry + vy * dt + 0.5 * ay * dt2;
   const nrz = rz + vz * dt + 0.5 * az * dt2;
 
-  /* Step 3: new acceleration at new position */
-  const nr2 = nrx*nrx + nry*nry + nrz*nrz;
-  const nr3 = nr2 * Math.sqrt(nr2);
-  const nk  = -GM / nr3;
-  const nax = nk * nrx, nay = nk * nry, naz = nk * nrz;
+  /* Step 3: Moon position and acceleration at new position */
+  const { mx: nmx, my: nmy } = moonECI(mT + dt);
+  const nr2  = nrx*nrx + nry*nry + nrz*nrz;
+  const nr3  = nr2 * Math.sqrt(nr2);
+  const nk   = -GM / nr3;
+  const ndmx = nrx - nmx, ndmy = nry - nmy;
+  const nmr2 = ndmx*ndmx + ndmy*ndmy + nrz*nrz;
+  const nmr3 = nmr2 * Math.sqrt(nmr2);
+  const nmk  = -GM_MOON / nmr3;
+  const nax  = nk * nrx + nmk * ndmx;
+  const nay  = nk * nry + nmk * ndmy;
+  const naz  = nk * nrz + nmk * nrz;
 
-  /* Step 4: full velocity kick using average acceleration */
+  /* Step 4: full velocity kick */
   let nvx = vx + 0.5 * (ax + nax) * dt;
   let nvy = vy + 0.5 * (ay + nay) * dt;
   let nvz = vz + 0.5 * (az + naz) * dt;
@@ -221,6 +272,14 @@ function _tickOrbit(dt) {
 
   /* Orbital period — T = 2π√(a³/GM), a ≈ r for near-circular orbit */
   const T_orb = 2 * Math.PI * Math.sqrt(Math.pow(nr, 3) / GM);
+
+  /* Cislunar trail — append a waypoint every 1800 sim-sec */
+  if ((S.cislunarTrail?.length === 0) || mT - _lastTrailT >= 1800) {
+    _lastTrailT = mT;
+    const trail = S.cislunarTrail ?? [];
+    trail.push({ rx: nrx, ry: nry });
+    setState({ cislunarTrail: trail });
+  }
 
   setState({
     spd:   newSpd / 0.5144,
@@ -324,6 +383,16 @@ export function tickRocket(dt) {
     const tliT  = S.mission?.tliT;
     const tliDv = S.mission?.tliDv ?? 3147;
     if (tliT && !S.rocketTLI && mT >= tliT) _applyTLIBurn(tliDv);
+
+    /* LOI — lunar orbit insertion (retrograde) */
+    const loiT  = S.mission?.loiT;
+    const loiDv = S.mission?.loiDv ?? 1067;
+    if (loiT && !S.rocketLOI && mT >= loiT) _applyLOIBurn(loiDv);
+
+    /* TEI — trans-Earth injection (prograde) */
+    const teiT  = S.mission?.teiT;
+    const teiDv = S.mission?.teiDv ?? 1070;
+    if (teiT && !S.rocketTEI && mT >= teiT) _applyTEIBurn(teiDv);
 
     /* Deorbit burn */
     const deorbitT = S.mission?.deorbitT;

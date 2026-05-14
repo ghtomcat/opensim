@@ -1,0 +1,45 @@
+{
+  "id": "dr400",
+  "version": "1",
+  "layout": [
+    { "h": 0.16, "cols": [
+      { "w": 0.72, "widget": "rocker_strip", "config": {
+        "switches": [
+          { "label": "BAT",   "state": "masterBat",      "color": "red",   "guarded": true  },
+          { "label": "ALT",   "state": "masterAlt",      "color": "red",   "guarded": true  },
+          { "label": "AVNCS", "state": "avionicsOn",     "color": "amber"                   },
+          { "label": "PUMP",  "state": "fuelPump",       "color": "amber"                   },
+          { "label": "NAV",   "state": "lights.nav",     "color": "green"                   },
+          { "label": "BCN",   "state": "lights.beacon",  "color": "green"                   },
+          { "label": "STRB",  "state": "lights.strobe",  "color": "amber"                   },
+          { "label": "LAND",  "state": "lights.landing", "color": "amber"                   }
+        ]
+      }},
+      { "w": 0.28, "widget": "aircraft_tag" }
+    ]},
+    { "h": 0.67, "cols": [
+      { "w": 0.19, "widget": "grid", "config": {
+        "layout": [
+          { "h": 0.5, "cols": [{ "w": 1.0, "widget": "analog_asi" }] },
+          { "h": 0.5, "cols": [{ "w": 1.0, "widget": "analog_ai"  }] }
+        ]
+      }},
+      { "w": 0.44, "widget": "garmin_gtn" },
+      { "w": 0.37, "widget": "grid", "config": {
+        "layout": [
+          { "h": 0.5, "cols": [{ "w": 1.0, "widget": "analog_alt"  }] },
+          { "h": 0.5, "cols": [{ "w": 1.0, "widget": "radio_stack" }] }
+        ]
+      }}
+    ]},
+    { "h": 0.17, "cols": [
+      { "w": 0.34, "widget": "magneto_knob"    },
+      { "w": 0.33, "widget": "fuel_selector"   },
+      { "w": 0.33, "widget": "bottom_switches", "config": {
+        "switches": [
+          { "label": "C HEAT", "state": "carbHeat" }
+        ]
+      }}
+    ]}
+  ]
+}

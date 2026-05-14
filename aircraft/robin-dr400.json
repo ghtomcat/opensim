@@ -1,6 +1,8 @@
 {
   "id": "robin-dr400",
   "name": "Robin DR400/140B Dauphin",
+  "clock": "digital",
+  "panel": "dr400",
   "approachSpeed": 65,
   "tanks": { "left": 75, "right": 75, "unit": "L" },
   "fuelBurn": 24,

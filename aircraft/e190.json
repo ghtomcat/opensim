@@ -1,6 +1,7 @@
 {
   "id": "e190",
   "name": "Embraer E190-E2",
+  "clock": "digital",
   "panel": "e190",
   "livery": {
     "colors": [null, null, null, null, null, [210, 215, 220], null]

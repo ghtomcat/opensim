@@ -1,6 +1,7 @@
 {
   "id":          "falcon9-b1",
   "name":        "Falcon 9 v1.0",
+  "clock":       "met",
   "vehicleType": "rocket",
   "ignitionTime": 60,
   "manualControl": false,

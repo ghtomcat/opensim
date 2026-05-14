@@ -1,6 +1,7 @@
 {
   "id": "tu95ms",
   "name": "Tupolev Tu-95MS Bear H",
+  "clock": "analog",
   "callsign": "Борт 11",
   "icaoType": "TU95",
   "era": "Cold War · 1956",

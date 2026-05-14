@@ -1,0 +1,15 @@
+{
+  "id": "dr400",
+  "colors": {
+    "bg":     "#0e1014",
+    "panel":  "#0a0c10",
+    "dim":    "rgba(220,230,240,0.38)",
+    "white":  "#e8edf4",
+    "green":  "#44dd66",
+    "amber":  "#ffb74d",
+    "red":    "#ff3333",
+    "sky":    "#3a6cb0",
+    "ground": "#7a4e28"
+  },
+  "font": "mono"
+}

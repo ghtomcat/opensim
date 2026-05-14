@@ -1,6 +1,7 @@
 {
   "id":          "falcon1",
   "name":        "Falcon 1",
+  "clock":       "met",
   "vehicleType": "rocket",
   "ignitionTime": 60,
   "manualControl": false,

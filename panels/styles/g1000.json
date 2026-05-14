@@ -1,0 +1,16 @@
+{
+  "id": "g1000",
+  "colors": {
+    "bg":     "#060809",
+    "panel":  "rgba(12,14,18,0.65)",
+    "dim":    "rgba(232,240,248,0.38)",
+    "white":  "#e8f0f8",
+    "cyan":   "#4dc5dc",
+    "green":  "#44dd66",
+    "amber":  "#ffb74d",
+    "red":    "#ff3333",
+    "sky":    "#3a6cb0",
+    "ground": "#7a4e28"
+  },
+  "font": "mono"
+}

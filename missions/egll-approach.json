@@ -5,6 +5,7 @@
   "description": "ILS approach into London Heathrow runway 27L. Speedbird heavy on the standard STAR. Live METAR weather. Full crew loop.",
   "author": "Markus Leutwyler",
   "aircraft": "b737",
+  "timeOfDay": 2,
   "departure": null,
   "arrival": {
     "icao": "EGLL",
