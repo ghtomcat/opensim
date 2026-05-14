@@ -1,0 +1,225 @@
+{
+  "id": "b737",
+  "name": "Boeing 737-800",
+  "panel": "airbus",
+  "livery": {
+    "colors": [null, null, [30, 60, 120], null, null, [15, 18, 24], null, null, null, [30, 60, 120]]
+  },
+  "engine": {
+    "model": "cfm56-7",
+    "chevrons": false,
+    "thrustReverser": true
+  },
+  "displays": [
+    { "id": "pfd", "spec": "airbus-pfd", "screen": 0, "pages": ["airbus-pfd", "airbus-nd"] },
+    { "id": "nd",  "spec": "airbus-nd",  "screen": 1, "pages": ["airbus-nd",  "airbus-ecam"] }
+  ],
+  "approachSpeed": 138,
+  "callsign": "Speedbird",
+  "icaoType": "B738",
+  "envelope": {
+    "cruiseAlt": 41000,
+    "maxAlt": 41000,
+    "cruiseSpd": 285,
+    "maxSpd": 340,
+    "spdProfile": {
+      "41000": 285,
+      "10000": 250,
+      "3000":  170,
+      "1500":  155,
+      "1000":  145,
+      "0":     138
+    }
+  },
+  "situations": [
+    {
+      "label": "GROUND",
+      "alt": 1450,
+      "spd": 0,
+      "hdg": 280,
+      "altT": 1450,
+      "spdT": 0
+    },
+    {
+      "label": "TAKEOFF",
+      "alt": 1450,
+      "spd": 155,
+      "hdg": 280,
+      "altT": 10000,
+      "spdT": 340
+    },
+    {
+      "label": "CLIMB",
+      "alt": 10000,
+      "spd": 250,
+      "hdg": 280,
+      "altT": 41000,
+      "spdT": 285
+    },
+    {
+      "label": "CRUISE",
+      "alt": 41000,
+      "spd": 285,
+      "hdg": 280,
+      "altT": 41000,
+      "spdT": 285
+    },
+    {
+      "label": "APPROACH",
+      "alt": 3000,
+      "spd": 170,
+      "hdg": 280,
+      "altT": 2000,
+      "spdT": 170
+    }
+  ],
+  "thrustProfiles": [
+    { "label": "IDLE", "spdT": 0   },
+    { "label": "CLB",  "spdT": 170 },
+    { "label": "MCT",  "spdT": 285 },
+    { "label": "TOGA", "spdT": 340 }
+  ],
+  "ambient": {
+    "type": "turbofan",
+    "freqMin": 200,
+    "freqMax": 400,
+    "detune": 3,
+    "gainMin": 0.005,
+    "gainMax": 0.016
+  },
+  "fmaPhases": [
+    {
+      "minAlt": 10000,
+      "vals": ["A/THR", "AP1", "NAV", "CRZ", "ALT"],
+      "cols": ["white", "green", "green", "cyan", "white"]
+    },
+    {
+      "minAlt": 3000,
+      "vals": ["SPEED", "AP1", "NAV", "DES", ""],
+      "cols": ["white", "green", "green", "cyan", "white"]
+    },
+    {
+      "minAlt": 1000,
+      "vals": ["SPEED", "AP1", "LOC*", "G/S*", "LAND"],
+      "cols": ["white", "green", "cyan", "cyan", "white"]
+    },
+    {
+      "minAlt": 200,
+      "vals": ["SPEED", "AP1", "LOC", "G/S", "LAND"],
+      "cols": ["white", "green", "green", "green", "green"]
+    },
+    {
+      "minAlt": 30,
+      "vals": ["SPEED", "", "LOC", "FLARE", "FLARE"],
+      "cols": ["white", "white", "green", "green", "green"]
+    },
+    {
+      "minAlt": 0,
+      "vals": ["SPEED", "", "", "ROLLOUT", ""],
+      "cols": ["white", "white", "white", "green", "white"]
+    }
+  ],
+  "checklist": {
+    "flaps": [
+      { "alt": 1400, "config": 1, "pf": "flaps one",  "pm": "flaps one"  },
+      { "alt":  900, "config": 2, "pf": "flaps five",  "pm": "flaps five"  },
+      { "alt":  500, "config": 3, "pf": "flaps full", "pm": "flaps full" }
+    ],
+    "gear": {
+      "alt": 700,
+      "pf": "gear down",
+      "pm": "gear down and locked"
+    }
+  },
+  "gpws": [
+    { "alt": 2500, "text": "2 5 0 0", "speech": "twenty-five hundred", "red": false },
+    { "alt": 2000, "text": "2 0 0 0", "speech": "two thousand",        "red": false },
+    { "alt": 1000, "text": "1 0 0 0", "speech": "one thousand",        "red": false },
+    { "alt":  500, "text": "5 0 0",   "speech": "five hundred",        "red": false },
+    { "alt":  400, "text": "4 0 0",   "speech": "four hundred",        "red": false },
+    { "alt":  300, "text": "3 0 0",   "speech": "three hundred",       "red": false },
+    { "alt":  200, "text": "2 0 0",   "speech": "two hundred",         "red": false },
+    { "alt":  200, "text": "MINIMUM", "speech": "minimum",             "red": true  },
+    { "alt":  100, "text": "1 0 0",   "speech": "one hundred",         "red": false },
+    { "alt":   90, "text": "9 0",     "speech": "ninety",              "red": false },
+    { "alt":   80, "text": "8 0",     "speech": "eighty",              "red": false },
+    { "alt":   70, "text": "7 0",     "speech": "seventy",             "red": false },
+    { "alt":   60, "text": "6 0",     "speech": "sixty",               "red": false },
+    { "alt":   50, "text": "5 0",     "speech": "fifty",               "red": false },
+    { "alt":   40, "text": "4 0",     "speech": "forty",               "red": false },
+    { "alt":   30, "text": "3 0",     "speech": "thirty",              "red": false },
+    { "alt":   20, "text": "2 0",     "speech": "twenty",              "red": false },
+    { "alt":   10, "text": "R E T A R D", "speech": "retard",          "red": false },
+    { "alt":    5, "text": "R E T A R D", "speech": "retard",          "red": false }
+  ],
+  "pmCallouts": [
+    { "alt": 10000, "speech": "passing ten thousand" },
+    { "alt": 5000,  "speech": "passing five thousand" },
+    { "alt": 4000,  "speech": "passing four thousand" },
+    { "alt": 3000,  "speech": "passing three thousand" },
+    { "alt": 2000,  "speech": "passing two thousand" },
+    { "alt": 1000,  "speech": "passing one thousand" }
+  ],
+  "kneeboard": [
+    {
+      "title": "APPROACH FLOW",
+      "type": "briefing",
+      "items": [
+        "ATIS received · QNH noted",
+        "ILS freq tuned + identified",
+        "Approach briefed by PF — runway, course, DH",
+        "Minimums set — DH 200 ft",
+        "Missed approach briefed — climb hdg + alt",
+        "V-speeds confirmed — VREF, VLS, VFE"
+      ]
+    },
+    {
+      "title": "DESCENT CHECKLIST",
+      "type": "checklist",
+      "items": [
+        "SEAT BELTS — ON",
+        "ALTIMETERS — QNH set, both sides",
+        "BRIEFING — complete",
+        "FUEL — checked",
+        "LANDING PERF — checked"
+      ]
+    },
+    {
+      "title": "APPROACH CHECKLIST",
+      "type": "checklist",
+      "items": [
+        "BARO REF — set both sides",
+        "MDA/DH — set and crosschecked",
+        "ILS — tuned + identified",
+        "AUTOBRAKE — as required",
+        "FLAPS — as required for speed",
+        "SPEED — VAPP managed"
+      ]
+    },
+    {
+      "title": "LANDING CHECKLIST",
+      "type": "checklist",
+      "items": [
+        "CABIN CREW — advised",
+        "GEAR — DOWN · 3 GREEN",
+        "FLAPS — FULL",
+        "GROUND SPOILERS — ARMED",
+        "AUTOBRAKE — as required",
+        "LANDING LIGHTS — ON"
+      ]
+    },
+    {
+      "title": "MISSED APPROACH",
+      "type": "briefing",
+      "items": [
+        "Call: GO AROUND — FLAPS",
+        "TOGA thrust — apply",
+        "Pitch — 15° nose up",
+        "Gear — UP (positive climb)",
+        "Flaps — retract on schedule",
+        "Follow published missed approach",
+        "Advise ATC immediately"
+      ]
+    }
+  ]
+}

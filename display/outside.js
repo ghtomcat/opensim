@@ -442,11 +442,51 @@ const _WB_NP = {
     ],
     wing: _WB_WING_DEFAULT,
   },
+  /* 737-800: narrowbody r=0.00195; CFM56-7 closer inboard + lower; shorter swept wing */
+  b737: {
+    r: 0.00195, ey: 0.00380, ez: -0.00190, er: 0.00096, erc: 0.00063, pz: -0.00062,
+    tipX: 0.020, tipCz: 0.0001,
+    noseRings: [
+      { vF: 0.019, r: 0.000373, col: 6 },   // rounded 737 tip  (0.5 × nr1 at r=0.00195)
+      { vF: 0.017, r: 0.000634, col: 0 },   // 0.85 × nr1
+      { vF: 0.015, r: 0.001379, col: 0 },   // nr2
+      { vF: 0.013, r: 0.001802, col: 5 },   // nr3 (cockpit band)
+      { vF: 0.012, r: 0.00195,  col: 0 },   // full-width cylinder
+    ],
+    windows: [
+      [ 0.017,  0.0002,  0.0008],[ 0.013,  0.0003,  0.0015],  // R: compact rows
+      [ 0.013,  0.0010,  0.0011],[ 0.017,  0.0005,  0.0005],
+      [ 0.017, -0.0002,  0.0008],[ 0.013, -0.0003,  0.0015],
+      [ 0.013, -0.0010,  0.0011],[ 0.017, -0.0005,  0.0005],
+    ],
+    wing: {
+      span:      0.01320,
+      rootLE:    0.0055,  rootTE:   -0.0028,
+      tipLE:    -0.0010,  tipTE:    -0.0055,
+      dihedral:  0.0018,
+      rootThick: 0.00065, tipThick:  0.00015,
+      flapBreak: 0.55,    flapHinge: 0.72,
+    },
+  },
 };
 
 function _buildWB(np) {
   const N = 16, N4 = 4, N2 = 8, N3 = 12;
   const nNose  = np.noseRings.length;  // variable: 5 (default/a220/e190) or 7 (a350)
+  /* Per-aircraft overrides fall back to module globals so existing profiles are unchanged */
+  const r   = np.r   ?? _r;
+  const nr2 = r * 0.7071;
+  const nr3 = r * 0.9239;
+  const wr  = r * 0.7071;
+  const ey  = np.ey  ?? _ey;
+  const ez  = np.ez  ?? _ez;
+  const er  = np.er  ?? _er;
+  const efr = er * 1.20;
+  const ef7 = efr * 0.7071;
+  const e7  = er  * 0.7071;
+  const erc = np.erc ?? _erc;
+  const e7c = erc * 0.7071;
+  const pz  = np.pz  ?? _pz;
 
   /* Derive all wing constants from the per-aircraft wing spec */
   const w    = np.wing;
@@ -455,10 +495,10 @@ function _buildWB(np) {
   const rLE  = w.rootLE,   rTE = w.rootTE;
   const tLE  = w.tipLE,    tTE = w.tipTE;
   const fb   = w.flapBreak, fh  = w.flapHinge;
-  const wh   = _wr + (hs - _wr) * fb;          // Y at span-break station
+  const wh   = wr + (hs - wr) * fb;             // Y at span-break station
   const wxhL = rLE + fb * (tLE - rLE);          // LE x at span-break
   const wxhT = rTE + fb * (tTE - rTE);          // TE x at span-break
-  const wzh  = -_wr + fb * (dh + _wr);          // lower-surface z at span-break
+  const wzh  = -wr + fb * (dh + wr);            // lower-surface z at span-break
   const wth  = wtr + fb * (wtt - wtr);          // thickness at span-break
   const wfxR = rLE + fh * (rTE - rLE);          // x at root flap-hinge line
   const wfxH = wxhL + fh * (wxhT - wxhL);       // x at span-break flap-hinge
@@ -467,7 +507,7 @@ function _buildWB(np) {
 
   /* Derive aileron hinge positions and r_ail from buildWingSurface */
   const _ws = buildWingSurface({
-    root: { y: _wr, z: -_wr, LE: rLE, TE: rTE, thick: wtr },
+    root: { y: wr,  z: -wr,  LE: rLE, TE: rTE, thick: wtr },
     brk:  { y: wh,  z: wzh,  LE: wxhL, TE: wxhT, thick: wth },
     tip:  { y: hs,  z: dh,   LE: tLE,  TE: tTE,  thick: wtt },
     flapHinge: fh,
@@ -481,11 +521,11 @@ function _buildWB(np) {
   const nTotal = nNose + 5;            // + 5 fixed tail rings
   const { V_, F_, FC_, E_, rb } = buildTube(N, [
     ...np.noseRings,                               // rings 0…nNose-1: aircraft-specific nose
-    { vF:  0.001, r: _r,        col: 0 },          // ring nNose+0: wing-stn
-    { vF: -0.010, r: _r,        col: 0 },          // ring nNose+1: rear
-    { vF: -0.014, r: _nr3,      col: 0 },          // ring nNose+2: tail fwd (begin taper)
-    { vF: -0.017, r: _nr3      },                  // ring nNose+3: tail sweep (no cz)
-    { vF: -0.019, r: _nr2      },                  // ring nNose+4: APU (no cz)
+    { vF:  0.001, r: r,          col: 0 },          // ring nNose+0: wing-stn
+    { vF: -0.010, r: r,          col: 0 },          // ring nNose+1: rear
+    { vF: -0.014, r: nr3,        col: 0 },          // ring nNose+2: tail fwd (begin taper)
+    { vF: -0.017, r: nr3        },                  // ring nNose+3: tail sweep (no cz)
+    { vF: -0.019, r: nr2        },                  // ring nNose+4: APU (no cz)
   ]);
 
   const noseTip = V_.length;  V_.push([np.tipX, 0, np.tipCz ?? 0]);
@@ -494,68 +534,68 @@ function _buildWB(np) {
   V_.push(  /* non-tube vertices — b+0..b+151 */
     WV[0], WV[1], WV[4], WV[5],    // b+0..3:  R root lower LE/TE, R tip lower LE/TE
     WV[22], WV[23], WV[26], WV[27], // b+4..7:  L root lower LE/TE, L tip lower LE/TE
-    [-0.013,  0,        _r      ],  //  170 V-stab base fwd
-    [-0.019,  0,        _r      ],  //  171 V-stab base aft
+    [-0.013,  0,        r       ],  //  170 V-stab base fwd
+    [-0.019,  0,        r       ],  //  171 V-stab base aft
     [-0.015,  0,        0.008   ],  //  172 V-stab top fwd
     [-0.020,  0,        0.007   ],  //  173 V-stab top aft
-    [-0.017,  _nr3,     0.0     ],  //  174 R h-stab root fwd  (on fuselage surface)
-    [-0.020,  _nr2,     0.0     ],  //  175 R h-stab root aft
+    [-0.017,  nr3,      0.0     ],  //  174 R h-stab root fwd  (on fuselage surface)
+    [-0.020,  nr2,      0.0     ],  //  175 R h-stab root aft
     [-0.018,  0.008,    0.001   ],  //  176 R h-stab tip fwd
     [-0.021,  0.008,    0.001   ],  //  177 R h-stab tip aft
-    [-0.017, -_nr3,     0.0     ],  //  178 L h-stab root fwd
-    [-0.020, -_nr2,     0.0     ],  //  179 L h-stab root aft
+    [-0.017, -nr3,      0.0     ],  //  178 L h-stab root fwd
+    [-0.020, -nr2,      0.0     ],  //  179 L h-stab root aft
     [-0.018, -0.008,    0.001   ],  //  180 L h-stab tip fwd
     [-0.021, -0.008,    0.001   ],  //  181 L h-stab tip aft
     /* R engine — intake(182-189), fan(190-197), TR_fwd(198-205), TR_aft(206-213), nozzle(214-221) */
-    [ 0.005, _ey,      _ez+_er  ],[ 0.005, _ey+_e7,  _ez+_e7  ],
-    [ 0.005, _ey+_er,  _ez      ],[ 0.005, _ey+_e7,  _ez-_e7  ],
-    [ 0.005, _ey,      _ez-_er  ],[ 0.005, _ey-_e7,  _ez-_e7  ],
-    [ 0.005, _ey-_er,  _ez      ],[ 0.005, _ey-_e7,  _ez+_e7  ],
-    [ 0.001, _ey,      _ez+_efr ],[ 0.001, _ey+_ef7, _ez+_ef7 ],
-    [ 0.001, _ey+_efr, _ez      ],[ 0.001, _ey+_ef7, _ez-_ef7 ],
-    [ 0.001, _ey,      _ez-_efr ],[ 0.001, _ey-_ef7, _ez-_ef7 ],
-    [ 0.001, _ey-_efr, _ez      ],[ 0.001, _ey-_ef7, _ez+_ef7 ],
-    [-0.001, _ey,      _ez+_er  ],[-0.001, _ey+_e7,  _ez+_e7  ],
-    [-0.001, _ey+_er,  _ez      ],[-0.001, _ey+_e7,  _ez-_e7  ],
-    [-0.001, _ey,      _ez-_er  ],[-0.001, _ey-_e7,  _ez-_e7  ],
-    [-0.001, _ey-_er,  _ez      ],[-0.001, _ey-_e7,  _ez+_e7  ],
-    [-0.002, _ey,      _ez+_er  ],[-0.002, _ey+_e7,  _ez+_e7  ],
-    [-0.002, _ey+_er,  _ez      ],[-0.002, _ey+_e7,  _ez-_e7  ],
-    [-0.002, _ey,      _ez-_er  ],[-0.002, _ey-_e7,  _ez-_e7  ],
-    [-0.002, _ey-_er,  _ez      ],[-0.002, _ey-_e7,  _ez+_e7  ],
-    [-0.003, _ey,      _ez+_erc ],[-0.003, _ey+_e7c, _ez+_e7c ],
-    [-0.003, _ey+_erc, _ez      ],[-0.003, _ey+_e7c, _ez-_e7c ],
-    [-0.003, _ey,      _ez-_erc ],[-0.003, _ey-_e7c, _ez-_e7c ],
-    [-0.003, _ey-_erc, _ez      ],[-0.003, _ey-_e7c, _ez+_e7c ],
+    [ 0.005, ey,      ez+er   ],[ 0.005, ey+e7,   ez+e7   ],
+    [ 0.005, ey+er,   ez      ],[ 0.005, ey+e7,   ez-e7   ],
+    [ 0.005, ey,      ez-er   ],[ 0.005, ey-e7,   ez-e7   ],
+    [ 0.005, ey-er,   ez      ],[ 0.005, ey-e7,   ez+e7   ],
+    [ 0.001, ey,      ez+efr  ],[ 0.001, ey+ef7,  ez+ef7  ],
+    [ 0.001, ey+efr,  ez      ],[ 0.001, ey+ef7,  ez-ef7  ],
+    [ 0.001, ey,      ez-efr  ],[ 0.001, ey-ef7,  ez-ef7  ],
+    [ 0.001, ey-efr,  ez      ],[ 0.001, ey-ef7,  ez+ef7  ],
+    [-0.001, ey,      ez+er   ],[-0.001, ey+e7,   ez+e7   ],
+    [-0.001, ey+er,   ez      ],[-0.001, ey+e7,   ez-e7   ],
+    [-0.001, ey,      ez-er   ],[-0.001, ey-e7,   ez-e7   ],
+    [-0.001, ey-er,   ez      ],[-0.001, ey-e7,   ez+e7   ],
+    [-0.002, ey,      ez+er   ],[-0.002, ey+e7,   ez+e7   ],
+    [-0.002, ey+er,   ez      ],[-0.002, ey+e7,   ez-e7   ],
+    [-0.002, ey,      ez-er   ],[-0.002, ey-e7,   ez-e7   ],
+    [-0.002, ey-er,   ez      ],[-0.002, ey-e7,   ez+e7   ],
+    [-0.003, ey,      ez+erc  ],[-0.003, ey+e7c,  ez+e7c  ],
+    [-0.003, ey+erc,  ez      ],[-0.003, ey+e7c,  ez-e7c  ],
+    [-0.003, ey,      ez-erc  ],[-0.003, ey-e7c,  ez-e7c  ],
+    [-0.003, ey-erc,  ez      ],[-0.003, ey-e7c,  ez+e7c  ],
     /* L engine — intake(222-229), fan(230-237), TR_fwd(238-245), TR_aft(246-253), nozzle(254-261) */
-    [ 0.005, -_ey,      _ez+_er  ],[ 0.005, -_ey-_e7,  _ez+_e7  ],
-    [ 0.005, -_ey-_er,  _ez      ],[ 0.005, -_ey-_e7,  _ez-_e7  ],
-    [ 0.005, -_ey,      _ez-_er  ],[ 0.005, -_ey+_e7,  _ez-_e7  ],
-    [ 0.005, -_ey+_er,  _ez      ],[ 0.005, -_ey+_e7,  _ez+_e7  ],
-    [ 0.001, -_ey,      _ez+_efr ],[ 0.001, -_ey-_ef7, _ez+_ef7 ],
-    [ 0.001, -_ey-_efr, _ez      ],[ 0.001, -_ey-_ef7, _ez-_ef7 ],
-    [ 0.001, -_ey,      _ez-_efr ],[ 0.001, -_ey+_ef7, _ez-_ef7 ],
-    [ 0.001, -_ey+_efr, _ez      ],[ 0.001, -_ey+_ef7, _ez+_ef7 ],
-    [-0.001, -_ey,      _ez+_er  ],[-0.001, -_ey-_e7,  _ez+_e7  ],
-    [-0.001, -_ey-_er,  _ez      ],[-0.001, -_ey-_e7,  _ez-_e7  ],
-    [-0.001, -_ey,      _ez-_er  ],[-0.001, -_ey+_e7,  _ez-_e7  ],
-    [-0.001, -_ey+_er,  _ez      ],[-0.001, -_ey+_e7,  _ez+_e7  ],
-    [-0.002, -_ey,      _ez+_er  ],[-0.002, -_ey-_e7,  _ez+_e7  ],
-    [-0.002, -_ey-_er,  _ez      ],[-0.002, -_ey-_e7,  _ez-_e7  ],
-    [-0.002, -_ey,      _ez-_er  ],[-0.002, -_ey+_e7,  _ez-_e7  ],
-    [-0.002, -_ey+_er,  _ez      ],[-0.002, -_ey+_e7,  _ez+_e7  ],
-    [-0.003, -_ey,      _ez+_erc ],[-0.003, -_ey-_e7c, _ez+_e7c ],
-    [-0.003, -_ey-_erc, _ez      ],[-0.003, -_ey-_e7c, _ez-_e7c ],
-    [-0.003, -_ey,      _ez-_erc ],[-0.003, -_ey+_e7c, _ez-_e7c ],
-    [-0.003, -_ey+_erc, _ez      ],[-0.003, -_ey+_e7c, _ez+_e7c ],
+    [ 0.005, -ey,      ez+er   ],[ 0.005, -ey-e7,   ez+e7   ],
+    [ 0.005, -ey-er,   ez      ],[ 0.005, -ey-e7,   ez-e7   ],
+    [ 0.005, -ey,      ez-er   ],[ 0.005, -ey+e7,   ez-e7   ],
+    [ 0.005, -ey+er,   ez      ],[ 0.005, -ey+e7,   ez+e7   ],
+    [ 0.001, -ey,      ez+efr  ],[ 0.001, -ey-ef7,  ez+ef7  ],
+    [ 0.001, -ey-efr,  ez      ],[ 0.001, -ey-ef7,  ez-ef7  ],
+    [ 0.001, -ey,      ez-efr  ],[ 0.001, -ey+ef7,  ez-ef7  ],
+    [ 0.001, -ey+efr,  ez      ],[ 0.001, -ey+ef7,  ez+ef7  ],
+    [-0.001, -ey,      ez+er   ],[-0.001, -ey-e7,   ez+e7   ],
+    [-0.001, -ey-er,   ez      ],[-0.001, -ey-e7,   ez-e7   ],
+    [-0.001, -ey,      ez-er   ],[-0.001, -ey+e7,   ez-e7   ],
+    [-0.001, -ey+er,   ez      ],[-0.001, -ey+e7,   ez+e7   ],
+    [-0.002, -ey,      ez+er   ],[-0.002, -ey-e7,   ez+e7   ],
+    [-0.002, -ey-er,   ez      ],[-0.002, -ey-e7,   ez-e7   ],
+    [-0.002, -ey,      ez-er   ],[-0.002, -ey+e7,   ez-e7   ],
+    [-0.002, -ey+er,   ez      ],[-0.002, -ey+e7,   ez+e7   ],
+    [-0.003, -ey,      ez+erc  ],[-0.003, -ey-e7c,  ez+e7c  ],
+    [-0.003, -ey-erc,  ez      ],[-0.003, -ey-e7c,  ez-e7c  ],
+    [-0.003, -ey,      ez-erc  ],[-0.003, -ey+e7c,  ez-e7c  ],
+    [-0.003, -ey+erc,  ez      ],[-0.003, -ey+e7c,  ez+e7c  ],
     /* Winglets (262-265) */
     [-0.007,  wy, wz],[-0.009,  wy, wz],
     [-0.007, -wy, wz],[-0.009, -wy, wz],
     /* Cockpit windows (266-273) — R and L main windshield panels (from nose profile) */
     ...np.windows,  // 8 vertices: R[fwd-in,aft-in,aft-out,fwd-out] + L[fwd-in,aft-in,aft-out,fwd-out]
     /* Engine pylons — top attach on wing underside at span station y=_ey (274-277) */
-    [ 0.003,  _ey, _pz],[-0.001,  _ey, _pz],               // 274 R pylon top fwd, 275 R pylon top aft
-    [ 0.003, -_ey, _pz],[-0.001, -_ey, _pz],               // 276 L pylon top fwd, 277 L pylon top aft
+    [ 0.003,  ey, pz],[-0.001,  ey, pz],                    // 274 R pylon top fwd, 275 R pylon top aft
+    [ 0.003, -ey, pz],[-0.001, -ey, pz],                    // 276 L pylon top fwd, 277 L pylon top aft
     /* Wing upper surface (b+116…b+123) */
     WV[6],  WV[7],  WV[10], WV[11],  // b+116..119: R root upper LE/TE, R tip upper LE/TE
     WV[28], WV[29], WV[32], WV[33],  // b+120..123: L root upper LE/TE, L tip upper LE/TE
@@ -580,6 +620,11 @@ function _buildWB(np) {
     _leN(WV[22], WV[28]),  // b+155 L root  LE nose
     _leN(WV[24], WV[30]),  // b+156 L break LE nose
     _leN(WV[26], WV[32]),  // b+157 L tip   LE nose
+  );
+  /* Fan face centers — projected in _drawWireframe for _drawTurbofanFace */
+  V_.push(
+    [0.001,  ey, ez],  // b+158 R fan center
+    [0.001, -ey, ez],  // b+159 L fan center
   );
 
   /* Nose tris: noseTip → ring0 (outward normals) */
@@ -753,7 +798,7 @@ function _buildWB(np) {
 
 /* Build + cache geometry per aircraft nose profile */
 const _wbCache = {};
-for (const id of ['default','a350','a220','e190']) {
+for (const id of ['default','a350','a220','e190','b737']) {
   const geo = _buildWB(_WB_NP[id]);
   geo.FN_ = computeFaceNormals(geo.V_, geo.F_);
   _wbCache[id] = geo;
@@ -2119,9 +2164,93 @@ function animHinge(verts, idxs, r, angle, axis, src) {
   }
 }
 
+/* ── Generic turbofan fan-face renderer (screen-space) ───────────────────────
+   hubPt  projected center of fan disk  {x, y, d}
+   rimPt  projected rim vertex (sets disk radius in pixels)
+   power  enginePower 0→1 (0=static blades, <0.30=slow, ≥0.30=blur disk)
+   nBlades  fan blade count (22 typical CFM56 / LEAP)                        */
+let _fanAngle = 0;
+
+function _drawTurbofanFace(ctx, hubPt, rimPt, power, dpr, nBlades = 22) {
+  if (!hubPt || !rimPt) return;
+  const r = Math.hypot(rimPt.x - hubPt.x, rimPt.y - hubPt.y);
+  if (r < 3) return;
+  const cx = hubPt.x, cy = hubPt.y;
+  const hubR = r * 0.28, tipR = r * 0.94;
+  ctx.save();
+
+  if (power < 0.05) {
+    /* Static — N tapered blade quads */
+    ctx.fillStyle = 'rgba(96,110,126,0.92)';
+    for (let i = 0; i < nBlades; i++) {
+      const a  = _fanAngle + i / nBlades * Math.PI * 2;
+      const aL = a - 0.085, aR = a + 0.085;
+      ctx.beginPath();
+      ctx.moveTo(cx + hubR * Math.cos(aL), cy + hubR * Math.sin(aL));
+      ctx.lineTo(cx + tipR * Math.cos(aL - 0.10), cy + tipR * Math.sin(aL - 0.10));
+      ctx.lineTo(cx + tipR * Math.cos(aR - 0.14), cy + tipR * Math.sin(aR - 0.14));
+      ctx.lineTo(cx + hubR * Math.cos(aR), cy + hubR * Math.sin(aR));
+      ctx.closePath(); ctx.fill();
+    }
+  } else if (power < 0.30) {
+    /* Slow rotation — blades + translucent blur overlay */
+    const t     = power / 0.30;
+    const alpha = (0.72 - t * 0.48).toFixed(2);
+    ctx.fillStyle = `rgba(90,104,120,${alpha})`;
+    for (let i = 0; i < nBlades; i++) {
+      const a  = _fanAngle + i / nBlades * Math.PI * 2;
+      const aL = a - 0.10, aR = a + 0.10;
+      ctx.beginPath();
+      ctx.moveTo(cx + hubR * Math.cos(aL), cy + hubR * Math.sin(aL));
+      ctx.lineTo(cx + tipR * Math.cos(aL - 0.12), cy + tipR * Math.sin(aL - 0.12));
+      ctx.lineTo(cx + tipR * Math.cos(aR - 0.16), cy + tipR * Math.sin(aR - 0.16));
+      ctx.lineTo(cx + hubR * Math.cos(aR), cy + hubR * Math.sin(aR));
+      ctx.closePath(); ctx.fill();
+    }
+    /* Blur wash */
+    const bGrad = ctx.createRadialGradient(cx, cy, hubR, cx, cy, tipR);
+    bGrad.addColorStop(0, `rgba(138,152,168,${(t * 0.32).toFixed(2)})`);
+    bGrad.addColorStop(1, `rgba(78,90,106,${(t * 0.20).toFixed(2)})`);
+    ctx.fillStyle = bGrad; ctx.beginPath(); ctx.arc(cx, cy, tipR, 0, Math.PI*2); ctx.fill();
+  } else {
+    /* Running — solid blur disk + faint streaks */
+    const bGrad = ctx.createRadialGradient(cx, cy, hubR, cx, cy, tipR);
+    bGrad.addColorStop(0,   'rgba(152,165,180,0.58)');
+    bGrad.addColorStop(0.5, 'rgba(112,124,140,0.44)');
+    bGrad.addColorStop(1,   'rgba(72,84,100,0.32)');
+    ctx.fillStyle = bGrad; ctx.beginPath(); ctx.arc(cx, cy, tipR, 0, Math.PI*2); ctx.fill();
+    /* Radial streaks */
+    ctx.globalAlpha = 0.10;
+    ctx.strokeStyle = 'rgba(210,222,235,1)';
+    ctx.lineWidth   = Math.max(0.5, dpr * 0.4);
+    for (let i = 0; i < 9; i++) {
+      const a = _fanAngle + i / 9 * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(cx + hubR * Math.cos(a), cy + hubR * Math.sin(a));
+      ctx.lineTo(cx + tipR * Math.cos(a), cy + tipR * Math.sin(a));
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /* Spinner cone */
+  ctx.fillStyle = 'rgba(52,58,70,0.97)';
+  ctx.beginPath(); ctx.arc(cx, cy, hubR, 0, Math.PI*2); ctx.fill();
+
+  /* Outer cowl ring */
+  ctx.strokeStyle = 'rgba(158,172,188,0.78)';
+  ctx.lineWidth   = Math.max(0.8, dpr * 0.7);
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.stroke();
+
+  ctx.restore();
+}
+
 /* ── Core wireframe + shading renderer ───────────────────────── */
 function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, wingView = false, orbitAzDeg = 0, orbitElDeg = 0) {
-  const isC172  = (S.aircraft?.id === 'c172');
+  /* Advance fan rotation angle — capped so it doesn't spin during static frames */
+  _fanAngle = (_fanAngle + Math.min(0.06, (S.enginePower ?? 0) * 0.35)) % (Math.PI * 2);
+
+  const isC172  = (S.aircraft?.panel === 'g1000');
   const isSV    = !isC172 && (S.aircraft?.id === 'saturn-v');
   const isF9    = !isC172 && !isSV && (S.aircraft?.id?.startsWith('falcon9') || S.aircraft?.vehicleType === 'rocket');
   const isBf109 = !isC172 && !isF9 && !isSV && (S.aircraft?.id === 'bf109');
@@ -3011,6 +3140,15 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         ctx.beginPath(); ctx.arc(p0.x, p0.y, r, 0, Math.PI * 2); ctx.stroke();
         ctx.restore();
       }
+    }
+  }
+
+  /* Turbofan fan face — wide-body (WB) aircraft only */
+  if (!isC172 && !isF9 && !isBf109 && !isF4U && !isSV) {
+    const ePow = S.enginePower ?? 0;
+    if (ePow > 0 || S.engineState === 'running') {
+      _drawTurbofanFace(ctx, pts[_b+158], pts[_b+28], ePow, dpr, 22);  // R engine
+      _drawTurbofanFace(ctx, pts[_b+159], pts[_b+68], ePow, dpr, 22);  // L engine
     }
   }
 

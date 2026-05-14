@@ -2075,7 +2075,7 @@
   import { startTelemetry, downloadTelemetry, downloadTelemetryCSV } from './core/telemetry.js';
   import { initBlackbox, bbEvent, downloadBlackbox } from './core/blackbox.js';
   import { renderPFD }         from './display/pfd.js';
-  import { renderPanel, renderFCU } from './display/panel_renderer.js';
+  import { renderPanel, renderFCU, renderCockpit, handleCockpitClick } from './display/panel_renderer.js';
   import { renderRocket, renderApollo, handleApolloClick, isApolloTelemetry } from './display/rocket_display.js';
   import { renderDragon, handleDragonClick, isDragonTelemetry } from './display/dragon.js';
   import { renderG1000, handleG1000Click } from './display/g1000.js';
@@ -2244,6 +2244,7 @@
     if (S.aircraft?.vehicleType === 'rocket' && S.mission?.dragonSepT) handleDragonClick(canvas, evt);
     if (S.aircraft?.id === 'saturn-v') handleApolloClick(canvas, evt);
     if (S.aircraft?.panel === 'g1000') handleG1000Click(canvas, evt);
+    if (S.aircraft?.panel === 'dr400') handleCockpitClick(canvas, evt);
   });
   const loadEl     = document.getElementById('loading');
   const loadBar    = document.getElementById('loadBar');
@@ -2281,6 +2282,24 @@
         aircraft: 'Embraer E190-E2 · Helvetic Airways',
         orders: 'Cleared ILS 23. Descend 4000ft.\nSpeed 250kt below FL100. Expect vectors to localizer.\nGear down and flaps full by FAF.\nDecision height: 200ft AGL. Go-around: climb 4000ft, track 228°.',
         atmosphere: 'Live METAR active.\nHelvetica — Swiss regional. Clean, efficient, on time.',
+      },
+      roles: [
+        { id: 'PF',         label: 'Pilot Flying' },
+        { id: 'PM',         label: 'Pilot Monitoring' },
+        { id: 'INSTRUCTOR', label: 'Instructor' },
+      ],
+    },
+    {
+      id: 'egll-approach', aircraft: 'b737',
+      acName: 'Boeing 737-800', engine: 'CFM International CFM56-7B · Twin',
+      location: 'London Heathrow EGLL', title: 'ILS Approach · RWY 27L', era: 'MODERN', accent: '#3060b4',
+      briefing: {
+        date: 'EGLL · RWY 27L · ILS 110.300',
+        pilot: 'Captain / First Officer',
+        unit: 'London Heathrow Tower 118.700',
+        aircraft: 'Boeing 737-800 · British Airways · Speedbird',
+        orders: 'Cleared ILS 27L. Descend FL100, speed 250kt below.\nExpect LOREL arrival via WILLO. Vectors to localizer.\nGear down by 2500ft. Flaps full by FAP.\nDecision height: 200ft. Go-around: climb 3000ft, track 270°.',
+        atmosphere: 'Runway 27L. The busiest approach in Europe.\nYou\'ve flown this dozens of times.\nBut every landing is the first.',
       },
       roles: [
         { id: 'PF',         label: 'Pilot Flying' },
@@ -3855,6 +3874,7 @@
           else renderApollo(canvas);
         }
         else if (isRocket)           renderRocket(canvas);
+        else if (panel === 'dr400')  renderCockpit(canvas);
         else if (panel === 'g1000')  renderG1000(canvas);
         else if (panel === 'bf109')  renderBf109(canvas);
         else if (panel === 'f4u')    renderF4U1A(canvas);
@@ -3875,16 +3895,17 @@
         const isG1000  = panel === 'g1000';
         const isPanel  = panel === 'airbus' || panel === 'e190';
         const hasDual  = isPanel && !!(S.aircraft?.displays?.some(d => d.screen === 1));
-        const hasOwnUI = isVelis || isG1000;
+        const isDR400  = panel === 'dr400';
+        const hasOwnUI = isVelis || isG1000 || isDR400;
         const isDragon = isRocket && !!(S.mission?.dragonSepT);
         const isApollo = isRocket && S.aircraft?.id === 'saturn-v';
-        canvas.style.pointerEvents = (isVelis || isArm || isDragon || isG1000 || isApollo) ? 'auto' : 'none';
+        canvas.style.pointerEvents = (isVelis || isArm || isDragon || isG1000 || isApollo || isDR400) ? 'auto' : 'none';
         document.body.classList.toggle('g1000-active',  isG1000);
         document.body.classList.toggle('velis-active',  isVelis);
         document.body.classList.toggle('panel-dual',    hasDual);
         document.getElementById('hc-panel').style.display      = isHover ? 'flex' : 'none';
         document.getElementById('com-container').style.display  =
-          (isHover || isVelis || isArm || isPanel) ? 'none' : (isG1000 ? (S.comPanelVisible ? '' : 'none') : '');
+          (isHover || isVelis || isArm || isPanel || isDR400) ? 'none' : (isG1000 ? (S.comPanelVisible ? '' : 'none') : '');
         document.getElementById('panel').style.display          = (isRocket || hasOwnUI || isArm) ? 'none' : '';
         document.getElementById('keys').style.display           = (isRocket || isArm || isPanel) ? 'none' : '';
         document.getElementById('fma').style.display            = (isRocket || hasOwnUI || isArm || isPanel) ? 'none' : '';
@@ -4131,6 +4152,7 @@
     el.classList.toggle('dragon', !!(S.mission?.dragonSepT));
     el.classList.toggle('velis',  S.aircraft?.panel === 'velis-epsi');
     el.classList.toggle('g1000',  S.aircraft?.panel === 'g1000');
+    el.classList.toggle('dr400',  S.aircraft?.panel === 'dr400');
     el.classList.toggle('airbus', S.aircraft?.panel === 'airbus' || S.aircraft?.panel === 'e190');
     el.classList.toggle('apollo', S.aircraft?.id === 'saturn-v');
     const t = Math.max(0, Math.floor(S.time ?? 0));

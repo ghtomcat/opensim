@@ -1,0 +1,80 @@
+{
+  "id": "egll-approach",
+  "phase": "approach",
+  "title": "ILS Approach — London Heathrow EGLL",
+  "description": "ILS approach into London Heathrow runway 27L. Speedbird heavy on the standard STAR. Live METAR weather. Full crew loop.",
+  "author": "Markus Leutwyler",
+  "aircraft": "b737",
+  "departure": null,
+  "arrival": {
+    "icao": "EGLL",
+    "name": "London Heathrow",
+    "runway": "27L",
+    "ils": {
+      "freq": "110.300",
+      "course": 270
+    },
+    "elevation": 83
+  },
+  "initialState": {
+    "lat": 51.60,
+    "lon": -0.80,
+    "alt": 41000,
+    "spd": 285,
+    "hdg": 270,
+    "pitch": 2,
+    "roll": 0
+  },
+  "weather": {
+    "source": "live",
+    "icao": "EGLL",
+    "fallback": {
+      "wdir": 270,
+      "wspd": 14,
+      "altim": 1013,
+      "temp": 10,
+      "dewp": 6,
+      "visib": "6+",
+      "clouds": [
+        { "cover": "SCT", "base": 3500 }
+      ]
+    }
+  },
+  "atcClearances": [
+    {
+      "alt": 32000,
+      "pm": "london control, Speedbird one, request descent, flight level two four zero",
+      "atc": "Speedbird one, london control, descend flight level two four zero, standard pressure"
+    },
+    {
+      "alt": 24000,
+      "pm": "Speedbird one, descending two four zero",
+      "atc": "Speedbird one, continue descent flight level one zero zero, speed two five zero knots"
+    },
+    {
+      "alt": 10000,
+      "pm": "Speedbird one, descending one zero zero, speed two fifty",
+      "atc": "Speedbird one, contact london terminal one one eight decimal two, good day"
+    },
+    {
+      "alt": 8000,
+      "pm": "london terminal, Speedbird one, with you, descending one zero thousand",
+      "atc": "Speedbird one, identified, descend five thousand, expect ILS runway two seven left"
+    },
+    {
+      "alt": 5000,
+      "pm": "descending five thousand, Speedbird one",
+      "atc": "Speedbird one, turn left heading two four zero, descend three thousand, reduce speed two ten"
+    },
+    {
+      "alt": 3000,
+      "pm": "turning two four zero, descending three thousand, Speedbird one",
+      "atc": "Speedbird one, turn left heading two zero zero, cleared ILS runway two seven left, report established"
+    },
+    {
+      "alt": 2500,
+      "pm": "established ILS two seven left, Speedbird one",
+      "atc": "Speedbird one, contact heathrow tower one one eight decimal seven, cleared to land runway two seven left, wind two seven zero at twelve"
+    }
+  ]
+}
