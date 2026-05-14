@@ -4371,7 +4371,9 @@
     document.getElementById('debrief').classList.remove('visible');
     _debriefShown = false;
     resetCrew();
-    loadMission('missions/lszh-approach.json', 'aircraft/a350.json');
+    const ac = S.aircraft;
+    const m  = S.mission;
+    if (ac && m) loadMission(m, ac);
   };
 
   window.downloadBlackbox = downloadBlackbox;

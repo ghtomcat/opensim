@@ -571,6 +571,16 @@ function _buildWB(np) {
     WV[16], WV[18], WV[17], WV[19],  // b+144..147: R break lower/upper, tip lower/upper ail hinge
     WV[38], WV[40], WV[39], WV[41],  // b+148..151: L break lower/upper, tip lower/upper ail hinge
   );
+  /* Wing LE nose vertices (b+152..b+157) — midpoint of lower/upper LE, offset fwd by half-thickness */
+  const _leN = (lo, hi) => [lo[0] + (hi[2]-lo[2])*0.5, lo[1], (lo[2]+hi[2])*0.5];
+  V_.push(
+    _leN(WV[0],  WV[6]),   // b+152 R root  LE nose
+    _leN(WV[2],  WV[8]),   // b+153 R break LE nose
+    _leN(WV[4],  WV[10]),  // b+154 R tip   LE nose
+    _leN(WV[22], WV[28]),  // b+155 L root  LE nose
+    _leN(WV[24], WV[30]),  // b+156 L break LE nose
+    _leN(WV[26], WV[32]),  // b+157 L tip   LE nose
+  );
 
   /* Nose tris: noseTip → ring0 (outward normals) */
   for (let si = 0; si < N; si++) { F_.push([noseTip, rb[0]+(si+1)%N, rb[0]+si]); FC_.push(6); }
@@ -613,6 +623,11 @@ function _buildWB(np) {
     [b+148,b+150,b+7,b+134],                     // L aileron lower
     [b+6,b+122,b+151,b+150],                     // L tip LE cap (fixed)
     [b+150,b+151,b+123,b+7],                     // L aileron tip
+    /* LE rounds: lower half + upper half, inner (root→break) + outer (break→tip) per side */
+    [b+0,b+124,b+153,b+152],[b+152,b+153,b+126,b+116],    // R inner lower + upper
+    [b+124,b+2,b+154,b+153],[b+153,b+154,b+118,b+126],    // R outer lower + upper
+    [b+4,b+155,b+156,b+128],[b+155,b+120,b+130,b+156],    // L inner lower + upper
+    [b+128,b+156,b+157,b+6],[b+156,b+130,b+122,b+157],    // L outer lower + upper
     [b+118,b+147,b+101,b+100],[b+118,b+100,b+101,b+147],  // R winglet (anchored to ail hinge, not TE)
     [b+122,b+151,b+103,b+102],[b+122,b+102,b+103,b+151],  // L winglet (anchored to ail hinge, not TE)
     [b+8,b+9,b+11,b+10],[b+8,b+10,b+11,b+9],    // V-stab (×2 sides)
@@ -647,6 +662,7 @@ function _buildWB(np) {
   FC_.push(
     10,10,10,10,                          // engine interior caps (R intake, R nozzle, L intake, L nozzle)
     8,8, 8,8,                             // cockpit windows R+L (4)
+    1,1,1,1, 1,1,1,1,                          // LE rounds R+L (8)
     1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1, 9,9,9,9,  // R wing (10) + L wing (10) + winglets (4)
     2,2, 3,3,3,3,                         // v-stab + h-stabs (6)
     4,4,4,4,4,4,4,4, 4,4,4,4,4,4,4,4,   // R engine A→B + B→C (16)
@@ -681,8 +697,9 @@ function _buildWB(np) {
     [b+116,b+126],[b+126,b+118], [b+117,b+127],[b+133,b+119],
     [b+116,b+137],[b+137,b+117], [b+126,b+139],[b+139,b+145],[b+145,b+133],
     [b+118,b+147],[b+147,b+119], [b+137,b+139],[b+145,b+147],
-    // R wing LE+hinge thickness
-    [b+116,b+0],[b+126,b+124],[b+118,b+2],
+    // R wing LE+hinge thickness (LE routed through nose vertex)
+    [b+116,b+152],[b+152,b+0],[b+126,b+153],[b+153,b+124],[b+118,b+154],[b+154,b+2],
+    [b+152,b+153],[b+153,b+154],                           // R LE nose span
     [b+136,b+137],[b+138,b+139],[b+144,b+145],[b+146,b+147],
     [b+136,b+138],[b+137,b+139],
     // L wing lower
@@ -693,8 +710,9 @@ function _buildWB(np) {
     [b+120,b+130],[b+130,b+122], [b+121,b+131],[b+135,b+123],
     [b+120,b+141],[b+141,b+121], [b+130,b+143],[b+143,b+149],[b+149,b+135],
     [b+122,b+151],[b+151,b+123], [b+141,b+143],[b+149,b+151],
-    // L wing LE+hinge thickness
-    [b+120,b+4],[b+130,b+128],[b+122,b+6],
+    // L wing LE+hinge thickness (LE routed through nose vertex)
+    [b+120,b+155],[b+155,b+4],[b+130,b+156],[b+156,b+128],[b+122,b+157],[b+157,b+6],
+    [b+155,b+156],[b+156,b+157],                           // L LE nose span
     [b+140,b+141],[b+142,b+143],[b+148,b+149],[b+150,b+151],
     [b+140,b+142],[b+141,b+143],
     [b+8,b+10],[b+9,b+11],[b+10,b+11],[b+8,b+9],  // V-stab
@@ -1618,6 +1636,18 @@ const { V_: _V_f4u, F_: _F_f4u, FC_: _FC_f4u, E_: _E_f4u, anim: _anim_f4u } = ((
     [ ruTx, 0,  ruTz ],  // 204 V-stab top  hinge
   );
 
+  /* ── LE nose vertices — one per station per side (205-212) ── */
+  V_.push(
+    [ wrLE + wRTh  * 0.5, +wrY,    wrZ + wRTh  * 0.5 ],  // 205 R root  LE nose
+    [ wkLE + wKTh  * 0.5, +wkY,    wkZ + wKTh  * 0.5 ],  // 206 R kink  LE nose
+    [ wbLE + wBkTh * 0.5, +wbY,    wbZ + wBkTh * 0.5 ],  // 207 R break LE nose
+    [ wtLE + wTTh  * 0.5, +_f4uHS, wtZ + wTTh  * 0.5 ],  // 208 R tip   LE nose
+    [ wrLE + wRTh  * 0.5, -wrY,    wrZ + wRTh  * 0.5 ],  // 209 L root  LE nose
+    [ wkLE + wKTh  * 0.5, -wkY,    wkZ + wKTh  * 0.5 ],  // 210 L kink  LE nose
+    [ wbLE + wBkTh * 0.5, -wbY,    wbZ + wBkTh * 0.5 ],  // 211 L break LE nose
+    [ wtLE + wTTh  * 0.5, -_f4uHS, wtZ + wTTh  * 0.5 ],  // 212 L tip   LE nose
+  );
+
   /* Spinner nose tris + cowl band + tail tris */
   for (let si = 0; si < N; si++) { F_.push([noseTip, spBase+(si+1)%N, spBase+si]); FC_.push(2); }
   for (let si = 0; si < N; si++) { F_.push([spBase+si, spBase+(si+1)%N, rb[0]+(si+1)%N, rb[0]+si]); FC_.push(2); }
@@ -1653,6 +1683,14 @@ const { V_: _V_f4u, F_: _F_f4u, FC_: _FC_f4u, E_: _E_f4u, anim: _anim_f4u } = ((
     [124,193,194,125],
     /* Canopy */
     [128,127,129,130],[127,133,131,129],[128,130,132,134],[130,129,131,132],[134,132,131,133],
+    /* R wing LE rounds: lower half + upper half per panel */
+    [98,100,206,205],[205,206,153,151],
+    [100,102,207,206],[206,207,155,153],
+    [102,104,208,207],[207,208,157,155],
+    /* L wing LE rounds */
+    [106,209,210,108],[209,159,161,210],
+    [108,210,211,110],[210,161,163,211],
+    [110,211,212,112],[211,163,165,212],
   );
   FC_.push(
     1,1,1,1,1, 1,1,1,1,1, 1,1,   // R wing (12)
@@ -1661,6 +1699,8 @@ const { V_: _V_f4u, F_: _F_f4u, FC_: _FC_f4u, E_: _E_f4u, anim: _anim_f4u } = ((
     3,3, 3,3, 3,                   // R h-stab (5)
     3,3, 3,3, 3,                   // L h-stab (5)
     4,4,4,4,4,                     // canopy (5)
+    1,1, 1,1, 1,1,                 // R wing LE rounds (6)
+    1,1, 1,1, 1,1,                 // L wing LE rounds (6)
   );
 
   /* Longerons: noseTip → spinner ring → ring A → … → tailTip */
@@ -1680,24 +1720,26 @@ const { V_: _V_f4u, F_: _F_f4u, FC_: _FC_f4u, E_: _E_f4u, anim: _anim_f4u } = ((
     [rb[3]+4,98],[rb[3]+4,99],
     /* R wing hinge spans (lower) */
     [98,167],[167,102],[99,167],[101,168],[103,175],[105,176],[167,168],[175,176],
-    /* R wing upper thickness */
-    [98,151],[99,152],[100,153],[101,154],[102,155],[103,156],[104,157],[105,158],
+    /* R wing upper thickness (LE routed through nose vertex) */
+    [98,205],[205,151],[99,152],[100,206],[206,153],[101,154],[102,207],[207,155],[103,156],[104,208],[208,157],[105,158],
     [167,169],[168,170],[175,177],[176,178],
     /* R wing upper spans + cross-chord */
     [151,153],[153,155],[155,157],[152,154],[154,156],[184,158],[169,170],[177,178],
     [151,169],[169,152],[153,170],[170,177],[177,184],[157,178],[178,158],
+    [205,206],[206,207],[207,208],
     /* L wing lower spans + cross-chord */
     [106,108],[108,110],[110,112],[107,109],[109,111],
     [106,107],[108,109],[110,111],[112,113],
     [rb[3]+12,106],[rb[3]+12,107],
     /* L wing hinge spans (lower) */
     [106,171],[171,110],[107,171],[109,172],[111,179],[113,180],[171,172],[179,180],
-    /* L wing upper thickness */
-    [106,159],[107,160],[108,161],[109,162],[110,163],[111,164],[112,165],[113,166],
+    /* L wing upper thickness (LE routed through nose vertex) */
+    [106,209],[209,159],[107,160],[108,210],[210,161],[109,162],[110,211],[211,163],[111,164],[112,212],[212,165],[113,166],
     [171,173],[172,174],[179,181],[180,182],
     /* L wing upper spans + cross-chord */
     [159,161],[161,163],[163,165],[160,162],[162,164],[186,166],[173,174],[181,182],
     [159,173],[173,160],[161,174],[174,181],[181,186],[165,182],[182,166],
+    [209,210],[210,211],[211,212],
     /* V-stab */
     [114,116],[114,203],[116,204],[203,204],[115,117],[115,203],[117,204],
     /* R h-stab lower + thickness + upper + tip */
