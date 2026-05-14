@@ -54,6 +54,7 @@ export function hilInit(hubUrl = 'ws://localhost:3000', room = 'hil-corsair') {
     if (p.armLoad    !== undefined) update.armLoad    = p.armLoad;
     if (p.armVolt    !== undefined) update.armVolt    = p.armVolt;
     if (p.armAlert   !== undefined) update.armAlert   = p.armAlert;
+    if (p.armTcp     !== undefined) update.armTcp     = p.armTcp;
     if (Object.keys(update).length) {
       setState(update);
       console.log('[HIL] rx:', update);
@@ -84,11 +85,18 @@ export function tickHIL() {
 
   // Robot arm: forward commanded joint angles to robot_bridge.js → ESP32.
   if (S.armJoints !== null && S.armJoints !== undefined) {
-    patch.armJoints  = S.armJoints;
-    patch.armGripper = S.armGripper ?? 0;
+    patch.armJoints   = S.armJoints;
+    patch.armGripper  = S.armGripper ?? 0;
+    patch.armCartMode = S.armCartMode ?? false;
   }
 
   _ws.send(JSON.stringify({ type: 'STATE_PATCH', room: _room, patch }));
 }
 
 export function hilIsConnected() { return _connected; }
+
+// Send a Cartesian TCP delta directly to the ESP32 IK solver.
+export function sendCartJog(dx, dy, dz, speed = 300) {
+  if (!_connected || _ws?.readyState !== WebSocket.OPEN) return;
+  _ws.send(JSON.stringify({ type: 'CART_JOG', room: _room, dx, dy, dz, speed }));
+}

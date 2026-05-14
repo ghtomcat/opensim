@@ -26,8 +26,9 @@
      L          — log all part transforms to console
    ═══════════════════════════════════════════════════════════════ */
 
-import { S, setState } from '../core/state.js';
-import { bbEvent }     from '../core/blackbox.js';
+import { S, setState }  from '../core/state.js';
+import { bbEvent }      from '../core/blackbox.js';
+import { sendCartJog }  from '../core/hil.js';
 
 /* ── Colours ── */
 const JCOLORS = ['#58a6ff','#3fb950','#d29922','#f85149','#bc8cff','#39d0d0'];
@@ -60,6 +61,10 @@ let _selItemIdx = 0; // resolved to J1 on first reset; ITEM_LIST not yet defined
 let _editAxis   = 'x';   // axis for part translate / rotate
 let _raycaster  = null;
 let _editCanvas = null;
+
+/* ── Cart-jog mode ── */
+let _cartMode = false;
+let _cartStep = 0.010;  // metres
 
 /* ── Constants ── */
 const SCALE = 0.001;          // STL vertices are in mm → metres after scale
@@ -99,42 +104,30 @@ const VISUALS = [
       -0.00636471,  0,           -0.0024,  -HPI, HPI,  PI  ],
   [0, 'Base_motor_holder_SO101.stl',
       -0.00636471, -9.94414e-5,  -0.0024,   HPI, HPI,  0   ],
-  [0, 'Seeedstudio_Mounting_Plate_SO101.stl',
-      -0.0309827,  -1.99441e-4,   0.0474,   HPI, 0,    HPI ],
 
   // link 1 — shoulder_link
-  [1, 'Motor_holder_SO101_Base.stl',
-      -0.0675992,  -1.77759e-4,   0.0158499, HPI,-HPI,  0  ],
   [1, 'Rotation_Pitch_SO101.stl',
        0.0122008,   2.22413e-5,   0.0464,   -HPI, 0,    0  ],
 
   // link 2 — upper_arm_link
   [2, 'Upper_arm_SO101.stl',
-      -0.065085,    0.012,        0.0182,    275 * DEG, HPI / 2, 0  ],
+       0.040,        0.012,        0.0182,    275 * DEG, 135 * DEG, 0  ],
 
   // link 3 — lower_arm_link
   [3, 'Under_arm_SO101.stl',
-      -0.0648499,  -0.032,        0.0182,    PI,  0,    0  ],
-  [3, 'Motor_holder_SO101_Wrist.stl',
-      -0.0648499,  -0.032,        0.018,    -PI,  0,    0  ],
+       0.288,       -0.002,         0.030,    90 * DEG,  195 * DEG,  0  ],
 
   // link 4 — wrist_link
-  [4, 'Wrist_Roll_Pitch_SO101.stl',
-       0,          -0.028,        0.0181,   -HPI,-HPI,  0  ],
 
   // link 5 — gripper_link
   [5, 'Wrist_Roll_Follower_SO101.stl',
-       0,          -2.18214e-4,   9.50e-4,  -PI,  0,    0  ],
+      -0.276,      -2.18214e-4,  -0.505,   -180 * DEG,  -20 * DEG,  20 * DEG  ],
   [5, 'Wrist_Roll_SO101.stl',                         // ⚡ approx.
-       0,          -2.18214e-4,   1.00e-4,  -PI,  0,    0  ],
+      -0.280,      -2.18214e-4,  -0.505,   -185 * DEG,  160 * DEG,  0  ],
 
   // link 6 — moving_jaw_link
   [6, 'Moving_Jaw_SO101.stl',
-       0,           0,            0.0189,    0,   0,    0  ],
-  [6, 'Handle_SO101.stl',                             // ⚡ approx.
-       0,          -0.030,        0.019,     0,   0,    0  ],
-  [6, 'Trigger_SO101.stl',                            // ⚡ approx.
-       0.010,       0,           -0.020,     0,   0,    0  ],
+      -0.298,      -0.502,         0.023,   -10 * DEG,  -25 * DEG,  15 * DEG  ],
 ];
 
 /* ──────────────────────────────────────────────────────────────
@@ -142,6 +135,17 @@ const VISUALS = [
    P items: {type:'part',  name, pIdx}   (pIdx = 1-based display index)
    J items: {type:'joint', jIdx}         (jIdx = 0-based joint index)
    ────────────────────────────────────────────────────────────── */
+/* ──────────────────────────────────────────────────────────────
+   Part groups — translating any member also moves all others
+   in the same group by the same delta.
+   ────────────────────────────────────────────────────────────── */
+const PART_GROUPS = [];
+
+function _groupPeers(name) {
+  const g = PART_GROUPS.find(g => g.includes(name));
+  return g ? g.filter(n => n !== name) : [];
+}
+
 const ITEM_LIST = (() => {
   const items = [];
   let pi = 0;
@@ -385,6 +389,27 @@ function _onKey(e) {
   /* ── Vehicle guard for motion commands ── */
   if (S.aircraft?.vehicleType !== 'robot-arm') return;
 
+  /* C — toggle Cartesian jog mode */
+  if (e.key === 'c' || e.key === 'C') {
+    _cartMode = !_cartMode;
+    setState({ armCartMode: _cartMode });
+    return;
+  }
+
+  /* ── Cart-jog mode: WASD+RF move TCP, arrows adjust step ── */
+  if (_cartMode) {
+    const MAP = { w:[+1,0,0], s:[-1,0,0], a:[0,+1,0], d:[0,-1,0], r:[0,0,+1], f:[0,0,-1] };
+    const dir = MAP[e.key.toLowerCase()];
+    if (dir) {
+      e.preventDefault();
+      sendCartJog(dir[0] * _cartStep, dir[1] * _cartStep, dir[2] * _cartStep);
+      return;
+    }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); _cartStep = Math.min(0.050, +(_cartStep * 2).toFixed(3)); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); _cartStep = Math.max(0.001, +(_cartStep / 2).toFixed(3)); return; }
+    return;  // swallow other keys in cart mode so they don't trigger joint jog
+  }
+
   if (e.key === 'h' || e.key === 'H') {
     setState({ armJoints: (S.aircraft?.joints ?? []).map(j => j.home ?? 0) });
     bbEvent({ type: 'arm_home' });
@@ -427,7 +452,9 @@ function _onKey(e) {
     }
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       e.preventDefault();
-      mesh.position[_editAxis] += (e.key === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 0.010 : 0.002);
+      const delta = (e.key === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 0.010 : 0.002);
+      mesh.position[_editAxis] += delta;
+      _groupPeers(item.name).forEach(n => { if (_meshes[n]) _meshes[n].position[_editAxis] += delta; });
     }
   }
 }
@@ -483,10 +510,23 @@ function _drawHUD(canvas, joints) {
   let   ry = 18 * dpr;
   const lh = 15 * dpr;
 
-  /* Instructions */
-  ctx.font      = `${9 * dpr}px monospace`;
-  ctx.fillStyle = 'rgba(255,255,255,0.28)';
-  ctx.fillText('[/]=prev  1-6=joint  X/Y/Z=axis  ←→=rot  ↑↓=move  Shift×5  H home  L log', rx, ry);
+  /* Mode indicator + instructions */
+  ctx.font = `${9 * dpr}px monospace`;
+  if (_cartMode) {
+    ctx.fillStyle = '#58a6ff';
+    ctx.fillText('CART JOG  W/S=+X/-X  A/D=+Y/-Y  R/F=+Z/-Z  ↑↓=step  C=joint mode', rx, ry);
+    ry += lh;
+    const t = S.armTcp;
+    ctx.fillStyle = '#58a6ff';
+    ctx.fillText(
+      t ? `TCP  X:${t.x.toFixed(3)}  Y:${t.y.toFixed(3)}  Z:${t.z.toFixed(3)}  step:${(_cartStep * 1000).toFixed(0)}mm`
+        : `TCP  —  step:${(_cartStep * 1000).toFixed(0)}mm`,
+      rx, ry,
+    );
+  } else {
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    ctx.fillText('[/]=prev  1-6=joint  X/Y/Z=axis  ←→=rot  ↑↓=move  Shift×5  H home  C=cart', rx, ry);
+  }
   ry += lh * 1.1;
 
   /* Unified interleaved list */

@@ -29,7 +29,8 @@ const TICK_HZ  = 50;  // command rate to ESP32 (must be ≤ ESP32 telemetry rate
 let hub = null;
 let esp = null;
 
-let pendingAngles = null;  // latest armJoints from sim, consumed each tick
+let pendingAngles  = null;   // latest armJoints from sim, consumed each tick
+let cartModeActive = false;  // suppress sync_move while browser is in cart-jog mode
 
 // ---------------------------------------------------------------------------
 // Hub connection
@@ -47,9 +48,21 @@ function connectHub() {
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
 
-    if (msg.type === 'STATE_PATCH' && msg.patch?.armJoints) {
-      // SIM → hardware: latest joint angle commands
-      pendingAngles = msg.patch.armJoints;
+    if (msg.type === 'STATE_PATCH') {
+      if (msg.patch?.armCartMode !== undefined) cartModeActive = msg.patch.armCartMode;
+      // SIM → hardware: latest joint angle commands (suppressed in cart-jog mode)
+      if (msg.patch?.armJoints && !cartModeActive) pendingAngles = msg.patch.armJoints;
+    }
+
+    if (msg.type === 'CART_JOG' && esp?.readyState === WebSocket.OPEN) {
+      esp.send(JSON.stringify({
+        cmd:   'cart_jog',
+        dx:    msg.dx    ?? 0,
+        dy:    msg.dy    ?? 0,
+        dz:    msg.dz    ?? 0,
+        speed: msg.speed ?? 300,
+        acc:   msg.acc   ?? 30,
+      }));
     }
   });
 
@@ -92,6 +105,15 @@ function connectEsp() {
           armLoad:    msg.servos.map(s => s.load  ?? 0),
           armVolt:    msg.servos.map(s => s.volt  ?? 0),
         },
+      }));
+    }
+
+    // cart_jog / cart_move response — relay TCP back to sim
+    if (msg.ok !== undefined && msg.tcp && hub?.readyState === WebSocket.OPEN) {
+      hub.send(JSON.stringify({
+        type:  'STATE_PATCH',
+        room:  ROOM,
+        patch: { armTcp: msg.tcp },
       }));
     }
 
