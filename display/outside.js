@@ -3257,7 +3257,8 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
        stage 1 → ring 0, base  0 (vF=-0.030, S-IC)
        stage 2 → ring 3, base 48 (vF=-0.006, S-II)
        stage 3+ → ring 5, base 80 (vF=+0.010, S-IVB)  */
-    const capBase = rStage === 1 ? 0 : rStage === 2 ? 48 : 80;
+    const sivbSepDone = S.sivbSep ?? false;
+    const capBase = rStage === 1 ? 0 : rStage === 2 ? 48 : sivbSepDone ? 112 : 80;
     const capPts = [];
     for (let si = 0; si < 16; si++) { if (pts[capBase + si]) capPts.push(pts[capBase + si]); }
     if (capPts.length >= 3) {
@@ -3325,9 +3326,47 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     _drawJ2Nozzles(-0.006, _sv1r, [[0,0],[nzE,0],[-nzE,0],[0,nzE],[0,-nzE]], j2On);
   }
 
-  /* S-IVB — 1× J-2, centered, visible from stage 3 onward */
-  if (isSV && rStage >= 3) {
+  /* S-IVB — 1× J-2, centered, visible from stage 3 onward (not after sivbSep) */
+  if (isSV && rStage >= 3 && !(S.sivbSep ?? false)) {
     _drawJ2Nozzles(0.010, _sv3r, [[0, 0]], j2On);
+  }
+
+  /* SM SPS engine bell — single centered nozzle, visible after sivbSep */
+  if (isSV && (S.sivbSep ?? false)) {
+    const nNoz  = 8;
+    const sMvF  = 0.024;          // SM aft ring vF (Ring 7)
+    const spsL  = _svcr * 1.60;  // nozzle length
+    const spsRt = _svcr * 0.08;  // throat radius
+    const spsRx = _svcr * 0.53;  // exit radius (≈ 54 % of SM radius)
+    const spsTopR = [], spsBotR = [];
+    for (let i = 0; i < nNoz; i++) {
+      const a = (i / nNoz) * Math.PI * 2;
+      spsTopR.push(project([sMvF,         spsRt * Math.cos(a), spsRt * Math.sin(a)]));
+      spsBotR.push(project([sMvF - spsL,  spsRx * Math.cos(a), spsRx * Math.sin(a)]));
+    }
+    if (camSide > 0) for (let i = 0; i < nNoz; i++) {
+      const j  = (i + 1) % nNoz;
+      const ps = [spsTopR[i], spsBotR[i], spsBotR[j], spsTopR[j]];
+      if (ps.some(p => !p)) continue;
+      const p0 = ps[0], p1 = ps[1], p2 = ps[2];
+      if ((p1.x-p0.x)*(p2.y-p0.y) - (p1.y-p0.y)*(p2.x-p0.x) < 0) continue;
+      const aMid = ((i + 0.5) / nNoz) * Math.PI * 2;
+      const [nF, nR, nU] = rotateNormal([0, Math.cos(aMid), Math.sin(aMid)]);
+      const spec = Math.pow(Math.max(0, nF*_H[0] + nR*_H[1] + nU*_H[2]), 32);
+      const avgD = ps.reduce((s, p) => s + p.d, 0) / 4;
+      faces.push({ ps, br: Math.min(1, litBr(nF, nR, nU, 0.18) + 0.4 * spec), avgD, col: [52, 50, 48] });
+    }
+    if (!spsBotR.some(p => !p)) {
+      const p0 = spsBotR[0], p1 = spsBotR[1], p2 = spsBotR[2];
+      if ((p1.x-p0.x)*(p2.y-p0.y) - (p1.y-p0.y)*(p2.x-p0.x) >= 0) {
+        const avgD = spsBotR.reduce((s,p)=>s+p.d,0)/nNoz;
+        faces.push({ ps: spsBotR, br: 0.07, avgD, col: _PLUME_OFF.lh2 });
+      }
+    }
+    if (!spsTopR.some(p => !p)) {
+      const avgD = spsTopR.reduce((s,p)=>s+p.d,0)/nNoz;
+      faces.push({ ps: spsTopR, br: 0.06, avgD, col: [52, 50, 48] });
+    }
   }
 
   /* Engine overlays: thrust-reverser cascade + chevrons */

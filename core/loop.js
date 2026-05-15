@@ -44,21 +44,38 @@ function _tick(now) {
   if (!S.paused) tickControls(dt);
 
   if (!S.paused) {
-    const warp    = (S.aircraft?.vehicleType === 'rocket' || S.aircraft?.panel) ? (S.warpFactor ?? 1) : 1;
-    const warpDt  = dt * warp;
-    const prevAlt = S.alt;
+    const isRocket = S.aircraft?.vehicleType === 'rocket' || S.aircraft?.panel;
+    const warp     = isRocket ? (S.warpFactor ?? 1) : 1;
+    const warpDt   = dt * warp;
+    const prevAlt  = S.alt;
     tickFailures(warpDt);
     tickFuel(dt);
     tickBattery(dt);
-    if      (S.aircraft?.vehicleType === 'rocket')     { tickRocket(warpDt); tickBooster(warpDt); }
-    else if (S.aircraft?.type       === 'hovercraft')  tickHovercraft(warpDt);
-    else if (S.aircraft?.vehicleType === 'robot-arm')  { /* arm kinematics — no physics tick */ }
-    else                                               tickPhysics(warpDt);
+    if (isRocket) {
+      /* Sub-step rocket physics so Velocity Verlet never sees a step > 10 s.
+         Without this, at 200 000× warp a single step is ~3 200 s — larger
+         than the 5 280 s parking-orbit period — and destroys the integration.
+         Each sub-step also re-checks event triggers (TLI, LOI, MCC-1) so
+         they fire at the correct orbital phase regardless of warp factor.   */
+      const MAX_STEP = 10;
+      const nSteps   = Math.max(1, Math.round(warpDt / MAX_STEP));
+      const stepDt   = warpDt / nSteps;
+      for (let i = 0; i < nSteps; i++) {
+        tickRocket(stepDt);
+        tickBooster(stepDt);
+      }
+    } else if (S.aircraft?.type       === 'hovercraft') {
+      tickHovercraft(warpDt);
+    } else if (S.aircraft?.vehicleType === 'robot-arm') {
+      /* arm kinematics — no physics tick */
+    } else {
+      tickPhysics(warpDt);
+    }
     tickCrew(prevAlt, S.alt);
     tickTelemetry(warpDt);
     bbTick(dt);
 
-    /* Warp target: auto-drop when we reach 60 s before the next event */
+    /* Warp target: auto-drop when we reach the target time */
     const wT = S.warpTarget;
     if (wT != null && (S.time ?? 0) >= wT) {
       setState({ warpFactor: 1, warpTarget: null, warpTargetLabel: null });
