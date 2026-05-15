@@ -176,6 +176,18 @@ function _onKeyDown(e) {
   }
 
   /* Time warp — w steps forward, W steps backward through 1×→2×→5×→10×→100×→next event */
+  if ((e.key === 'x' || e.key === 'X') && (S.aircraft?.vehicleType === 'rocket' || S.aircraft?.panel)) {
+    const ev = _nextEvent();
+    if (ev) {
+      const dist = ev.t - 60 - (S.time ?? 0);
+      /* Scale warp so the skip takes ~5 s real time; min 1000×, max 200000× */
+      const warpFactor = dist > 86_400 ? 200_000 : dist > 3_600 ? 10_000 : 1_000;
+      setState({ warpFactor, warpTarget: ev.t - 60, warpTargetLabel: ev.label });
+    } else if (S.warpTarget != null) {
+      setState({ warpFactor: 1, warpTarget: null, warpTargetLabel: null });
+    }
+    return;
+  }
   if ((e.key === 'w' || e.key === 'W') && (S.aircraft?.vehicleType === 'rocket' || S.aircraft?.panel)) {
     const steps = [1, 2, 5, 10, 100];
     const cur   = S.warpFactor ?? 1;

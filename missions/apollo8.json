@@ -41,22 +41,25 @@
   },
   "arrival": null,
 
-  "tliT":  10417,
-  "tliDv": 3147,
-  "loiT":  248580,
-  "loiDv": 1067,
-  "teiT":  321780,
-  "teiDv": 1070,
-  "moonRefAngle": 12,
+  "tliT":        10417,
+  "sivbSepT":    12360,
+  "tliDv":       3147,
+  "tliDuration": 317,
+  "mcc1T":       39780,
+  "loiT":        305000,
+  "loiDv":       1067,
+  "teiT":        378200,
+  "teiDv":       1070,
+  "moonRefAngle": 69,
 
   "events": [
     { "t": 10734, "label": "TLI CUTOFF"  },
     { "t": 12360, "label": "S-IVB SEP"   },
     { "t": 39780, "label": "MCC-1"        },
-    { "t": 248580, "label": "LOI"         },
-    { "t": 270180, "label": "EARTHRISE"   },
-    { "t": 321780, "label": "TEI"         },
-    { "t": 529380, "label": "REENTRY"     }
+    { "t": 305000, "label": "LOI"         },
+    { "t": 326600, "label": "EARTHRISE"   },
+    { "t": 378200, "label": "TEI"         },
+    { "t": 585800, "label": "REENTRY"     }
   ],
 
   "atcClearances": [
@@ -116,6 +119,106 @@
       "trigger": { "type": "seco" },
       "voice": "crew",
       "text": "Shutdown. We're in orbit."
+    },
+
+    {
+      "t": 9600,
+      "audio": "assets/apollo8/highlights.mp3",
+      "voice": "ambient",
+      "volume": 0.75,
+      "startTime": 0,
+      "duration": 35,
+      "text": "Track 2 — Go for TLI. Houston clears the crew for trans-lunar injection."
+    },
+
+    {
+      "t": 115200,
+      "audio": "assets/apollo8/highlights.mp3",
+      "voice": "ambient",
+      "volume": 0.75,
+      "startTime": 0,
+      "duration": 75,
+      "text": "Track 4 — Borman describes Earth from midway to the Moon."
+    },
+
+    {
+      "t": 303200,
+      "audio": "assets/apollo8/highlights.mp3",
+      "voice": "ambient",
+      "volume": 0.75,
+      "startTime": 0,
+      "duration": 80,
+      "text": "Track 5 — Communications prior to LOI. Final go/no-go, then loss of signal behind the Moon."
+    },
+
+    {
+      "t": 307400,
+      "audio": "assets/apollo8/highlights.mp3",
+      "voice": "ambient",
+      "volume": 0.75,
+      "startTime": 0,
+      "duration": 45,
+      "text": "Track 6 — First communications after LOI. Crew confirms burn was good."
+    },
+
+    {
+      "t": 320000,
+      "audio": "assets/apollo8/highlights.mp3",
+      "voice": "ambient",
+      "volume": 0.75,
+      "startTime": 0,
+      "duration": 90,
+      "text": "Track 7 — Lovell describes the view of Earth and the Moon from lunar orbit."
+    },
+
+    {
+      "t": 334000,
+      "audio": "assets/apollo8/highlights.mp3",
+      "voice": "ambient",
+      "volume": 0.75,
+      "startTime": 0,
+      "duration": 120,
+      "text": "Track 8 — Apollo 8 live from the Moon. Crew commentary on the lunar surface."
+    },
+
+    {
+      "t": 375000,
+      "audio": "assets/apollo8/highlights.mp3",
+      "voice": "ambient",
+      "volume": 0.80,
+      "startTime": 0,
+      "duration": 260,
+      "text": "Track 9 — Christmas Eve. Genesis reading by Anders, Lovell, and Borman."
+    },
+
+    {
+      "t": 376200,
+      "audio": "assets/apollo8/highlights.mp3",
+      "voice": "ambient",
+      "volume": 0.75,
+      "startTime": 0,
+      "duration": 80,
+      "text": "Track 10 — Communications prior to TEI. Final status checks, then loss of signal."
+    },
+
+    {
+      "t": 380500,
+      "audio": "assets/apollo8/highlights.mp3",
+      "voice": "ambient",
+      "volume": 0.75,
+      "startTime": 0,
+      "duration": 40,
+      "text": "Track 11 — Lovell after TEI: Please be informed, there is a Santa Claus."
+    },
+
+    {
+      "t": 582000,
+      "audio": "assets/apollo8/highlights.mp3",
+      "voice": "ambient",
+      "volume": 0.75,
+      "startTime": 0,
+      "duration": 70,
+      "text": "Track 13 — Re-entry. Crew describes the fireball."
     }
   ],
 
@@ -197,6 +300,48 @@
           "desc": "Select P40 — TLI maneuver monitor (auto-activates at TLI ignition)",
           "dsky": { "verb": "16", "noun": "65" },
           "registers": ["DSKY switches to P40 V16 N40 at ignition"]
+        }
+      ]
+    },
+    {
+      "title": "AGC — TRANS-LUNAR COAST",
+      "type": "dsky",
+      "items": [
+        {
+          "step": "V 16  N 63  ENTR",
+          "desc": "Range and range-rate to Moon — primary navigation check during TLC",
+          "dsky": { "verb": "16", "noun": "63" },
+          "registers": ["R1 range ÷10 (nm)", "R2 range-rate (fps  −=closing)", "R3 T-next event (HHMM)"]
+        },
+        {
+          "step": "V 16  N 33  ENTR",
+          "desc": "Time to next maneuver — countdown to LOI during coast, TEI during lunar orbit",
+          "dsky": { "verb": "16", "noun": "33" },
+          "registers": ["R1 hours/minutes (HHMM)", "R2 seconds", "R3 event code (1=LOI  2=TEI)"]
+        },
+        {
+          "step": "V 16  N 67  ENTR",
+          "desc": "MCC-1 delta-V applied — verify correction magnitude and components",
+          "dsky": { "verb": "16", "noun": "67" },
+          "registers": ["R1 |ΔV| (fps)", "R2 ΔVx (fps)", "R3 ΔVy (fps)"]
+        }
+      ]
+    },
+    {
+      "title": "AGC — LUNAR ORBIT",
+      "type": "dsky",
+      "items": [
+        {
+          "step": "V 16  N 43  ENTR",
+          "desc": "Lunar orbital elements — period, apolune, perilune (Moon-relative)",
+          "dsky": { "verb": "16", "noun": "43" },
+          "registers": ["R1 period (MMSS)", "R2 apolune (nm)", "R3 perilune (nm)"]
+        },
+        {
+          "step": "V 16  N 63  ENTR",
+          "desc": "Range and range-rate to Moon centre — altitude check in lunar orbit",
+          "dsky": { "verb": "16", "noun": "63" },
+          "registers": ["R1 altitude above Moon ÷10 (nm)", "R2 radial speed (fps  −=closing)", "R3 T-TEI (HHMM)"]
         }
       ]
     }

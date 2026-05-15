@@ -7,6 +7,7 @@
 import { S } from '../core/state.js';
 import { renderTerrain } from './terrain.js';
 import { getMapReservedRight } from './map.js';
+import { moonECI } from '../core/rocket.js';
 
 const DEG   = Math.PI / 180;
 const FT_NM = 1 / 6076.12;
@@ -183,10 +184,9 @@ let _orbitDragY = null;
 export function initOutside() {
   _canvas = document.getElementById('outside-canvas');
 
-  /* Drag-to-orbit: only active when paused + side cam.
-     #outside-canvas has pointer-events:none so listen on window. */
+  /* Drag-to-orbit: active in side cam (2) and chase cam (1). */
   window.addEventListener('mousedown', e => {
-    if (_camMode === 2) { _orbitDragX = e.clientX; _orbitDragY = e.clientY; }
+    if (_camMode === 1 || _camMode === 2) { _orbitDragX = e.clientX; _orbitDragY = e.clientY; }
   });
   window.addEventListener('mousemove', e => {
     if (_orbitDragX !== null) {
@@ -197,12 +197,9 @@ export function initOutside() {
   });
   window.addEventListener('mouseup', () => { _orbitDragX = null; _orbitDragY = null; });
 
-  /* Wheel / trackpad gestures in side cam:
-       pinch (ctrlKey on Mac trackpad) → zoom, always
-       paused + scroll → orbit (az / el)
-       unpaused + scroll → horizontal = az, vertical = zoom */
+  /* Wheel / trackpad gestures in side cam and chase cam. */
   window.addEventListener('wheel', e => {
-    if (_camMode !== 2) return;
+    if (_camMode !== 1 && _camMode !== 2) return;
     e.preventDefault();
     if (e.ctrlKey) {
       _orbitZoom = Math.max(0.1, Math.min(10, _orbitZoom * Math.exp(e.deltaY * 0.01)));
@@ -218,7 +215,9 @@ export function initOutside() {
 
   /* 0 key: reset orbit + zoom to default while paused */
   window.addEventListener('keydown', e => {
-    if (e.key === '0' && S.paused && _camMode === 2) { _orbitAz = 0; _orbitEl = 12; _orbitZoom = 1; }
+    if (e.key === '0' && S.paused && (_camMode === 1 || _camMode === 2)) {
+      _orbitAz = 0; _orbitEl = 12; _orbitZoom = 1;
+    }
   });
 }
 export function setOutsideCamMode(m) { _camMode = m; }
@@ -240,19 +239,30 @@ function _renderChaseCam(canvas) {
   const acP    =  S.pitch ?? 0;
   const acR    = S.aircraft?.vehicleType === 'rocket' ? (S.rocketRoll ?? 0) : (S.roll ?? 0);
   const cosLat = Math.cos((S.lat ?? 47) * DEG);
-  const dN = -Math.cos(hdgRad) * CHASE_BACK;
-  const dE = -Math.sin(hdgRad) * CHASE_BACK;
 
-  const sL=S.lat,sLo=S.lon,sA=S.alt,sP=S.pitch,sR=S.roll;
+  /* Orbit elevation: adjust camera back/up keeping total distance constant */
+  const baseDist = Math.hypot(CHASE_BACK, CHASE_UP);
+  const baseEl   = Math.atan2(CHASE_UP, CHASE_BACK);
+  const totalEl  = baseEl + _orbitEl * DEG;
+  const camBack  = baseDist * Math.cos(totalEl);
+  const camUp    = baseDist * Math.sin(totalEl);
+
+  /* Orbit azimuth: rotate camera position around rocket */
+  const orbitRad = hdgRad - Math.PI + _orbitAz * DEG;
+  const dN = Math.cos(orbitRad) * camBack;
+  const dE = Math.sin(orbitRad) * camBack;
+
+  const sL=S.lat,sLo=S.lon,sA=S.alt,sP=S.pitch,sR=S.roll,sH=S.hdg;
   S.lat   = (S.lat??47)   + dN / 60;
   S.lon   = (S.lon??8)    + dE / (60 * cosLat);
-  S.alt   = (S.alt??3000) + CHASE_UP / FT_NM;
-  S.pitch = Math.atan2(-CHASE_UP, CHASE_BACK) / DEG;
+  S.alt   = (S.alt??3000) + camUp / FT_NM;
+  S.hdg   = ((_orbitAz + 180) % 360 + 360) % 360;
+  S.pitch = Math.atan2(-camUp, camBack) / DEG;
   S.roll  = 0;
   renderTerrain(canvas, { outsideView: true });
-  S.lat=sL;S.lon=sLo;S.alt=sA;S.pitch=sP;S.roll=sR;
+  S.lat=sL;S.lon=sLo;S.alt=sA;S.pitch=sP;S.roll=sR;S.hdg=sH;
 
-  _drawWireframe(canvas, acP, acR, CHASE_BACK, CHASE_UP, 0);
+  _drawWireframe(canvas, acP, acR + _orbitAz, camBack, camUp, 0);
   _drawLabel(canvas, 'CHASE CAM');
 }
 
@@ -2245,6 +2255,132 @@ function _drawTurbofanFace(ctx, hubPt, rimPt, power, dpr, nBlades = 22) {
   ctx.restore();
 }
 
+/* ── CSM orbit-mode detail — windows, panel seams, RCS, soot streaks ─
+   Called from _drawWireframe when isSV && S.rocketOrbit is true.
+   Uses the live project() closure and already-computed pts array.    */
+function _drawCSMOrbitDetail(ctx, pts, project, dpr, camSide) {
+  if (camSide <= 0) return;   // side cam only; chase-cam depth check doesn't apply
+
+  const smBase = 0.024, cmBase = 0.027, cmTop = 0.030;
+
+  /* CM cone radius at a given longitudinal position */
+  function cmR(vF) {
+    const t = (vF - cmBase) / (cmTop - cmBase);
+    return _svcr * (1 - t) + _svcr2 * t;
+  }
+
+  /* Body-frame vertex on the CM cone at angle theta and longitudinal vF.
+     Angle convention: π/2 = top (+z), 0 = right (+y), matching buildTube. */
+  function cv(vF, theta) {
+    const r = cmR(vF);
+    return [vF, r * Math.cos(theta), r * Math.sin(theta)];
+  }
+
+  /* Draw a 4-corner quad as a glass window.
+     Skips back-facing quads (2D winding check) and sub-pixel quads. */
+  function drawWindow(q) {
+    const ps = q.map(project);
+    if (ps.some(p => !p)) return;
+    const cross = (ps[1].x-ps[0].x)*(ps[2].y-ps[0].y) - (ps[1].y-ps[0].y)*(ps[2].x-ps[0].x);
+    if (cross < 0) return;
+    if (Math.hypot(ps[2].x-ps[0].x, ps[2].y-ps[0].y) < 2 * dpr) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(ps[0].x, ps[0].y); ctx.lineTo(ps[1].x, ps[1].y);
+    ctx.lineTo(ps[2].x, ps[2].y); ctx.lineTo(ps[3].x, ps[3].y);
+    ctx.closePath();
+    ctx.fillStyle   = 'rgba(12, 22, 44, 0.93)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(155, 210, 250, 0.28)';
+    ctx.lineWidth   = 0.8 * dpr; ctx.stroke();
+    ctx.restore();
+  }
+
+  /* Visibility check: surface point at angle ang is on the front side if its
+     projected depth is less than the SM axis centre depth. Valid for camSide > 0. */
+  const smMidF  = (smBase + cmBase) * 0.5;
+  const pCenter = project([smMidF, 0, 0]);
+  function frontSide(ang) {
+    const p = project([smMidF, _svcr * Math.cos(ang), _svcr * Math.sin(ang)]);
+    return p && pCenter && p.d < pCenter.d;
+  }
+
+  /* ── CM windows (5 total) ──────────────────────────────────────── */
+  const wF0 = cmBase + 0.0005;
+  const wF1 = cmBase + 0.0014;
+
+  /* Two forward crew windows: upper-right (θ ≈ +45°) and upper-left (θ ≈ +135°) */
+  for (const [th, s] of [[Math.PI / 4, 1], [Math.PI * 3 / 4, -1]]) {
+    drawWindow([cv(wF0, th - 0.13 * s), cv(wF0, th + 0.13 * s),
+                cv(wF1, th + 0.13 * s), cv(wF1, th - 0.13 * s)]);
+  }
+
+  /* Two rendezvous windows: +y and -y sides (smaller) */
+  const rvF1 = wF0 + 0.0008;
+  for (const th of [0, Math.PI]) {
+    drawWindow([cv(wF0, th - 0.09), cv(wF0, th + 0.09),
+                cv(rvF1, th + 0.09), cv(rvF1, th - 0.09)]);
+  }
+
+  /* Top hatch window: centred on +z (top of CM) */
+  drawWindow([cv(cmBase + 0.0003, Math.PI / 2 - 0.07), cv(cmBase + 0.0003, Math.PI / 2 + 0.07),
+              cv(cmBase + 0.0010, Math.PI / 2 + 0.07), cv(cmBase + 0.0010, Math.PI / 2 - 0.07)]);
+
+  /* ── SM panel seams — 6 bays at 60° intervals ───────────────────── */
+  ctx.save();
+  ctx.strokeStyle = 'rgba(78, 60, 26, 0.36)';
+  ctx.lineWidth   = 0.65 * dpr;
+  for (let s = 0; s < 6; s++) {
+    const ang = (s / 6) * Math.PI * 2;
+    if (!frontSide(ang)) continue;
+    const p7 = project([smBase, _svcr * Math.cos(ang), _svcr * Math.sin(ang)]);
+    const p8 = project([cmBase, _svcr * Math.cos(ang), _svcr * Math.sin(ang)]);
+    if (!p7 || !p8) continue;
+    ctx.beginPath(); ctx.moveTo(p7.x, p7.y); ctx.lineTo(p8.x, p8.y); ctx.stroke();
+  }
+  ctx.restore();
+
+  /* ── RCS thruster quad groups — 4 groups at 45°/135°/225°/315° ─── */
+  const rcsvF = smBase + 0.0014;
+  const rcsR  = _svcr * 1.02;
+  const nozR  = Math.max(1, 1.3 * dpr);
+  for (let q = 0; q < 4; q++) {
+    const ang = q * Math.PI / 2 + Math.PI / 4;
+    if (!frontSide(ang)) continue;
+    for (const da of [-0.016, 0.016]) {
+      for (const dvF of [-0.00035, 0.00035]) {
+        const n = project([rcsvF + dvF, rcsR * Math.cos(ang + da), rcsR * Math.sin(ang + da)]);
+        if (!n) continue;
+        ctx.beginPath(); ctx.arc(n.x, n.y, nozR, 0, Math.PI * 2);
+        ctx.fillStyle   = 'rgba(26, 28, 36, 0.86)'; ctx.fill();
+        ctx.strokeStyle = 'rgba(105, 118, 138, 0.50)';
+        ctx.lineWidth   = 0.5 * dpr; ctx.stroke();
+      }
+    }
+  }
+
+  /* ── Soot streaks on SM gold Mylar — gradient lines along SM axis ─ */
+  let rng = 0x6b4d2e;
+  const lcg = s => ((s * 1664525 + 1013904223) & 0xffffffff) >>> 0;
+  ctx.save();
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 8; i++) {
+    rng = lcg(rng); const ang = (rng % 10000) / 10000 * Math.PI * 2;
+    if (!frontSide(ang)) { rng = lcg(rng); rng = lcg(rng); continue; }
+    rng = lcg(rng); const alpha = 0.07 + (rng % 100) / 1000 * 0.11;
+    rng = lcg(rng); const wid   = (1.3 + (rng % 100) / 55) * dpr;
+    const pS = project([cmBase, _svcr * Math.cos(ang), _svcr * Math.sin(ang)]);
+    const pE = project([smBase, _svcr * Math.cos(ang), _svcr * Math.sin(ang)]);
+    if (!pS || !pE) continue;
+    const g = ctx.createLinearGradient(pS.x, pS.y, pE.x, pE.y);
+    g.addColorStop(0,    `rgba(8,6,2,${alpha.toFixed(3)})`);
+    g.addColorStop(0.45, `rgba(6,5,1,${(alpha * 0.5).toFixed(3)})`);
+    g.addColorStop(1,    'rgba(4,3,1,0)');
+    ctx.strokeStyle = g; ctx.lineWidth = wid;
+    ctx.beginPath(); ctx.moveTo(pS.x, pS.y); ctx.lineTo(pE.x, pE.y); ctx.stroke();
+  }
+  ctx.restore();
+}
+
 /* ── Core wireframe + shading renderer ───────────────────────── */
 function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, wingView = false, orbitAzDeg = 0, orbitElDeg = 0) {
   /* Advance fan rotation angle — capped so it doesn't spin during static frames */
@@ -2660,9 +2796,12 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
        10-ring layout face ranges:
          0–47   = S-IC engine section + S-IC body + interstage  (rings 0→3)
          48–79  = S-II body + forward skirt                     (rings 3→5)
+         144–159 = CM nose cone (Ring 9 → LES tip, vertex 160)
          160+   = stabilizer fins                                            */
     if (isSV && rStage >= 2 && (i <= 47 || i >= 160)) return null;
     if (isSV && rStage >= 3 && i <= 79) return null;
+    if (isSV && S.sivbSep   && i >= 80 && i <= 111)  return null;
+    if (isSV && S.lesJettisoned && i >= 144 && i < 160) return null;
 
     const ps = fi.map(vi => pts[vi]);
     if (ps.some(p => !p)) return null;
@@ -2791,6 +2930,60 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     ctx.restore();
   }
 
+  /* Moon — visible from orbit onward; drawn before rocket body so spacecraft occludes it */
+  if (S.rocketOrbit && S.orbitVec) {
+    const { rx, ry, rz, vx, vy, vz } = S.orbitVec;
+    const { mx, my } = moonECI(S.time ?? 0);
+
+    const dx = mx - rx, dy = my - ry, dz = 0;  // Moon in XY plane; rz is inclination artifact
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist > 1) {
+      /* Orbital frame basis — fixed in ECI (no body pitch/roll, Moon is sky background) */
+      const spd = Math.sqrt(vx*vx + vy*vy + vz*vz);
+      const rr  = Math.sqrt(rx*rx + ry*ry + rz*rz);
+      const pF = spd > 0 ? vx/spd : 1, pR = spd > 0 ? vy/spd : 0, pU = spd > 0 ? vz/spd : 0; // prograde = body +F
+      const rF = rr  > 0 ? rx/rr  : 0, rR = rr  > 0 ? ry/rr  : 0, rU = rr  > 0 ? rz/rr  : 1; // radial-out = body +U
+      /* right = prograde × radial-out (body +R) */
+      const bF = pR*rU - pU*rR, bR = pU*rF - pF*rU, bU = pF*rR - pR*rF;
+
+      const ndx = dx/dist, ndy = dy/dist, ndz = dz/dist;
+      let mF = ndx*pF + ndy*pR + ndz*pU;  // forward component
+      let mR = ndx*bF + ndy*bR + ndz*bU;  // right component
+      let mU = ndx*rF + ndy*rR + ndz*rU;  // up component
+
+      /* Apply orbit elevation rotation (same as project()) */
+      if (orbitElDeg !== 0 && camSide > 0) {
+        const fP2 = mF * cosEl + mR * sinEl;
+        mR = -mF * sinEl + mR * cosEl;
+        mF = fP2;
+      }
+
+      /* Camera-space depth and horizontal for a direction vector at infinity */
+      const cfW = camSide > 0 ? -mR : mF;
+      const crW = camSide > 0 ?  mF : mR;
+      const cuW = mU;
+      const cf  = cfW * cosCP + cuW * sinCP;
+      const cu  = cuW * cosCP - cfW * sinCP;
+
+      if (cf > 0) {
+        const mpx = cx + crW / cf * focal;
+        const mpy = cy - cu  / cf * focal;
+
+        /* Angular radius: Moon r = 1737 km */
+        const moonPx = Math.max(3 * dpr, (1_737_000 / dist) * focal);
+
+        const g = ctx.createRadialGradient(mpx - moonPx*0.3, mpy - moonPx*0.3, 0, mpx, mpy, moonPx);
+        g.addColorStop(0,   'rgba(228, 226, 218, 0.98)');
+        g.addColorStop(0.5, 'rgba(172, 170, 162, 0.95)');
+        g.addColorStop(1,   'rgba(72,  70,  65,  0.85)');
+        ctx.beginPath();
+        ctx.arc(mpx, mpy, moonPx, 0, 2 * Math.PI);
+        ctx.fillStyle = g;
+        ctx.fill();
+      }
+    }
+  }
+
   /* Engine plumes — drawn before faces so body renders on top.
      S1: active until MECO.  S2: active after coast, until SECO. */
   const t0 = S.aircraft?.ignitionTime ?? 0;
@@ -2894,6 +3087,13 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       const pNoz = project([_sivbExit, 0, 0]);
       _drawPlume(pNoz, _sv3r, [_sivbExit, 0, 0], 0.018, 0.28 * _engFrac, 'lh2');
     }
+  }
+
+  /* S-IVB plume during TLI re-ignition (orbit mode) */
+  if (isSV && S.rocketOrbit && S.rocketTLI && (S.time ?? 0) <= (S.rocketTLIBurnEnd ?? 0)) {
+    const _sivbExit = 0.010 - _sv3r * 0.36;
+    const pNoz = project([_sivbExit, 0, 0]);
+    _drawPlume(pNoz, _sv3r, [_sivbExit, 0, 0], 0.018, 0.28, 'lh2');
   }
 
   /* ── F1 engine nozzles — Saturn V S-IC, 5× truncated bell frustums ─
@@ -3296,6 +3496,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
        S-II body/skirt:      verts 48–79                           */
     if (isSV && rStage >= 2 && ((a <= 47 || (a >= 161 && a <= 172)) || (b <= 47 || (b >= 161 && b <= 172)))) continue;
     if (isSV && rStage >= 3 && ((a >= 48 && a <= 79) || (b >= 48 && b <= 79))) continue;
+    if (isSV && S.sivbSep   && ((a >= 80 && a <= 111) || (b >= 80 && b <= 111))) continue;
     const pa = pts[a], pb = pts[b];
     if (!pa || !pb) continue;
     /* Cull edges that are entirely on the back side */
@@ -3925,6 +4126,9 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
   } // riseNm < 0.150
   } // isSV || isF9
+
+  /* ── CSM orbit-mode detail: windows, seams, RCS, soot ── */
+  if (isSV && S.rocketOrbit) _drawCSMOrbitDetail(ctx, pts, project, dpr, camSide);
 
 }
 

@@ -23,7 +23,8 @@ const GM_MOON = 4.9048695e12;    // m³/s²
 const MOON_SMA = 384_400_000;    // m — mean Earth-Moon distance
 const MOON_T_S = 27.32166 * 86400; // s — sidereal period
 
-let _lastTrailT = -1e9;
+let _lastTrailT   = -1e9;
+let _prevMoonDist = Infinity;
 
 /* ── Extended atmosphere — sea level through low Earth orbit ──
    Returns air density kg/m³ at altitude in metres.             */
@@ -82,8 +83,10 @@ function _applyTLIBurn(dv_ms) {
   const v   = S.orbitVec;
   const spd = Math.sqrt(v.vx*v.vx + v.vy*v.vy + v.vz*v.vz);
   const f   = dv_ms / spd;
+  const dur = S.mission?.tliDuration ?? Math.round(dv_ms / 7.5);
   setState({
-    rocketTLI: true,
+    rocketTLI:       true,
+    rocketTLIBurnEnd: (S.time ?? 0) + dur,
     orbitVec: { ...v, vx: v.vx*(1+f), vy: v.vy*(1+f), vz: v.vz*(1+f) },
   });
 }
@@ -94,7 +97,8 @@ function _applyLOIBurn(dv_ms) {
   const spd = Math.sqrt(v.vx*v.vx + v.vy*v.vy + v.vz*v.vz);
   const f   = dv_ms / spd;
   setState({
-    rocketLOI: true,
+    rocketLOI:  true,
+    loiActualT: S.time ?? 0,
     orbitVec: { ...v, vx: v.vx*(1-f), vy: v.vy*(1-f), vz: v.vz*(1-f) },
   });
 }
@@ -107,6 +111,95 @@ function _applyTEIBurn(dv_ms) {
   setState({
     rocketTEI: true,
     orbitVec: { ...v, vx: v.vx*(1+f), vy: v.vy*(1+f), vz: v.vz*(1+f) },
+  });
+}
+
+/* ── Lambert targeting — pure propagator, no state reads/writes ─
+   Velocity Verlet with Earth + Moon gravity. Returns final position. */
+function _propagateFrom(pos, vel, tof, t0) {
+  let { rx, ry, rz } = pos;
+  let { vx, vy, vz } = vel;
+  const DT = 1800;   // 30-min steps — coarse but fast for targeting
+  let t    = t0;
+  let rem  = tof;
+
+  while (rem > 0) {
+    const step = Math.min(DT, rem);
+    rem -= step;
+
+    const { mx, my } = moonECI(t);
+    const r2  = rx*rx + ry*ry + rz*rz;
+    const r3  = r2 * Math.sqrt(r2);
+    const ke  = -GM / r3;
+    const dmx = rx - mx, dmy = ry - my;
+    const mr2 = dmx*dmx + dmy*dmy + rz*rz;
+    const mr3 = mr2 * Math.sqrt(mr2);
+    const km  = -GM_MOON / mr3;
+    const ax  = ke*rx + km*dmx, ay = ke*ry + km*dmy, az = ke*rz + km*rz;
+
+    const s2  = step * step;
+    const nrx = rx + vx*step + 0.5*ax*s2;
+    const nry = ry + vy*step + 0.5*ay*s2;
+    const nrz = rz + vz*step + 0.5*az*s2;
+
+    t += step;
+    const { mx: nmx, my: nmy } = moonECI(t);
+    const nr2  = nrx*nrx + nry*nry + nrz*nrz;
+    const nr3  = nr2 * Math.sqrt(nr2);
+    const nke  = -GM / nr3;
+    const ndmx = nrx - nmx, ndmy = nry - nmy;
+    const nmr2 = ndmx*ndmx + ndmy*ndmy + nrz*nrz;
+    const nmr3 = nmr2 * Math.sqrt(nmr2);
+    const nkm  = -GM_MOON / nmr3;
+    const nax  = nke*nrx + nkm*ndmx;
+    const nay  = nke*nry + nkm*ndmy;
+    const naz  = nke*nrz + nkm*nrz;
+
+    vx += 0.5*(ax+nax)*step; vy += 0.5*(ay+nay)*step; vz += 0.5*(az+naz)*step;
+    rx = nrx; ry = nry; rz = nrz;
+  }
+  return { rx, ry, rz };
+}
+
+/* ── MCC-1 — Newton shooting method to intercept Moon at loiT ──
+   Solves for the 2-D velocity correction (vx, vy) that places the
+   spacecraft within 100 km of the Moon's centre at mission.loiT.
+   The proximity-based LOI trigger then fires at actual periapsis. */
+function _applyMCC1Burn(mT) {
+  const loiT = S.mission?.loiT ?? 305000;
+  const tof  = loiT - mT;
+  const pos  = { rx: S.orbitVec.rx, ry: S.orbitVec.ry, rz: S.orbitVec.rz };
+  const { mx: tx, my: ty } = moonECI(loiT);
+
+  let vx = S.orbitVec.vx, vy = S.orbitVec.vy;
+  const vz = S.orbitVec.vz;
+
+  for (let iter = 0; iter < 20; iter++) {
+    const f0 = _propagateFrom(pos, { vx, vy, vz }, tof, mT);
+    const dx = f0.rx - tx, dy = f0.ry - ty;
+    if (Math.sqrt(dx*dx + dy*dy) < 100_000) break;  // 100 km — converged
+
+    const eps = 1.0;  // 1 m/s perturbation
+    const fx  = _propagateFrom(pos, { vx: vx+eps, vy,     vz }, tof, mT);
+    const fy  = _propagateFrom(pos, { vx, vy: vy+eps, vz }, tof, mT);
+
+    const J00 = (fx.rx - f0.rx) / eps, J01 = (fy.rx - f0.rx) / eps;
+    const J10 = (fx.ry - f0.ry) / eps, J11 = (fy.ry - f0.ry) / eps;
+    const det = J00*J11 - J01*J10;
+    if (Math.abs(det) < 1e-6) break;
+
+    vx -= (J11*dx - J01*dy) / det;
+    vy -= (-J10*dx + J00*dy) / det;
+  }
+
+  const dVx = vx - S.orbitVec.vx;
+  const dVy = vy - S.orbitVec.vy;
+  setState({
+    rocketMCC1: true,
+    mcc1DvX:    dVx,
+    mcc1DvY:    dVy,
+    mcc1DvMag:  Math.sqrt(dVx*dVx + dVy*dVy),
+    orbitVec: { ...S.orbitVec, vx, vy, vz },
   });
 }
 
@@ -167,6 +260,7 @@ function _captureOrbitVec() {
     orbitPass:     0,
     _orbitPrevLat: S.lat ?? 0,
   });
+  _prevMoonDist = Infinity;
 }
 
 function _tickOrbit(dt) {
@@ -273,8 +367,8 @@ function _tickOrbit(dt) {
   /* Orbital period — T = 2π√(a³/GM), a ≈ r for near-circular orbit */
   const T_orb = 2 * Math.PI * Math.sqrt(Math.pow(nr, 3) / GM);
 
-  /* Cislunar trail — append a waypoint every 1800 sim-sec */
-  if ((S.cislunarTrail?.length === 0) || mT - _lastTrailT >= 1800) {
+  /* Cislunar trail — only after TLI (parking orbit triangles are noise on this map) */
+  if (S.rocketTLI && ((S.cislunarTrail?.length === 0) || mT - _lastTrailT >= 1800)) {
     _lastTrailT = mT;
     const trail = S.cislunarTrail ?? [];
     trail.push({ rx: nrx, ry: nry });
@@ -384,15 +478,46 @@ export function tickRocket(dt) {
     const tliDv = S.mission?.tliDv ?? 3147;
     if (tliT && !S.rocketTLI && mT >= tliT) _applyTLIBurn(tliDv);
 
-    /* LOI — lunar orbit insertion (retrograde) */
-    const loiT  = S.mission?.loiT;
-    const loiDv = S.mission?.loiDv ?? 1067;
-    if (loiT && !S.rocketLOI && mT >= loiT) _applyLOIBurn(loiDv);
+    /* MCC-1 — Newton Lambert correction, fires once after TLI coast */
+    const mcc1T = S.mission?.mcc1T;
+    if (mcc1T && !S.rocketMCC1 && S.rocketTLI && mT >= mcc1T) _applyMCC1Burn(mT);
 
-    /* TEI — trans-Earth injection (prograde) */
-    const teiT  = S.mission?.teiT;
+    /* S-IVB separation — CSM pulls away from spent stage in parking orbit */
+    const sivbSepT = S.mission?.sivbSepT;
+    if (sivbSepT && !S.sivbSep && mT >= sivbSepT) setState({ sivbSep: true });
+
+    /* LOI — proximity-based: fires at Moon periapsis (closing → receding)
+       Drop warp on Moon approach so the periapsis tick is never skipped. */
+    const loiDv = S.mission?.loiDv ?? 1067;
+    if (!S.rocketLOI && S.rocketTLI && S.mission?.loiDv != null) {
+      const { mx, my } = moonECI(mT);
+      const { rx, ry, rz } = S.orbitVec;
+      const moonDist = Math.sqrt((rx - mx) ** 2 + (ry - my) ** 2);
+      /* Tiered warp cap — enough resolution for periapsis detection,
+         without stranding the player at 1× for hours of transit.
+         At 100× near Moon, ~4 km/tick at 2.5 km/s — plenty of ticks
+         to catch the closing→receding transition inside 30 Mm.     */
+      const wf = S.warpFactor ?? 1;
+      if      (moonDist < 50_000_000  && wf > 100)   setState({ warpFactor: 100 });
+      else if (moonDist < 100_000_000 && wf > 1_000) setState({ warpFactor: 1_000 });
+      if (moonDist < 30_000_000 && moonDist > _prevMoonDist) {
+        _applyLOIBurn(loiDv);
+      }
+      _prevMoonDist = moonDist;
+    }
+
+    /* TEI — relative to actual LOI time
+       Drop warp when approaching TEI window so the burn isn't skipped. */
     const teiDv = S.mission?.teiDv ?? 1070;
-    if (teiT && !S.rocketTEI && mT >= teiT) _applyTEIBurn(teiDv);
+    if (S.rocketLOI && !S.rocketTEI) {
+      const loiActual = S.loiActualT ?? 0;
+      const teiOffset = (S.mission?.teiT ?? 0) - (S.mission?.loiT ?? 0);
+      const teiTarget = loiActual + teiOffset;
+      if (loiActual && teiTarget - mT < 3600 && (S.warpFactor ?? 1) > 100) {
+        setState({ warpFactor: 100 });
+      }
+      if (loiActual && mT >= teiTarget) _applyTEIBurn(teiDv);
+    }
 
     /* Deorbit burn */
     const deorbitT = S.mission?.deorbitT;

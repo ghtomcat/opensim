@@ -9,9 +9,14 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from '../core/state.js';
+import { moonECI } from '../core/rocket.js';
 
-const DEG = Math.PI / 180;
-const G0  = 9.80665;
+const DEG      = Math.PI / 180;
+const G0       = 9.80665;
+const GM_MOON  = 4.9048695e12;
+const R_MOON   = 1_737_400;
+const MOON_SMA = 384_400_000;
+const MOON_T_S = 27.32166 * 86400;
 
 
 /* ── Reference trajectory cache ── */
@@ -1043,6 +1048,102 @@ function _getDSKYState() {
       return { prog:'00', verb:'16', noun:'62',
         r1: fmt(velFps), r2: fmt(vsFps), r3: ' ' + f5(altNm), compActy: false };
     }
+
+    /* V16 N63 — Range / range-rate to Moon + countdown to next maneuver */
+    if (vn === '1663' && S.orbitVec) {
+      const { rx, ry, rz, vx, vy, vz } = S.orbitVec;
+      const { mx, my } = moonECI(mT);
+      const dx = rx - mx, dy = ry - my;
+      const moonDistM = Math.sqrt(dx*dx + dy*dy + rz*rz);
+
+      /* Moon velocity vector */
+      const moonOmega = 2 * Math.PI / MOON_T_S;
+      const moonAng   = (S.mission?.moonRefAngle ?? 0) * DEG + mT * moonOmega;
+      const vmx = -MOON_SMA * moonOmega * Math.sin(moonAng);
+      const vmy =  MOON_SMA * moonOmega * Math.cos(moonAng);
+
+      /* Range-rate: radial component of spacecraft velocity relative to Moon */
+      const rHx = dx / moonDistM, rHy = dy / moonDistM;
+      const rangeRateFps = ((vx - vmx) * rHx + (vy - vmy) * rHy) * 3.28084;
+
+      /* Time to next burn: LOI during TLC, TEI during lunar orbit */
+      const evT   = S.rocketLOI ? (S.mission?.teiT ?? 378200) : (S.mission?.loiT ?? 305000);
+      const toEvS = Math.max(0, evT - mT);
+      const hh = Math.floor(toEvS / 3600), mm = Math.floor((toEvS % 3600) / 60);
+
+      return { prog:'00', verb:'16', noun:'63',
+        r1: ' ' + f5(Math.round(moonDistM / 1852 / 10)),   // range ÷10 nm
+        r2: fmt(Math.round(rangeRateFps)),                   // fps −=closing
+        r3: ' ' + f5(hh * 100 + mm),                        // T-event HHMM
+        compActy: false };
+    }
+
+    /* V16 N43 — Lunar orbital elements (Moon-relative, post-LOI) */
+    if (vn === '1643' && S.orbitVec && S.rocketLOI) {
+      const { rx, ry, rz, vx, vy, vz } = S.orbitVec;
+      const { mx, my } = moonECI(mT);
+      const moonOmega = 2 * Math.PI / MOON_T_S;
+      const moonAng   = (S.mission?.moonRefAngle ?? 0) * DEG + mT * moonOmega;
+      const vmx = -MOON_SMA * moonOmega * Math.sin(moonAng);
+      const vmy =  MOON_SMA * moonOmega * Math.cos(moonAng);
+
+      /* Moon-relative state vector */
+      const drx = rx - mx, dry = ry - my;
+      const dvx = vx - vmx, dvy = vy - vmy;
+      const r  = Math.sqrt(drx*drx + dry*dry + rz*rz);
+      const v2 = dvx*dvx + dvy*dvy + vz*vz;
+      const a  = 1 / (2/r - v2/GM_MOON);
+      const T_orb = 2 * Math.PI * Math.sqrt(a*a*a / GM_MOON);
+
+      /* Eccentricity magnitude via vis-viva + angular momentum */
+      const vr = (drx*dvx + dry*dvy + rz*vz) / r;
+      const ex = (v2/GM_MOON - 1/r)*drx - (vr/GM_MOON)*dvx;
+      const ey = (v2/GM_MOON - 1/r)*dry - (vr/GM_MOON)*dvy;
+      const ez = (v2/GM_MOON - 1/r)*rz  - (vr/GM_MOON)*vz;
+      const ecc = Math.sqrt(ex*ex + ey*ey + ez*ez);
+
+      const pMM  = Math.floor(T_orb / 60), pSS = Math.floor(T_orb % 60);
+      const apNm = Math.round(Math.max(0, a*(1+ecc) - R_MOON) / 1852);
+      const peNm = Math.round(Math.max(0, a*(1-ecc) - R_MOON) / 1852);
+
+      return { prog:'00', verb:'16', noun:'43',
+        r1: ' ' + f5(Math.min(99999, pMM * 100 + pSS)),
+        r2: ' ' + f5(Math.min(99999, apNm)),
+        r3: ' ' + f5(Math.min(99999, peNm)),
+        compActy: false };
+    }
+
+    /* V16 N33 — Countdown to next maneuver (LOI or TEI) */
+    if (vn === '1633') {
+      const loiT = S.mission?.loiT ?? 305000;
+      const teiT = S.mission?.teiT ?? 378200;
+      let evT = null, evCode = 0;
+      if (!S.rocketLOI && mT < loiT)               { evT = loiT; evCode = 1; }
+      else if (S.rocketLOI && !S.rocketTEI)         { evT = teiT; evCode = 2; }
+      if (evT !== null) {
+        const dt = Math.max(0, evT - mT);
+        const hh = Math.floor(dt / 3600), mm = Math.floor((dt % 3600) / 60);
+        const ss = Math.floor(dt % 60);
+        return { prog:'00', verb:'16', noun:'33',
+          r1: ' ' + f5(hh * 100 + mm),
+          r2: ' ' + f5(ss),
+          r3: ' ' + f5(evCode),
+          compActy: true };
+      }
+      return { prog:'00', verb:'16', noun:'33', r1:' 00000', r2:' 00000', r3:' 00000', compActy:false };
+    }
+
+    /* V16 N67 — Last MCC correction delta-V */
+    if (vn === '1667') {
+      const dvMag = (S.mcc1DvMag ?? 0) * 3.28084;
+      const dvX   = (S.mcc1DvX   ?? 0) * 3.28084;
+      const dvY   = (S.mcc1DvY   ?? 0) * 3.28084;
+      return { prog:'00', verb:'16', noun:'67',
+        r1: ' ' + f5(Math.round(Math.abs(dvMag))),
+        r2: fmt(Math.round(dvX)),
+        r3: fmt(Math.round(dvY)),
+        compActy: false };
+    }
   }
 
   if (tLO < 0)
@@ -1682,6 +1783,73 @@ function _drawGMeterArc(ctx, cx, cy, r, gLoad) {
   ctx.restore();
 }
 
+/* ── Saturn V / CSM vehicle stack schematic ─────────────────────
+   Drawn below the FDAI in the CDR view. Segments (top→bottom):
+   CSM, S-IVB, S-II, S-IC. Disappear as stages are jettisoned.
+   After sivbSep: CSM stands alone; faded S-IVB drifts away.     */
+function _drawVehicleStack(ctx, cx, topY, availH, stage, seco, sivbSep) {
+  const lesJettisoned = S.lesJettisoned ?? false;
+
+  /* Segments ordered top-to-bottom (LAS spike at top, S-IC at base) */
+  const STACK = [
+    { tag: 'las',  hf: 0.10, wf: 0.10, col: '#8a9a84' },
+    { tag: 'csm',  hf: 0.11, wf: 0.30, col: '#a8bca0' },
+    { tag: 'sivb', hf: 0.20, wf: 0.46, col: '#6aaa70' },
+    { tag: 'sii',  hf: 0.23, wf: 0.64, col: '#4a8090' },
+    { tag: 'sic',  hf: 0.35, wf: 1.00, col: '#3a6070' },
+  ];
+
+  const isAttached = tag =>
+    tag === 'las'  ? !lesJettisoned
+    : tag === 'csm'  ? true
+    : tag === 'sivb' ? !sivbSep
+    : tag === 'sii'  ? stage <= 2
+    :  /* sic */       stage <= 1;
+
+  const TOTAL_HF = STACK.reduce((a, s) => a + s.hf, 0); // fixed scale
+  const scale    = (availH * 0.78) / TOTAL_HF;
+  const baseW    = availH * 0.22;
+  const GAP      = Math.max(1, Math.round(scale * 0.015));
+
+  let y = topY + availH * 0.04;
+
+  for (const seg of STACK) {
+    const sh = seg.hf * scale;
+    const sw = seg.wf * baseW;
+    const sx = cx - sw / 2;
+
+    if (isAttached(seg.tag)) {
+      ctx.fillStyle = seg.col;
+      ctx.beginPath();
+      ctx.roundRect(sx, y, sw, sh, Math.max(1, Math.round(sh * 0.08)));
+      ctx.fill();
+      y += sh + GAP;
+    } else {
+      y += sh + GAP;
+    }
+  }
+
+  /* Drifting S-IVB ghost after separation */
+  if (sivbSep && seco) {
+    const sivb     = STACK.find(s => s.tag === 'sivb');
+    const sh       = sivb.hf * scale;
+    const sw       = sivb.wf * baseW;
+    /* At sivbSep time LAS is always gone — CSM sits at the top of the stack */
+    const csmH      = STACK.find(s => s.tag === 'csm').hf * scale;
+    const csmBottom = topY + availH * 0.04 + csmH + GAP;
+    const gapY = csmBottom + GAP * 4;
+    ctx.fillStyle = 'rgba(106, 170, 112, 0.18)';
+    ctx.beginPath();
+    ctx.roundRect(cx - sw / 2 + Math.round(baseW * 0.05), gapY, sw, sh, Math.max(1, Math.round(sh * 0.08)));
+    ctx.fill();
+    ctx.font         = `${Math.round(sh * 0.28)}px "IBM Plex Mono",monospace`;
+    ctx.fillStyle    = 'rgba(106, 170, 112, 0.30)';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('S-IVB', cx + Math.round(baseW * 0.05), gapY + sh + 2);
+  }
+}
+
 export function renderApollo(canvas) {
   const DPR = devicePixelRatio || 1;
 
@@ -1727,8 +1895,14 @@ export function renderApollo(canvas) {
   const rollDeg = S.roll  ?? 0;
   const engines = S.rocketActiveEngines ?? (ac.performance?.stages?.[stage - 1]?.engineCount ?? 0);
 
-  const stageNames = ac.performance?.stages?.map(s => s.name) ?? ['S-IC', 'S-II', 'S-IVB'];
-  const stageName  = stageNames[stage - 1] ?? `STAGE ${stage}`;
+  const seco      = S.rocketSECO  ?? false;
+  const sivbSep   = S.sivbSep     ?? false;
+
+  const stageNames  = ac.performance?.stages?.map(s => s.name) ?? ['S-IC', 'S-II', 'S-IVB'];
+  const stageName   = stageNames[stage - 1] ?? `STAGE ${stage}`;
+  const stageLabel  = sivbSep  ? 'CSM'
+                    : (seco    ? 'CSM+S-IVB'
+                               : stageName);
 
   const massWet   = ac.performance?.massWet ?? 1;
   const propFrac  = Math.max(0, Math.min(1, mass / massWet));
@@ -1821,10 +1995,13 @@ export function renderApollo(canvas) {
   /* ═══ CDR: FDAI + attitude / stage / abort ═══ */
   if (role === 'CDR') {
     _drawFDAI(ctx, gaugeCX, gaugeCY, gaugeR, pitch, rollDeg);
+    const _stackTop  = gaugeCY + gaugeR + Math.round(mainH * 0.02);
+    const _stackAvail = (mainT + mainH) - _stackTop - Math.round(mainH * 0.02);
+    if (_stackAvail > 40) _drawVehicleStack(ctx, gaugeCX, _stackTop, _stackAvail, stage, seco, sivbSep);
     _row('PITCH', `${pitch >= 0 ? '+' : ''}${Math.round(pitch)}°`);
     _row('ROLL',  `${rollDeg >= 0 ? '+' : ''}${Math.round(rollDeg)}°`);
     _gap(0.03);
-    _row('STAGE', stageName, { color: '#c8d4bc', font: mSz });
+    _row('STAGE', stageLabel, { color: '#c8d4bc', font: mSz });
     _gap(0.04);
     const gStr = gLoad.toFixed(2) + ' g';
     const gCol = gLoad >= 3.5 ? '#ff4040' : gLoad >= 2.3 ? '#f0c040' : '#e8edf2';
@@ -1865,7 +2042,7 @@ export function renderApollo(canvas) {
   /* ═══ LMP: G-meter arc + stage / propellant / dyn-Q ═══ */
   else {
     _drawGMeterArc(ctx, gaugeCX, gaugeCY, gaugeR, gLoad);
-    _row('STAGE', stageName, { color: '#c8d4bc', font: mSz });
+    _row('STAGE', stageLabel, { color: '#c8d4bc', font: mSz });
     _apolloText(ctx, coast ? 'COAST' : `${engines} ENG FIRING`, rightX, _rowY, { font: lSz, color: coast ? '#f0c040' : '#5dd47e', base: 'top' });
     _rowY += Math.round(H * 0.030) + Math.round(mainH * 0.04);
     _row('PROPELLANT', `${Math.round(propFrac * 100)} %`, { color: propFrac < 0.15 ? '#ff4040' : '#e8edf2' });

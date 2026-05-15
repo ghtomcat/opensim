@@ -2105,7 +2105,7 @@
   import { initOutside, tickOutside, outsideInvalidate, setOutsideCamMode } from './display/outside.js';
   import { initKneeboard, toggleKneeboard, tickKneeboard } from './display/kneeboard.js';
   import { initMap, renderMap, toggleMap, showMap, hideMap, initVelisMap, hideVelisMap, initG1000Map, hideG1000Map } from './display/map.js';
-  import { renderCislunar } from './display/cislunar.js';
+  import { renderCislunar, resetCislunar } from './display/cislunar.js';
   import { lookupFlight, nearbyFlights, pickAircraft, trackFlight } from './core/liveflight.js';
 
   /* ── DOM refs ── */
@@ -3517,6 +3517,7 @@
     loadStatus.textContent = 'loading aircraft…';
 
     resetRobotArm();
+    resetCislunar();
     await loadMission(inlineMission ?? `missions/${missionId}.json`, `aircraft/${aircraftId}.json`);
     initBlackbox();
 
@@ -3789,6 +3790,7 @@
           else          { stopSound();            audioEl.textContent = 'OFF'; audioEl.className = 'panel-value'; }
         }
       }
+
       if (e.key === 'v' || e.key === 'V') {
         const nModes = (S.aircraft?.vehicleType === 'rocket' && S.rocketOrbit) ? 4 : 3;
         _viewMode = (_viewMode + 1) % nModes;
@@ -3823,10 +3825,12 @@
         pfd.style.display = 'none'; ecam.style.display = 'none';
         document.body.classList.remove('outside-active');
         uiEls.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+        hideMap();
         return;
       }
-      /* All other modes hide cislunar */
+      /* All other modes hide cislunar; restore map if aircraft has one */
       if (cislunar) cislunar.classList.remove('visible');
+      if (S.aircraft?.map !== false && !S.rocketTLI) showMap();
       if (mode === 0) {
         outside.classList.remove('visible', 'combined');
         pfd.classList.remove('combined');
@@ -3983,7 +3987,7 @@
       () => tickOutside(),
       () => tickKneeboard(),
       () => renderMissionClock(),
-      () => renderMap(),
+      () => { if (S.rocketTLI) hideMap(); renderMap(); },
       () => { if (document.getElementById('cislunar')?.classList.contains('visible')) renderCislunar(); },
     ]);
   }

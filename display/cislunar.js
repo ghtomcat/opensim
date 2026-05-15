@@ -16,6 +16,12 @@ const FUTURE_DT       = 3_600;  // seconds per step → 120 h
 
 let _cvs = null;
 let _ctx = null;
+let _zoom = 1.0;
+let _ox   = 0;     // canvas-pixel offset from Earth-centred origin
+let _oy   = 0;
+let _wheelAttached = false;
+
+export function resetCislunar() { _zoom = 1.0; _ox = 0; _oy = 0; }
 
 function _ensureCanvas() {
   if (_cvs) return;
@@ -23,12 +29,33 @@ function _ensureCanvas() {
   _ctx = _cvs?.getContext('2d');
 }
 
+function _attachWheel() {
+  if (_wheelAttached || !_cvs) return;
+  _wheelAttached = true;
+  _cvs.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const f = e.deltaY > 0 ? 0.90 : 1 / 0.90;
+    _zoom = Math.min(50_000, Math.max(0.04, _zoom * f));
+  }, { passive: false });
+}
+
 /* ── Seeded LCG for deterministic star field ── */
 function _lcg(s) { return ((s * 1664525 + 1013904223) & 0xffffffff) >>> 0; }
 
-/* ── Project ECEF XY to canvas coords ── */
+/* ── Next upcoming mission event ── */
+function _nextEvent() {
+  const mT = S.time ?? 0;
+  const events = [...(S.mission?.events ?? [])];
+  const loiT = S.mission?.loiT;
+  if (loiT && !S.rocketLOI) events.push({ t: loiT, label: 'LOI' });
+  const teiT = S.mission?.teiT;
+  if (teiT && !S.rocketTEI) events.push({ t: teiT, label: 'TEI' });
+  return events.filter(e => e.t > mT).sort((a, b) => a.t - b.t)[0] ?? null;
+}
+
+/* ── Project ECI XY to canvas coords ── */
 function _px(rx, ry, cx, cy, scale) {
-  return { px: cx + rx * scale, py: cy - ry * scale };
+  return { px: cx + rx * scale + _ox, py: cy - ry * scale + _oy };
 }
 
 /* ── Propagate future path using Velocity Verlet (Earth + Moon) ── */
@@ -91,13 +118,25 @@ export function renderCislunar() {
   const H   = Math.round(window.innerHeight * DPR);
   if (_cvs.width !== W || _cvs.height !== H) { _cvs.width = W; _cvs.height = H; }
 
+  _attachWheel();
+
   const ctx = _ctx;
   const cx  = W / 2;
   const cy  = H / 2;
   const mT  = S.time ?? 0;
 
-  /* Scale: show ±1.2 × MOON_SMA — Moon fits with comfortable margin */
-  const scale = (Math.min(W, H) * 0.40) / MOON_SMA;
+  const scale = (Math.min(W, H) * 0.40) / MOON_SMA * _zoom;
+
+  /* Pin spacecraft to canvas centre when in orbit — _ox/_oy shift Earth/Moon.
+     _px(rx, ry) = cx + rx*scale + _ox, cy - ry*scale + _oy
+     Spacecraft at (scRx, scRy) → canvas (cx, cy)  iff  _ox = -scRx*scale, _oy = +scRy*scale */
+  if (S.orbitVec) {
+    _ox = -S.orbitVec.rx * scale;
+    _oy =  S.orbitVec.ry * scale;
+  } else {
+    _ox = 0;
+    _oy = 0;
+  }
 
   /* Background */
   ctx.fillStyle = '#030810';
@@ -113,15 +152,17 @@ export function renderCislunar() {
     ctx.fillRect(sx, sy, sz * DPR, sz * DPR);
   }
 
-  /* Earth */
+  /* Earth — at ECI origin, offset by _ox/_oy */
+  const ex     = cx + _ox;
+  const ey     = cy + _oy;
   const earthR = Math.max(5 * DPR, 9 * DPR);
   {
-    const g = ctx.createRadialGradient(cx - earthR*0.35, cy - earthR*0.35, 0, cx, cy, earthR);
+    const g = ctx.createRadialGradient(ex - earthR*0.35, ey - earthR*0.35, 0, ex, ey, earthR);
     g.addColorStop(0, '#7bcfff');
     g.addColorStop(0.5, '#2d7abf');
     g.addColorStop(1, '#0d3b66');
     ctx.beginPath();
-    ctx.arc(cx, cy, earthR, 0, 2 * Math.PI);
+    ctx.arc(ex, ey, earthR, 0, 2 * Math.PI);
     ctx.fillStyle = g;
     ctx.fill();
   }
@@ -140,9 +181,9 @@ export function renderCislunar() {
     ctx.fill();
   }
 
-  /* Moon orbit ring — faint guide circle */
+  /* Moon orbit ring — faint guide circle, centred on Earth */
   ctx.beginPath();
-  ctx.arc(cx, cy, MOON_SMA * scale, 0, 2 * Math.PI);
+  ctx.arc(ex, ey, MOON_SMA * scale, 0, 2 * Math.PI);
   ctx.strokeStyle = 'rgba(255,255,255,0.06)';
   ctx.lineWidth   = DPR;
   ctx.stroke();
@@ -209,7 +250,7 @@ export function renderCislunar() {
   ctx.font      = `${10 * DPR}px "IBM Plex Mono", monospace`;
   ctx.textAlign = 'left';
   ctx.fillStyle = '#aac';
-  ctx.fillText('EARTH', cx + earthR + 4 * DPR, cy + 4 * DPR);
+  ctx.fillText('EARTH', ex + earthR + 4 * DPR, ey + 4 * DPR);
   ctx.fillText('MOON',  mp.px + moonR + 4 * DPR, mp.py + 4 * DPR);
 
   /* Readouts — distance from Earth and Moon */
@@ -224,11 +265,24 @@ export function renderCislunar() {
   ctx.fillText(`${dMoon_km}  km  ↔ Moon`,   12 * DPR, 30 * DPR);
   ctx.fillText(`${spd_kms}  km/s`,           12 * DPR, 42 * DPR);
 
-  /* Phase label */
-  const phase = S.rocketTEI ? 'TRANS-EARTH' : S.rocketLOI ? 'LUNAR ORBIT' : S.rocketTLI ? 'TRANS-LUNAR' : 'EARTH ORBIT';
-  ctx.fillStyle = '#8ef';
-  ctx.font      = `bold ${10 * DPR}px "IBM Plex Mono", monospace`;
-  ctx.textAlign = 'right';
-  ctx.fillText(phase, (W - 12 * DPR), 18 * DPR);
-  ctx.textAlign = 'left';
+  /* Next event countdown — top right */
+  const ev = _nextEvent();
+  if (ev) {
+    const dt  = Math.max(0, ev.t - mT);
+    const hh  = Math.floor(dt / 3600);
+    const mm  = Math.floor((dt % 3600) / 60);
+    const ss  = Math.floor(dt % 60);
+    const pad = (n) => String(n).padStart(2, '0');
+    const countdown = `T-${pad(hh)}:${pad(mm)}:${pad(ss)}`;
+
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#8ef';
+    ctx.font      = `bold ${10 * DPR}px "IBM Plex Mono", monospace`;
+    ctx.fillText(ev.label,   W - 12 * DPR, 18 * DPR);
+    ctx.font      = `${9 * DPR}px "IBM Plex Mono", monospace`;
+    ctx.fillStyle = '#5bd';
+    ctx.fillText(countdown,  W - 12 * DPR, 30 * DPR);
+    ctx.textAlign = 'left';
+  }
+
 }

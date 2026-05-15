@@ -35,6 +35,7 @@ const _takeoffFired   = new Set();   // takeoff speed callouts already fired
 /* ── Active ambient Audio elements (stopped on resetCrew) ── */
 const _ambientAudio = [];
 let _crewGen = 0;   // incremented on every resetCrew(); captured by pending timeouts
+let _prevWarpFactor = 1;
 
 /* ── Rocket event tracking ── */
 let _prevVelMs        = 0;
@@ -110,6 +111,14 @@ export function tickCrew(prevAlt, currAlt) {
   const ms = S.mission;
   if (!ac || !ms) return;
 
+  /* Stop ambient audio if time warp increased — audio is no longer time-synchronised */
+  const currWarp = S.warpFactor ?? 1;
+  if (currWarp > 1 && currWarp > _prevWarpFactor && _ambientAudio.length > 0) {
+    for (const a of _ambientAudio) { try { a.stop(); } catch {} }
+    _ambientAudio.length = 0;
+  }
+  _prevWarpFactor = currWarp;
+
   _checkPMCallouts(prevAlt, currAlt, ac);
   _checkGPWS(prevAlt, currAlt, ac);
   _checkChecklist(prevAlt, currAlt, ac);
@@ -179,6 +188,7 @@ export function resetCrew() {
   _prevDragonDeorbit = false; _prevDragonBlackout = false;
   _prevDragonSignal  = false; _prevDragonDrogue   = false;
   _prevDragonMains   = false; _prevDragonSplashdown = false;
+  _prevWarpFactor = 1;
 }
 
 /* ── Direct speech ── */
@@ -488,6 +498,8 @@ function _checkATC(prev, curr, ms) {
     /* Ambient background audio — decoded into memory so startTime is exact and
        no error-retry loop can occur (unlike HTML5 Audio with preload=none).     */
     if (clr.audio !== undefined && clr.voice === 'ambient') {
+      /* Skip playback during time warp — audio duration is wall-clock, not sim-time */
+      if ((S.warpFactor ?? 1) > 1) { _atcEndedAt[capturedIdx] = S.time; return; }
       const _gen = _crewGen;
       setTimeout(async () => {
         if (_crewGen !== _gen) return;
