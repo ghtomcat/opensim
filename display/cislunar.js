@@ -35,7 +35,7 @@ function _attachWheel() {
   _cvs.addEventListener('wheel', (e) => {
     e.preventDefault();
     const f = e.deltaY > 0 ? 0.90 : 1 / 0.90;
-    _zoom = Math.min(50_000, Math.max(0.04, _zoom * f));
+    _zoom = Math.max(0.04, _zoom * f);
   }, { passive: false });
 }
 

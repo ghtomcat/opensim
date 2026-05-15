@@ -81,13 +81,22 @@ export function moonECI(mT) {
 /* ── TLI burn — apply prograde ΔV to escape Earth orbit ─────── */
 function _applyTLIBurn(dv_ms) {
   const v   = S.orbitVec;
-  const spd = Math.sqrt(v.vx*v.vx + v.vy*v.vy + v.vz*v.vz);
-  const f   = dv_ms / spd;
+  /* Project to equatorial (XY) plane at TLI. The Moon is at mz = 0 and all
+     downstream logic (LOI trigger, MCC-1 propagator, cislunar map, Moon
+     porthole rendering) is 2D XY. The launch inclination's rz / vz would
+     accumulate to ~500,000 km and break MCC-1's Newton solver otherwise. */
+  const vxy = Math.sqrt(v.vx*v.vx + v.vy*v.vy);
+  const f   = dv_ms / vxy;
   const dur = S.mission?.tliDuration ?? Math.round(dv_ms / 7.5);
   setState({
-    rocketTLI:       true,
+    rocketTLI:        true,
     rocketTLIBurnEnd: (S.time ?? 0) + dur,
-    orbitVec: { ...v, vx: v.vx*(1+f), vy: v.vy*(1+f), vz: v.vz*(1+f) },
+    orbitVec: { ...v,
+      rz: 0,
+      vx: v.vx * (1 + f),
+      vy: v.vy * (1 + f),
+      vz: 0,
+    },
   });
 }
 

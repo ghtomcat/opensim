@@ -1920,6 +1920,102 @@ const { V_: _V_sv, F_: _F_sv, FC_: _FC_sv, E_: _E_sv } = (() => {
 })();
 const _FN_sv = computeFaceNormals(_V_sv, _F_sv);
 
+/* ══════════════════════════════════════════════════════════════
+   Apollo LM geometry — basic first pass
+   Docked config: aft face at CM docking port (vF = 0.030 in SV frame).
+   +vF points away from CSM; descent stage is at maximum vF.
+   ══════════════════════════════════════════════════════════════ */
+const _lmO  = 0.0300;   // CM top / LM docking port in SV frame
+const _lmAR = 0.00063;  // ascent stage body radius   (≈1.17 m)
+const _lmAH = 0.00152;  // ascent stage height        (≈2.81 m)
+const _lmDR = 0.00113;  // descent stage body radius  (≈2.09 m)
+const _lmDH = 0.00092;  // descent stage height       (≈1.70 m)
+const _lmLR = 0.00254;  // landing leg footpad radius (≈4.70 m)
+const _lmNR = 0.00040;  // descent engine nozzle exit radius
+const _lmNH = 0.00038;  // descent engine nozzle protrusion
+
+const _COLORS_lm = [
+  [200, 178,  80],  // 0 gold Mylar — descent stage
+  [215, 212, 200],  // 1 aluminized Mylar — ascent stage
+  [ 72,  70,  65],  // 2 dark thermal blanket — DS base cap
+  [ 48,  48,  52],  // 3 engine dark
+];
+
+const { V_: _V_lm, F_: _F_lm, FC_: _FC_lm, E_: _E_lm } = (() => {
+  const N = 8;
+
+  /* Ascent stage — narrow cylinder */
+  const asT  = buildTube(N, [
+    { vF: _lmO,        r: _lmAR, col: 1 },
+    { vF: _lmO+_lmAH,  r: _lmAR, col: 1 },
+  ]);
+  const V_  = [...asT.V_];
+  const F_  = [...asT.F_];
+  const FC_ = [...asT.FC_];
+  const E_  = [...asT.E_];
+  const asAft = asT.rb[0];   // = 0  (8 verts, +U first)
+  const asFwd = asT.rb[1];   // = 8
+  for (let i = 0; i < N; i++) E_.push([asAft+i, asFwd+i]);   // longerons
+
+  /* Descent stage — wider cylinder */
+  const dsOfs = V_.length;   // = 16
+  const dsT   = buildTube(N, [
+    { vF: _lmO+_lmAH,        r: _lmDR, col: 0 },
+    { vF: _lmO+_lmAH+_lmDH,  r: _lmDR, col: 0 },
+  ]);
+  dsT.V_.forEach(v  => V_.push(v));
+  dsT.F_.forEach(fi => F_.push(fi.map(i => i + dsOfs)));
+  dsT.FC_.forEach(c => FC_.push(c));
+  dsT.E_.forEach(([a,b]) => E_.push([a+dsOfs, b+dsOfs]));
+  for (let i = 0; i < N; i++) E_.push([dsOfs+i, dsOfs+N+i]);  // longerons
+  const dsTop = dsOfs;       // = 16
+  const dsBot = dsOfs + N;   // = 24
+
+  /* Junction: AS fwd ring → DS upper ring (shoulder step) */
+  for (let i = 0; i < N; i++) E_.push([asFwd+i, dsTop+i]);
+
+  /* DS base cap — center vertex + 8 triangles */
+  const dsCtr = V_.length;   // = 32
+  V_.push([_lmO+_lmAH+_lmDH, 0, 0]);
+  for (let i = 0; i < N; i++) { F_.push([dsCtr, dsBot+(i+1)%N, dsBot+i]); FC_.push(2); }
+
+  /* Landing legs — 4 legs at 45° positions in the N=8 ring
+     buildTube: si=0→+U, si=1→+R+U, si=2→+R, si=3→+R-U, si=4→-U, si=5→-R-U, si=6→-R, si=7→-R+U
+     Diagonals (45°): si = 1, 3, 5, 7                                                          */
+  const legBase = V_.length;  // = 33
+  const S2      = Math.SQRT2 / 2;
+  const legVF   = _lmO + _lmAH + _lmDH + 0.00022;  // slightly forward of DS base
+  [[S2,S2],[-S2,S2],[-S2,-S2],[S2,-S2]].forEach(([cr,cu]) => {
+    V_.push([legVF, _lmLR*cr, _lmLR*cu]);
+  });
+  /* Primary struts: DS bot diagonal verts → footpads */
+  [[1,0],[3,1],[5,2],[7,3]].forEach(([si,li]) => E_.push([dsBot+si, legBase+li]));
+  /* Secondary braces: adjacent verts → footpads */
+  [[0,0],[2,0],[2,1],[4,1],[4,2],[6,2],[6,3],[0,3]].forEach(([si,li]) => E_.push([dsBot+si, legBase+li]));
+
+  /* Descent engine nozzle */
+  const nzVF  = _lmO + _lmAH + _lmDH;
+  const nzRim = V_.length;  // = 37
+  [[_lmNR,0],[0,_lmNR],[-_lmNR,0],[0,-_lmNR]].forEach(([cr,cu]) => V_.push([nzVF, cr, cu]));
+  const nzTip = V_.length;  // = 41
+  V_.push([nzVF + _lmNH, 0, 0]);
+  for (let i = 0; i < 4; i++) E_.push([nzRim+i, nzRim+(i+1)%4]);
+  for (let i = 0; i < 4; i++) E_.push([nzRim+i, nzTip]);
+  for (let i = 0; i < 4; i++) { F_.push([nzRim+i, nzRim+(i+1)%4, nzTip]); FC_.push(3); }
+
+  /* Docking tunnel — small ring at aft face */
+  const dtRim = V_.length;  // = 42
+  const dtR   = 0.00022;
+  const dtVF  = _lmO + 0.00012;
+  [[dtR,0],[0,dtR],[-dtR,0],[0,-dtR]].forEach(([cr,cu]) => V_.push([dtVF, cr, cu]));
+  for (let i = 0; i < 4; i++) E_.push([dtRim+i, dtRim+(i+1)%4]);
+  /* Connect tunnel to AS aft at cardinal verts (si=0=+U, si=2=+R, si=4=-U, si=6=-R) */
+  [[0,0],[2,1],[4,2],[6,3]].forEach(([si,ti]) => E_.push([asAft+si, dtRim+ti]));
+
+  return { V_, F_, FC_, E_ };
+})();
+const _FN_lm = computeFaceNormals(_V_lm, _F_lm);
+
 /* Stage separation tumble animations — module state */
 let _svSepLastAcId = null;
 let _svSepPrevStage = 1;
@@ -2749,6 +2845,9 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     _dir._tliWas = tliNow;
   }
 
+  const hasLM = isSV && (S.sivbSep ?? false) && !!(S.mission?.hasLM);
+  const lmPts = hasLM ? _V_lm.map(project) : null;
+
   let bPts = null, cosdP = 1, sindP = 0;
   let bOffF = 0, bOffR = 0, bOffU = 0;
   if (isF9 && rStage >= 2 && S.booster?.active) {
@@ -3234,6 +3333,19 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   /* Engine overlays: thrust-reverser cascade + chevrons */
   if (!isF9 && !isSV && !isC172 && !isBf109 && !isF4U) _engineOverlays(pts, faces, S.aircraft?.engine, _b);
 
+  /* LM faces — depth-sorted with main body */
+  if (lmPts) {
+    for (let i = 0; i < _F_lm.length; i++) {
+      const fi = _F_lm[i];
+      const ps = fi.map(vi => lmPts[vi]);
+      if (ps.some(p => !p)) continue;
+      const p0 = ps[0], p1 = ps[1], p2 = ps[2];
+      if ((p1.x-p0.x)*(p2.y-p0.y) - (p1.y-p0.y)*(p2.x-p0.x) < 0) continue;
+      const avgD = ps.reduce((s,p) => s+p.d, 0) / ps.length;
+      faces.push({ ps, avgD, col: _COLORS_lm[_FC_lm[i]], br: 0.88 });
+    }
+  }
+
   /* Painter's algorithm: farthest first */
   faces.sort((a, b) => b.avgD - a.avgD);
 
@@ -3506,6 +3618,22 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   }
   ctx.stroke();
   ctx.restore();
+
+  /* LM wireframe edges */
+  if (lmPts) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(200, 192, 168, 0.72)';
+    ctx.lineWidth   = Math.max(1, devicePixelRatio);
+    ctx.beginPath();
+    for (const [a, b] of _E_lm) {
+      const pa = lmPts[a], pb = lmPts[b];
+      if (!pa || !pb) continue;
+      ctx.moveTo(pa.x, pa.y);
+      ctx.lineTo(pb.x, pb.y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
 
   /* Booster wireframe edges + dark nozzles after stage separation */
   if (bPts) {
