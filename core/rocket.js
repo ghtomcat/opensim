@@ -80,21 +80,32 @@ export function moonECI(mT) {
 
 /* ── TLI burn — apply prograde ΔV to escape Earth orbit ─────── */
 function _applyTLIBurn(dv_ms) {
-  const v   = S.orbitVec;
-  /* Project to equatorial (XY) plane at TLI. The Moon is at mz = 0 and all
-     downstream logic (LOI trigger, MCC-1 propagator, cislunar map, Moon
-     porthole rendering) is 2D XY. The launch inclination's rz / vz would
-     accumulate to ~500,000 km and break MCC-1's Newton solver otherwise. */
-  const vxy = Math.sqrt(v.vx*v.vx + v.vy*v.vy);
-  const f   = dv_ms / vxy;
+  const v = S.orbitVec;
+  /* Project to equatorial (XY) plane at TLI so the 2D Moon model works.
+     Two corrections needed:
+     1. Position: scale rx/ry outward so sqrt(rx²+ry²) = original r (no
+        altitude jump from zeroing rz at non-zero latitude).
+     2. Velocity: use vtot + dv_ms as the target XY speed so the full
+        prograde ΔV is credited even though vz was non-zero (otherwise the
+        spacecraft arrives short of the Moon by ~1600 m/s). */
+  const rtot = Math.sqrt(v.rx*v.rx + v.ry*v.ry + v.rz*v.rz);
+  const rxy  = Math.sqrt(v.rx*v.rx + v.ry*v.ry);
+  const rScale = rxy > 0 ? rtot / rxy : 1;   // = 1 / cos(lat)
+
+  const vxy  = Math.sqrt(v.vx*v.vx + v.vy*v.vy);
+  const vtot = Math.sqrt(v.vx*v.vx + v.vy*v.vy + v.vz*v.vz);
+  const vf   = vxy > 0 ? (vtot + dv_ms) / vxy : 1;
+
   const dur = S.mission?.tliDuration ?? Math.round(dv_ms / 7.5);
   setState({
     rocketTLI:        true,
     rocketTLIBurnEnd: (S.time ?? 0) + dur,
     orbitVec: { ...v,
+      rx: v.rx * rScale,
+      ry: v.ry * rScale,
       rz: 0,
-      vx: v.vx * (1 + f),
-      vy: v.vy * (1 + f),
+      vx: v.vx * vf,
+      vy: v.vy * vf,
       vz: 0,
     },
   });
