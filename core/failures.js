@@ -37,6 +37,7 @@ export function tickFailures(dt) {
       if (_fired.has(i)) return;
 
       const tr = f.trigger;
+      if (!tr) return;   // rocket-system failures (affects/masterAlarm) handled by rocket.js
       const triggered =
         (tr.type === 'time' && t >= tr.t) ||
         (tr.type === 'alt'  && alt <= tr.alt);

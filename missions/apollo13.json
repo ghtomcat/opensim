@@ -130,6 +130,15 @@
       "text": "Thirteen, we've got about a minute and a half to LOS here."
     },
     {
+      "t": 201319,
+      "audio": "assets/apollo13/a13_0555519.mp3",
+      "voice": "ambient",
+      "volume": 0.85,
+      "startTime": 0,
+      "duration": 379,
+      "text": "GET 055:55:19 — O₂ tank explosion. Mission audio."
+    },
+    {
       "t": 201293,
       "voice": "crew",
       "text": "Houston, we've had a problem. We've had a main B bus undervolt."
