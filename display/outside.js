@@ -2819,21 +2819,29 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
      and pitch rotation so the CM nose swings 180° to face the S-IVB adapter. */
   const _tdProgress = (isSV && (S.mission?.hasLM) && !S.sivbSep) ? (S.tdProgress ?? 0) : 0;
   const _inTDSep    = _tdProgress > 0.03;
+  const _vfCM       = 0.027;
+  let _tdSep = 0, _tdCosRot = 1, _tdSinRot = 0;
   let ptsCSM = null;
   if (_inTDSep) {
-    const _tdSep = _tdProgress < 0.15 ? (_tdProgress / 0.15) * 0.018
-                 : _tdProgress < 0.70 ? 0.018
-                 : _tdProgress < 0.88 ? (1 - (_tdProgress - 0.70) / 0.18) * 0.018 : 0;
-    const _tdRot  = _tdProgress < 0.15 ? 0
-                  : _tdProgress < 0.45 ? ((_tdProgress - 0.15) / 0.30) * Math.PI : Math.PI;
-    const _vfCM   = 0.027;
-    const cosRot  = Math.cos(_tdRot), sinRot = Math.sin(_tdRot);
+    _tdSep = _tdProgress < 0.15 ? (_tdProgress / 0.15) * 0.007
+           : _tdProgress < 0.70 ? 0.007
+           : _tdProgress < 0.88 ? (1 - (_tdProgress - 0.70) / 0.18) * 0.007 : 0;
+    const _tdRot = _tdProgress < 0.15 ? 0
+                 : _tdProgress < 0.45 ? ((_tdProgress - 0.15) / 0.30) * Math.PI : Math.PI;
+    _tdCosRot = Math.cos(_tdRot); _tdSinRot = Math.sin(_tdRot);
     ptsCSM = V_.map(v => {
       const vfl = v[0] - _vfCM, yl = v[1];
-      return project([vfl * cosRot - yl * sinRot + _vfCM + _tdSep,
-                      vfl * sinRot + yl * cosRot, v[2]]);
+      return project([vfl * _tdCosRot - yl * _tdSinRot + _vfCM + _tdSep,
+                      vfl * _tdSinRot + yl * _tdCosRot, v[2]]);
     });
   }
+  /* Project a [vf, r, u] point through the CSM T&D rotation+offset transform */
+  const _projectCSM = (vf, r, u) => {
+    if (!_inTDSep) return project([vf, r, u]);
+    const vfl = vf - _vfCM;
+    return project([vfl * _tdCosRot - r * _tdSinRot + _vfCM + _tdSep,
+                    vfl * _tdSinRot + r * _tdCosRot, u]);
+  };
 
   /* Rise from pad — used to gate pad-structure geometry and nozzle visibility */
   const alt_nm   = (S.alt ?? 0) * FT_NM;
@@ -2951,7 +2959,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   }
 
   const hasLM = isSV && ((S.sivbSep ?? false) || _inTDSep) && !!(S.mission?.hasLM);
-  const lmPts = hasLM ? _V_lm.map(project) : null;  // LM stays in adapter during T&D
+  const lmPts = (hasLM && !_inTDSep) ? _V_lm.map(project) : null;
 
   let bPts = null, cosdP = 1, sindP = 0;
   let bOffF = 0, bOffR = 0, bOffU = 0;
@@ -3440,8 +3448,8 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     _drawJ2Nozzles(0.010, _sv3r, [[0, 0]], j2On);
   }
 
-  /* SM SPS engine bell — single centered nozzle, visible after sivbSep */
-  if (isSV && (S.sivbSep ?? false)) {
+  /* SM SPS engine bell — visible after sivbSep and during T&D (rotated CSM) */
+  if (isSV && ((S.sivbSep ?? false) || _inTDSep)) {
     const nNoz  = 8;
     const sMvF  = 0.024;          // SM aft ring vF (Ring 7)
     const spsL  = _svcr * 1.60;  // nozzle length
@@ -3450,8 +3458,8 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     const spsTopR = [], spsBotR = [];
     for (let i = 0; i < nNoz; i++) {
       const a = (i / nNoz) * Math.PI * 2;
-      spsTopR.push(project([sMvF,         spsRt * Math.cos(a), spsRt * Math.sin(a)]));
-      spsBotR.push(project([sMvF - spsL,  spsRx * Math.cos(a), spsRx * Math.sin(a)]));
+      spsTopR.push(_projectCSM(sMvF,         spsRt * Math.cos(a), spsRt * Math.sin(a)));
+      spsBotR.push(_projectCSM(sMvF - spsL,  spsRx * Math.cos(a), spsRx * Math.sin(a)));
     }
     if (camSide > 0) for (let i = 0; i < nNoz; i++) {
       const j  = (i + 1) % nNoz;
@@ -3730,7 +3738,9 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     if (isSV && rStage >= 2 && ((a <= 47 || (a >= 161 && a <= 172)) || (b <= 47 || (b >= 161 && b <= 172)))) continue;
     if (isSV && rStage >= 3 && ((a >= 48 && a <= 79) || (b >= 48 && b <= 79))) continue;
     if (isSV && S.sivbSep   && ((a >= 80 && a <= 111) || (b >= 80 && b <= 111))) continue;
-    const pa = pts[a], pb = pts[b];
+    if (isSV && _inTDSep    && ((a >= 96 && a <= 111) || (b >= 96 && b <= 111))) continue;
+    const pa = (isSV && _inTDSep && ptsCSM && a >= 112) ? ptsCSM[a] : pts[a];
+    const pb = (isSV && _inTDSep && ptsCSM && b >= 112) ? ptsCSM[b] : pts[b];
     if (!pa || !pb) continue;
     /* Cull edges that are entirely on the back side */
     if (edgeCamDir(a) > 0 && edgeCamDir(b) > 0) continue;
