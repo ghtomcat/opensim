@@ -2455,6 +2455,7 @@ function _drawCSMOrbitDetail(ctx, pts, project, dpr, camSide) {
 
   /* Two forward crew windows: upper-right (θ ≈ +45°) and upper-left (θ ≈ +135°) */
   for (const [th, s] of [[Math.PI / 4, 1], [Math.PI * 3 / 4, -1]]) {
+    if (!frontSide(th)) continue;
     drawWindow([cv(wF0, th - 0.13 * s), cv(wF0, th + 0.13 * s),
                 cv(wF1, th + 0.13 * s), cv(wF1, th - 0.13 * s)]);
   }
@@ -2462,13 +2463,51 @@ function _drawCSMOrbitDetail(ctx, pts, project, dpr, camSide) {
   /* Two rendezvous windows: +y and -y sides (smaller) */
   const rvF1 = wF0 + 0.0008;
   for (const th of [0, Math.PI]) {
+    if (!frontSide(th)) continue;
     drawWindow([cv(wF0, th - 0.09), cv(wF0, th + 0.09),
                 cv(rvF1, th + 0.09), cv(rvF1, th - 0.09)]);
   }
 
   /* Top hatch window: centred on +z (top of CM) */
-  drawWindow([cv(cmBase + 0.0003, Math.PI / 2 - 0.07), cv(cmBase + 0.0003, Math.PI / 2 + 0.07),
-              cv(cmBase + 0.0010, Math.PI / 2 + 0.07), cv(cmBase + 0.0010, Math.PI / 2 - 0.07)]);
+  if (frontSide(Math.PI / 2)) {
+    drawWindow([cv(cmBase + 0.0003, Math.PI / 2 - 0.07), cv(cmBase + 0.0003, Math.PI / 2 + 0.07),
+                cv(cmBase + 0.0010, Math.PI / 2 + 0.07), cv(cmBase + 0.0010, Math.PI / 2 - 0.07)]);
+  }
+
+  /* ── CM nose endcap — flat disc at Ring 9 (vF=0.030) after LES jettison ── */
+  if (S.lesJettisoned) {
+    const N16 = 16;
+    const nosePts = [];
+    for (let si = 0; si < N16; si++) {
+      const theta = (si / N16) * Math.PI * 2;
+      const p = project([cmTop, _svcr2 * Math.cos(theta), _svcr2 * Math.sin(theta)]);
+      nosePts.push(p);
+    }
+    if (nosePts.every(p => p)) {
+      const cross = (nosePts[1].x - nosePts[0].x) * (nosePts[2].y - nosePts[0].y)
+                  - (nosePts[1].y - nosePts[0].y) * (nosePts[2].x - nosePts[0].x);
+      if (cross > 0) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(nosePts[0].x, nosePts[0].y);
+        for (let si = 1; si < N16; si++) ctx.lineTo(nosePts[si].x, nosePts[si].y);
+        ctx.closePath();
+        ctx.fillStyle   = '#c4c0b8';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(145, 138, 128, 0.60)';
+        ctx.lineWidth   = 0.7 * dpr; ctx.stroke();
+        ctx.restore();
+        /* Docking probe collar nub */
+        const probP = project([cmTop + 0.00025, 0, 0]);
+        if (probP) {
+          ctx.save();
+          ctx.beginPath(); ctx.arc(probP.x, probP.y, 2.0 * dpr, 0, Math.PI * 2);
+          ctx.fillStyle = '#9a948a'; ctx.fill();
+          ctx.restore();
+        }
+      }
+    }
+  }
 
   /* ── SM panel seams — 6 bays at 60° intervals ───────────────────── */
   ctx.save();
@@ -2486,41 +2525,118 @@ function _drawCSMOrbitDetail(ctx, pts, project, dpr, camSide) {
   ctx.restore();
 
   /* ── SM RCS — 4 quad pods at 45°/135°/225°/315° ────────────────── */
-  const rcsvF = smBase + 0.0020;  // upper third of SM, near CM/SM interface
-  const rcsR  = _svcr * 1.025;
-  const nozR  = Math.max(1, 1.3 * dpr);
+  const rcsvF  = smBase + 0.0020;   // mid-SM, upper region
+  const rcsOut = _svcr * 1.18;      // outer face (protruding ~0.35 m from SM skin)
+  const da     = 0.12;              // angular half-width of pod  (≈ 14°)
+  const dvF    = 0.00028;           // axial half-height of pod
+
+  /* Nozzle bell dimensions (frustum = 6-sided, cone-shaped) */
+  const bellR   = _svcr * 0.070;   // bell mouth radius
+  const throatR = bellR  * 0.50;   // throat (inner) radius
+  const bellD   = _svcr  * 0.12;   // how far bell protrudes beyond pod face
+
   for (let q = 0; q < 4; q++) {
     const ang = q * Math.PI / 2 + Math.PI / 4;
     if (!frontSide(ang)) continue;
 
-    /* Pod housing — flat rectangle over the SM surface */
-    const da = 0.022, dvF = 0.00055;
-    const corners = [
-      [rcsvF - dvF, rcsR * Math.cos(ang - da), rcsR * Math.sin(ang - da)],
-      [rcsvF - dvF, rcsR * Math.cos(ang + da), rcsR * Math.sin(ang + da)],
-      [rcsvF + dvF, rcsR * Math.cos(ang + da), rcsR * Math.sin(ang + da)],
-      [rcsvF + dvF, rcsR * Math.cos(ang - da), rcsR * Math.sin(ang - da)],
-    ];
-    const pc = corners.map(project);
-    if (!pc.every(p => p)) continue;
-    ctx.beginPath();
-    ctx.moveTo(pc[0].x, pc[0].y);
-    for (let i = 1; i < 4; i++) ctx.lineTo(pc[i].x, pc[i].y);
-    ctx.closePath();
-    ctx.fillStyle   = '#16191f';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(130, 148, 170, 0.42)';
-    ctx.lineWidth   = 0.7 * dpr; ctx.stroke();
+    /* Build pod corners — outer face at rcsOut, inner face at _svcr */
+    const Co = (a, f) => [f, rcsOut  * Math.cos(a), rcsOut  * Math.sin(a)];
+    const Ci = (a, f) => [f, _svcr   * Math.cos(a), _svcr   * Math.sin(a)];
+    const oc = [Co(ang-da, rcsvF-dvF), Co(ang+da, rcsvF-dvF),
+                Co(ang+da, rcsvF+dvF), Co(ang-da, rcsvF+dvF)];
+    const ic = [Ci(ang-da, rcsvF-dvF), Ci(ang+da, rcsvF-dvF),
+                Ci(ang+da, rcsvF+dvF), Ci(ang-da, rcsvF+dvF)];
+    const po = oc.map(project), pi = ic.map(project);
+    if (!po.every(p => p) || !pi.every(p => p)) continue;
 
-    /* 4 nozzle circles — 2 axial × 2 angular */
-    for (const nda of [-0.014, 0.014]) {
-      for (const ndvF of [-0.00033, 0.00033]) {
-        const n = project([rcsvF + ndvF, rcsR * Math.cos(ang + nda), rcsR * Math.sin(ang + nda)]);
-        if (!n) continue;
-        ctx.beginPath(); ctx.arc(n.x, n.y, nozR * 1.3, 0, Math.PI * 2);
-        ctx.fillStyle   = '#090b0f'; ctx.fill();
-        ctx.strokeStyle = 'rgba(115, 135, 160, 0.55)';
-        ctx.lineWidth   = 0.6 * dpr; ctx.stroke();
+    /* Front face */
+    const fwc = (po[1].x-po[0].x)*(po[2].y-po[0].y) - (po[1].y-po[0].y)*(po[2].x-po[0].x);
+    if (fwc > 0) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(po[0].x, po[0].y); ctx.lineTo(po[1].x, po[1].y);
+      ctx.lineTo(po[2].x, po[2].y); ctx.lineTo(po[3].x, po[3].y);
+      ctx.closePath();
+      ctx.fillStyle = '#12151d'; ctx.fill();
+      ctx.strokeStyle = 'rgba(130, 148, 170, 0.45)'; ctx.lineWidth = 0.7 * dpr; ctx.stroke();
+      ctx.restore();
+    }
+
+    /* Side walls — 4 faces connecting outer face to SM skin */
+    ctx.save();
+    const walls = [
+      [po[3], po[0], pi[0], pi[3]],   // aft-vF wall
+      [po[1], po[2], pi[2], pi[1]],   // fwd-vF wall
+      [po[0], po[1], pi[1], pi[0]],   // ang- wall
+      [po[2], po[3], pi[3], pi[2]],   // ang+ wall
+    ];
+    for (const w of walls) {
+      if (w.some(p => !p)) continue;
+      const wc = (w[1].x-w[0].x)*(w[2].y-w[0].y) - (w[1].y-w[0].y)*(w[2].x-w[0].x);
+      if (wc <= 0) continue;
+      ctx.beginPath();
+      ctx.moveTo(w[0].x, w[0].y); ctx.lineTo(w[1].x, w[1].y);
+      ctx.lineTo(w[2].x, w[2].y); ctx.lineTo(w[3].x, w[3].y);
+      ctx.closePath();
+      ctx.fillStyle = '#1c2130'; ctx.fill();
+      ctx.strokeStyle = 'rgba(110, 128, 150, 0.30)'; ctx.lineWidth = 0.5 * dpr; ctx.stroke();
+    }
+    ctx.restore();
+
+    /* 4 nozzle bells — 2×2 grid; each is a truncated-cone frustum (6-sided) */
+    const Np = 6;
+    for (const nda of [-da * 0.52, da * 0.52]) {
+      for (const ndvF of [-dvF * 0.52, dvF * 0.52]) {
+        const a = ang + nda;
+        /* Tangent axes perpendicular to the radial nozzle-axis [0, cos(a), sin(a)] */
+        const ax1 = [1, 0, 0];                                 /* vF direction */
+        const ax2 = [0, -Math.sin(a), Math.cos(a)];           /* circumferential */
+
+        /* Throat sits at pod face; bell rim is bellD further outward */
+        const tc = [rcsvF + ndvF,  rcsOut * Math.cos(a),               rcsOut * Math.sin(a)];
+        const bc = [tc[0],         tc[1] + bellD * Math.cos(a),        tc[2] + bellD * Math.sin(a)];
+
+        const bPts = [], tPts = [];
+        for (let k = 0; k < Np; k++) {
+          const phi = k * Math.PI * 2 / Np;
+          const cp = Math.cos(phi), sp = Math.sin(phi);
+          const off = (r, ctr) => [
+            ctr[0] + r * (cp * ax1[0] + sp * ax2[0]),
+            ctr[1] + r * (cp * ax1[1] + sp * ax2[1]),
+            ctr[2] + r * (cp * ax1[2] + sp * ax2[2]),
+          ];
+          bPts.push(off(bellR,   bc));
+          tPts.push(off(throatR, tc));
+        }
+        const bp = bPts.map(project), tp = tPts.map(project);
+        if (!bp.every(p => p) || !tp.every(p => p)) continue;
+
+        /* Skip if bell mouth faces away from camera */
+        const bwc = (bp[1].x-bp[0].x)*(bp[2].y-bp[0].y) - (bp[1].y-bp[0].y)*(bp[2].x-bp[0].x);
+        if (bwc <= 0) continue;
+
+        ctx.save();
+        /* Bell mouth face — dark interior */
+        ctx.beginPath();
+        ctx.moveTo(bp[0].x, bp[0].y);
+        for (let k = 1; k < Np; k++) ctx.lineTo(bp[k].x, bp[k].y);
+        ctx.closePath();
+        ctx.fillStyle = '#050608'; ctx.fill();
+        ctx.strokeStyle = 'rgba(140, 165, 190, 0.72)'; ctx.lineWidth = 0.55 * dpr; ctx.stroke();
+
+        /* Frustum sides (bell rim → throat) */
+        ctx.fillStyle = 'rgba(28, 34, 46, 0.90)';
+        ctx.strokeStyle = 'rgba(90, 110, 140, 0.38)'; ctx.lineWidth = 0.4 * dpr;
+        for (let k = 0; k < Np; k++) {
+          const k1 = (k + 1) % Np;
+          const sc = (bp[k1].x-bp[k].x)*(tp[k].y-bp[k].y) - (bp[k1].y-bp[k].y)*(tp[k].x-bp[k].x);
+          if (sc <= 0) continue;
+          ctx.beginPath();
+          ctx.moveTo(bp[k].x, bp[k].y); ctx.lineTo(tp[k].x, tp[k].y);
+          ctx.lineTo(tp[k1].x, tp[k1].y); ctx.lineTo(bp[k1].x, bp[k1].y);
+          ctx.closePath(); ctx.fill(); ctx.stroke();
+        }
+        ctx.restore();
       }
     }
   }
