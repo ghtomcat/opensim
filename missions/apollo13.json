@@ -68,20 +68,12 @@
   "atcClearances": [
     {
       "t": 120,
-      "audio": "assets/apollo8/day1.mp3",
+      "audio": "assets/apollo13/highlights.mp3",
       "voice": "ambient",
-      "volume": 0.70,
-      "duration": 63,
-      "text": ""
-    },
-    {
-      "t": 176,
-      "audio": "assets/apollo8/launch.mp3",
-      "voice": "ambient",
-      "volume": 0.70,
-      "startTime": 21,
-      "duration": 180,
-      "text": ""
+      "volume": 0.75,
+      "startTime": 0,
+      "duration": 900,
+      "text": "T-60 — Apollo 13 launch. AS-508, LC-39A."
     },
     {
       "trigger": { "type": "tli" },
