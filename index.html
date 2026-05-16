@@ -2105,6 +2105,7 @@
   import { renderPFD }         from './display/pfd.js';
   import { renderPanel, renderFCU, renderCockpit, handleCockpitClick } from './display/panel_renderer.js';
   import { renderRocket, renderApollo, handleApolloClick, isApolloTelemetry } from './display/rocket_display.js';
+  import { renderLM, handleLMClick } from './display/lm_display.js';
   import { renderDragon, handleDragonClick, isDragonTelemetry } from './display/dragon.js';
   import './display/g1000.js';  /* bridge exports used by panel_renderer */
   import { renderECAM }        from './display/ecam.js';
@@ -2272,7 +2273,8 @@
   canvas.addEventListener('click', evt => {
     if (S.aircraft?.panel === 'velis-epsi') handleVelisClick(canvas, evt);
     if (S.aircraft?.vehicleType === 'rocket' && S.mission?.dragonSepT) handleDragonClick(canvas, evt);
-    if (S.aircraft?.id === 'saturn-v') handleApolloClick(canvas, evt);
+    if (S.aircraft?.id === 'saturn-v' && S.inLM && S.mission?.hasLM) handleLMClick(canvas, evt);
+    else if (S.aircraft?.id === 'saturn-v') handleApolloClick(canvas, evt);
     if (S.aircraft?.panel === 'g1000' || S.aircraft?.panel === 'dr400') handleCockpitClick(canvas, evt);
   });
   const loadEl     = document.getElementById('loading');
@@ -3841,6 +3843,12 @@
         }
         setOutsideCamMode(_outsideCamMode);
       }
+      /* L — toggle CM ↔ LM panel (Saturn V missions with LM only) */
+      if ((e.key === 'l' || e.key === 'L') && !e.ctrlKey && !e.shiftKey) {
+        if (S.aircraft?.id === 'saturn-v' && S.mission?.hasLM) {
+          setState({ inLM: !(S.inLM ?? false) });
+        }
+      }
     });
 
     function _applyViewMode(mode) {
@@ -3941,6 +3949,7 @@
         }
         else if (isRocket && S.aircraft?.id === 'saturn-v') {
           if (isApolloTelemetry()) { renderRocket(canvas); renderApollo(canvas); }
+          else if (S.inLM && S.mission?.hasLM) renderLM(canvas);
           else renderApollo(canvas);
         }
         else if (isRocket)           renderRocket(canvas);

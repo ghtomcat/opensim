@@ -8,7 +8,7 @@
      Altitude-vs-time profile — stage 1 (cyan) + stage 2 (green)
    ═══════════════════════════════════════════════════════════════ */
 
-import { S } from '../core/state.js';
+import { S, setState } from '../core/state.js';
 import { moonECI } from '../core/rocket.js';
 
 const DEG      = Math.PI / 180;
@@ -748,6 +748,7 @@ function _drawProfile(ctx, W, H, tLO, ac) {
 const APOLLO_ROLES = ['CDR', 'CMP', 'LMP', 'IU', 'TELEM'];
 let _apolloRole     = 'CDR';
 let _apolloTabRects = [];
+let _lmBtnRect      = null;
 
 /* ── DSKY keyboard input state ── */
 let _dskyMode    = null;   // null | 'verb' | 'noun'
@@ -787,6 +788,13 @@ export function handleApolloClick(canvas, evt) {
   const rect = canvas.getBoundingClientRect();
   const x    = (evt.clientX - rect.left) * DPR;
   const y    = (evt.clientY - rect.top)  * DPR;
+
+  /* "→ LM" button */
+  if (_lmBtnRect && x >= _lmBtnRect.x && x <= _lmBtnRect.x + _lmBtnRect.w &&
+      y >= _lmBtnRect.y && y <= _lmBtnRect.y + _lmBtnRect.h) {
+    setState({ inLM: true });
+    return true;
+  }
 
   /* DSKY keyboard (CMP panel only) */
   if (_apolloRole === 'CMP') {
@@ -2021,6 +2029,20 @@ export function renderApollo(canvas) {
   _apolloText(ctx, callsign,  pad,     Math.round(hdH * 0.6), { font: `${Math.round(H*0.042)}px "IBM Plex Mono",monospace`, color: '#c8d4bc', base: 'middle' });
   _apolloText(ctx, roleLabel, W / 2,   Math.round(hdH * 0.6), { font: lSz, color: '#7a8a72', align: 'center', base: 'middle' });
   _apolloText(ctx, met,       W - pad, Math.round(hdH * 0.52), { font: `${Math.round(H*0.038)}px "IBM Plex Mono",monospace`, color: '#5dd47e', align: 'right', base: 'middle' });
+
+  /* "→ LM" button — only when mission has an LM */
+  _lmBtnRect = null;
+  if (S.mission?.hasLM) {
+    const sml   = `${Math.round(H*0.022)}px "IBM Plex Mono",monospace`;
+    const btnW  = Math.round(W * 0.10), btnH = Math.round(hdH * 0.42);
+    const btnX  = W - pad - Math.round(W*0.12) - btnW - Math.round(W*0.02);
+    const btnY  = Math.round(hdH * 0.30);
+    ctx.fillStyle = '#0e1a14'; ctx.strokeStyle = '#284028'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(btnX, btnY, btnW, btnH, 3); ctx.fill(); ctx.stroke();
+    _apolloText(ctx, 'LM →', btnX + btnW/2, btnY + btnH/2,
+                { font: sml, color: '#4a8a50', align: 'center', base: 'middle' });
+    _lmBtnRect = { x: btnX, y: btnY, w: btnW, h: btnH };
+  }
 
   if (_nextLabel !== null && _nextDt !== null) {
     const nAbs = _nextDt;

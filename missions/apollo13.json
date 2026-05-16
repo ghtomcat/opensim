@@ -252,6 +252,64 @@
         "PC+2 burn: T+79h 57m 39s",
         "Splashdown: 17 April 1970"
       ]
+    },
+    {
+      "title": "LM ACTIVATION — AQUARIUS",
+      "type": "checklist",
+      "items": [
+        "GET 55:54 — O₂ Tank 2 rupture",
+        "—",
+        "□ Tunnel hatch: OPEN",
+        "□ LM power: MAIN A + MAIN B",
+        "□ PGNCS: ALIGN to CSM IMU",
+        "□ AGS: INITIALIZE",
+        "□ Comm: RELAY through LM",
+        "□ DSKY: V37 N00 → P00 (idle)",
+        "□ Descent engine: ARM",
+        "—",
+        "CM powered down to 12A",
+        "LM Aquarius is now lifeboat"
+      ]
+    },
+    {
+      "title": "PC+2 BURN — LM DPS",
+      "type": "checklist",
+      "items": [
+        "GET 79:57 — Pericynthion + 2h",
+        "DPS burn: 263 sec / 262 m/s",
+        "—",
+        "□ DSKY: V37 N00 → P40",
+        "□ Thrust: 10% → 40% → 100%",
+        "□ DSKY: V16 N40 (burn monitor)",
+        "□ Ullage: 16 sec before ignition",
+        "□ Ignition confirm: PROCEED",
+        "—",
+        "Delta-V: 262 m/s prograde",
+        "Duration: 263 seconds",
+        "Returns trajectory to Earth"
+      ]
+    },
+    {
+      "title": "RETURN COAST — AQUARIUS",
+      "type": "checklist",
+      "items": [
+        "87 hours in Aquarius lifeboat",
+        "—",
+        "□ Power budget: < 15A total",
+        "□ CO₂: LiOH canister swap",
+        "□ Water: ration 6 oz/man/day",
+        "□ Temp: 3°C cabin — dress warm",
+        "□ MCC-7 course correction burn",
+        "—",
+        "GET 141:30 — LM Jettison",
+        "□ Transfer back to CM Odyssey",
+        "□ CM power-up checklist",
+        "□ LM hatch: CLOSE + SEAL",
+        "□ DSKY: V37 N00 → P63 (entry)",
+        "—",
+        "Splashdown: 17 April 1970",
+        "South Pacific — USS Iwo Jima"
+      ]
     }
   ]
 }
