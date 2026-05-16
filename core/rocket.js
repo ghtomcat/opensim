@@ -824,6 +824,9 @@ export function tickRocket(dt) {
         if (newWarnings.length !== curWarnings.length || newMaster !== !!S.masterAlarm) {
           setState({ activeWarnings: newWarnings, masterAlarm: newMaster });
         }
+        if (!S.smDamaged && triggered.some(f => f.id === 'o2_tank_explosion')) {
+          setState({ smDamaged: true, smExplosionT: mT });
+        }
       }
     }
 

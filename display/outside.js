@@ -2404,6 +2404,10 @@ function _drawCSMOrbitDetail(ctx, pts, project, dpr, camSide) {
 
   const smBase = 0.024, cmBase = 0.027, cmTop = 0.030;
 
+  const smDamaged  = S.smDamaged ?? false;
+  const smAge      = smDamaged ? Math.max(0, (S.time ?? 0) - (S.smExplosionT ?? 0)) : Infinity;
+  const _o2BayAng  = Math.PI / 3;   // 60° — bay 1, O₂ tank 2 location
+
   /* CM cone radius at a given longitudinal position */
   function cmR(vF) {
     const t = (vF - cmBase) / (cmTop - cmBase);
@@ -2471,6 +2475,7 @@ function _drawCSMOrbitDetail(ctx, pts, project, dpr, camSide) {
   ctx.strokeStyle = 'rgba(78, 60, 26, 0.36)';
   ctx.lineWidth   = 0.65 * dpr;
   for (let s = 0; s < 6; s++) {
+    if (smDamaged && s === 1) continue;  // bay 1 panel blown off
     const ang = (s / 6) * Math.PI * 2;
     if (!frontSide(ang)) continue;
     const p7 = project([smBase, _svcr * Math.cos(ang), _svcr * Math.sin(ang)]);
@@ -2559,6 +2564,90 @@ function _drawCSMOrbitDetail(ctx, pts, project, dpr, camSide) {
     ctx.beginPath(); ctx.moveTo(pS.x, pS.y); ctx.lineTo(pE.x, pE.y); ctx.stroke();
   }
   ctx.restore();
+
+  /* ── O₂ tank 2 explosion damage — bay 1 at 60° ──────────────────── */
+  if (smDamaged && frontSide(_o2BayAng)) {
+    /* 1. Scorch mark — permanent dark burn around the bay */
+    const pScorch = project([smMidF + 0.001, _svcr * Math.cos(_o2BayAng), _svcr * Math.sin(_o2BayAng)]);
+    if (pScorch) {
+      const sr = 14 * dpr;
+      const sg = ctx.createRadialGradient(pScorch.x, pScorch.y, 0, pScorch.x, pScorch.y, sr);
+      sg.addColorStop(0,   'rgba(18,12,4,0.92)');
+      sg.addColorStop(0.3, 'rgba(30,18,6,0.60)');
+      sg.addColorStop(1,   'rgba(50,35,12,0)');
+      ctx.save(); ctx.fillStyle = sg;
+      ctx.beginPath(); ctx.arc(pScorch.x, pScorch.y, sr, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+
+    /* 2. Bent panel — dark scorched quad sticking outward from bay */
+    const da = Math.PI / 6.5;
+    const panelOut = _svcr * 0.26;
+    const pq = [
+      project([smBase + 0.0005, _svcr * Math.cos(_o2BayAng - da * 0.5), _svcr * Math.sin(_o2BayAng - da * 0.5)]),
+      project([smBase + 0.0005, _svcr * Math.cos(_o2BayAng + da * 0.5), _svcr * Math.sin(_o2BayAng + da * 0.5)]),
+      project([cmBase - 0.0005, (_svcr + panelOut) * Math.cos(_o2BayAng + da * 0.2), (_svcr + panelOut) * Math.sin(_o2BayAng + da * 0.2)]),
+      project([cmBase - 0.0005, (_svcr + panelOut) * Math.cos(_o2BayAng - da * 0.2), (_svcr + panelOut) * Math.sin(_o2BayAng - da * 0.2)]),
+    ];
+    if (pq.every(p => p)) {
+      const cross = (pq[1].x - pq[0].x) * (pq[2].y - pq[0].y) - (pq[1].y - pq[0].y) * (pq[2].x - pq[0].x);
+      if (cross > 0) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(pq[0].x, pq[0].y); ctx.lineTo(pq[1].x, pq[1].y);
+        ctx.lineTo(pq[2].x, pq[2].y); ctx.lineTo(pq[3].x, pq[3].y);
+        ctx.closePath();
+        ctx.fillStyle   = 'rgba(55,42,18,0.88)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(140,100,35,0.65)';
+        ctx.lineWidth   = 0.8 * dpr; ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    /* 3. Persistent O₂ vent — thin gas trail, fades over 10 minutes */
+    if (smAge < 600) {
+      const rampIn  = smAge < 1 ? smAge : 1;
+      const ventA   = 0.45 * rampIn * Math.max(0, 1 - smAge / 600);
+      if (ventA > 0.005) {
+        const pVBase = project([smMidF, (_svcr + 0.00005) * Math.cos(_o2BayAng), (_svcr + 0.00005) * Math.sin(_o2BayAng)]);
+        const pVTip  = project([smMidF + 0.003, (_svcr + 0.0012) * Math.cos(_o2BayAng + 0.08), (_svcr + 0.0012) * Math.sin(_o2BayAng + 0.08)]);
+        if (pVBase && pVTip) {
+          const vg = ctx.createLinearGradient(pVBase.x, pVBase.y, pVTip.x, pVTip.y);
+          vg.addColorStop(0,   `rgba(210,225,255,${ventA.toFixed(3)})`);
+          vg.addColorStop(0.5, `rgba(190,210,255,${(ventA * 0.55).toFixed(3)})`);
+          vg.addColorStop(1,   'rgba(180,200,255,0)');
+          ctx.save();
+          ctx.strokeStyle = vg;
+          ctx.lineWidth   = Math.max(1.5, 2.8 * dpr);
+          ctx.lineCap     = 'round';
+          ctx.beginPath(); ctx.moveTo(pVBase.x, pVBase.y); ctx.lineTo(pVTip.x, pVTip.y);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+    }
+
+    /* 4. Initial explosion puff — expanding cloud, first 5 seconds */
+    if (smAge < 5) {
+      const pBay = project([smMidF, _svcr * Math.cos(_o2BayAng), _svcr * Math.sin(_o2BayAng)]);
+      if (pBay) {
+        const frac  = smAge / 5;
+        const puffR = frac * 80 * dpr;
+        const puffA = Math.max(0, 1 - frac * frac);
+        const pg = ctx.createRadialGradient(pBay.x, pBay.y, 0, pBay.x, pBay.y, Math.max(1, puffR));
+        pg.addColorStop(0,    `rgba(255,215,130,${(puffA * 0.95).toFixed(2)})`);
+        pg.addColorStop(0.15, `rgba(230,200,160,${(puffA * 0.70).toFixed(2)})`);
+        pg.addColorStop(0.45, `rgba(180,185,200,${(puffA * 0.35).toFixed(2)})`);
+        pg.addColorStop(1,    'rgba(160,170,200,0)');
+        ctx.save();
+        ctx.fillStyle = pg;
+        ctx.beginPath(); ctx.arc(pBay.x, pBay.y, Math.max(1, puffR), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+  }
 }
 
 /* ── Core wireframe + shading renderer ───────────────────────── */
