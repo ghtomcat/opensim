@@ -793,6 +793,23 @@ export function tickRocket(dt) {
       if (mT >= pc2T) _applyTEIBurn(pc2Dv);
     }
 
+    /* T&D — Transposition and Docking (hasLM missions, post-TLI-cutoff → sivbSepT)
+       Drives S.tdProgress 0→1 over the T&D window; drops warp to 10× so the
+       cinematic sequence is watchable. */
+    if (S.mission?.hasLM && !S.sivbSep && S.rocketTLI) {
+      const tliCutoff = (S.mission.tliT ?? 0) + (S.mission.tliDuration ?? 0);
+      const svSepT    = S.mission.sivbSepT ?? 0;
+      const tdStart   = tliCutoff + 300;              // 5 min after TLI cutoff
+      const tdWindow  = Math.max(1, svSepT - 120 - tdStart);
+      if (mT >= tdStart && svSepT > 0) {
+        const tdP = Math.min(1, (mT - tdStart) / tdWindow);
+        if (Math.abs((S.tdProgress ?? -1) - tdP) > 0.001) setState({ tdProgress: tdP });
+      }
+      if (mT >= tdStart - 30 && mT < svSepT && (S.warpFactor ?? 1) > 10) {
+        setState({ warpFactor: 10 });
+      }
+    }
+
     /* Failure injection — process failures[] defined in the mission.
        Each failure: { t, id, affects: string[], masterAlarm?: bool }
        Builds S.activeWarnings (flat list of active C&W cell IDs) and

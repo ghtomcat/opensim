@@ -2814,6 +2814,27 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   }
   const pts = verts.map(project);
 
+  /* T&D — Transposition and Docking visual
+     ptsCSM: CSM vertices (ring 7+, vi≥112) re-projected with axial separation offset
+     and pitch rotation so the CM nose swings 180° to face the S-IVB adapter. */
+  const _tdProgress = (isSV && (S.mission?.hasLM) && !S.sivbSep) ? (S.tdProgress ?? 0) : 0;
+  const _inTDSep    = _tdProgress > 0.03;
+  let ptsCSM = null;
+  if (_inTDSep) {
+    const _tdSep = _tdProgress < 0.15 ? (_tdProgress / 0.15) * 0.018
+                 : _tdProgress < 0.70 ? 0.018
+                 : _tdProgress < 0.88 ? (1 - (_tdProgress - 0.70) / 0.18) * 0.018 : 0;
+    const _tdRot  = _tdProgress < 0.15 ? 0
+                  : _tdProgress < 0.45 ? ((_tdProgress - 0.15) / 0.30) * Math.PI : Math.PI;
+    const _vfCM   = 0.027;
+    const cosRot  = Math.cos(_tdRot), sinRot = Math.sin(_tdRot);
+    ptsCSM = V_.map(v => {
+      const vfl = v[0] - _vfCM, yl = v[1];
+      return project([vfl * cosRot - yl * sinRot + _vfCM + _tdSep,
+                      vfl * sinRot + yl * cosRot, v[2]]);
+    });
+  }
+
   /* Rise from pad — used to gate pad-structure geometry and nozzle visibility */
   const alt_nm   = (S.alt ?? 0) * FT_NM;
   const _svRise  = Math.max(0, alt_nm - (S.mission?.departure?.elevation ?? 0) * FT_NM);
@@ -2929,8 +2950,8 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     _dir._tliWas = tliNow;
   }
 
-  const hasLM = isSV && (S.sivbSep ?? false) && !!(S.mission?.hasLM);
-  const lmPts = hasLM ? _V_lm.map(project) : null;
+  const hasLM = isSV && ((S.sivbSep ?? false) || _inTDSep) && !!(S.mission?.hasLM);
+  const lmPts = hasLM ? _V_lm.map(project) : null;  // LM stays in adapter during T&D
 
   let bPts = null, cosdP = 1, sindP = 0;
   let bOffF = 0, bOffR = 0, bOffU = 0;
@@ -2985,8 +3006,12 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     if (isSV && rStage >= 3 && i <= 79) return null;
     if (isSV && S.sivbSep   && i >= 80 && i <= 111)  return null;
     if (isSV && S.lesJettisoned && i >= 144 && i < 160) return null;
+    /* T&D: hide SLA adapter faces (96-111) that span the separation plane;
+       CSM faces (112+) render via ptsCSM at the offset position. */
+    if (isSV && _inTDSep && i >= 96 && i <= 111) return null;
 
-    const ps = fi.map(vi => pts[vi]);
+    const psSrc = (isSV && _inTDSep && ptsCSM && i >= 112) ? ptsCSM : pts;
+    const ps = fi.map(vi => psSrc[vi]);
     if (ps.some(p => !p)) return null;
 
     /* Wing view: skip fuselage, only render wings + control surfaces */
@@ -3362,7 +3387,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
      j2On        true while engines are burning (gates glow colours)
      Renders: lateral bell faces (side cam only), exit disc + top cap.
      Colours coupled to _PLUME_HOT/OFF.lh2 — LH2/LOX blue-white.      */
-  const _drawJ2Nozzles = (baseVF, bodyR, engCenters, j2On) => {
+  const _drawJ2Nozzles = (baseVF, bodyR, engCenters, j2On, style = 'lh2') => {
     const nNoz  = 8;
     const nzLen = bodyR * 0.36;   // J-2 nozzle length  (≈ 1.78 m)
     const nzRt  = bodyR * 0.12;   // radius at attachment
@@ -3391,13 +3416,13 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         if ((p1.x-p0.x)*(p2.y-p0.y) - (p1.y-p0.y)*(p2.x-p0.x) >= 0) {
           const avgD = botR.reduce((s,p)=>s+p.d,0)/nNoz;
           faces.push({ ps: botR, br: j2On ? 1.0 : 0.07, avgD,
-                       col: j2On ? _PLUME_HOT.lh2 : _PLUME_OFF.lh2 });
+                       col: j2On ? _PLUME_HOT[style] : _PLUME_OFF[style] });
         }
       }
       if (!topR.some(p => !p)) {
         const avgD = topR.reduce((s,p)=>s+p.d,0)/nNoz;
         faces.push({ ps: topR, br: j2On ? 1.0 : 0.06, avgD,
-                     col: j2On ? _PLUME_HOT.lh2 : _PLUME_OFF.lh2 });
+                     col: j2On ? _PLUME_HOT[style] : _PLUME_OFF[style] });
       }
     }
   };
@@ -3616,42 +3641,15 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
   }
 
-  /* Engine nozzle cluster — Falcon 9 Stage 1 only (pre-separation) */
+  /* Engine nozzle cluster — Falcon 9 Stage 1: 9× Merlin (RP-1/LOX) */
   if (isF9 && rStage < 2) {
-    const dpr = devicePixelRatio;
-    const nozzleVerts = [113,114,115,116,117,118,119,120,121];
-    const pC = pts[113];
-    const pEdge = pts[114];
-    if (pC && pEdge) {
-      /* Nozzle exit radius in screen pixels from projected centre + edge vertex */
-      const nR = Math.hypot(pEdge.x - pC.x, pEdge.y - pC.y) * 0.46;
-      ctx.save();
-      /* Dark octaweb plate behind nozzles */
-      ctx.fillStyle = 'rgba(20,22,28,0.95)';
-      const pRing = nozzleVerts.slice(1).map(vi => pts[vi]).filter(Boolean);
-      if (pRing.length === 8) {
-        ctx.beginPath();
-        ctx.arc(pC.x, pC.y, Math.hypot(pRing[0].x-pC.x, pRing[0].y-pC.y) + nR * 1.2, 0, Math.PI*2);
-        ctx.fill();
-      }
-      /* Individual nozzle circles */
-      for (const vi of nozzleVerts) {
-        const pt = pts[vi];
-        if (!pt) continue;
-        const r = (vi === 65 ? nR * 1.15 : nR);
-        /* Nozzle throat glow */
-        const grad = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, r);
-        grad.addColorStop(0,   'rgba(255,210,100,0.70)');
-        grad.addColorStop(0.5, 'rgba(180,130,60,0.40)');
-        grad.addColorStop(1,   'rgba(40,40,48,0.95)');
-        ctx.fillStyle = grad;
-        ctx.beginPath(); ctx.arc(pt.x, pt.y, r, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = 'rgba(140,150,165,0.80)';
-        ctx.lineWidth = Math.max(0.5, 0.7 * dpr);
-        ctx.beginPath(); ctx.arc(pt.x, pt.y, r, 0, Math.PI*2); ctx.stroke();
-      }
-      ctx.restore();
-    }
+    const merlinOn = pastIgnition && !(S.rocketCoast ?? false) && !S.rocketMECO;
+    const _mCenters = [
+      [0, 0],
+      [_nzO, 0], [_nzO7, _nzO7], [0, _nzO], [-_nzO7, _nzO7],
+      [-_nzO, 0], [-_nzO7, -_nzO7], [0, -_nzO], [_nzO7, -_nzO7],
+    ];
+    _drawJ2Nozzles(-0.016, _rf9, _mCenters, merlinOn, 'rp1');
   }
 
   /* Cabin + cockpit windows and doors — A350 only */
@@ -4379,7 +4377,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   } // isSV || isF9
 
   /* ── CSM orbit-mode detail: windows, seams, RCS, soot ── */
-  if (isSV && S.rocketOrbit) _drawCSMOrbitDetail(ctx, pts, project, dpr, camSide);
+  if (isSV && S.rocketOrbit && !_inTDSep) _drawCSMOrbitDetail(ctx, pts, project, dpr, camSide);
 
 }
 
