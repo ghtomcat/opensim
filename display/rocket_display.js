@@ -1850,6 +1850,75 @@ function _drawVehicleStack(ctx, cx, topY, availH, stage, seco, sivbSep) {
   }
 }
 
+/* ── Caution & Warning panel (right section, 4 cols × 6 rows) ──────────────
+   Mirrors the Apollo CM C&W right panel.  Each cell carries a failure ID;
+   the cell lights amber if that ID is present in S.activeWarnings.
+   MASTER ALARM header fires when S.masterAlarm is true. */
+function _drawCWPanel(ctx, x, y, w, h) {
+  const warnings    = new Set(S.activeWarnings ?? []);
+  const masterAlarm = !!S.masterAlarm;
+  const COLS = 4, ROWS = 6;
+
+  /* Grid definition: [failureId, displayLabel]  null = unused cell */
+  const cells = [
+    [null,                             ['FC_1',          'FC 1'          ], ['FC_2',          'FC 2'          ], ['FC_3',          'FC 3'          ]],
+    [null,                             ['INV1_TEMP_HI',  'INV 1\nTMP HI' ], ['INV2_TEMP_HI',  'INV 2\nTMP HI' ], ['INV3_TEMP_HI',  'INV 3\nTMP HI' ]],
+    [['SPS_PRESS',    'SPS\nPRSS'   ], null,                                ['AC_BUS_1',      'AC BUS 1'      ], ['AC_BUS_2',      'AC BUS 2'      ]],
+    [null,                             ['FC_BUS_DIS',    'FC BUS\nDIS'   ], ['AC1_OVLD',      'AC1\nOVLD'     ], ['AC2_OVLD',      'AC2\nOVLD'     ]],
+    [['CMC',          'CMC'         ], ['CREW_ALERT',    'CREW\nALERT'   ], ['MN_BUS_A_UNDERVOLT', 'MN BUS A\nUNDERVOLT'], ['MN_BUS_B_UNDERVOLT', 'MN BUS B\nUNDERVOLT']],
+    [['ISS',          'ISS'         ], ['CW',            'C/W'           ], ['O2_FLOW_HI',    'O₂\nFLOW HI'  ], ['SUIT_COMP',     'SUIT\nCOMP'    ]],
+  ];
+
+  /* Header strip — MASTER ALARM */
+  const hdrH = Math.round(h * 0.16);
+  ctx.fillStyle = masterAlarm ? '#b83010' : '#0d1008';
+  ctx.fillRect(x, y, w, hdrH - 3);
+  const hdrSz = Math.max(8, Math.round(hdrH * 0.52));
+  ctx.font          = `${hdrSz}px "IBM Plex Mono",monospace`;
+  ctx.textAlign     = 'center';
+  ctx.textBaseline  = 'middle';
+  ctx.fillStyle     = masterAlarm ? '#ffe8a0' : '#2c1c1c';
+  ctx.fillText('MASTER ALARM', x + w / 2, y + hdrH / 2);
+
+  /* Grid */
+  const gridY = y + hdrH;
+  const gridH = h - hdrH;
+  const cellW = Math.floor(w / COLS);
+  const cellH = Math.floor(gridH / ROWS);
+  const textSz = Math.max(7, Math.round(Math.min(cellH * 0.23, cellW * 0.078)));
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cx   = x + c * cellW;
+      const cy   = gridY + r * cellH;
+      const cell = cells[r][c];
+      const id   = cell?.[0] ?? null;
+      const lbl  = cell?.[1] ?? null;
+      const isActive = id ? warnings.has(id) : false;
+
+      ctx.fillStyle = isActive ? '#b85010' : (lbl ? '#09120d' : '#060908');
+      ctx.fillRect(cx + 1, cy + 1, cellW - 2, cellH - 2);
+
+      ctx.strokeStyle = '#192419';
+      ctx.lineWidth   = 1;
+      ctx.strokeRect(cx + 0.5, cy + 0.5, cellW - 1, cellH - 1);
+
+      if (lbl) {
+        ctx.font         = `${textSz}px "IBM Plex Mono",monospace`;
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle    = isActive ? '#ffe8a0' : '#2a3c2a';
+        const lines  = lbl.split('\n');
+        const lineH  = textSz * 1.25;
+        const totalH = lines.length * lineH;
+        lines.forEach((line, i) => {
+          ctx.fillText(line, cx + cellW / 2, cy + cellH / 2 - totalH / 2 + lineH * (i + 0.5));
+        });
+      }
+    }
+  }
+}
+
 export function renderApollo(canvas) {
   const DPR = devicePixelRatio || 1;
 
@@ -2008,6 +2077,13 @@ export function renderApollo(canvas) {
     _row('G-LOAD', gStr, { color: gCol });
     _gap(0.03);
     _row('ABORT MODE', abortMode, { color: '#f0c040', font: mSz });
+
+    /* C&W panel — always present on Apollo CM (dim when nominal) */
+    if (msn?.commProfile === 'sband-apollo') {
+      _gap(0.03);
+      const cwH = Math.round(mainH * 0.28);
+      _drawCWPanel(ctx, rightX, _rowY, rightW, cwH);
+    }
   }
 
   /* ═══ CMP: DSKY display + keyboard + velocity / orbit / abort ═══ */

@@ -1,10 +1,11 @@
 /* ═══════════════════════════════════════════════════════════════
    OpenSim — core/telemetry.js
    Records flight state at ~2Hz.
-   Ctrl+Shift+T → CSV (rockets) or JSONL (aircraft).
+   Ctrl+Shift+L → CSV (rockets) or JSONL (aircraft).
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from './state.js';
+import { moonECI } from './rocket.js';
 
 const INTERVAL = 0.5;   // seconds between samples
 let _buf = [];
@@ -75,6 +76,23 @@ export function tickTelemetry(dt) {
     row.active_eng   = S.rocketActiveEngines ?? null;
     row.coast        = (S.rocketCoast ?? false) ? 1 : 0;
     row.seco         = (S.rocketSECO  ?? false) ? 1 : 0;
+    row.loi          = (S.rocketLOI   ?? false) ? 1 : 0;
+    /* Moon-relative telemetry */
+    const ov = S.orbitVec;
+    if (ov) {
+      const { mx, my } = moonECI(S.time ?? 0);
+      const MOON_T_S = 27.32166 * 86400;
+      const MOON_SMA = 384_400_000;
+      const omega    = 2 * Math.PI / MOON_T_S;
+      const refAngle = ((S.mission?.moonRefAngle ?? 0) * Math.PI / 180);
+      const angle    = refAngle + (S.time ?? 0) * omega;
+      const vmx = -MOON_SMA * omega * Math.sin(angle);
+      const vmy =  MOON_SMA * omega * Math.cos(angle);
+      const dx  = ov.rx - mx, dy = ov.ry - my, dz = ov.rz ?? 0;
+      const rvx = ov.vx - vmx, rvy = ov.vy - vmy, rvz = ov.vz ?? 0;
+      row.moon_dist_km  = +(Math.sqrt(dx*dx + dy*dy + dz*dz) / 1000).toFixed(0);
+      row.moon_relspd   = +(Math.sqrt(rvx*rvx + rvy*rvy + rvz*rvz)).toFixed(1);
+    }
   } else if (isHover) {
     const pfx = S.hcActive === 'markus' ? 'hcM' : 'hc';
     row.hcLiftAct  = +(S[pfx+'LiftAct']  ?? 0).toFixed(3);
@@ -102,7 +120,10 @@ export function downloadTelemetry() {
 
 export function downloadTelemetryCSV() {
   if (!_buf.length) { console.warn('No telemetry recorded.'); return; }
-  const keys   = Object.keys(_buf[0]);
+  /* Union all row keys — columns like moon_dist_km only appear post-SECO */
+  const keySet = new Set();
+  for (const r of _buf) for (const k of Object.keys(r)) keySet.add(k);
+  const keys   = [...keySet];
   const header = keys.join(',');
   const rows   = _buf.map(r => keys.map(k => r[k] ?? '').join(','));
   const csv    = [header, ...rows].join('\n');

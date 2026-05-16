@@ -40,27 +40,29 @@
     "elevation": 6
   },
   "arrival": null,
-  "hasLM":       true,
+  "hasLM":       false,
 
-  "tliT":        10417,
-  "sivbSepT":    12360,
+  "tliT":        11991,
+  "sivbSepT":    13934,
   "tliDv":       3147,
   "tliDuration": 317,
   "mcc1T":       39780,
-  "loiT":        305000,
-  "loiDv":       1067,
-  "teiT":        378200,
+  "mcc2T":       86400,
+  "mcc4T":       260000,
+  "loiT":        350000,
+  "loiDv":       854,
+  "teiT":        422000,
   "teiDv":       1070,
-  "moonRefAngle": 69,
+  "moonRefAngle": 105.3,
 
   "events": [
-    { "t": 10734, "label": "TLI CUTOFF"  },
-    { "t": 12360, "label": "S-IVB SEP"   },
-    { "t": 39780, "label": "MCC-1"        },
-    { "t": 305000, "label": "LOI"         },
-    { "t": 326600, "label": "EARTHRISE"   },
-    { "t": 378200, "label": "TEI"         },
-    { "t": 585800, "label": "REENTRY"     }
+    { "t": 12308,  "label": "TLI CUTOFF"  },
+    { "t": 13934,  "label": "S-IVB SEP"   },
+    { "t": 39780,  "label": "MCC-1"        },
+    { "t": 315827, "label": "LOI"          },
+    { "t": 335000, "label": "EARTHRISE"    },
+    { "t": 389000, "label": "TEI"          },
+    { "t": 591000, "label": "REENTRY"      }
   ],
 
   "atcClearances": [
@@ -87,7 +89,7 @@
       "text": "Ignition. TLI."
     },
     {
-      "trigger": { "type": "time", "t": 10734 },
+      "trigger": { "type": "time", "t": 12308 },
       "voice": "crew",
       "text": "Shutdown. We're on our way to the Moon."
     },
@@ -123,6 +125,58 @@
     },
 
     {
+      "t": 315027,
+      "voice": "capcom",
+      "text": "Apollo 8, Houston. One minute to LOS. All systems Go."
+    },
+    {
+      "t": 315087,
+      "voice": "capcom",
+      "text": "Safe journey, guys."
+    },
+    {
+      "t": 315147,
+      "voice": "crew",
+      "text": "We'll see you on the other side."
+    },
+
+    {
+      "trigger": { "type": "loi" },
+      "voice": "crew",
+      "text": "Ignition."
+    },
+    {
+      "trigger": { "type": "after", "idx": 13, "delay": 242 },
+      "voice": "crew",
+      "text": "Shutdown."
+    },
+    {
+      "trigger": { "type": "after", "idx": 13, "delay": 60 },
+      "voice": "crew",
+      "text": "Hey, I got the Moon."
+    },
+    {
+      "trigger": { "type": "after", "idx": 15, "delay": 90 },
+      "voice": "crew",
+      "text": "It looks like a big beach down there."
+    },
+    {
+      "trigger": { "type": "after", "idx": 16, "delay": 120 },
+      "voice": "crew",
+      "text": "There're no shadows in those craters down there."
+    },
+    {
+      "trigger": { "type": "after", "idx": 13, "delay": 1380 },
+      "voice": "crew",
+      "text": "Houston, Apollo 8. Burn complete. Our orbit 169.1 by 60.5."
+    },
+    {
+      "trigger": { "type": "after", "idx": 17, "delay": 15 },
+      "voice": "capcom",
+      "text": "Roger, 169.1 by 60.5. Good to hear your voice."
+    },
+
+    {
       "t": 9600,
       "audio": "assets/apollo8/highlights.mp3",
       "voice": "ambient",
@@ -133,7 +187,7 @@
     },
 
     {
-      "t": 115200,
+      "t": 219000,
       "audio": "assets/apollo8/highlights.mp3",
       "voice": "ambient",
       "volume": 0.75,
@@ -143,7 +197,7 @@
     },
 
     {
-      "t": 303200,
+      "t": 315027,
       "audio": "assets/apollo8/highlights.mp3",
       "voice": "ambient",
       "volume": 0.75,
@@ -153,7 +207,7 @@
     },
 
     {
-      "t": 307400,
+      "t": 318000,
       "audio": "assets/apollo8/highlights.mp3",
       "voice": "ambient",
       "volume": 0.75,
@@ -163,7 +217,7 @@
     },
 
     {
-      "t": 320000,
+      "t": 323000,
       "audio": "assets/apollo8/highlights.mp3",
       "voice": "ambient",
       "volume": 0.75,
@@ -173,7 +227,7 @@
     },
 
     {
-      "t": 334000,
+      "t": 335000,
       "audio": "assets/apollo8/highlights.mp3",
       "voice": "ambient",
       "volume": 0.75,
@@ -183,7 +237,7 @@
     },
 
     {
-      "t": 375000,
+      "t": 351000,
       "audio": "assets/apollo8/highlights.mp3",
       "voice": "ambient",
       "volume": 0.80,
@@ -193,7 +247,7 @@
     },
 
     {
-      "t": 376200,
+      "t": 381000,
       "audio": "assets/apollo8/highlights.mp3",
       "voice": "ambient",
       "volume": 0.75,
@@ -203,7 +257,7 @@
     },
 
     {
-      "t": 380500,
+      "t": 391000,
       "audio": "assets/apollo8/highlights.mp3",
       "voice": "ambient",
       "volume": 0.75,
@@ -213,7 +267,7 @@
     },
 
     {
-      "t": 582000,
+      "t": 586000,
       "audio": "assets/apollo8/highlights.mp3",
       "voice": "ambient",
       "volume": 0.75,
@@ -253,7 +307,7 @@
         "Launch azimuth: 072°",
         "Parking orbit: 190 km circular",
         "TLI: T+2h 50m 37s",
-        "Lunar orbit: 24 December 1968"
+        "Lunar orbit: 25 December 1968"
       ]
     },
     {

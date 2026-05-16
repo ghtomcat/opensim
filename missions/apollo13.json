@@ -1,0 +1,256 @@
+{
+  "id": "apollo13",
+  "phase": "launch",
+  "commProfile": "sband-apollo",
+  "title": "Apollo 13 — Houston, We've Had a Problem",
+  "description": "11 April 1970. Jim Lovell, Jack Swigert, Fred Haise. An oxygen tank explosion 56 hours into the mission turns the lunar module into a lifeboat and the free-return trajectory into the path home.",
+  "author": "Markus Leutwyler",
+  "fiction_note": "Faithful recreation of the Apollo 13 mission timeline. Crew: Lovell (CDR), Swigert (CMP), Haise (LMP). CapCom: Jack Lousma (during explosion), others.",
+  "aircraft": "saturn-v",
+  "crew": {
+    "CDR": "Lovell",
+    "CMP": "Swigert",
+    "LMP": "Haise"
+  },
+  "timeOfDay": 0.800,
+
+  "weather": {
+    "source": "manual",
+    "manual": {
+      "wdir": 90,
+      "wspd": 6,
+      "turbulence": 0.03,
+      "altim": 1015,
+      "temp": 22
+    }
+  },
+
+  "initialState": {
+    "lat": 28.608,
+    "lon": -80.604,
+    "alt": 46,
+    "spd": 0,
+    "hdg": 72,
+    "pitch": 90,
+    "roll": 0
+  },
+
+  "departure": {
+    "name": "Kennedy Space Center LC-39A",
+    "elevation": 6
+  },
+  "arrival": null,
+  "hasLM": true,
+
+  "tliT":        9347,
+  "sivbSepT":    12038,
+  "tliDv":       3147,
+  "tliDuration": 344,
+  "mcc1T":       39780,
+  "mcc2T":       86400,
+  "mcc4T":       195000,
+  "loiDv":       854,
+  "noLOI":       true,
+  "pc2T":        287859,
+  "pc2Dv":       262,
+  "moonRefAngle": 285.0,
+
+  "events": [
+    { "t": 9691,   "label": "TLI CUTOFF"  },
+    { "t": 12038,  "label": "S-IVB SEP"   },
+    { "t": 39780,  "label": "MCC-1"        },
+    { "t": 201293, "label": "EXPLOSION"    },
+    { "t": 287859, "label": "PC+2"         },
+    { "t": 505800, "label": "LM JETTISON"  },
+    { "t": 514481, "label": "REENTRY"      }
+  ],
+
+  "atcClearances": [
+    {
+      "t": 120,
+      "audio": "assets/apollo8/day1.mp3",
+      "voice": "ambient",
+      "volume": 0.70,
+      "duration": 63,
+      "text": ""
+    },
+    {
+      "t": 176,
+      "audio": "assets/apollo8/launch.mp3",
+      "voice": "ambient",
+      "volume": 0.70,
+      "startTime": 21,
+      "duration": 180,
+      "text": ""
+    },
+    {
+      "trigger": { "type": "tli" },
+      "voice": "crew",
+      "text": "Ignition. TLI."
+    },
+    {
+      "trigger": { "type": "time", "t": 9691 },
+      "voice": "crew",
+      "text": "Shutdown. We're on our way."
+    },
+    {
+      "trigger": { "type": "ceco" },
+      "voice": "crew",
+      "text": "Center engine out."
+    },
+    {
+      "trigger": { "type": "meco" },
+      "voice": "crew",
+      "text": "Shutdown. Thrust is negative."
+    },
+    {
+      "trigger": { "type": "s2_ignition" },
+      "voice": "crew",
+      "text": "Ignition. S-II."
+    },
+    {
+      "trigger": { "type": "meco_s2" },
+      "voice": "crew",
+      "text": "Shutdown. S-II out."
+    },
+    {
+      "trigger": { "type": "s3_ignition" },
+      "voice": "crew",
+      "text": "Ignition. S-IVB."
+    },
+    {
+      "trigger": { "type": "seco" },
+      "voice": "crew",
+      "text": "Shutdown. We're in orbit."
+    },
+
+    {
+      "t": 201233,
+      "voice": "capcom",
+      "text": "Thirteen, we've got about a minute and a half to LOS here."
+    },
+    {
+      "t": 201293,
+      "voice": "crew",
+      "text": "Houston, we've had a problem. We've had a main B bus undervolt."
+    },
+    {
+      "t": 201360,
+      "voice": "capcom",
+      "text": "Roger. Main B undervolt. Okay, stand by Thirteen, we're looking at it."
+    },
+    {
+      "t": 201480,
+      "voice": "crew",
+      "text": "Houston, we are venting something out into space. It's a gas of some sort."
+    },
+    {
+      "t": 201600,
+      "voice": "capcom",
+      "text": "Roger, we copy you venting."
+    },
+    {
+      "t": 210000,
+      "voice": "capcom",
+      "text": "Thirteen, we want you to start powering down as much as you can."
+    },
+    {
+      "t": 211000,
+      "voice": "crew",
+      "text": "We're starting to power down, Houston. Moving to the LM."
+    },
+
+    {
+      "t": 277200,
+      "voice": "capcom",
+      "text": "Aquarius, you're go for the Moon. Pericynthion in twenty minutes."
+    },
+    {
+      "t": 277320,
+      "voice": "crew",
+      "text": "Roger. There it is. Right there. God, look at that."
+    },
+    {
+      "t": 277500,
+      "voice": "capcom",
+      "text": "Thirteen, you're go for PC+2."
+    },
+
+    {
+      "t": 287759,
+      "voice": "capcom",
+      "text": "Aquarius, sixty seconds to ignition."
+    },
+    {
+      "t": 287859,
+      "voice": "crew",
+      "text": "Ignition."
+    },
+    {
+      "t": 288122,
+      "voice": "crew",
+      "text": "Shutdown. That was a good burn."
+    },
+    {
+      "t": 288180,
+      "voice": "capcom",
+      "text": "Good burn, Aquarius. You're on your way home."
+    },
+
+    {
+      "t": 505740,
+      "voice": "capcom",
+      "text": "Aquarius, farewell."
+    },
+    {
+      "t": 505800,
+      "voice": "crew",
+      "text": "She was a good ship."
+    }
+  ],
+
+  "debrief": [
+    "Did the S-IC center engine cut out early as planned at Max Q?",
+    "All five F-1 engines at full thrust on liftoff?",
+    "The oxygen tank explosion occurred at GET 55:54:53 — 201,293 seconds into the mission.",
+    "The lunar module Aquarius became a lifeboat for 87 hours.",
+    "The PC+2 burn used the LM descent engine — 263 seconds, 262 m/s prograde.",
+    "Apollo 13 splashed down April 17, 1970. All crew survived.",
+    "Lovell: 'Houston, we've had a problem.'"
+  ],
+
+  "failures": [
+    {
+      "t": 201293,
+      "id": "o2_tank_explosion",
+      "label": "O₂ Tank 2 Rupture",
+      "affects": ["MN_BUS_A_UNDERVOLT", "MN_BUS_B_UNDERVOLT"],
+      "masterAlarm": true
+    }
+  ],
+
+  "atmosphere": "April 11, 1970. The world is watching.\nJim Lovell. Jack Swigert. Fred Haise.\nThree days from now, everything will change.\nFor now, the Saturn V is ready.",
+
+  "kneeboard": [
+    {
+      "title": "APOLLO 13",
+      "type": "briefing",
+      "items": [
+        "AS-508 / Saturn V",
+        "LC-39A, Kennedy Space Center",
+        "11 April 1970 — 19:13 UTC",
+        "—",
+        "CDR: Jim Lovell",
+        "CMP: Jack Swigert",
+        "LMP: Fred Haise",
+        "—",
+        "Launch azimuth: 072°",
+        "Parking orbit: 185 km circular",
+        "TLI: T+2h 35m 47s",
+        "Explosion: T+55h 54m 53s",
+        "PC+2 burn: T+79h 57m 39s",
+        "Splashdown: 17 April 1970"
+      ]
+    }
+  ]
+}

@@ -8,11 +8,12 @@
 import { S } from '../core/state.js';
 import { moonECI } from '../core/rocket.js';
 
-const GM_EARTH = 3.986004418e14;
-const GM_MOON  = 4.9048695e12;
-const MOON_SMA = 384_400_000;
-const FUTURE_STEPS    = 120;    // steps ahead
-const FUTURE_DT       = 3_600;  // seconds per step → 120 h
+const GM_EARTH   = 3.986004418e14;
+const GM_MOON    = 4.9048695e12;
+const MOON_SMA   = 384_400_000;
+const MOON_R_MIN = 1_747_000;    // Moon radius + 10 km — clamp display path at surface
+const FUTURE_MAX_T    = 432_000; // 120 h total window
+const FUTURE_MAX_PTS  = 600;     // cap to keep display fast
 
 let _cvs = null;
 let _ctx = null;
@@ -59,13 +60,18 @@ function _px(rx, ry, cx, cy, scale) {
 }
 
 /* ── Propagate future path using Velocity Verlet (Earth + Moon) ── */
+/* Adaptive step: 120 s near Moon (<50 000 km), 3600 s otherwise.   */
 function _propagate(v, mT) {
   let { rx, ry, rz, vx, vy, vz } = v;
   const pts = [{ rx, ry }];
   let t = mT;
+  let elapsed = 0;
 
-  for (let i = 0; i < FUTURE_STEPS; i++) {
+  while (elapsed < FUTURE_MAX_T && pts.length < FUTURE_MAX_PTS) {
     const { mx, my } = moonECI(t);
+    const moonR = Math.sqrt((rx - mx) ** 2 + (ry - my) ** 2 + rz*rz);
+    const DT = moonR < 10_000_000 ? 30 : moonR < 50_000_000 ? 120 : 3_600;
+    const step = Math.min(DT, FUTURE_MAX_T - elapsed);
 
     /* Accelerations at current position */
     const r2  = rx*rx + ry*ry + rz*rz;
@@ -79,31 +85,32 @@ function _propagate(v, mT) {
     const ay  = ke * ry + km * dmy;
     const az  = ke * rz + km * rz;
 
-    const dt2 = FUTURE_DT * FUTURE_DT;
-    const nrx = rx + vx * FUTURE_DT + 0.5 * ax * dt2;
-    const nry = ry + vy * FUTURE_DT + 0.5 * ay * dt2;
-    const nrz = rz + vz * FUTURE_DT + 0.5 * az * dt2;
+    const dt2 = step * step;
+    const nrx = rx + vx * step + 0.5 * ax * dt2;
+    const nry = ry + vy * step + 0.5 * ay * dt2;
+    const nrz = rz + vz * step + 0.5 * az * dt2;
 
-    t += FUTURE_DT;
+    t += step;
     const { mx: nmx, my: nmy } = moonECI(t);
     const nr2  = nrx*nrx + nry*nry + nrz*nrz;
     const nr3  = nr2 * Math.sqrt(nr2);
     const nke  = -GM_EARTH / nr3;
     const ndmx = nrx - nmx, ndmy = nry - nmy;
     const nmr2 = ndmx*ndmx + ndmy*ndmy + nrz*nrz;
+    if (nmr2 < MOON_R_MIN * MOON_R_MIN) break;  // hit Moon surface — stop before point-mass blowup
     const nmr3 = nmr2 * Math.sqrt(nmr2);
     const nkm  = -GM_MOON  / nmr3;
     const nax  = nke * nrx + nkm * ndmx;
     const nay  = nke * nry + nkm * ndmy;
     const naz  = nke * nrz + nkm * nrz;
 
-    vx += 0.5 * (ax + nax) * FUTURE_DT;
-    vy += 0.5 * (ay + nay) * FUTURE_DT;
-    vz += 0.5 * (az + naz) * FUTURE_DT;
+    vx += 0.5 * (ax + nax) * step;
+    vy += 0.5 * (ay + nay) * step;
+    vz += 0.5 * (az + naz) * step;
     rx = nrx; ry = nry; rz = nrz;
 
+    elapsed += step;
     pts.push({ rx, ry });
-    /* Stop propagating if we've re-entered Earth's atmosphere */
     if (Math.sqrt(rx*rx + ry*ry + rz*rz) < 6_371_000) break;
   }
   return pts;
@@ -179,6 +186,18 @@ export function renderCislunar() {
     ctx.arc(mp.px, mp.py, moonR, 0, 2 * Math.PI);
     ctx.fillStyle = g;
     ctx.fill();
+  }
+
+  /* Moon SOI — 66 000 km sphere of influence (matches LOI proximity trigger) */
+  const soiR = 66_000_000 * scale;
+  if (soiR > 4 * DPR) {
+    ctx.beginPath();
+    ctx.setLineDash([3 * DPR, 5 * DPR]);
+    ctx.arc(mp.px, mp.py, soiR, 0, 2 * Math.PI);
+    ctx.strokeStyle = 'rgba(160, 200, 255, 0.20)';
+    ctx.lineWidth   = DPR;
+    ctx.stroke();
+    ctx.setLineDash([]);
   }
 
   /* Moon orbit ring — faint guide circle, centred on Earth */

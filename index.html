@@ -66,6 +66,15 @@
     #cislunar.visible { display: block; }
     #cislunar-canvas  { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; }
 
+    /* ── Earthrise window (view mode 4, rockets in lunar orbit) ── */
+    #earthrise {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      z-index: 2;
+      display: none;
+    }
+    #earthrise.visible { display: block; }
+    #earthrise-canvas  { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; }
+
     /* ── Display canvases — full viewport ── */
     #pfd, #ecam {
       position: fixed; top: 0; left: 0;
@@ -1768,6 +1777,11 @@
   <canvas id="cislunar-canvas"></canvas>
 </div>
 
+<!-- Earthrise view (view mode 4, lunar orbit) -->
+<div id="earthrise">
+  <canvas id="earthrise-canvas"></canvas>
+</div>
+
 <!-- FCU (glareshield) canvas — above PFDs in dual-screen mode -->
 <canvas id="fcu"></canvas>
 
@@ -2106,6 +2120,7 @@
   import { initKneeboard, toggleKneeboard, tickKneeboard } from './display/kneeboard.js';
   import { initMap, renderMap, toggleMap, showMap, hideMap, initVelisMap, hideVelisMap, initG1000Map, hideG1000Map } from './display/map.js';
   import { renderCislunar, resetCislunar } from './display/cislunar.js';
+  import { renderEarthrise }              from './display/earthrise.js';
   import { lookupFlight, nearbyFlights, pickAircraft, trackFlight } from './core/liveflight.js';
 
   /* ── DOM refs ── */
@@ -2548,6 +2563,25 @@
         orders: 'Departure: UKKM Hostomel. Destination: EDDP Leipzig/Halle.\nFlight level: FL390. Route: UKKM–EPWA–EDDP.\nPayload: cargo, manifest on board.\nEstimated flight time: 2h 45min.\n\nWetter: +2°C · Wind 220/08kt · Sicht gut\nPiste 18 · 2 520 m · Flaps F1 · Vr 175 kt\nVollbremsung bis Pistenende if rejected.',
         atmosphere: 'Sie ist das einzige ihrer Art auf der Welt.\nGebaut, um das Unmögliche zu tragen.\nHeute: Leipzig.\n\nAm 24. Februar beginnt die Invasion.\nAm 27. Februar 2022 wird sie auf diesem Flughafen zerstört.\n\nSie weiß es nicht.\nSie startet.',
       },
+    },
+    {
+      id: 'apollo13', aircraft: 'saturn-v',
+      acName: 'Saturn V', engine: 'F-1 × 5 · Rocketdyne',
+      location: 'Kennedy Space Center · LC-39A', title: 'Apollo 13 · Houston, We\'ve Had a Problem', era: 'ORBIT', eraLabel: '1970', accent: '#c0a060',
+      briefing: {
+        classification: 'NASA · MISSION SUMMARY',
+        date: '11 April 1970 · 19:13 UTC',
+        pilot: 'CDR: Jim Lovell · CMP: Jack Swigert · LMP: Fred Haise',
+        unit: 'NASA Manned Spacecraft Center · Houston',
+        aircraft: 'Saturn V AS-508 · S-IC: 5 × F-1 · 33.4 MN · S-II: 5 × J-2 · S-IVB: 1 × J-2',
+        orders: 'Launch site: Kennedy Space Center LC-39A.\nTarget: Fra Mauro highlands, lunar surface.\n\nFlight sequence:\nT+00:00  F-1 ignition · Liftoff\nT+02:35m  TLI ignition\nT+55:54m  Oxygen tank explosion — ABORT\nT+77:02m  Moon pericynthion — 254 km altitude\nT+79:57m  PC+2 burn — LM DPS, 263 s\nT+141:30m  LM Aquarius jettisoned\nT+142:54m  Reentry\n\nAll crew survived.',
+        atmosphere: 'April 11, 1970.\nJim Lovell. Jack Swigert. Fred Haise.\n\nAt T+55 hours, an oxygen tank explodes 330,000 km from Earth.\nThe lunar module Aquarius becomes a lifeboat.\nThe Moon\'s gravity becomes the engine that brings them home.\n\n"Houston, we\'ve had a problem."',
+      },
+      roles: [
+        { id: 'CDR', label: 'Commander — Lovell' },
+        { id: 'CMP', label: 'Command Module Pilot — Swigert' },
+        { id: 'LMP', label: 'Lunar Module Pilot — Haise' },
+      ],
     },
     {
       id: 'apollo8', aircraft: 'saturn-v',
@@ -3738,7 +3772,7 @@
     obEl.addEventListener('click', dismissOnboarding);
 
     window.addEventListener('keydown', (e) => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'X') {
+      if (e.ctrlKey && e.shiftKey && e.key === 'L') {
         e.preventDefault();
         if (S.aircraft?.vehicleType === 'rocket') downloadTelemetryCSV();
         else downloadTelemetry();
@@ -3792,7 +3826,7 @@
       }
 
       if (e.key === 'v' || e.key === 'V') {
-        const nModes = (S.aircraft?.vehicleType === 'rocket' && S.rocketOrbit) ? 4 : 3;
+        const nModes = (S.aircraft?.vehicleType === 'rocket' && S.rocketOrbit) ? 5 : 3;
         _viewMode = (_viewMode + 1) % nModes;
         _applyViewMode(_viewMode);
       }
@@ -3810,16 +3844,18 @@
     });
 
     function _applyViewMode(mode) {
-      const outside  = document.getElementById('outside');
-      const cislunar = document.getElementById('cislunar');
-      const pfd      = document.getElementById('pfd');
-      const ecam     = document.getElementById('ecam');
-      const uiEls    = ['fma','panel','keys','ptt-indicator','com-container','checklist'];
+      const outside   = document.getElementById('outside');
+      const cislunar  = document.getElementById('cislunar');
+      const earthrise = document.getElementById('earthrise');
+      const pfd       = document.getElementById('pfd');
+      const ecam      = document.getElementById('ecam');
+      const uiEls     = ['fma','panel','keys','ptt-indicator','com-container','checklist'];
       const nd = document.getElementById('nd');
-      /* Cislunar mode 3 — hide everything, show cislunar canvas */
-      if (mode === 3) {
+      /* Mode 3 — cislunar map / Mode 4 — Earthrise view */
+      if (mode === 3 || mode === 4) {
         outside.classList.remove('visible', 'combined');
-        if (cislunar) cislunar.classList.add('visible');
+        if (cislunar)  cislunar.classList[mode === 3 ? 'add' : 'remove']('visible');
+        if (earthrise) earthrise.classList[mode === 4 ? 'add' : 'remove']('visible');
         pfd.classList.remove('combined');
         if (nd) nd.classList.remove('combined');
         pfd.style.display = 'none'; ecam.style.display = 'none';
@@ -3828,8 +3864,9 @@
         hideMap();
         return;
       }
-      /* All other modes hide cislunar; restore map if aircraft has one */
-      if (cislunar) cislunar.classList.remove('visible');
+      /* All other modes hide cislunar and earthrise; restore map if aircraft has one */
+      if (cislunar)  cislunar.classList.remove('visible');
+      if (earthrise) earthrise.classList.remove('visible');
       if (S.aircraft?.map !== false && !S.rocketTLI) showMap();
       if (mode === 0) {
         outside.classList.remove('visible', 'combined');
@@ -3988,7 +4025,8 @@
       () => tickKneeboard(),
       () => renderMissionClock(),
       () => { if (S.rocketTLI) hideMap(); renderMap(); },
-      () => { if (document.getElementById('cislunar')?.classList.contains('visible')) renderCislunar(); },
+      () => { if (document.getElementById('cislunar')?.classList.contains('visible'))  renderCislunar(); },
+      () => { if (document.getElementById('earthrise')?.classList.contains('visible')) renderEarthrise(); },
     ]);
   }
 

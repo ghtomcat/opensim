@@ -459,8 +459,22 @@ function _evalTrigger(tr) {
       return (S.rocketG ?? 0) >= tr.min;
     case 'meco':
       return !!(S.rocketMECO);
+    case 'meco_s2':
+      return !!(S.rocketMECO2);
+    case 's2_ignition':
+      return !!(S.rocketS2Ignition);
+    case 's3_ignition':
+      return !!(S.rocketS3Ignition);
+    case 'seco':
+      return !!(S.rocketSECO);
+    case 'ceco':
+      return !!(S.rocketCECO);
     case 'tli':
       return !!(S.rocketTLI);
+    case 'loi':
+      return !!(S.rocketLOI);
+    case 'tei':
+      return !!(S.rocketTEI);
     case 'com_active':
       return _isComPowered() && !_prevComPowered;
     case 'after': {

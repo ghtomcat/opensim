@@ -176,7 +176,7 @@ function _onKeyDown(e) {
   }
 
   /* Time warp — w steps forward, W steps backward through 1×→2×→5×→10×→100×→next event */
-  if ((e.key === 'x' || e.key === 'X') && (S.aircraft?.vehicleType === 'rocket' || S.aircraft?.panel)) {
+  if ((e.key === 'x' || e.key === 'X') && !e.ctrlKey && (S.aircraft?.vehicleType === 'rocket' || S.aircraft?.panel)) {
     const ev = _nextEvent();
     if (ev) {
       const dist = ev.t - 60 - (S.time ?? 0);

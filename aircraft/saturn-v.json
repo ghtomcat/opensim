@@ -37,14 +37,15 @@
         "burnDuration": 386
       },
       {
-        "name":         "S-IVB — 1× Rocketdyne J-2",
-        "engineCount":  1,
-        "thrustSL":     0,
-        "thrustVac":    1033000,
-        "isp":          421,
-        "massWet":      119900,
-        "massDry":      13300,
-        "burnDuration": 188
+        "name":              "S-IVB — 1× Rocketdyne J-2",
+        "engineCount":       1,
+        "thrustSL":          0,
+        "thrustVac":         1033000,
+        "isp":               421,
+        "massWet":           119900,
+        "massDry":           13300,
+        "burnDuration":      300,
+        "velocityGateSECO":  true
       }
     ],
 

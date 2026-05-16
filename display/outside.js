@@ -1926,65 +1926,73 @@ const _FN_sv = computeFaceNormals(_V_sv, _F_sv);
    +vF points away from CSM; descent stage is at maximum vF.
    ══════════════════════════════════════════════════════════════ */
 const _lmO  = 0.0300;   // CM top / LM docking port in SV frame
-const _lmAR = 0.00063;  // ascent stage body radius   (≈1.17 m)
-const _lmAH = 0.00152;  // ascent stage height        (≈2.81 m)
-const _lmDR = 0.00113;  // descent stage body radius  (≈2.09 m)
-const _lmDH = 0.00092;  // descent stage height       (≈1.70 m)
-const _lmLR = 0.00254;  // landing leg footpad radius (≈4.70 m)
-const _lmNR = 0.00040;  // descent engine nozzle exit radius
-const _lmNH = 0.00038;  // descent engine nozzle protrusion
+const _lmAR = 0.00095;  // ascent stage body radius   (wider: 1.76 m)
+const _lmAH = 0.00152;  // ascent stage height        (2.81 m)
+const _lmDR = 0.00120;  // descent stage body radius  (2.22 m)
+const _lmDH = 0.00092;  // descent stage height       (1.70 m)
+const _lmLR = 0.00254;  // landing leg footpad radius (4.70 m)
+const _lmNR = 0.00052;  // descent engine nozzle exit radius (wider bell)
+const _lmNH = 0.00042;  // descent engine nozzle protrusion
 
 const _COLORS_lm = [
   [200, 178,  80],  // 0 gold Mylar — descent stage
   [215, 212, 200],  // 1 aluminized Mylar — ascent stage
   [ 72,  70,  65],  // 2 dark thermal blanket — DS base cap
   [ 48,  48,  52],  // 3 engine dark
+  [ 20,  26,  38],  // 4 window glass
 ];
 
 const { V_: _V_lm, F_: _F_lm, FC_: _FC_lm, E_: _E_lm } = (() => {
   const N = 8;
+  const asRY = _lmAR * 1.20;   // boxy ellipse — wide in Y
+  const asRZ = _lmAR * 0.88;   // compressed in Z
 
-  /* Ascent stage — narrow cylinder */
+  /* Ascent stage — boxy elliptical cylinder */
   const asT  = buildTube(N, [
-    { vF: _lmO,        r: _lmAR, col: 1 },
-    { vF: _lmO+_lmAH,  r: _lmAR, col: 1 },
+    { vF: _lmO,        ry: asRY, rz: asRZ, col: 1 },
+    { vF: _lmO+_lmAH,  ry: asRY, rz: asRZ, col: 1 },
   ]);
   const V_  = [...asT.V_];
   const F_  = [...asT.F_];
   const FC_ = [...asT.FC_];
   const E_  = [...asT.E_];
-  const asAft = asT.rb[0];   // = 0  (8 verts, +U first)
+  const asAft = asT.rb[0];   // = 0
   const asFwd = asT.rb[1];   // = 8
   for (let i = 0; i < N; i++) E_.push([asAft+i, asFwd+i]);   // longerons
 
-  /* Descent stage — wider cylinder */
-  const dsOfs = V_.length;   // = 16
+  /* AS aft cap — closes the CM-interface end */
+  const asCtr = V_.length;   // = 16
+  V_.push([_lmO, 0, 0]);
+  for (let i = 0; i < N; i++) { F_.push([asCtr, asAft+i, asAft+(i+1)%N]); FC_.push(1); }
+
+  /* Descent stage — slightly boxy elliptical cylinder */
+  const dsRY = _lmDR * 1.10;
+  const dsRZ = _lmDR * 0.95;
+  const dsOfs = V_.length;   // = 17
   const dsT   = buildTube(N, [
-    { vF: _lmO+_lmAH,        r: _lmDR, col: 0 },
-    { vF: _lmO+_lmAH+_lmDH,  r: _lmDR, col: 0 },
+    { vF: _lmO+_lmAH,        ry: dsRY, rz: dsRZ, col: 0 },
+    { vF: _lmO+_lmAH+_lmDH,  ry: dsRY, rz: dsRZ, col: 0 },
   ]);
   dsT.V_.forEach(v  => V_.push(v));
   dsT.F_.forEach(fi => F_.push(fi.map(i => i + dsOfs)));
   dsT.FC_.forEach(c => FC_.push(c));
   dsT.E_.forEach(([a,b]) => E_.push([a+dsOfs, b+dsOfs]));
   for (let i = 0; i < N; i++) E_.push([dsOfs+i, dsOfs+N+i]);  // longerons
-  const dsTop = dsOfs;       // = 16
-  const dsBot = dsOfs + N;   // = 24
+  const dsTop = dsOfs;       // = 17
+  const dsBot = dsOfs + N;   // = 25
 
-  /* Junction: AS fwd ring → DS upper ring (shoulder step) */
+  /* Junction: AS fwd ring ↔ DS upper ring (shoulder step) */
   for (let i = 0; i < N; i++) E_.push([asFwd+i, dsTop+i]);
 
   /* DS base cap — center vertex + 8 triangles */
-  const dsCtr = V_.length;   // = 32
+  const dsCtr = V_.length;   // = 33
   V_.push([_lmO+_lmAH+_lmDH, 0, 0]);
   for (let i = 0; i < N; i++) { F_.push([dsCtr, dsBot+(i+1)%N, dsBot+i]); FC_.push(2); }
 
-  /* Landing legs — 4 legs at 45° positions in the N=8 ring
-     buildTube: si=0→+U, si=1→+R+U, si=2→+R, si=3→+R-U, si=4→-U, si=5→-R-U, si=6→-R, si=7→-R+U
-     Diagonals (45°): si = 1, 3, 5, 7                                                          */
-  const legBase = V_.length;  // = 33
+  /* Landing legs — 4 legs at 45° diagonal positions (si = 1,3,5,7 in N=8 ring) */
+  const legBase = V_.length;  // = 34
   const S2      = Math.SQRT2 / 2;
-  const legVF   = _lmO + _lmAH + _lmDH + 0.00022;  // slightly forward of DS base
+  const legVF   = _lmO + _lmAH + _lmDH + 0.00022;
   [[S2,S2],[-S2,S2],[-S2,-S2],[S2,-S2]].forEach(([cr,cu]) => {
     V_.push([legVF, _lmLR*cr, _lmLR*cu]);
   });
@@ -1992,25 +2000,62 @@ const { V_: _V_lm, F_: _F_lm, FC_: _FC_lm, E_: _E_lm } = (() => {
   [[1,0],[3,1],[5,2],[7,3]].forEach(([si,li]) => E_.push([dsBot+si, legBase+li]));
   /* Secondary braces: adjacent verts → footpads */
   [[0,0],[2,0],[2,1],[4,1],[4,2],[6,2],[6,3],[0,3]].forEach(([si,li]) => E_.push([dsBot+si, legBase+li]));
+  /* Lateral footpad ring — connect adjacent footpads */
+  for (let i = 0; i < 4; i++) E_.push([legBase+i, legBase+(i+1)%4]);
 
-  /* Descent engine nozzle */
+  /* Descent engine nozzle — 8-sided bell */
+  const nzN   = 8;
   const nzVF  = _lmO + _lmAH + _lmDH;
-  const nzRim = V_.length;  // = 37
-  [[_lmNR,0],[0,_lmNR],[-_lmNR,0],[0,-_lmNR]].forEach(([cr,cu]) => V_.push([nzVF, cr, cu]));
-  const nzTip = V_.length;  // = 41
+  const nzRim = V_.length;  // = 38
+  for (let i = 0; i < nzN; i++) {
+    const a = (i / nzN) * 2 * Math.PI;
+    V_.push([nzVF, _lmNR * Math.cos(a), _lmNR * Math.sin(a)]);
+  }
+  const nzTip = V_.length;  // = 46
   V_.push([nzVF + _lmNH, 0, 0]);
-  for (let i = 0; i < 4; i++) E_.push([nzRim+i, nzRim+(i+1)%4]);
-  for (let i = 0; i < 4; i++) E_.push([nzRim+i, nzTip]);
-  for (let i = 0; i < 4; i++) { F_.push([nzRim+i, nzRim+(i+1)%4, nzTip]); FC_.push(3); }
+  for (let i = 0; i < nzN; i++) E_.push([nzRim+i, nzRim+(i+1)%nzN]);
+  for (let i = 0; i < nzN; i++) E_.push([nzRim+i, nzTip]);
+  for (let i = 0; i < nzN; i++) { F_.push([nzRim+i, nzRim+(i+1)%nzN, nzTip]); FC_.push(3); }
 
   /* Docking tunnel — small ring at aft face */
-  const dtRim = V_.length;  // = 42
+  const dtRim = V_.length;  // = 47
   const dtR   = 0.00022;
   const dtVF  = _lmO + 0.00012;
   [[dtR,0],[0,dtR],[-dtR,0],[0,-dtR]].forEach(([cr,cu]) => V_.push([dtVF, cr, cu]));
   for (let i = 0; i < 4; i++) E_.push([dtRim+i, dtRim+(i+1)%4]);
-  /* Connect tunnel to AS aft at cardinal verts (si=0=+U, si=2=+R, si=4=-U, si=6=-R) */
   [[0,0],[2,1],[4,2],[6,3]].forEach(([si,ti]) => E_.push([asAft+si, dtRim+ti]));
+
+  /* Rendezvous radar — flat ring above AS forward face */
+  const rrVF  = _lmO + _lmAH * 1.05;
+  const rrR   = _lmAR * 0.52;
+  const rrRim = V_.length;  // = 51
+  [[rrR,0],[0,rrR],[-rrR,0],[0,-rrR]].forEach(([cr,cu]) => V_.push([rrVF, cr, cu]));
+  for (let i = 0; i < 4; i++) E_.push([rrRim+i, rrRim+(i+1)%4]);
+  /* Struts from AS fwd cardinal verts up to radar */
+  [[0,0],[2,1],[4,2],[6,3]].forEach(([si,ri]) => E_.push([asFwd+si, rrRim+ri]));
+
+  /* Forward windows — two small rectangles on the +Z face of AS */
+  const winZ  = asRZ * 0.97;   // on the +Z surface
+  const winV0 = _lmO + _lmAH * 0.35;   // lower vF edge
+  const winV1 = _lmO + _lmAH * 0.62;   // upper vF edge
+  const winHalf = asRY * 0.28;  // half-width of each window in Y
+  const winGap  = asRY * 0.08;  // gap between the two windows
+
+  /* Left window (+Y side) */
+  const lwBase = V_.length;  // = 55
+  V_.push([winV0,  winGap, winZ]);
+  V_.push([winV1,  winGap, winZ]);
+  V_.push([winV1,  winGap+winHalf, winZ]);
+  V_.push([winV0,  winGap+winHalf, winZ]);
+  F_.push([lwBase, lwBase+1, lwBase+2, lwBase+3]); FC_.push(4);
+
+  /* Right window (-Y side) */
+  const rwBase = V_.length;  // = 59
+  V_.push([winV0, -winGap-winHalf, winZ]);
+  V_.push([winV1, -winGap-winHalf, winZ]);
+  V_.push([winV1, -winGap, winZ]);
+  V_.push([winV0, -winGap, winZ]);
+  F_.push([rwBase, rwBase+1, rwBase+2, rwBase+3]); FC_.push(4);
 
   return { V_, F_, FC_, E_ };
 })();
@@ -2435,22 +2480,61 @@ function _drawCSMOrbitDetail(ctx, pts, project, dpr, camSide) {
   }
   ctx.restore();
 
-  /* ── RCS thruster quad groups — 4 groups at 45°/135°/225°/315° ─── */
-  const rcsvF = smBase + 0.0014;
-  const rcsR  = _svcr * 1.02;
+  /* ── SM RCS — 4 quad pods at 45°/135°/225°/315° ────────────────── */
+  const rcsvF = smBase + 0.0020;  // upper third of SM, near CM/SM interface
+  const rcsR  = _svcr * 1.025;
   const nozR  = Math.max(1, 1.3 * dpr);
   for (let q = 0; q < 4; q++) {
     const ang = q * Math.PI / 2 + Math.PI / 4;
     if (!frontSide(ang)) continue;
-    for (const da of [-0.016, 0.016]) {
-      for (const dvF of [-0.00035, 0.00035]) {
-        const n = project([rcsvF + dvF, rcsR * Math.cos(ang + da), rcsR * Math.sin(ang + da)]);
+
+    /* Pod housing — flat rectangle over the SM surface */
+    const da = 0.022, dvF = 0.00055;
+    const corners = [
+      [rcsvF - dvF, rcsR * Math.cos(ang - da), rcsR * Math.sin(ang - da)],
+      [rcsvF - dvF, rcsR * Math.cos(ang + da), rcsR * Math.sin(ang + da)],
+      [rcsvF + dvF, rcsR * Math.cos(ang + da), rcsR * Math.sin(ang + da)],
+      [rcsvF + dvF, rcsR * Math.cos(ang - da), rcsR * Math.sin(ang - da)],
+    ];
+    const pc = corners.map(project);
+    if (!pc.every(p => p)) continue;
+    ctx.beginPath();
+    ctx.moveTo(pc[0].x, pc[0].y);
+    for (let i = 1; i < 4; i++) ctx.lineTo(pc[i].x, pc[i].y);
+    ctx.closePath();
+    ctx.fillStyle   = '#16191f';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(130, 148, 170, 0.42)';
+    ctx.lineWidth   = 0.7 * dpr; ctx.stroke();
+
+    /* 4 nozzle circles — 2 axial × 2 angular */
+    for (const nda of [-0.014, 0.014]) {
+      for (const ndvF of [-0.00033, 0.00033]) {
+        const n = project([rcsvF + ndvF, rcsR * Math.cos(ang + nda), rcsR * Math.sin(ang + nda)]);
         if (!n) continue;
-        ctx.beginPath(); ctx.arc(n.x, n.y, nozR, 0, Math.PI * 2);
-        ctx.fillStyle   = 'rgba(26, 28, 36, 0.86)'; ctx.fill();
-        ctx.strokeStyle = 'rgba(105, 118, 138, 0.50)';
-        ctx.lineWidth   = 0.5 * dpr; ctx.stroke();
+        ctx.beginPath(); ctx.arc(n.x, n.y, nozR * 1.3, 0, Math.PI * 2);
+        ctx.fillStyle   = '#090b0f'; ctx.fill();
+        ctx.strokeStyle = 'rgba(115, 135, 160, 0.55)';
+        ctx.lineWidth   = 0.6 * dpr; ctx.stroke();
       }
+    }
+  }
+
+  /* ── CM RCS — 12 thrusters in 6 pairs around aft CM section ─────── */
+  const cmRcsVF = cmBase - 0.0006;
+  const cmRcsR  = _svcr * 1.012;
+  const cmNozR  = Math.max(0.8, 1.0 * dpr);
+  for (let i = 0; i < 6; i++) {
+    const ang = (i / 6) * Math.PI * 2;
+    if (!frontSide(ang)) continue;
+    /* Two thrusters per position (subsystem A and B), offset axially */
+    for (const [dA, dVF] of [[-0.009, -0.00015], [0.009, 0.00015]]) {
+      const n = project([cmRcsVF + dVF, cmRcsR * Math.cos(ang + dA), cmRcsR * Math.sin(ang + dA)]);
+      if (!n) continue;
+      ctx.beginPath(); ctx.arc(n.x, n.y, cmNozR, 0, Math.PI * 2);
+      ctx.fillStyle   = '#0e1115'; ctx.fill();
+      ctx.strokeStyle = 'rgba(108, 125, 148, 0.45)';
+      ctx.lineWidth   = 0.5 * dpr; ctx.stroke();
     }
   }
 

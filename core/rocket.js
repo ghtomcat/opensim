@@ -97,9 +97,16 @@ function _applyTLIBurn(dv_ms) {
   const vf   = vxy > 0 ? (vtot + dv_ms) / vxy : 1;
 
   const dur = S.mission?.tliDuration ?? Math.round(dv_ms / 7.5);
+  const mT  = S.time ?? 0;
+  const { mx, my } = moonECI(mT);
+  const vDir = Math.atan2(v.vy, v.vx) * (180 / Math.PI);
+  const moonAngle = Math.atan2(my, mx) * (180 / Math.PI);
+  console.log(`[TLI] t=${mT}s  vDir=${vDir.toFixed(1)}°  moonAngle=${moonAngle.toFixed(1)}°  Δangle=${((moonAngle - vDir + 540) % 360 - 180).toFixed(1)}°`);
+  console.log(`[TLI] pre:  alt=${((Math.sqrt(v.rx**2+v.ry**2+v.rz**2)-R_EARTH)/1000).toFixed(0)}km  spd=${vtot.toFixed(0)}m/s`);
+  console.log(`[TLI] post: alt=${((rxy*rScale-R_EARTH)/1000).toFixed(0)}km  spd=${(vtot+dv_ms).toFixed(0)}m/s  rScale=${rScale.toFixed(4)}`);
   setState({
     rocketTLI:        true,
-    rocketTLIBurnEnd: (S.time ?? 0) + dur,
+    rocketTLIBurnEnd: mT + dur,
     orbitVec: { ...v,
       rx: v.rx * rScale,
       ry: v.ry * rScale,
@@ -111,49 +118,100 @@ function _applyTLIBurn(dv_ms) {
   });
 }
 
-/* ── LOI burn — retrograde ΔV for lunar orbit insertion ─────── */
+/* ── Moon velocity in ECI frame at mission time mT ────────────── */
+function _moonVelECI(mT) {
+  const omega = 2 * Math.PI / MOON_T_S;
+  const angle = ((S.mission?.moonRefAngle ?? 0) * DEG) + mT * omega;
+  return { vmx: -MOON_SMA * omega * Math.sin(angle),
+           vmy:  MOON_SMA * omega * Math.cos(angle) };
+}
+
+/* ── LOI burn — retrograde ΔV in Moon-relative frame ────────── */
 function _applyLOIBurn(dv_ms) {
   const v   = S.orbitVec;
-  const spd = Math.sqrt(v.vx*v.vx + v.vy*v.vy + v.vz*v.vz);
-  const f   = dv_ms / spd;
+  const mT  = S.time ?? 0;
+  const { vmx, vmy } = _moonVelECI(mT);
+  /* Velocity relative to Moon (Moon-centric frame) */
+  const rvx = v.vx - vmx;
+  const rvy = v.vy - vmy;
+  const rvz = v.vz ?? 0;
+  const spd = Math.sqrt(rvx*rvx + rvy*rvy + rvz*rvz);
+
+  /* Safety cap: post-LOI Moon-relative speed must stay above v_circular so
+     the burn point remains periapsis (not apoapsis) of the capture orbit.
+     20 m/s margin prevents numerical edge-cases; at historical approach
+     speeds (≥ 2502 m/s) the cap is never reached and full loiDv applies. */
+  const { rx, ry } = v;
+  const { mx, my } = moonECI(mT);
+  const moonR  = Math.sqrt((rx - mx) ** 2 + (ry - my) ** 2);
+  const vCirc  = Math.sqrt(GM_MOON / moonR);
+  const maxDv  = Math.max(0, spd - (vCirc + 20));
+  const burn   = Math.min(dv_ms, maxDv);
+
+  /* Retrograde: subtract ΔV along Moon-relative velocity unit vector */
+  const f = burn / spd;
+  console.log(`[LOI] t=${Math.round(mT)}s  moonR=${(moonR/1000).toFixed(0)}km  v_rel=${spd.toFixed(0)}m/s  v_circ=${vCirc.toFixed(0)}m/s  dv_actual=${burn.toFixed(0)}m/s`);
   setState({
     rocketLOI:  true,
-    loiActualT: S.time ?? 0,
-    orbitVec: { ...v, vx: v.vx*(1-f), vy: v.vy*(1-f), vz: v.vz*(1-f) },
+    loiActualT: mT,
+    loiMoonR:   moonR,
+    orbitVec: { ...v,
+      vx: v.vx - f * rvx,
+      vy: v.vy - f * rvy,
+      vz: (v.vz ?? 0) - f * rvz,
+    },
   });
 }
 
-/* ── TEI burn — prograde ΔV for trans-Earth injection ───────── */
+/* ── TEI burn — prograde ΔV in Moon-relative frame ──────────── */
 function _applyTEIBurn(dv_ms) {
   const v   = S.orbitVec;
-  const spd = Math.sqrt(v.vx*v.vx + v.vy*v.vy + v.vz*v.vz);
-  const f   = dv_ms / spd;
+  const mT  = S.time ?? 0;
+  const { vmx, vmy } = _moonVelECI(mT);
+  const rvx = v.vx - vmx;
+  const rvy = v.vy - vmy;
+  const rvz = v.vz ?? 0;
+  const spd = Math.sqrt(rvx*rvx + rvy*rvy + rvz*rvz);
+  const f = dv_ms / spd;
   setState({
     rocketTEI: true,
-    orbitVec: { ...v, vx: v.vx*(1+f), vy: v.vy*(1+f), vz: v.vz*(1+f) },
+    orbitVec: { ...v,
+      vx: v.vx + f * rvx,
+      vy: v.vy + f * rvy,
+      vz: (v.vz ?? 0) + f * rvz,
+    },
   });
 }
 
-/* ── Lambert targeting — pure propagator, no state reads/writes ─
-   Velocity Verlet with Earth + Moon gravity. Returns final position. */
-function _propagateFrom(pos, vel, tof, t0) {
+const MOON_R      = 1_737_000;    // Moon radius, m
+const MOON_R_MIN  = MOON_R + 100_000; // minimum safe propagation distance, m
+const MOON_SOI    = 66_000_000;   // Moon sphere of influence, m
+const MCC_TARGET  = MOON_R + 113_000; // Apollo 8 target periapsis: 113 km altitude
+
+/* ── Propagate trajectory, return minimum Moon distance ─────── */
+function _propagateMinDist(pos, vel, tof, t0) {
   let { rx, ry, rz } = pos;
   let { vx, vy, vz } = vel;
-  const DT = 1800;   // 30-min steps — coarse but fast for targeting
-  let t    = t0;
-  let rem  = tof;
+  let minDist = Infinity;
+  let t = t0, rem = tof;
 
   while (rem > 0) {
+    const { mx, my } = moonECI(t);
+    const moonR_now = Math.sqrt((rx-mx)**2 + (ry-my)**2);
+    /* Fine steps near Moon for periapsis accuracy; coarser far away. */
+    const DT = moonR_now < 10_000_000 ? 30 : 120;
     const step = Math.min(DT, rem);
     rem -= step;
 
-    const { mx, my } = moonECI(t);
     const r2  = rx*rx + ry*ry + rz*rz;
     const r3  = r2 * Math.sqrt(r2);
     const ke  = -GM / r3;
     const dmx = rx - mx, dmy = ry - my;
-    const mr2 = dmx*dmx + dmy*dmy + rz*rz;
-    const mr3 = mr2 * Math.sqrt(mr2);
+    const mr_raw = Math.sqrt(dmx*dmx + dmy*dmy + rz*rz);
+    if (mr_raw < minDist) minDist = mr_raw;
+    if (mr_raw < MOON_R_MIN) return minDist;   // below safe altitude — stop
+
+    const mr3 = Math.pow(mr_raw, 3);
     const km  = -GM_MOON / mr3;
     const ax  = ke*rx + km*dmx, ay = ke*ry + km*dmy, az = ke*rz + km*rz;
 
@@ -168,8 +226,54 @@ function _propagateFrom(pos, vel, tof, t0) {
     const nr3  = nr2 * Math.sqrt(nr2);
     const nke  = -GM / nr3;
     const ndmx = nrx - nmx, ndmy = nry - nmy;
-    const nmr2 = ndmx*ndmx + ndmy*ndmy + nrz*nrz;
-    const nmr3 = nmr2 * Math.sqrt(nmr2);
+    const nmr  = Math.max(Math.sqrt(ndmx*ndmx + ndmy*ndmy + nrz*nrz), MOON_R_MIN);
+    if (nmr < minDist) minDist = nmr;
+    const nmr3 = Math.pow(nmr, 3);
+    const nkm  = -GM_MOON / nmr3;
+    const nax  = nke*nrx + nkm*ndmx;
+    const nay  = nke*nry + nkm*ndmy;
+    const naz  = nke*nrz + nkm*nrz;
+
+    vx += 0.5*(ax+nax)*step; vy += 0.5*(ay+nay)*step; vz += 0.5*(az+naz)*step;
+    rx = nrx; ry = nry; rz = nrz;
+  }
+  return minDist;
+}
+
+/* ── Propagate trajectory, return final position ─────────────── */
+function _propagatePos(pos, vel, tof, t0) {
+  let { rx, ry, rz } = pos;
+  let { vx, vy, vz } = vel;
+  const DT = 3600;   // 1-hour steps — fast enough for Newton Jacobians
+  let t = t0, rem = tof;
+
+  while (rem > 0) {
+    const step = Math.min(DT, rem);
+    rem -= step;
+
+    const { mx, my } = moonECI(t);
+    const r2  = rx*rx + ry*ry + rz*rz;
+    const r3  = r2 * Math.sqrt(r2);
+    const ke  = -GM / r3;
+    const dmx = rx - mx, dmy = ry - my;
+    const mr  = Math.max(Math.sqrt(dmx*dmx + dmy*dmy + rz*rz), MOON_R_MIN);
+    const mr3 = Math.pow(mr, 3);
+    const km  = -GM_MOON / mr3;
+    const ax  = ke*rx + km*dmx, ay = ke*ry + km*dmy, az = ke*rz + km*rz;
+
+    const s2  = step * step;
+    const nrx = rx + vx*step + 0.5*ax*s2;
+    const nry = ry + vy*step + 0.5*ay*s2;
+    const nrz = rz + vz*step + 0.5*az*s2;
+
+    t += step;
+    const { mx: nmx, my: nmy } = moonECI(t);
+    const nr2  = nrx*nrx + nry*nry + nrz*nrz;
+    const nr3  = nr2 * Math.sqrt(nr2);
+    const nke  = -GM / nr3;
+    const ndmx = nrx - nmx, ndmy = nry - nmy;
+    const nmr  = Math.max(Math.sqrt(ndmx*ndmx + ndmy*ndmy + nrz*nrz), MOON_R_MIN);
+    const nmr3 = Math.pow(nmr, 3);
     const nkm  = -GM_MOON / nmr3;
     const nax  = nke*nrx + nkm*ndmx;
     const nay  = nke*nry + nkm*ndmy;
@@ -181,47 +285,138 @@ function _propagateFrom(pos, vel, tof, t0) {
   return { rx, ry, rz };
 }
 
-/* ── MCC-1 — Newton shooting method to intercept Moon at loiT ──
-   Solves for the 2-D velocity correction (vx, vy) that places the
-   spacecraft within 100 km of the Moon's centre at mission.loiT.
-   The proximity-based LOI trigger then fires at actual periapsis. */
-function _applyMCC1Burn(mT) {
-  const loiT = S.mission?.loiT ?? 305000;
-  const tof  = loiT - mT;
-  const pos  = { rx: S.orbitVec.rx, ry: S.orbitVec.ry, rz: S.orbitVec.rz };
-  const { mx: tx, my: ty } = moonECI(loiT);
+/* ── Phase 1: Newton solver — aim into Moon's SOI at loiT ───── */
+function _newtonToSOI(mT, pos, vx0, vy0, vz0, loiT) {
+  const tof    = loiT - mT;
+  const PERTURB = 1.0;   // m/s for Jacobian finite difference
+  const MAX_STEP = 500;  // m/s cap per Newton step
 
-  let vx = S.orbitVec.vx, vy = S.orbitVec.vy;
-  const vz = S.orbitVec.vz;
+  let vx = vx0, vy = vy0;
 
-  for (let iter = 0; iter < 20; iter++) {
-    const f0 = _propagateFrom(pos, { vx, vy, vz }, tof, mT);
-    const dx = f0.rx - tx, dy = f0.ry - ty;
-    if (Math.sqrt(dx*dx + dy*dy) < 100_000) break;  // 100 km — converged
+  for (let iter = 0; iter < 50; iter++) {
+    const p0 = _propagatePos(pos, { vx, vy, vz: vz0 }, tof, mT);
+    const { mx: mxT, my: myT } = moonECI(mT + tof);
+    const ex = p0.rx - mxT, ey = p0.ry - myT;
+    const dist = Math.sqrt(ex*ex + ey*ey);
+    if (dist < MOON_SOI) {
+      console.log(`[Newton] SOI in ${iter} iters — dist ${(dist/1e6).toFixed(0)} km`);
+      return { vx, vy, success: true };
+    }
 
-    const eps = 1.0;  // 1 m/s perturbation
-    const fx  = _propagateFrom(pos, { vx: vx+eps, vy,     vz }, tof, mT);
-    const fy  = _propagateFrom(pos, { vx, vy: vy+eps, vz }, tof, mT);
-
-    const J00 = (fx.rx - f0.rx) / eps, J01 = (fy.rx - f0.rx) / eps;
-    const J10 = (fx.ry - f0.ry) / eps, J11 = (fy.ry - f0.ry) / eps;
+    const px = _propagatePos(pos, { vx: vx + PERTURB, vy,             vz: vz0 }, tof, mT);
+    const py = _propagatePos(pos, { vx,               vy: vy + PERTURB, vz: vz0 }, tof, mT);
+    const J00 = (px.rx - p0.rx) / PERTURB, J10 = (px.ry - p0.ry) / PERTURB;
+    const J01 = (py.rx - p0.rx) / PERTURB, J11 = (py.ry - p0.ry) / PERTURB;
     const det = J00*J11 - J01*J10;
-    if (Math.abs(det) < 1e-6) break;
+    if (Math.abs(det) < 1e-12) break;
 
-    vx -= (J11*dx - J01*dy) / det;
-    vy -= (-J10*dx + J00*dy) / det;
+    const dvx = -(J11*ex - J01*ey) / det;
+    const dvy = -(-J10*ex + J00*ey) / det;
+    const dvMag = Math.sqrt(dvx*dvx + dvy*dvy);
+    const scale = dvMag > MAX_STEP ? MAX_STEP / dvMag : 1;
+    vx += dvx * scale;
+    vy += dvy * scale;
   }
 
-  const dVx = vx - S.orbitVec.vx;
-  const dVy = vy - S.orbitVec.vy;
+  const pF = _propagatePos(pos, { vx, vy, vz: vz0 }, tof, mT);
+  const { mx: mxF, my: myF } = moonECI(mT + tof);
+  const dF = Math.sqrt((pF.rx - mxF)**2 + (pF.ry - myF)**2);
+  console.warn(`[Newton] done — dist ${(dF/1e6).toFixed(0)} km`);
+  return { vx, vy, success: dF < MOON_SOI };
+}
+
+/* ── Phase 2: bisect periapsis to MCC_TARGET ─────────────────── */
+function _bisectPeriapsis(mT, pos, vx0, vy0, vz0, tof, label) {
+  const spd = Math.sqrt(vx0*vx0 + vy0*vy0);
+  const px = -vy0 / spd, py = vx0 / spd;   // perpendicular unit vector
+
+  /* Coarse scan to bracket — wide range handles post-Newton high-energy trajectories */
+  let lo = null, hi = null;
+  for (let c = -5000; c <= 5000; c += 250) {
+    const d = _propagateMinDist(pos, { vx: vx0 + c*px, vy: vy0 + c*py, vz: vz0 }, tof, mT);
+    if (d < MCC_TARGET) { if (lo === null) lo = c; }
+    else                { if (lo !== null && hi === null) { hi = c; break; } }
+  }
+  if (lo === null || hi === null) {
+    const peri = _propagateMinDist(pos, { vx: vx0, vy: vy0, vz: vz0 }, tof, mT);
+    console.warn(`[${label}] bisect: no bracket (periapsis ${(peri/1000).toFixed(0)} km)`);
+    return { vx: vx0, vy: vy0, dvMag: 0 };
+  }
+
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    const d = _propagateMinDist(pos, { vx: vx0 + mid*px, vy: vy0 + mid*py, vz: vz0 }, tof, mT);
+    if (d < MCC_TARGET) lo = mid; else hi = mid;
+    if (Math.abs(hi - lo) < 0.5) break;
+  }
+
+  const c = (lo + hi) / 2;
+  const vx = vx0 + c * px, vy = vy0 + c * py;
+  console.log(`[${label}] bisect: ${c.toFixed(1)} m/s perp → ${(MCC_TARGET/1000).toFixed(0)} km peri`);
+  return { vx, vy, dvMag: Math.abs(c) };
+}
+
+/* ── Combined MCC burn: Newton to SOI → bisect periapsis ─────── */
+function _applyMCC(mT, label, stateKey) {
+  const loiT = S.mission?.loiT ?? 305000;
+  const tofNominal = loiT - mT;
+  /* Periapsis can occur up to ~6h after loiT (trajectory geometry).
+     Extend window so _propagateMinDist captures the actual closest approach. */
+  const tofBisect  = tofNominal + 6 * 3600;
+  const pos  = { rx: S.orbitVec.rx, ry: S.orbitVec.ry, rz: S.orbitVec.rz ?? 0 };
+  const vx0  = S.orbitVec.vx, vy0 = S.orbitVec.vy, vz0 = S.orbitVec.vz ?? 0;
+  if (Math.sqrt(vx0*vx0 + vy0*vy0) < 1) { setState({ [stateKey]: true }); return; }
+  { const { mx, my } = moonECI(mT);
+    const earthDist = Math.sqrt(pos.rx**2 + pos.ry**2 + pos.rz**2);
+    const moonDist  = Math.sqrt((pos.rx-mx)**2 + (pos.ry-my)**2);
+    const spd       = Math.sqrt(vx0**2 + vy0**2 + vz0**2);
+    const vDir      = Math.atan2(vy0, vx0) * (180/Math.PI);
+    const moonAngle = Math.atan2(my, mx) * (180/Math.PI);
+    console.log(`[${label}] t=${mT}s  earthDist=${(earthDist/1000).toFixed(0)}km  moonDist=${(moonDist/1e6).toFixed(2)}Mm  spd=${spd.toFixed(0)}m/s  vDir=${vDir.toFixed(1)}°  moonAngle=${moonAngle.toFixed(1)}°`);
+  }
+
+  /* Already on target? (impact trajectories with periNow≤MOON_R always need correction) */
+  const periNow = _propagateMinDist(pos, { vx: vx0, vy: vy0, vz: vz0 }, tofBisect, mT);
+  if (periNow > MOON_R && Math.abs(periNow - MCC_TARGET) < 50_000) {
+    console.log(`[${label}] on target (${(periNow/1000).toFixed(0)} km) — no burn`);
+    setState({ [stateKey]: true, [`${stateKey.replace('rocket','').toLowerCase()}DvMag`]: 0 });
+    return;
+  }
+
+  let vx = vx0, vy = vy0;
+
+  /* Phase 1: steer into Moon SOI only if the trajectory misses it entirely.
+     Use periNow (already computed with 600 s steps) — the coarse _propagatePos
+     (3600 s) can show a large miss when the spacecraft actually flies past the Moon
+     before loiT, causing Phase 1 to fire incorrectly. */
+  if (periNow > MOON_SOI) {
+    console.log(`[${label}] Phase1 Newton: periapsis ${(periNow/1e6).toFixed(0)} Mm — steering into SOI`);
+    const nr = _newtonToSOI(mT, pos, vx0, vy0, vz0, loiT);
+    if (!nr.success) {
+      console.warn(`[${label}] Newton failed — marking done without burn`);
+      setState({ [stateKey]: true });
+      return;
+    }
+    vx = nr.vx; vy = nr.vy;
+  }
+
+  /* Phase 2: bisect periapsis altitude to target (extended window) */
+  const r2 = _bisectPeriapsis(mT, pos, vx, vy, vz0, tofBisect, label);
+  const dvTotal = Math.sqrt((r2.vx - vx0)**2 + (r2.vy - vy0)**2);
+  const dvLabel = stateKey === 'rocketMCC1' ? 'mcc1' : stateKey === 'rocketMCC2' ? 'mcc2' : 'mcc4';
+  console.log(`[${label}] total ΔV ${dvTotal.toFixed(1)} m/s`);
   setState({
-    rocketMCC1: true,
-    mcc1DvX:    dVx,
-    mcc1DvY:    dVy,
-    mcc1DvMag:  Math.sqrt(dVx*dVx + dVy*dVy),
-    orbitVec: { ...S.orbitVec, vx, vy, vz },
+    [stateKey]:            true,
+    [`${dvLabel}DvMag`]:   dvTotal,
+    [`${dvLabel}DvX`]:     r2.vx - vx0,
+    [`${dvLabel}DvY`]:     r2.vy - vy0,
+    orbitVec: { ...S.orbitVec, vx: r2.vx, vy: r2.vy },
   });
 }
+
+function _applyMCC1Burn(mT) { _applyMCC(mT, 'MCC-1', 'rocketMCC1'); }
+function _applyMCC2Burn(mT) { _applyMCC(mT, 'MCC-2', 'rocketMCC2'); }
+function _applyMCC4Burn(mT) { _applyMCC(mT, 'MCC-4', 'rocketMCC4'); }
 
 /* ── Deorbit burn — apply retrograde ΔV to orbitVec ─────────── */
 function _applyDeorbitBurn(dv_ms) {
@@ -296,7 +491,10 @@ function _tickOrbit(dt) {
   const r3  = r2 * Math.sqrt(r2);
   const k   = -GM / r3;
   const dmx = rx - mx, dmy = ry - my;                         // spacecraft → Moon vector
-  const mr2 = dmx*dmx + dmy*dmy + rz*rz;
+  const mr2_raw = dmx*dmx + dmy*dmy + rz*rz;
+  /* Clamp Moon distance for gravity — prevents blowup if integrator
+     steps through lunar surface (point-mass model has no floor). */
+  const mr2 = Math.max(mr2_raw, MOON_R_MIN * MOON_R_MIN);
   const mr3 = mr2 * Math.sqrt(mr2);
   const mk  = -GM_MOON / mr3;
   const ax  = k * rx + mk * dmx;
@@ -315,7 +513,8 @@ function _tickOrbit(dt) {
   const nr3  = nr2 * Math.sqrt(nr2);
   const nk   = -GM / nr3;
   const ndmx = nrx - nmx, ndmy = nry - nmy;
-  const nmr2 = ndmx*ndmx + ndmy*ndmy + nrz*nrz;
+  const nmr2_raw = ndmx*ndmx + ndmy*ndmy + nrz*nrz;
+  const nmr2 = Math.max(nmr2_raw, MOON_R_MIN * MOON_R_MIN);
   const nmr3 = nmr2 * Math.sqrt(nmr2);
   const nmk  = -GM_MOON / nmr3;
   const nax  = nk * nrx + nmk * ndmx;
@@ -493,34 +692,80 @@ export function tickRocket(dt) {
     if (sepT && !S.dragonSep && mT >= sepT) _captureDragonSep();
     if (S.dragonSep && S.s2Vec) _tickS2(dt);
 
-    /* TLI burn — S-IVB re-ignition for trans-lunar injection */
+    /* TLI burn — S-IVB re-ignition for trans-lunar injection.
+       Split-step: rewind spacecraft to exactly tliT before applying the impulse
+       so the TLI direction is dt-independent (same result at any warp / step size). */
     const tliT  = S.mission?.tliT;
     const tliDv = S.mission?.tliDv ?? 3147;
-    if (tliT && !S.rocketTLI && mT >= tliT) _applyTLIBurn(tliDv);
+    if (tliT && !S.rocketTLI && mT >= tliT) {
+      const excess = mT - tliT;
+      if (excess > 0.05 && excess < 60) {
+        const v = S.orbitVec;
+        const r3d = Math.sqrt(v.rx*v.rx + v.ry*v.ry + v.rz*v.rz);
+        const omega = Math.sqrt(GM / (r3d * r3d * r3d));
+        const dtheta = -omega * excess;
+        const cos_dt = Math.cos(dtheta), sin_dt = Math.sin(dtheta);
+        setState({
+          time: tliT,
+          orbitVec: { ...v,
+            rx: v.rx * cos_dt - v.ry * sin_dt,
+            ry: v.rx * sin_dt + v.ry * cos_dt,
+            vx: v.vx * cos_dt - v.vy * sin_dt,
+            vy: v.vx * sin_dt + v.vy * cos_dt,
+          },
+        });
+      }
+      _applyTLIBurn(tliDv);
+    }
 
-    /* MCC-1 — Newton Lambert correction, fires once after TLI coast */
+    /* MCC-1/2/4 — periapsis bisection corrections during trans-lunar coast */
     const mcc1T = S.mission?.mcc1T;
     if (mcc1T && !S.rocketMCC1 && S.rocketTLI && mT >= mcc1T) _applyMCC1Burn(mT);
 
+    const mcc2T = S.mission?.mcc2T;
+    if (mcc2T && !S.rocketMCC2 && S.rocketMCC1 && mT >= mcc2T) _applyMCC2Burn(mT);
+
+    /* MCC-4 fires only before LOI warp-cap zone (< 2h to loiT is handled by warp) */
+    const mcc4T = S.mission?.mcc4T;
+    const loiT_mcc = S.mission?.loiT;
+    if (mcc4T && !S.rocketMCC4 && S.rocketMCC1 && mT >= mcc4T
+        && !(loiT_mcc && (loiT_mcc - mT) < 7_200)) _applyMCC4Burn(mT);
+
     /* S-IVB separation — CSM pulls away from spent stage in parking orbit */
     const sivbSepT = S.mission?.sivbSepT;
-    if (sivbSepT && !S.sivbSep && mT >= sivbSepT) setState({ sivbSep: true });
+    if (sivbSepT && !S.sivbSep && mT >= sivbSepT)
+      setState({ sivbSep: true, rocketMass: perf.payload ?? 29000 });
 
-    /* LOI — proximity-based: fires at Moon periapsis (closing → receding)
-       Drop warp on Moon approach so the periapsis tick is never skipped. */
+    /* LOI — proximity-based: fires at Moon periapsis (closing → receding).
+       Fallback: fires at loiT if proximity hasn't triggered (MCC-1 miss).
+       Drop warp on approach so the periapsis tick is never skipped. */
+    const loiT_sched = S.mission?.loiT;
     const loiDv = S.mission?.loiDv ?? 1067;
     if (!S.rocketLOI && S.rocketTLI && S.mission?.loiDv != null) {
       const { mx, my } = moonECI(mT);
       const { rx, ry, rz } = S.orbitVec;
       const moonDist = Math.sqrt((rx - mx) ** 2 + (ry - my) ** 2);
-      /* Tiered warp cap — enough resolution for periapsis detection,
-         without stranding the player at 1× for hours of transit.
-         At 100× near Moon, ~4 km/tick at 2.5 km/s — plenty of ticks
-         to catch the closing→receding transition inside 30 Mm.     */
+      /* Tiered warp cap: drop warp when near Moon OR within 2 h of loiT */
       const wf = S.warpFactor ?? 1;
-      if      (moonDist < 50_000_000  && wf > 100)   setState({ warpFactor: 100 });
-      else if (moonDist < 100_000_000 && wf > 1_000) setState({ warpFactor: 1_000 });
-      if (moonDist < 30_000_000 && moonDist > _prevMoonDist) {
+      const nearLoiT = loiT_sched && (loiT_sched - mT) < 7_200;
+      if      (moonDist < 50_000_000  || (nearLoiT && moonDist < 200_000_000)) {
+        if (wf > 100)   setState({ warpFactor: 100 });
+      } else if (moonDist < 100_000_000 && wf > 1_000) {
+        setState({ warpFactor: 1_000 });
+      }
+      /* Primary: periapsis detection inside 66 Mm (Moon SOI).
+         Use Moon-relative radial velocity (not ECI delta) — the Moon moves at
+         ~1 km/s, so ECI distance can increase while spacecraft is still
+         approaching, triggering LOI prematurely. */
+      if (moonDist < 66_000_000) {
+        const { vx, vy } = S.orbitVec;
+        const { vmx, vmy } = _moonVelECI(mT);
+        const ux = (rx - mx) / moonDist, uy = (ry - my) / moonDist;
+        const vRel = (vx - vmx) * ux + (vy - vmy) * uy; // >0 = receding
+        if (!S.mission?.noLOI && vRel > 0) _applyLOIBurn(loiDv);
+      }
+      /* Fallback: time-based trigger at loiT when within 200 Mm */
+      if (!S.mission?.noLOI && !S.rocketLOI && loiT_sched && mT >= loiT_sched && moonDist < 200_000_000) {
         _applyLOIBurn(loiDv);
       }
       _prevMoonDist = moonDist;
@@ -537,6 +782,32 @@ export function tickRocket(dt) {
         setState({ warpFactor: 100 });
       }
       if (loiActual && mT >= teiTarget) _applyTEIBurn(teiDv);
+    }
+
+    /* PC+2 — prograde burn for free-return trajectories that skip LOI (Apollo 13).
+       Fires at pc2T regardless of LOI state; reuses rocketTEI flag to prevent re-trigger. */
+    const pc2T  = S.mission?.pc2T;
+    const pc2Dv = S.mission?.pc2Dv;
+    if (pc2T && pc2Dv && !S.rocketTEI) {
+      if (pc2T - mT < 3_600 && (S.warpFactor ?? 1) > 100) setState({ warpFactor: 100 });
+      if (mT >= pc2T) _applyTEIBurn(pc2Dv);
+    }
+
+    /* Failure injection — process failures[] defined in the mission.
+       Each failure: { t, id, affects: string[], masterAlarm?: bool }
+       Builds S.activeWarnings (flat list of active C&W cell IDs) and
+       S.masterAlarm.  Only calls setState when the active set changes. */
+    {
+      const failures = S.mission?.failures ?? [];
+      if (failures.length > 0) {
+        const triggered = failures.filter(f => f.t != null && mT >= f.t);
+        const newWarnings = [...new Set(triggered.flatMap(f => f.affects ?? []))];
+        const newMaster   = triggered.some(f => f.masterAlarm);
+        const curWarnings = S.activeWarnings ?? [];
+        if (newWarnings.length !== curWarnings.length || newMaster !== !!S.masterAlarm) {
+          setState({ activeWarnings: newWarnings, masterAlarm: newMaster });
+        }
+      }
     }
 
     /* Deorbit burn */
@@ -618,10 +889,12 @@ export function tickRocket(dt) {
       mass  = massAbove;
       stage += 1;
       coasting = false;
-      /* Reset engine state for new stage */
+      /* Reset engine state for new stage; record per-stage ignition flag */
       const nextStg = stages[stage - 1] ?? {};
+      const ignFlags = stage === 2 ? { rocketS2Ignition: true }
+                     : stage === 3 ? { rocketS3Ignition: true } : {};
       setState({ rocketActiveEngines: nextStg.engineCount ?? 1, rocketFailedEngines: [], rocketCECO: false, rocketCECOEngines: [],
-                 rocketStageIgnitionT: mT });
+                 rocketStageIgnitionT: mT, ...ignFlags });
     }
   } else if (mass > burnoutThreshold && S.engineState === 'running') {
     /* Check time-based burnout — caps burn to historical duration */
@@ -633,22 +906,40 @@ export function tickRocket(dt) {
       /* Force burnout at the historical time */
       if (stage < stages.length) {
         coasting = true; coastT = mT;
-        if (!S.rocketMECO) setState({ rocketMECO: true });
+        const mecoFlag = stage === 2 ? { rocketMECO2: true } : {};
+        if (!S.rocketMECO) setState({ rocketMECO: true, ...mecoFlag });
       } else {
         if (!S.rocketSECO) setState({ rocketSECO: true });
       }
     } else {
-      /* Thrusting — scale thrust by active engine fraction */
-      const thrustSL  = stg.thrustSL  ?? 0;
-      const thrustVac = stg.thrustVac ?? stg.thrustSL ?? 0;
-      T    = (thrustSL * atmFrac + thrustVac * (1 - atmFrac)) * engineFrac;
-      mdot = T / ((stg.isp ?? 300) * G0);
+      /* Velocity gate: last-stage orbital insertion — cut engines at circular
+         velocity regardless of FPA.  Works at any dt. */
+      if (stg.velocityGateSECO && stage >= stages.length) {
+        const r_m   = R_EARTH + alt_m;
+        const vCirc = Math.sqrt(GM / r_m);
+        const vNow  = (S.spd ?? 0) * 0.5144;
+        if (vNow >= vCirc) {
+          if (!S.rocketSECO) setState({ rocketSECO: true });
+        } else {
+          const thrustSL  = stg.thrustSL  ?? 0;
+          const thrustVac = stg.thrustVac ?? stg.thrustSL ?? 0;
+          T    = (thrustSL * atmFrac + thrustVac * (1 - atmFrac)) * engineFrac;
+          mdot = T / ((stg.isp ?? 300) * G0);
+        }
+      } else {
+        /* Standard — scale thrust by active engine fraction */
+        const thrustSL  = stg.thrustSL  ?? 0;
+        const thrustVac = stg.thrustVac ?? stg.thrustSL ?? 0;
+        T    = (thrustSL * atmFrac + thrustVac * (1 - atmFrac)) * engineFrac;
+        mdot = T / ((stg.isp ?? 300) * G0);
+      }
     }
   } else if (mass <= burnoutThreshold && !coasting && stage < stages.length) {
     /* Burnout — start coast */
     coasting = true;
     coastT   = mT;
-    if (!S.rocketMECO) setState({ rocketMECO: true });
+    const mecoFlag2 = stage === 2 ? { rocketMECO2: true } : {};
+    if (!S.rocketMECO) setState({ rocketMECO: true, ...mecoFlag2 });
   } else if (mass <= burnoutThreshold && !coasting && stage >= stages.length) {
     /* Last stage burnout — SECO */
     if (!S.rocketSECO) setState({ rocketSECO: true });
