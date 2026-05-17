@@ -4143,6 +4143,25 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       if (!pa || !pb) continue;
       drawStrutTube(ctx, pa, pb, dpr);
     }
+    /* Side stays + drag braces — wide-body only.
+       Each stay runs from a fixed aircraft attachment to the animated strut midpoint.
+       Midpoints track _animGV so the stays collapse naturally during retraction. */
+    if (!isC172 && !isBf109 && !isF4U) {
+      const _wbR   = _wbGeo?.r ?? _r;
+      const _midV3 = (a, b) => [(a[0]+b[0])/2, (a[1]+b[1])/2, (a[2]+b[2])/2];
+      /* Nose drag brace: aft belly anchor → mid nose strut */
+      const nA   = project([0.007,  0,       -_wbR + 0.0008]);
+      const nM   = project(_midV3(_animGV[0], _animGV[1]));
+      if (nA && nM) drawStrutTube(ctx, nA, nM, dpr);
+      /* R main side stay: inboard wing anchor → mid main strut */
+      const rA   = project([0.001,  0.0012, -_wbR * 0.50]);
+      const rM   = project(_midV3(_animGV[2], _animGV[3]));
+      if (rA && rM) drawStrutTube(ctx, rA, rM, dpr);
+      /* L main side stay */
+      const lA   = project([0.001, -0.0012, -_wbR * 0.50]);
+      const lM   = project(_midV3(_animGV[4], _animGV[5]));
+      if (lA && lM) drawStrutTube(ctx, lA, lM, dpr);
+    }
     if (isC172) {
       for (const [vi, tR] of [[1, _xr*0.48], [3, _xr*0.56], [5, _xr*0.56]])
         drawVolumetricTire(ctx, GV_[vi], tR, project);
