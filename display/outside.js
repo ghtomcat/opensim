@@ -506,11 +506,11 @@ const _WB_NP = {
     ey: 0.0097, ey2: 0.0171, ez: -0.00230, er: 0.00108, erc: 0.00075, pz: -0.00068,
     tipX: 0.019, tipCz: -0.0001, tailX: -0.0354, vstabZ: 0.0095, winglet: 'classic',
     noseRings: [
-      { vF: 0.018,  r: _r*0.09, col: 6 },  // ring 0: radome — tiny sphere behind tip
-      { vF: 0.0166, r: _r*0.30, col: 6 },  // ring 1: rapid radome expansion
-      { vF: 0.0153, r: _r*0.60, col: 6 },  // ring 2: fwd windshield edge   ← winFwdRi
-      { vF: 0.0141, r: _r*0.90, col: 6 },  // ring 3: windshield (lower nose stays red)
-      { vF: 0.0131, r: _r*0.97, col: 0 },  // ring 4: aft windshield / grey starts ← winAftRi
+      { vF: 0.018,  r: _r*0.42, col: 6 },  // ring 0: radome — ellipsoidal profile at ~14% nose length
+      { vF: 0.0166, r: _r*0.70, col: 6 },  // ring 1: radome expansion  (~34% nose length)
+      { vF: 0.0153, r: _r*0.87, col: 6 },  // ring 2: upper nose         (~53% nose length)
+      { vF: 0.0141, r: _r*0.93, col: 6 },  // ring 3: windshield zone (lower stays red)
+      { vF: 0.0131, r: _r*0.97, col: 0 },  // ring 4: grey starts ← winAftRi
       { vF: 0.0124, r: _r*0.99, col: 0 },  // ring 5: cockpit section
       { vF: 0.012,  r: _r,      col: 0 },  // ring 6: nose–fuselage junction
     ],
