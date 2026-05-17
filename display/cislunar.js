@@ -11,6 +11,7 @@ import { moonECI } from '../core/rocket.js';
 const GM_EARTH   = 3.986004418e14;
 const GM_MOON    = 4.9048695e12;
 const MOON_SMA   = 384_400_000;
+const MOON_R     = 1_737_000;    // Moon mean radius, m
 const MOON_R_MIN = 1_747_000;    // Moon radius + 10 km — clamp display path at surface
 const FUTURE_MAX_T    = 432_000; // 120 h total window
 const FUTURE_MAX_PTS  = 600;     // cap to keep display fast
@@ -304,4 +305,227 @@ export function renderCislunar() {
     ctx.textAlign = 'left';
   }
 
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   renderMoonMap — Moon-centred view for LM instrument panel (view 3).
+   Auto-scales: Moon fills 28% of screen in orbit; zooms out to keep
+   spacecraft visible during approach / free-return flyby.
+   ═══════════════════════════════════════════════════════════════ */
+export function renderMoonMap() {
+  _ensureCanvas();
+  if (!_cvs || !_ctx || !S.orbitVec) return;
+
+  const DPR = window.devicePixelRatio || 1;
+  const W   = Math.round(window.innerWidth  * DPR);
+  const H   = Math.round(window.innerHeight * DPR);
+  if (_cvs.width !== W || _cvs.height !== H) { _cvs.width = W; _cvs.height = H; }
+
+  const ctx = _ctx;
+  const mT  = S.time ?? 0;
+  const { rx: srx, ry: sry, vx, vy, vz } = S.orbitVec;
+  const { mx, my } = moonECI(mT);
+  const moonDist = Math.sqrt((srx - mx) ** 2 + (sry - my) ** 2);
+
+  /* Auto-zoom: keep both Moon and spacecraft on-screen */
+  const cx = W / 2, cy = H / 2;
+  const orbitScale = Math.min(W, H) * 0.28 / MOON_R;  // px/m  — orbit view
+  const fitScale   = Math.min(W, H) * 0.42 / Math.max(moonDist, MOON_R * 1.5);
+  const scale = Math.min(orbitScale, fitScale);
+  const moonPxR = MOON_R * scale;
+
+  function mpx(rx, ry) {
+    return { px: cx + (rx - mx) * scale, py: cy - (ry - my) * scale };
+  }
+
+  /* Background */
+  ctx.fillStyle = '#02040a';
+  ctx.fillRect(0, 0, W, H);
+
+  /* Stars */
+  let rng = 0x3c2a4f;
+  for (let i = 0; i < 160; i++) {
+    rng = _lcg(rng); const sx = rng % W;
+    rng = _lcg(rng); const sy = rng % H;
+    rng = _lcg(rng);
+    const alpha = 0.35 + (rng & 0x7f) / 400;
+    const sz = (0.3 + (rng & 3) * 0.15) * DPR;
+    ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(2)})`;
+    ctx.fillRect(sx, sy, sz, sz);
+  }
+
+  /* Moon disk — lit from upper-left */
+  {
+    const ldx = -0.52, ldy = -0.42;
+    const g = ctx.createRadialGradient(
+      cx + ldx * moonPxR * 0.55, cy + ldy * moonPxR * 0.55, moonPxR * 0.04,
+      cx, cy, moonPxR
+    );
+    g.addColorStop(0,    '#dfdad0');
+    g.addColorStop(0.38, '#b2aea4');
+    g.addColorStop(0.72, '#78746e');
+    g.addColorStop(1,    '#1c1a18');
+    ctx.beginPath();
+    ctx.arc(cx, cy, moonPxR, 0, Math.PI * 2);
+    ctx.fillStyle = g; ctx.fill();
+  }
+
+  /* Craters — visible when Moon is large enough */
+  if (moonPxR > 38 * DPR) {
+    const CRATERS = [
+      [ 0.55, -0.32, 0.085], [ 0.22,  0.58, 0.062], [-0.42,  0.18, 0.092],
+      [-0.18, -0.60, 0.055], [ 0.68,  0.40, 0.072], [-0.60, -0.22, 0.088],
+      [ 0.08,  0.14, 0.040], [-0.28,  0.62, 0.058], [ 0.48, -0.52, 0.044],
+      [-0.50,  0.46, 0.050], [ 0.18, -0.28, 0.032], [-0.08,  0.36, 0.036],
+      [ 0.32,  0.22, 0.028], [-0.35, -0.42, 0.044],
+    ];
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, moonPxR * 0.985, 0, Math.PI * 2); ctx.clip();
+    for (const [nx, ny, nr] of CRATERS) {
+      const cpx = cx + nx * moonPxR, cpy = cy + ny * moonPxR, cr = nr * moonPxR;
+      ctx.beginPath(); ctx.arc(cpx, cpy, cr, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(185,180,172,0.26)'; ctx.lineWidth = cr * 0.13; ctx.stroke();
+      const ig = ctx.createRadialGradient(cpx, cpy, 0, cpx, cpy, cr * 0.88);
+      ig.addColorStop(0, 'rgba(28,26,22,0.30)'); ig.addColorStop(1, 'rgba(28,26,22,0)');
+      ctx.beginPath(); ctx.arc(cpx, cpy, cr * 0.88, 0, Math.PI * 2);
+      ctx.fillStyle = ig; ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /* Moon limb */
+  ctx.beginPath();
+  ctx.arc(cx, cy, moonPxR, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(180,175,165,0.48)'; ctx.lineWidth = 1.2 * DPR; ctx.stroke();
+
+  /* MOON label */
+  ctx.font = `${9 * DPR}px "IBM Plex Mono", monospace`;
+  ctx.fillStyle = 'rgba(180,175,165,0.55)'; ctx.textAlign = 'left';
+  ctx.fillText('MOON', cx + moonPxR + 5 * DPR, cy + 4 * DPR);
+
+  /* Past trail (Moon-centred; subtract current Moon position — sufficient for short stays) */
+  const trail = S.cislunarTrail ?? [];
+  if (trail.length > 1) {
+    ctx.save();
+    ctx.beginPath();
+    const t0 = mpx(trail[0].rx, trail[0].ry);
+    ctx.moveTo(t0.px, t0.py);
+    for (let i = 1; i < trail.length; i++) {
+      const tp = mpx(trail[i].rx, trail[i].ry);
+      ctx.lineTo(tp.px, tp.py);
+    }
+    ctx.strokeStyle = 'rgba(255,175,55,0.65)';
+    ctx.lineWidth = 1.8 * DPR; ctx.lineJoin = 'round'; ctx.stroke();
+    ctx.restore();
+  }
+
+  /* Future path */
+  const future = _propagate(S.orbitVec, mT);
+  if (future.length > 1) {
+    ctx.save();
+    ctx.setLineDash([3 * DPR, 4 * DPR]);
+    ctx.beginPath();
+    const f0 = mpx(future[0].rx, future[0].ry);
+    ctx.moveTo(f0.px, f0.py);
+    for (let i = 1; i < future.length; i++) {
+      const fp = mpx(future[i].rx, future[i].ry);
+      ctx.lineTo(fp.px, fp.py);
+    }
+    ctx.strokeStyle = 'rgba(95,200,255,0.65)'; ctx.lineWidth = 1.8 * DPR; ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  /* Periapsis / pericynthion marker — lowest altitude on future path */
+  let periPt = null, periAlt = null;
+  {
+    let minD = Infinity;
+    for (const fp of future) {
+      const d = Math.sqrt((fp.rx - mx) ** 2 + (fp.ry - my) ** 2);
+      if (d < minD) { minD = d; periPt = mpx(fp.rx, fp.ry); periAlt = Math.round((d - MOON_R) / 1000); }
+    }
+  }
+  if (periPt && periAlt !== null && periAlt >= 0) {
+    ctx.save();
+    ctx.beginPath(); ctx.arc(periPt.px, periPt.py, 4 * DPR, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(95,220,255,0.90)'; ctx.fill();
+    ctx.font = `${9 * DPR}px "IBM Plex Mono", monospace`;
+    ctx.fillStyle = 'rgba(95,220,255,0.78)'; ctx.textAlign = 'left';
+    ctx.fillText(`PCA  ${periAlt} km`, periPt.px + 7 * DPR, periPt.py + 4 * DPR);
+    ctx.restore();
+  }
+
+  /* Spacecraft dot + velocity tick */
+  const sp  = mpx(srx, sry);
+  const spd = Math.sqrt(vx*vx + vy*vy + (vz ?? 0)**2);
+  const vm  = Math.sqrt(vx*vx + vy*vy);
+  ctx.beginPath(); ctx.arc(sp.px, sp.py, 5 * DPR, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffffff'; ctx.fill();
+  if (vm > 0) {
+    const tl = 18 * DPR;
+    ctx.beginPath(); ctx.moveTo(sp.px, sp.py);
+    ctx.lineTo(sp.px + (vx/vm) * tl, sp.py - (vy/vm) * tl);
+    ctx.strokeStyle = 'rgba(255,255,255,0.65)'; ctx.lineWidth = 1.5 * DPR; ctx.stroke();
+  }
+
+  /* Readouts — top left */
+  const alt_km   = Math.max(0, Math.round((moonDist - MOON_R) / 1000));
+  const spd_kms  = (spd / 1000).toFixed(2);
+  /* Orbital period from vis-viva, Moon-relative (approximate: Moon moves slowly) */
+  const orbE     = spd*spd/2 - GM_MOON / moonDist;
+  const period_min = orbE < 0
+    ? Math.round(2 * Math.PI * Math.sqrt((-GM_MOON / (2 * orbE)) ** 3 / GM_MOON) / 60)
+    : null;
+
+  ctx.textAlign = 'left'; ctx.fillStyle = '#7ec8e8';
+  ctx.font = `${10 * DPR}px "IBM Plex Mono", monospace`;
+  ctx.fillText(`ALT  ${alt_km.toLocaleString()} km`, 12 * DPR, 20 * DPR);
+  ctx.fillText(`SPD  ${spd_kms} km/s`,               12 * DPR, 35 * DPR);
+  if (period_min !== null) {
+    ctx.fillText(`PRD  ${period_min} min`,            12 * DPR, 50 * DPR);
+  }
+
+  /* Callsign + GET — top right */
+  const callsign = (S.mission?.id === 'apollo13' ? 'AQUARIUS'
+                  : (S.aircraft?.callsign ?? 'LM')).toUpperCase();
+  const ignT = S.aircraft?.ignitionTime ?? 0;
+  const absT = Math.abs(mT - ignT);
+  const hh = Math.floor(absT/3600), mm = Math.floor((absT%3600)/60), ss = Math.floor(absT%60);
+  const met = `T+ ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#b0d890';
+  ctx.font = `bold ${11 * DPR}px "IBM Plex Mono", monospace`;
+  ctx.fillText(callsign, W - 12 * DPR, 20 * DPR);
+  ctx.fillStyle = '#5dd47e';
+  ctx.font = `${9 * DPR}px "IBM Plex Mono", monospace`;
+  ctx.fillText(met, W - 12 * DPR, 34 * DPR);
+
+  /* Next event countdown — top right */
+  const ev = _nextEvent();
+  if (ev) {
+    const dt = Math.max(0, ev.t - mT);
+    const eh = Math.floor(dt/3600), em = Math.floor((dt%3600)/60), es = Math.floor(dt%60);
+    const pad = n => String(n).padStart(2, '0');
+    ctx.fillStyle = '#8ef';
+    ctx.font = `bold ${10 * DPR}px "IBM Plex Mono", monospace`;
+    ctx.fillText(ev.label, W - 12 * DPR, 52 * DPR);
+    ctx.fillStyle = '#5bd';
+    ctx.font = `${9 * DPR}px "IBM Plex Mono", monospace`;
+    ctx.fillText(`T-${pad(eh)}:${pad(em)}:${pad(es)}`, W - 12 * DPR, 64 * DPR);
+  }
+
+  /* MOON MAP label — bottom left */
+  ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(100,120,140,0.48)';
+  ctx.font = `${8 * DPR}px "IBM Plex Mono", monospace`;
+  ctx.fillText('MOON  MAP', 12 * DPR, H - 12 * DPR);
+
+  /* Scale bar — bottom right (200 km fixed) */
+  const barKm = 200, barPx = barKm * 1000 * scale;
+  if (barPx > 15 * DPR && barPx < W * 0.35) {
+    const bx = W - 12 * DPR - barPx, by = H - 14 * DPR;
+    ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + barPx, by);
+    ctx.strokeStyle = 'rgba(130,155,175,0.52)'; ctx.lineWidth = 1.5 * DPR; ctx.stroke();
+    ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(130,155,175,0.52)';
+    ctx.fillText(`${barKm} km`, W - 12 * DPR, H - 20 * DPR);
+  }
 }

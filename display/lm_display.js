@@ -8,6 +8,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from '../core/state.js';
+import { drawDSKY, drawDSKYKeyboard } from './dsky.js';
 
 /* ── Tab state ── */
 const LM_ROLES  = ['CDR', 'LMP', 'CB'];
@@ -26,33 +27,6 @@ export function loadLMDSKYProgram(verb, noun) {
 }
 export function setLMRole(r) { if (LM_ROLES.includes(r)) _lmRole = r; }
 export function getLMRole()  { return _lmRole; }
-
-/* ── 7-segment patterns ── */
-const _SEG = {
-  '0':[1,1,1,1,1,1,0], '1':[0,1,1,0,0,0,0], '2':[1,1,0,1,1,0,1],
-  '3':[1,1,1,1,0,0,1], '4':[0,1,1,0,0,1,1], '5':[1,0,1,1,0,1,1],
-  '6':[1,0,1,1,1,1,1], '7':[1,1,1,0,0,0,0], '8':[1,1,1,1,1,1,1],
-  '9':[1,1,1,1,0,1,1], '-':[0,0,0,0,0,0,1], ' ':[0,0,0,0,0,0,0],
-};
-
-function _seg7(ctx, ox, oy, sw, sh, ch, on, off) {
-  const p  = _SEG[ch] ?? _SEG[' '];
-  const t  = Math.max(1, sw * 0.13);
-  const iw = sw - t * 2, ih = sh * 0.5 - t * 2;
-  const r  = (x, y, w, h, lit) => { ctx.fillStyle = lit ? on : off; ctx.fillRect(x, y, w, h); };
-  r(ox+t,    oy,            iw, t,  p[0]);
-  r(ox+sw-t, oy+t,          t, ih, p[1]);
-  r(ox+sw-t, oy+sh*.5+t,   t, ih, p[2]);
-  r(ox+t,    oy+sh-t,      iw, t,  p[3]);
-  r(ox,      oy+sh*.5+t,   t, ih, p[4]);
-  r(ox,      oy+t,          t, ih, p[5]);
-  r(ox+t,    oy+sh*.5-t*.5,iw, t,  p[6]);
-}
-function _dskyStr(ctx, str, ox, oy, sw, sh, on, off) {
-  const gap = sw * 0.22;
-  for (let i = 0; i < str.length; i++)
-    _seg7(ctx, ox + i*(sw+gap), oy, sw, sh, str[i], on, off);
-}
 
 /* ── Text/bar helpers ── */
 function _txt(ctx, text, x, y, { font='14px "IBM Plex Mono",monospace', color='#a0aab8', align='left', base='alphabetic' } = {}) {
@@ -222,128 +196,18 @@ function _drawLMWindow(ctx, x, y, w, h, dpr) {
   ctx.fillText('LPD', x + w - pad - Math.round(2*dpr), y + pad + Math.round(2*dpr));
 }
 
-/* ── DSKY display panel ── */
-function _drawDSKY(ctx, cx, cy, w, h) {
+/* ── DSKY thin wrappers (shared rendering from dsky.js) ── */
+function _callDSKY(ctx, cx, cy, w, h) {
   const st    = _getDSKYState();
   const flash = Math.floor((S.time ?? 0) * 2) % 2 === 0;
-
-  if (_dskyMode === 'verb')      st.verb = flash ? _dskyDigits.padEnd(2,' ') : '  ';
-  else if (_dskyVerbOv !== null) st.verb = _dskyVerbOv;
-  if (_dskyMode === 'noun')      st.noun = flash ? _dskyDigits.padEnd(2,' ') : '  ';
-  else if (_dskyNounOv !== null) st.noun = _dskyNounOv;
-
-  const x = Math.round(cx - w/2), y = Math.round(cy - h/2);
-  const p = Math.round(w * 0.045);
-  const ON  = '#a8f050', OFF = '#1c2c14', LBL = '#3a4a30', LIT = '#38b030', DIM = '#0a1208';
-
-  ctx.fillStyle = '#141810';
-  ctx.beginPath(); ctx.roundRect(x, y, w, h, Math.round(w*0.04)); ctx.fill();
-  ctx.strokeStyle = '#252e20'; ctx.lineWidth = Math.max(1, w*0.008); ctx.stroke();
-
-  const bx = x+p, by = y+p, bw = w-p*2, bh = h-p*2;
-  ctx.fillStyle = '#0c1008'; ctx.fillRect(bx, by, bw, bh);
-
-  const lblSz  = `${Math.round(h*0.048)}px "IBM Plex Mono",monospace`;
-  const liteSz = `${Math.round(h*0.040)}px "IBM Plex Mono",monospace`;
-  ctx.textBaseline = 'middle';
-
-  /* PROG / VERB / NOUN */
-  const pvnH  = Math.round(bh*0.29), pvnSec = Math.round(bw/3);
-  const segBH = Math.round(pvnH*0.62), segBW = Math.round(Math.min(segBH*0.52, pvnSec*0.36));
-  for (let i = 0; i < 3; i++) {
-    const label = ['PROG','VERB','NOUN'][i];
-    const val   = [st.prog, st.verb, st.noun][i];
-    const gcx   = bx + pvnSec*i + Math.round(pvnSec/2);
-    const digW  = 2*segBW + Math.round(segBW*0.22);
-    ctx.fillStyle = LBL; ctx.font = lblSz; ctx.textAlign = 'center';
-    ctx.fillText(label, gcx, by + Math.round(pvnH*0.18));
-    _dskyStr(ctx, val, gcx - Math.round(digW/2), by + Math.round(pvnH*0.36), segBW, segBH, ON, OFF);
-  }
-
-  /* Warning lights */
-  const sep1Y = by + pvnH;
-  ctx.fillStyle = '#1a2218'; ctx.fillRect(bx, sep1Y, bw, Math.max(1, Math.round(h*0.008)));
-  const liteSec = Math.round(bh*0.24), liteY = sep1Y + Math.round(liteSec*0.04);
-  const liteRH  = Math.round(liteSec/5), dotW = Math.round(liteRH*0.5), dotH = Math.round(liteRH*0.45);
-  const leftL  = [
-    { n:'COMP ACTY', on: st.compActy && flash },
-    { n:'UPLINK',    on: false },
-    { n:'TEMP',      on: false },
-    { n:'KEY REL',   on: false },
-    { n:'OPR ERR',   on: false },
-  ];
-  const rightL = [
-    { n:'PROG',    on: st.prog !== '00' },
-    { n:'GIML LK', on: false },
-    { n:'STBY',    on: false },
-    { n:'RESTART', on: false },
-    { n:'TRACKER', on: false },
-  ];
-  ctx.font = liteSz;
-  const col2X = bx + Math.round(bw*0.52);
-  for (let i = 0; i < 5; i++) {
-    const rowCy = liteY + i*liteRH + Math.round(liteRH*0.5);
-    for (const [off, L] of [[0, leftL[i]], [col2X - bx, rightL[i]]]) {
-      ctx.fillStyle = L.on ? LIT : DIM;
-      ctx.fillRect(bx+off, rowCy - Math.round(dotH/2), dotW, dotH);
-      ctx.fillStyle = L.on ? '#7acc60' : '#222e1c';
-      ctx.textAlign = 'left';
-      ctx.fillText(L.n, bx+off+dotW+Math.round(p*0.4), rowCy);
-    }
-  }
-
-  /* R1 / R2 / R3 */
-  const sep2Y = liteY + liteSec;
-  ctx.fillStyle = '#1a2218'; ctx.fillRect(bx, sep2Y, bw, Math.max(1, Math.round(h*0.008)));
-  const dataY = sep2Y + Math.round(h*0.01), dataH = by+bh-dataY;
-  const rowH  = Math.round(dataH/3), segSH = Math.round(rowH*0.72), segSW = Math.round(segSH*0.52);
-  ctx.font = liteSz;
-  for (const [i, row] of [[0,st.r1],[1,st.r2],[2,st.r3]]) {
-    const ry  = dataY + i*rowH, rcy = ry + Math.round(rowH*0.5), sy = rcy - Math.round(segSH*0.5);
-    ctx.fillStyle = LBL; ctx.textAlign = 'left';
-    ctx.fillText(`R${i+1}`, bx, rcy);
-    const lblW = ctx.measureText(`R${i+1}`).width + Math.round(p*0.4);
-    ctx.fillStyle = '#1a2218';
-    ctx.fillRect(bx+lblW - Math.round(p*0.2), ry+Math.round(rowH*0.12),
-                 Math.max(1,Math.round(w*0.005)), Math.round(rowH*0.76));
-    _seg7(ctx, bx+lblW, sy, segSW*0.6, segSH, row[0]==='-'?'-':' ', ON, OFF);
-    _dskyStr(ctx, row.slice(1), bx+lblW+segSW*0.7, sy, segSW, segSH, ON, OFF);
-  }
+  if (_dskyMode === 'verb')       st.verb = flash ? _dskyDigits.padEnd(2, ' ') : '  ';
+  else if (_dskyVerbOv !== null)  st.verb = _dskyVerbOv;
+  if (_dskyMode === 'noun')       st.noun = flash ? _dskyDigits.padEnd(2, ' ') : '  ';
+  else if (_dskyNounOv !== null)  st.noun = _dskyNounOv;
+  drawDSKY(ctx, cx, cy, w, h, st);
 }
-
-/* ── DSKY keyboard ── */
-function _drawDSKYKeyboard(ctx, x, y, w, h) {
-  _dskyKeyRects = [];
-  const COLS=5, ROWS=5, gap=Math.max(2,Math.round(w*0.018));
-  const kw=(w-gap*(COLS+1))/COLS, kh=(h-gap*(ROWS+1))/ROWS;
-
-  ctx.fillStyle='#0b1209'; ctx.beginPath();
-  ctx.roundRect(x,y,w,h,Math.round(w*0.04)); ctx.fill();
-  ctx.strokeStyle='#1a2218'; ctx.lineWidth=1; ctx.stroke();
-
-  const keys=[
-    {k:'VERB',c:0,r:0,cs:2,type:'vn'},{k:'NOUN',c:2,r:0,cs:2,type:'vn'},
-    {k:'+',c:0,r:1,type:'sign'},{k:'7',c:1,r:1,type:'num'},{k:'8',c:2,r:1,type:'num'},
-    {k:'9',c:3,r:1,type:'num'},{k:'CLR',c:4,r:1,type:'fn'},
-    {k:'-',c:0,r:2,type:'sign'},{k:'4',c:1,r:2,type:'num'},{k:'5',c:2,r:2,type:'num'},
-    {k:'6',c:3,r:2,type:'num'},{k:'PRO',c:4,r:2,type:'fn'},
-    {k:'1',c:1,r:3,type:'num'},{k:'2',c:2,r:3,type:'num'},{k:'3',c:3,r:3,type:'num'},
-    {k:'KEY REL',c:4,r:3,type:'fn',fs:0.50},
-    {k:'0',c:1,r:4,type:'num'},{k:'ENTR',c:2,r:4,cs:2,type:'fn'},{k:'RSET',c:4,r:4,type:'fn'},
-  ];
-  for (const key of keys) {
-    const cs=key.cs??1, kx=x+gap+key.c*(kw+gap), ky=y+gap+key.r*(kh+gap);
-    const kkw=kw*cs+gap*(cs-1);
-    const active=(key.k==='VERB'&&_dskyMode==='verb')||(key.k==='NOUN'&&_dskyMode==='noun');
-    ctx.fillStyle = active?'#1e3020':key.type==='vn'?'#0e1c0e':key.type==='num'?'#121810':key.type==='sign'?'#0f1a10':'#0d1610';
-    ctx.strokeStyle = active?'#3a5a38':'#1e2c1c'; ctx.lineWidth=1;
-    ctx.beginPath(); ctx.roundRect(kx,ky,kkw,kh,Math.round(kh*0.15)); ctx.fill(); ctx.stroke();
-    ctx.font=`${Math.round(kh*(key.fs??0.40))}px "IBM Plex Mono",monospace`;
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillStyle=active?'#c0e8a0':key.type==='vn'?'#8ab878':key.type==='num'?'#7aaa60':key.type==='sign'?'#5a8048':'#5a7850';
-    ctx.fillText(key.k, kx+kkw/2, ky+kh/2);
-    if (key.k) _dskyKeyRects.push({key:key.k,x:kx,y:ky,w:kkw,h:kh});
-  }
+function _callDSKYKeyboard(ctx, x, y, w, h) {
+  drawDSKYKeyboard(ctx, x, y, w, h, _dskyMode, _dskyKeyRects);
 }
 
 /* ── Tab row ── */
@@ -400,8 +264,8 @@ function _drawCDR(ctx, x, y, w, h, dpr, data) {
   const dskyW    = w - mid - pad*2;
   const dskyH    = Math.round(h * 0.55);
   const kbdH     = Math.round(h * 0.38);
-  _drawDSKY(ctx, dskyX + dskyW/2, y + dskyH/2, dskyW, dskyH);
-  _drawDSKYKeyboard(ctx, dskyX, y + dskyH + Math.round(h*0.02), dskyW, kbdH);
+  _callDSKY(ctx, dskyX + dskyW/2, y + dskyH/2, dskyW, dskyH);
+  _callDSKYKeyboard(ctx, dskyX, y + dskyH + Math.round(h*0.02), dskyW, kbdH);
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -488,10 +352,10 @@ function _drawCB(ctx, x, y, w, h, dpr, data) {
   const warnings = new Set(S.activeWarnings ?? []);
 
   const cells = [
-    ['MN_BUS_A_UNDERVOLT','BUS A UNDER'],  ['MN_BUS_B_UNDERVOLT','BUS B UNDER'],
-    ['O2_PRESS_1',        'O₂ PRESS 1'],   ['O2_PRESS_2',        'O₂ PRESS 2'],
-    ['PGNCS_FAIL',        'PGNCS FAIL'],   ['AGS_FAIL',          'AGS FAIL'],
-    [null,                 ''],             ['MASTER_ALARM',      'MASTER ALM'],
+    ['LM_BUS_1_UNDERVOLT', 'BUS 1 UNDER'],  ['LM_BUS_2_UNDERVOLT', 'BUS 2 UNDER'],
+    ['O2_PRESS_1',          'O₂ PRESS 1'],   ['CO2_PARTIAL_PRESS',   'CO₂ PRESS'],
+    ['PGNCS_FAIL',          'PGNCS FAIL'],   ['AGS_FAIL',            'AGS FAIL'],
+    ['DESCENT_QTY',         'DESC QTY'],     ['MASTER_ALARM',        'MASTER ALM'],
   ];
   const COLS = 2, ROWS = Math.ceil(cells.length / COLS);
   const cw = (w - pad*3) / COLS, ch = cwH / ROWS;

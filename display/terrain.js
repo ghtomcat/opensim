@@ -246,7 +246,7 @@ function _isOcean(lat, lon) {
   return true;
 }
 
-export function renderTerrain(canvas, { outsideView = false } = {}) {
+export function renderTerrain(canvas, { outsideView = false, cxOverride = null } = {}) {
   const W = canvas.width  = canvas.offsetWidth  * devicePixelRatio;
   const H = canvas.height = canvas.offsetHeight * devicePixelRatio;
   const ctx = canvas.getContext('2d');
@@ -262,7 +262,7 @@ export function renderTerrain(canvas, { outsideView = false } = {}) {
   const cosP  = Math.cos(pitch), sinP = Math.sin(pitch);
   const cosR  = Math.cos(roll),  sinR = Math.sin(roll);
   const cosH  = Math.cos(hdg),   sinH = Math.sin(hdg);
-  const cx = W / 2, cy = H / 2;
+  const cx = cxOverride ?? W / 2, cy = H / 2;
 
   /* ── Project (fwd, right) aircraft-frame nm to screen pixels ──
      up = 0 means ground level; aircraft is at +altNm above ground.

@@ -10,6 +10,7 @@
 
 import { S, setState } from '../core/state.js';
 import { moonECI } from '../core/rocket.js';
+import { drawDSKY, drawDSKYKeyboard } from './dsky.js';
 
 const DEG      = Math.PI / 180;
 const G0       = 9.80665;
@@ -843,7 +844,8 @@ function _drawApolloTabs(ctx, W, H, crew) {
     const active = r === _apolloRole;
     const isTelem  = r === 'TELEM';
     const isIU     = r === 'IU';
-    const name     = (!isTelem && !isIU && crew?.[r]) ? `${r}  ${crew[r].toUpperCase()}` : r;
+    const name     = (!isTelem && !isIU && crew?.[r]) ? `${r}  ${crew[r].toUpperCase()}`
+                   : (isIU && S.sivbSep) ? 'C&W' : r;
     ctx.fillStyle  = active ? (isTelem ? '#1a1200' : isIU ? '#0a1620' : '#1a2a1a') : '#080f0a';
     ctx.fillRect(x, tabY, tabW - 2, tabH);
     ctx.fillStyle  = active ? (isTelem ? '#ffb74d' : isIU ? '#4dc5dc' : '#c8d4bc')
@@ -966,36 +968,10 @@ function _drawFDAI(ctx, cx, cy, r, pitchDeg, rollDeg) {
 
 /* ════════════════════════════════════════════════════════════════
    DSKY — Apollo Guidance Computer Display & Keyboard
-   Renders the iconic electroluminescent panel on the CMP view.
+   Drawing delegated to shared display/dsky.js.
    ════════════════════════════════════════════════════════════════ */
 
-/* 7-segment patterns: [a(top), b(tr), c(br), d(bot), e(bl), f(tl), g(mid)] */
-const _DSKY_SEG = {
-  '0':[1,1,1,1,1,1,0], '1':[0,1,1,0,0,0,0], '2':[1,1,0,1,1,0,1],
-  '3':[1,1,1,1,0,0,1], '4':[0,1,1,0,0,1,1], '5':[1,0,1,1,0,1,1],
-  '6':[1,0,1,1,1,1,1], '7':[1,1,1,0,0,0,0], '8':[1,1,1,1,1,1,1],
-  '9':[1,1,1,1,0,1,1], '-':[0,0,0,0,0,0,1], ' ':[0,0,0,0,0,0,0],
-};
 
-function _seg7(ctx, ox, oy, sw, sh, ch, onCol, offCol) {
-  const p = _DSKY_SEG[ch] ?? _DSKY_SEG[' '];
-  const t = Math.max(1, sw * 0.13);
-  const iw = sw - t * 2, ih = sh * 0.5 - t * 2;
-  function r(x, y, w, h, on) { ctx.fillStyle = on ? onCol : offCol; ctx.fillRect(x, y, w, h); }
-  r(ox+t,      oy,             iw, t,  p[0]); // a top
-  r(ox+sw-t,   oy+t,           t, ih, p[1]); // b top-right
-  r(ox+sw-t,   oy+sh*.5+t,    t, ih, p[2]); // c bot-right
-  r(ox+t,      oy+sh-t,       iw, t,  p[3]); // d bottom
-  r(ox,        oy+sh*.5+t,    t, ih, p[4]); // e bot-left
-  r(ox,        oy+t,           t, ih, p[5]); // f top-left
-  r(ox+t,      oy+sh*.5-t*.5, iw, t,  p[6]); // g middle
-}
-
-function _dskyStr(ctx, str, ox, oy, sw, sh, onCol, offCol) {
-  const gap = sw * 0.22;
-  for (let i = 0; i < str.length; i++)
-    _seg7(ctx, ox + i*(sw+gap), oy, sw, sh, str[i], onCol, offCol);
-}
 
 /* Load a DSKY program directly (called from kneeboard) */
 export function loadDSKYProgram(verb, noun) {
@@ -1030,7 +1006,7 @@ function _getDSKYState() {
       const a   = 1 / (2 / (R_EARTH_M + altM) - (velMs * velMs) / GM_EARTH);
       const T   = 2 * Math.PI * Math.sqrt((a * a * a) / GM_EARTH);
       const apNm = Math.round(Math.max(0, (a - R_EARTH_M) / 1852));
-      const peMod = Math.max(0, apNm - Math.round(altNm * 0.004));  /* slight eccentricity */
+      const peMod = Math.max(0, apNm - Math.round(altNm * 0.004));
       const pMM  = Math.floor(T / 60);
       const pSS  = Math.floor(T % 60);
       return { prog:'00', verb:'16', noun:'44',
@@ -1194,233 +1170,18 @@ function _getDSKYState() {
     compActy: !!(S.rocketCoast) === false };
 }
 
-function _drawDSKY(ctx, cx, cy, w, h) {
+function _callDSKY(ctx, cx, cy, w, h) {
   const st    = _getDSKYState();
   const flash = Math.floor((S.time ?? 0) * 2) % 2 === 0;
-
-  /* Apply manual verb/noun overrides; show partially-entered digits flashing */
   if (_dskyMode === 'verb')       st.verb = flash ? _dskyDigits.padEnd(2, ' ') : '  ';
   else if (_dskyVerbOv !== null)  st.verb = _dskyVerbOv;
   if (_dskyMode === 'noun')       st.noun = flash ? _dskyDigits.padEnd(2, ' ') : '  ';
   else if (_dskyNounOv !== null)  st.noun = _dskyNounOv;
-
-  const x  = Math.round(cx - w / 2);
-  const y  = Math.round(cy - h / 2);
-  const p  = Math.round(w * 0.045);
-
-  const ON  = '#a8f050';   // electroluminescent green-yellow
-  const OFF = '#1c2c14';   // ghost / inactive segment
-  const LBL = '#3a4a30';   // dim label
-  const LIT = '#38b030';   // indicator light on
-  const DIM = '#0a1208';   // indicator light off
-
-  /* Panel body */
-  ctx.fillStyle = '#141810';
-  ctx.beginPath();
-  ctx.roundRect(x, y, w, h, Math.round(w * 0.04));
-  ctx.fill();
-  ctx.strokeStyle = '#252e20';
-  ctx.lineWidth = Math.max(1, w * 0.008);
-  ctx.stroke();
-
-  /* Inner bezel */
-  const bx = x+p, by = y+p, bw = w-p*2, bh = h-p*2;
-  ctx.fillStyle = '#0c1008';
-  ctx.fillRect(bx, by, bw, bh);
-
-  const lblSz  = `${Math.round(h * 0.048)}px "IBM Plex Mono",monospace`;
-  const liteSz = `${Math.round(h * 0.040)}px "IBM Plex Mono",monospace`;
-  ctx.textBaseline = 'middle';
-
-  /* ── PROG / VERB / NOUN ── */
-  const pvnH   = Math.round(bh * 0.29);
-  const pvnSec = Math.round(bw / 3);
-  const segBH  = Math.round(pvnH * 0.62);
-  const segBW  = Math.round(Math.min(segBH * 0.52, pvnSec * 0.36));
-  const segBGp = Math.round(segBW * 0.22);
-
-  for (let i = 0; i < 3; i++) {
-    const label = ['PROG','VERB','NOUN'][i];
-    const val   = [st.prog, st.verb, st.noun][i];
-    const gx    = bx + pvnSec * i;
-    const gcx   = gx + Math.round(pvnSec / 2);
-    const digW  = 2 * segBW + segBGp;
-
-    ctx.fillStyle = LBL;
-    ctx.font = lblSz;
-    ctx.textAlign = 'center';
-    ctx.fillText(label, gcx, by + Math.round(pvnH * 0.18));
-
-    const digY = by + Math.round(pvnH * 0.36);
-    _dskyStr(ctx, val, gcx - Math.round(digW / 2), digY, segBW, segBH, ON, OFF);
-  }
-
-  /* Separator */
-  const sep1Y = by + pvnH;
-  ctx.fillStyle = '#1a2218';
-  ctx.fillRect(bx, sep1Y, bw, Math.max(1, Math.round(h * 0.008)));
-
-  /* ── Warning lights ── */
-  const liteSec = Math.round(bh * 0.24);
-  const liteY   = sep1Y + Math.round(liteSec * 0.04);
-  const liteRows = 5;
-  const liteRH  = Math.round(liteSec / liteRows);
-  const dotW    = Math.round(liteRH * 0.5);
-  const dotH    = Math.round(liteRH * 0.45);
-
-  const leftL  = [
-    { n:'COMP ACTY',  on: st.compActy && flash },
-    { n:'UPLINK ACTY',on: false },
-    { n:'TEMP',       on: false },
-    { n:'KEY REL',    on: false },
-    { n:'OPR ERR',    on: false },
-  ];
-  const rightL = [
-    { n:'PROG',    on: st.prog !== '00' },
-    { n:'GIML LK', on: false },
-    { n:'STBY',    on: false },
-    { n:'RESTART', on: false },
-    { n:'TRACKER', on: false },
-  ];
-
-  ctx.font = liteSz;
-  const col2X = bx + Math.round(bw * 0.52);
-
-  for (let i = 0; i < liteRows; i++) {
-    const rowCy = liteY + i * liteRH + Math.round(liteRH * 0.5);
-
-    /* Left light */
-    const ll = leftL[i];
-    ctx.fillStyle = ll.on ? LIT : DIM;
-    ctx.fillRect(bx, rowCy - Math.round(dotH/2), dotW, dotH);
-    ctx.fillStyle = ll.on ? '#7acc60' : '#222e1c';
-    ctx.textAlign = 'left';
-    ctx.fillText(ll.n, bx + dotW + Math.round(p * 0.4), rowCy);
-
-    /* Right light */
-    const rl = rightL[i];
-    ctx.fillStyle = rl.on ? LIT : DIM;
-    ctx.fillRect(col2X, rowCy - Math.round(dotH/2), dotW, dotH);
-    ctx.fillStyle = rl.on ? '#7acc60' : '#222e1c';
-    ctx.textAlign = 'left';
-    ctx.fillText(rl.n, col2X + dotW + Math.round(p * 0.4), rowCy);
-  }
-
-  /* Separator */
-  const sep2Y = liteY + liteSec;
-  ctx.fillStyle = '#1a2218';
-  ctx.fillRect(bx, sep2Y, bw, Math.max(1, Math.round(h * 0.008)));
-
-  /* ── R1 / R2 / R3 ── */
-  const dataY  = sep2Y + Math.round(h * 0.01);
-  const dataH  = by + bh - dataY;
-  const rowH   = Math.round(dataH / 3);
-  const segSH  = Math.round(rowH * 0.72);
-  const segSW  = Math.round(segSH * 0.52);
-  const segSGp = Math.round(segSW * 0.18);
-
-  ctx.font = liteSz;
-  for (const [i, row] of [[0, st.r1],[1, st.r2],[2, st.r3]]) {
-    const ry  = dataY + i * rowH;
-    const rcy = ry + Math.round(rowH * 0.5);
-    const sy  = rcy - Math.round(segSH * 0.5);
-
-    /* Row label */
-    ctx.fillStyle = LBL;
-    ctx.textAlign = 'left';
-    ctx.fillText(`R${i+1}`, bx, rcy);
-    const lblW = ctx.measureText(`R${i+1}`).width + Math.round(p * 0.4);
-
-    /* Vertical divider after label */
-    ctx.fillStyle = '#1a2218';
-    ctx.fillRect(bx + lblW - Math.round(p*0.2), ry + Math.round(rowH*0.12),
-                 Math.max(1,Math.round(w*0.005)), Math.round(rowH*0.76));
-
-    /* Sign digit */
-    const signX = bx + lblW;
-    _seg7(ctx, signX, sy, segSW * 0.6, segSH, row[0] === '-' ? '-' : ' ', ON, OFF);
-
-    /* 5 data digits */
-    _dskyStr(ctx, row.slice(1), signX + segSW * 0.7, sy, segSW, segSH, ON, OFF);
-  }
+  drawDSKY(ctx, cx, cy, w, h, st);
 }
 
-/* ── DSKY keyboard ── */
-function _drawDSKYKeyboard(ctx, x, y, w, h) {
-  _dskyKeyRects = [];
-
-  const COLS = 5, ROWS = 5;
-  const gap  = Math.max(2, Math.round(w * 0.018));
-  const kw   = (w - gap * (COLS + 1)) / COLS;
-  const kh   = (h - gap * (ROWS + 1)) / ROWS;
-
-  ctx.fillStyle = '#0b1209';
-  ctx.beginPath();
-  ctx.roundRect(x, y, w, h, Math.round(w * 0.04));
-  ctx.fill();
-  ctx.strokeStyle = '#1a2218';
-  ctx.lineWidth   = 1;
-  ctx.stroke();
-
-  const keys = [
-    { k:'VERB',    c:0, r:0, cs:2, type:'vn'   },
-    { k:'NOUN',    c:2, r:0, cs:2, type:'vn'   },
-    { k:'+',       c:0, r:1, type:'sign' },
-    { k:'7',       c:1, r:1, type:'num'  },
-    { k:'8',       c:2, r:1, type:'num'  },
-    { k:'9',       c:3, r:1, type:'num'  },
-    { k:'CLR',     c:4, r:1, type:'fn'   },
-    { k:'-',       c:0, r:2, type:'sign' },
-    { k:'4',       c:1, r:2, type:'num'  },
-    { k:'5',       c:2, r:2, type:'num'  },
-    { k:'6',       c:3, r:2, type:'num'  },
-    { k:'PRO',     c:4, r:2, type:'fn'   },
-    { k:'1',       c:1, r:3, type:'num'  },
-    { k:'2',       c:2, r:3, type:'num'  },
-    { k:'3',       c:3, r:3, type:'num'  },
-    { k:'KEY REL', c:4, r:3, type:'fn', fs:0.50 },
-    { k:'0',       c:1, r:4, type:'num'  },
-    { k:'ENTR',    c:2, r:4, cs:2, type:'fn'   },
-    { k:'RSET',    c:4, r:4, type:'fn'   },
-  ];
-
-  for (const key of keys) {
-    const cs  = key.cs ?? 1;
-    const kx  = x + gap + key.c * (kw + gap);
-    const ky  = y + gap + key.r * (kh + gap);
-    const kkw = kw * cs + gap * (cs - 1);
-    const kkh = kh;
-
-    const active = (key.k === 'VERB' && _dskyMode === 'verb') ||
-                   (key.k === 'NOUN' && _dskyMode === 'noun');
-
-    const bg = active       ? '#1e3020'
-             : key.type === 'vn'   ? '#0e1c0e'
-             : key.type === 'num'  ? '#121810'
-             : key.type === 'sign' ? '#0f1a10'
-             :                       '#0d1610';
-
-    ctx.fillStyle   = bg;
-    ctx.strokeStyle = active ? '#3a5a38' : '#1e2c1c';
-    ctx.lineWidth   = 1;
-    ctx.beginPath();
-    ctx.roundRect(kx, ky, kkw, kkh, Math.round(kkh * 0.15));
-    ctx.fill();
-    ctx.stroke();
-
-    const fontSize = Math.round(kkh * (key.fs ?? 0.40));
-    ctx.font         = `${fontSize}px "IBM Plex Mono",monospace`;
-    ctx.textAlign    = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle    = active       ? '#c0e8a0'
-                     : key.type === 'vn'   ? '#8ab878'
-                     : key.type === 'num'  ? '#7aaa60'
-                     : key.type === 'sign' ? '#5a8048'
-                     :                       '#5a7850';
-    ctx.fillText(key.k, kx + kkw / 2, ky + kkh / 2);
-
-    if (key.k) _dskyKeyRects.push({ key: key.k, x: kx, y: ky, w: kkw, h: kkh });
-  }
+function _callDSKYKeyboard(ctx, x, y, w, h) {
+  drawDSKYKeyboard(ctx, x, y, w, h, _dskyMode, _dskyKeyRects);
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -1858,73 +1619,87 @@ function _drawVehicleStack(ctx, cx, topY, availH, stage, seco, sivbSep) {
   }
 }
 
-/* ── Caution & Warning panel (right section, 4 cols × 6 rows) ──────────────
-   Mirrors the Apollo CM C&W right panel.  Each cell carries a failure ID;
-   the cell lights amber if that ID is present in S.activeWarnings.
-   MASTER ALARM header fires when S.masterAlarm is true. */
+/* ── Caution & Warning panel — full CM panel (left + right halves stacked)
+   Left  half: BMAG / GMBL / RCS indicators
+   Right half: FC / INV / AC / MN BUS / SPS
+   Each cell fires amber when its ID appears in S.activeWarnings.          */
 function _drawCWPanel(ctx, x, y, w, h) {
   const warnings    = new Set(S.activeWarnings ?? []);
   const masterAlarm = !!S.masterAlarm;
   const COLS = 4, ROWS = 6;
 
-  /* Grid definition: [failureId, displayLabel]  null = unused cell */
-  const cells = [
-    [null,                             ['FC_1',          'FC 1'          ], ['FC_2',          'FC 2'          ], ['FC_3',          'FC 3'          ]],
-    [null,                             ['INV1_TEMP_HI',  'INV 1\nTMP HI' ], ['INV2_TEMP_HI',  'INV 2\nTMP HI' ], ['INV3_TEMP_HI',  'INV 3\nTMP HI' ]],
-    [['SPS_PRESS',    'SPS\nPRSS'   ], null,                                ['AC_BUS_1',      'AC BUS 1'      ], ['AC_BUS_2',      'AC BUS 2'      ]],
-    [null,                             ['FC_BUS_DIS',    'FC BUS\nDIS'   ], ['AC1_OVLD',      'AC1\nOVLD'     ], ['AC2_OVLD',      'AC2\nOVLD'     ]],
-    [['CMC',          'CMC'         ], ['CREW_ALERT',    'CREW\nALERT'   ], ['MN_BUS_A_UNDERVOLT', 'MN BUS A\nUNDERVOLT'], ['MN_BUS_B_UNDERVOLT', 'MN BUS B\nUNDERVOLT']],
-    [['ISS',          'ISS'         ], ['CW',            'C/W'           ], ['O2_FLOW_HI',    'O₂\nFLOW HI'  ], ['SUIT_COMP',     'SUIT\nCOMP'    ]],
+  /* ── Left panel: BMAG / GMBL / RCS ── */
+  const leftCells = [
+    [['BMAG_1_TEMP',    'BMAG 1\nTEMP'   ], ['BMAG_2_TEMP',    'BMAG 2\nTEMP'   ], null,                              ['CO2_PP_HI',      'CO₂\nPP HI'    ]],
+    [['PITCH_GMBL_1',   'PCH\nGMBL 1'   ], ['YAW_GMBL_1',     'YAW\nGMBL 1'   ], null,                              null                                  ],
+    [['PITCH_GMBL_2',   'PCH\nGMBL 2'   ], ['YAW_GMBL_2',     'YAW\nGMBL 2'   ], ['CRYO_PRESS',     'CRYO\nPRESS'  ], ['GLYCOL_TEMP_LOW','GLYCOL\nTMP LO']],
+    [['CM_RCS_1',       'CM\nRCS 1'      ], ['CM_RCS_2',       'CM\nRCS 2'      ], null,                              null                                  ],
+    [['SM_RCS_A',       'SM\nRCS A'      ], ['SM_RCS_B',       'SM\nRCS B'      ], ['SM_RCS_C',       'SM\nRCS C'    ], ['SM_RCS_D',       'SM\nRCS D'     ]],
+    [null,                                  null,                                   null,                              null                                  ],
   ];
 
-  /* Header strip — MASTER ALARM */
-  const hdrH = Math.round(h * 0.16);
+  /* ── Right panel: FC / INV / AC / MN BUS / SPS ── */
+  const rightCells = [
+    [null,                                  ['FC_1',           'FC 1'           ], ['FC_2',           'FC 2'         ], ['FC_3',           'FC 3'          ]],
+    [null,                                  ['INV1_TEMP_HI',   'INV 1\nTMP HI'  ], ['INV2_TEMP_HI',   'INV 2\nTMP HI'], ['INV3_TEMP_HI',   'INV 3\nTMP HI']],
+    [['SPS_PRESS',      'SPS\nPRSS'     ], null,                                   ['AC_BUS_1',       'AC BUS 1'    ], ['AC_BUS_2',       'AC BUS 2'      ]],
+    [null,                                  ['FC_BUS_DIS',     'FC BUS\nDIS'    ], ['AC1_OVLD',       'AC1\nOVLD'   ], ['AC2_OVLD',       'AC2\nOVLD'     ]],
+    [['CMC',            'CMC'           ], ['CREW_ALERT',      'CREW\nALERT'    ], ['MN_BUS_A_UNDERVOLT','MN BUS A\nUNDERVOLT'], ['MN_BUS_B_UNDERVOLT','MN BUS B\nUNDERVOLT']],
+    [['ISS',            'ISS'           ], ['CW',              'C/W'            ], ['O2_FLOW_HI',     'O₂\nFLOW HI' ], ['SUIT_COMP',      'SUIT\nCOMP'    ]],
+  ];
+
+  /* ── MASTER ALARM header ── */
+  const hdrH = Math.round(h * 0.09);
   ctx.fillStyle = masterAlarm ? '#b83010' : '#0d1008';
-  ctx.fillRect(x, y, w, hdrH - 3);
-  const hdrSz = Math.max(8, Math.round(hdrH * 0.52));
-  ctx.font          = `${hdrSz}px "IBM Plex Mono",monospace`;
-  ctx.textAlign     = 'center';
-  ctx.textBaseline  = 'middle';
-  ctx.fillStyle     = masterAlarm ? '#ffe8a0' : '#2c1c1c';
+  ctx.fillRect(x, y, w, hdrH - 2);
+  ctx.font = `${Math.max(7, Math.round(hdrH * 0.52))}px "IBM Plex Mono",monospace`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = masterAlarm ? '#ffe8a0' : '#2c1c1c';
   ctx.fillText('MASTER ALARM', x + w / 2, y + hdrH / 2);
 
-  /* Grid */
-  const gridY = y + hdrH;
-  const gridH = h - hdrH;
-  const cellW = Math.floor(w / COLS);
-  const cellH = Math.floor(gridH / ROWS);
-  const textSz = Math.max(7, Math.round(Math.min(cellH * 0.23, cellW * 0.078)));
+  /* ── Grid renderer (shared for both halves) ── */
+  const gridH  = h - hdrH;
+  const halfH  = Math.round(gridH / 2);
+  const cellW  = Math.floor(w / COLS);
+  const cellH  = Math.floor(halfH / ROWS);
+  const textSz = Math.max(6, Math.round(Math.min(cellH * 0.22, cellW * 0.076)));
 
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      const cx   = x + c * cellW;
-      const cy   = gridY + r * cellH;
-      const cell = cells[r][c];
-      const id   = cell?.[0] ?? null;
-      const lbl  = cell?.[1] ?? null;
-      const isActive = id ? warnings.has(id) : false;
-
-      ctx.fillStyle = isActive ? '#b85010' : (lbl ? '#09120d' : '#060908');
-      ctx.fillRect(cx + 1, cy + 1, cellW - 2, cellH - 2);
-
-      ctx.strokeStyle = '#192419';
-      ctx.lineWidth   = 1;
-      ctx.strokeRect(cx + 0.5, cy + 0.5, cellW - 1, cellH - 1);
-
-      if (lbl) {
-        ctx.font         = `${textSz}px "IBM Plex Mono",monospace`;
-        ctx.textAlign    = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle    = isActive ? '#ffe8a0' : '#2a3c2a';
-        const lines  = lbl.split('\n');
-        const lineH  = textSz * 1.25;
-        const totalH = lines.length * lineH;
-        lines.forEach((line, i) => {
-          ctx.fillText(line, cx + cellW / 2, cy + cellH / 2 - totalH / 2 + lineH * (i + 0.5));
-        });
+  function renderHalf(cells, startY) {
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const cx = x + c * cellW;
+        const cy = startY + r * cellH;
+        const cell = cells[r][c];
+        const id   = cell?.[0] ?? null;
+        const lbl  = cell?.[1] ?? null;
+        const isActive = id ? warnings.has(id) : false;
+        ctx.fillStyle = isActive ? '#b85010' : (lbl ? '#09120d' : '#060908');
+        ctx.fillRect(cx + 1, cy + 1, cellW - 2, cellH - 2);
+        ctx.strokeStyle = '#192419'; ctx.lineWidth = 1;
+        ctx.strokeRect(cx + 0.5, cy + 0.5, cellW - 1, cellH - 1);
+        if (lbl) {
+          ctx.font = `${textSz}px "IBM Plex Mono",monospace`;
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillStyle = isActive ? '#ffe8a0' : '#2a3c2a';
+          const lines = lbl.split('\n');
+          const lineH = textSz * 1.25;
+          const tot   = lines.length * lineH;
+          lines.forEach((ln, i) =>
+            ctx.fillText(ln, cx + cellW / 2, cy + cellH / 2 - tot / 2 + lineH * (i + 0.5)));
+        }
       }
     }
   }
+
+  const topY = y + hdrH;
+  const botY = topY + halfH;
+
+  /* Thin divider between the two halves */
+  ctx.fillStyle = '#1a2c1a';
+  ctx.fillRect(x, botY - 1, w, 2);
+
+  renderHalf(leftCells,  topY);
+  renderHalf(rightCells, botY + 1);
 }
 
 export function renderApollo(canvas) {
@@ -1996,11 +1771,19 @@ export function renderApollo(canvas) {
   const ss   = Math.floor(absT % 60);
   const met  = `${tLO >= 0 ? 'T+' : 'T−'} ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
 
-  /* Next-event countdown */
+  /* Next-event countdown — pre-liftoff → LIFTOFF, otherwise nearest labeled event */
   const tliT = S.mission?.tliT;
   let _nextLabel = null, _nextDt = null;
-  if (tLO < 0)                      { _nextLabel = 'LIFTOFF';  _nextDt = -tLO; }
-  else if (tliT && !S.rocketTLI)    { _nextLabel = 'TLI IGN';  _nextDt = Math.max(0, tliT - mT); }
+  if (tLO < 0) {
+    _nextLabel = 'LIFTOFF'; _nextDt = -tLO;
+  } else {
+    const _evCands = [];
+    if (tliT && !S.rocketTLI && tliT > mT) _evCands.push({ t: tliT, label: 'TLI IGN' });
+    for (const ev of (S.mission?.events ?? []))
+      if (typeof ev.t === 'number' && ev.label && ev.t > mT) _evCands.push(ev);
+    _evCands.sort((a, b) => a.t - b.t);
+    if (_evCands.length) { _nextLabel = _evCands[0].label; _nextDt = _evCands[0].t - mT; }
+  }
 
   /* Layout zones */
   const tabH  = Math.round(H * 0.072);
@@ -2024,7 +1807,9 @@ export function renderApollo(canvas) {
   const mSz  = `${Math.round(H * 0.050)}px "IBM Plex Mono",monospace`;
 
   /* ── Header ── */
-  const callsign  = (ac.callsign ?? 'APOLLO').toUpperCase();
+  const callsign  = (S.mission?.id
+    ? S.mission.id.replace(/([a-z])(\d)/g, '$1 $2').toUpperCase()
+    : (ac.callsign ?? 'APOLLO').toUpperCase());
   const roleLabel = crewName ? `${role}  ${crewName}` : role;
   _apolloText(ctx, callsign,  pad,     Math.round(hdH * 0.6), { font: `${Math.round(H*0.042)}px "IBM Plex Mono",monospace`, color: '#c8d4bc', base: 'middle' });
   _apolloText(ctx, roleLabel, W / 2,   Math.round(hdH * 0.6), { font: lSz, color: '#7a8a72', align: 'center', base: 'middle' });
@@ -2032,7 +1817,7 @@ export function renderApollo(canvas) {
 
   /* "→ LM" button — only when mission has an LM */
   _lmBtnRect = null;
-  if (S.mission?.hasLM) {
+  if (S.mission?.hasLM && S.sivbSep) {
     const sml   = `${Math.round(H*0.022)}px "IBM Plex Mono",monospace`;
     const btnW  = Math.round(W * 0.10), btnH = Math.round(hdH * 0.42);
     const btnX  = W - pad - Math.round(W*0.12) - btnW - Math.round(W*0.02);
@@ -2099,13 +1884,6 @@ export function renderApollo(canvas) {
     _row('G-LOAD', gStr, { color: gCol });
     _gap(0.03);
     _row('ABORT MODE', abortMode, { color: '#f0c040', font: mSz });
-
-    /* C&W panel — always present on Apollo CM (dim when nominal) */
-    if (msn?.commProfile === 'sband-apollo') {
-      _gap(0.03);
-      const cwH = Math.round(mainH * 0.28);
-      _drawCWPanel(ctx, rightX, _rowY, rightW, cwH);
-    }
   }
 
   /* ═══ CMP: DSKY display + keyboard + velocity / orbit / abort ═══ */
@@ -2113,12 +1891,12 @@ export function renderApollo(canvas) {
     const dskyW  = Math.round(gaugeCol * 0.90);
     const dskyH  = Math.round(mainH * 0.50);
     const dskyCY = mainT + Math.round(dskyH / 2);
-    _drawDSKY(ctx, gaugeCX, dskyCY, dskyW, dskyH);
+    _callDSKY(ctx, gaugeCX, dskyCY, dskyW, dskyH);
 
     const kbdH = Math.round(mainH * 0.43);
     const kbdY = mainT + dskyH + Math.round(mainH * 0.02);
     const kbdX = Math.round(gaugeCX - dskyW / 2);
-    _drawDSKYKeyboard(ctx, kbdX, kbdY, dskyW, kbdH);
+    _callDSKYKeyboard(ctx, kbdX, kbdY, dskyW, kbdH);
 
     _row('VELOCITY', `${(velMs / 1000).toFixed(2)} km/s`);
     _apolloText(ctx, `${Math.round(velFps).toLocaleString()} fps`, rightX, _rowY, { font: `${Math.round(H*0.028)}px "IBM Plex Mono",monospace`, color: '#506060', base: 'top' });
@@ -2132,9 +1910,13 @@ export function renderApollo(canvas) {
     _row('ABORT MODE', abortMode, { color: '#f0c040', font: mSz });
   }
 
-  /* ═══ IU: Saturn V instrument unit — LVDC telemetry ═══ */
+  /* ═══ IU: LVDC telemetry before S-IVB sep; CM C&W after (IU jettisoned with S-IVB) ═══ */
   else if (role === 'IU') {
-    _drawIUPanel(ctx, W, H, mainT, mainH, ac);
+    if (S.sivbSep) {
+      _drawCWPanel(ctx, Math.round(W * 0.025), mainT, W - Math.round(W * 0.05), mainH);
+    } else {
+      _drawIUPanel(ctx, W, H, mainT, mainH, ac);
+    }
   }
 
   /* ═══ LMP: G-meter arc + stage / propellant / dyn-Q ═══ */

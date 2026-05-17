@@ -205,10 +205,12 @@ export function initOutside() {
       _orbitZoom = Math.max(0.1, Math.min(10, _orbitZoom * Math.exp(e.deltaY * 0.01)));
       return;
     }
-    _orbitAz = ((_orbitAz - e.deltaX * 0.35) % 360 + 360) % 360;
     if (S.paused) {
+      /* Paused: full orbit control — deltaX orbits, deltaY elevates */
+      _orbitAz = ((_orbitAz - e.deltaX * 0.35) % 360 + 360) % 360;
       _orbitEl = Math.max(-85, Math.min(85, _orbitEl - e.deltaY * 0.25));
     } else {
+      /* Live: zoom only — spacecraft stays centered on screen */
       _orbitZoom = Math.max(0.1, Math.min(10, _orbitZoom * Math.exp(e.deltaY * 0.015)));
     }
   }, { passive: false });
@@ -247,19 +249,25 @@ function _renderChaseCam(canvas) {
   const camBack  = baseDist * Math.cos(totalEl);
   const camUp    = baseDist * Math.sin(totalEl);
 
-  /* Orbit azimuth: rotate camera position around rocket */
+  /* Orbit azimuth: rotate camera position around rocket; scale by zoom */
   const orbitRad = hdgRad - Math.PI + _orbitAz * DEG;
-  const dN = Math.cos(orbitRad) * camBack;
-  const dE = Math.sin(orbitRad) * camBack;
+  const camBackZ = camBack * _orbitZoom;
+  const camUpZ   = camUp   * _orbitZoom;
+  const dN = Math.cos(orbitRad) * camBackZ;
+  const dE = Math.sin(orbitRad) * camBackZ;
+
+  const dpr    = devicePixelRatio || 1;
+  const _mapPxC = getMapReservedRight() * dpr;
+  const _cxC    = (canvas.offsetWidth * dpr - _mapPxC) / 2;
 
   const sL=S.lat,sLo=S.lon,sA=S.alt,sP=S.pitch,sR=S.roll,sH=S.hdg;
   S.lat   = (S.lat??47)   + dN / 60;
   S.lon   = (S.lon??8)    + dE / (60 * cosLat);
-  S.alt   = (S.alt??3000) + camUp / FT_NM;
+  S.alt   = (S.alt??3000) + camUpZ / FT_NM;
   S.hdg   = ((_orbitAz + 180) % 360 + 360) % 360;
-  S.pitch = Math.atan2(-camUp, camBack) / DEG;
+  S.pitch = Math.atan2(-camUpZ, camBackZ) / DEG;  /* angle unchanged, zoom cancels */
   S.roll  = 0;
-  renderTerrain(canvas, { outsideView: true });
+  renderTerrain(canvas, { outsideView: true, cxOverride: _cxC });
   S.lat=sL;S.lon=sLo;S.alt=sA;S.pitch=sP;S.roll=sR;S.hdg=sH;
 
   _drawWireframe(canvas, acP, acR + _orbitAz, camBack, camUp, 0);
@@ -299,6 +307,10 @@ function _renderSideCam(canvas) {
   const dN = Math.cos(orbitRad) * hDist;
   const dE = Math.sin(orbitRad) * hDist;
 
+  const dpr    = devicePixelRatio || 1;
+  const _mapPxS = getMapReservedRight() * dpr;
+  const _cxS    = (canvas.offsetWidth * dpr - _mapPxS) / 2;
+
   const sL=S.lat,sLo=S.lon,sA=S.alt,sH=S.hdg,sP=S.pitch,sR=S.roll;
   S.lat   = (S.lat??47)   + dN / 60;
   S.lon   = (S.lon??8)    + dE / (60 * cosLat);
@@ -306,7 +318,7 @@ function _renderSideCam(canvas) {
   S.hdg   = ((S.hdg??0) - 90 - renderOrbit + 360) % 360;
   S.pitch = Math.atan2(-(sideUp + vElev), hDist) / DEG;
   S.roll  = 0;
-  renderTerrain(canvas, { outsideView: true });
+  renderTerrain(canvas, { outsideView: true, cxOverride: _cxS });
   S.lat=sL;S.lon=sLo;S.alt=sA;S.hdg=sH;S.pitch=sP;S.roll=sR;
 
   _drawWireframe(canvas, acP, acR + renderOrbit, 0, sideUp, sideDist, false, renderOrbit, _orbitEl);
@@ -2800,19 +2812,32 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const ctx   = canvas.getContext('2d');
   const dpr   = devicePixelRatio || 1;
   const mapPx = getMapReservedRight() * dpr;
-  const cx    = (W - mapPx) / 2;
-  let   cy    = H / 2;          // mutable — auto-director shifts this for look-at offset
+  let   cx    = (W - mapPx) / 2;  // mutable — auto-fit shifts for horizontal centering
+  let   cy    = H / 2;            // mutable — auto-fit / auto-director shifts this for look-at
   const focal = (W / 2) / Math.tan(FOV_H / 2 * DEG);
 
   // Auto-fit: project vertices through attitude rotation, then fit screen extents.
   // Must happen after cosP/sinP/cosR/sinR are computed.
   if (!wingView) {
-    const aspect = W / H;
-    const hfH    = FOV_H / 2 * DEG;
-    const hfV    = Math.atan(Math.tan(hfH) / aspect);
+    /* Effective FOV for visible viewport only (map panel narrows horizontal FOV) */
+    const viewW  = W - mapPx;
+    const hfH    = Math.atan(Math.tan(FOV_H / 2 * DEG) * viewW / W);
+    const hfV    = Math.atan(Math.tan(FOV_H / 2 * DEG) * H / W);
     const PAD    = 1.15;
-    let maxCR = 0, maxCU = 0;
-    for (const [vF, vR, vU] of V_) {
+    /* Stage-aware vertex filtering — only include vertices of currently-shown structure */
+    const _afStage      = (isF9 || isSV) ? (S.rocketStage ?? 1) : 0;
+    const _afLesJett    = isSV && !!(S.lesJettisoned);
+    const _afSivbSep    = isSV && !!(S.sivbSep);
+    let minCR = Infinity, maxCR = -Infinity, minCU = Infinity, maxCU = -Infinity;
+    for (let _vi = 0; _vi < V_.length; _vi++) {
+      const [vF, vR, vU] = V_[_vi];
+      if (isSV) {
+        if (vF > 0.030 && _afLesJett) continue;                   // LES tower jettisoned
+        if (vF >= 0.010 && vF < 0.024 && _afSivbSep) continue;   // S-IVB separated
+        if (vF < 0.010  && _afStage >= 3) continue;               // S-II + S-IC separated
+        if (vF < -0.006 && _afStage >= 2) continue;               // S-IC aft separated
+      }
+      if (isF9 && _afStage >= 2 && _vi < 48) continue;            // F9 first stage separated
       let fP, rR, uR;
       if (isBodyRoll) {
         const vR2 =  vR * cosR - vU * sinR;
@@ -2824,11 +2849,11 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         rR =  vR * cosR + uP * sinR; uR = -vR * sinR + uP * cosR;
       }
       if (camSide > 0) {
-        maxCR = Math.max(maxCR, Math.abs(fP));  // side cam horizontal
-        maxCU = Math.max(maxCU, Math.abs(uR));  // side cam vertical
+        minCR = Math.min(minCR, fP); maxCR = Math.max(maxCR, fP);
+        minCU = Math.min(minCU, uR); maxCU = Math.max(maxCU, uR);
       } else {
-        maxCR = Math.max(maxCR, Math.abs(rR));  // chase cam horizontal
-        maxCU = Math.max(maxCU, Math.abs(uR));  // chase cam vertical
+        minCR = Math.min(minCR, rR); maxCR = Math.max(maxCR, rR);
+        minCU = Math.min(minCU, uR); maxCU = Math.max(maxCU, uR);
       }
     }
     /* Include launch tower in auto-fit only while still near the pad */
@@ -2839,13 +2864,25 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         const _tR  = isSV ? 0.0028 : 0.0020;
         const _top = (isSV ? 0.038 : 0.024) + _tR * 2;
         const _bot = (isSV ? -0.030 : -0.016) - 0.004;
-        maxCU = Math.max(maxCU, Math.abs(_top), Math.abs(_bot));
-        maxCR = Math.max(maxCR, _tR * 9.8);
+        minCU = Math.min(minCU, _bot); maxCU = Math.max(maxCU, _top);
+        minCR = Math.min(minCR, -_tR * 9.8); maxCR = Math.max(maxCR, _tR * 9.8);
       }
     }
-    const d = Math.max(maxCR * PAD / Math.tan(hfH), maxCU * PAD / Math.tan(hfV));
+    /* Fallback if no vertices survived filtering */
+    if (!isFinite(minCU)) { minCU = -0.01; maxCU = 0.01; }
+    if (!isFinite(minCR)) { minCR = -0.01; maxCR = 0.01; }
+    /* Use bounding-box half-extents so zoom always pivots on the model centre */
+    const centerCR = (minCR + maxCR) / 2;
+    const centerCU = (minCU + maxCU) / 2;
+    const halfCR   = (maxCR - minCR) / 2;
+    const halfCU   = (maxCU - minCU) / 2;
+    const d = Math.max(halfCR * PAD / Math.tan(hfH), halfCU * PAD / Math.tan(hfV));
     if (camSide > 0) { camSide = d * _orbitZoom; camUp = 0; }
-    else              { camBack = d; camUp = d * 0.18; }
+    else              { camBack = d * _orbitZoom; camUp = d * _orbitZoom * 0.18; }
+    /* Shift cx/cy so the bounding-box centre lands at the viewport centre */
+    const _camD = camSide > 0 ? camSide : camBack;
+    cx -= centerCR * focal / _camD;
+    cy += centerCU * focal / _camD;
 
     /* ── Auto-director: blend camSide (zoom) + cy (look-at shift) ── */
     if (isSV && camSide > 0) {

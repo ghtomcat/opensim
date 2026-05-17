@@ -2120,7 +2120,7 @@
   import { initOutside, tickOutside, outsideInvalidate, setOutsideCamMode } from './display/outside.js';
   import { initKneeboard, toggleKneeboard, tickKneeboard } from './display/kneeboard.js';
   import { initMap, renderMap, toggleMap, showMap, hideMap, initVelisMap, hideVelisMap, initG1000Map, hideG1000Map } from './display/map.js';
-  import { renderCislunar, resetCislunar } from './display/cislunar.js';
+  import { renderCislunar, renderMoonMap, resetCislunar } from './display/cislunar.js';
   import { renderEarthrise }              from './display/earthrise.js';
   import { lookupFlight, nearbyFlights, pickAircraft, trackFlight } from './core/liveflight.js';
 
@@ -3845,7 +3845,7 @@
       }
       /* L — toggle CM ↔ LM panel (Saturn V missions with LM only) */
       if ((e.key === 'l' || e.key === 'L') && !e.ctrlKey && !e.shiftKey) {
-        if (S.aircraft?.id === 'saturn-v' && S.mission?.hasLM) {
+        if (S.aircraft?.id === 'saturn-v' && S.mission?.hasLM && S.sivbSep) {
           setState({ inLM: !(S.inLM ?? false) });
         }
       }
@@ -4034,7 +4034,7 @@
       () => tickKneeboard(),
       () => renderMissionClock(),
       () => { if (S.rocketTLI) hideMap(); renderMap(); },
-      () => { if (document.getElementById('cislunar')?.classList.contains('visible'))  renderCislunar(); },
+      () => { if (document.getElementById('cislunar')?.classList.contains('visible'))  (S.inLM && S.mission?.hasLM) ? renderMoonMap() : renderCislunar(); },
       () => { if (document.getElementById('earthrise')?.classList.contains('visible')) renderEarthrise(); },
     ]);
   }
