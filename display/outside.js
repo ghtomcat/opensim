@@ -504,27 +504,17 @@ const _WB_NP = {
      The nacelle mesh renders at ey (inner pair); ey2 drives the outer engine fan pass. */
   a340: {
     ey: 0.0097, ey2: 0.0171, ez: -0.00230, er: 0.00108, erc: 0.00075, pz: -0.00068,
-    tipX: 0.017, tipCz: 0.0001, tailX: -0.0354, vstabZ: 0.0095, winglet: 'classic',
+    tipX: 0.019, tipCz: -0.0001, tailX: -0.0354, vstabZ: 0.0095, winglet: 'classic',
     noseRings: [
-      { vF: 0.017,  r: _nr1*0.12,  col: 6 },  // radome tip
-      { vF: 0.0165, r: _nr1*0.28,  col: 6 },
-      { vF: 0.016,  r: _nr1*0.45,  col: 6 },
-      { vF: 0.0158, r: _nr1*0.65,  col: 6 },
-      { vF: 0.0155, r: _nr1*0.85,  col: 6 },
-      { vF: 0.0152, r: _nr1*0.93,  col: 6 },
-      { vF: 0.015,  r: _nr1*1.00,  col: 6 },  // nose max
-      { vF: 0.0145, r: _nr1*1.375, col: 6 },
-      { vF: 0.014,  r: _nr2*0.95,  col: 6 },  // cockpit taper
-      { vF: 0.0135, r: _nr2*1.128, col: 6 },
-      { vF: 0.013,  r: _r,         col: 0 },  // fuselage starts
+      { vF: 0.018,  r: _r*0.09, col: 6 },  // ring 0: radome — tiny sphere behind tip
+      { vF: 0.0166, r: _r*0.30, col: 6 },  // ring 1: rapid radome expansion
+      { vF: 0.0153, r: _r*0.60, col: 6 },  // ring 2: fwd windshield edge   ← winFwdRi
+      { vF: 0.0141, r: _r*0.90, col: 6 },  // ring 3: windshield (lower nose stays red)
+      { vF: 0.0131, r: _r*0.97, col: 0 },  // ring 4: aft windshield / grey starts ← winAftRi
+      { vF: 0.0124, r: _r*0.99, col: 0 },  // ring 5: cockpit section
+      { vF: 0.012,  r: _r,      col: 0 },  // ring 6: nose–fuselage junction
     ],
-    windows: [
-      // forward-facing panels: inner edge z≈0.001 (constant), outer edge z≈0.0004 (fans outward+down)
-      [ 0.0145,  0.0001, 0.0009],[ 0.0130,  0.0002, 0.0010],  // R fwd-in, aft-in
-      [ 0.0130,  0.0014, 0.0005],[ 0.0145,  0.0008, 0.0004],  // R aft-out, fwd-out
-      [ 0.0145, -0.0001, 0.0009],[ 0.0130, -0.0002, 0.0010],  // L fwd-in, aft-in
-      [ 0.0130, -0.0014, 0.0005],[ 0.0145, -0.0008, 0.0004],  // L aft-out, fwd-out
-    ],
+    winFwdRi: 3, winAftRi: 4, winSiOuter: 4, winSiInner: 1,  // adjacent rings, center post at si=0 longeron
     wing: {
       span:      0.0267,   // A340-300: 60.3m real
       rootLE:    0.000,  rootTE:   -0.009,   // wing sits mid-fuselage (blueprint-corrected)
@@ -699,8 +689,23 @@ function _buildWB(np) {
     /* Winglets (262-265) */
     [tLE-_wlSw,  wy, wz],[tTE,  wy, wz],   // b+100/101 R winglet outer LE/TE (auto from tipLE/tipTE)
     [tLE-_wlSw, -wy, wz],[tTE, -wy, wz],   // b+102/103 L winglet outer LE/TE
-    /* Cockpit windows (266-273) — R and L main windshield panels (from nose profile) */
-    ...np.windows,  // 8 vertices: R[fwd-in,aft-in,aft-out,fwd-out] + L[fwd-in,aft-in,aft-out,fwd-out]
+    /* Cockpit windows (b+104..b+111) — sampled from nose ring surface, or legacy manual spec */
+    ...(() => {
+      if (np.winFwdRi == null) return np.windows;   // other profiles: keep manual coords
+      const fR = np.winFwdRi, aR = np.winAftRi;
+      const sO = np.winSiOuter ?? 2;
+      const sI = np.winSiInner ?? 0;  // inner corner: 0=shared top, 1=creates center post
+      const ins = 0.975;   // 2.5% inset so windows always win depth sort over tube face
+      const wv = (ri, si) => {
+        const v = V_[rb[ri] + si % N];
+        const cy = np.noseRings[ri].cy ?? 0, cz = np.noseRings[ri].cz ?? 0;
+        return [v[0], cy + (v[1]-cy)*ins, cz + (v[2]-cz)*ins];
+      };
+      return [
+        wv(fR,sI),   wv(aR,sI),   wv(aR,sO),   wv(fR,sO),    // R: inner-fwd, inner-aft, out-aft, out-fwd
+        wv(fR,N-sI), wv(aR,N-sI), wv(aR,N-sO), wv(fR,N-sO),  // L: mirrored inner, mirrored outer
+      ];
+    })(),
     /* Engine pylons — top attach on wing underside at span station y=_ey */
     [ ePF,  ey, pz],[ eC,  ey, pz],                         // R pylon top fwd, aft
     [ ePF, -ey, pz],[ eC, -ey, pz],                         // L pylon top fwd, aft
@@ -818,6 +823,18 @@ function _buildWB(np) {
     [_shRx, -wr, _shRz],  // b+214  L root  spoiler hinge (upper)
     [_shBx, -wh, _shBz],  // b+215  L break spoiler hinge (upper)
   );
+  /* Spoiler intermediate stations (b+216..b+227) — 3 spanwise stations, hinge+TE per side */
+  const _spLerp = (v0, v1, t) => [v0[0]+(v1[0]-v0[0])*t, v0[1]+(v1[1]-v0[1])*t, v0[2]+(v1[2]-v0[2])*t];
+  const _shR = [_shRx,  wr, _shRz], _shB = [_shBx,  wh, _shBz];
+  const _shRL= [_shRx, -wr, _shRz], _shBL= [_shBx, -wh, _shBz];
+  for (const t of [0.25, 0.5, 0.75]) {
+    V_.push(_spLerp(_shR, _shB, t));            // R hinge intermediate
+    V_.push(_spLerp(WV[14], WV[15], t));        // R TE intermediate (b+217/219/221)
+  }
+  for (const t of [0.25, 0.5, 0.75]) {
+    V_.push(_spLerp(_shRL, _shBL, t));          // L hinge intermediate
+    V_.push(_spLerp(WV[36], WV[37], t));        // L TE intermediate (b+223/225/227)
+  }
 
   /* Nose tris: noseTip → ring0 (outward normals) */
   for (let si = 0; si < N; si++) { F_.push([noseTip, rb[0]+(si+1)%N, rb[0]+si]); FC_.push(6); }
@@ -840,7 +857,10 @@ function _buildWB(np) {
     [b+108,b+109,b+110,b+111],[b+108,b+111,b+110,b+109],  // L cockpit window
     /* R wing: inner split into fixed fwd + spoiler + flap; outer (aileron); tip cap */
     [b+116,b+126,b+213,b+212],                   // R inner fixed upper fwd (LE→spoiler hinge)
-    [b+212,b+213,b+139,b+137],                   // R spoiler panel         (SH→flap hinge)
+    [b+212,b+216,b+217,b+137],                   // R spoiler panel 1 (root→0.25)
+    [b+216,b+218,b+219,b+217],                   // R spoiler panel 2 (0.25→0.50)
+    [b+218,b+220,b+221,b+219],                   // R spoiler panel 3 (0.50→0.75)
+    [b+220,b+213,b+139,b+221],                   // R spoiler panel 4 (0.75→break)
     [b+197,b+199,b+203,b+201],                   // R flap upper         (decoupled hinge→TE)
     [b+0,b+136,b+138,b+124],                     // R inner fixed lower
     [b+196,b+200,b+202,b+198],                   // R flap lower         (decoupled)
@@ -852,7 +872,10 @@ function _buildWB(np) {
     [b+146,b+3,b+119,b+147],                     // R aileron tip
     /* L wing */
     [b+120,b+214,b+215,b+130],                   // L inner fixed upper fwd (LE→spoiler hinge)
-    [b+214,b+141,b+143,b+215],                   // L spoiler panel
+    [b+214,b+141,b+223,b+222],                   // L spoiler panel 1 (root→0.25)
+    [b+222,b+223,b+225,b+224],                   // L spoiler panel 2 (0.25→0.50)
+    [b+224,b+225,b+227,b+226],                   // L spoiler panel 3 (0.50→0.75)
+    [b+226,b+227,b+143,b+215],                   // L spoiler panel 4 (0.75→break)
     [b+205,b+209,b+211,b+207],                   // L flap upper         (decoupled)
     [b+4,b+128,b+142,b+140],                     // L inner fixed lower
     [b+204,b+206,b+210,b+208],                   // L flap lower         (decoupled)
@@ -909,7 +932,7 @@ function _buildWB(np) {
     10,10,10,10,                          // engine interior caps (R intake, R nozzle, L intake, L nozzle)
     8,8, 8,8,                             // cockpit windows R+L (4)
     1,1,1,1, 1,1,1,1,                          // LE rounds R+L (8)
-    1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1, 9,9,9,9,  // R wing (11) + L wing (11) + winglets (4)
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1, 9,9,9,9,  // R wing (14) + L wing (14) + winglets (4)
     2,2,2,2,2,2, 3,3,3,3, 3,3,3,3,        // vstab airfoil (6) + R hstab (4) + L hstab (4)
     4,4,4,4,4,4,4,4, 4,4,4,4,4,4,4,4,   // R engine A→B + B→C (16)
     7,7,7,7,7,7,7,7,                      // R engine C→D TR zone (8)
@@ -942,8 +965,9 @@ function _buildWB(np) {
     // R wing upper
     [b+116,b+126],[b+126,b+118], [b+117,b+127],[b+133,b+119],
     [b+116,b+212],[b+212,b+137],[b+137,b+117], [b+126,b+213],[b+213,b+139],[b+139,b+145],[b+145,b+133],
-    [b+212,b+213],                               // R spoiler hinge spanwise
-    [b+118,b+147],[b+147,b+119], [b+137,b+139],[b+145,b+147],
+    [b+212,b+216],[b+216,b+218],[b+218,b+220],[b+220,b+213],  // R spoiler hinge spanwise (4 segs)
+    [b+216,b+217],[b+218,b+219],[b+220,b+221],                // R spoiler panel chords
+    [b+118,b+147],[b+147,b+119], [b+137,b+217],[b+217,b+219],[b+219,b+221],[b+221,b+139],[b+145,b+147],
     // R wing LE+hinge thickness (LE routed through nose vertex)
     [b+116,b+152],[b+152,b+0],[b+126,b+153],[b+153,b+124],[b+118,b+154],[b+154,b+2],
     [b+152,b+153],[b+153,b+154],                           // R LE nose span
@@ -956,8 +980,9 @@ function _buildWB(np) {
     // L wing upper
     [b+120,b+130],[b+130,b+122], [b+121,b+131],[b+135,b+123],
     [b+120,b+214],[b+214,b+141],[b+141,b+121], [b+130,b+215],[b+215,b+143],[b+143,b+149],[b+149,b+135],
-    [b+214,b+215],                               // L spoiler hinge spanwise
-    [b+122,b+151],[b+151,b+123], [b+141,b+143],[b+149,b+151],
+    [b+214,b+222],[b+222,b+224],[b+224,b+226],[b+226,b+215],  // L spoiler hinge spanwise (4 segs)
+    [b+222,b+223],[b+224,b+225],[b+226,b+227],                // L spoiler panel chords
+    [b+122,b+151],[b+151,b+123], [b+141,b+223],[b+223,b+225],[b+225,b+227],[b+227,b+143],[b+149,b+151],
     // L wing LE+hinge thickness (LE routed through nose vertex)
     [b+120,b+155],[b+155,b+4],[b+130,b+156],[b+156,b+128],[b+122,b+157],[b+157,b+6],
     [b+155,b+156],[b+156,b+157],                           // L LE nose span
@@ -3254,10 +3279,19 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       if (sb === 2) {
         const { r_sp_rt, r_sp_hs } = _wbGeo.anim;
         const sa = 45 * DEG;
-        animHinge(verts, [_bL+137], r_sp_rt, +sa, 'z', _wbV);  // R root  spoiler TE lift
-        animHinge(verts, [_bL+139], r_sp_hs, +sa, 'z', _wbV);  // R break spoiler TE lift
-        animHinge(verts, [_bL+141], r_sp_rt, +sa, 'z', _wbV);  // L root  spoiler TE lift
-        animHinge(verts, [_bL+143], r_sp_hs, +sa, 'z', _wbV);  // L break spoiler TE lift
+        const r1 = r_sp_rt + 0.25*(r_sp_hs-r_sp_rt);
+        const r2 = r_sp_rt + 0.50*(r_sp_hs-r_sp_rt);
+        const r3 = r_sp_rt + 0.75*(r_sp_hs-r_sp_rt);
+        animHinge(verts, [_bL+137], r_sp_rt, +sa, 'z', _wbV);  // R root TE
+        animHinge(verts, [_bL+217], r1,      +sa, 'z', _wbV);  // R 0.25 TE
+        animHinge(verts, [_bL+219], r2,      +sa, 'z', _wbV);  // R 0.50 TE
+        animHinge(verts, [_bL+221], r3,      +sa, 'z', _wbV);  // R 0.75 TE
+        animHinge(verts, [_bL+139], r_sp_hs, +sa, 'z', _wbV);  // R break TE
+        animHinge(verts, [_bL+141], r_sp_rt, +sa, 'z', _wbV);  // L root TE
+        animHinge(verts, [_bL+223], r1,      +sa, 'z', _wbV);  // L 0.25 TE
+        animHinge(verts, [_bL+225], r2,      +sa, 'z', _wbV);  // L 0.50 TE
+        animHinge(verts, [_bL+227], r3,      +sa, 'z', _wbV);  // L 0.75 TE
+        animHinge(verts, [_bL+143], r_sp_hs, +sa, 'z', _wbV);  // L break TE
       }
     }
   }
