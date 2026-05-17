@@ -268,6 +268,11 @@ function _onKeyDown(e) {
   if (e.key === 'F') { const next = Math.max(0, S.flaps - 1); setState({ prevFlaps: S.flaps, flaps: next }); bbEvent({ type: 'flaps', flaps: next }); }
   if (e.key === 'g' && !S.aircraft?.fixedGear) { const next = !S.gear; setState({ prevGear: S.gear, gear: next }); bbEvent({ type: 'gear', gear: next ? 'down' : 'up' }); }
 
+  /* Speed brake / spoilers — s cycles RET → ARM → FULL → RET */
+  if (e.key === 's' || e.key === 'S') {
+    setState({ speedBrake: ((S.speedBrake ?? 0) + 1) % 3 });
+  }
+
   /* Role toggle (for solo sim) */
   if (e.key === 'r') {
     const roles = ['PF', 'PM', 'INSTRUCTOR'];

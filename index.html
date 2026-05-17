@@ -2117,6 +2117,7 @@
   import { initFMA, renderFMA } from './display/fma.js';
   import { initCOM }           from './display/com.js';
   import { initOverhead, toggleOverhead, renderOverhead } from './display/overhead.js';
+  import { initPedestal, togglePedestal, renderPedestal } from './display/pedestal.js';
   import { initSound, startSound, stopSound, startEngineLifecycle, stopEngineLifecycle, switchEngine, tickSound, getCurrentRpm, silenceAll, apDisconnectChime } from './core/sound.js';
   import { initOutside, tickOutside, outsideInvalidate, setOutsideCamMode } from './display/outside.js';
   import { initKneeboard, toggleKneeboard, tickKneeboard } from './display/kneeboard.js';
@@ -3597,6 +3598,7 @@
     if (!_hidecom) initCOM(_comEl);
     _comEl.style.display = _hidecom ? 'none' : '';
     initOverhead();
+    initPedestal();
 
     /* Seed robot arm state if applicable — Three.js init happens lazily on first render */
     if (S.aircraft?.vehicleType === 'robot-arm') {
@@ -3813,6 +3815,7 @@
       if (e.key === 'Escape') { history.back(); return; }
       if (e.key === 'k' || e.key === 'K') { toggleKneeboard(); return; }
       if (e.key === 'o' || e.key === 'O') { toggleOverhead(); return; }
+      if (e.key === 'd' || e.key === 'D') { togglePedestal(); return; }
       if (e.key === 'n' || e.key === 'N') { if (S.aircraft?.map !== false) toggleMap(); return; }
 
       /* E — Anlasser (v12 only) */
@@ -4019,6 +4022,7 @@
       },
       () => renderFMA(),
       () => renderOverhead(),
+      () => renderPedestal(),
       () => updatePanel(),
       () => updateEscTemps(),
       () => updateMetar(),

@@ -344,6 +344,11 @@ export function tickPhysics(dt) {
   const _trOn = _trCapable && newWow && newSpd > 60 && (S.spdT === 0 || S.braking);
   const _trPatch = _trCapable ? { thrustReverser: _trOn } : {};
 
+  /* Ground spoilers: auto-deploy on touchdown when armed (lever at 1) + idle thrust */
+  const justTouched = !S.wow && newWow;
+  const _sbPatch = (justTouched && (S.speedBrake ?? 0) === 1 && (S.spdT ?? 0) === 0)
+    ? { speedBrake: 2 } : {};
+
   /* Gear animation — 12-second transit (not for fixed-gear aircraft) */
   const GEAR_TIME = 12;
   const gearTarget = S.gear ? 1 : 0;
@@ -359,7 +364,7 @@ export function tickPhysics(dt) {
              vs, ilsLoc, ilsGs, fma, lat: newLat, lon: newLon,
              prevAlt: S.alt, time: S.time + dt,
              wow: newWow, touchdownVS: newTouchdownVS,
-             oilTempC: newOilTempC, ..._trPatch, ..._gearPatch });
+             oilTempC: newOilTempC, ..._trPatch, ..._gearPatch, ..._sbPatch });
 }
 
 export function resetApproach() {
