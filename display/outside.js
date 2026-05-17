@@ -3994,9 +3994,18 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
 
   /* Outer engine nacelles — 4-engine WB aircraft (A340 etc.) with ey2 defined */
   const _oey2 = _wbGeo?.ey2;
-  /* Pre-compute outer engine Z so both nacelle AND fan-face sections use the same value.
-     Walk wing Z-centre at inner (ey) and outer (ey2) span stations, preserve the same
-     vertical offset below wing centre that the inner engines have. */
+  /* Pre-compute outer engine X offset: base exOff + LE sweep delta from inner to outer span station.
+     Pre-compute outer engine Z: same approach — walk wing Z-centre at both span stations.
+     Both values are shared by the nacelle AND fan-face sections below. */
+  const _oXOffForOuter = (() => {
+    if (!_oey2 || !_wbGeo) return _wbGeo?.exOff ?? 0;
+    const base   = _wbGeo.exOff ?? 0;
+    const _oWD2  = (_WB_NP[S.aircraft?.id] ?? _WB_NP.default).wing ?? _WB_WING_DEFAULT;
+    const _oEyI2 = (_WB_NP[S.aircraft?.id] ?? _WB_NP.default).ey ?? _ey;
+    const _oR2   = _wbGeo.r ?? _r;
+    const _oDen  = Math.max((_oWD2.span ?? 0.0267) - _oR2 * 0.7071, 1e-9);
+    return base + (_oey2 - _oEyI2) / _oDen * ((_oWD2.tipLE ?? -0.015) - (_oWD2.rootLE ?? 0));
+  })();
   const _oEzForOuter = (() => {
     if (!_oey2 || !_wbGeo) return _wbGeo?.ez ?? _ez;
     const _oWD  = (_WB_NP[S.aircraft?.id] ?? _WB_NP.default).wing ?? _WB_WING_DEFAULT;
@@ -4027,7 +4036,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     const _oEngCol = COL_[4];
     const _oTRCol  = COL_[7];
     const _oIntCol = COL_[10];
-    const _oXOff   = _wbGeo?.exOff ?? 0;
+    const _oXOff = _oXOffForOuter;
     const _oeA = 0.005 + _oXOff, _oeB = 0.001 + _oXOff;
     const _oeC = -0.001 + _oXOff, _oeD = -0.002 + _oXOff, _oeE = -0.003 + _oXOff;
     const _oePF = 0.003 + _oXOff;
@@ -4313,6 +4322,64 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
   }
 
+  /* Gear bay doors — pushed into faces for correct depth sorting with wing */
+  if (!isF9 && !isSV && !isC172 && !isBf109 && !isF4U && _gearP > 0.02) {
+    const _gdR = _wbGeo?.r ?? _r;
+    const nTR  = _gdR * 0.12, nAxH = nTR * 0.55, nTW = nTR * 0.40;
+    const nSX  = 0.013;
+    const nX1  = nSX + nTR * 0.8, nX2 = _GV[0][0] - nTR * 0.6;
+    const nH   = nAxH + nTW + nTR * 0.30;
+    const mTR  = _gdR * 0.16, mAxH = mTR * 0.55, mTW = mTR * 0.40;
+    const mX1  = _GV[2][0] + mTR * 2.0, mX2 = _GV[2][0] - mTR * 2.5, mXm = (mX1+mX2)*0.5;
+    const mHi  = _GV[2][1] - (mAxH + mTW) - mTR * 0.25;
+    const mW   = (mAxH + mTW) * 2.0 + mTR * 0.50;
+    const doorFrac = _gearP < 0.15 ? _gearP / 0.15 : 1.0;
+    const nθ   = doorFrac * Math.PI * 0.5;
+    const AERO = 0.33;
+    const tFwd = _gearP < 0.15 ? _gearP/0.15 : _gearP > 0.85 ? (1-_gearP)/0.15 : 1.0;
+    const tAft = _gearP < 0.15 ? _gearP/0.15 : _gearP > 0.85 ? 1-(1-AERO)*(_gearP-0.85)/0.15 : 1.0;
+    const mθF  = tFwd * Math.PI * 0.5, mθA = tAft * Math.PI * 0.5;
+    const fa   = (doorFrac * 0.88).toFixed(2), sa = (doorFrac * 0.75).toFixed(2);
+    const mfA  = (Math.max(tFwd,tAft)*0.88).toFixed(2), msA = (Math.max(tFwd,tAft)*0.75).toFixed(2);
+
+    const _dDoor = (corners, fillA, strokeA) => {
+      const p2 = corners.map(project);
+      if (!p2.every(Boolean)) return;
+      const avgD = p2.reduce((s,p) => s+p.d, 0) / p2.length;
+      faces.push({ avgD, draw: () => {
+        ctx.save(); ctx.lineWidth = Math.max(1, devicePixelRatio);
+        ctx.beginPath(); p2.forEach((p,i) => i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y));
+        ctx.closePath();
+        ctx.fillStyle   = `rgba(22,27,35,${fillA})`; ctx.fill();
+        ctx.strokeStyle = `rgba(148,162,178,${strokeA})`; ctx.stroke();
+        ctx.restore();
+      }});
+    };
+    /* Gear well cutout */
+    for (const [x1,x2,y1,y2] of [[nX1,nX2,-nH,nH],[mX1,mX2,mHi,mHi+mW],[mX1,mX2,-(mHi+mW),-mHi]]) {
+      const wp = [[x1,y1,-_gdR],[x2,y1,-_gdR],[x2,y2,-_gdR],[x1,y2,-_gdR]].map(project);
+      if (wp.every(Boolean)) {
+        const avgD = wp.reduce((s,p)=>s+p.d,0)/wp.length;
+        faces.push({ avgD, draw: () => {
+          ctx.save(); ctx.fillStyle='rgba(10,12,16,0.96)'; ctx.beginPath();
+          wp.forEach((p,i) => i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y));
+          ctx.closePath(); ctx.fill(); ctx.restore();
+        }});
+      }
+    }
+    const ndy = nH * Math.cos(nθ), ndz = -nH * Math.sin(nθ);
+    _dDoor([[nX1,0,-_gdR],[nX2,0,-_gdR],[nX2,+ndy,-_gdR+ndz],[nX1,+ndy,-_gdR+ndz]], fa, sa);
+    _dDoor([[nX1,0,-_gdR],[nX2,0,-_gdR],[nX2,-ndy,-_gdR+ndz],[nX1,-ndy,-_gdR+ndz]], fa, sa);
+    const _pushMain = (sign) => {
+      const Hi = sign*mHi;
+      const fdy=sign*mW*Math.cos(mθF), fdz=-mW*Math.sin(mθF);
+      const ady=sign*mW*Math.cos(mθA), adz=-mW*Math.sin(mθA);
+      _dDoor([[mX1,Hi,-_gdR],[mXm,Hi,-_gdR],[mXm,Hi+fdy,-_gdR+fdz],[mX1,Hi+fdy,-_gdR+fdz]], mfA, msA);
+      _dDoor([[mXm,Hi,-_gdR],[mX2,Hi,-_gdR],[mX2,Hi+ady,-_gdR+adz],[mXm,Hi+ady,-_gdR+adz]], mfA, msA);
+    };
+    _pushMain(+1); _pushMain(-1);
+  }
+
   /* Painter's algorithm: farthest first */
   faces.sort((a, b) => b.avgD - a.avgD);
 
@@ -4495,7 +4562,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       if (_ey2) {
         const _ez2 = _oEzForOuter;           // same Z as nacelle geometry
         const _er2 = _wbGeo.er ?? _er;
-        const _ex2 = _wbGeo.exOff ?? 0;
+        const _ex2 = _oXOffForOuter;          // same sweep-corrected X as nacelle geometry
         const pHR = project([0.005 + _ex2,  _ey2, _ez2]);
         const pRR = project([0.005 + _ex2,  _ey2, _ez2 + _er2]);
         const pHL = project([0.005 + _ex2, -_ey2, _ez2]);
@@ -4735,103 +4802,6 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
   }
 
-  /* Gear bay doors — geometry derived from GV positions + tire dimensions.
-     Nose: 2 clamshell halves.
-     Main: 2 split panels per side — forward panel closes when gear is down,
-           aft panel stays at ~30° as an aerodynamic fairing. */
-  if (!isF9 && !isSV && !isC172 && !isBf109 && !isF4U && _gearP > 0.02) {
-    const _gdR = _wbGeo?.r ?? _r;
-
-    /* ── Nose door dimensions (from GV[0] + nose tire geometry) ── */
-    const nTR  = _gdR * 0.12;
-    const nAxH = nTR * 0.55;             // axle half-span (= tire pair Y offset)
-    const nTW  = nTR * 0.40;             // one tire half-width
-    const nSX  = 0.013;                  // nose stow X (from _animGV retract target)
-    const nX1  = nSX + nTR * 0.8;       // forward door edge: stow pos + margin
-    const nX2  = _GV[0][0] - nTR * 0.6; // aft door edge: hinge at strut pivot
-    const nH   = nAxH + nTW + nTR * 0.30; // clamshell half-width: outer tire face + clearance
-
-    /* ── Main door dimensions (from GV[2] + main tire geometry) ── */
-    const mTR  = _gdR * 0.16;
-    const mAxH = mTR * 0.55;
-    const mTW  = mTR * 0.40;
-    const mX1  = _GV[2][0] + mTR * 2.0; // forward door edge
-    const mX2  = _GV[2][0] - mTR * 2.5; // aft door edge
-    const mXm  = (mX1 + mX2) * 0.5;     // fore/aft panel split line
-    const mHi  = _GV[2][1] - (mAxH + mTW) - mTR * 0.25; // inboard hinge: inner tire face − clearance
-    const mW   = (mAxH + mTW) * 2.0 + mTR * 0.50;       // panel width: inner→outer tire face + margins
-
-    /* ── Animation ── */
-    const doorFrac = _gearP < 0.15 ? _gearP / 0.15 : 1.0;
-
-    // Nose: single-phase clamshell
-    const nθ  = doorFrac * Math.PI * 0.5;
-
-    // Main forward panel: opens during transit, closes when gear fully down
-    const AERO = 0.33;  // aft panel stay-open fraction at gear-down
-    const tFwd = _gearP < 0.15 ? _gearP / 0.15
-               : _gearP > 0.85 ? (1 - _gearP) / 0.15
-               : 1.0;
-    // Main aft panel: opens during transit, holds at AERO fraction when gear is down
-    const tAft = _gearP < 0.15 ? _gearP / 0.15
-               : _gearP > 0.85 ? 1.0 - (1.0 - AERO) * (_gearP - 0.85) / 0.15
-               : 1.0;
-    const mθF = tFwd * Math.PI * 0.5;
-    const mθA = tAft * Math.PI * 0.5;
-
-    ctx.save();
-    ctx.lineWidth = Math.max(1, devicePixelRatio);
-
-    const _dDoor = (corners, fillA, strokeA) => {
-      const p2 = corners.map(project);
-      if (!p2.every(Boolean)) return;
-      ctx.beginPath();
-      p2.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
-      ctx.closePath();
-      ctx.fillStyle   = `rgba(22,27,35,${fillA})`;
-      ctx.fill();
-      ctx.strokeStyle = `rgba(148,162,178,${strokeA})`;
-      ctx.stroke();
-    };
-
-    /* Gear well cutout — dark opening on fuselage belly, drawn before doors so panels cover it */
-    ctx.fillStyle = 'rgba(10,12,16,0.96)';
-    for (const [x1,x2,y1,y2] of [
-      [nX1,nX2,-nH,nH],
-      [mX1,mX2,mHi,mHi+mW],
-      [mX1,mX2,-(mHi+mW),-mHi],
-    ]) {
-      const wp = [[x1,y1,-_gdR],[x2,y1,-_gdR],[x2,y2,-_gdR],[x1,y2,-_gdR]].map(project);
-      if (wp.every(Boolean)) {
-        ctx.beginPath();
-        wp.forEach((p,i) => i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y));
-        ctx.closePath(); ctx.fill();
-      }
-    }
-
-    const fa  = (doorFrac * 0.88).toFixed(2);
-    const sa  = (doorFrac * 0.75).toFixed(2);
-    const mfA = (Math.max(tFwd, tAft) * 0.88).toFixed(2);
-    const msA = (Math.max(tFwd, tAft) * 0.75).toFixed(2);
-
-    /* Nose: 2 clamshell halves — hinge at Y=0, each half swings outboard + down */
-    const ndy = nH * Math.cos(nθ), ndz = -nH * Math.sin(nθ);
-    _dDoor([[nX1, 0,-_gdR],[nX2, 0,-_gdR],[nX2, +ndy,-_gdR+ndz],[nX1, +ndy,-_gdR+ndz]], fa, sa);
-    _dDoor([[nX1, 0,-_gdR],[nX2, 0,-_gdR],[nX2, -ndy,-_gdR+ndz],[nX1, -ndy,-_gdR+ndz]], fa, sa);
-
-    /* Main: forward + aft panel per side.  sign=+1 for R, −1 for L */
-    const _drawMain = (sign) => {
-      const Hi = sign * mHi;
-      const fdy = sign * mW * Math.cos(mθF), fdz = -mW * Math.sin(mθF);
-      const ady = sign * mW * Math.cos(mθA), adz = -mW * Math.sin(mθA);
-      _dDoor([[mX1,Hi,-_gdR],[mXm,Hi,-_gdR],[mXm,Hi+fdy,-_gdR+fdz],[mX1,Hi+fdy,-_gdR+fdz]], mfA, msA);
-      _dDoor([[mXm,Hi,-_gdR],[mX2,Hi,-_gdR],[mX2,Hi+ady,-_gdR+adz],[mXm,Hi+ady,-_gdR+adz]], mfA, msA);
-    };
-    _drawMain(+1);  // R main
-    _drawMain(-1);  // L main
-
-    ctx.restore();
-  }
 
   /* Passenger windows + door outlines — wide-body only, properly perspective-projected */
   if (!isF9 && !isSV && !isC172 && !isBf109 && !isF4U) {
@@ -4848,9 +4818,16 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       if (round && ctx.roundRect) {
         const cx = (p0.x + p1.x + p2.x + p3.x) / 4;
         const cy = (p0.y + p1.y + p2.y + p3.y) / 4;
-        const sw = Math.hypot(p0.x - p1.x, p0.y - p1.y);
-        const sh = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-        const angle = Math.atan2(p0.y - p1.y, p0.x - p1.x);
+        /* Use edge midpoints so orientation is stable across all camera azimuths.
+           sw = fore-aft screen extent, sh = up-down screen extent.
+           angle derived from Z-axis projection (always portrait, never flips). */
+        const topCx = (p0.x+p1.x)*0.5, topCy = (p0.y+p1.y)*0.5;
+        const botCx = (p2.x+p3.x)*0.5, botCy = (p2.y+p3.y)*0.5;
+        const fwdCx = (p0.x+p3.x)*0.5, fwdCy = (p0.y+p3.y)*0.5;
+        const aftCx = (p1.x+p2.x)*0.5, aftCy = (p1.y+p2.y)*0.5;
+        const sh = Math.hypot(topCx-botCx, topCy-botCy);
+        const sw = Math.hypot(fwdCx-aftCx, fwdCy-aftCy);
+        const angle = Math.atan2(topCy - botCy, topCx - botCx) + Math.PI * 0.5;
         ctx.save();
         ctx.translate(cx, cy);
         ctx.rotate(angle);

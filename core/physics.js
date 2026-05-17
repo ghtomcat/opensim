@@ -67,7 +67,7 @@ export function tickPhysics(dt) {
     const perf = ac.performance ?? {};
 
     /* Ground elevation from mission */
-    const groundFt = S.mission?.arrival?.elevation ?? S.mission?.departure?.elevation ?? 0;
+    const groundFt = S.mission?.departure?.elevation ?? S.mission?.arrival?.elevation ?? 0;
     const onGround = S.alt <= groundFt + 0.5;
 
     /* ISA density */
@@ -218,7 +218,7 @@ export function tickPhysics(dt) {
 
   } else {
     /* ── Autopilot convergence ── */
-    const apGround = S.mission?.arrival?.elevation ?? S.mission?.departure?.elevation
+    const apGround = S.mission?.departure?.elevation ?? S.mission?.arrival?.elevation
                   ?? ac.situations?.[0]?.alt ?? 0;
     const agl      = S.alt - apGround;
 
