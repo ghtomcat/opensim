@@ -833,11 +833,11 @@ const _FN = _wbCache.default.FN_;
 /* ── Landing gear (body frame, NM) — struts only ─────────────── */
 const _GV = [
   /* 0 */ [ 0.009,  0,      -_r         ],  // nose strut top
-  /* 1 */ [ 0.009,  0,      -_r - 0.003 ],  // nose wheel
-  /* 2 */ [-0.001,  0.0040, -_r         ],  // R main top
-  /* 3 */ [-0.001,  0.0040, -_r - 0.004 ],  // R main wheel
-  /* 4 */ [-0.001, -0.0040, -_r         ],  // L main top
-  /* 5 */ [-0.001, -0.0040, -_r - 0.004 ],  // L main wheel
+  /* 1 */ [ 0.009,  0,      -_r - 0.0022],  // nose wheel
+  /* 2 */ [-0.001,  0.0028, -_r         ],  // R main top
+  /* 3 */ [-0.001,  0.0028, -_r - 0.0032],  // R main wheel
+  /* 4 */ [-0.001, -0.0028, -_r         ],  // L main top
+  /* 5 */ [-0.001, -0.0028, -_r - 0.0032],  // L main wheel
 ];
 const _GE = [[0,1],[2,3],[4,5]];
 
@@ -4153,7 +4153,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       for (const [vi, tR] of [[1, _f4uCowlR*0.58], [3, _f4uCowlR*0.58], [5, _f4uCowlR*0.30]])
         drawVolumetricTire(ctx, GV_[vi], tR, project);
     } else {
-      for (const [vi, tR] of [[1, _r*0.48], [3, _r*0.60], [5, _r*0.60]])
+      for (const [vi, tR] of [[1, _r*0.12], [3, _r*0.16], [5, _r*0.16]])
         drawVolumetricTire(ctx, _animGV[vi], tR, project);
     }
     ctx.restore();
@@ -4178,12 +4178,12 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     };
     const _gdR = _wbGeo?.r ?? _r;  // per-aircraft fuselage radius for gear door pivot
     /* Nose: 2 clamshell halves — hinge at y=0, swing outward + down */
-    const nX1=0.011, nX2=0.007, nH=0.0013;
+    const nX1=0.010, nX2=0.008, nH=0.0007;
     const ndy = nH * cθ, ndz = -nH * sθ;
     _dDoor([[nX1,0,-_gdR],[nX2,0,-_gdR],[nX2, ndy,-_gdR+ndz],[nX1, ndy,-_gdR+ndz]], fa, sa);  // R half
     _dDoor([[nX1,0,-_gdR],[nX2,0,-_gdR],[nX2,-ndy,-_gdR+ndz],[nX1,-ndy,-_gdR+ndz]], fa, sa);  // L half
-    /* Main: 1 large outboard door per side — hinge at inboard edge, swings outboard + down */
-    const mX1=0.002, mX2=-0.004, mHi=0.0013, mW=0.0055;
+    /* Main: 1 door per side — hinge at inboard edge (near strut), swings outboard + down */
+    const mX1=0.001, mX2=-0.002, mHi=0.0018, mW=0.0013;
     const mdy = mW * cθ, mdz = -mW * sθ;
     _dDoor([[mX1, mHi,-_gdR],[mX2, mHi,-_gdR],[mX2, mHi+mdy,-_gdR+mdz],[mX1, mHi+mdy,-_gdR+mdz]], fa, sa);         // R
     _dDoor([[mX1,-mHi,-_gdR],[mX2,-mHi,-_gdR],[mX2,-(mHi+mdy),-_gdR+mdz],[mX1,-(mHi+mdy),-_gdR+mdz]], fa, sa);    // L
