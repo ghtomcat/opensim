@@ -93,6 +93,27 @@ function _rwyColor(surface, shade, dayFrac) {
   return `rgb(${v},${v},${v})`;
 }
 
+/* ── OSM aeroway overlay — runways, taxiways, aprons ── */
+/* Cache key: "floor(lat*10)_floor(lon*10)" → array of OSM way objects with inline geometry */
+const _osmAero    = new Map();
+const _osmPending = new Set();
+
+function _fetchOSMAero(lat, lon) {
+  const key = `${Math.floor(lat * 10)}_${Math.floor(lon * 10)}`;
+  if (_osmAero.has(key) || _osmPending.has(key)) return;
+  _osmPending.add(key);
+  /* Bounding box: 0.14° × 0.14° (~9 nm) centred on the 0.1° grid cell */
+  const b0l = (Math.floor(lat * 10) / 10 - 0.02).toFixed(4);
+  const b1l = (Math.floor(lat * 10) / 10 + 0.12).toFixed(4);
+  const b0o = (Math.floor(lon * 10) / 10 - 0.02).toFixed(4);
+  const b1o = (Math.floor(lon * 10) / 10 + 0.12).toFixed(4);
+  const q = `[out:json][timeout:25];(way["aeroway"~"runway|taxiway|apron|helipad"](${b0l},${b0o},${b1l},${b1o}););out geom;`;
+  fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`)
+    .then(r => r.ok ? r.json() : { elements: [] })
+    .then(d => { _osmAero.set(key, d.elements ?? []); _osmPending.delete(key); })
+    .catch(() => { _osmAero.set(key, []); _osmPending.delete(key); });
+}
+
 /* ── Water polygon tiles — Mapbox Streets v8, zoom 11 ── */
 const _WZ    = 11;
 const _wcache = new Map();
@@ -865,6 +886,40 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null }
       }
     }
     ctx.fill();
+  }
+
+  /* ── OSM aeroway overlay — runways, taxiways, aprons (all mission types) ── */
+  if (!isWater) {
+    _fetchOSMAero(acLat, acLon);
+    const _osmKey  = `${Math.floor(acLat * 10)}_${Math.floor(acLon * 10)}`;
+    const _osmWays = _osmAero.get(_osmKey);
+    if (_osmWays?.length) {
+      /* Brightness scales with day/night (same formula as _rwyColor) */
+      const _f   = dayFrac * 0.78 + 0.22;
+      const _rB  = 62  * _f | 0;   // runway  (asphalt ~62)
+      const _tB  = 52  * _f | 0;   // taxiway (slightly darker)
+      const _aB  = 72  * _f | 0;   // apron   (concrete ~72)
+      ctx.save();
+      for (const way of _osmWays) {
+        if (!way.geometry?.length) continue;
+        const _at = way.tags?.aeroway;
+        const _bv = _at === 'runway' ? _rB : _at === 'taxiway' ? _tB : _at === 'apron' ? _aB : null;
+        if (_bv === null) continue;
+        ctx.fillStyle = `rgb(${_bv},${_bv},${_bv})`;
+        ctx.beginPath();
+        let _go = false;
+        for (const { lat: _nL, lon: _nO } of way.geometry) {
+          const _dN = (_nL - acLat) * 60;
+          const _dE = (_nO - acLon) * 60 * cosAcLat;
+          const _sp = proj(_dN * cosH + _dE * sinH, _dE * cosH - _dN * sinH, 0);
+          if (!_sp) continue;
+          if (!_go) { ctx.moveTo(_sp[0], _sp[1]); _go = true; }
+          else         ctx.lineTo(_sp[0], _sp[1]);
+        }
+        if (_go) { ctx.closePath(); ctx.fill(); }
+      }
+      ctx.restore();
+    }
   }
 
   /* ── World-fixed ground grid (flat missions only, not rockets) ── */
