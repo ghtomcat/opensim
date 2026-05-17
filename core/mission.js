@@ -82,6 +82,7 @@ export async function loadMission(missionPath, aircraftPath) {
     crashed: false,
     crashReason: null,
     comPanelVisible: false,
+    cockpitView: 'forward',
   });
 
   /* G1000 (C172) cockpit switches — cold and dark */

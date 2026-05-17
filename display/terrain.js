@@ -275,7 +275,14 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null }
   const pitch = (S.pitch ?? 0) * DEG;
   const roll  = (S.roll  ?? 0) * DEG;
   const hdg   = (S.hdg   ?? 0) * DEG;
-  const elevFt = S.mission?.arrival?.elevation ?? S.mission?.departure?.elevation ?? 0;
+  /* Ground reference: sample the actual Mapbox elevation at the aircraft's position
+     so the terrain mesh sits at the camera's horizon regardless of which airport
+     (departure or arrival) defines the mission.  Fall back to departure elevation
+     before tiles have loaded.                                                      */
+  const _acSampM  = _sampleElev(S.lat ?? 47, S.lon ?? 8);
+  const elevFt    = _acSampM !== null
+    ? _acSampM / 0.3048
+    : (S.mission?.departure?.elevation ?? S.mission?.arrival?.elevation ?? 0);
   const agl    = Math.max(1, (S.alt ?? 1000) - elevFt);
   const altNm  = agl * FT_NM;
 
@@ -334,8 +341,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null }
   const acLat    = S.lat ?? 47;
   const acLon    = S.lon ?? 8;
   const cosAcLat = Math.cos(acLat * DEG);
-  const refFt    = S.mission?.arrival?.elevation ?? S.mission?.departure?.elevation ?? 0;
-  const refM     = refFt * 0.3048;
+  const refM     = _acSampM ?? elevFt * 0.3048;   // meters; same source as elevFt above
 
   /* ── Sky gradient ── */
   const isRocket   = S.aircraft?.vehicleType === 'rocket';
@@ -905,13 +911,18 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null }
         const _at = way.tags?.aeroway;
         const _bv = _at === 'runway' ? _rB : _at === 'taxiway' ? _tB : _at === 'apron' ? _aB : null;
         if (_bv === null) continue;
+        /* Sample terrain elevation at the first node so the overlay sits on the actual
+           terrain mesh rather than floating at the declared mission field elevation.     */
+        const _n0  = way.geometry[0];
+        const _eM  = _sampleElev(_n0.lat, _n0.lon);
+        const _eNm = _eM !== null ? (_eM - refM) * M_NM : 0;
         ctx.fillStyle = `rgb(${_bv},${_bv},${_bv})`;
         ctx.beginPath();
         let _go = false;
         for (const { lat: _nL, lon: _nO } of way.geometry) {
           const _dN = (_nL - acLat) * 60;
           const _dE = (_nO - acLon) * 60 * cosAcLat;
-          const _sp = proj(_dN * cosH + _dE * sinH, _dE * cosH - _dN * sinH, 0);
+          const _sp = proj(_dN * cosH + _dE * sinH, _dE * cosH - _dN * sinH, _eNm);
           if (!_sp) continue;
           if (!_go) { ctx.moveTo(_sp[0], _sp[1]); _go = true; }
           else         ctx.lineTo(_sp[0], _sp[1]);
@@ -970,7 +981,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null }
     for (const layer of cloudLayers) {
       const coverFrac = { FEW: 0.18, SCT: 0.40, BKN: 0.68, OVC: 0.92 }[layer.cover] ?? 0;
       if (coverFrac <= 0) continue;
-      const upAdd = ((layer.base ?? 5000) - refFt) * FT_NM;
+      const upAdd = ((layer.base ?? 5000) - elevFt) * FT_NM;
       if (upAdd < altNm - 0.08) continue;  /* aircraft well above this layer */
 
       const gi0 = Math.floor(acLatNm / SPACING) - 11;

@@ -1918,7 +1918,7 @@
   <span id="keys-spd">+ / − SPD</span><span id="keys-throttle" style="display:none">+ / − THROTTLE</span> · F1–F4 DETENT<br>
   f/F flaps ▼▲ · G gear · Q fuel sel<br>
   <span id="keys-carb" style="display:none">H carb heat<br></span>
-  TAB display · V outside · C cam (chase/side/wing/plume) · P pause · R role<br>
+  TAB display · V outside · C cam (chase/side/wing/plume) · O overhead · D pedestal · P pause · R role<br>
   SPACE PTT
 </div>
 
@@ -2116,6 +2116,7 @@
   import { renderVelisEpsi, handleVelisClick } from './display/velis_epsi.js';
   import { initFMA, renderFMA } from './display/fma.js';
   import { initCOM }           from './display/com.js';
+  import { initOverhead, toggleOverhead, renderOverhead } from './display/overhead.js';
   import { initSound, startSound, stopSound, startEngineLifecycle, stopEngineLifecycle, switchEngine, tickSound, getCurrentRpm, silenceAll, apDisconnectChime } from './core/sound.js';
   import { initOutside, tickOutside, outsideInvalidate, setOutsideCamMode } from './display/outside.js';
   import { initKneeboard, toggleKneeboard, tickKneeboard } from './display/kneeboard.js';
@@ -2305,14 +2306,14 @@
     {
       id: 'lsgg-approach', aircraft: 'e190',
       acName: 'Embraer E190-E2', engine: 'Pratt & Whitney PW1900G · GTF',
-      location: 'Genève LSGG', title: 'ILS Approach · RWY 23', era: 'MODERN', accent: '#00cfb0',
+      location: 'Genève LSGG', title: 'Takeoff · RWY 23', era: 'MODERN', accent: '#00cfb0',
       briefing: {
-        date: 'LSGG · RWY 23 · ILS 109.750',
+        date: 'LSGG · RWY 23 · Departure',
         pilot: 'Captain / First Officer',
-        unit: 'Geneva Approach 118.700',
+        unit: 'Geneva Ground / Tower',
         aircraft: 'Embraer E190-E2 · Helvetic Airways',
-        orders: 'Cleared ILS 23. Descend 4000ft.\nSpeed 250kt below FL100. Expect vectors to localizer.\nGear down and flaps full by FAF.\nDecision height: 200ft AGL. Go-around: climb 4000ft, track 228°.',
-        atmosphere: 'Live METAR active.\nHelvetica — Swiss regional. Clean, efficient, on time.',
+        orders: 'Start engines (E key). Taxi to RWY 23 via Foxtrot and November.\nHold short — one departure ahead. Cleared takeoff when ready.\nMaintain RWY heading to 1000ft AGL. Squawk 4712.\nClimb FL240. Mont Blanc at 12 o\'clock.',
+        atmosphere: 'Live METAR active.\nGeneva — Lake to the right, mountains straight ahead.\nHelvetica. Clean, efficient, on time.',
       },
       roles: [
         { id: 'PF',         label: 'Pilot Flying' },
@@ -2341,14 +2342,32 @@
     {
       id: 'evra-approach', aircraft: 'a220',
       acName: 'Airbus A220-300', engine: 'Pratt & Whitney PW1500G · GTF',
-      location: 'Rīga EVRA', title: 'ILS Approach · RWY 36', era: 'MODERN', accent: '#7ec8e3',
+      location: 'Warsaw → Rīga EVRA', title: 'Cruise · FL350 · Inbound', era: 'MODERN', accent: '#7ec8e3',
       briefing: {
-        date: 'EVRA · RWY 36 · ILS 110.300',
+        date: 'EVRA · Cruise phase · FL350',
         pilot: 'Captain / First Officer',
-        unit: 'Riga Approach 119.500',
+        unit: 'Warsaw Control → Vilnius Control',
         aircraft: 'Airbus A220-300 · Air Baltic',
-        orders: 'Cleared ILS 36. Descend 3000ft.\nSpeed 250kt below FL100. Expect vectors to localizer.\nGear down and flaps full by FAF.\nDecision height: 200ft AGL. Go-around: climb 2000ft, track 360°.',
-        atmosphere: 'Live METAR active.\nAir Baltic. The whole fleet is A220. Every aircraft, every route.',
+        orders: 'Stable at FL350, 290kt. Baltic Sea ahead left.\nRequest descent via Vilnius — target FL240 then approach.\nApproach brief due at 9500ft (opens automatically).\nILS 36, course 360°, DH 200ft.',
+        atmosphere: 'Live METAR at EVRA active.\nAir Baltic. The whole fleet is A220. Every aircraft, every route.',
+      },
+      roles: [
+        { id: 'PF',         label: 'Pilot Flying' },
+        { id: 'PM',         label: 'Pilot Monitoring' },
+        { id: 'INSTRUCTOR', label: 'Instructor' },
+      ],
+    },
+    {
+      id: 'fimp-takeoff', aircraft: 'a340',
+      acName: 'Airbus A340-313', engine: '4× CFM International CFM56-5C4',
+      location: 'Mauritius FIMP', title: 'Takeoff · RWY 14 → LSZH', era: 'MODERN', accent: '#c8a060',
+      briefing: {
+        date: 'FIMP · RWY 14 · Departure → LSZH',
+        pilot: 'Captain / First Officer',
+        unit: 'Mauritius Ground / Tower',
+        aircraft: 'Airbus A340-313 · Edelweiss Air · HB-JMF',
+        orders: 'Start all 4 engines (E key). Taxi to RWY 14.\nCleared takeoff — wind 130° at 12kt.\nV1 162kt  Vr 165kt  V2 181kt. Heavy — 275t.\nMaintain RWY heading to 3000ft. Climb FL370.',
+        atmosphere: 'Sunrise over the Indian Ocean. Warm, humid.\nEdelweiss Air — Zürich bound. 10h 40min ahead.\n4 engines. Long haul. The way it used to be done.',
       },
       roles: [
         { id: 'PF',         label: 'Pilot Flying' },
@@ -3577,6 +3596,7 @@
     const _hidecom = S.aircraft?.vehicleType === 'robot-arm' || S.aircraft?.vehicleType === 'rocket';
     if (!_hidecom) initCOM(_comEl);
     _comEl.style.display = _hidecom ? 'none' : '';
+    initOverhead();
 
     /* Seed robot arm state if applicable — Three.js init happens lazily on first render */
     if (S.aircraft?.vehicleType === 'robot-arm') {
@@ -3792,6 +3812,7 @@
       /* Escape — back to mission selector */
       if (e.key === 'Escape') { history.back(); return; }
       if (e.key === 'k' || e.key === 'K') { toggleKneeboard(); return; }
+      if (e.key === 'o' || e.key === 'O') { toggleOverhead(); return; }
       if (e.key === 'n' || e.key === 'N') { if (S.aircraft?.map !== false) toggleMap(); return; }
 
       /* E — Anlasser (v12 only) */
@@ -3997,6 +4018,7 @@
         _oskUpdate(isHover, S.aircraft?.manualControl);
       },
       () => renderFMA(),
+      () => renderOverhead(),
       () => updatePanel(),
       () => updateEscTemps(),
       () => updateMetar(),

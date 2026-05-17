@@ -22,7 +22,7 @@ const SIDE_UP    = 80  * FT_NM;
 /* ── Light directions in camera-aligned frame (fwd, right, up) ──── */
 const _LD  = (v => v.map(x => x / Math.hypot(...v)))([0.25, -0.45,  0.85]);  // key light (sun)
 const _LD2 = (v => v.map(x => x / Math.hypot(...v)))([-0.1,  0.60,  0.30]);  // fill (sky bounce)
-const _LD2S = 0.22;   // fill light strength
+const _LD2S = 0.70;   // fill light strength
 /* Blinn-Phong half-vector for side cam (view = +R direction → [0,1,0]) */
 const _H   = (v => v.map(x => x / Math.hypot(...v)))([_LD[0], _LD[1]+1, _LD[2]]);
 
@@ -166,7 +166,7 @@ const _COLORS = [
   [ 20,  22,  28], // 5 cockpit band (bandit) — near-black surround
   [215, 218, 222], // 6 radome   — slightly lighter than fuselage
   [ 45,  50,  60], // 7 TR zone  — same shade as engine; sentinel for TR deploy skip
-  [ 25,  45,  75], // 8 cockpit windows — dark glass
+  [  8,  10,  14], // 8 cockpit windows — near-black glass
   [195, 205, 215], // 9 winglets        — default = wing color; override via livery index 9
   [ 15,  15,  18], // 10 engine interior — near-black for intake/nozzle cap faces
 ];
@@ -225,6 +225,19 @@ export function initOutside() {
 export function setOutsideCamMode(m) { _camMode = m; }
 export function outsideInvalidate()  { /* redraws every frame */ }
 
+/* Gear-contact to body-center offset in feet — lifts the terrain camera so gear
+   appears to touch the ground rather than sinking into or floating above it.
+   Returns 0 when not on ground; vehicle-specific values derived from gear geometry. */
+function _groundOffsetFt() {
+  if (!S.wow) return 0;
+  const id = S.aircraft?.id ?? '';
+  if (S.aircraft?.vehicleType === 'rocket') return 0;
+  if (id === 'c172')          return (_xr + 0.0020 + _xr * 0.56) / FT_NM;  // ~32 ft
+  if (id.startsWith('bf109')) return 0.0032 / FT_NM;  // ~19 ft
+  if (id.startsWith('f4u'))   return 0.0038 / FT_NM;  // ~23 ft
+  return (_r + 0.0032 + _r * 0.16) / FT_NM;  // WB main gear ~37 ft
+}
+
 export function tickOutside() {
   if (!_canvas || !_canvas.offsetWidth || !_canvas.offsetHeight) return;
   if      (_camMode === 1) _renderChaseCam(_canvas);
@@ -249,8 +262,8 @@ function _renderChaseCam(canvas) {
   const camBack  = baseDist * Math.cos(totalEl);
   const camUp    = baseDist * Math.sin(totalEl);
 
-  /* Orbit azimuth: rotate camera position around rocket; scale by zoom */
-  const orbitRad = hdgRad - Math.PI + _orbitAz * DEG;
+  /* Orbit azimuth: heading-relative in flight; absolute when on ground */
+  const orbitRad = S.wow ? _orbitAz * DEG : hdgRad - Math.PI + _orbitAz * DEG;
   const camBackZ = camBack * _orbitZoom;
   const camUpZ   = camUp   * _orbitZoom;
   const dN = Math.cos(orbitRad) * camBackZ;
@@ -263,14 +276,14 @@ function _renderChaseCam(canvas) {
   const sL=S.lat,sLo=S.lon,sA=S.alt,sP=S.pitch,sR=S.roll,sH=S.hdg;
   S.lat   = (S.lat??47)   + dN / 60;
   S.lon   = (S.lon??8)    + dE / (60 * cosLat);
-  S.alt   = (S.alt??3000) + camUpZ / FT_NM;
+  S.alt   = (S.alt??3000) + _groundOffsetFt() + camUpZ / FT_NM;
   S.hdg   = ((_orbitAz + 180) % 360 + 360) % 360;
   S.pitch = Math.atan2(-camUpZ, camBackZ) / DEG;  /* angle unchanged, zoom cancels */
   S.roll  = 0;
   renderTerrain(canvas, { outsideView: true, cxOverride: _cxC });
   S.lat=sL;S.lon=sLo;S.alt=sA;S.pitch=sP;S.roll=sR;S.hdg=sH;
 
-  _drawWireframe(canvas, acP, acR + _orbitAz, camBack, camUp, 0);
+  _drawWireframe(canvas, S.wow ? 0 : acP, (S.wow ? 0 : acR) + _orbitAz, camBack, camUp, 0);
   _drawLabel(canvas, 'CHASE CAM');
 }
 
@@ -297,10 +310,10 @@ function _renderSideCam(canvas) {
     if (db > 0 && _dir.shot) renderOrbit += (_DIR_SHOTS[_dir.shot].orbitAz ?? 0) * db;
   }
 
-  /* True camera orbit: move the terrain camera around the rocket sphere.
-     This makes the background terrain rotate with the orbit, not just the
-     wireframe model — so it looks like the camera orbiting, not the rocket. */
-  const orbitRad = rightRad + renderOrbit * DEG;
+  /* True camera orbit: move the terrain camera around the aircraft.
+     On ground: absolute orbit (terrain stays fixed around parked plane).
+     In flight: heading-relative (camera stays to the right side). */
+  const orbitRad = S.wow ? renderOrbit * DEG : rightRad + renderOrbit * DEG;
   const elRad    = _orbitEl * DEG;
   const hDist    = sideDist * Math.cos(elRad);
   const vElev    = sideDist * Math.sin(elRad);
@@ -314,14 +327,16 @@ function _renderSideCam(canvas) {
   const sL=S.lat,sLo=S.lon,sA=S.alt,sH=S.hdg,sP=S.pitch,sR=S.roll;
   S.lat   = (S.lat??47)   + dN / 60;
   S.lon   = (S.lon??8)    + dE / (60 * cosLat);
-  S.alt   = (S.alt??3000) + (sideUp + vElev) / FT_NM;
-  S.hdg   = ((S.hdg??0) - 90 - renderOrbit + 360) % 360;
+  S.alt   = (S.alt??3000) + _groundOffsetFt() + (sideUp + vElev) / FT_NM;
+  S.hdg   = S.wow ? ((renderOrbit + 180) % 360 + 360) % 360
+                  : ((S.hdg??0) - 90 - renderOrbit + 360) % 360;
   S.pitch = Math.atan2(-(sideUp + vElev), hDist) / DEG;
   S.roll  = 0;
   renderTerrain(canvas, { outsideView: true, cxOverride: _cxS });
   S.lat=sL;S.lon=sLo;S.alt=sA;S.hdg=sH;S.pitch=sP;S.roll=sR;
 
-  _drawWireframe(canvas, acP, acR + renderOrbit, 0, sideUp, sideDist, false, renderOrbit, _orbitEl);
+  if (S.wow) _drawWireframe(canvas, 0, 0, 0, sideUp, sideDist, false, 0, renderOrbit);
+  else       _drawWireframe(canvas, acP, acR + renderOrbit, 0, sideUp, sideDist, false, renderOrbit, _orbitEl);
   _drawLabel(canvas, 'SIDE CAM');
   if (S.paused) _drawPauseOverlay(canvas);
 }
@@ -342,7 +357,7 @@ function _renderWingView(canvas) {
   const sL=S.lat,sLo=S.lon,sA=S.alt,sH=S.hdg,sP=S.pitch,sR=S.roll;
   S.lat   = (S.lat??47)   + dN / 60;
   S.lon   = (S.lon??8)    + dE / (60 * cosLat);
-  S.alt   = (S.alt??3000) + WING_UP / FT_NM;
+  S.alt   = (S.alt??3000) + _groundOffsetFt() + WING_UP / FT_NM;
   S.hdg   = ((S.hdg??0) - 90 + 360) % 360;
   S.pitch = Math.atan2(-WING_UP, WING_SIDE) / DEG;
   S.roll  = 0;
@@ -380,16 +395,16 @@ const _dh  = 0.0012;
    root/fuselage attachment position is NOT part of the spec (fuselage join is
    a separate element). All x values = body-frame forward (+x = nose).         */
 const _WB_WING_DEFAULT = {
-  span:      0.0165,   // half-span (NM)
-  rootLE:    0.005,    // root leading-edge x
-  rootTE:   -0.004,    // root trailing-edge x
-  tipLE:    -0.003,    // tip leading-edge x
-  tipTE:    -0.006,    // tip trailing-edge x
-  dihedral:  0.0012,   // z offset at tip (positive = up)
-  rootThick: 0.00090,  // root thickness (z), ≈10% of root chord
-  tipThick:  0.00022,  // tip thickness  (z), ≈7%  of tip chord
-  flapBreak: 0.60,     // span fraction where flap zone ends / aileron begins
-  flapHinge: 0.70,     // chord fraction of the flap hinge line from LE
+  span:      0.0267,   // half-span (NM) — A330-style widebody, W/D ≈ 10.7
+  rootLE:    0.005,
+  rootTE:   -0.004,
+  tipLE:    -0.0079,   // scaled to maintain 25.9° LE sweep
+  tipTE:    -0.0103,   // maintains root taper ratio ~0.33
+  dihedral:  0.0019,
+  rootThick: 0.00090,
+  tipThick:  0.00022,
+  flapBreak: 0.60,
+  flapHinge: 0.70,
 };
 
 /* ── Per-aircraft wide-body nose profiles ─────────────────────── */
@@ -412,7 +427,7 @@ const _WB_NP = {
     wing: _WB_WING_DEFAULT,
   },
   a350: {
-    tipX: 0.023, tipCz: -0.0002,
+    tipX: 0.023, tipCz: -0.0002, tailX: -0.0388,
     noseRings: [
       { vF: 0.022, r: _nr1*0.22, col: 6 },  // very pointed radome tip
       { vF: 0.021, r: _nr1*0.55, col: 6 },  // second radome ring
@@ -428,10 +443,17 @@ const _WB_NP = {
       [ 0.020, -0.0002,  0.0013],[ 0.015, -0.0003,  0.0022],
       [ 0.015, -0.0014,  0.0016],[ 0.020, -0.0008,  0.0008],
     ],
-    wing: _WB_WING_DEFAULT,
+    wing: {
+      span:      0.0271,   // A350-900: 64.75m real → W/D 10.8 at model fuselage scale
+      rootLE:    0.005,  rootTE:   -0.004,
+      tipLE:    -0.0082, tipTE:    -0.0104,  // 31° LE sweep, taper ≈ 0.28
+      dihedral:  0.0020,
+      rootThick: 0.00105, tipThick: 0.00022,
+      flapBreak: 0.58,   flapHinge: 0.72,
+    },
   },
   a220: {
-    tipX: 0.021, tipCz: 0.0001,
+    tipX: 0.021, tipCz: 0.0001, tailX: -0.0264,
     noseRings: [
       { vF: 0.020, r: _nr1*0.45, col: 6 },
       { vF: 0.018, r: _nr1,      col: 0 },
@@ -445,10 +467,17 @@ const _WB_NP = {
       [ 0.019, -0.0002,  0.0009],[ 0.015, -0.0004,  0.0018],
       [ 0.015, -0.0012,  0.0014],[ 0.019, -0.0006,  0.0006],
     ],
-    wing: _WB_WING_DEFAULT,
+    wing: {
+      span:      0.0215,   // A220-300: narrowbody, shorter semi-span at model fuselage scale
+      rootLE:    0.005,  rootTE:   -0.004,
+      tipLE:    -0.0058, tipTE:    -0.0082,  // 27° LE sweep (less than widebody)
+      dihedral:  0.0016,
+      rootThick: 0.00080, tipThick: 0.00018,
+      flapBreak: 0.62,   flapHinge: 0.72,
+    },
   },
   e190: {
-    tipX: 0.020, tipCz: 0.0001,
+    tipX: 0.020, tipCz: 0.0001, tailX: -0.0230,
     noseRings: [
       { vF: 0.019, r: _nr1*0.65, col: 6 },  // rounder, blunter tip
       { vF: 0.017, r: _nr1,      col: 0 },
@@ -462,31 +491,45 @@ const _WB_NP = {
       [ 0.018, -0.0002,  0.0008],[ 0.014, -0.0004,  0.0016],
       [ 0.014, -0.0011,  0.0012],[ 0.018, -0.0006,  0.0005],
     ],
-    wing: _WB_WING_DEFAULT,
+    wing: {
+      span:      0.0188,   // E190-E2: regional jet, shorter semi-span
+      rootLE:    0.005,  rootTE:   -0.004,
+      tipLE:    -0.0045, tipTE:    -0.0069,  // 24° LE sweep (high-AR regional)
+      dihedral:  0.0013,
+      rootThick: 0.00075, tipThick: 0.00016,
+      flapBreak: 0.62,   flapHinge: 0.70,
+    },
   },
   /* A340-313: same Airbus nose family as A220; wide span + 4 engines (inner ey, outer ey2).
      The nacelle mesh renders at ey (inner pair); ey2 drives the outer engine fan pass. */
   a340: {
-    ey: 0.0058, ey2: 0.0100, ez: -0.00230, er: 0.00108, erc: 0.00075, pz: -0.00068,
-    tipX: 0.021, tipCz: 0.0001,
+    ey: 0.0097, ey2: 0.0171, ez: -0.00230, er: 0.00108, erc: 0.00075, pz: -0.00068,
+    tipX: 0.017, tipCz: 0.0001, tailX: -0.0354, vstabZ: 0.0095, winglet: 'classic',
     noseRings: [
-      { vF: 0.020, r: _nr1*0.45, col: 6 },
-      { vF: 0.018, r: _nr1,      col: 0 },
-      { vF: 0.016, r: _nr2*0.95, col: 0 },
-      { vF: 0.015, r: _nr3,      col: 5 },
-      { vF: 0.013, r: _r,        col: 0 },
+      { vF: 0.017,  r: _nr1*0.12,  col: 6 },  // radome tip
+      { vF: 0.0165, r: _nr1*0.28,  col: 6 },
+      { vF: 0.016,  r: _nr1*0.45,  col: 6 },
+      { vF: 0.0158, r: _nr1*0.65,  col: 6 },
+      { vF: 0.0155, r: _nr1*0.85,  col: 6 },
+      { vF: 0.0152, r: _nr1*0.93,  col: 6 },
+      { vF: 0.015,  r: _nr1*1.00,  col: 6 },  // nose max
+      { vF: 0.0145, r: _nr1*1.375, col: 6 },
+      { vF: 0.014,  r: _nr2*0.95,  col: 6 },  // cockpit taper
+      { vF: 0.0135, r: _nr2*1.128, col: 6 },
+      { vF: 0.013,  r: _r,         col: 0 },  // fuselage starts
     ],
     windows: [
-      [ 0.019,  0.0002,  0.0009],[ 0.015,  0.0004,  0.0018],
-      [ 0.015,  0.0012,  0.0014],[ 0.019,  0.0006,  0.0006],
-      [ 0.019, -0.0002,  0.0009],[ 0.015, -0.0004,  0.0018],
-      [ 0.015, -0.0012,  0.0014],[ 0.019, -0.0006,  0.0006],
+      // forward-facing panels: inner edge z≈0.001 (constant), outer edge z≈0.0004 (fans outward+down)
+      [ 0.0145,  0.0001, 0.0009],[ 0.0130,  0.0002, 0.0010],  // R fwd-in, aft-in
+      [ 0.0130,  0.0014, 0.0005],[ 0.0145,  0.0008, 0.0004],  // R aft-out, fwd-out
+      [ 0.0145, -0.0001, 0.0009],[ 0.0130, -0.0002, 0.0010],  // L fwd-in, aft-in
+      [ 0.0130, -0.0014, 0.0005],[ 0.0145, -0.0008, 0.0004],  // L aft-out, fwd-out
     ],
     wing: {
-      span:      0.0200,
-      rootLE:    0.005,  rootTE:   -0.004,
-      tipLE:    -0.004,  tipTE:    -0.007,
-      dihedral:  0.0014,
+      span:      0.0267,   // A340-300: 60.3m real
+      rootLE:    0.000,  rootTE:   -0.009,   // wing sits mid-fuselage (blueprint-corrected)
+      tipLE:    -0.015,  tipTE:    -0.019,   // ~27° LE sweep, taper ≈ 0.28
+      dihedral:  0.0022,
       rootThick: 0.00105, tipThick: 0.00022,
       flapBreak: 0.58,   flapHinge: 0.72,
     },
@@ -509,10 +552,10 @@ const _WB_NP = {
       [ 0.013, -0.0011,  0.0012],[ 0.016, -0.0006,  0.0006],
     ],
     wing: {
-      span:      0.01320,
+      span:      0.01780,  // B737-800: 34.3m real → W/D 9.1 at B737's smaller model fuselage
       rootLE:    0.0055,  rootTE:   -0.0028,
-      tipLE:    -0.0010,  tipTE:    -0.0055,
-      dihedral:  0.0018,
+      tipLE:    -0.0033,  tipTE:    -0.0060,  // 25° LE sweep, taper ≈ 0.30
+      dihedral:  0.0024,
       rootThick: 0.00065, tipThick:  0.00015,
       flapBreak: 0.55,    flapHinge: 0.72,
     },
@@ -523,6 +566,9 @@ function _buildWB(np) {
   const N = 16, N4 = 4, N2 = 8, N3 = 12;
   const nNose  = np.noseRings.length;  // variable: 5 (default/a220/e190) or 7 (a350)
   /* Per-aircraft overrides fall back to module globals so existing profiles are unchanged */
+  const tailX  = np.tailX ?? -0.021;
+  const ts     = tailX / -0.021;
+  const vstabZ = np.vstabZ ?? 0.008;  // V-stab tip height (z, above fuselage centre)
   const r   = np.r   ?? _r;
   const nr2 = r * 0.7071;
   const nr3 = r * 0.9239;
@@ -536,6 +582,15 @@ function _buildWB(np) {
   const erc = np.erc ?? _erc;
   const e7c = erc * 0.7071;
   const pz  = np.pz  ?? _pz;
+
+  /* Engine X offset — shifts all ring positions with wing rootLE (default rootLE=0.005 → exOff=0) */
+  const exOff = (np.wing?.rootLE ?? 0.005) - 0.005;
+  const eA = 0.005 + exOff;   // intake ring face
+  const eB = 0.001 + exOff;   // fan cowl ring
+  const eC = -0.001 + exOff;  // TR forward ring / pylon aft
+  const eD = -0.002 + exOff;  // TR aft ring
+  const eE = -0.003 + exOff;  // nozzle ring
+  const ePF = 0.003 + exOff;  // pylon fwd attach
 
   /* Derive all wing constants from the per-aircraft wing spec */
   const w    = np.wing;
@@ -565,86 +620,90 @@ function _buildWB(np) {
   const WV = _ws.verts;
   const r_ail = _ws.anim.r_ail;
 
-  const wy   = hs;                               // winglet y = tip span
-  const wz   = dh + 0.0040;                     // winglet z
+  /* Winglet geometry — auto-derives X from tipLE/tipTE, height from winglet type */
+  const _wlType = np.winglet ?? 'classic';
+  const _wlH  = { classic: 0.0030, sharklet: 0.0065, blended: 0.0042, raked: 0.0015 }[_wlType] ?? 0.0030;
+  const _wlSw = { classic: 0.0012, sharklet: 0.0040, blended: 0.0022, raked: 0.0035 }[_wlType] ?? 0.0012;
+  const wy   = hs;
+  const wz   = dh + _wlH;
   const nTotal = nNose + 5;            // + 5 fixed tail rings
   const { V_, F_, FC_, E_, rb } = buildTube(N, [
-    ...np.noseRings,                               // rings 0…nNose-1: aircraft-specific nose
-    { vF:  0.001, r: r,          col: 0 },          // ring nNose+0: wing-stn
-    { vF: -0.010, r: r,          col: 0 },          // ring nNose+1: rear
-    { vF: -0.014, r: nr3,        col: 0 },          // ring nNose+2: tail fwd (begin taper)
-    { vF: -0.017, r: nr3        },                  // ring nNose+3: tail sweep (no cz)
-    { vF: -0.019, r: nr2        },                  // ring nNose+4: APU (no cz)
+    ...np.noseRings,                                    // rings 0…nNose-1: aircraft-specific nose
+    { vF:        0.001, r: r,    col: 0 },              // ring nNose+0: wing-stn (fixed)
+    { vF: -0.010 * ts,  r: r,    col: 0 },              // ring nNose+1: rear
+    { vF: -0.014 * ts,  r: nr3-r*0.12, col: 0, cz: r*0.12 }, // ring nNose+2: top fixed, belly rises 0.24r
+    { vF: -0.017 * ts,  r: nr3-r*0.26,         cz: r*0.26 }, // ring nNose+3: belly rises 0.52r
+    { vF: -0.0205 * ts, r: nr3-r*0.42,         cz: r*0.42 }, // ring nNose+4: belly near centreline, close to tailTip
   ]);
 
   const noseTip = V_.length;  V_.push([np.tipX, 0, np.tipCz ?? 0]);
-  const tailTip = V_.length;  V_.push([-0.021, 0, 0]);
+  const tailTip = V_.length;  V_.push([tailX, 0, r * 0.42]);
 
   V_.push(  /* non-tube vertices — b+0..b+151 */
     WV[0], WV[1], WV[4], WV[5],    // b+0..3:  R root lower LE/TE, R tip lower LE/TE
     WV[22], WV[23], WV[26], WV[27], // b+4..7:  L root lower LE/TE, L tip lower LE/TE
-    [-0.013,  0,        r       ],  //  170 V-stab base fwd
-    [-0.019,  0,        r       ],  //  171 V-stab base aft
-    [-0.015,  0,        0.008   ],  //  172 V-stab top fwd
-    [-0.020,  0,        0.007   ],  //  173 V-stab top aft
-    [-0.017,  nr3,      0.0     ],  //  174 R h-stab root fwd  (on fuselage surface)
-    [-0.020,  nr2,      0.0     ],  //  175 R h-stab root aft
-    [-0.018,  0.008,    0.001   ],  //  176 R h-stab tip fwd
-    [-0.021,  0.008,    0.001   ],  //  177 R h-stab tip aft
-    [-0.017, -nr3,      0.0     ],  //  178 L h-stab root fwd
-    [-0.020, -nr2,      0.0     ],  //  179 L h-stab root aft
-    [-0.018, -0.008,    0.001   ],  //  180 L h-stab tip fwd
-    [-0.021, -0.008,    0.001   ],  //  181 L h-stab tip aft
-    /* R engine — intake(182-189), fan(190-197), TR_fwd(198-205), TR_aft(206-213), nozzle(214-221) */
-    [ 0.005, ey,      ez+er   ],[ 0.005, ey+e7,   ez+e7   ],
-    [ 0.005, ey+er,   ez      ],[ 0.005, ey+e7,   ez-e7   ],
-    [ 0.005, ey,      ez-er   ],[ 0.005, ey-e7,   ez-e7   ],
-    [ 0.005, ey-er,   ez      ],[ 0.005, ey-e7,   ez+e7   ],
-    [ 0.001, ey,      ez+efr  ],[ 0.001, ey+ef7,  ez+ef7  ],
-    [ 0.001, ey+efr,  ez      ],[ 0.001, ey+ef7,  ez-ef7  ],
-    [ 0.001, ey,      ez-efr  ],[ 0.001, ey-ef7,  ez-ef7  ],
-    [ 0.001, ey-efr,  ez      ],[ 0.001, ey-ef7,  ez+ef7  ],
-    [-0.001, ey,      ez+er   ],[-0.001, ey+e7,   ez+e7   ],
-    [-0.001, ey+er,   ez      ],[-0.001, ey+e7,   ez-e7   ],
-    [-0.001, ey,      ez-er   ],[-0.001, ey-e7,   ez-e7   ],
-    [-0.001, ey-er,   ez      ],[-0.001, ey-e7,   ez+e7   ],
-    [-0.002, ey,      ez+er   ],[-0.002, ey+e7,   ez+e7   ],
-    [-0.002, ey+er,   ez      ],[-0.002, ey+e7,   ez-e7   ],
-    [-0.002, ey,      ez-er   ],[-0.002, ey-e7,   ez-e7   ],
-    [-0.002, ey-er,   ez      ],[-0.002, ey-e7,   ez+e7   ],
-    [-0.003, ey,      ez+erc  ],[-0.003, ey+e7c,  ez+e7c  ],
-    [-0.003, ey+erc,  ez      ],[-0.003, ey+e7c,  ez-e7c  ],
-    [-0.003, ey,      ez-erc  ],[-0.003, ey-e7c,  ez-e7c  ],
-    [-0.003, ey-erc,  ez      ],[-0.003, ey-e7c,  ez+e7c  ],
-    /* L engine — intake(222-229), fan(230-237), TR_fwd(238-245), TR_aft(246-253), nozzle(254-261) */
-    [ 0.005, -ey,      ez+er   ],[ 0.005, -ey-e7,   ez+e7   ],
-    [ 0.005, -ey-er,   ez      ],[ 0.005, -ey-e7,   ez-e7   ],
-    [ 0.005, -ey,      ez-er   ],[ 0.005, -ey+e7,   ez-e7   ],
-    [ 0.005, -ey+er,   ez      ],[ 0.005, -ey+e7,   ez+e7   ],
-    [ 0.001, -ey,      ez+efr  ],[ 0.001, -ey-ef7,  ez+ef7  ],
-    [ 0.001, -ey-efr,  ez      ],[ 0.001, -ey-ef7,  ez-ef7  ],
-    [ 0.001, -ey,      ez-efr  ],[ 0.001, -ey+ef7,  ez-ef7  ],
-    [ 0.001, -ey+efr,  ez      ],[ 0.001, -ey+ef7,  ez+ef7  ],
-    [-0.001, -ey,      ez+er   ],[-0.001, -ey-e7,   ez+e7   ],
-    [-0.001, -ey-er,   ez      ],[-0.001, -ey-e7,   ez-e7   ],
-    [-0.001, -ey,      ez-er   ],[-0.001, -ey+e7,   ez-e7   ],
-    [-0.001, -ey+er,   ez      ],[-0.001, -ey+e7,   ez+e7   ],
-    [-0.002, -ey,      ez+er   ],[-0.002, -ey-e7,   ez+e7   ],
-    [-0.002, -ey-er,   ez      ],[-0.002, -ey-e7,   ez-e7   ],
-    [-0.002, -ey,      ez-er   ],[-0.002, -ey+e7,   ez-e7   ],
-    [-0.002, -ey+er,   ez      ],[-0.002, -ey+e7,   ez+e7   ],
-    [-0.003, -ey,      ez+erc  ],[-0.003, -ey-e7c,  ez+e7c  ],
-    [-0.003, -ey-erc,  ez      ],[-0.003, -ey-e7c,  ez-e7c  ],
-    [-0.003, -ey,      ez-erc  ],[-0.003, -ey+e7c,  ez-e7c  ],
-    [-0.003, -ey+erc,  ez      ],[-0.003, -ey+e7c,  ez+e7c  ],
+    [-0.013*ts,  0,        r        ],  //  b+8  V-stab base fwd
+    [-0.019*ts,  0,        r        ],  //  b+9  V-stab base aft
+    [-0.016*ts,  0,        vstabZ   ],  //  b+10 V-stab top fwd  (40° LE sweep)
+    [-0.021*ts,  0,        vstabZ-0.001],//b+11 V-stab top aft
+    [-0.017*ts,  nr3,      0.0      ],  //  b+12 R h-stab root fwd
+    [ tailX,     nr2,      0.0      ],  //  b+13 R h-stab root aft  (TE at tail)
+    [-0.019*ts,  0.008,    0.001    ],  //  b+14 R h-stab tip fwd  (30° LE sweep)
+    [ tailX,     0.008,    0.001    ],  //  b+15 R h-stab tip aft
+    [-0.017*ts, -nr3,      0.0      ],  //  b+16 L h-stab root fwd
+    [ tailX,    -nr2,      0.0      ],  //  b+17 L h-stab root aft
+    [-0.019*ts, -0.008,    0.001    ],  //  b+18 L h-stab tip fwd
+    [ tailX,    -0.008,    0.001    ],  //  b+19 L h-stab tip aft
+    /* R engine rings (b+20..59) — eA..eE shift with wing rootLE via exOff */
+    [ eA, ey,      ez+er   ],[ eA, ey+e7,   ez+e7   ],
+    [ eA, ey+er,   ez      ],[ eA, ey+e7,   ez-e7   ],
+    [ eA, ey,      ez-er   ],[ eA, ey-e7,   ez-e7   ],
+    [ eA, ey-er,   ez      ],[ eA, ey-e7,   ez+e7   ],
+    [ eB, ey,      ez+efr  ],[ eB, ey+ef7,  ez+ef7  ],
+    [ eB, ey+efr,  ez      ],[ eB, ey+ef7,  ez-ef7  ],
+    [ eB, ey,      ez-efr  ],[ eB, ey-ef7,  ez-ef7  ],
+    [ eB, ey-efr,  ez      ],[ eB, ey-ef7,  ez+ef7  ],
+    [ eC, ey,      ez+er   ],[ eC, ey+e7,   ez+e7   ],
+    [ eC, ey+er,   ez      ],[ eC, ey+e7,   ez-e7   ],
+    [ eC, ey,      ez-er   ],[ eC, ey-e7,   ez-e7   ],
+    [ eC, ey-er,   ez      ],[ eC, ey-e7,   ez+e7   ],
+    [ eD, ey,      ez+er   ],[ eD, ey+e7,   ez+e7   ],
+    [ eD, ey+er,   ez      ],[ eD, ey+e7,   ez-e7   ],
+    [ eD, ey,      ez-er   ],[ eD, ey-e7,   ez-e7   ],
+    [ eD, ey-er,   ez      ],[ eD, ey-e7,   ez+e7   ],
+    [ eE, ey,      ez+erc  ],[ eE, ey+e7c,  ez+e7c  ],
+    [ eE, ey+erc,  ez      ],[ eE, ey+e7c,  ez-e7c  ],
+    [ eE, ey,      ez-erc  ],[ eE, ey-e7c,  ez-e7c  ],
+    [ eE, ey-erc,  ez      ],[ eE, ey-e7c,  ez+e7c  ],
+    /* L engine rings (b+60..99) */
+    [ eA, -ey,      ez+er   ],[ eA, -ey-e7,   ez+e7   ],
+    [ eA, -ey-er,   ez      ],[ eA, -ey-e7,   ez-e7   ],
+    [ eA, -ey,      ez-er   ],[ eA, -ey+e7,   ez-e7   ],
+    [ eA, -ey+er,   ez      ],[ eA, -ey+e7,   ez+e7   ],
+    [ eB, -ey,      ez+efr  ],[ eB, -ey-ef7,  ez+ef7  ],
+    [ eB, -ey-efr,  ez      ],[ eB, -ey-ef7,  ez-ef7  ],
+    [ eB, -ey,      ez-efr  ],[ eB, -ey+ef7,  ez-ef7  ],
+    [ eB, -ey+efr,  ez      ],[ eB, -ey+ef7,  ez+ef7  ],
+    [ eC, -ey,      ez+er   ],[ eC, -ey-e7,   ez+e7   ],
+    [ eC, -ey-er,   ez      ],[ eC, -ey-e7,   ez-e7   ],
+    [ eC, -ey,      ez-er   ],[ eC, -ey+e7,   ez-e7   ],
+    [ eC, -ey+er,   ez      ],[ eC, -ey+e7,   ez+e7   ],
+    [ eD, -ey,      ez+er   ],[ eD, -ey-e7,   ez+e7   ],
+    [ eD, -ey-er,   ez      ],[ eD, -ey-e7,   ez-e7   ],
+    [ eD, -ey,      ez-er   ],[ eD, -ey+e7,   ez-e7   ],
+    [ eD, -ey+er,   ez      ],[ eD, -ey+e7,   ez+e7   ],
+    [ eE, -ey,      ez+erc  ],[ eE, -ey-e7c,  ez+e7c  ],
+    [ eE, -ey-erc,  ez      ],[ eE, -ey-e7c,  ez-e7c  ],
+    [ eE, -ey,      ez-erc  ],[ eE, -ey+e7c,  ez-e7c  ],
+    [ eE, -ey+erc,  ez      ],[ eE, -ey+e7c,  ez+e7c  ],
     /* Winglets (262-265) */
-    [-0.007,  wy, wz],[-0.009,  wy, wz],
-    [-0.007, -wy, wz],[-0.009, -wy, wz],
+    [tLE-_wlSw,  wy, wz],[tTE,  wy, wz],   // b+100/101 R winglet outer LE/TE (auto from tipLE/tipTE)
+    [tLE-_wlSw, -wy, wz],[tTE, -wy, wz],   // b+102/103 L winglet outer LE/TE
     /* Cockpit windows (266-273) — R and L main windshield panels (from nose profile) */
     ...np.windows,  // 8 vertices: R[fwd-in,aft-in,aft-out,fwd-out] + L[fwd-in,aft-in,aft-out,fwd-out]
-    /* Engine pylons — top attach on wing underside at span station y=_ey (274-277) */
-    [ 0.003,  ey, pz],[-0.001,  ey, pz],                    // 274 R pylon top fwd, 275 R pylon top aft
-    [ 0.003, -ey, pz],[-0.001, -ey, pz],                    // 276 L pylon top fwd, 277 L pylon top aft
+    /* Engine pylons — top attach on wing underside at span station y=_ey */
+    [ ePF,  ey, pz],[ eC,  ey, pz],                         // R pylon top fwd, aft
+    [ ePF, -ey, pz],[ eC, -ey, pz],                         // L pylon top fwd, aft
     /* Wing upper surface (b+116…b+123) */
     WV[6],  WV[7],  WV[10], WV[11],  // b+116..119: R root upper LE/TE, R tip upper LE/TE
     WV[28], WV[29], WV[32], WV[33],  // b+120..123: L root upper LE/TE, L tip upper LE/TE
@@ -672,8 +731,75 @@ function _buildWB(np) {
   );
   /* Fan face centers at intake plane — projected in _drawWireframe for _drawTurbofanFace */
   V_.push(
-    [0.005,  ey, ez],  // b+158 R intake center
-    [0.005, -ey, ez],  // b+159 L intake center
+    [eA,  ey, ez],  // b+158 R intake center
+    [eA, -ey, ez],  // b+159 L intake center
+  );
+
+  /* ── V-stab airfoil surface (b+160..b+171) ──────────────────────────────
+     Span direction: Z (up).  Thickness direction: Y (lateral).
+     6 span-line positions × 2 Y-sides = 12 vertices.
+     Three chord stations per station: LE, hinge (65% chord), TE.              */
+  const _vTr = 0.00070;                        // root half-thickness (≈12% t/c)
+  const _vTt = 0.00040;                        // tip half-thickness (≈9% t/c)
+  const _vTE = 0.00008;                        // closed TE half-gap
+  const _vsRL = -0.013*ts, _vsRH = -0.017*ts, _vsRT = -0.019*ts;  // root LE/hinge/TE
+  const _vsTL = -0.016*ts, _vsTH = -0.019*ts, _vsTT = tailX;      // tip LE/hinge/TE
+  V_.push(
+    [_vsRL, +_vTr,       r        ], // b+160  root LE  +Y
+    [_vsRL, -_vTr,       r        ], // b+161  root LE  -Y
+    [_vsRH, +_vTr*0.70,  r        ], // b+162  root hinge +Y
+    [_vsRH, -_vTr*0.70,  r        ], // b+163  root hinge -Y
+    [_vsRT, +_vTE,        r        ], // b+164  root TE  +Y
+    [_vsRT, -_vTE,        r        ], // b+165  root TE  -Y
+    [_vsTL, +_vTt,        vstabZ   ], // b+166  tip  LE  +Y
+    [_vsTL, -_vTt,        vstabZ   ], // b+167  tip  LE  -Y
+    [_vsTH, +_vTt*0.70,   vstabZ   ], // b+168  tip  hinge +Y
+    [_vsTH, -_vTt*0.70,   vstabZ   ], // b+169  tip  hinge -Y
+    [_vsTT, +_vTE,         vstabZ   ], // b+170  tip  TE  +Y
+    [_vsTT, -_vTE,         vstabZ   ], // b+171  tip  TE  -Y
+  );
+
+  /* ── H-stab airfoil surface (b+172..b+195) ──────────────────────────────
+     Span direction: Y (lateral, same as main wing).  Thickness direction: Z.
+     Three chord stations × 2 Z-sides × 2 span stations × 2 (R+L) = 24 verts.
+     Hinge at 70% chord → elevator is rear 30%.                               */
+  const _hTr = 0.00040;                           // root half-thickness
+  const _hTt = 0.00025;                           // tip half-thickness
+  const _hTE = 0.00005;                           // TE gap
+  const _hsRL = -0.014*ts, _hsRH = -0.017*ts, _hsRT = tailX;
+  const _hsTL = -0.016*ts, _hsTH = -0.019*ts, _hsTT = tailX;
+  /* Root LE at ring nNose+2 (cz=r*0.12), root hinge at ring nNose+3 (cz=r*0.26) */
+  const _hsRY  = nr3 - r*0.12;   // root LE y — equator of ring nNose+2
+  const _hsRZ  = r * 0.12;       // root LE z center
+  const _hsHY  = nr3 - r*0.26;   // hinge/TE root y — equator of ring nNose+3
+  const _hsHZ  = r * 0.26;       // hinge/TE root z center
+  V_.push(
+    // R side (b+172..b+183)
+    [_hsRL,  _hsRY,  _hsRZ+_hTr], [_hsRL,  _hsRY,  _hsRZ-_hTr],  // b+172/173 R root LE up/dn
+    [_hsRH,  _hsHY,  _hsHZ+_hTr*0.5], [_hsRH, _hsHY, _hsHZ-_hTr*0.5],  // b+174/175 R root hinge up/dn
+    [_hsRT,  _hsHY,  _hsHZ+_hTE], [_hsRT,  _hsHY,  _hsHZ-_hTE],  // b+176/177 R root TE up/dn
+    [_hsTL,  0.008, 0.001+_hTt], [_hsTL, 0.008, 0.001-_hTt], // b+178/179 R tip LE up/dn
+    [_hsTH,  0.008, 0.001+_hTt*0.5],[_hsTH,0.008,0.001-_hTt*0.5],// b+180/181 R tip hinge up/dn
+    [_hsTT,  0.008, 0.001+_hTE], [_hsTT, 0.008, 0.001-_hTE],  // b+182/183 R tip TE up/dn
+    // L side (b+184..b+195)
+    [_hsRL, -_hsRY,  _hsRZ+_hTr], [_hsRL, -_hsRY,  _hsRZ-_hTr],  // b+184/185 L root LE up/dn
+    [_hsRH, -_hsHY,  _hsHZ+_hTr*0.5],[_hsRH,-_hsHY, _hsHZ-_hTr*0.5],  // b+186/187 L root hinge up/dn
+    [_hsRT, -_hsHY,  _hsHZ+_hTE], [_hsRT, -_hsHY,  _hsHZ-_hTE],  // b+188/189 L root TE up/dn
+    [_hsTL, -0.008, 0.001+_hTt],[_hsTL,-0.008,0.001-_hTt],  // b+190/191 L tip LE up/dn
+    [_hsTH, -0.008, 0.001+_hTt*0.5],[_hsTH,-0.008,0.001-_hTt*0.5],// b+192/193 L tip hinge up/dn
+    [_hsTT, -0.008, 0.001+_hTE],[_hsTT,-0.008,0.001-_hTE],  // b+194/195 L tip TE up/dn
+  );
+
+  /* ── Decoupled flap geometry (b+196..b+211) ─────────────────────────────────
+     Separate vertices for flap panels — start coincident with wing hinge/TE so
+     flap is flush when retracted, then slide aft + rotate independently.
+     R flap LE: WV[12/14/13/15] = root lower/upper, break lower/upper hinge
+     R flap TE: WV[1/7/3/9]    = root lower/upper, break lower/upper TE        */
+  V_.push(
+    WV[12], WV[14], WV[13], WV[15],  // b+196..199: R flap LE (root lo/up, break lo/up)
+    WV[1],  WV[7],  WV[3],  WV[9],   // b+200..203: R flap TE (root lo/up, break lo/up)
+    WV[34], WV[36], WV[35], WV[37],  // b+204..207: L flap LE
+    WV[23], WV[29], WV[25], WV[31],  // b+208..211: L flap TE
   );
 
   /* Nose tris: noseTip → ring0 (outward normals) */
@@ -697,9 +823,9 @@ function _buildWB(np) {
     [b+108,b+109,b+110,b+111],[b+108,b+111,b+110,b+109],  // L cockpit window
     /* R wing: inner split into fixed fwd + flap surface; outer (aileron); tip cap */
     [b+116,b+126,b+139,b+137],                   // R inner fixed upper  (LE→flap hinge)
-    [b+137,b+139,b+127,b+117],                   // R flap upper         (hinge→TE)
+    [b+197,b+199,b+203,b+201],                   // R flap upper         (decoupled hinge→TE)
     [b+0,b+136,b+138,b+124],                     // R inner fixed lower
-    [b+136,b+1,b+125,b+138],                     // R flap lower
+    [b+196,b+200,b+202,b+198],                   // R flap lower         (decoupled)
     [b+126,b+118,b+147,b+145],                   // R outer fixed upper (break LE→tip LE→ail hinge)
     [b+145,b+147,b+119,b+133],                   // R aileron upper
     [b+124,b+144,b+146,b+2],                     // R outer fixed lower
@@ -708,9 +834,9 @@ function _buildWB(np) {
     [b+146,b+3,b+119,b+147],                     // R aileron tip
     /* L wing */
     [b+120,b+141,b+143,b+130],                   // L inner fixed upper
-    [b+141,b+121,b+131,b+143],                   // L flap upper
+    [b+205,b+209,b+211,b+207],                   // L flap upper         (decoupled)
     [b+4,b+128,b+142,b+140],                     // L inner fixed lower
-    [b+140,b+142,b+129,b+5],                     // L flap lower
+    [b+204,b+206,b+210,b+208],                   // L flap lower         (decoupled)
     [b+130,b+149,b+151,b+122],                   // L outer fixed upper
     [b+149,b+135,b+123,b+151],                   // L aileron upper
     [b+128,b+6,b+150,b+148],                     // L outer fixed lower
@@ -722,11 +848,18 @@ function _buildWB(np) {
     [b+124,b+2,b+154,b+153],[b+153,b+154,b+118,b+126],    // R outer lower + upper
     [b+4,b+155,b+156,b+128],[b+155,b+120,b+130,b+156],    // L inner lower + upper
     [b+128,b+156,b+157,b+6],[b+156,b+130,b+122,b+157],    // L outer lower + upper
-    [b+118,b+147,b+101,b+100],[b+118,b+100,b+101,b+147],  // R winglet (anchored to ail hinge, not TE)
-    [b+122,b+151,b+103,b+102],[b+122,b+102,b+103,b+151],  // L winglet (anchored to ail hinge, not TE)
-    [b+8,b+9,b+11,b+10],[b+8,b+10,b+11,b+9],    // V-stab (×2 sides)
-    [b+12,b+13,b+15,b+14],[b+12,b+14,b+15,b+13],  // R h-stab
-    [b+16,b+17,b+19,b+18],[b+16,b+18,b+19,b+17],  // L h-stab
+    [b+118,b+147,b+101,b+100],[b+118,b+100,b+101,b+147],  // R winglet (LE→ailHinge root, swept tip)
+    [b+122,b+151,b+103,b+102],[b+122,b+102,b+103,b+151],  // L winglet
+    // V-stab airfoil (b+160..b+171)
+    [b+160,b+162,b+168,b+166],[b+161,b+167,b+169,b+163],  // main body +Y/-Y
+    [b+162,b+164,b+170,b+168],[b+163,b+169,b+171,b+165],  // rudder +Y/-Y
+    [b+166,b+167,b+169,b+168],[b+168,b+169,b+171,b+170],  // tip cap fwd+aft
+    // R h-stab airfoil (b+172..b+183)
+    [b+172,b+174,b+180,b+178],[b+173,b+179,b+181,b+175],  // main body up/dn
+    [b+174,b+176,b+182,b+180],[b+175,b+181,b+183,b+177],  // elevator up/dn
+    // L h-stab airfoil (b+184..b+195)
+    [b+184,b+186,b+192,b+190],[b+185,b+191,b+193,b+187],  // main body up/dn
+    [b+186,b+188,b+194,b+192],[b+187,b+193,b+195,b+189],  // elevator up/dn
     /* R engine A→B (intake→fan) */
     [b+20,b+21,b+29,b+28],[b+21,b+22,b+30,b+29],[b+22,b+23,b+31,b+30],[b+23,b+24,b+32,b+31],
     [b+24,b+25,b+33,b+32],[b+25,b+26,b+34,b+33],[b+26,b+27,b+35,b+34],[b+27,b+20,b+28,b+35],
@@ -758,7 +891,7 @@ function _buildWB(np) {
     8,8, 8,8,                             // cockpit windows R+L (4)
     1,1,1,1, 1,1,1,1,                          // LE rounds R+L (8)
     1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1, 9,9,9,9,  // R wing (10) + L wing (10) + winglets (4)
-    2,2, 3,3,3,3,                         // v-stab + h-stabs (6)
+    2,2,2,2,2,2, 3,3,3,3, 3,3,3,3,        // vstab airfoil (6) + R hstab (4) + L hstab (4)
     4,4,4,4,4,4,4,4, 4,4,4,4,4,4,4,4,   // R engine A→B + B→C (16)
     7,7,7,7,7,7,7,7,                      // R engine C→D TR zone (8)
     4,4,4,4,4,4,4,4,                      // R engine D→E (8)
@@ -809,11 +942,26 @@ function _buildWB(np) {
     [b+155,b+156],[b+156,b+157],                           // L LE nose span
     [b+140,b+141],[b+142,b+143],[b+148,b+149],[b+150,b+151],
     [b+140,b+142],[b+141,b+143],
-    [b+8,b+10],[b+9,b+11],[b+10,b+11],[b+8,b+9],  // V-stab
-    [b+12,b+14],[b+13,b+15],[b+12,b+13],[b+14,b+15],  // R h-stab
-    [b+16,b+18],[b+17,b+19],[b+16,b+17],[b+18,b+19],  // L h-stab
-    [b+118,b+100],[b+147,b+101],[b+100,b+101],        // R winglet (from upper tip)
-    [b+122,b+102],[b+151,b+103],[b+102,b+103],        // L winglet (from upper tip)
+    // V-stab airfoil edges (b+160..b+171)
+    [b+160,b+161],[b+162,b+163],[b+164,b+165],       // root thickness: LE/hinge/TE
+    [b+166,b+167],[b+168,b+169],[b+170,b+171],       // tip thickness
+    [b+160,b+166],[b+161,b+167],                     // LE spanwise
+    [b+162,b+168],[b+163,b+169],                     // hinge spanwise
+    [b+164,b+170],[b+165,b+171],                     // TE spanwise
+    // R h-stab airfoil edges (b+172..b+183)
+    [b+172,b+173],[b+174,b+175],[b+176,b+177],       // R root thickness
+    [b+178,b+179],[b+180,b+181],[b+182,b+183],       // R tip thickness
+    [b+172,b+178],[b+173,b+179],                     // R LE spanwise
+    [b+174,b+180],[b+175,b+181],                     // R hinge spanwise
+    [b+176,b+182],[b+177,b+183],                     // R TE spanwise
+    // L h-stab airfoil edges (b+184..b+195)
+    [b+184,b+185],[b+186,b+187],[b+188,b+189],       // L root thickness
+    [b+190,b+191],[b+192,b+193],[b+194,b+195],       // L tip thickness
+    [b+184,b+190],[b+185,b+191],                     // L LE spanwise
+    [b+186,b+192],[b+187,b+193],                     // L hinge spanwise
+    [b+188,b+194],[b+189,b+195],                     // L TE spanwise
+    [b+118,b+100],[b+147,b+101],[b+100,b+101],        // R winglet
+    [b+122,b+102],[b+151,b+103],[b+102,b+103],        // L winglet
     /* R engine rings A-E */
     [b+20,b+21],[b+21,b+22],[b+22,b+23],[b+23,b+24],[b+24,b+25],[b+25,b+26],[b+26,b+27],[b+27,b+20],
     [b+28,b+29],[b+29,b+30],[b+30,b+31],[b+31,b+32],[b+32,b+33],[b+33,b+34],[b+34,b+35],[b+35,b+28],
@@ -842,7 +990,9 @@ function _buildWB(np) {
     [b+68,b+114],[b+68,b+115],[b+114,b+115],
   );
 
-  return { V_, F_, FC_, E_, b, r, anim: { r_rt, r_hs, r_ail } };
+  return { V_, F_, FC_, E_, b, r,
+    ey2: np.ey2, ez: np.ez, er: np.er, erc: np.erc, pz: np.pz, exOff,
+    anim: { r_rt, r_hs, r_ail } };
 }
 
 /* Build + cache geometry per aircraft nose profile */
@@ -861,10 +1011,10 @@ const _FN = _wbCache.default.FN_;
 const _GV = [
   /* 0 */ [ 0.009,  0,      -_r         ],  // nose strut top
   /* 1 */ [ 0.009,  0,      -_r - 0.0022],  // nose wheel
-  /* 2 */ [-0.001,  0.0028, -_r         ],  // R main top
-  /* 3 */ [-0.001,  0.0028, -_r - 0.0032],  // R main wheel
-  /* 4 */ [-0.001, -0.0028, -_r         ],  // L main top
-  /* 5 */ [-0.001, -0.0028, -_r - 0.0032],  // L main wheel
+  /* 2 */ [-0.001,  0.0020, -_r         ],  // R main top
+  /* 3 */ [-0.001,  0.0020, -_r - 0.0032],  // R main wheel
+  /* 4 */ [-0.001, -0.0020, -_r         ],  // L main top
+  /* 5 */ [-0.001, -0.0020, -_r - 0.0032],  // L main wheel
 ];
 const _GE = [[0,1],[2,3],[4,5]];
 
@@ -2229,21 +2379,6 @@ const { V_: _V_f9, F_: _F_f9, FC_: _FC_f9, E_: _E_f9 } = (() => {
 const _FN_f9 = computeFaceNormals(_V_f9, _F_f9);
 
 /* ── Cabin windows (body frame, NM) ──────────────────────────── */
-const _WIN = (() => {
-  const w = [];
-  for (let x = 0.011; x >= -0.013; x -= 0.002)
-    w.push([x, _r, 0], [x, -_r, 0]);
-  return w;
-})();
-
-/* ── Cockpit windows (body frame, NM) ────────────────────────── */
-const _CWIN = [
-  [ 0.017, -0.0012,  0.0009 ],  // captain main
-  [ 0.017,  0.0012,  0.0009 ],  // FO main
-  [ 0.018, -0.0017,  0.0003 ],  // captain DV
-  [ 0.018,  0.0017,  0.0003 ],  // FO DV
-];
-
 /* ── Door outlines (body frame, NM) ──────────────────────────── */
 const _DOOR = [
   [ 0.009,  _r, 0 ], [ 0.009, -_r, 0 ],  // pair 1 (fwd)
@@ -2840,9 +2975,16 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const FC_  = isC172 ? _FC_c172     : isF9 ? _FC_f9     : isBf109 ? _FC_b109     : isF4U ? _FC_f4u     : isSV ? _FC_sv     : _wbGeo.FC_;
   const FN_  = isC172 ? _FN_c172     : isF9 ? _FN_f9     : isBf109 ? _FN_b109     : isF4U ? _FN_f4u     : isSV ? _FN_sv     : _wbGeo.FN_;
   const E_   = isC172 ? _E_c172      : isF9 ? _E_f9      : isBf109 ? _E_b109      : isF4U ? _E_f4u      : isSV ? _E_sv      : _wbGeo.E_;
-  const _livCol = S.aircraft?.livery?.colors;
+  const _livCol    = S.aircraft?.livery?.colors;
+  const _nacPaint  = S.aircraft?.engine?.nacellePaint ?? null;
+  /* Build per-frame color table: livery overrides first, then nacelle paint
+     overrides slots 4 (engine body) and 7 (TR zone, same nacelle color).
+     Always produces a new array so downstream callers can't mutate _COLORS. */
   const COL_ = isC172 ? _COLORS_c172 : isF9 ? _COLORS_f9 : isBf109 ? _COLORS_b109 : isF4U ? _COLORS_f4u : isSV ? _COLORS_sv
-             : _livCol ? _COLORS.map((c, i) => _livCol[i] ?? c) : _COLORS;
+             : _COLORS.map((c, i) => {
+                 if (_nacPaint  && (i === 4 || i === 7)) return _nacPaint;
+                 return _livCol?.[i] ?? c;
+               });
   const GV_  = isC172 ? _GV_c172     : isBf109 ? _GV_b109 : isF4U ? _GV_f4u : _GV;
 
   const P = acPitchDeg * DEG, R = acRollDeg * DEG;
@@ -2921,7 +3063,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     const halfCR   = (maxCR - minCR) / 2;
     const halfCU   = (maxCU - minCU) / 2;
     const d = Math.max(halfCR * PAD / Math.tan(hfH), halfCU * PAD / Math.tan(hfV));
-    if (camSide > 0) { camSide = d * _orbitZoom; camUp = 0; }
+    if (camSide > 0) { camSide = d * _orbitZoom; }
     else              { camBack = d * _orbitZoom; camUp = d * _orbitZoom * 0.18; }
     /* Shift cx/cy so the bounding-box centre lands at the viewport centre */
     const _camD = camSide > 0 ? camSide : camBack;
@@ -3067,8 +3209,19 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       if (flap > 0) {
         const fa = flap * 15 * DEG;
         const { r_rt, r_hs } = _wbGeo.anim;
-        animHinge(verts, [_bL+1,_bL+117,_bL+5,_bL+121],   r_rt, -fa, 'z', _wbV);
-        animHinge(verts, [_bL+125,_bL+127,_bL+129,_bL+131], r_hs, -fa, 'z', _wbV);
+        /* Rotate decoupled flap TE about the fixed hinge line */
+        animHinge(verts, [_bL+200, _bL+201], r_rt, -fa, 'z', _wbV);  // R root lo/up
+        animHinge(verts, [_bL+202, _bL+203], r_hs, -fa, 'z', _wbV);  // R break lo/up
+        animHinge(verts, [_bL+208, _bL+209], r_rt, -fa, 'z', _wbV);  // L root lo/up
+        animHinge(verts, [_bL+210, _bL+211], r_hs, -fa, 'z', _wbV);  // L break lo/up
+        /* Fowler slide: flap LE + TE translate aft — hinge stays fixed, gap opens */
+        const fowlerShift = fa * r_rt * 1.5;
+        for (const vi of [
+          _bL+196, _bL+197, _bL+198, _bL+199,   // R flap LE root+break lo/up
+          _bL+200, _bL+201, _bL+202, _bL+203,   // R flap TE root+break lo/up
+          _bL+204, _bL+205, _bL+206, _bL+207,   // L flap LE root+break lo/up
+          _bL+208, _bL+209, _bL+210, _bL+211,   // L flap TE root+break lo/up
+        ]) verts[vi][0] -= fowlerShift;
       }
       if (Math.abs(ailCmd) > 0.01) {
         const aa = ailCmd * 40 * DEG;
@@ -3775,6 +3928,208 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   /* Engine overlays: thrust-reverser cascade + chevrons */
   if (!isF9 && !isSV && !isC172 && !isBf109 && !isF4U) _engineOverlays(pts, faces, S.aircraft?.engine, _b);
 
+  /* Outer engine nacelles — 4-engine WB aircraft (A340 etc.) with ey2 defined */
+  const _oey2 = _wbGeo?.ey2;
+  /* Pre-compute outer engine Z so both nacelle AND fan-face sections use the same value.
+     Walk wing Z-centre at inner (ey) and outer (ey2) span stations, preserve the same
+     vertical offset below wing centre that the inner engines have. */
+  const _oEzForOuter = (() => {
+    if (!_oey2 || !_wbGeo) return _wbGeo?.ez ?? _ez;
+    const _oWD  = (_WB_NP[S.aircraft?.id] ?? _WB_NP.default).wing ?? _WB_WING_DEFAULT;
+    const _oR   = _wbGeo.r  ?? _r;
+    const _oWR  = _oR * 0.7071;
+    const _oSpn = _oWD.span ?? 0.0267;
+    const _oFB  = _oWD.flapBreak ?? 0.58;
+    const _oWH  = _oWR + (_oSpn - _oWR) * _oFB;
+    const _oDih = _oWD.dihedral ?? 0;
+    const _oWzR = -_oWR;
+    const _oWzB = -_oWR + _oFB * (_oDih + _oWR);
+    const _oWzT = _oDih;
+    const wCz   = (y) => y <= _oWH
+      ? _oWzR + (y - _oWR) / Math.max(_oWH - _oWR, 1e-9) * (_oWzB - _oWzR)
+      : _oWzB + (y - _oWH) / Math.max(_oSpn - _oWH, 1e-9) * (_oWzT - _oWzB);
+    const _oEzI = _wbGeo.ez ?? _ez;
+    const _oEyI = _wbGeo.ey ?? _ey;
+    return wCz(_oey2) + (_oEzI - wCz(_oEyI));
+  })();
+
+  if (_oey2) {
+    const _oer  = _wbGeo?.er  ?? _er;
+    const _oerc = _wbGeo?.erc ?? _erc;
+    const _oe7  = _oer  * 0.7071;
+    const _oefr = _oer  * 1.20;
+    const _oef7 = _oefr * 0.7071;
+    const _oe7c = _oerc * 0.7071;
+    const _oEngCol = COL_[4];
+    const _oTRCol  = COL_[7];
+    const _oIntCol = COL_[10];
+    const _oXOff   = _wbGeo?.exOff ?? 0;
+    const _oeA = 0.005 + _oXOff, _oeB = 0.001 + _oXOff;
+    const _oeC = -0.001 + _oXOff, _oeD = -0.002 + _oXOff, _oeE = -0.003 + _oXOff;
+    const _oePF = 0.003 + _oXOff;
+
+    const _oez   = _oEzForOuter;
+    const _oEzI  = _wbGeo?.ez ?? _ez;
+    const _oer_  = _oer;
+    const _oPylH = (_wbGeo?.pz ?? _pz) - (_oEzI + _oer_);
+    const _opz2  = _oez + _oer_ + _oPylH;
+
+    /* Build 8-point ring at given forward position, lateral centre yo, radius r, diagonal r7 */
+    const _oe8 = (vf, yo, r, r7) => [
+      project([vf, yo,    _oez+r ]),
+      project([vf, yo+r7, _oez+r7]),
+      project([vf, yo+r,  _oez   ]),
+      project([vf, yo+r7, _oez-r7]),
+      project([vf, yo,    _oez-r ]),
+      project([vf, yo-r7, _oez-r7]),
+      project([vf, yo-r,  _oez   ]),
+      project([vf, yo-r7, _oez+r7]),
+    ];
+
+    const _oRing = (rF, rA, col) => {
+      for (let i = 0; i < 8; i++) {
+        const j = (i + 1) % 8;
+        for (const ps of [
+          [rF[i], rF[j], rA[j], rA[i]].filter(Boolean),
+          [rF[i], rA[i], rA[j], rF[j]].filter(Boolean),
+        ]) {
+          if (ps.length < 3) continue;
+          const cr = (ps[1].x-ps[0].x)*(ps[2].y-ps[0].y)-(ps[1].y-ps[0].y)*(ps[2].x-ps[0].x);
+          if (cr < 0) continue;
+          faces.push({ ps, br: 0.82, avgD: ps.reduce((s,p)=>s+p.d,0)/ps.length, col });
+        }
+      }
+    };
+
+    for (const yo of [_oey2, -_oey2]) {
+      const rA = _oe8(_oeA, yo, _oer,  _oe7 );
+      const rB = _oe8(_oeB, yo, _oefr, _oef7);
+      const rC = _oe8(_oeC, yo, _oer,  _oe7 );
+      const rD = _oe8(_oeD, yo, _oer,  _oe7 );
+      const rE = _oe8(_oeE, yo, _oerc, _oe7c);
+      _oRing(rA, rB, _oEngCol);
+      _oRing(rB, rC, _oEngCol);
+      _oRing(rC, rD, _oTRCol);
+      _oRing(rD, rE, _oEngCol);
+      for (const cap of [rA, [...rA].reverse()]) {
+        const f = cap.filter(Boolean);
+        if (f.length < 3) continue;
+        const cr = (f[1].x-f[0].x)*(f[2].y-f[0].y)-(f[1].y-f[0].y)*(f[2].x-f[0].x);
+        if (cr < 0) continue;
+        faces.push({ ps: f, br: 0.22, avgD: f.reduce((s,p)=>s+p.d,0)/f.length - 0.0002, col: _oIntCol });
+      }
+      /* Pylon — nacelle top to wing-bottom Z at outer span station */
+      const _oTop = project([_oeB,  yo, _oez + _oer]);
+      const _oPF  = project([_oePF, yo, _opz2]);
+      const _oPA  = project([_oeC,  yo, _opz2]);
+      if (_oTop && _oPF && _oPA) {
+        for (const ps of [[_oPF, _oTop, _oPA], [_oPF, _oPA, _oTop]]) {
+          const cr = (ps[1].x-ps[0].x)*(ps[2].y-ps[0].y)-(ps[1].y-ps[0].y)*(ps[2].x-ps[0].x);
+          if (cr < 0) continue;
+          faces.push({ ps, br: 0.72, avgD: ps.reduce((s,p)=>s+p.d,0)/ps.length, col: COL_[0] });
+        }
+      }
+    }
+  }
+
+  /* Flap track fairings — 3D teardrop pods, depth-sorted with fuselage */
+  if (_wbGeo && (S.aircraft?.flapTracks ?? 0) > 0) {
+    const _ftN   = S.aircraft.flapTracks;
+    const _ftPS  = Math.round(_ftN / 2);
+    const _ftwg  = (_WB_NP[S.aircraft?.id] ?? _WB_NP.default).wing ?? _WB_WING_DEFAULT;
+    const _ftSpan = _ftwg.span;
+    const _ftFB   = _ftwg.flapBreak ?? 0.72;
+    const _ftFH   = _ftwg.flapHinge ?? 0.70;
+    const _ftRootY = _wbGeo.r;
+    const _ftBrkY  = _ftSpan * _ftFB;
+    const _ftFlap  = S.flaps ?? 0;
+    const _ftFa    = _ftFlap * 15 * DEG;
+    const _ftFowler = _ftFa * _wbGeo.anim.r_rt * 1.5;
+    const _ftCosFa  = Math.cos(_ftFa);
+    const _ftSinFa  = Math.sin(_ftFa);
+    /* Pod dimensions — width and depth relative to fuselage radius */
+    const ftW = _wbGeo.r * 0.075;   // half-width of pod at widest point
+    const ftD = _wbGeo.r * 0.150;   // max depth below wing lower surface
+    /* Correct wing lower surface Z — linear interpolation root→break→tip */
+    const ftWR   = _wbGeo.r * 0.7071;                              // root lower y attachment Z
+    const ftzR   = -ftWR;                                          // z at root
+    const ftzB   = -ftWR + _ftFB * (_ftwg.dihedral + ftWR);       // z at break (wzh)
+    const ftzT   = _ftwg.dihedral;                                 // z at tip
+    const wLowerZ = (yAbs) => {
+      if (yAbs <= _ftBrkY)
+        return ftzR + (yAbs - ftWR) / Math.max(_ftBrkY - ftWR, 1e-9) * (ftzB - ftzR);
+      return ftzB + (yAbs - _ftBrkY) / Math.max(_ftSpan - _ftBrkY, 1e-9) * (ftzT - ftzB);
+    };
+
+    for (const side of [1, -1]) {
+      for (let ti = 0; ti < _ftPS; ti++) {
+        const t     = (ti + 0.5) / _ftPS;
+        const fY    = side * (_ftRootY + (_ftBrkY - _ftRootY) * t);
+        const yAbs  = Math.abs(fY);
+        const ts2   = yAbs / _ftSpan;
+        const fxLE  = _ftwg.rootLE + (_ftwg.tipLE - _ftwg.rootLE) * ts2;
+        const fxTE  = _ftwg.rootTE + (_ftwg.tipTE - _ftwg.rootTE) * ts2;
+        const fChord = fxLE - fxTE;
+        const fxH   = fxLE - fChord * _ftFH;          // hinge — never moves
+        const fFlap  = fChord * (1 - _ftFH);           // flap chord length at this station
+        const fZtop  = wLowerZ(yAbs);                  // wing lower surface z at this station
+        /* Fixed section (forward of hinge — attached to wing) */
+        const fxFwd  = fxH + fChord * 0.45;            // fwd tip
+        const fxBel  = fxH + fChord * 0.20;            // belly max
+        /* Moving section — aft end tracks flap rotation + Fowler shift.
+           Point at fraction t along flap chord (t=0 at hinge, t=1 at TE):
+             x = fxH - fFlap*t*cosFa - _ftFowler*t
+             z = fZtop - fFlap*t*sinFa                                         */
+        const fxMid  = fxH - fFlap * 0.50 * _ftCosFa - _ftFowler * 0.50;
+        const fzMid  = fZtop - fFlap * 0.50 * _ftSinFa;
+        const fxAft  = fxH - fFlap * _ftCosFa - _ftFowler;
+        const fzAft  = fZtop - fFlap * _ftSinFa;
+
+        /* Spine: [x, zt, depth-below-attachment, half-width] */
+        const spine = [
+          { x: fxFwd,  zt: fZtop, dp: ftD*0.06, hw: 0        },  // fwd tip  (fixed wing)
+          { x: fxBel,  zt: fZtop, dp: ftD,       hw: ftW      },  // belly    (fixed wing)
+          { x: fxH,    zt: fZtop, dp: ftD*0.72,  hw: ftW*0.82 },  // hinge    (pivot)
+          { x: fxMid,  zt: fzMid, dp: ftD*0.52,  hw: ftW*0.52 },  // mid-flap (rotating)
+          { x: fxAft,  zt: fzAft, dp: ftD*0.06,  hw: 0        },  // aft tip  (on flap TE)
+        ];
+
+        /* Cross-section at each station: TL, TR, BL, BR */
+        const csAt = ({ x, zt, dp, hw }) => [
+          project([x, fY + hw,       zt]),       // TL — top left  (+Y side)
+          project([x, fY - hw,       zt]),       // TR — top right (-Y side)
+          project([x, fY + hw*0.26,  zt - dp]), // BL — belly left
+          project([x, fY - hw*0.26,  zt - dp]), // BR — belly right
+        ];
+
+        const cs = spine.map(csAt);
+
+        for (let si = 0; si < spine.length - 1; si++) {
+          const A = cs[si], B = cs[si + 1];
+          /* 4 lateral face quads per segment */
+          const quads = [
+            [A[0], A[1], B[1], B[0]],   // top   (flush with wing)
+            [A[0], A[2], B[2], B[0]],   // +Y side
+            [A[2], A[3], B[3], B[2]],   // belly (most visible)
+            [A[1], A[3], B[3], B[1]],   // -Y side
+          ];
+          for (const q of quads) {
+            if (q.some(p => !p)) continue;
+            const avgD = (q[0].d + q[1].d + q[2].d + q[3].d) / 4;
+            faces.push({ avgD, draw: () => {
+              ctx.beginPath();
+              ctx.moveTo(q[0].x, q[0].y); ctx.lineTo(q[1].x, q[1].y);
+              ctx.lineTo(q[2].x, q[2].y); ctx.lineTo(q[3].x, q[3].y);
+              ctx.closePath();
+              ctx.fillStyle = COL_[0]; ctx.fill();
+              ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.stroke();
+            }});
+          }
+        }
+      }
+    }
+  }
+
   /* LM faces — depth-sorted with main body */
   if (lmPts) {
     for (let i = 0; i < _F_lm.length; i++) {
@@ -3788,25 +4143,178 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
   }
 
+  /* Gear struts and tires — pushed into face list so they depth-sort with fuselage */
+  const _gearP  = (!isC172 && !isBf109 && !isF4U) ? (S.gearAnim ?? (S.gear ? 1 : 0)) : 1;
+  const _lerpV3 = (up, dn, t) => [up[0]+(dn[0]-up[0])*t, up[1]+(dn[1]-up[1])*t, up[2]+(dn[2]-up[2])*t];
+  const _animGV = (isC172 || isBf109 || isF4U) ? GV_ : [
+    GV_[0],
+    _lerpV3([0.013,  0.0005, -_r+0.001], GV_[1], _gearP),
+    GV_[2],
+    _lerpV3([-0.001, 0.0008, -_r+0.001], GV_[3], _gearP),
+    GV_[4],
+    _lerpV3([-0.001,-0.0008, -_r+0.001], GV_[5], _gearP),
+  ];
+  if (!isF9 && !isSV && (isC172 || isBf109 || isF4U || _gearP > 0.01)) {
+    const _wbR   = _wbGeo?.r ?? _r;
+    const _midV3 = (a, b) => [(a[0]+b[0])/2, (a[1]+b[1])/2, (a[2]+b[2])/2];
+    for (const [a, b] of _GE) {
+      const pa = project(_animGV[a]), pb = project(_animGV[b]);
+      if (!pa || !pb) continue;
+      faces.push({ avgD: (pa.d+pb.d)/2, draw: () => { ctx.save(); drawStrutTube(ctx, pa, pb, dpr); ctx.restore(); } });
+    }
+    if (!isC172 && !isBf109 && !isF4U) {
+      const nA = project([0.007, 0, -_wbR + 0.0008]);
+      const nM = project(_midV3(_animGV[0], _animGV[1]));
+      if (nA && nM) faces.push({ avgD: (nA.d+nM.d)/2, draw: () => { ctx.save(); drawStrutTube(ctx, nA, nM, dpr); ctx.restore(); } });
+      const rA = project([0.001,  0.0009, -_wbR * 0.50]);
+      const rM = project(_midV3(_animGV[2], _animGV[3]));
+      if (rA && rM) faces.push({ avgD: (rA.d+rM.d)/2, draw: () => { ctx.save(); drawStrutTube(ctx, rA, rM, dpr); ctx.restore(); } });
+      const lA = project([0.001, -0.0009, -_wbR * 0.50]);
+      const lM = project(_midV3(_animGV[4], _animGV[5]));
+      if (lA && lM) faces.push({ avgD: (lA.d+lM.d)/2, draw: () => { ctx.save(); drawStrutTube(ctx, lA, lM, dpr); ctx.restore(); } });
+    }
+    if (isC172) {
+      for (const [vi, tR] of [[1, _xr*0.48], [3, _xr*0.56], [5, _xr*0.56]]) {
+        const wc = GV_[vi], pt = project(wc);
+        if (pt) faces.push({ avgD: pt.d, draw: () => { ctx.save(); drawVolumetricTire(ctx, wc, tR, project); ctx.restore(); } });
+      }
+    } else if (isBf109) {
+      for (const [vi, tR] of [[1, _bcR*0.55], [3, _bcR*0.55], [5, _bcR*0.26]]) {
+        const wc = GV_[vi], pt = project(wc);
+        if (pt) faces.push({ avgD: pt.d, draw: () => { ctx.save(); drawVolumetricTire(ctx, wc, tR, project); ctx.restore(); } });
+      }
+    } else if (isF4U) {
+      for (const [vi, tR] of [[1, _f4uCowlR*0.58], [3, _f4uCowlR*0.58], [5, _f4uCowlR*0.30]]) {
+        const wc = GV_[vi], pt = project(wc);
+        if (pt) faces.push({ avgD: pt.d, draw: () => { ctx.save(); drawVolumetricTire(ctx, wc, tR, project); ctx.restore(); } });
+      }
+    } else {
+      const _gearCfg   = S.aircraft?.gear ?? {};
+      const _nTR = _wbR * 0.12;
+      const _mTR = _wbR * 0.16;
+      const _bogPitch  = _mTR * 0.85;   // fore/aft axle spacing in bogie
+      const _mainBogie = _gearCfg.main?.type === 'bogie';
+
+      /* Nose gear */
+      { const wc = _animGV[1], pt = project(wc);
+        if (pt) faces.push({ avgD: pt.d, draw: () => { ctx.save(); drawTirePair(ctx, wc, _nTR, project, dpr); ctx.restore(); } }); }
+
+      /* Main gear — bogie (2 axles fore/aft) or single pair */
+      for (const vi of [3, 5]) {
+        const wc = _animGV[vi], pt = project(wc);
+        if (!pt) continue;
+        const _bp = _bogPitch, _mb = _mainBogie;
+        faces.push({ avgD: pt.d, draw: () => {
+          ctx.save();
+          if (_mb) {
+            const wcF = [wc[0]+_bp, wc[1], wc[2]], wcA = [wc[0]-_bp, wc[1], wc[2]];
+            drawTirePair(ctx, wcF, _mTR, project, dpr);
+            drawTirePair(ctx, wcA, _mTR, project, dpr);
+            const pF = project(wcF), pA = project(wcA);
+            if (pF && pA) drawStrutTube(ctx, pF, pA, dpr);
+          } else {
+            drawTirePair(ctx, wc, _mTR, project, dpr);
+          }
+          ctx.restore();
+        }});
+      }
+
+      /* Center gear — bogie on centerline (A340 etc.) */
+      if (_gearCfg.center && _gearP > 0.01) {
+        const _cgX   = _GV[3][0];                                 // same X as main gear
+        const _cgWhl = _lerpV3([_cgX, 0, -_wbR + 0.001], [_cgX, 0, -_wbR - 0.0032], _gearP);
+        /* center strut from belly attachment to bogie pivot */
+        const cgPivotA = project([_cgX, 0, -_wbR * 0.50]);
+        const cgPivotM = project(_midV3([_cgX, 0, -_wbR], _cgWhl));
+        if (cgPivotA && cgPivotM)
+          faces.push({ avgD: (cgPivotA.d+cgPivotM.d)/2, draw: () => { ctx.save(); drawStrutTube(ctx, cgPivotA, cgPivotM, dpr); ctx.restore(); } });
+        const cgTop = project([_cgX, 0, -_wbR]), cgBot = project(_cgWhl);
+        if (cgTop && cgBot)
+          faces.push({ avgD: (cgTop.d+cgBot.d)/2, draw: () => { ctx.save(); drawStrutTube(ctx, cgTop, cgBot, dpr); ctx.restore(); } });
+        /* center bogie tires */
+        const wcC = _cgWhl, ptC = project(wcC);
+        if (ptC) {
+          const _cbp = _bogPitch;
+          faces.push({ avgD: ptC.d, draw: () => {
+            ctx.save();
+            const wcF = [wcC[0]+_cbp, wcC[1], wcC[2]], wcA = [wcC[0]-_cbp, wcC[1], wcC[2]];
+            drawTirePair(ctx, wcF, _mTR, project, dpr);
+            drawTirePair(ctx, wcA, _mTR, project, dpr);
+            const pF = project(wcF), pA = project(wcA);
+            if (pF && pA) drawStrutTube(ctx, pF, pA, dpr);
+            ctx.restore();
+          }});
+        }
+      }
+    }
+  }
+
   /* Painter's algorithm: farthest first */
   faces.sort((a, b) => b.avgD - a.avgD);
 
+  /* ── Golden-hour skin sheen ──────────────────────────────────────────────────
+     When the sun is near the horizon the key light is warm orange rather than
+     white.  Simulate by reducing green and blue on sun-lit faces proportional
+     to how low the sun is.  Sun-facing faces (high br) get the strongest tint;
+     shadowed faces (br ≈ ambient 0.20) are unaffected.                        */
+  const _gTOD   = S.mission?.timeOfDay ?? 12;
+  const _gH     = _gTOD < 1 ? _gTOD * 24 : _gTOD;
+  const _gSun   = Math.sin((_gH - 6) / 12 * Math.PI);
+  const _gDay   = Math.max(0, Math.min(1, (_gSun + 0.15) / 0.25));   // 0=night 1=day
+  const _gGold  = Math.max(0, 1 - Math.abs(_gSun) / 0.18);           // 1 at horizon, 0 at >10° up
+  const _goldStr = _gDay * _gGold;   // >0 only during golden hours with daylight
+
+  /* Returns an rgb() string with warm sun-color applied to brightness bv */
+  const _wCol = (col, bv) => {
+    const k = _goldStr * Math.max(0, bv - 0.20);
+    return `rgb(${col[0]*bv|0},${Math.min(255,col[1]*bv*(1-0.70*k))|0},${Math.max(0,col[2]*bv*(1-1.30*k))|0})`;
+  };
+
   /* Fill shaded faces */
-  for (const { ps, br, col, grad } of faces) {
+  for (const f of faces) {
+    if (f.draw) { f.draw(); continue; }
+    const { ps, br, col, grad } = f;
     if (grad) {
       const { pL, pR, brL, brR } = grad;
-      const g = ctx.createLinearGradient(pL.x, pL.y, pR.x, pR.y);
-      g.addColorStop(0, `rgb(${col[0]*brL|0},${col[1]*brL|0},${col[2]*brL|0})`);
-      g.addColorStop(1, `rgb(${col[0]*brR|0},${col[1]*brR|0},${col[2]*brR|0})`);
-      ctx.fillStyle = g;
+      const gl = ctx.createLinearGradient(pL.x, pL.y, pR.x, pR.y);
+      gl.addColorStop(0, _wCol(col, brL));
+      gl.addColorStop(1, _wCol(col, brR));
+      ctx.fillStyle = gl;
     } else {
-      ctx.fillStyle = `rgb(${Math.round(col[0]*br)},${Math.round(col[1]*br)},${Math.round(col[2]*br)})`;
+      ctx.fillStyle = _wCol(col, br);
     }
     ctx.beginPath();
     ctx.moveTo(ps[0].x, ps[0].y);
     for (let k = 1; k < ps.length; k++) ctx.lineTo(ps[k].x, ps[k].y);
     ctx.closePath();
     ctx.fill();
+  }
+
+  /* ── Cockpit windshield — 3 panes per side with bright aluminium frame ── */
+  if (_wbGeo && pts) {
+    const _bLx = _wbGeo.b;
+    const _cwDrawSide = (vi0, vi1, vi2, vi3) => {
+      const pA = pts[vi0], pB = pts[vi1], pC = pts[vi2], pD = pts[vi3];
+      if (!pA || !pB || !pC || !pD) return;
+      const lerp = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+      ctx.save();
+      ctx.lineWidth = Math.max(2.5, devicePixelRatio * 2.5);
+      ctx.strokeStyle = 'rgb(235,240,248)';
+      /* Outer frame */
+      ctx.beginPath();
+      ctx.moveTo(pA.x, pA.y); ctx.lineTo(pB.x, pB.y);
+      ctx.lineTo(pC.x, pC.y); ctx.lineTo(pD.x, pD.y);
+      ctx.closePath();
+      ctx.stroke();
+      /* Two vertical dividers — splits the quad into 3 panes along the A→D / B→C edges */
+      for (const t of [1/3, 2/3]) {
+        const p1 = lerp(pA, pD, t), p2 = lerp(pB, pC, t);
+        ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+      }
+      ctx.restore();
+    };
+    _cwDrawSide(_bLx+104, _bLx+105, _bLx+106, _bLx+107);  // R
+    _cwDrawSide(_bLx+108, _bLx+109, _bLx+110, _bLx+111);  // L
   }
 
   /* ── Stage separation tumble animations (Saturn V) ─────────────── */
@@ -3872,12 +4380,18 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
   }
 
-  /* Swiss cross — v-stab + both winglets */
+  /* Swiss cross — winglets always; vtail only when no livery decal covers it */
   if (S.aircraft?.swissCross) {
-    _drawSwissCross(ctx, pts[_b+8],  pts[_b+9],   pts[_b+11],  pts[_b+10]);   // v-stab
-    _drawSwissCross(ctx, pts[_b+118], pts[_b+147], pts[_b+101], pts[_b+100]);  // R winglet (upper surf)
-    _drawSwissCross(ctx, pts[_b+122], pts[_b+151], pts[_b+103], pts[_b+102]);  // L winglet (upper surf)
+    const _hasVtailDecal = S.aircraft?.livery?.decals?.some(d => d.surface === 'vtail');
+    if (!_hasVtailDecal)
+      _drawSwissCross(ctx, pts[_b+8], pts[_b+9], pts[_b+11], pts[_b+10]);   // v-stab
+    _drawSwissCross(ctx, pts[_b+118], pts[_b+147], pts[_b+101], pts[_b+100]);  // R winglet
+    _drawSwissCross(ctx, pts[_b+122], pts[_b+151], pts[_b+103], pts[_b+102]);  // L winglet
   }
+
+  /* Livery decals — SVG paths mapped onto named surfaces */
+  const _livDecals = S.aircraft?.livery?.decals;
+  if (_livDecals?.length) _drawLiveryDecals(ctx, _livDecals, pts, FC_, F_);
 
   /* Prop disk — C172 and Bf109, only while engine running */
   if ((isC172 || isBf109 || isF4U) && S.engineState === 'running') {
@@ -3901,19 +4415,32 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   if (!isC172 && !isF9 && !isBf109 && !isF4U && !isSV) {
     const ePow = S.enginePower ?? 0;
     if (ePow > 0 || S.engineState === 'running') {
-      _drawTurbofanFace(ctx, pts[_b+158], pts[_b+20], ePow, dpr, 22);  // R inner
-      _drawTurbofanFace(ctx, pts[_b+159], pts[_b+60], ePow, dpr, 22);  // L inner
+      /* Only draw fan disk when intake faces camera AND engine is not behind fuselage.
+         hub.d < fan.d → engine faces us; hub.d < fusCenter.d → not occluded by body. */
+      const _rHub = pts[_b+158], _rFan = pts[_b+28];
+      const _lHub = pts[_b+159], _lFan = pts[_b+68];
+      const _eXpos = 0.005 + (_wbGeo?.exOff ?? 0);
+      const _fusCtr = project([_eXpos, 0, 0]);
+      const _fusCullD = _fusCtr ? _fusCtr.d + 0.0005 : Infinity;
+      if (_rHub && _rFan && _rHub.d < _rFan.d && _rHub.d < _fusCullD)
+        _drawTurbofanFace(ctx, _rHub, pts[_b+20], ePow, dpr, 22);  // R inner
+      if (_lHub && _lFan && _lHub.d < _lFan.d && _lHub.d < _fusCullD)
+        _drawTurbofanFace(ctx, _lHub, pts[_b+60], ePow, dpr, 22);  // L inner
       /* 4-engine aircraft (A340): also render outer engine fans at ey2 */
       const _ey2 = _wbGeo?.ey2;
       if (_ey2) {
-        const _ez2 = _wbGeo.ez ?? _ez;
+        const _ez2 = _oEzForOuter;           // same Z as nacelle geometry
         const _er2 = _wbGeo.er ?? _er;
-        const pHR = project([0.005,  _ey2, _ez2]);
-        const pRR = project([0.005,  _ey2, _ez2 + _er2]);
-        const pHL = project([0.005, -_ey2, _ez2]);
-        const pRL = project([0.005, -_ey2, _ez2 + _er2]);
-        if (pHR && pRR) _drawTurbofanFace(ctx, pHR, pRR, ePow, dpr, 22);
-        if (pHL && pRL) _drawTurbofanFace(ctx, pHL, pRL, ePow, dpr, 22);
+        const _ex2 = _wbGeo.exOff ?? 0;
+        const pHR = project([0.005 + _ex2,  _ey2, _ez2]);
+        const pRR = project([0.005 + _ex2,  _ey2, _ez2 + _er2]);
+        const pHL = project([0.005 + _ex2, -_ey2, _ez2]);
+        const pRL = project([0.005 + _ex2, -_ey2, _ez2 + _er2]);
+        const pBR = project([0.001 + _ex2,  _ey2, _ez2]);
+        const pBL = project([0.001 + _ex2, -_ey2, _ez2]);
+        const _fusCullD2 = _fusCtr ? _fusCtr.d + 0.0005 : Infinity;
+        if (pHR && pRR && pBR && pHR.d < pBR.d && pHR.d < _fusCullD2) _drawTurbofanFace(ctx, pHR, pRR, ePow, dpr, 22);
+        if (pHL && pRL && pBL && pHL.d < pBL.d && pHL.d < _fusCullD2) _drawTurbofanFace(ctx, pHL, pRL, ePow, dpr, 22);
       }
     }
   }
@@ -3958,41 +4485,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     _drawJ2Nozzles(-0.016, _rf9, _mCenters, merlinOn, 'rp1');
   }
 
-  /* Cabin + cockpit windows and doors — A350 only */
-  if (!isC172 && !isF9 && !isBf109 && !isF4U && !isSV) {
-    const dpr = devicePixelRatio;
-    {
-      const ww = Math.max(2, 2 * dpr), wh = Math.max(3, 3.5 * dpr);
-      ctx.save();
-      ctx.fillStyle = 'rgba(155,210,245,0.80)';
-      for (const wv of _WIN) {
-        const wp = project(wv);
-        if (wp) ctx.fillRect(wp.x - ww/2, wp.y - wh/2, ww, wh);
-      }
-      ctx.restore();
-    }
-    {
-      const ww = Math.max(3, 4 * dpr), wh = Math.max(2.5, 3 * dpr);
-      ctx.save();
-      ctx.fillStyle = 'rgba(25,35,55,0.92)';
-      for (const wv of _CWIN) {
-        const wp = project(wv);
-        if (wp) ctx.fillRect(wp.x - ww/2, wp.y - wh/2, ww, wh);
-      }
-      ctx.restore();
-    }
-    {
-      const dw = Math.max(3.5, 4 * dpr), dh = Math.max(5, 6 * dpr);
-      ctx.save();
-      ctx.strokeStyle = 'rgba(160,175,195,0.65)';
-      ctx.lineWidth = Math.max(0.5, 0.7 * dpr);
-      for (const dv of _DOOR) {
-        const dp = project(dv);
-        if (dp) ctx.strokeRect(dp.x - dw/2, dp.y - dh/2, dw, dh);
-      }
-      ctx.restore();
-    }
-  }
+  /* Cabin + cockpit windows and doors — 2D fillRect removed; 3D _quad3d handles WB windows below */
 
   /* Edge backface culling — hide edges where both endpoints' normals face away from camera.
      Returns the camera-depth derivative of the vertex normal: negative = faces toward camera. */
@@ -4178,62 +4671,6 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
   }
 
-  /* Landing gear — always visible on C172 + Bf109, animated on wide-body, none for rockets */
-  const _gearP = (!isC172 && !isBf109 && !isF4U) ? (S.gearAnim ?? (S.gear ? 1 : 0)) : 1;
-  const _lerpV3 = (up, dn, t) => [up[0]+(dn[0]-up[0])*t, up[1]+(dn[1]-up[1])*t, up[2]+(dn[2]-up[2])*t];
-  const _animGV = (isC172 || isBf109 || isF4U) ? GV_ : [
-    GV_[0],  // nose strut pivot (fixed)
-    _lerpV3([0.013,  0.0005, -_r+0.001], GV_[1], _gearP),  // nose wheel folds forward-up
-    GV_[2],  // R main pivot (fixed)
-    _lerpV3([-0.001, 0.0012, -_r+0.001], GV_[3], _gearP),  // R main folds inward-up
-    GV_[4],  // L main pivot (fixed)
-    _lerpV3([-0.001,-0.0012, -_r+0.001], GV_[5], _gearP),  // L main folds inward-up
-  ];
-
-  if (!isF9 && !isSV && (isC172 || isBf109 || isF4U || _gearP > 0.01)) {
-    const gpts = _animGV.map(project);
-    ctx.save();
-    ctx.lineWidth = Math.max(1, dpr);
-    for (const [a, b] of _GE) {
-      const pa = gpts[a], pb = gpts[b];
-      if (!pa || !pb) continue;
-      drawStrutTube(ctx, pa, pb, dpr);
-    }
-    /* Side stays + drag braces — wide-body only.
-       Each stay runs from a fixed aircraft attachment to the animated strut midpoint.
-       Midpoints track _animGV so the stays collapse naturally during retraction. */
-    if (!isC172 && !isBf109 && !isF4U) {
-      const _wbR   = _wbGeo?.r ?? _r;
-      const _midV3 = (a, b) => [(a[0]+b[0])/2, (a[1]+b[1])/2, (a[2]+b[2])/2];
-      /* Nose drag brace: aft belly anchor → mid nose strut */
-      const nA   = project([0.007,  0,       -_wbR + 0.0008]);
-      const nM   = project(_midV3(_animGV[0], _animGV[1]));
-      if (nA && nM) drawStrutTube(ctx, nA, nM, dpr);
-      /* R main side stay: inboard wing anchor → mid main strut */
-      const rA   = project([0.001,  0.0012, -_wbR * 0.50]);
-      const rM   = project(_midV3(_animGV[2], _animGV[3]));
-      if (rA && rM) drawStrutTube(ctx, rA, rM, dpr);
-      /* L main side stay */
-      const lA   = project([0.001, -0.0012, -_wbR * 0.50]);
-      const lM   = project(_midV3(_animGV[4], _animGV[5]));
-      if (lA && lM) drawStrutTube(ctx, lA, lM, dpr);
-    }
-    if (isC172) {
-      for (const [vi, tR] of [[1, _xr*0.48], [3, _xr*0.56], [5, _xr*0.56]])
-        drawVolumetricTire(ctx, GV_[vi], tR, project);
-    } else if (isBf109) {
-      for (const [vi, tR] of [[1, _bcR*0.55], [3, _bcR*0.55], [5, _bcR*0.26]])
-        drawVolumetricTire(ctx, GV_[vi], tR, project);
-    } else if (isF4U) {
-      for (const [vi, tR] of [[1, _f4uCowlR*0.58], [3, _f4uCowlR*0.58], [5, _f4uCowlR*0.30]])
-        drawVolumetricTire(ctx, GV_[vi], tR, project);
-    } else {
-      for (const [vi, tR] of [[1, _r*0.12], [3, _r*0.16], [5, _r*0.16]])
-        drawTirePair(ctx, _animGV[vi], tR, project, dpr);
-    }
-    ctx.restore();
-  }
-
   /* Gear bay doors — geometry derived from GV positions + tire dimensions.
      Nose: 2 clamshell halves.
      Main: 2 split panels per side — forward panel closes when gear is down,
@@ -4335,7 +4772,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   /* Passenger windows + door outlines — wide-body only, properly perspective-projected */
   if (!isF9 && !isSV && !isC172 && !isBf109 && !isF4U) {
     /* Draw a quad from 4 body-space corners — depth-culls if center is on far side */
-    const _quad3d = (x, y, z, hw, hh, fill, stroke) => {
+    const _quad3d = (x, y, z, hw, hh, fill, stroke, round = false) => {
       const pc = project([x, 0, 0]);
       const pw = project([x, y, z]);
       if (!pc || !pw || pw.d > pc.d + 0.0008) return;
@@ -4344,12 +4781,28 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       const p2 = project([x - hw, y, z - hh]);
       const p3 = project([x + hw, y, z - hh]);
       if (!p0 || !p1 || !p2 || !p3) return;
-      ctx.beginPath();
-      ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y);
-      ctx.closePath();
-      if (fill)   { ctx.fillStyle   = fill;   ctx.fill();   }
-      if (stroke) { ctx.strokeStyle = stroke; ctx.stroke(); }
+      if (round && ctx.roundRect) {
+        const cx = (p0.x + p1.x + p2.x + p3.x) / 4;
+        const cy = (p0.y + p1.y + p2.y + p3.y) / 4;
+        const sw = Math.hypot(p0.x - p1.x, p0.y - p1.y);
+        const sh = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+        const angle = Math.atan2(p0.y - p1.y, p0.x - p1.x);
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(angle);
+        ctx.beginPath();
+        ctx.roundRect(-sw / 2, -sh / 2, sw, sh, Math.min(sw, sh) * 0.30);
+        if (fill)   { ctx.fillStyle   = fill;   ctx.fill();   }
+        if (stroke) { ctx.strokeStyle = stroke; ctx.stroke(); }
+        ctx.restore();
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y);
+        ctx.closePath();
+        if (fill)   { ctx.fillStyle   = fill;   ctx.fill();   }
+        if (stroke) { ctx.strokeStyle = stroke; ctx.stroke(); }
+      }
     };
 
     ctx.save();
@@ -4358,34 +4811,53 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     /* Use per-aircraft fuselage radius so narrow-body windows sit on the body surface */
     const _wbR = _wbGeo?.r ?? _r;
 
-    /* Window row — cabin section x = 0.011 → −0.008, on fuselage side (y = ±_wbR) */
-    const hw = _wbR * 0.120;  // half-width in body units
-    const hh = _wbR * 0.170;  // half-height
-    const wZ = _wbR * 0.18;   // slightly above equator
-    const nW = 12, xA = 0.011, xB = -0.008;
-    const wFill   = 'rgba(55,85,130,0.82)';
-    const wStroke = 'rgba(130,155,185,0.55)';
+    /* Window row — count and range from aircraft JSON when available */
+    const hw = _wbR * 0.088;
+    const hh = _wbR * 0.128;
+    const wZ = _wbR * 0.05;
+    const wFill   = 'rgba(48,72,110,0.88)';
+    const wStroke = 'rgba(110,140,175,0.50)';
+    const _nCabW = S.aircraft?.cabinWindows;
+    const nW  = _nCabW ? Math.round(_nCabW / 2) : 12;
+    const xA  = _nCabW ? 0.008 : 0.011, xB = _nCabW ? -0.025 : -0.008;
     for (let i = 0; i < nW; i++) {
-      const wx = xA + (xB - xA) * (i / (nW - 1));
-      _quad3d(wx,  _wbR, wZ, hw, hh, wFill, wStroke);
-      _quad3d(wx, -_wbR, wZ, hw, hh, wFill, wStroke);
+      const wx = nW > 1 ? xA + (xB - xA) * i / (nW - 1) : (xA + xB) / 2;
+      _quad3d(wx,  _wbR, wZ, hw, hh, wFill, wStroke, true);
+      _quad3d(wx, -_wbR, wZ, hw, hh, wFill, wStroke, true);
     }
 
-    /* Doors — fwd pair (L1/R1) + aft pair (L2/R2), outlines only */
-    const dhw = _wbR * 0.170;
-    const dhh = _wbR * 0.325;
+    /* Doors — positions from aircraft JSON or default pairs */
+    const _doorXs3 = S.aircraft?.doors ?? [0.009, -0.006];
+    const dhw = _wbR * 0.190;
+    const dhh = _wbR * 0.360;
     const dZ  = _wbR * 0.08;
     const dStroke = 'rgba(145,160,178,0.70)';
-    for (const [dx, dy] of [[0.010, _wbR],[0.010,-_wbR],[-0.006, _wbR],[-0.006,-_wbR]]) {
-      _quad3d(dx, dy, dZ, dhw, dhh, null, dStroke);
+    for (const dx of _doorXs3) {
+      _quad3d(dx,  _wbR, dZ, dhw, dhh, null, dStroke);
+      _quad3d(dx, -_wbR, dZ, dhw, dhh, null, dStroke);
     }
 
     ctx.restore();
   }
 
-  /* Aircraft lights */
+  /* Aircraft lights — WB tip positions derived from wing geometry */
   const _lightList = isC172 ? (S.masterBat ? _LIGHTS_c172 : null)
-                             : (!isF9 && !isBf109 && !isF4U && !isSV) ? _LIGHTS_wb : null;
+    : (!isF9 && !isBf109 && !isF4U && !isSV) ? (() => {
+        if (!_wbGeo) return _LIGHTS_wb;
+        const _lwg = (_WB_NP[S.aircraft?.id] ?? _WB_NP.default).wing ?? _WB_WING_DEFAULT;
+        const _ltY = _lwg.span;
+        const _ltZ = _lwg.dihedral + 0.003;
+        const _ltX = (_lwg.tipLE + _lwg.tipTE) / 2;
+        return [
+          { pos: [_ltX,  _ltY, _ltZ], col: [  0, 210,  80], key: 'nav'     },
+          { pos: [_ltX, -_ltY, _ltZ], col: [220,  40,  40], key: 'nav'     },
+          { pos: [-0.020,  0,  0.007], col: [255, 255, 255], key: 'nav'     },
+          { pos: [ 0.001,  0, _wbGeo.r], col: [220, 50, 50], key: 'beacon' },
+          { pos: [_ltX,  _ltY, _ltZ], col: [255, 255, 255], key: 'strobe'  },
+          { pos: [_ltX, -_ltY, _ltZ], col: [255, 255, 255], key: 'strobe'  },
+          { pos: [ 0.013,  0,  0    ], col: [255, 248, 220], key: 'landing' },
+        ];
+      })() : null;
   if (_lightList) {
     const li  = S.lights ?? {};
     const now = Date.now();
@@ -4832,6 +5304,77 @@ function _engineOverlays(pts, faces, acEng, _b = 162) {
         faces.push({ ps: [pA, pB, tip], br: 0.55, avgD: avgD + 0.00005, col: chevCol });
       }
     }
+  }
+}
+
+/* ── Livery decals — SVG paths projected onto named surface group ─
+   decals: array from aircraft.livery.decals
+   pts:    projected vertex array from _drawWireframe
+   FC_, F_: face-color and face-vertex arrays                       */
+function _drawLiveryDecals(ctx, decals, pts, FC_, F_) {
+  const SURF = { vtail: 2, nose: 6, fuselage: 0 };
+  for (const decal of decals) {
+    const cIdx = SURF[decal.surface];
+    if (cIdx === undefined) continue;
+
+    /* Collect projected points from visible (front-facing) faces only */
+    const sPts = [];
+    for (let fi = 0; fi < F_.length; fi++) {
+      if (FC_[fi] !== cIdx) continue;
+      const fv = F_[fi];
+      const fp = fv.map(vi => pts[vi]);
+      if (fp.some(p => !p)) continue;
+      const cross = (fp[1].x - fp[0].x) * (fp[2].y - fp[0].y)
+                  - (fp[1].y - fp[0].y) * (fp[2].x - fp[0].x);
+      if (cross < 0) continue;
+      for (const p of fp) sPts.push(p);
+    }
+    if (sPts.length < 3) continue;
+
+    /* Screen bounding box of the surface */
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const p of sPts) {
+      if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x;
+      if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y;
+    }
+    const sw = x1 - x0, sh = y1 - y0;
+    if (sw < 4 || sh < 4) continue;
+
+    /* Parse viewBox: "minX minY width height" */
+    const vb = (decal.viewBox ?? '0 0 100 100').split(' ').map(Number);
+    const [vbX, vbY, vbW, vbH] = vb;
+    const sx = sw / vbW, sy = sh / vbH;
+
+    ctx.save();
+    /* Clip to actual face polygons — prevents decal bleeding onto winglets/nose */
+    ctx.beginPath();
+    for (let fi2 = 0; fi2 < F_.length; fi2++) {
+      if (FC_[fi2] !== cIdx) continue;
+      const fv2 = F_[fi2].map(vi => pts[vi]);
+      if (fv2.some(p => !p)) continue;
+      const cr2 = (fv2[1].x-fv2[0].x)*(fv2[2].y-fv2[0].y) - (fv2[1].y-fv2[0].y)*(fv2[2].x-fv2[0].x);
+      if (cr2 < 0) continue;
+      ctx.moveTo(fv2[0].x, fv2[0].y);
+      for (let i2 = 1; i2 < fv2.length; i2++) ctx.lineTo(fv2[i2].x, fv2[i2].y);
+      ctx.closePath();
+    }
+    ctx.clip();
+    ctx.transform(sx, 0, 0, sy, x0 - vbX * sx, y0 - vbY * sy);
+    for (const el of decal.elements ?? []) {
+      ctx.save();
+      if (el.rotate) {
+        const rcx = el.rcx ?? (vbX + vbW / 2);
+        const rcy = el.rcy ?? (vbY + vbH / 2);
+        ctx.translate(rcx, rcy);
+        ctx.rotate(el.rotate * Math.PI / 180);
+        ctx.translate(-rcx, -rcy);
+      }
+      ctx.fillStyle = el.fill ?? '#ffffff';
+      ctx.globalAlpha = el.opacity ?? 1;
+      ctx.fill(new Path2D(el.d));
+      ctx.restore();
+    }
+    ctx.restore();
   }
 }
 

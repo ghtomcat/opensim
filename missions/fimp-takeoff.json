@@ -45,6 +45,18 @@
       ]
     }
   },
+  "com": {
+    "title": "COM 1",
+    "active":  "121.700",
+    "standby": "118.100",
+    "freqs": {
+      "121.700": { "label": "FIMP GROUND",    "audio": null },
+      "118.100": { "label": "FIMP TOWER",     "audio": null },
+      "119.900": { "label": "FIMP APPROACH",  "audio": null },
+      "126.700": { "label": "FIMP ATIS",      "audio": null },
+      "121.500": { "label": "GUARD",          "audio": null }
+    }
+  },
   "atcClearances": [
     {
       "pm": "Edelweiss nine one seven, request IFR clearance to Zürich",
