@@ -1974,6 +1974,13 @@ function _assembleLycomingStartup(sr) {
 }
 
 export async function startEngineLifecycle() {
+  /* Turbofan: enter 'starting' state — N1 physics ramps to idle and auto-transitions to 'running' */
+  if (_engineType === 'geared-turbofan') {
+    if (S.engineState === 'starting' || S.engineState === 'running') return;
+    setState({ engineState: 'starting', enginePower: 1.0, n1: S.n1 ?? 0 });
+    startSound();   // spin up audio; sound level follows N1 via tickSound
+    return;
+  }
   if (_engineType !== 'v12-supercharged' && _engineType !== 'radial-2000hp' && _engineType !== 'lycoming-o360') { startSound(); return; }
   if (S.engineState === 'starting' || S.engineState === 'running' || S.engineState === 'idle') return;
   if (S.coolantState === 'failed') return;
@@ -2085,6 +2092,13 @@ function _synthLycomingShutdown(sr, startRpm = 1400) {
 }
 
 export function stopEngineLifecycle() {
+  /* Turbofan fuel cutoff: enter 'shutdown' — N1 physics decays to 0 then sets 'off' */
+  if (_engineType === 'geared-turbofan') {
+    if (S.engineState === 'off' || S.engineState === 'shutdown') return;
+    setState({ engineState: 'shutdown' });
+    stopSound();   // fade audio; N1 physics handles state → 'off'
+    return;
+  }
   if (_engineType !== 'v12-supercharged' && _engineType !== 'radial-2000hp' && _engineType !== 'lycoming-o360') { stopSound(); return; }
   if (S.engineState === 'off' || S.engineState === 'shutdown') return;
 

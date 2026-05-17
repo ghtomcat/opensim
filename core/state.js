@@ -23,8 +23,9 @@ export const S = {
   gearAnim: 0,    // 0 = fully retracted, 1 = fully extended
   braking:  false,                   // ground brakes held
   enginePower: 1.0,               // 0 = dead engine, 1 = full power
-  engineState: 'off',             // 'off' | 'starting' | 'idle' | 'running' | 'shutdown'
+  engineState: 'off',             // 'off' | 'starting' | 'running' | 'shutdown'
   engineTemp:  0.0,               // 0=cold, 1=warm — increases after each start
+  n1:          0,                 // turbofan N1 % (0-100); idle ~22%, TOGA 100%
   oilTempC:    15,                // °C — thermally lagged oil temperature (first-order)
   ambientTemp: 15,                // °C — controls cooling rate when off
   ap:       true,                 // autopilot engaged

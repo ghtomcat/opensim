@@ -3743,11 +3743,14 @@
     let _viewBeforeNiflheim = 0;
     const audioEl = document.getElementById('pv-audio');
 
-    const _isV12      = engineType === 'v12-supercharged';
-    const _isRadial   = engineType === 'radial-2000hp';
-    const _isLycoming = engineType === 'lycoming-o360';
-    const _isElectric = engineType === 'electric';
-    const _hasLifecycle = _isV12 || _isRadial || _isLycoming || _isElectric;
+    const _isV12       = engineType === 'v12-supercharged';
+    const _isRadial    = engineType === 'radial-2000hp';
+    const _isLycoming  = engineType === 'lycoming-o360';
+    const _isElectric  = engineType === 'electric';
+    const _isTurbofan  = engineType === 'geared-turbofan';
+    /* Turbofan ground starts need the lifecycle (E=start, Q=cutoff); airborne starts skip it */
+    const _hasLifecycle = _isV12 || _isRadial || _isLycoming || _isElectric ||
+                          (_isTurbofan && S.engineState === 'off');
 
     const dismissOnboarding = () => {
       obEl.classList.remove('visible');
@@ -3761,9 +3764,10 @@
           startSound(engineType);
         } else {
           /* Ground start — engine off, user presses E */
-          audioEl.textContent = _isV12    ? 'OFF · E=ANLASSER · Q=AUS'
-                              : _isElectric ? 'OFF · MASTER → BATT EN → PWR EN'
-                              :               'OFF · E=START · Q=CUT OFF';
+          audioEl.textContent = _isV12      ? 'OFF · E=ANLASSER · Q=AUS'
+                              : _isElectric  ? 'OFF · MASTER → BATT EN → PWR EN'
+                              : _isTurbofan  ? 'OFF · E=ENGINE START · Q=FUEL CUTOFF'
+                              :                'OFF · E=START · Q=CUT OFF';
           audioEl.className   = 'panel-value';
         }
       } else {
@@ -3798,8 +3802,8 @@
         return;
       }
 
-      /* Q — V12/Radial: engine cut-off (mixture/Kraftstoffhahn) */
-      if ((e.key === 'q' || e.key === 'Q') && (_isV12 || _isRadial)) {
+      /* Q — engine cut-off: fuel cutoff on turbofan, mixture/Kraftstoffhahn on piston */
+      if ((e.key === 'q' || e.key === 'Q') && (_isV12 || _isRadial || _isTurbofan)) {
         bbEvent({ type: 'engine_cutoff', method: 'mixture' });
         stopEngineLifecycle();
         return;

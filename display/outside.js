@@ -2292,6 +2292,23 @@ function drawVolumetricTire(ctx, wc, tR, project) {
   ctx.closePath(); ctx.stroke();
 }
 
+/* Draw a pair of tires (1 pair = 2 tires) on a short axle centred at wc.
+   The axle runs along Y; each tire is offset ±axH from wc.
+   An axle tube connects the inner faces of both tires. */
+function drawTirePair(ctx, wc, tR, project, dpr) {
+  const tW  = tR * 0.40;   // half-width of one tire (matches drawVolumetricTire)
+  const axH = tR * 0.55;   // half-span: center → each tire center
+  const yS  = wc[1] === 0 ? 1 : Math.sign(wc[1]);
+  const wcO = [wc[0], wc[1] + yS * axH, wc[2]];  // outboard tire center
+  const wcI = [wc[0], wc[1] - yS * axH, wc[2]];  // inboard  tire center
+  drawVolumetricTire(ctx, wcO, tR, project);
+  drawVolumetricTire(ctx, wcI, tR, project);
+  // Axle tube between inner faces
+  const pO = project([wcO[0], wcO[1] - yS * tW, wcO[2]]);
+  const pI = project([wcI[0], wcI[1] + yS * tW, wcI[2]]);
+  if (pO && pI) drawStrutTube(ctx, pO, pI, dpr);
+}
+
 /* Draw a cylindrical gear strut between two projected screen points. */
 function drawStrutTube(ctx, pa, pb, dpr) {
   const dx = pb.x - pa.x, dy = pb.y - pa.y;
@@ -4173,39 +4190,106 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         drawVolumetricTire(ctx, GV_[vi], tR, project);
     } else {
       for (const [vi, tR] of [[1, _r*0.12], [3, _r*0.16], [5, _r*0.16]])
-        drawVolumetricTire(ctx, _animGV[vi], tR, project);
+        drawTirePair(ctx, _animGV[vi], tR, project, dpr);
     }
     ctx.restore();
   }
 
-  /* Gear bay doors — wide-body, animated door panels */
+  /* Gear bay doors — geometry derived from GV positions + tire dimensions.
+     Nose: 2 clamshell halves.
+     Main: 2 split panels per side — forward panel closes when gear is down,
+           aft panel stays at ~30° as an aerodynamic fairing. */
   if (!isF9 && !isSV && !isC172 && !isBf109 && !isF4U && _gearP > 0.02) {
+    const _gdR = _wbGeo?.r ?? _r;
+
+    /* ── Nose door dimensions (from GV[0] + nose tire geometry) ── */
+    const nTR  = _gdR * 0.12;
+    const nAxH = nTR * 0.55;             // axle half-span (= tire pair Y offset)
+    const nTW  = nTR * 0.40;             // one tire half-width
+    const nSX  = 0.013;                  // nose stow X (from _animGV retract target)
+    const nX1  = nSX + nTR * 0.8;       // forward door edge: stow pos + margin
+    const nX2  = _GV[0][0] - nTR * 0.6; // aft door edge: hinge at strut pivot
+    const nH   = nAxH + nTW + nTR * 0.30; // clamshell half-width: outer tire face + clearance
+
+    /* ── Main door dimensions (from GV[2] + main tire geometry) ── */
+    const mTR  = _gdR * 0.16;
+    const mAxH = mTR * 0.55;
+    const mTW  = mTR * 0.40;
+    const mX1  = _GV[2][0] + mTR * 2.0; // forward door edge
+    const mX2  = _GV[2][0] - mTR * 2.5; // aft door edge
+    const mXm  = (mX1 + mX2) * 0.5;     // fore/aft panel split line
+    const mHi  = _GV[2][1] - (mAxH + mTW) - mTR * 0.25; // inboard hinge: inner tire face − clearance
+    const mW   = (mAxH + mTW) * 2.0 + mTR * 0.50;       // panel width: inner→outer tire face + margins
+
+    /* ── Animation ── */
     const doorFrac = _gearP < 0.15 ? _gearP / 0.15 : 1.0;
-    const θ  = doorFrac * Math.PI * 0.5;
-    const cθ = Math.cos(θ), sθ = Math.sin(θ);
+
+    // Nose: single-phase clamshell
+    const nθ  = doorFrac * Math.PI * 0.5;
+
+    // Main forward panel: opens during transit, closes when gear fully down
+    const AERO = 0.33;  // aft panel stay-open fraction at gear-down
+    const tFwd = _gearP < 0.15 ? _gearP / 0.15
+               : _gearP > 0.85 ? (1 - _gearP) / 0.15
+               : 1.0;
+    // Main aft panel: opens during transit, holds at AERO fraction when gear is down
+    const tAft = _gearP < 0.15 ? _gearP / 0.15
+               : _gearP > 0.85 ? 1.0 - (1.0 - AERO) * (_gearP - 0.85) / 0.15
+               : 1.0;
+    const mθF = tFwd * Math.PI * 0.5;
+    const mθA = tAft * Math.PI * 0.5;
+
     ctx.save();
     ctx.lineWidth = Math.max(1, devicePixelRatio);
-    const fa = (doorFrac * 0.88).toFixed(2), sa = (doorFrac * 0.75).toFixed(2);
+
     const _dDoor = (corners, fillA, strokeA) => {
       const p2 = corners.map(project);
       if (!p2.every(Boolean)) return;
       ctx.beginPath();
       p2.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
       ctx.closePath();
-      ctx.fillStyle   = `rgba(22,27,35,${fillA})`;    ctx.fill();
-      ctx.strokeStyle = `rgba(148,162,178,${strokeA})`; ctx.stroke();
+      ctx.fillStyle   = `rgba(22,27,35,${fillA})`;
+      ctx.fill();
+      ctx.strokeStyle = `rgba(148,162,178,${strokeA})`;
+      ctx.stroke();
     };
-    const _gdR = _wbGeo?.r ?? _r;  // per-aircraft fuselage radius for gear door pivot
-    /* Nose: 2 clamshell halves — hinge at y=0, swing outward + down */
-    const nX1=0.010, nX2=0.008, nH=0.0007;
-    const ndy = nH * cθ, ndz = -nH * sθ;
-    _dDoor([[nX1,0,-_gdR],[nX2,0,-_gdR],[nX2, ndy,-_gdR+ndz],[nX1, ndy,-_gdR+ndz]], fa, sa);  // R half
-    _dDoor([[nX1,0,-_gdR],[nX2,0,-_gdR],[nX2,-ndy,-_gdR+ndz],[nX1,-ndy,-_gdR+ndz]], fa, sa);  // L half
-    /* Main: 1 door per side — hinge at inboard edge (near strut), swings outboard + down */
-    const mX1=0.001, mX2=-0.002, mHi=0.0018, mW=0.0013;
-    const mdy = mW * cθ, mdz = -mW * sθ;
-    _dDoor([[mX1, mHi,-_gdR],[mX2, mHi,-_gdR],[mX2, mHi+mdy,-_gdR+mdz],[mX1, mHi+mdy,-_gdR+mdz]], fa, sa);         // R
-    _dDoor([[mX1,-mHi,-_gdR],[mX2,-mHi,-_gdR],[mX2,-(mHi+mdy),-_gdR+mdz],[mX1,-(mHi+mdy),-_gdR+mdz]], fa, sa);    // L
+
+    /* Gear well cutout — dark opening on fuselage belly, drawn before doors so panels cover it */
+    ctx.fillStyle = 'rgba(10,12,16,0.96)';
+    for (const [x1,x2,y1,y2] of [
+      [nX1,nX2,-nH,nH],
+      [mX1,mX2,mHi,mHi+mW],
+      [mX1,mX2,-(mHi+mW),-mHi],
+    ]) {
+      const wp = [[x1,y1,-_gdR],[x2,y1,-_gdR],[x2,y2,-_gdR],[x1,y2,-_gdR]].map(project);
+      if (wp.every(Boolean)) {
+        ctx.beginPath();
+        wp.forEach((p,i) => i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y));
+        ctx.closePath(); ctx.fill();
+      }
+    }
+
+    const fa  = (doorFrac * 0.88).toFixed(2);
+    const sa  = (doorFrac * 0.75).toFixed(2);
+    const mfA = (Math.max(tFwd, tAft) * 0.88).toFixed(2);
+    const msA = (Math.max(tFwd, tAft) * 0.75).toFixed(2);
+
+    /* Nose: 2 clamshell halves — hinge at Y=0, each half swings outboard + down */
+    const ndy = nH * Math.cos(nθ), ndz = -nH * Math.sin(nθ);
+    _dDoor([[nX1, 0,-_gdR],[nX2, 0,-_gdR],[nX2, +ndy,-_gdR+ndz],[nX1, +ndy,-_gdR+ndz]], fa, sa);
+    _dDoor([[nX1, 0,-_gdR],[nX2, 0,-_gdR],[nX2, -ndy,-_gdR+ndz],[nX1, -ndy,-_gdR+ndz]], fa, sa);
+
+    /* Main: forward + aft panel per side.  sign=+1 for R, −1 for L */
+    const _drawMain = (sign) => {
+      const Hi = sign * mHi;
+      const fdy = sign * mW * Math.cos(mθF), fdz = -mW * Math.sin(mθF);
+      const ady = sign * mW * Math.cos(mθA), adz = -mW * Math.sin(mθA);
+      _dDoor([[mX1,Hi,-_gdR],[mXm,Hi,-_gdR],[mXm,Hi+fdy,-_gdR+fdz],[mX1,Hi+fdy,-_gdR+fdz]], mfA, msA);
+      _dDoor([[mXm,Hi,-_gdR],[mX2,Hi,-_gdR],[mX2,Hi+ady,-_gdR+adz],[mXm,Hi+ady,-_gdR+adz]], mfA, msA);
+    };
+    _drawMain(+1);  // R main
+    _drawMain(-1);  // L main
+
     ctx.restore();
   }
 

@@ -37,6 +37,31 @@ export function tickPhysics(dt) {
   let newWow = S.wow ?? false;
   let newTouchdownVS = S.touchdownVS ?? 0;
 
+  /* ── Turbofan N1 dynamics ─────────────────────────────────────────────
+     Runs for all turbofan aircraft before the main physics block.
+     N1 ramps toward its target (idle floor + throttle contribution) with
+     asymmetric time constants: 8 s spool-up, 15 s spool-down.
+     State transitions driven here so thrust sees the correct N1 immediately.
+     ────────────────────────────────────────────────────────────────────── */
+  if (ac.engine?.type === 'turbofan' && !S.crashed) {
+    const IDLE_N1 = ac.engine?.idleN1 ?? 22;
+    const state   = S.engineState ?? 'off';
+    const n1Now   = S.n1 ?? 0;
+    const spdNorm = Math.min(1, Math.max(0, (S.spdT ?? 0) / (ac.envelope.maxSpd ?? 340)));
+
+    const n1Target = (state === 'running') ? IDLE_N1 + (100 - IDLE_N1) * spdNorm
+                   : (state === 'starting') ? IDLE_N1
+                   : 0;   // 'off' or 'shutdown'
+
+    const tau  = (state === 'starting') ? 25 : (n1Target > n1Now ? 8 : 15);
+    const newN1 = n1Now + (n1Target - n1Now) * (1 - Math.exp(-dt / tau));
+
+    const n1Up = { n1: Math.max(0, Math.min(100, newN1)) };
+    if (state === 'starting' && newN1 >= IDLE_N1 * 0.95) n1Up.engineState = 'running';
+    if (state === 'shutdown' && newN1 < 0.5) n1Up.engineState = 'off';
+    setState(n1Up);
+  }
+
   if (ac.manualControl) {
     /* ── Shared setup ── */
     const perf = ac.performance ?? {};
@@ -53,8 +78,11 @@ export function tickPhysics(dt) {
     const spd_ms = Math.max(1, S.spd) * 0.5144;
     const q      = 0.5 * rho * spd_ms * spd_ms;
 
-    /* Throttle */
-    const throttle = Math.min(1, Math.max(0, S.spdT / (ac.envelope.cruiseSpd ?? 122)));
+    /* Throttle — turbofan uses N1-derived fraction; piston/prop uses spdT directly */
+    const isTurbofan = ac.engine?.type === 'turbofan';
+    const throttle   = isTurbofan
+      ? Math.pow(Math.max(0, (S.n1 ?? 0) / 100), 1.8)   // N1^1.8 → 22% N1 ≈ 5% T_max
+      : Math.min(1, Math.max(0, S.spdT / (ac.envelope.cruiseSpd ?? 122)));
 
     /* Aircraft constants */
     const S_wing   = perf.wingArea  ?? 16.2;

@@ -32,10 +32,22 @@ export async function loadMission(missionPath, aircraftPath) {
   /* Oil temperature: cold on ground, warm if already airborne (engine running since before mission start) */
   const startOilTempC = startAirborne ? 75 : 15;
 
-  /* Engine state: v12 starts 'off' on ground (manual startup sequence via E key).
-     All other manualControl aircraft start 'running' — no startup procedure. */
-  const hasColdStart = ['v12-supercharged', 'radial-2000hp', 'lycoming-o360', 'electric'].includes(aircraft.sound?.engineType);
+  /* Engine state: piston/electric ground starts begin 'off' (manual startup via E key).
+     Turbofan ground starts also begin 'off' — crew must run through start sequence.
+     All airborne starts (cruise/approach missions) begin 'running'. */
+  const hasColdStart =
+    ['v12-supercharged', 'radial-2000hp', 'lycoming-o360', 'electric'].includes(aircraft.sound?.engineType) ||
+    (aircraft.engine?.type === 'turbofan' && startOnGround);
   const startEngineState = (startOnGround && hasColdStart) ? 'off' : 'running';
+
+  /* Initial N1 for turbofan — set to match cruise throttle when airborne, 0 when off */
+  const initN1 = (() => {
+    if (aircraft.engine?.type !== 'turbofan') return 0;
+    if (startEngineState === 'off') return 0;
+    const IDLE_N1 = aircraft.engine?.idleN1 ?? 22;
+    const spdNorm = Math.min(1, Math.max(0, spd / (aircraft.envelope?.maxSpd ?? 340)));
+    return IDLE_N1 + (100 - IDLE_N1) * spdNorm;
+  })();
 
   setState({
     aircraft,
@@ -59,6 +71,7 @@ export async function loadMission(missionPath, aircraftPath) {
     trim:  0,
     enginePower: startEngineState === 'off' ? 0 : 1.0,
     engineState: startEngineState,
+    n1:          initN1,
     oilTempC:    startOilTempC,
     ilsLoc: 1.2, ilsLocT: 1.2,
     ilsGs: -0.8, ilsGsT: -0.8,
