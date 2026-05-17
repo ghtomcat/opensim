@@ -1,0 +1,214 @@
+{
+  "id": "a340",
+  "name": "Airbus A340-313",
+  "clock": "digital",
+  "panel": "airbus",
+  "livery": {
+    "colors": [null, null, null, null, null, [18, 35, 78], null]
+  },
+  "engine": {
+    "model": "cfm56-5c4",
+    "count": 4,
+    "idleN1": 23,
+    "chevrons": false,
+    "thrustReverser": true
+  },
+  "displays": [
+    { "id": "pfd", "spec": "airbus-pfd", "screen": 0, "pages": ["airbus-pfd", "airbus-nd"] },
+    { "id": "nd",  "spec": "airbus-nd",  "screen": 1, "pages": ["airbus-nd",  "airbus-ecam"] }
+  ],
+  "approachSpeed": 145,
+  "callsign": "Edelweiss Air",
+  "icaoType": "A343",
+  "manualControl": true,
+  "envelope": {
+    "cruiseAlt": 37000,
+    "maxAlt": 41000,
+    "cruiseSpd": 248,
+    "maxSpd": 330,
+    "spdProfile": {
+      "37000": 248,
+      "10000": 250,
+      "3000":  175,
+      "1500":  155,
+      "1000":  148,
+      "0":     138
+    }
+  },
+  "performance": {
+    "mass":       200000,
+    "wingArea":   361.6,
+    "thrustMax":  604000,
+    "CL_0":       0.20,
+    "CL_alpha":   4.5,
+    "CL_max":     2.0,
+    "CD_0":       0.018,
+    "inducedK":   0.038,
+    "Vr":         165,
+    "muRoll":     0.02,
+    "muBrake":    0.40,
+    "gearDrag":   0.012
+  },
+  "handling": {
+    "rollRate":  18,
+    "pitchRate":  4,
+    "maxBank":   35,
+    "maxPitch":  20
+  },
+  "situations": [
+    {
+      "label": "GROUND",
+      "alt": 186,
+      "spd": 0,
+      "hdg": 143,
+      "altT": 186,
+      "spdT": 0
+    },
+    {
+      "label": "TAKEOFF",
+      "alt": 186,
+      "spd": 170,
+      "hdg": 143,
+      "altT": 10000,
+      "spdT": 330
+    },
+    {
+      "label": "CLIMB",
+      "alt": 10000,
+      "spd": 250,
+      "hdg": 320,
+      "altT": 37000,
+      "spdT": 248
+    },
+    {
+      "label": "CRUISE",
+      "alt": 37000,
+      "spd": 248,
+      "hdg": 320,
+      "altT": 37000,
+      "spdT": 248
+    },
+    {
+      "label": "APPROACH",
+      "alt": 3000,
+      "spd": 175,
+      "hdg": 145,
+      "altT": 2000,
+      "spdT": 175
+    }
+  ],
+  "thrustProfiles": [
+    { "label": "IDLE",  "spdT": 0 },
+    { "label": "CLB",   "spdT": 175 },
+    { "label": "MCT",   "spdT": 248 },
+    { "label": "TOGA",  "spdT": 330 }
+  ],
+  "flaps": [
+    { "label": "0",    "dCL_max": 0.00, "dCD_0": 0.000 },
+    { "label": "1+F",  "dCL_max": 0.45, "dCD_0": 0.010 },
+    { "label": "2",    "dCL_max": 0.75, "dCD_0": 0.025 },
+    { "label": "3",    "dCL_max": 1.10, "dCD_0": 0.060 }
+  ],
+  "ambient": {
+    "type": "turbofan",
+    "freqMin": 180,
+    "freqMax": 380,
+    "detune": 4,
+    "gainMin": 0.005,
+    "gainMax": 0.018
+  },
+  "sound": {
+    "engineType": "geared-turbofan"
+  },
+  "fmaPhases": [
+    {
+      "minAlt": 10000,
+      "vals": ["SPD", "AP", "LNAV", "VNAV CRZ", "ALTS"],
+      "cols": ["white", "green", "green", "cyan", "white"]
+    },
+    {
+      "minAlt": 3000,
+      "vals": ["SPD", "AP", "LNAV", "VNAV DES", ""],
+      "cols": ["white", "green", "green", "cyan", "white"]
+    },
+    {
+      "minAlt": 0,
+      "vals": ["SPD", "AP", "LOC", "G/S", ""],
+      "cols": ["white", "green", "green", "green", "white"]
+    }
+  ],
+  "raCallouts": [
+    { "alt": 2500, "text": "2 5 0 0",   "speech": "twenty-five hundred",    "red": false },
+    { "alt": 1000, "text": "1 0 0 0",   "speech": "one thousand",           "red": false },
+    { "alt":  500, "text": "5 0 0",     "speech": "five hundred",           "red": false },
+    { "alt":  400, "text": "4 0 0",     "speech": "four hundred",           "red": false },
+    { "alt":  300, "text": "3 0 0",     "speech": "three hundred",          "red": false },
+    { "alt":  200, "text": "2 0 0",     "speech": "two hundred",            "red": false },
+    { "alt":  100, "text": "1 0 0",     "speech": "one hundred",            "red": false },
+    { "alt":   50, "text": "5 0",       "speech": "fifty",                  "red": false },
+    { "alt":   40, "text": "4 0",       "speech": "forty",                  "red": false },
+    { "alt":   30, "text": "3 0",       "speech": "thirty",                 "red": false },
+    { "alt":   20, "text": "2 0",       "speech": "twenty",                 "red": false },
+    { "alt":   10, "text": "R E T A R D", "speech": "retard",              "red": false },
+    { "alt":    5, "text": "R E T A R D", "speech": "retard",              "red": false }
+  ],
+  "pmCallouts": [
+    { "alt": 10000, "speech": "passing ten thousand" },
+    { "alt": 5000,  "speech": "passing five thousand" },
+    { "alt": 4000,  "speech": "passing four thousand" },
+    { "alt": 3000,  "speech": "passing three thousand" },
+    { "alt": 2000,  "speech": "passing two thousand" },
+    { "alt": 1000,  "speech": "passing one thousand" }
+  ],
+  "kneeboard": [
+    {
+      "title": "FIMP DEPARTURE",
+      "type": "briefing",
+      "items": [
+        "Sir Seewoosagur Ramgoolam Int'l — FIMP",
+        "Runway 14 · Heading 143° · Elevation 186 ft",
+        "Edelweiss Air EDW → LSZH Zürich",
+        "Routing: FIMP → VANAR → LAKLU → Kenya → Egypt → Alps → LSZH",
+        "Est. flight time: 10h 40min · FL370 M0.82",
+        "MTOW departure — heavy — Vr 165 kt V2 181 kt"
+      ]
+    },
+    {
+      "title": "ENGINE START",
+      "type": "checklist",
+      "items": [
+        "APU — running, bleed on",
+        "FUEL — pumps on, X-feed as required",
+        "ENG 1, 2, 3, 4 — START (E key)",
+        "N1 idle ~23% — check all 4 engines",
+        "ENG MASTER 1-4 — ON",
+        "Anti-ice — as required"
+      ]
+    },
+    {
+      "title": "BEFORE TAKEOFF",
+      "type": "checklist",
+      "items": [
+        "FLAPS — CONF 1+F (F key × 1)",
+        "TRIM — set for CG",
+        "FLIGHT CONTROLS — checked",
+        "TRANSPONDER — ON, squawk set",
+        "CABIN — advised",
+        "TAKEOFF BRIEFING — complete"
+      ]
+    },
+    {
+      "title": "TAKEOFF",
+      "type": "briefing",
+      "items": [
+        "Thrust: TOGA (F4 key) at runway entry",
+        "Monitor N1 — all 4 engines ≥ 90%",
+        "V1: 162 kt  Vr: 165 kt  V2: 181 kt",
+        "Rotate at Vr — 12-15° pitch attitude",
+        "Gear up at positive climb (G key)",
+        "Flaps retract on schedule",
+        "Climb via SID — maintain RWY HDG to 3000 ft"
+      ]
+    }
+  ]
+}

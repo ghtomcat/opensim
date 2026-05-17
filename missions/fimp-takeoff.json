@@ -1,0 +1,75 @@
+{
+  "id": "fimp-takeoff",
+  "phase": "ground",
+  "title": "Takeoff — Mauritius FIMP",
+  "description": "Edelweiss Air A340 ready for engine start on runway 14, Mauritius. Sunrise. Heavy. Long haul to Zürich.",
+  "author": "Markus Leutwyler",
+  "aircraft": "a340",
+  "departure": {
+    "icao": "FIMP",
+    "name": "Mauritius",
+    "runway": "14",
+    "elevation": 186
+  },
+  "arrival": {
+    "icao": "LSZH",
+    "name": "Zürich",
+    "runway": "28",
+    "ils": {
+      "freq": "110.300",
+      "course": 280
+    },
+    "elevation": 1416
+  },
+  "initialState": {
+    "lat":  -20.432,
+    "lon":   57.681,
+    "alt":   186,
+    "spd":   0,
+    "hdg":   143,
+    "pitch": 0,
+    "roll":  0
+  },
+  "weather": {
+    "source": "live",
+    "icao": "FIMP",
+    "fallback": {
+      "wdir": 130,
+      "wspd": 12,
+      "altim": 1013,
+      "temp": 28,
+      "dewp": 22,
+      "visib": "6+",
+      "clouds": [
+        { "cover": "FEW", "base": 2500 }
+      ]
+    }
+  },
+  "atcClearances": [
+    {
+      "pm": "Edelweiss nine one seven, request IFR clearance to Zürich",
+      "atc": "Edelweiss nine one seven, cleared to Zürich LSZH, flight level three seven zero, runway one four, departure heading one four zero, squawk four seven zero three"
+    },
+    {
+      "pm": "Edelweiss nine one seven, ready for pushback and start",
+      "atc": "Edelweiss nine one seven, pushback approved, start at your discretion"
+    },
+    {
+      "pm": "Edelweiss nine one seven, request taxi",
+      "atc": "Edelweiss nine one seven, taxi to holding point runway one four via Alpha and Bravo, QNH one zero one three"
+    },
+    {
+      "pm": "Holding point runway one four, Edelweiss nine one seven, ready",
+      "atc": "Edelweiss nine one seven, wind one three zero at twelve, runway one four, cleared for takeoff"
+    }
+  ],
+  "approachBriefAlt": 9500,
+  "debrief": [
+    "Did all 4 engines start cleanly — any N1 anomalies?",
+    "Was the rolling takeoff smooth on runway 14?",
+    "Did you catch the Indian Ocean off the left after rotation?",
+    "How heavy did the A340 feel on rotation — 10h of fuel aboard"
+  ],
+  "failures": [],
+  "timeOfDay": 6.5
+}

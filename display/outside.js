@@ -464,6 +464,33 @@ const _WB_NP = {
     ],
     wing: _WB_WING_DEFAULT,
   },
+  /* A340-313: same Airbus nose family as A220; wide span + 4 engines (inner ey, outer ey2).
+     The nacelle mesh renders at ey (inner pair); ey2 drives the outer engine fan pass. */
+  a340: {
+    ey: 0.0058, ey2: 0.0100, ez: -0.00230, er: 0.00108, erc: 0.00075, pz: -0.00068,
+    tipX: 0.021, tipCz: 0.0001,
+    noseRings: [
+      { vF: 0.020, r: _nr1*0.45, col: 6 },
+      { vF: 0.018, r: _nr1,      col: 0 },
+      { vF: 0.016, r: _nr2*0.95, col: 0 },
+      { vF: 0.015, r: _nr3,      col: 5 },
+      { vF: 0.013, r: _r,        col: 0 },
+    ],
+    windows: [
+      [ 0.019,  0.0002,  0.0009],[ 0.015,  0.0004,  0.0018],
+      [ 0.015,  0.0012,  0.0014],[ 0.019,  0.0006,  0.0006],
+      [ 0.019, -0.0002,  0.0009],[ 0.015, -0.0004,  0.0018],
+      [ 0.015, -0.0012,  0.0014],[ 0.019, -0.0006,  0.0006],
+    ],
+    wing: {
+      span:      0.0200,
+      rootLE:    0.005,  rootTE:   -0.004,
+      tipLE:    -0.004,  tipTE:    -0.007,
+      dihedral:  0.0014,
+      rootThick: 0.00105, tipThick: 0.00022,
+      flapBreak: 0.58,   flapHinge: 0.72,
+    },
+  },
   /* 737-800: narrowbody r=0.00195; CFM56-7 closer inboard + lower; shorter swept wing */
   b737: {
     r: 0.00195, ey: 0.00380, ez: -0.00190, er: 0.00096, erc: 0.00063, pz: -0.00062,
@@ -820,7 +847,7 @@ function _buildWB(np) {
 
 /* Build + cache geometry per aircraft nose profile */
 const _wbCache = {};
-for (const id of ['default','a350','a220','e190','b737']) {
+for (const id of ['default','a350','a220','e190','b737','a340']) {
   const geo = _buildWB(_WB_NP[id]);
   geo.FN_ = computeFaceNormals(geo.V_, geo.F_);
   _wbCache[id] = geo;
@@ -3874,8 +3901,20 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   if (!isC172 && !isF9 && !isBf109 && !isF4U && !isSV) {
     const ePow = S.enginePower ?? 0;
     if (ePow > 0 || S.engineState === 'running') {
-      _drawTurbofanFace(ctx, pts[_b+158], pts[_b+20], ePow, dpr, 22);  // R engine (rim = intake ring top)
-      _drawTurbofanFace(ctx, pts[_b+159], pts[_b+60], ePow, dpr, 22);  // L engine
+      _drawTurbofanFace(ctx, pts[_b+158], pts[_b+20], ePow, dpr, 22);  // R inner
+      _drawTurbofanFace(ctx, pts[_b+159], pts[_b+60], ePow, dpr, 22);  // L inner
+      /* 4-engine aircraft (A340): also render outer engine fans at ey2 */
+      const _ey2 = _wbGeo?.ey2;
+      if (_ey2) {
+        const _ez2 = _wbGeo.ez ?? _ez;
+        const _er2 = _wbGeo.er ?? _er;
+        const pHR = project([0.005,  _ey2, _ez2]);
+        const pRR = project([0.005,  _ey2, _ez2 + _er2]);
+        const pHL = project([0.005, -_ey2, _ez2]);
+        const pRL = project([0.005, -_ey2, _ez2 + _er2]);
+        if (pHR && pRR) _drawTurbofanFace(ctx, pHR, pRR, ePow, dpr, 22);
+        if (pHL && pRL) _drawTurbofanFace(ctx, pHL, pRL, ePow, dpr, 22);
+      }
     }
   }
 
