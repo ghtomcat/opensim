@@ -1,8 +1,8 @@
 {
   "id": "evra-approach",
-  "phase": "approach",
-  "title": "ILS Approach — Rīga EVRA",
-  "description": "ILS approach into Riga runway 36. Live METAR. Full crew loop with Air Baltic crew.",
+  "phase": "cruise",
+  "title": "Cruise — Warsaw to Rīga",
+  "description": "Air Baltic A220 at cruise altitude over Poland, inbound Riga. FL350. Live METAR. Baltic Sea ahead to the left.",
   "author": "Markus Leutwyler",
   "aircraft": "a220",
   "departure": null,
@@ -17,11 +17,11 @@
     "elevation": 36
   },
   "initialState": {
-    "lat": 55.50,
-    "lon": 24.10,
-    "alt": 39000,
-    "spd": 288,
-    "hdg": 360,
+    "lat": 55.0,
+    "lon": 21.1,
+    "alt": 35000,
+    "spd": 290,
+    "hdg": 045,
     "pitch": 2,
     "roll": 0
   },
@@ -42,24 +42,20 @@
   },
   "atcClearances": [
     {
-      "alt": 36000,
-      "pm": "Riga control, Airbaltic, request descent, flight level two four zero",
-      "atc": "Airbaltic, Riga control, descend flight level two four zero, standard pressure"
+      "pm": "Warsaw control, Airbaltic, flight level three five zero, estimating Riga in fifty minutes",
+      "atc": "Airbaltic, Warsaw control, radar contact, maintain flight level three five zero"
     },
     {
-      "alt": 23000,
-      "pm": "request lower, flight level one eight zero",
-      "atc": "Airbaltic, descend flight level one eight zero"
+      "pm": "Crossing into Lithuanian airspace, Airbaltic",
+      "atc": "Airbaltic, contact Vilnius control on one three four decimal two seven five"
     },
     {
-      "alt": 16000,
-      "pm": "request flight level one zero zero",
-      "atc": "Airbaltic, descend flight level one zero zero, expect ILS approach runway three six"
+      "pm": "Vilnius control, Airbaltic, flight level three five zero",
+      "atc": "Airbaltic, Vilnius control, identified, maintain flight level three five zero"
     },
     {
-      "alt": 11000,
-      "pm": "cleared ILS runway three six, Airbaltic",
-      "atc": "Airbaltic, cleared ILS approach runway three six. Contact Riga approach, one one nine decimal five. Labu lidojumu."
+      "pm": "Request descent, Airbaltic",
+      "atc": "Airbaltic, descend flight level two four zero, contact Riga control on one two three decimal five"
     }
   ],
   "approachBrief": [
@@ -77,10 +73,10 @@
   ],
   "approachBriefAlt": 9500,
   "debrief": [
-    "Was the approach stabilised at 1000ft?",
-    "Were all GPWS callouts confirmed?",
-    "Was the decision height called correctly?",
-    "How was the Baltic light during approach?"
+    "Was FL350 cruise stable — did the AP hold altitude?",
+    "Did you catch the Baltic Sea approaching from the left?",
+    "Was the descent clearance handled on time?",
+    "How was the Baltic light during the descent?"
   ],
   "failures": [],
   "timeOfDay": 14.0

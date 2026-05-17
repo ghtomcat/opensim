@@ -1,28 +1,23 @@
 {
   "id": "lsgg-approach",
-  "phase": "approach",
-  "title": "ILS Approach — Genève LSGG",
-  "description": "ILS approach into Geneva runway 23. Live METAR. Full crew loop: ATC clearances, approach brief, GPWS callouts.",
+  "phase": "ground",
+  "title": "Takeoff — Genève LSGG",
+  "description": "Helvetic Airways E190 ready for departure from runway 23. Live METAR. Cleared for immediate takeoff. Mountains ahead.",
   "author": "Markus Leutwyler",
   "aircraft": "e190",
-  "departure": null,
-  "arrival": {
+  "departure": {
     "icao": "LSGG",
     "name": "Genève",
-    "runway": "23",
-    "ils": {
-      "freq": "109.750",
-      "course": 228
-    },
     "elevation": 1411
   },
+  "arrival": null,
   "initialState": {
-    "lat": 47.20,
-    "lon": 8.10,
-    "alt": 39000,
-    "spd": 278,
-    "hdg": 230,
-    "pitch": 2,
+    "lat": 46.248,
+    "lon": 6.135,
+    "alt": 1411,
+    "spd": 0,
+    "hdg": 228,
+    "pitch": 0,
     "roll": 0
   },
   "weather": {
@@ -42,46 +37,28 @@
   },
   "atcClearances": [
     {
-      "alt": 36000,
-      "pm": "Geneva control, Helvetic, request descent, flight level two four zero",
-      "atc": "Helvetic, Geneva control, descend flight level two four zero, standard pressure"
+      "pm": "Helvetic, startup approved, IFR to Zürich, squawk 4712",
+      "atc": "Helvetic, startup approved, clearance to Zürich LSZH, flight level two four zero, departure heading two one zero, squawk four seven one two"
     },
     {
-      "alt": 23000,
-      "pm": "request lower, flight level one eight zero",
-      "atc": "Helvetic, cleared flight level one eight zero"
+      "pm": "request taxi, runway two three",
+      "atc": "Helvetic, taxi to holding point runway two three via Foxtrot and November"
     },
     {
-      "alt": 16000,
-      "pm": "request flight level one zero zero",
-      "atc": "Helvetic, descend flight level one zero zero, expect ILS approach runway two three"
+      "pm": "Holding point runway two three, ready",
+      "atc": "Helvetic, line up and wait runway two three, one departure ahead"
     },
     {
-      "alt": 11000,
-      "pm": "request ILS runway two three, Helvetic",
-      "atc": "Helvetic, cleared ILS approach runway two three. Contact Geneva approach, one one eight decimal seven. Bonne arrivée."
+      "pm": "Lining up two three, Helvetic",
+      "atc": "Helvetic, wind two three zero at ten, runway two three, cleared for takeoff"
     }
   ],
-  "approachBrief": [
-    { "v": "pf", "t": "start approach briefing" },
-    { "v": "pf", "t": "destination, Geneva, Lima Sierra Golf Golf. runway two three. ILS approach, frequency one zero niner decimal seven five zero" },
-    { "v": "pm", "t": "confirmed" },
-    { "v": "pf", "t": "initial approach altitude, four thousand feet. final approach course, two two eight degrees" },
-    { "v": "pm", "t": "checked" },
-    { "v": "pf", "t": "decision height, two hundred feet. minimums set. auto-call out armed" },
-    { "v": "pm", "t": "confirmed" },
-    { "v": "pf", "t": "missed approach: climb runway heading to four thousand, then right turn direct Geneva VOR" },
-    { "v": "pm", "t": "understood" },
-    { "v": "pf", "t": "vee app one three five knots. flaps full. landing checklist after gear down" },
-    { "v": "pm", "t": "ready for approach" }
-  ],
-  "approachBriefAlt": 9500,
   "debrief": [
-    "Was the approach stabilised at 1000ft AGL?",
-    "Were all GPWS callouts confirmed?",
-    "Was the decision height called correctly?",
-    "Lake Geneva off the left — did terrain not cause distraction?"
+    "Was the takeoff roll smooth on runway 23?",
+    "Did you maintain runway heading until 1000ft AGL?",
+    "Lake Geneva appeared off the right — did you see it?",
+    "Mont Blanc is visible at 12 o'clock — how clear was it?"
   ],
   "failures": [],
-  "timeOfDay": 11.0
+  "timeOfDay": 9.0
 }

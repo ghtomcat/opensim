@@ -52,7 +52,7 @@ function _tick(now) {
   if (!S.paused) tickControls(dt);
 
   if (!S.paused) {
-    const isRocket = S.aircraft?.vehicleType === 'rocket' || S.aircraft?.panel;
+    const isRocket = S.aircraft?.vehicleType === 'rocket';
     const warp     = isRocket ? (S.warpFactor ?? 1) : 1;
     const warpDt   = dt * warp;
     const prevAlt  = S.alt;
