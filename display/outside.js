@@ -893,6 +893,7 @@ function _buildWB(np) {
     [b+118,b+147,b+101,b+100],[b+118,b+100,b+101,b+147],  // R winglet (LE→ailHinge root, swept tip)
     [b+122,b+151,b+103,b+102],[b+122,b+102,b+103,b+151],  // L winglet
     // V-stab airfoil (b+160..b+171)
+    [b+161,b+167,b+166,b+160],                             // LE cap (root→tip, filled forward face)
     [b+160,b+162,b+168,b+166],[b+161,b+167,b+169,b+163],  // main body +Y/-Y
     [b+162,b+164,b+170,b+168],[b+163,b+169,b+171,b+165],  // rudder +Y/-Y
     [b+166,b+167,b+169,b+168],[b+168,b+169,b+171,b+170],  // tip cap fwd+aft
@@ -933,7 +934,7 @@ function _buildWB(np) {
     8,8, 8,8,                             // cockpit windows R+L (4)
     1,1,1,1, 1,1,1,1,                          // LE rounds R+L (8)
     1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1, 9,9,9,9,  // R wing (14) + L wing (14) + winglets (4)
-    2,2,2,2,2,2, 3,3,3,3, 3,3,3,3,        // vstab airfoil (6) + R hstab (4) + L hstab (4)
+    2,2,2,2,2,2,2, 3,3,3,3, 3,3,3,3,       // vstab airfoil (7) + R hstab (4) + L hstab (4)
     4,4,4,4,4,4,4,4, 4,4,4,4,4,4,4,4,   // R engine A→B + B→C (16)
     7,7,7,7,7,7,7,7,                      // R engine C→D TR zone (8)
     4,4,4,4,4,4,4,4,                      // R engine D→E (8)
