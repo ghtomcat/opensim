@@ -835,6 +835,9 @@ function _buildWB(np) {
     V_.push(_spLerp(_shRL, _shBL, t));          // L hinge intermediate
     V_.push(_spLerp(WV[36], WV[37], t));        // L TE intermediate (b+223/225/227)
   }
+  /* Spoiler panel root/break TE — separate from the wing-face corners b+137/139/141/143
+     so the static wing face doesn't deform when spoilers deploy (b+228..b+231) */
+  V_.push(WV[14].slice(), WV[15].slice(), WV[36].slice(), WV[37].slice());
 
   /* Nose tris: noseTip → ring0 (outward normals) */
   for (let si = 0; si < N; si++) { F_.push([noseTip, rb[0]+(si+1)%N, rb[0]+si]); FC_.push(6); }
@@ -857,10 +860,10 @@ function _buildWB(np) {
     [b+108,b+109,b+110,b+111],[b+108,b+111,b+110,b+109],  // L cockpit window
     /* R wing: inner upper (full, spoilers sit on top) + 4 spoiler panels + flap + lower; outer (aileron); tip cap */
     [b+116,b+126,b+139,b+137],                   // R inner fixed upper (LE→flap hinge, under spoilers)
-    [b+212,b+216,b+217,b+137],                   // R spoiler panel 1 (root→0.25)
+    [b+212,b+216,b+217,b+228],                   // R spoiler panel 1 (root→0.25)
     [b+216,b+218,b+219,b+217],                   // R spoiler panel 2 (0.25→0.50)
     [b+218,b+220,b+221,b+219],                   // R spoiler panel 3 (0.50→0.75)
-    [b+220,b+213,b+139,b+221],                   // R spoiler panel 4 (0.75→break)
+    [b+220,b+213,b+229,b+221],                   // R spoiler panel 4 (0.75→break)
     [b+197,b+199,b+203,b+201],                   // R flap upper         (decoupled hinge→TE)
     [b+0,b+136,b+138,b+124],                     // R inner fixed lower
     [b+196,b+200,b+202,b+198],                   // R flap lower         (decoupled)
@@ -872,10 +875,10 @@ function _buildWB(np) {
     [b+146,b+3,b+119,b+147],                     // R aileron tip
     /* L wing */
     [b+120,b+141,b+143,b+130],                   // L inner fixed upper (LE→flap hinge, under spoilers)
-    [b+214,b+141,b+223,b+222],                   // L spoiler panel 1 (root→0.25)
+    [b+214,b+230,b+223,b+222],                   // L spoiler panel 1 (root→0.25)
     [b+222,b+223,b+225,b+224],                   // L spoiler panel 2 (0.25→0.50)
     [b+224,b+225,b+227,b+226],                   // L spoiler panel 3 (0.50→0.75)
-    [b+226,b+227,b+143,b+215],                   // L spoiler panel 4 (0.75→break)
+    [b+226,b+227,b+231,b+215],                   // L spoiler panel 4 (0.75→break)
     [b+205,b+209,b+211,b+207],                   // L flap upper         (decoupled)
     [b+4,b+128,b+142,b+140],                     // L inner fixed lower
     [b+204,b+206,b+210,b+208],                   // L flap lower         (decoupled)
@@ -3283,16 +3286,16 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         const r1 = r_sp_rt + 0.25*(r_sp_hs-r_sp_rt);
         const r2 = r_sp_rt + 0.50*(r_sp_hs-r_sp_rt);
         const r3 = r_sp_rt + 0.75*(r_sp_hs-r_sp_rt);
-        animHinge(verts, [_bL+137], r_sp_rt, +sa, 'z', _wbV);  // R root TE
+        animHinge(verts, [_bL+228], r_sp_rt, +sa, 'z', _wbV);  // R root TE
         animHinge(verts, [_bL+217], r1,      +sa, 'z', _wbV);  // R 0.25 TE
         animHinge(verts, [_bL+219], r2,      +sa, 'z', _wbV);  // R 0.50 TE
         animHinge(verts, [_bL+221], r3,      +sa, 'z', _wbV);  // R 0.75 TE
-        animHinge(verts, [_bL+139], r_sp_hs, +sa, 'z', _wbV);  // R break TE
-        animHinge(verts, [_bL+141], r_sp_rt, +sa, 'z', _wbV);  // L root TE
+        animHinge(verts, [_bL+229], r_sp_hs, +sa, 'z', _wbV);  // R break TE
+        animHinge(verts, [_bL+230], r_sp_rt, +sa, 'z', _wbV);  // L root TE
         animHinge(verts, [_bL+223], r1,      +sa, 'z', _wbV);  // L 0.25 TE
         animHinge(verts, [_bL+225], r2,      +sa, 'z', _wbV);  // L 0.50 TE
         animHinge(verts, [_bL+227], r3,      +sa, 'z', _wbV);  // L 0.75 TE
-        animHinge(verts, [_bL+143], r_sp_hs, +sa, 'z', _wbV);  // L break TE
+        animHinge(verts, [_bL+231], r_sp_hs, +sa, 'z', _wbV);  // L break TE
       }
     }
   }
