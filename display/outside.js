@@ -4116,19 +4116,14 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     const _ftFH   = _ftwg.flapHinge ?? 0.70;
     const _ftRootY = _wbGeo.r;
     const _ftBrkY  = _ftSpan * _ftFB;
-    const _ftFlap  = S.flaps ?? 0;
-    const _ftFa    = _ftFlap * 15 * DEG;
-    const _ftFowler = _ftFa * _wbGeo.anim.r_rt * 1.5;
-    const _ftCosFa  = Math.cos(_ftFa);
-    const _ftSinFa  = Math.sin(_ftFa);
     /* Pod dimensions — width and depth relative to fuselage radius */
-    const ftW = _wbGeo.r * 0.075;   // half-width of pod at widest point
-    const ftD = _wbGeo.r * 0.150;   // max depth below wing lower surface
+    const ftW = _wbGeo.r * 0.080;   // half-width of pod at widest point
+    const ftD = _wbGeo.r * 0.320;   // max depth below wing lower surface
     /* Correct wing lower surface Z — linear interpolation root→break→tip */
-    const ftWR   = _wbGeo.r * 0.7071;                              // root lower y attachment Z
-    const ftzR   = -ftWR;                                          // z at root
-    const ftzB   = -ftWR + _ftFB * (_ftwg.dihedral + ftWR);       // z at break (wzh)
-    const ftzT   = _ftwg.dihedral;                                 // z at tip
+    const ftWR   = _wbGeo.r * 0.7071;
+    const ftzR   = -ftWR;
+    const ftzB   = -ftWR + _ftFB * (_ftwg.dihedral + ftWR);
+    const ftzT   = _ftwg.dihedral;
     const wLowerZ = (yAbs) => {
       if (yAbs <= _ftBrkY)
         return ftzR + (yAbs - ftWR) / Math.max(_ftBrkY - ftWR, 1e-9) * (ftzB - ftzR);
@@ -4145,27 +4140,20 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         const fxTE  = _ftwg.rootTE + (_ftwg.tipTE - _ftwg.rootTE) * ts2;
         const fChord = fxLE - fxTE;
         const fxH   = fxLE - fChord * _ftFH;          // hinge — never moves
-        const fFlap  = fChord * (1 - _ftFH);           // flap chord length at this station
         const fZtop  = wLowerZ(yAbs);                  // wing lower surface z at this station
-        /* Fixed section (forward of hinge — attached to wing) */
-        const fxFwd  = fxH + fChord * 0.45;            // fwd tip
+        /* Fixed fairing body — flap slides on tracks inside, fairing stays put */
+        const fxFwd  = fxH + fChord * 0.45;            // fwd tip (into fixed wing)
         const fxBel  = fxH + fChord * 0.20;            // belly max
-        /* Moving section — aft end tracks flap rotation + Fowler shift.
-           Point at fraction t along flap chord (t=0 at hinge, t=1 at TE):
-             x = fxH - fFlap*t*cosFa - _ftFowler*t
-             z = fZtop - fFlap*t*sinFa                                         */
-        const fxMid  = fxH - fFlap * 0.50 * _ftCosFa - _ftFowler * 0.50;
-        const fzMid  = fZtop - fFlap * 0.50 * _ftSinFa;
-        const fxAft  = fxH - fFlap * _ftCosFa - _ftFowler;
-        const fzAft  = fZtop - fFlap * _ftSinFa;
+        const fxAft1 = fxH - fChord * 0.12;            // aft body (just aft of hinge)
+        const fxAft2 = fxH - fChord * 0.26;            // aft tip (closes off)
 
-        /* Spine: [x, zt, depth-below-attachment, half-width] */
+        /* Spine: [x, zt, depth-below-attachment, half-width] — all fixed to wing */
         const spine = [
-          { x: fxFwd,  zt: fZtop, dp: ftD*0.06, hw: 0        },  // fwd tip  (fixed wing)
-          { x: fxBel,  zt: fZtop, dp: ftD,       hw: ftW      },  // belly    (fixed wing)
-          { x: fxH,    zt: fZtop, dp: ftD*0.72,  hw: ftW*0.82 },  // hinge    (pivot)
-          { x: fxMid,  zt: fzMid, dp: ftD*0.52,  hw: ftW*0.52 },  // mid-flap (rotating)
-          { x: fxAft,  zt: fzAft, dp: ftD*0.06,  hw: 0        },  // aft tip  (on flap TE)
+          { x: fxFwd,  zt: fZtop, dp: ftD*0.06, hw: 0        },  // fwd tip
+          { x: fxBel,  zt: fZtop, dp: ftD,       hw: ftW      },  // belly max
+          { x: fxH,    zt: fZtop, dp: ftD*0.72,  hw: ftW*0.82 },  // hinge
+          { x: fxAft1, zt: fZtop, dp: ftD*0.35,  hw: ftW*0.40 },  // aft body
+          { x: fxAft2, zt: fZtop, dp: ftD*0.06,  hw: 0        },  // aft tip
         ];
 
         /* Cross-section at each station: TL, TR, BL, BR */
