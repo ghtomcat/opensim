@@ -4884,7 +4884,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         return [
           { pos: [_ltX,  _ltY, _ltZ], col: [  0, 210,  80], key: 'nav'     },
           { pos: [_ltX, -_ltY, _ltZ], col: [220,  40,  40], key: 'nav'     },
-          { pos: [-0.020,  0,  0.007], col: [255, 255, 255], key: 'nav'     },
+          { pos: [(_vsTL+_vsTH)/2, 0, vstabZ], col: [255, 255, 255], key: 'nav' },
           { pos: [ 0.001,  0, _wbGeo.r], col: [220, 50, 50], key: 'beacon' },
           { pos: [_ltX,  _ltY, _ltZ], col: [255, 255, 255], key: 'strobe'  },
           { pos: [_ltX, -_ltY, _ltZ], col: [255, 255, 255], key: 'strobe'  },
