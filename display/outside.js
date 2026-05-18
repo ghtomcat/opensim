@@ -855,8 +855,8 @@ function _buildWB(np) {
   F_.push(
     [b+104,b+105,b+106,b+107],[b+104,b+107,b+106,b+105],  // R cockpit window
     [b+108,b+109,b+110,b+111],[b+108,b+111,b+110,b+109],  // L cockpit window
-    /* R wing: inner split into fixed fwd + spoiler + flap; outer (aileron); tip cap */
-    [b+116,b+126,b+213,b+212],                   // R inner fixed upper fwd (LE→spoiler hinge)
+    /* R wing: inner upper (full, spoilers sit on top) + 4 spoiler panels + flap + lower; outer (aileron); tip cap */
+    [b+116,b+126,b+139,b+137],                   // R inner fixed upper (LE→flap hinge, under spoilers)
     [b+212,b+216,b+217,b+137],                   // R spoiler panel 1 (root→0.25)
     [b+216,b+218,b+219,b+217],                   // R spoiler panel 2 (0.25→0.50)
     [b+218,b+220,b+221,b+219],                   // R spoiler panel 3 (0.50→0.75)
@@ -871,7 +871,7 @@ function _buildWB(np) {
     [b+2,b+146,b+147,b+118],                     // R tip LE cap (fixed)
     [b+146,b+3,b+119,b+147],                     // R aileron tip
     /* L wing */
-    [b+120,b+214,b+215,b+130],                   // L inner fixed upper fwd (LE→spoiler hinge)
+    [b+120,b+141,b+143,b+130],                   // L inner fixed upper (LE→flap hinge, under spoilers)
     [b+214,b+141,b+223,b+222],                   // L spoiler panel 1 (root→0.25)
     [b+222,b+223,b+225,b+224],                   // L spoiler panel 2 (0.25→0.50)
     [b+224,b+225,b+227,b+226],                   // L spoiler panel 3 (0.50→0.75)
@@ -896,7 +896,7 @@ function _buildWB(np) {
     [b+161,b+167,b+166,b+160],                             // LE cap (root→tip, filled forward face)
     [b+160,b+162,b+168,b+166],[b+161,b+167,b+169,b+163],  // main body +Y/-Y
     [b+162,b+164,b+170,b+168],[b+163,b+169,b+171,b+165],  // rudder +Y/-Y
-    [b+166,b+167,b+169,b+168],[b+168,b+169,b+171,b+170],  // tip cap fwd+aft
+    [b+168,b+169,b+167,b+166],[b+170,b+171,b+169,b+168],  // tip cap fwd+aft
     // R h-stab airfoil (b+172..b+183)
     [b+172,b+174,b+180,b+178],[b+173,b+179,b+181,b+175],  // main body up/dn
     [b+174,b+176,b+182,b+180],[b+175,b+181,b+183,b+177],  // elevator up/dn
