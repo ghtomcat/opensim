@@ -1,6 +1,7 @@
 {
   "id": "b737",
   "name": "Boeing 737-800",
+  "flapTracks": 4,
   "clock": "digital",
   "panel": "airbus",
   "livery": {
@@ -18,6 +19,32 @@
   "approachSpeed": 138,
   "callsign": "Speedbird",
   "icaoType": "B738",
+  "nose": {
+    "tipX": 0.018,
+    "r": 0.00195,
+    "noseRings": [
+      { "vF": 0.0170, "rFrac": 0.383, "col": 6 },
+      { "vF": 0.0160, "rFrac": 0.707, "col": 0 },
+      { "vF": 0.0140, "rFrac": 0.924, "col": 5 },
+      { "vF": 0.0130, "rFrac": 1.000, "col": 0 }
+    ],
+    "windows": [
+      [0.016,  0.0002, 0.0010],[0.013,  0.0003, 0.0016],
+      [0.013,  0.0011, 0.0012],[0.016,  0.0006, 0.0006],
+      [0.016, -0.0002, 0.0010],[0.013, -0.0003, 0.0016],
+      [0.013, -0.0011, 0.0012],[0.016, -0.0006, 0.0006]
+    ]
+  },
+  "wing": {
+    "span": 0.01780, "rootLE": 0.0055, "rootTE": -0.0028,
+    "tipLE": -0.0033, "tipTE": -0.0060,
+    "dihedral": 0.0024, "rootThick": 0.00065, "tipThick": 0.00015,
+    "flapBreak": 0.55, "flapHinge": 0.72
+  },
+  "geometry": {
+    "engineY": 0.00380, "engineZ": -0.00190,
+    "engineR": 0.00096, "engineRC": 0.00063, "pylonZ": -0.00062
+  },
   "envelope": {
     "cruiseAlt": 41000,
     "maxAlt": 41000,

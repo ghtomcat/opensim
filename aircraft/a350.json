@@ -1,6 +1,7 @@
 {
   "id": "a350",
   "name": "Airbus A350-900",
+  "flapTracks": 8,
   "clock": "digital",
   "panel": "airbus",
   "swissCross": true,
@@ -19,6 +20,33 @@
   "approachSpeed": 140,
   "callsign": "VisionPilot",
   "icaoType": "A359",
+  "nose": {
+    "tipX": 0.023,
+    "tipCz": -0.0002,
+    "noseRings": [
+      { "vF": 0.0220, "rFrac": 0.084, "col": 6 },
+      { "vF": 0.0210, "rFrac": 0.210, "col": 6 },
+      { "vF": 0.0200, "rFrac": 0.325, "col": 0 },
+      { "vF": 0.0180, "rFrac": 0.601, "col": 0 },
+      { "vF": 0.0160, "rFrac": 0.693, "col": 0 },
+      { "vF": 0.0150, "rFrac": 0.924, "col": 5 },
+      { "vF": 0.0130, "rFrac": 1.000, "col": 0 }
+    ],
+    "radomeRi": 2,
+    "windows": [
+      [0.020,  0.0002, 0.0013],[0.015,  0.0003, 0.0022],
+      [0.015,  0.0014, 0.0016],[0.020,  0.0008, 0.0008],
+      [0.020, -0.0002, 0.0013],[0.015, -0.0003, 0.0022],
+      [0.015, -0.0014, 0.0016],[0.020, -0.0008, 0.0008]
+    ]
+  },
+  "wing": {
+    "span": 0.0271, "rootLE": 0.005, "rootTE": -0.004,
+    "tipLE": -0.0082, "tipTE": -0.0104,
+    "dihedral": 0.0020, "rootThick": 0.00105, "tipThick": 0.00022,
+    "flapBreak": 0.58, "flapHinge": 0.72
+  },
+  "geometry": { "tailX": -0.0388 },
   "envelope": {
     "cruiseAlt": 35000,
     "maxAlt": 43000,

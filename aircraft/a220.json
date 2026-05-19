@@ -1,6 +1,7 @@
 {
   "id": "a220",
   "name": "Airbus A220-300",
+  "flapTracks": 6,
   "clock": "digital",
   "panel": "airbus",
   "livery": {
@@ -18,6 +19,30 @@
   "approachSpeed": 130,
   "callsign": "Airbaltic",
   "icaoType": "BCS3",
+  "nose": {
+    "tipX": 0.021,
+    "tipCz": 0.0001,
+    "noseRings": [
+      { "vF": 0.0200, "rFrac": 0.172, "col": 6 },
+      { "vF": 0.0180, "rFrac": 0.383, "col": 0 },
+      { "vF": 0.0160, "rFrac": 0.672, "col": 0 },
+      { "vF": 0.0150, "rFrac": 0.924, "col": 5 },
+      { "vF": 0.0130, "rFrac": 1.000, "col": 0 }
+    ],
+    "windows": [
+      [0.019,  0.0002, 0.0009],[0.015,  0.0004, 0.0018],
+      [0.015,  0.0012, 0.0014],[0.019,  0.0006, 0.0006],
+      [0.019, -0.0002, 0.0009],[0.015, -0.0004, 0.0018],
+      [0.015, -0.0012, 0.0014],[0.019, -0.0006, 0.0006]
+    ]
+  },
+  "wing": {
+    "span": 0.0215, "rootLE": 0.005, "rootTE": -0.004,
+    "tipLE": -0.0058, "tipTE": -0.0082,
+    "dihedral": 0.0016, "rootThick": 0.00080, "tipThick": 0.00018,
+    "flapBreak": 0.62, "flapHinge": 0.72
+  },
+  "geometry": { "tailX": -0.0264 },
   "envelope": {
     "cruiseAlt": 39000,
     "maxAlt": 41000,

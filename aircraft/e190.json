@@ -1,6 +1,7 @@
 {
   "id": "e190",
   "name": "Embraer E190-E2",
+  "flapTracks": 6,
   "clock": "digital",
   "panel": "e190",
   "livery": {
@@ -17,6 +18,30 @@
   "approachSpeed": 135,
   "callsign": "Helvetic",
   "icaoType": "E290",
+  "nose": {
+    "tipX": 0.020,
+    "tipCz": 0.0001,
+    "noseRings": [
+      { "vF": 0.0190, "rFrac": 0.249, "col": 6 },
+      { "vF": 0.0170, "rFrac": 0.383, "col": 0 },
+      { "vF": 0.0160, "rFrac": 0.707, "col": 0 },
+      { "vF": 0.0140, "rFrac": 0.924, "col": 5 },
+      { "vF": 0.0130, "rFrac": 1.000, "col": 0 }
+    ],
+    "windows": [
+      [0.018,  0.0002, 0.0008],[0.014,  0.0004, 0.0016],
+      [0.014,  0.0011, 0.0012],[0.018,  0.0006, 0.0005],
+      [0.018, -0.0002, 0.0008],[0.014, -0.0004, 0.0016],
+      [0.014, -0.0011, 0.0012],[0.018, -0.0006, 0.0005]
+    ]
+  },
+  "wing": {
+    "span": 0.0188, "rootLE": 0.005, "rootTE": -0.004,
+    "tipLE": -0.0045, "tipTE": -0.0069,
+    "dihedral": 0.0013, "rootThick": 0.00075, "tipThick": 0.00016,
+    "flapBreak": 0.62, "flapHinge": 0.70
+  },
+  "geometry": { "tailX": -0.0230 },
   "envelope": {
     "cruiseAlt": 39000,
     "maxAlt": 41000,

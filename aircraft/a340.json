@@ -9,7 +9,7 @@
   "clock": "digital",
   "panel": "airbus",
   "livery": {
-    "colors": [null, null, [204, 0, 0], null, null, null, [204, 0, 0], null],
+    "colors": [null, null, [204, 0, 0], null, null, null, [88, 92, 100], null],
     "decals": [
       {
         "surface": "vtail",
@@ -42,6 +42,38 @@
   "approachSpeed": 145,
   "callsign": "Edelweiss Air",
   "icaoType": "A343",
+  "nose": {
+    "tipX": 0.0200,
+    "tipCz": -0.0001,
+    "noseRings": [
+      { "vF": 0.0197, "rFrac": 0.20, "col": 6 },
+      { "vF": 0.0176, "rFrac": 0.45, "col": 0 },
+      { "vF": 0.0158, "rFrac": 0.88, "col": 0 },
+      { "vF": 0.0128, "rFrac": 0.96, "col": 0 },
+      { "vF": 0.0120, "rFrac": 1.00, "col": 0 }
+    ],
+    "radomeRi": 1,
+    "winFwdRi": 2,
+    "winAftRi": 3,
+    "winSiInner": 2,
+    "winSiOuter": 4,
+    "cockpitPanels": [
+      [[0.0158,0.000419,0.002104],[0.0128,0.000896,0.002162],[0.0128,0.001946,0.001300],[0.0158,0.001192,0.001784]],
+      [[0.0158,0.001192,0.001784],[0.0128,0.001946,0.001300],[0.0128,0.002162,0.000896],[0.0158,0.001982,0.000821]],
+      [[0.0128,0.001946,0.001300],[0.0120,0.002027,0.001354],[0.0120,0.002252,0.000933],[0.0128,0.002162,0.000896]]
+    ]
+  },
+  "wing": {
+    "span": 0.0267, "rootLE": 0.000, "rootTE": -0.009,
+    "tipLE": -0.015, "tipTE": -0.019,
+    "dihedral": 0.0022, "rootThick": 0.00105, "tipThick": 0.00022,
+    "flapBreak": 0.58, "flapHinge": 0.72
+  },
+  "geometry": {
+    "tailX": -0.0354, "vstabZ": 0.0095,
+    "engineY": 0.0097, "engineY2": 0.0171,
+    "engineZ": -0.00230, "engineR": 0.00108, "engineRC": 0.00075, "pylonZ": -0.00068
+  },
   "manualControl": true,
   "envelope": {
     "cruiseAlt": 37000,

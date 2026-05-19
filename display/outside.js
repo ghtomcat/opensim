@@ -201,18 +201,9 @@ export function initOutside() {
   window.addEventListener('wheel', e => {
     if (_camMode !== 1 && _camMode !== 2) return;
     e.preventDefault();
-    if (e.ctrlKey) {
-      _orbitZoom = Math.max(0.1, Math.min(10, _orbitZoom * Math.exp(e.deltaY * 0.01)));
-      return;
-    }
-    if (S.paused) {
-      /* Paused: full orbit control — deltaX orbits, deltaY elevates */
-      _orbitAz = ((_orbitAz - e.deltaX * 0.35) % 360 + 360) % 360;
-      _orbitEl = Math.max(-85, Math.min(85, _orbitEl - e.deltaY * 0.25));
-    } else {
-      /* Live: zoom only — spacecraft stays centered on screen */
-      _orbitZoom = Math.max(0.1, Math.min(10, _orbitZoom * Math.exp(e.deltaY * 0.015)));
-    }
+    /* Full orbit always available in side cam: scroll = zoom, drag = orbit */
+    _orbitZoom = Math.max(0.02, Math.min(10, _orbitZoom * Math.exp(e.deltaY * 0.015)));
+    _orbitAz   = ((_orbitAz - e.deltaX * 0.35) % 360 + 360) % 360;
   }, { passive: false });
 
   /* 0 key: reset orbit + zoom to default while paused */
@@ -302,23 +293,26 @@ function _renderSideCam(canvas) {
   const sideDist = (isRocket ? Math.max(SIDE_SIDE, altNm * 0.25) : SIDE_SIDE) * _orbitZoom;
   const sideUp   = (isRocket ? Math.max(SIDE_UP,   altNm * 0.05) : SIDE_UP)   * _orbitZoom;
 
-  /* Apply orbit: user manual + director shot contribution.
-     Computed here so the terrain camera also uses the orbit angle. */
-  let renderOrbit = _orbitAz;
+  /* Director shot orbit — terrain camera gets shot contribution only.
+     User _orbitAz / _orbitEl never touch the terrain camera. */
+  let terrainOrbit = 0;
+  let renderOrbit  = _orbitAz;
   {
     const db = _dirBlend();
-    if (db > 0 && _dir.shot) renderOrbit += (_DIR_SHOTS[_dir.shot].orbitAz ?? 0) * db;
+    if (db > 0 && _dir.shot) {
+      const shotAz = (_DIR_SHOTS[_dir.shot].orbitAz ?? 0) * db;
+      terrainOrbit += shotAz;
+      renderOrbit  += shotAz;
+    }
   }
 
-  /* True camera orbit: move the terrain camera around the aircraft.
-     On ground: absolute orbit (terrain stays fixed around parked plane).
-     In flight: heading-relative (camera stays to the right side). */
-  const orbitRad = S.wow ? renderOrbit * DEG : rightRad + renderOrbit * DEG;
-  const elRad    = _orbitEl * DEG;
-  const hDist    = sideDist * Math.cos(elRad);
-  const vElev    = sideDist * Math.sin(elRad);
-  const dN = Math.cos(orbitRad) * hDist;
-  const dE = Math.sin(orbitRad) * hDist;
+  /* Terrain camera: fixed default elevation (12°), no user orbit offset. */
+  const tElRad    = 12 * DEG;
+  const tOrbitRad = S.wow ? terrainOrbit * DEG : rightRad + terrainOrbit * DEG;
+  const hDist     = sideDist * Math.cos(tElRad);
+  const vElev     = sideDist * Math.sin(tElRad);
+  const dN = Math.cos(tOrbitRad) * hDist;
+  const dE = Math.sin(tOrbitRad) * hDist;
 
   const dpr    = devicePixelRatio || 1;
   const _mapPxS = getMapReservedRight() * dpr;
@@ -328,15 +322,16 @@ function _renderSideCam(canvas) {
   S.lat   = (S.lat??47)   + dN / 60;
   S.lon   = (S.lon??8)    + dE / (60 * cosLat);
   S.alt   = (S.alt??3000) + _groundOffsetFt() + (sideUp + vElev) / FT_NM;
-  S.hdg   = S.wow ? ((renderOrbit + 180) % 360 + 360) % 360
-                  : ((S.hdg??0) - 90 - renderOrbit + 360) % 360;
+  S.hdg   = S.wow ? ((terrainOrbit + 180) % 360 + 360) % 360
+                  : ((S.hdg??0) - 90 - terrainOrbit + 360) % 360;
   S.pitch = Math.atan2(-(sideUp + vElev), hDist) / DEG;
   S.roll  = 0;
   renderTerrain(canvas, { outsideView: true, cxOverride: _cxS });
   S.lat=sL;S.lon=sLo;S.alt=sA;S.hdg=sH;S.pitch=sP;S.roll=sR;
 
-  if (S.wow) _drawWireframe(canvas, 0, 0, 0, sideUp, sideDist, false, 0, renderOrbit);
-  else       _drawWireframe(canvas, acP, acR + renderOrbit, 0, sideUp, sideDist, false, renderOrbit, _orbitEl);
+  /* Wireframe: _orbitAz rolls the model, _orbitEl tilts the camera. Terrain untouched. */
+  if (S.wow) _drawWireframe(canvas, 0, renderOrbit, 0, sideUp, sideDist, false, 0, _orbitEl);
+  else       _drawWireframe(canvas, acP, acR + renderOrbit, 0, sideUp, sideDist, false, 0, _orbitEl);
   _drawLabel(canvas, 'SIDE CAM');
   if (S.paused) _drawPauseOverlay(canvas);
 }
@@ -407,7 +402,7 @@ const _WB_WING_DEFAULT = {
   flapHinge: 0.70,
 };
 
-/* ── Per-aircraft wide-body nose profiles ─────────────────────── */
+/* ── Wide-body fallback profile — used for unknown aircraft IDs ────────────── */
 const _WB_NP = {
   default: {
     tipX: 0.021, tipCz: 0,
@@ -425,130 +420,6 @@ const _WB_NP = {
       [ 0.015, -0.0013,  0.0015],[ 0.019, -0.0007,  0.0007],
     ],
     wing: _WB_WING_DEFAULT,
-  },
-  a350: {
-    tipX: 0.023, tipCz: -0.0002, tailX: -0.0388,
-    noseRings: [
-      { vF: 0.022, r: _nr1*0.22, col: 6 },  // very pointed radome tip
-      { vF: 0.021, r: _nr1*0.55, col: 6 },  // second radome ring
-      { vF: 0.020, r: _nr1*0.85, col: 0 },  // begin fuselage taper
-      { vF: 0.018, r: _nr2*0.85, col: 0 },
-      { vF: 0.016, r: _nr2*0.98, col: 0 },
-      { vF: 0.015, r: _nr3,      col: 5 },  // cockpit band
-      { vF: 0.013, r: _r,        col: 0 },  // full fuselage diameter
-    ],
-    windows: [
-      [ 0.020,  0.0002,  0.0013],[ 0.015,  0.0003,  0.0022],  // R: high, large panels
-      [ 0.015,  0.0014,  0.0016],[ 0.020,  0.0008,  0.0008],
-      [ 0.020, -0.0002,  0.0013],[ 0.015, -0.0003,  0.0022],
-      [ 0.015, -0.0014,  0.0016],[ 0.020, -0.0008,  0.0008],
-    ],
-    wing: {
-      span:      0.0271,   // A350-900: 64.75m real → W/D 10.8 at model fuselage scale
-      rootLE:    0.005,  rootTE:   -0.004,
-      tipLE:    -0.0082, tipTE:    -0.0104,  // 31° LE sweep, taper ≈ 0.28
-      dihedral:  0.0020,
-      rootThick: 0.00105, tipThick: 0.00022,
-      flapBreak: 0.58,   flapHinge: 0.72,
-    },
-  },
-  a220: {
-    tipX: 0.021, tipCz: 0.0001, tailX: -0.0264,
-    noseRings: [
-      { vF: 0.020, r: _nr1*0.45, col: 6 },
-      { vF: 0.018, r: _nr1,      col: 0 },
-      { vF: 0.016, r: _nr2*0.95, col: 0 },
-      { vF: 0.015, r: _nr3,      col: 5 },
-      { vF: 0.013, r: _r,        col: 0 },
-    ],
-    windows: [
-      [ 0.019,  0.0002,  0.0009],[ 0.015,  0.0004,  0.0018],  // R: compact, angular
-      [ 0.015,  0.0012,  0.0014],[ 0.019,  0.0006,  0.0006],
-      [ 0.019, -0.0002,  0.0009],[ 0.015, -0.0004,  0.0018],
-      [ 0.015, -0.0012,  0.0014],[ 0.019, -0.0006,  0.0006],
-    ],
-    wing: {
-      span:      0.0215,   // A220-300: narrowbody, shorter semi-span at model fuselage scale
-      rootLE:    0.005,  rootTE:   -0.004,
-      tipLE:    -0.0058, tipTE:    -0.0082,  // 27° LE sweep (less than widebody)
-      dihedral:  0.0016,
-      rootThick: 0.00080, tipThick: 0.00018,
-      flapBreak: 0.62,   flapHinge: 0.72,
-    },
-  },
-  e190: {
-    tipX: 0.020, tipCz: 0.0001, tailX: -0.0230,
-    noseRings: [
-      { vF: 0.019, r: _nr1*0.65, col: 6 },  // rounder, blunter tip
-      { vF: 0.017, r: _nr1,      col: 0 },
-      { vF: 0.016, r: _nr2,      col: 0 },
-      { vF: 0.014, r: _nr3,      col: 5 },
-      { vF: 0.013, r: _r,        col: 0 },
-    ],
-    windows: [
-      [ 0.018,  0.0002,  0.0008],[ 0.014,  0.0004,  0.0016],  // R: small, rectangular
-      [ 0.014,  0.0011,  0.0012],[ 0.018,  0.0006,  0.0005],
-      [ 0.018, -0.0002,  0.0008],[ 0.014, -0.0004,  0.0016],
-      [ 0.014, -0.0011,  0.0012],[ 0.018, -0.0006,  0.0005],
-    ],
-    wing: {
-      span:      0.0188,   // E190-E2: regional jet, shorter semi-span
-      rootLE:    0.005,  rootTE:   -0.004,
-      tipLE:    -0.0045, tipTE:    -0.0069,  // 24° LE sweep (high-AR regional)
-      dihedral:  0.0013,
-      rootThick: 0.00075, tipThick: 0.00016,
-      flapBreak: 0.62,   flapHinge: 0.70,
-    },
-  },
-  /* A340-313: same Airbus nose family as A220; wide span + 4 engines (inner ey, outer ey2).
-     The nacelle mesh renders at ey (inner pair); ey2 drives the outer engine fan pass. */
-  a340: {
-    ey: 0.0097, ey2: 0.0171, ez: -0.00230, er: 0.00108, erc: 0.00075, pz: -0.00068,
-    tipX: 0.019, tipCz: -0.0001, tailX: -0.0354, vstabZ: 0.0095, winglet: 'classic',
-    noseRings: [
-      { vF: 0.018,  r: _r*0.42, col: 6 },  // ring 0: radome — ellipsoidal profile at ~14% nose length
-      { vF: 0.0166, r: _r*0.70, col: 6 },  // ring 1: radome expansion  (~34% nose length)
-      { vF: 0.0153, r: _r*0.87, col: 6 },  // ring 2: upper nose         (~53% nose length)
-      { vF: 0.0141, r: _r*0.93, col: 6 },  // ring 3: windshield zone (lower stays red)
-      { vF: 0.0131, r: _r*0.97, col: 0 },  // ring 4: grey starts ← winAftRi
-      { vF: 0.0124, r: _r*0.99, col: 0 },  // ring 5: cockpit section
-      { vF: 0.012,  r: _r,      col: 0 },  // ring 6: nose–fuselage junction
-    ],
-    winFwdRi: 3, winAftRi: 4, winSiOuter: 4, winSiInner: 1,  // adjacent rings, center post at si=0 longeron
-    wing: {
-      span:      0.0267,   // A340-300: 60.3m real
-      rootLE:    0.000,  rootTE:   -0.009,   // wing sits mid-fuselage (blueprint-corrected)
-      tipLE:    -0.015,  tipTE:    -0.019,   // ~27° LE sweep, taper ≈ 0.28
-      dihedral:  0.0022,
-      rootThick: 0.00105, tipThick: 0.00022,
-      flapBreak: 0.58,   flapHinge: 0.72,
-    },
-  },
-  /* 737-800: narrowbody r=0.00195; CFM56-7 closer inboard + lower; shorter swept wing */
-  b737: {
-    r: 0.00195, ey: 0.00380, ez: -0.00190, er: 0.00096, erc: 0.00063, pz: -0.00062,
-    tipX: 0.018, tipCz: 0.0,
-    noseRings: [
-      /* 737 has a blunt, rounded nose — expands quickly to full diameter */
-      { vF: 0.017, r: 0.000746, col: 6 },   // nr1 full — broad rounded tip
-      { vF: 0.016, r: 0.001379, col: 0 },   // nr2 — rapid expansion
-      { vF: 0.014, r: 0.001802, col: 5 },   // nr3 cockpit band
-      { vF: 0.013, r: 0.00195,  col: 0 },   // full width
-    ],
-    windows: [
-      [ 0.016,  0.0002,  0.0010],[ 0.013,  0.0003,  0.0016],  // R cockpit glass
-      [ 0.013,  0.0011,  0.0012],[ 0.016,  0.0006,  0.0006],
-      [ 0.016, -0.0002,  0.0010],[ 0.013, -0.0003,  0.0016],
-      [ 0.013, -0.0011,  0.0012],[ 0.016, -0.0006,  0.0006],
-    ],
-    wing: {
-      span:      0.01780,  // B737-800: 34.3m real → W/D 9.1 at B737's smaller model fuselage
-      rootLE:    0.0055,  rootTE:   -0.0028,
-      tipLE:    -0.0033,  tipTE:    -0.0060,  // 25° LE sweep, taper ≈ 0.30
-      dihedral:  0.0024,
-      rootThick: 0.00065, tipThick:  0.00015,
-      flapBreak: 0.55,    flapHinge: 0.72,
-    },
   },
 };
 
@@ -689,8 +560,12 @@ function _buildWB(np) {
     /* Winglets (262-265) */
     [tLE-_wlSw,  wy, wz],[tTE,  wy, wz],   // b+100/101 R winglet outer LE/TE (auto from tipLE/tipTE)
     [tLE-_wlSw, -wy, wz],[tTE, -wy, wz],   // b+102/103 L winglet outer LE/TE
-    /* Cockpit windows (b+104..b+111) — sampled from nose ring surface, or legacy manual spec */
+    /* Cockpit windows (b+104..b+111) — explicit panels, manual coords, or ring-sampled */
     ...(() => {
+      if (np.cockpitPanels) {
+        const p = np.cockpitPanels[0];
+        return [...p, ...p.map(v => [v[0], -v[1], v[2]])];
+      }
       if (np.winFwdRi == null) return np.windows;   // other profiles: keep manual coords
       const fR = np.winFwdRi, aR = np.winAftRi;
       const sO = np.winSiOuter ?? 2;
@@ -839,6 +714,14 @@ function _buildWB(np) {
      so the static wing face doesn't deform when spoilers deploy (b+228..b+231) */
   V_.push(WV[14].slice(), WV[15].slice(), WV[36].slice(), WV[37].slice());
 
+  /* Extra cockpit window panels (b+232+) — panels 2, 3, … for aircraft with cockpitPanels.
+     Each panel: 4 R verts then 4 L verts (y negated). Panel pi-1 starts at b+232+(pi-1)*8. */
+  if (np.cockpitPanels?.length > 1)
+    for (let pi = 1; pi < np.cockpitPanels.length; pi++) {
+      const p = np.cockpitPanels[pi];
+      V_.push(...p, ...p.map(v => [v[0], -v[1], v[2]]));
+    }
+
   /* Nose tris: noseTip → ring0 (outward normals) */
   for (let si = 0; si < N; si++) { F_.push([noseTip, rb[0]+(si+1)%N, rb[0]+si]); FC_.push(6); }
   /* Tail tris: last ring → tailTip (outward normals) */
@@ -856,8 +739,6 @@ function _buildWB(np) {
 
   /* Non-tube faces — indices expressed as b+offset (b=162 for nNose=5, b=194 for nNose=7) */
   F_.push(
-    [b+104,b+105,b+106,b+107],[b+104,b+107,b+106,b+105],  // R cockpit window
-    [b+108,b+109,b+110,b+111],[b+108,b+111,b+110,b+109],  // L cockpit window
     /* R wing: inner upper (full, spoilers sit on top) + 4 spoiler panels + flap + lower; outer (aileron); tip cap */
     [b+116,b+126,b+139,b+137],                   // R inner fixed upper (LE→flap hinge, under spoilers)
     [b+212,b+216,b+217,b+228],                   // R spoiler panel 1 (root→0.25)
@@ -934,7 +815,6 @@ function _buildWB(np) {
   /* FC_ order must match F_ push order: engine caps, then non-tube faces */
   FC_.push(
     10,10,10,10,                          // engine interior caps (R intake, R nozzle, L intake, L nozzle)
-    8,8, 8,8,                             // cockpit windows R+L (4)
     1,1,1,1, 1,1,1,1,                          // LE rounds R+L (8)
     1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1, 9,9,9,9,  // R wing (14) + L wing (14) + winglets (4)
     2,2,2,2,2,2,2, 3,3,3,3, 3,3,3,3,       // vstab airfoil (7) + R hstab (4) + L hstab (4)
@@ -945,12 +825,75 @@ function _buildWB(np) {
     7,7,7,7,7,7,7,7,                      // L engine C→D TR zone (8)
     4,4,4,4,4,4,4,4,                      // L engine D→E (8)
   );
+  /* Cockpit window faces — only for ring-sampled aircraft (no cockpitPanels).
+     cockpitPanels aircraft are rendered by the post-painter pass; no depth-sorted faces needed. */
+  if (!np.cockpitPanels) {
+    F_.push(
+      [b+104,b+105,b+106,b+107],[b+104,b+107,b+106,b+105],  // R cockpit window
+      [b+108,b+109,b+110,b+111],[b+108,b+111,b+110,b+109],  // L cockpit window
+    );
+    FC_.push(8, 8, 8, 8);
+  }
 
   /* Longerons: noseTip ↔ all rings ↔ tailTip at 4 cardinal si */
+  /* si=0 structural edge in the seam region (radomeRi→winFwdRi) is replaced
+     by the kinked SL_ path — skip it here so the straight gray line doesn't show. */
+  const _slRri = (np.winFwdRi != null && np.radomeRi != null) ? np.radomeRi : -1;
+  const _slFR  = np.winFwdRi ?? -1;
   for (const si of [0, N4, N2, N3]) {
     E_.push([noseTip, rb[0]+si]);
-    for (let ri = 0; ri < nTotal-1; ri++) E_.push([rb[ri]+si, rb[ri+1]+si]);
+    for (let ri = 0; ri < nTotal-1; ri++) {
+      if (si === 0 && _slRri >= 0 && ri >= _slRri && ri < _slFR) continue;
+      E_.push([rb[ri]+si, rb[ri+1]+si]);
+    }
     E_.push([rb[nTotal-1]+si, tailTip]);
+  }
+  /* Radome rings: full circumference circles — ring 0 (nose-tip ring) + radomeRi (outer boundary) */
+  const SE_ = [];
+  if (np.radomeRi != null) {
+    const rri = np.radomeRi;
+    for (const ri of [0, rri]) {
+      if (!rb[ri]) continue;
+      for (let si = 0; si < N; si++) SE_.push([rb[ri]+si, rb[ri]+(si+1)%N]);
+    }
+  }
+  /* Nose panel seam lines: outer longitudinals (si=sO, N-sO) straight from radomeRi to
+     winFwdRi, then center seam ring1:si0 → kink1 → kink2 → ring2:si0 (two kinks via
+     custom intermediate vertices), then center post ring2:si0 → ring3:si0. */
+  // (winSiInner/winSiOuter are used for window faces only, not the seam path)
+  const SL_ = [];
+  if (np.winFwdRi != null && np.radomeRi != null) {
+    const fR = np.winFwdRi, rri = np.radomeRi;
+    const aR = np.winAftRi;
+    const sI = np.winSiInner ?? 2, sO = np.winSiOuter ?? 4;
+    /* Outer longitudinals: si=sO, si=N-sO straight from radome ring to fwd window ring */
+    for (const si of [sO, N - sO]) {
+      for (let ri = rri; ri < fR; ri++) SL_.push([rb[ri]+si, rb[ri+1]+si]);
+    }
+    /* Center seam: two kink vertices on the fuselage centreline (y=0), z follows a
+       parabolic arch above the straight ring1→ring2 interpolation, creating two
+       visible direction changes in the side-view seam while staying on the top seam. */
+    const _cVF1 = np.noseRings[rri].vF, _cVF2 = np.noseRings[fR].vF;
+    const _cR1  = np.noseRings[rri].r,  _cR2  = np.noseRings[fR].r;
+    const _kBase = V_.length;
+    const _mkKink = (t) => {
+      const vFk = _cVF1 + t * (_cVF2 - _cVF1);
+      const rk  = _cR1  + t * (_cR2  - _cR1);
+      const bump = 4 * t * (1 - t) * 0.10 * (_cR2 - _cR1);  // parabolic arch, 10% peak at t=0.5
+      return [vFk, 0, rk + bump];  // y=0: stays on fuselage top centreline
+    };
+    V_.push(_mkKink(0.33), _mkKink(0.67));  // _kBase: kink1 (t=0.33), _kBase+1: kink2 (t=0.67)
+    SL_.push([rb[rri]+0, _kBase], [_kBase, _kBase+1], [_kBase+1, rb[fR]+0]);
+    /* Cockpit front window diagonals — connect inner window corners to kink vertices,
+       closing the windshield quad: ring1:sI → kink1 → kink2 → ring2:sI (and port mirror) */
+    SL_.push([rb[rri]+sI,     _kBase    ]);  // ring1:sI  → kink1 (starboard fwd diagonal)
+    SL_.push([_kBase+1, rb[fR]+sI      ]);  // kink2     → ring2:sI (starboard aft diagonal)
+    SL_.push([rb[rri]+(N-sI), _kBase   ]);  // ring1:N-sI → kink1 (port fwd diagonal)
+    SL_.push([_kBase+1, rb[fR]+(N-sI)  ]);  // kink2     → ring2:N-sI (port aft diagonal)
+    /* Center post */
+    if (aR != null) {
+      SL_.push([rb[fR]+0, rb[aR]+0]);
+    }
   }
   /* Fuselage ↔ non-tube connections */
   const wStn = rb[nNose], tail = rb[nNose+2];
@@ -1040,18 +983,53 @@ function _buildWB(np) {
     [b+68,b+114],[b+68,b+115],[b+114,b+115],
   );
 
-  return { V_, F_, FC_, E_, b, r,
+  return { V_, F_, FC_, E_, SE_, SL_, b, r, rb,
+    winFwdRi: np.winFwdRi, winAftRi: np.winAftRi,
+    winSiInner: np.winSiInner, winSiOuter: np.winSiOuter,
+    cockpitPanels: np.cockpitPanels,
     ey2: np.ey2, ez: np.ez, er: np.er, erc: np.erc, pz: np.pz, exOff,
     anim: { r_rt, r_hs, r_ail, r_sp_rt, r_sp_hs } };
 }
 
-/* Build + cache geometry per aircraft nose profile */
-const _wbCache = {};
-for (const id of ['default','a350','a220','e190','b737','a340']) {
-  const geo = _buildWB(_WB_NP[id]);
-  geo.FN_ = computeFaceNormals(geo.V_, geo.F_);
-  _wbCache[id] = geo;
+/* Convert full aircraft JSON to the np-form _buildWB expects.
+   baseNp supplies fallback values for any field absent from JSON.
+   Priority: aircraft JSON > baseNp > _buildWB hardcoded defaults. */
+function _acGeoFromJson(aircraft, baseNp) {
+  const nose = aircraft.nose ?? {};
+  const jGeo = aircraft.geometry ?? {};
+  const r    = jGeo.r ?? nose.r ?? baseNp.r ?? _r;
+  const rings = (nose.noseRings ?? baseNp.noseRings ?? []).map(rg => ({
+    ...rg, r: rg.rFrac != null ? r * rg.rFrac : rg.r,
+  }));
+  return {
+    ...baseNp,
+    tipX:          nose.tipX          ?? baseNp.tipX,
+    tipCz:         nose.tipCz         ?? baseNp.tipCz ?? 0,
+    noseRings:     rings,
+    r,
+    radomeRi:      nose.radomeRi      ?? baseNp.radomeRi,
+    winFwdRi:      nose.winFwdRi      ?? baseNp.winFwdRi,
+    winAftRi:      nose.winAftRi      ?? baseNp.winAftRi,
+    winSiInner:    nose.winSiInner    ?? baseNp.winSiInner,
+    winSiOuter:    nose.winSiOuter    ?? baseNp.winSiOuter,
+    cockpitPanels: nose.cockpitPanels ?? baseNp.cockpitPanels,
+    windows:       nose.windows       ?? baseNp.windows,
+    tailX:         jGeo.tailX         ?? baseNp.tailX,
+    vstabZ:        jGeo.vstabZ        ?? baseNp.vstabZ,
+    ey:            jGeo.engineY       ?? baseNp.ey,
+    ey2:           jGeo.engineY2      ?? baseNp.ey2,
+    ez:            jGeo.engineZ       ?? baseNp.ez,
+    er:            jGeo.engineR       ?? baseNp.er,
+    erc:           jGeo.engineRC      ?? baseNp.erc,
+    pz:            jGeo.pylonZ        ?? baseNp.pz,
+    wing:          aircraft.wing      ?? baseNp.wing,
+    winglet:       aircraft.winglet   ?? baseNp.winglet,
+  };
 }
+
+/* Build default geometry at startup; per-aircraft profiles are built on first load via _acGeoFromJson */
+const _wbCache = {};
+{ const geo = _buildWB(_WB_NP.default); geo.FN_ = computeFaceNormals(geo.V_, geo.F_); _wbCache.default = geo; }
 
 /* Static aliases for the default profile (used as fallbacks + for non-WB aircraft selector) */
 const { V_: _V, F_: _F, FC_: _FC, E_: _E } = _wbCache.default;
@@ -3017,6 +2995,13 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const isF9    = !isC172 && !isSV && (S.aircraft?.id?.startsWith('falcon9') || S.aircraft?.vehicleType === 'rocket');
   const isBf109 = !isC172 && !isF9 && !isSV && (S.aircraft?.id === 'bf109');
   const isF4U  = !isC172 && !isF9 && !isSV && !isBf109 && (S.aircraft?.id === 'f4u1a');
+  /* Rebuild geometry every frame (no cache) — re-enable cache when geometry is final */
+  if (S.aircraft?.nose) {
+    const _acId   = S.aircraft.id;
+    const _geo2   = _buildWB(_acGeoFromJson(S.aircraft, _WB_NP.default));
+    _geo2.FN_ = computeFaceNormals(_geo2.V_, _geo2.F_);
+    _wbCache[_acId] = _geo2;
+  }
   const _wbGeo = (!isC172 && !isF9 && !isBf109 && !isF4U && !isSV)
     ? (_wbCache[S.aircraft?.id] ?? _wbCache.default) : null;
   const _b   = _wbGeo?.b ?? 162;  // base index of non-tube vertices; 162 for nNose=5, 194 for nNose=7
@@ -3025,6 +3010,8 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const FC_  = isC172 ? _FC_c172     : isF9 ? _FC_f9     : isBf109 ? _FC_b109     : isF4U ? _FC_f4u     : isSV ? _FC_sv     : _wbGeo.FC_;
   const FN_  = isC172 ? _FN_c172     : isF9 ? _FN_f9     : isBf109 ? _FN_b109     : isF4U ? _FN_f4u     : isSV ? _FN_sv     : _wbGeo.FN_;
   const E_   = isC172 ? _E_c172      : isF9 ? _E_f9      : isBf109 ? _E_b109      : isF4U ? _E_f4u      : isSV ? _E_sv      : _wbGeo.E_;
+  const SE_  = _wbGeo?.SE_ ?? [];
+  const SL_  = _wbGeo?.SL_ ?? [];
   const _livCol    = S.aircraft?.livery?.colors;
   const _nacPaint  = S.aircraft?.engine?.nacellePaint ?? null;
   /* Build per-frame color table: livery overrides first, then nacelle paint
@@ -4148,24 +4135,38 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         const fxFwd  = fxH + fChord * 0.45;            // fwd tip (into fixed wing)
         const fxBel  = fxH + fChord * 0.20;            // belly max
         const fxAft1 = fxH - fChord * 0.12;            // aft body (just aft of hinge)
-        const fxAft2 = fxH - fChord * 0.26;            // aft tip (closes off)
+        const fxAft2 = fxH - fChord * 0.28;            // aft tip (closes off)
 
-        /* Spine: [x, zt, depth-below-attachment, half-width] — all fixed to wing */
+        /* Spine: [x, zt, depth-below-attachment, half-width] */
         const spine = [
-          { x: fxFwd,  zt: fZtop, dp: ftD*0.06, hw: 0        },  // fwd tip
-          { x: fxBel,  zt: fZtop, dp: ftD,       hw: ftW      },  // belly max
-          { x: fxH,    zt: fZtop, dp: ftD*0.72,  hw: ftW*0.82 },  // hinge
-          { x: fxAft1, zt: fZtop, dp: ftD*0.35,  hw: ftW*0.40 },  // aft body
-          { x: fxAft2, zt: fZtop, dp: ftD*0.06,  hw: 0        },  // aft tip
+          { x: fxFwd,  zt: fZtop, dp: ftD*0.06, hw: 0,        fixed: true  },  // fwd tip
+          { x: fxBel,  zt: fZtop, dp: ftD,       hw: ftW,      fixed: true  },  // belly max
+          { x: fxH,    zt: fZtop, dp: ftD*0.72,  hw: ftW*0.82, fixed: true  },  // hinge (pivot)
+          { x: fxAft1, zt: fZtop, dp: ftD*0.35,  hw: ftW*0.40, fixed: false },  // aft body — folds with flap
+          { x: fxAft2, zt: fZtop, dp: ftD*0.06,  hw: 0,        fixed: false },  // aft tip  — folds with flap
         ];
 
-        /* Cross-section at each station: TL, TR, BL, BR */
-        const csAt = ({ x, zt, dp, hw }) => [
-          project([x, fY + hw,       zt]),       // TL — top left  (+Y side)
-          project([x, fY - hw,       zt]),       // TR — top right (-Y side)
-          project([x, fY + hw*0.26,  zt - dp]), // BL — belly left
-          project([x, fY - hw*0.26,  zt - dp]), // BR — belly right
-        ];
+        /* Flap fold angle for aft fairing section */
+        const _ftFa  = (S.flaps ?? 0) * 15 * DEG;
+        const _cosFa = Math.cos(_ftFa), _sinFa = Math.sin(_ftFa);
+
+        /* Cross-section at each station: TL, TR, BL, BR
+           Aft (non-fixed) points rotate around hinge [fxH, fY, fZtop] */
+        const csAt = ({ x, zt, dp, hw, fixed }) => {
+          let x0 = x, zt0 = zt, ztB = zt - dp;
+          if (!fixed && _ftFa > 0) {
+            const dx = x - fxH;
+            x0  = fxH + dx * _cosFa;
+            zt0 = fZtop + dx * _sinFa;       // top surface rotates with hinge
+            ztB = fZtop + dx * _sinFa - dp * _cosFa;  // belly rotates too
+          }
+          return [
+            project([x0, fY + hw,      zt0]),   // TL
+            project([x0, fY - hw,      zt0]),   // TR
+            project([x0, fY + hw*0.26, ztB]),   // BL
+            project([x0, fY - hw*0.26, ztB]),   // BR
+          ];
+        };
 
         const cs = spine.map(csAt);
 
@@ -4413,31 +4414,66 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     ctx.fill();
   }
 
-  /* ── Cockpit windshield — 3 panes per side with bright aluminium frame ── */
-  if (_wbGeo && pts) {
-    const _bLx = _wbGeo.b;
-    const _cwDrawSide = (vi0, vi1, vi2, vi3) => {
-      const pA = pts[vi0], pB = pts[vi1], pC = pts[vi2], pD = pts[vi3];
-      if (!pA || !pB || !pC || !pD) return;
-      const lerp = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+  /* ── Cockpit window panels (cockpitPanels) — post-painter pass, bypasses depth sort ──
+     Painter's algorithm can't reliably order window faces against the tube faces they
+     sit on (the outermost tube sectors sort closer than the window centroid).
+     Project and fill each panel directly here, after all fuselage faces are done.     */
+  if (_wbGeo?.cockpitPanels) {
+    const _drawWinPanel = (corners, ySign) => {
+      // corners: [inner-fwd, inner-aft, outer-aft, outer-fwd]
+      // Render as [inner-fwd, outer-fwd, outer-aft, inner-aft] → CCW from the near side
+      const vs = [corners[0], corners[3], corners[2], corners[1]]
+        .map(([x, y, z]) => project([x, ySign * y, z]));
+      if (vs.some(v => !v)) return;
+      const cross = (vs[1].x - vs[0].x) * (vs[2].y - vs[0].y)
+                  - (vs[1].y - vs[0].y) * (vs[2].x - vs[0].x);
+      if (cross < 0) return;   // back-facing → cull
       ctx.save();
-      ctx.lineWidth = Math.max(2.5, devicePixelRatio * 2.5);
-      ctx.strokeStyle = 'rgb(235,240,248)';
-      /* Outer frame */
       ctx.beginPath();
-      ctx.moveTo(pA.x, pA.y); ctx.lineTo(pB.x, pB.y);
-      ctx.lineTo(pC.x, pC.y); ctx.lineTo(pD.x, pD.y);
+      ctx.moveTo(vs[0].x, vs[0].y);
+      for (let k = 1; k < vs.length; k++) ctx.lineTo(vs[k].x, vs[k].y);
       ctx.closePath();
+      ctx.fillStyle = 'rgba(8,18,35,0.62)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(75,82,95,0.9)';
+      ctx.lineWidth = Math.max(1.2, dpr * 1.2);
       ctx.stroke();
-      /* Two vertical dividers — splits the quad into 3 panes along the A→D / B→C edges */
-      for (const t of [1/3, 2/3]) {
-        const p1 = lerp(pA, pD, t), p2 = lerp(pB, pC, t);
-        ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
-      }
       ctx.restore();
     };
-    _cwDrawSide(_bLx+104, _bLx+105, _bLx+106, _bLx+107);  // R
-    _cwDrawSide(_bLx+108, _bLx+109, _bLx+110, _bLx+111);  // L
+    for (const panel of _wbGeo.cockpitPanels) {
+      _drawWinPanel(panel, +1);   // starboard
+      _drawWinPanel(panel, -1);   // port
+    }
+  }
+
+  /* ── Cockpit windshield — rectangle from sI (inner) to sO (outer) ── */
+  if (_wbGeo?.rb && _wbGeo.winFwdRi != null && _wbGeo.winAftRi != null && !_wbGeo.cockpitPanels) {
+    const _rb = _wbGeo.rb;
+    const _fR = _wbGeo.winFwdRi, _aR = _wbGeo.winAftRi;
+    const _sI = _wbGeo.winSiInner ?? 2, _sO = _wbGeo.winSiOuter ?? 4;
+    const _drawCW = (siA, siB) => {
+      const vs = [
+        pts[_rb[_fR] + siA],  // fwd inner
+        pts[_rb[_fR] + siB],  // fwd outer
+        pts[_rb[_aR] + siB],  // aft outer
+        pts[_rb[_aR] + siA],  // aft inner
+      ];
+      if (vs.some(v => !v)) return;
+      /* cull only if ALL four ring-vertex normals face away from camera */
+      const vis = [_rb[_fR]+siA, _rb[_fR]+siB, _rb[_aR]+siB, _rb[_aR]+siA];
+      if (vis.every(vi => edgeCamDir(vi) > 0)) return;
+      ctx.save();
+      ctx.lineWidth = Math.max(1.4, devicePixelRatio * 1.4);
+      ctx.strokeStyle = 'rgba(180,80,220,0.95)';
+      ctx.beginPath();
+      ctx.moveTo(vs[0].x, vs[0].y);
+      for (let k = 1; k < vs.length; k++) ctx.lineTo(vs[k].x, vs[k].y);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.restore();
+    };
+    _drawCW(_sI,        _sO       );  // R: starboard inner → outer
+    _drawCW(16 - _sO,  16 - _sI  );  // L: port outer → inner (mirror)
   }
 
   /* ── Stage separation tumble animations (Saturn V) ─────────────── */
@@ -4664,6 +4700,131 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   ctx.stroke();
   ctx.restore();
 
+  /* Radome seam edges — distinct bright accent line */
+  if (SE_.length > 0) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(220,60,60,0.90)';
+    ctx.lineWidth   = Math.max(1.5, devicePixelRatio * 1.5);
+    ctx.beginPath();
+    for (const [sa, sb] of SE_) {
+      if (edgeCamDir(sa) > 0 && edgeCamDir(sb) > 0) continue;
+      const pa = pts[sa], pb = pts[sb];
+      if (!pa || !pb) continue;
+      ctx.moveTo(pa.x, pa.y);
+      ctx.lineTo(pb.x, pb.y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /* Nose panel seam lines — blue longitudinals + kink (no culling) */
+  if (SL_.length > 0) {
+ctx.save();
+    ctx.strokeStyle = 'rgba(80,150,255,0.90)';
+    ctx.lineWidth   = Math.max(1.5, devicePixelRatio * 1.5);
+    ctx.beginPath();
+    for (const [sa, sb] of SL_) {
+      const pa = pts[sa], pb = pts[sb];
+      if (!pa || !pb) continue;
+      ctx.moveTo(pa.x, pa.y);
+      ctx.lineTo(pb.x, pb.y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /* Cockpit window bounding rings — red highlight (fwd + aft ring) */
+  if (_wbGeo?.rb && _wbGeo.winFwdRi != null && _wbGeo.winAftRi != null) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(220,60,60,0.90)';
+    ctx.lineWidth   = Math.max(1.5, devicePixelRatio * 1.5);
+    for (const ri of [_wbGeo.winFwdRi, _wbGeo.winAftRi]) {
+      if (!_wbGeo.rb[ri]) continue;
+      const rBase = _wbGeo.rb[ri];
+      ctx.beginPath();
+      for (let si = 0; si < 16; si++) {
+        const va = rBase + si, vb = rBase + (si + 1) % 16;
+        if (edgeCamDir(va) > 0 && edgeCamDir(vb) > 0) continue;
+        const pa = pts[va], pb = pts[vb];
+        if (!pa || !pb) continue;
+        ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /* Nose ring + vertex labels — ring ri+1 at si=0, then si index at every vertex */
+  if (_wbGeo?.rb) {
+    const nRings = _wbGeo.rb.length;
+    const fsRing = Math.round(13 * devicePixelRatio);
+    const fsSi   = Math.round( 9 * devicePixelRatio);
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    /* si labels — only on camera-facing vertices */
+    ctx.font = `${fsSi}px monospace`;
+    for (let ri = 0; ri < nRings; ri++) {
+      for (let si = 0; si < 16; si++) {
+        const vi = _wbGeo.rb[ri] + si;
+        if (edgeCamDir(vi) > 0) continue;
+        const p = pts[vi];
+        if (!p) continue;
+        ctx.fillStyle = 'rgba(0,0,0,0.65)';
+        ctx.fillRect(p.x - fsSi * 0.65, p.y - fsSi * 0.6, fsSi * 1.3, fsSi * 1.2);
+        ctx.fillStyle = 'rgba(80,220,255,0.95)';
+        ctx.fillText(String(si), p.x, p.y);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y - fsSi, 1.5 * devicePixelRatio, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(80,220,255,0.9)';
+        ctx.fill();
+      }
+    }
+    /* ring number labels at si=0 */
+    ctx.font = `bold ${fsRing}px monospace`;
+    for (let ri = 0; ri < nRings; ri++) {
+      const vi = _wbGeo.rb[ri];
+      if (edgeCamDir(vi) > 0) continue;
+      const p = pts[vi];
+      if (!p) continue;
+      const label = String(ri + 1);
+      ctx.fillStyle = 'rgba(0,0,0,0.75)';
+      ctx.fillRect(p.x - fsRing * 0.7, p.y - fsRing * 0.65, fsRing * 1.4, fsRing * 1.3);
+      ctx.fillStyle = 'rgba(255,255,80,0.95)';
+      ctx.fillText(label, p.x, p.y);
+    }
+    ctx.restore();
+  }
+
+  /* SL_ seam-line vertex labels — drawn last so nothing covers them */
+  if (SL_.length > 0 && _wbGeo?.rb) {
+    const N16 = 16;
+    const _slSeen = new Set();
+    const fsL = Math.round(9 * devicePixelRatio);
+    ctx.save();
+    ctx.font = `${fsL}px monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const [sa, sb] of SL_) {
+      for (const vi of [sa, sb]) {
+        if (_slSeen.has(vi)) continue;
+        _slSeen.add(vi);
+        const p = pts[vi];
+        if (!p) continue;
+        let riLabel = '?', siLabel = '?';
+        for (let ri = 0; ri < _wbGeo.rb.length; ri++) {
+          const offset = vi - _wbGeo.rb[ri];
+          if (offset >= 0 && offset < N16) { riLabel = ri; siLabel = offset; break; }
+        }
+        const txt = `${riLabel}:${siLabel}`;
+        ctx.fillStyle = 'rgba(0,0,0,0.8)';
+        ctx.fillRect(p.x - fsL * 1.1, p.y + 3, fsL * 2.2, fsL * 1.2);
+        ctx.fillStyle = 'rgba(255,200,60,0.95)';
+        ctx.fillText(txt, p.x, p.y + 3 + fsL * 0.6);
+      }
+    }
+    ctx.restore();
+  }
+
   /* LM wireframe edges */
   if (lmPts) {
     ctx.save();
@@ -4884,7 +5045,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         return [
           { pos: [_ltX,  _ltY, _ltZ], col: [  0, 210,  80], key: 'nav'     },
           { pos: [_ltX, -_ltY, _ltZ], col: [220,  40,  40], key: 'nav'     },
-          { pos: [(_vsTL+_vsTH)/2, 0, vstabZ], col: [255, 255, 255], key: 'nav' },
+          { pos: [(_wbGeo.V_[_wbGeo.b+166][0]+_wbGeo.V_[_wbGeo.b+168][0])/2, 0, _wbGeo.V_[_wbGeo.b+166][2]], col: [255, 255, 255], key: 'nav' },
           { pos: [ 0.001,  0, _wbGeo.r], col: [220, 50, 50], key: 'beacon' },
           { pos: [_ltX,  _ltY, _ltZ], col: [255, 255, 255], key: 'strobe'  },
           { pos: [_ltX, -_ltY, _ltZ], col: [255, 255, 255], key: 'strobe'  },
