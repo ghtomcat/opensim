@@ -2083,7 +2083,15 @@ function _synthVK1Accel(sr, duration = 21.0) {
   return buf;
 }
 
-/* ── APU startup synthesis (Honeywell GTCP-style small gas turbine) ── */
+/* ── APU audio (Honeywell GTCP-style small gas turbine) ─────────────
+   Calibrated against real recording analysis:
+     Starter:   80–130 Hz electric motor, harmonics at 2× 3×
+     Light-off: ~160 Hz combustion transient
+     Accel:     130–250 Hz turbine drone + growing broadband hiss
+     Idle:      ~160 Hz drone + 1k–5kHz air hiss (continuous loop)
+   ──────────────────────────────────────────────────────────────── */
+
+let _apuIdleNodes = null;   // { gain, osc, filter, noiseSrc } when APU running
 
 function _synthAPUStarter(sr, duration = 4.0) {
   const N = Math.floor(sr * duration);
@@ -2091,18 +2099,19 @@ function _synthAPUStarter(sr, duration = 4.0) {
   let lfsr = 0xB3C5, ph1 = 0, ph2 = 0, ph3 = 0;
   for (let i = 0; i < N; i++) {
     const t = i / sr, p = t / duration;
-    const freq = 80 + 140 * Math.pow(p, 0.5);   // electric motor: 80 → 220 Hz
+    const freq = 80 + 50 * Math.pow(p, 0.6);   // 80 → 130 Hz (measured range)
     ph1 += freq / sr; ph2 += freq * 2 / sr; ph3 += freq * 3 / sr;
-    const motor = Math.sin(2*Math.PI*ph1)*0.65 + Math.sin(2*Math.PI*ph2)*0.22 + Math.sin(2*Math.PI*ph3)*0.08;
+    const motor = Math.sin(2*Math.PI*ph1)*0.68 + Math.sin(2*Math.PI*ph2)*0.24 + Math.sin(2*Math.PI*ph3)*0.08;
     lfsr ^= lfsr<<13; lfsr ^= lfsr>>17; lfsr ^= lfsr<<5;
-    const buzz = ((lfsr & 0xFFFF)/32768 - 1) * 0.05;
-    const env = Math.min(1, t / 0.5) * Math.min(1, (duration - t) / 0.3);
-    buf[i] = (motor + buzz) * env * 0.018;
+    const buzz = ((lfsr & 0xFFFF)/32768 - 1) * 0.04;
+    const env = Math.min(1, t / 0.6) * Math.min(1, (duration - t) / 0.4);
+    buf[i] = (motor + buzz) * env * 0.020;
   }
   return buf;
 }
 
 function _synthAPULightoff(sr) {
+  /* Sharp combustion transient — resonator centred at 160 Hz */
   const dur = 0.5, N = Math.floor(sr * dur);
   const buf = new Float32Array(N);
   let lfsr = 0xACE1, resX = 0, resY = 0;
@@ -2123,38 +2132,85 @@ function _synthAPULightoff(sr) {
 }
 
 function _synthAPUAccel(sr, duration = 30.5) {
+  /* Turbine spool-up: 130→250 Hz drone + growing broadband hiss */
   const N = Math.floor(sr * duration);
   const buf = new Float32Array(N);
-  let lfsr = 0xE7F3, ph1 = 0, ph2 = 0, ph3 = 0, hpX = 0;
-  const hpA = 1 - Math.exp(-2*Math.PI*400/sr);
+  let lfsr = 0xE7F3, ph1 = 0, ph2 = 0, hpX = 0, lpX = 0;
+  const hpA = 1 - Math.exp(-2*Math.PI*900/sr);   // HP for intake hiss (>900 Hz)
+  const lpA = 1 - Math.exp(-2*Math.PI*280/sr);   // LP for drone shaping
   for (let i = 0; i < N; i++) {
     const t = i / sr, p = t / duration;
-    const fTurb = 220 * Math.pow(1600/220, p);   // turbine whine: 220 → 1600 Hz
-    ph1 += fTurb / sr; ph2 += fTurb * 2 / sr; ph3 += fTurb * 3.5 / sr;
-    const whine = Math.sin(2*Math.PI*ph1)*0.70 + Math.sin(2*Math.PI*ph2)*0.22 + Math.sin(2*Math.PI*ph3)*0.08;
+    const fDrone = 130 + 120 * Math.pow(p, 0.8);   // 130 → 250 Hz
+    ph1 += fDrone / sr; ph2 += fDrone * 2 / sr;
+    const drone = Math.sin(2*Math.PI*ph1)*0.75 + Math.sin(2*Math.PI*ph2)*0.25;
     lfsr ^= lfsr<<13; lfsr ^= lfsr>>17; lfsr ^= lfsr<<5;
     const noise = (lfsr & 0xFFFF)/32768 - 1;
     hpX += hpA * (noise - hpX);
-    const hiss = (noise - hpX) * 0.20 * Math.pow(p, 0.5);   // intake air hiss
-    const amp  = 0.25 + 0.75 * Math.min(1, Math.pow(p * 4, 0.7));
-    const fade = Math.min(1, (duration - t) / 1.5);
-    buf[i] = (whine + hiss) * amp * 0.055 * fade;
+    const hiss = (noise - hpX) * 0.35 * Math.pow(p, 0.6);   // broadband hiss grows
+    lpX += lpA * (drone - lpX);
+    const amp  = 0.20 + 0.80 * Math.min(1, Math.pow(p * 3.5, 0.65));
+    const fade = Math.min(1, (duration - t) / 1.8);   // fade for handoff to idle loop
+    buf[i] = (lpX + hiss) * amp * 0.052 * fade;
   }
   return buf;
 }
 
 function _assembleAPUStartup(sr) {
-  const gap     = Math.floor(sr * 0.03);
-  const starter = _synthAPUStarter(sr, 4.0);
+  const gap      = Math.floor(sr * 0.04);
+  const starter  = _synthAPUStarter(sr, 4.0);
   const lightoff = _synthAPULightoff(sr);
-  const accel   = _synthAPUAccel(sr, 30.5);
-  const total   = starter.length + gap + lightoff.length + gap + accel.length;
-  const full    = new Float32Array(total);
+  const accel    = _synthAPUAccel(sr, 30.5);
+  const total    = starter.length + gap + lightoff.length + gap + accel.length;
+  const full     = new Float32Array(total);
   let off = 0;
   full.set(starter,  off); off += starter.length  + gap;
   full.set(lightoff, off); off += lightoff.length + gap;
   full.set(accel,    off);
   return full;
+}
+
+function _startApuIdle() {
+  if (!_ctx || _apuIdleNodes) return;
+
+  const gain = _ctx.createGain();
+  gain.gain.value = 0;
+  gain.connect(_ctx.destination);
+
+  /* Main drone ~162 Hz */
+  const osc = _ctx.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.value = 162;
+  const lp = _ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 320;
+  lp.Q.value = 1.8;
+  osc.connect(lp);
+  lp.connect(gain);
+
+  /* Broadband hiss — looping noise buffer */
+  const nLen = _ctx.sampleRate * 2;
+  const nBuf = _ctx.createBuffer(1, nLen, _ctx.sampleRate);
+  const nData = nBuf.getChannelData(0);
+  let lfsr = 0xFACE;
+  for (let i = 0; i < nLen; i++) {
+    lfsr ^= lfsr<<13; lfsr ^= lfsr>>17; lfsr ^= lfsr<<5;
+    nData[i] = ((lfsr & 0xFFFF)/32768 - 1);
+  }
+  const noiseSrc = _ctx.createBufferSource();
+  noiseSrc.buffer = nBuf;
+  noiseSrc.loop   = true;
+  const hp = _ctx.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 1200;
+  hp.Q.value = 0.5;
+  noiseSrc.connect(hp);
+  hp.connect(gain);
+
+  osc.start();
+  noiseSrc.start();
+  gain.gain.setTargetAtTime(0.38, _ctx.currentTime, 1.4);   // fade in over ~4s
+
+  _apuIdleNodes = { gain, osc, lp, noiseSrc, hp };
 }
 
 export async function startApuSound() {
@@ -2165,16 +2221,28 @@ export async function startApuSound() {
     _master.connect(_ctx.destination);
   }
   if (_ctx.state === 'suspended') await _ctx.resume();
-  const buf  = _assembleAPUStartup(_ctx.sampleRate);
-  const ab   = _ctx.createBuffer(1, buf.length, _ctx.sampleRate);
+
+  const buf = _assembleAPUStartup(_ctx.sampleRate);
+  const ab  = _ctx.createBuffer(1, buf.length, _ctx.sampleRate);
   ab.copyToChannel(buf, 0);
   const src  = _ctx.createBufferSource();
   const gain = _ctx.createGain();
-  gain.gain.value = 0.80;
+  gain.gain.value = 0.82;
   src.buffer = ab;
   src.connect(gain);
   gain.connect(_ctx.destination);
+  src.onended = () => _startApuIdle();
   src.start();
+}
+
+export function stopApuSound() {
+  if (!_apuIdleNodes || !_ctx) return;
+  const { gain, osc, noiseSrc } = _apuIdleNodes;
+  gain.gain.setTargetAtTime(0, _ctx.currentTime, 1.8);
+  setTimeout(() => {
+    try { osc.stop(); noiseSrc.stop(); } catch {}
+    _apuIdleNodes = null;
+  }, 5000);
 }
 
 function _assembleVK1Startup(sr) {

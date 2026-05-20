@@ -137,14 +137,30 @@ export const S = {
   bat1Charge: 100,       // 0–100 %
   bat2Charge: 100,       // 0–100 %
   extPwrOn:   false,     // external power switch (ground only)
+  apuMasterOn: false,    // APU MASTER switch (latching)
   apuState:   'off',     // 'off' | 'starting' | 'running'
   apuBleedOn: false,     // APU bleed valve
+  apuFireArmed: false,   // fire handle pulled — extinguisher armed
   apuRunning: false,     // derived from apuState
   apuGenOn:   false,     // derived — APU feeding AC bus
   engGenOn:   [],        // derived bool[] — one per engine
   essentialBusPowered: false,   // bat1 or bat2 on + charge > 2%
   acBusPowered:        false,   // APU gen | eng gen | ext pwr
   dcBusPowered:        false,   // AC bus (via TR) | essential bus
+
+  /* ── Hydraulic system (turbofan aircraft) ── */
+  hydGreenPsi:     0,     // 0–3000 psi
+  hydBluePsi:      0,
+  hydYellowPsi:    0,
+  hydGreenElecOn:  false, // electric pump switches (overhead)
+  hydBlueElecOn:   false,
+  hydYellowElecOn: false,
+  hydGreenEdp:     false, // derived — engine-driven pump running
+  hydBlueEdp:      false,
+  hydYellowEdp:    false,
+
+  /* ── ECAM lower page ── */
+  ecamPage: 'status',    // 'status' | 'elec' | 'hyd'
 
   /* ── Carburettor heat ── */
   carbHeat:     false,   // true = carb heat lever ON

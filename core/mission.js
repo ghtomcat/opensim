@@ -9,6 +9,7 @@ import { resetFailures }  from './failures.js';
 import { resetFuel }      from './fuel.js';
 import { resetBattery }   from './battery.js';
 import { resetElectrical } from './electrical.js';
+import { resetHydraulics } from './hydraulics.js';
 import { setCrewLang }    from './crew.js';
 
 /**
@@ -153,6 +154,7 @@ export async function loadMission(missionPath, aircraftPath) {
   resetFuel();
   resetBattery();
   resetElectrical();
+  resetHydraulics();
 
   /* Reset cockpit switches — all off at mission start */
   S.switches.master   = false;

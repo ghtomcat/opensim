@@ -2108,11 +2108,12 @@
   import { renderLM, handleLMClick } from './display/lm_display.js';
   import { renderDragon, handleDragonClick, isDragonTelemetry } from './display/dragon.js';
   import './display/g1000.js';  /* bridge exports used by panel_renderer */
-  import { renderECAM }        from './display/ecam.js';
+  import { renderECAM, initECAM } from './display/ecam.js';
   import { renderBf109 }       from './display/bf109.js';
   import { renderF4U1A }       from './display/f4u1a.js';
   import { renderHovercraft }  from './display/hovercraft_display.js';
   import { initRobotArm, renderRobotArm, resetRobotArm } from './display/robot_arm.js';
+  import { renderYertleQuadruped, resetYertleQuadruped } from './display/yertle_quadruped.js';
   import { renderVelisEpsi, handleVelisClick } from './display/velis_epsi.js';
   import { initFMA, renderFMA } from './display/fma.js';
   import { initCOM }           from './display/com.js';
@@ -2504,6 +2505,22 @@
       },
     },
     {
+      id: 'deblin-1955', aircraft: 'mig15',
+      acName: 'Mikoyan-Gurevich MiG-15 "Fagot"', engine: 'Klimov VK-1 · 26.5 kN',
+      location: 'Dęblin · Polen', title: 'Przechwycenie · Dęblin 1955', era: '1955', accent: '#cc2233',
+      briefing: {
+        classification: 'TAJNE · LOTNICTWO WOJSK LĄDOWYCH',
+        date: 'Juli 1955 · 14:30 Ortszeit · Lotnisko Wojskowe Dęblin',
+        pilot: 'Por. Stanisław Wróbel',
+        unit: 'Szkoła Lotnicza Dęblin · Polskie Siły Powietrzne',
+        aircraft: 'MiG-15 "Fagot" · VK-1 · Rote 15',
+        orders: 'PRZECHWYCENIE — Sektor Wschód, Juli 1955.\nAlarm Ost. Unbekanntes Flugzeug — Transponder negativ.\nKurs 090. Steigflug FL420. VK-1 — Vollschub.\nSichtkontakt herstellen. Identität feststellen.\n\nFeuer nur auf ausdrücklichen Befehl der Bodenleitstelle.\nSowjetischer Verbindungsoffizier: Befehlsgewalt liegt bei Moskau.',
+        atmosphere: 'Er saß in einer MiG-15.\nZwölf Jahre zuvor saß er in einem Spitfire.\nBeide flogen gut.\nDas war das Problem.',
+        image:    'images/wrobel-1955.png',
+        document: 'images/deblin-rozkaz.png',
+      },
+    },
+    {
       id: 'nordmeer-1956', aircraft: 'tu95ms',
       acName: 'Tupolev Tu-95MS Bear H', engine: 'Kuznetsov NK-12MV × 4 · Turboprop',
       location: 'Olenya · Kola Peninsula', title: 'Aufklärungsflug · Nordmeer 1956', era: '1956', accent: '#cc4444',
@@ -2570,6 +2587,19 @@
         aircraft: 'SO-101 · 6-DOF · Feetech STS3215 × 6 · Reach 280mm · Payload 500g',
         orders: 'Tab — cycle joint (J1–J6)\n← → — rotate selected joint (Shift = ×5)\nSpace — gripper open / close\nH — home position\n\nMove the arm through targets A → B → C.\nStay within the safe workspace envelope.',
         atmosphere: 'The architecture made physical.\nSix joints. One black box.\nEvery command logged. Every decision recorded.\n\nHuman always PF.',
+      },
+    },
+    {
+      id: 'yertle-lab', aircraft: 'yertle',
+      acName: 'Yertle Robot Dog', engine: '20 kg·cm Servos × 12 · PCA9685 · 6.8V',
+      location: 'Faigle3D Workshop', title: 'Dog Lab · Visualisation', era: 'LAB', accent: '#4ade80',
+      briefing: {
+        date: 'Workshop · Quadruped Lab',
+        pilot: 'Markus',
+        unit: 'OpenSim Robot Lab',
+        aircraft: 'Yertle · 12-DOF · 4 legs · ESP32 T-CAN485 · PCA9685',
+        orders: '[ / ] — cycle joint\n1–0, -, = — jump to joint 1–12\n← → — rotate joint  (Shift = ×5)\nH — home all joints\nL — log transforms to console',
+        atmosphere: 'Four legs. Twelve joints.\nOne calibration at a time.\n\nThe dog stands ready.',
       },
     },
     {
@@ -3573,6 +3603,7 @@
     loadStatus.textContent = 'loading aircraft…';
 
     resetRobotArm();
+    resetYertleQuadruped();
     resetCislunar();
     await loadMission(inlineMission ?? `missions/${missionId}.json`, `aircraft/${aircraftId}.json`);
     initBlackbox();
@@ -3594,16 +3625,21 @@
 
     /* Re-init COM with mission-specific frequencies now that S.mission is loaded */
     const _comEl = document.getElementById('com-container');
-    const _hidecom = S.aircraft?.vehicleType === 'robot-arm' || S.aircraft?.vehicleType === 'rocket';
+    const _hidecom = S.aircraft?.vehicleType === 'robot-arm' || S.aircraft?.vehicleType === 'robot-dog' || S.aircraft?.vehicleType === 'rocket';
     if (!_hidecom) initCOM(_comEl);
     _comEl.style.display = _hidecom ? 'none' : '';
     initOverhead();
+    initECAM(ecamCanvas);
     initPedestal();
 
     /* Seed robot arm state if applicable — Three.js init happens lazily on first render */
     if (S.aircraft?.vehicleType === 'robot-arm') {
       const home = (S.aircraft?.joints ?? []).map(j => j.home ?? 0);
       setState({ armJoints: home, armGripper: 0, armTargetIdx: 0 });
+    }
+    if (S.aircraft?.vehicleType === 'robot-dog') {
+      const home = (S.aircraft?.joints ?? []).map(j => j.home ?? 0);
+      setState({ dogJoints: home });
     }
 
     /* Show/hide map based on aircraft capability */
@@ -3745,7 +3781,7 @@
 
     /* Show onboarding — skip for autonomous/slider-controlled vehicles */
     const obEl = document.getElementById('onboarding');
-    const _isRobotArm = S.aircraft?.vehicleType === 'robot-arm';
+    const _isRobotArm = S.aircraft?.vehicleType === 'robot-arm' || S.aircraft?.vehicleType === 'robot-dog';
     const _noKeys = S.aircraft?.vehicleType === 'rocket' || S.aircraft?.type === 'hovercraft' || _isRobotArm;
     if (!_noKeys) { obEl.classList.add('visible'); setState({ paused: true }); }
     /* Init sound with default engine type from aircraft JSON */
@@ -3770,9 +3806,10 @@
     const _isLycoming  = engineType === 'lycoming-o360';
     const _isElectric  = engineType === 'electric';
     const _isTurbofan  = engineType === 'geared-turbofan';
-    /* Turbofan ground starts need the lifecycle (E=start, Q=cutoff); airborne starts skip it */
-    const _hasLifecycle = _isV12 || _isRadial || _isLycoming || _isElectric ||
-                          (_isTurbofan && S.engineState === 'off');
+    const _isVK1       = engineType === 'turbojet-vk1';
+    /* Turbofan/VK-1 ground starts need the lifecycle (E=start, Q=cutoff);
+       dismissOnboarding already checks S.engineState to decide airborne vs ground start */
+    const _hasLifecycle = _isV12 || _isRadial || _isLycoming || _isElectric || _isTurbofan || _isVK1;
 
     const dismissOnboarding = () => {
       obEl.classList.remove('visible');
@@ -3827,7 +3864,7 @@
       }
 
       /* Q — engine cut-off: fuel cutoff on turbofan, mixture/Kraftstoffhahn on piston */
-      if ((e.key === 'q' || e.key === 'Q') && (_isV12 || _isRadial || _isTurbofan)) {
+      if ((e.key === 'q' || e.key === 'Q') && (_isV12 || _isRadial || _isTurbofan || _isVK1)) {
         bbEvent({ type: 'engine_cutoff', method: 'mixture' });
         stopEngineLifecycle();
         return;
@@ -3968,8 +4005,10 @@
         const panel    = S.aircraft?.panel ?? 'pfd';
         const isHover  = S.aircraft?.type === 'hovercraft';
         const isRocket = S.aircraft?.vehicleType === 'rocket';
-        const isArm    = S.aircraft?.vehicleType === 'robot-arm';
-        if      (isArm)              renderRobotArm(canvas);
+        const isDog    = S.aircraft?.vehicleType === 'robot-dog';
+        const isArm    = S.aircraft?.vehicleType === 'robot-arm' || isDog;
+        if      (isDog)              renderYertleQuadruped(canvas);
+        else if (isArm)              renderRobotArm(canvas);
         else if (isHover)            renderHovercraft(canvas);
         else if (isRocket && S.mission?.dragonSepT) {
           if (isDragonTelemetry()) renderRocket(canvas);
@@ -4016,8 +4055,8 @@
         document.getElementById('panel').style.display          = (isRocket || hasOwnUI || isArm) ? 'none' : '';
         document.getElementById('keys').style.display           = (isRocket || isArm || isPanel) ? 'none' : '';
         document.getElementById('fma').style.display            = (isRocket || hasOwnUI || isArm || isPanel) ? 'none' : '';
-        document.getElementById('warning-lights').style.display = (hasOwnUI || isPanel) ? 'none' : '';
-        document.getElementById('metar-strip').style.display    = (hasOwnUI || isPanel) ? 'none' : '';
+        document.getElementById('warning-lights').style.display = (hasOwnUI || isPanel || isArm) ? 'none' : '';
+        document.getElementById('metar-strip').style.display    = (hasOwnUI || isPanel || isArm) ? 'none' : '';
         _oskUpdate(isHover, S.aircraft?.manualControl);
       },
       () => renderFMA(),

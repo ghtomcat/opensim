@@ -11,8 +11,8 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState }                             from '../core/state.js';
-import { startEngineLifecycle, stopEngineLifecycle, startApuSound } from '../core/sound.js';
-import { apuMasterToggle }                         from '../core/electrical.js';
+import { startEngineLifecycle, stopEngineLifecycle, startApuSound, stopApuSound } from '../core/sound.js';
+import { apuMasterSet, apuStartPress, apuFirePull } from '../core/electrical.js';
 
 /* ── DOM node ─────────────────────────────────────────────────── */
 let _el = null;
@@ -77,22 +77,66 @@ const _CSS = `
     color: #60708c;
   }
 
-  /* Guarded pushbutton — red guard lifts to reveal button */
-  .ohp-pb-guarded { position: relative; }
-  .ohp-guard {
-    position: absolute; inset: -3px; z-index: 2;
-    background: #6a1010;
-    border: 1px solid #9a2020;
+  /* APU FIRE section */
+  .ohp-fire-group {
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+  }
+  .ohp-fire-wrap {
+    position: relative; display: flex; flex-direction: column; align-items: center; gap: 0;
+  }
+  .ohp-fire-btn {
+    width: 52px; height: 40px;
+    background: #5a0808;
+    border: 2px solid #c02020;
     border-radius: 3px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 3px;
+    cursor: pointer; user-select: none;
+    transition: background 0.1s;
+  }
+  .ohp-fire-btn:hover { background: #6e0e0e; }
+  .ohp-fire-btn.armed { background: #8a0000; border-color: #ff4040;
+                         box-shadow: 0 0 8px rgba(255,60,60,0.5); }
+  .ohp-fire-led {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #3a1010;
+    transition: background 0.15s, box-shadow 0.15s;
+  }
+  .ohp-fire-led.on { background: #ff3030; box-shadow: 0 0 6px #ff3030; }
+  .ohp-fire-legend {
+    font: 700 8px/1 monospace; letter-spacing: 0.06em; color: #e08080;
+  }
+  .ohp-fire-label {
+    font: 500 9px/1 monospace; letter-spacing: 0.08em; color: #904040;
+  }
+  /* Guard cover that lifts */
+  .ohp-guard-cover {
+    position: absolute; inset: -3px; z-index: 2;
+    background: #7a1212;
+    border: 1px solid #b03030;
+    border-radius: 4px;
     display: flex; align-items: center; justify-content: center;
     cursor: pointer;
-    transition: transform 0.18s ease, opacity 0.18s;
+    transition: transform 0.22s ease, opacity 0.22s;
     transform-origin: top center;
   }
-  .ohp-guard.lifted { transform: rotateX(-80deg); opacity: 0.35; pointer-events: none; }
-  .ohp-guard-label {
-    font: 700 7px/1 monospace; letter-spacing: 0.08em; color: #e07070;
+  .ohp-guard-cover span {
+    font: 700 7px/1 monospace; letter-spacing: 0.08em; color: #f09090;
   }
+  .ohp-guard-cover.lifted {
+    transform: perspective(120px) rotateX(-75deg);
+    opacity: 0.30; pointer-events: none;
+  }
+  /* Small TEST button */
+  .ohp-test-btn {
+    width: 28px; height: 14px;
+    background: #1c2030; border: 1px solid #303548; border-radius: 2px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; user-select: none; margin-top: 2px;
+    font: 700 6px/1 monospace; letter-spacing: 0.06em; color: #708090;
+    transition: background 0.08s;
+  }
+  .ohp-test-btn:active { background: #283050; color: #c0d0e0; }
 
   /* Rotary mode selector */
   .ohp-rotary { display: flex; flex-direction: column; align-items: center; gap: 5px; }
@@ -247,9 +291,22 @@ function _buildHTML() {
   /* APU section */
   const apuSection = `<div class="ohp-section">
     <div class="ohp-section-hdr">APU</div>
-    <div class="ohp-row">
-      ${_pb('ohp-apu-master', 'APU', 'MASTER')}
-      ${_pb('ohp-apu-bleed',  'BLEED', 'APU')}
+    <div class="ohp-row" style="align-items:flex-start; gap:10px;">
+      ${_pb('ohp-apu-master', 'MASTER', 'APU')}
+      ${_pb('ohp-apu-start',  'START',  'APU')}
+      ${_pb('ohp-apu-bleed',  'BLEED',  'APU')}
+      <div class="ohp-divider"></div>
+      <div class="ohp-fire-group">
+        <div class="ohp-fire-wrap">
+          <div class="ohp-fire-btn" id="ohp-apu-fire">
+            <div class="ohp-fire-led" id="ohp-apu-fire-led"></div>
+            <div class="ohp-fire-legend">FIRE</div>
+          </div>
+          <div class="ohp-guard-cover" id="ohp-apu-fire-guard"><span>GUARD</span></div>
+        </div>
+        <div class="ohp-fire-label">APU FIRE</div>
+        <div class="ohp-test-btn" id="ohp-apu-fire-test">TEST</div>
+      </div>
     </div>
   </div>`;
 
@@ -266,6 +323,16 @@ function _buildHTML() {
     </div>
   </div>`;
 
+  /* Hydraulics section — turbofan only */
+  const hydSection = turbofan ? `<div class="ohp-section">
+    <div class="ohp-section-hdr">HYDRAULICS</div>
+    <div class="ohp-row">
+      ${_pb('ohp-hyd-green-elec',  'ELEC', 'GREEN')}
+      ${_pb('ohp-hyd-blue-elec',   'ELEC', 'BLUE')}
+      ${_pb('ohp-hyd-yellow-elec', 'ELEC', 'YELLOW')}
+    </div>
+  </div>` : '';
+
   /* Engine start section */
   const engSection = `<div class="ohp-section">
     <div class="ohp-section-hdr">ENGINE START</div>
@@ -280,6 +347,7 @@ function _buildHTML() {
     <div class="ohp-panel-title">OVERHEAD PANEL</div>
     ${elecSection}
     ${apuSection}
+    ${hydSection}
     ${fuelSection}
     ${engSection}
     <div class="ohp-hint">O · RETURN TO INSTRUMENTS</div>
@@ -327,19 +395,51 @@ function _attachHandlers() {
     });
   }
 
-  /* APU master — start/stop sequence via electrical.js */
+  /* APU MASTER — latching switch */
   document.getElementById('ohp-apu-master')?.addEventListener('click', () => {
+    const wasOn = S.apuMasterOn ?? false;
+    apuMasterSet(!wasOn);
+    if (wasOn) stopApuSound();   // master off = shutdown
+    _updateSwitches();
+  });
+
+  /* APU START — momentary, triggers startup + sound */
+  document.getElementById('ohp-apu-start')?.addEventListener('click', () => {
     const wasOff = (S.apuState ?? 'off') === 'off';
-    apuMasterToggle();
+    apuStartPress();
     if (wasOff && (S.apuState ?? 'off') === 'starting') startApuSound();
     _updateSwitches();
   });
 
-  /* APU bleed — only when APU running */
+  /* APU BLEED — only when APU running */
   document.getElementById('ohp-apu-bleed')?.addEventListener('click', () => {
     if (turbofan && (S.apuState ?? 'off') !== 'running') return;
     setState({ apuBleedOn: !(S.apuBleedOn ?? false) });
     _updateSwitches();
+  });
+
+  /* APU FIRE guard — lift before pulling handle */
+  document.getElementById('ohp-apu-fire-guard')?.addEventListener('click', () => {
+    document.getElementById('ohp-apu-fire-guard')?.classList.toggle('lifted');
+  });
+
+  /* APU FIRE handle — pull (only when guard lifted) */
+  document.getElementById('ohp-apu-fire')?.addEventListener('click', () => {
+    const guard = document.getElementById('ohp-apu-fire-guard');
+    if (!guard?.classList.contains('lifted')) return;   // guard must be lifted first
+    apuFirePull();
+    stopApuSound();
+    _updateSwitches();
+  });
+
+  /* APU FIRE TEST — momentarily lights the fire LED */
+  document.getElementById('ohp-apu-fire-test')?.addEventListener('mousedown', () => {
+    document.getElementById('ohp-apu-fire-led')?.classList.add('on');
+  });
+  document.getElementById('ohp-apu-fire-test')?.addEventListener('mouseup', () => {
+    if (!(S.apuFireArmed ?? false)) {
+      document.getElementById('ohp-apu-fire-led')?.classList.remove('on');
+    }
   });
 
   /* X-feed */
@@ -354,6 +454,18 @@ function _attachHandlers() {
       const pumps = [...(S.fuelPumps ?? Array(n).fill(true))];
       pumps[i - 1] = !pumps[i - 1];
       setState({ fuelPumps: pumps });
+      _updateSwitches();
+    });
+  }
+
+  /* Hydraulic electric pumps */
+  for (const [id, key] of [
+    ['ohp-hyd-green-elec',  'hydGreenElecOn'],
+    ['ohp-hyd-blue-elec',   'hydBlueElecOn'],
+    ['ohp-hyd-yellow-elec', 'hydYellowElecOn'],
+  ]) {
+    document.getElementById(id)?.addEventListener('click', () => {
+      setState({ [key]: !(S[key] ?? false) });
       _updateSwitches();
     });
   }
@@ -415,12 +527,23 @@ function _updateSwitches() {
   }
 
   /* APU */
-  const apuState = S.apuState ?? 'off';
-  _led('ohp-apu-master', apuState === 'running', apuState === 'starting');
-  _pbOn('ohp-apu-master', apuState !== 'off');
+  const apuState    = S.apuState ?? 'off';
+  const apuMasterOn = S.apuMasterOn ?? false;
+  /* MASTER — on when switch is latched, LED green when APU running */
+  _led('ohp-apu-master', apuState === 'running', false);
+  _pbOn('ohp-apu-master', apuMasterOn);
+  /* START — lit amber while starting, dims when running or off */
+  _led('ohp-apu-start', false, apuState === 'starting');
+  _pbDisabled('ohp-apu-start', !apuMasterOn || apuState !== 'off');
+  /* BLEED */
   _led('ohp-apu-bleed',  S.apuBleedOn ?? false);
   _pbOn('ohp-apu-bleed', S.apuBleedOn ?? false);
   _pbDisabled('ohp-apu-bleed', turbofan && apuState !== 'running');
+  /* FIRE */
+  const fireArmed = S.apuFireArmed ?? false;
+  document.getElementById('ohp-apu-fire')?.classList.toggle('armed', fireArmed);
+  const fireLed = document.getElementById('ohp-apu-fire-led');
+  if (fireLed) fireLed.classList.toggle('on', fireArmed);
 
   /* Fuel */
   _led('ohp-xfeed', S.xfeedOpen ?? false);
@@ -434,6 +557,16 @@ function _updateSwitches() {
   document.querySelectorAll('#ohp-eng-mode .ohp-rot-opt').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.val === mode);
   });
+
+  /* Hydraulics */
+  for (const [id, key] of [
+    ['ohp-hyd-green-elec',  'hydGreenElecOn'],
+    ['ohp-hyd-blue-elec',   'hydBlueElecOn'],
+    ['ohp-hyd-yellow-elec', 'hydYellowElecOn'],
+  ]) {
+    _led(id, S[key] ?? false);
+    _pbOn(id, S[key] ?? false);
+  }
 
   if (!turbofan) return;
 

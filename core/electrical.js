@@ -7,12 +7,19 @@
      AC bus         ← APU gen | engine gens | external power (ground only)
      DC bus         ← AC bus (via TR) | essential bus
 
+   APU controls (three separate switches, as on real aircraft):
+     apuMasterOn     MASTER switch — arms fuel + electrics (latching)
+     apuStartPress() START button  — momentary, triggers startup sequence
+     apuFirePull()   FIRE handle   — emergency shutdown + arm extinguisher
+
    State keys managed here:
      bat1On / bat2On          battery master switches
      bat1Charge / bat2Charge  0–100 %
      extPwrOn                 external power switch (ground only)
+     apuMasterOn              APU MASTER switch position
      apuState                 'off' | 'starting' | 'running'
      apuBleedOn               APU bleed valve switch
+     apuFireArmed             true after fire handle pulled
      apuRunning               derived bool (backward compat)
      apuGenOn                 derived — APU contribution to AC bus
      engGenOn                 derived bool[] per engine
@@ -25,39 +32,60 @@ import { S, setState } from './state.js';
 
 const BAT_DRAIN_PCT_S  = 0.30 / 60;   // ~0.30 %/min at rest on essential bus
 const BAT_CHARGE_PCT_S = 3.0  / 60;   // ~3 %/min when AC bus live
-const APU_START_SECS   = 35;          // seconds from MASTER ON → AVAIL/RUNNING
+const APU_START_SECS   = 35;          // seconds from START press → AVAIL
 
-let _apuStartT = null;   // S.time when APU start was commanded
+let _apuStartT = null;   // S.time when APU START was pressed
 
-/* ── Called from overhead.js when APU MASTER is pressed ── */
-export function apuMasterToggle() {
-  const state = S.apuState ?? 'off';
-  if (state !== 'off') {
-    /* Shutdown */
+/* ── APU MASTER switch (latching on/off) ── */
+export function apuMasterSet(on) {
+  if (on) {
+    setState({ apuMasterOn: true });
+  } else {
+    /* Master off → shutdown APU if running */
     _apuStartT = null;
-    setState({ apuState: 'off', apuGenOn: false, apuBleedOn: false, apuRunning: false });
-    return;
+    setState({ apuMasterOn: false, apuState: 'off', apuGenOn: false,
+               apuBleedOn: false, apuRunning: false });
   }
-  /* Start — needs essential bus (battery power) */
-  if (!(S.essentialBusPowered ?? false)) return;
+}
+
+/* ── APU START button (momentary) ── */
+export function apuStartPress() {
+  if (!(S.apuMasterOn ?? false)) return;           // master must be on
+  if (!(S.essentialBusPowered ?? false)) return;   // need battery power
+  if ((S.apuState ?? 'off') !== 'off') return;     // already starting/running
   _apuStartT = S.time ?? 0;
   setState({ apuState: 'starting' });
+}
+
+/* ── APU FIRE handle (pull = emergency shutdown + arm extinguisher) ── */
+export function apuFirePull() {
+  _apuStartT = null;
+  setState({
+    apuMasterOn:  false,
+    apuState:     'off',
+    apuGenOn:     false,
+    apuBleedOn:   false,
+    apuRunning:   false,
+    apuFireArmed: true,
+  });
 }
 
 /* ── Reset on mission load ── */
 export function resetElectrical() {
   _apuStartT = null;
   setState({
-    bat1On:     false,
-    bat2On:     false,
-    bat1Charge: 100,
-    bat2Charge: 100,
-    extPwrOn:   false,
-    apuState:   'off',
-    apuBleedOn: false,
-    apuRunning: false,
-    apuGenOn:   false,
-    engGenOn:   [],
+    bat1On:      false,
+    bat2On:      false,
+    bat1Charge:  100,
+    bat2Charge:  100,
+    extPwrOn:    false,
+    apuMasterOn: false,
+    apuState:    'off',
+    apuBleedOn:  false,
+    apuFireArmed: false,
+    apuRunning:  false,
+    apuGenOn:    false,
+    engGenOn:    [],
     essentialBusPowered: false,
     acBusPowered:        false,
     dcBusPowered:        false,
@@ -78,7 +106,7 @@ export function tickElectrical(dt) {
     }
   }
 
-  /* Engine generators — one per engine, online when N1 > 56 % */
+  /* Engine generators — online when N1 > 56 % */
   const n = ac.engine?.count ?? 2;
   const engGenOn = Array.from({ length: n }, () => (S.n1 ?? 0) > 56);
 
