@@ -13,6 +13,7 @@ import { tickGamepad, tickControls } from './input.js';
 import { tickFailures }              from './failures.js';
 import { tickFuel }                  from './fuel.js';
 import { tickBattery }               from './battery.js';
+import { tickElectrical }           from './electrical.js';
 import { tickTelemetry }            from './telemetry.js';
 import { bbTick }                   from './blackbox.js';
 import { tickHIL }                  from './hil.js';
@@ -59,6 +60,7 @@ function _tick(now) {
     tickFailures(warpDt);
     tickFuel(dt);
     tickBattery(dt);
+    tickElectrical(dt);
     if (isRocket) {
       /* Fixed-dt rocket physics.
          When warpDt < PHYS_DT (real-time / low warp): one step with the

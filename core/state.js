@@ -131,6 +131,21 @@ export const S = {
   /* ── Battery (electric aircraft) ── */
   batteryCharge: null,   // 0–100 % — null = not an electric aircraft
 
+  /* ── Electrical system (turbofan aircraft) ── */
+  bat1On:     false,     // BAT 1 master switch
+  bat2On:     false,     // BAT 2 master switch
+  bat1Charge: 100,       // 0–100 %
+  bat2Charge: 100,       // 0–100 %
+  extPwrOn:   false,     // external power switch (ground only)
+  apuState:   'off',     // 'off' | 'starting' | 'running'
+  apuBleedOn: false,     // APU bleed valve
+  apuRunning: false,     // derived from apuState
+  apuGenOn:   false,     // derived — APU feeding AC bus
+  engGenOn:   [],        // derived bool[] — one per engine
+  essentialBusPowered: false,   // bat1 or bat2 on + charge > 2%
+  acBusPowered:        false,   // APU gen | eng gen | ext pwr
+  dcBusPowered:        false,   // AC bus (via TR) | essential bus
+
   /* ── Carburettor heat ── */
   carbHeat:     false,   // true = carb heat lever ON
   carbIceLevel: 0,       // 0=clear, 1=fully iced
@@ -151,6 +166,9 @@ export const S = {
   armJoints:    null,   // [j1,j2,j3,j4,j5,j6] degrees — null = not a robot arm mission
   armGripper:   0,      // 0=open, 1=closed
   armTargetIdx: 0,      // index into mission.arm.targets
+
+  /* ── Yertle quadruped dog ── */
+  dogJoints:    null,   // [lf_sho,lf_thi,lf_shi, rf_..., lb_..., rb_...] degrees × 12
 
   /* ── Warning lights ── */
   warnings: {},           // { OIL_PRESS: bool, LOW_FUEL: bool, FUEL_SEL_OFF: bool }

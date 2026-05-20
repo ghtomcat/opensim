@@ -50,6 +50,24 @@ const ENGINES = {
     masterGain:      0.20,
     attackTime:      0.4,
   },
+  'turbojet-vk1': {
+    /* Klimov VK-1 centrifugal turbojet — MiG-15.
+       Single-stage centrifugal compressor: very clean near-sine tone.
+       Idle fundamental ~137 Hz, full power ~990 Hz (from spectrogram).
+       Intake rush prominent — large nose opening. */
+    fundamentalIdle: 137,
+    fundamentalMax:  990,
+    harmonics:       [1, 2, 3],
+    harmonicGains:   [1.0, 0.28, 0.06],   // centrifugal = very few harmonics
+    oscType:         'sine',               // centrifugal compressor ≈ pure sine
+    filterType:      'bandpass',
+    filterFreq:      350,
+    filterQ:         2.5,                  // narrow — the tone is the whole sound
+    noiseGain:       0.14,                 // intake rush
+    noiseFilterFreq: 900,
+    masterGain:      0.22,
+    attackTime:      0.5,
+  },
   'rotary-9': {
     // Le Rhône 9J — 9-cylinder rotary, 110hp, WWI
     // Physical model via AudioWorklet — lerh9-processor.js
@@ -196,10 +214,16 @@ export const ENGINE_TYPES = Object.keys(ENGINES);
 
 export function getCurrentRpm() {
   if (!_cfg) return null;
+  if (S.engineState === 'off') return '---';
 
   /* During engine startup: compute RPM from elapsed time, matching synthesis curves */
   if (_lifecycleStartedAt !== null && _ctx) {
     const elapsed = _ctx.currentTime - _lifecycleStartedAt;
+    if (_engineType === 'turbojet-vk1') {
+      /* VK-1: N1 climbs 0→22% over 28.5s startup sequence */
+      const p = Math.min(1, elapsed / 28.5);
+      return 'N1 ' + Math.round(p * 22) + '%';
+    }
     if (_engineType === 'radial-2000hp') {
       /* R-2800: flywheel(cold26s/warm12s/hot0s) → klonk(0.18s) → motoring(2.8s) → runup(35s) */
       const oilC       = S.oilTempC ?? 15;
@@ -228,11 +252,20 @@ export function getCurrentRpm() {
   }
 
   /* During shutdown: exponential decay from _shutdownRpm */
-  if (S.engineState === 'shutdown' && _shutdownAt !== null && _ctx) {
-    const elapsed = _ctx.currentTime - _shutdownAt;
-    const rpm = Math.max(0, _shutdownRpm * Math.exp(-elapsed / 1.2));
-    if (rpm < 5) return '--- RPM';
-    return Math.round(rpm) + ' RPM';
+  if (S.engineState === 'shutdown') {
+    if (_engineType === 'turbojet-vk1' && _shutdownWallAt !== null) {
+      const elapsed = (performance.now() - _shutdownWallAt) / 1000;
+      const n1 = Math.max(0, _shutdownN1 * Math.exp(-elapsed / 4.5));
+      if (n1 < 0.5) return '---';
+      return 'N1 ' + Math.round(n1) + '%';
+    }
+    if (_shutdownAt !== null && _ctx) {
+      const elapsed = _ctx.currentTime - _shutdownAt;
+      const rpm = Math.max(0, _shutdownRpm * Math.exp(-elapsed / 1.2));
+      if (rpm < 5) return '--- RPM';
+      return Math.round(rpm) + ' RPM';
+    }
+    return '---';
   }
 
   const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 350;
@@ -278,6 +311,8 @@ let _workletReady = false;
 let _lastRpm         = 1000;   // last computed RPM — used by shutdown synth
 let _shutdownRpm     = 0;      // RPM at moment of shutdown — for gauge decay
 let _shutdownAt      = null;   // _ctx.currentTime when shutdown began
+let _shutdownN1      = 0;      // VK-1: N1% at fuel cutoff (wall-clock decay, no AudioContext needed)
+let _shutdownWallAt  = null;   // VK-1: performance.now() at fuel cutoff
 let _engineType      = null;   // current engine type string
 let _lifecycleSrc    = null;   // BufferSource playing startup sequence
 let _lifecycleStartedAt = null; // _ctx.currentTime when startup began
@@ -1973,6 +2008,192 @@ function _assembleLycomingStartup(sr) {
   return buf;
 }
 
+/* ══════════════════════════════════════════════════
+   VK-1 KLIMOV STARTUP — MiG-15
+   Electric starter → light-off → acceleration to idle.
+   SpTG-7 starter motor, no cartridge, no inertia wheel.
+   ══════════════════════════════════════════════════ */
+
+function _synthVK1Starter(sr, duration = 7.0) {
+  const N = Math.floor(sr * duration);
+  const buf = new Float32Array(N);
+  let lfsr = 0xA5A5, ph1 = 0, ph2 = 0, ph3 = 0;
+  for (let i = 0; i < N; i++) {
+    const t = i / sr, p = t / duration;
+    const freq = 30 + 35 * Math.pow(p, 0.6);   // 30 → 65 Hz as motor spools
+    ph1 += freq / sr; ph2 += freq * 2 / sr; ph3 += freq * 3 / sr;
+    const motor = Math.sin(2*Math.PI*ph1)*0.70 + Math.sin(2*Math.PI*ph2)*0.18 + Math.sin(2*Math.PI*ph3)*0.06;
+    lfsr ^= lfsr<<13; lfsr ^= lfsr>>17; lfsr ^= lfsr<<5;
+    const buzz = ((lfsr & 0xFFFF)/32768 - 1) * 0.04;
+    const env = Math.min(1, t / 1.2) * Math.min(1, (duration - t) / 0.4);
+    buf[i] = (motor + buzz) * env * 0.022;
+  }
+  return buf;
+}
+
+function _synthVK1Lightoff(sr) {
+  const dur = 0.45, N = Math.floor(sr * dur);
+  const buf = new Float32Array(N);
+  let lfsr = 0xDEAD, resX = 0, resY = 0;
+  const resR = 0.87, resCos = Math.cos(2*Math.PI*72/sr), resSin = Math.sin(2*Math.PI*72/sr);
+  let transEnv = 1.0, noiseEnv = 1.0;
+  const tD = Math.exp(-90/sr), nD = Math.exp(-7/sr);
+  for (let i = 0; i < N; i++) {
+    transEnv *= tD; noiseEnv *= nD;
+    lfsr ^= lfsr<<13; lfsr ^= lfsr>>17; lfsr ^= lfsr<<5;
+    const noise = (lfsr & 0xFFFF)/32768 - 1;
+    const raw = transEnv * 0.55 + noise * noiseEnv * 0.45;
+    const nx = resR*(resX*resCos - resY*resSin) + raw;
+    const ny = resR*(resX*resSin + resY*resCos);
+    resX = nx; resY = ny;
+    buf[i] = (raw * 0.25 + resX * 0.75) * 2.2;
+  }
+  return buf;
+}
+
+function _synthVK1Accel(sr, duration = 21.0) {
+  const N = Math.floor(sr * duration);
+  const buf = new Float32Array(N);
+  let lfsr = 0xF00D, ph1 = 0, ph2 = 0, hpX = 0;
+  let resX = 0, resY = 0;
+  const resR = 0.91, resCos = Math.cos(2*Math.PI*52/sr), resSin = Math.sin(2*Math.PI*52/sr);
+  const hpA = 1 - Math.exp(-2*Math.PI*280/sr);
+  for (let i = 0; i < N; i++) {
+    const t = i / sr, p = t / duration;
+    /* Centrifugal compressor: exponential frequency sweep 65 → 137 Hz */
+    const fComp = 65 * Math.pow(137/65, p);
+    ph1 += fComp / sr; ph2 += fComp * 2 / sr;
+    const comp = Math.sin(2*Math.PI*ph1)*0.88 + Math.sin(2*Math.PI*ph2)*0.20;
+    lfsr ^= lfsr<<13; lfsr ^= lfsr>>17; lfsr ^= lfsr<<5;
+    const noise = (lfsr & 0xFFFF)/32768 - 1;
+    /* Intake rush — high-passed noise, builds with RPM */
+    hpX += hpA * (noise - hpX);
+    const intake = (noise - hpX) * 0.16 * p;
+    /* Combustion roar — low-freq resonator */
+    const raw = noise * 0.28;
+    const nx = resR*(resX*resCos - resY*resSin) + raw;
+    const ny = resR*(resX*resSin + resY*resCos);
+    resX = nx; resY = ny;
+    const roar = resX * 0.18;
+    /* Amplitude: rises from 0.35 → 1.0 then fades last 1s for handoff */
+    const amp  = 0.35 + 0.65 * Math.pow(p, 0.75);
+    const fade = Math.min(1, (duration - t) / 1.0);
+    buf[i] = (comp + intake + roar) * amp * 0.072 * fade;
+  }
+  return buf;
+}
+
+/* ── APU startup synthesis (Honeywell GTCP-style small gas turbine) ── */
+
+function _synthAPUStarter(sr, duration = 4.0) {
+  const N = Math.floor(sr * duration);
+  const buf = new Float32Array(N);
+  let lfsr = 0xB3C5, ph1 = 0, ph2 = 0, ph3 = 0;
+  for (let i = 0; i < N; i++) {
+    const t = i / sr, p = t / duration;
+    const freq = 80 + 140 * Math.pow(p, 0.5);   // electric motor: 80 → 220 Hz
+    ph1 += freq / sr; ph2 += freq * 2 / sr; ph3 += freq * 3 / sr;
+    const motor = Math.sin(2*Math.PI*ph1)*0.65 + Math.sin(2*Math.PI*ph2)*0.22 + Math.sin(2*Math.PI*ph3)*0.08;
+    lfsr ^= lfsr<<13; lfsr ^= lfsr>>17; lfsr ^= lfsr<<5;
+    const buzz = ((lfsr & 0xFFFF)/32768 - 1) * 0.05;
+    const env = Math.min(1, t / 0.5) * Math.min(1, (duration - t) / 0.3);
+    buf[i] = (motor + buzz) * env * 0.018;
+  }
+  return buf;
+}
+
+function _synthAPULightoff(sr) {
+  const dur = 0.5, N = Math.floor(sr * dur);
+  const buf = new Float32Array(N);
+  let lfsr = 0xACE1, resX = 0, resY = 0;
+  const resR = 0.85, resCos = Math.cos(2*Math.PI*160/sr), resSin = Math.sin(2*Math.PI*160/sr);
+  let transEnv = 1.0, noiseEnv = 1.0;
+  const tD = Math.exp(-120/sr), nD = Math.exp(-8/sr);
+  for (let i = 0; i < N; i++) {
+    transEnv *= tD; noiseEnv *= nD;
+    lfsr ^= lfsr<<13; lfsr ^= lfsr>>17; lfsr ^= lfsr<<5;
+    const noise = (lfsr & 0xFFFF)/32768 - 1;
+    const raw = transEnv * 0.60 + noise * noiseEnv * 0.40;
+    const nx = resR*(resX*resCos - resY*resSin) + raw;
+    const ny = resR*(resX*resSin + resY*resCos);
+    resX = nx; resY = ny;
+    buf[i] = (raw * 0.25 + resX * 0.75) * 1.8;
+  }
+  return buf;
+}
+
+function _synthAPUAccel(sr, duration = 30.5) {
+  const N = Math.floor(sr * duration);
+  const buf = new Float32Array(N);
+  let lfsr = 0xE7F3, ph1 = 0, ph2 = 0, ph3 = 0, hpX = 0;
+  const hpA = 1 - Math.exp(-2*Math.PI*400/sr);
+  for (let i = 0; i < N; i++) {
+    const t = i / sr, p = t / duration;
+    const fTurb = 220 * Math.pow(1600/220, p);   // turbine whine: 220 → 1600 Hz
+    ph1 += fTurb / sr; ph2 += fTurb * 2 / sr; ph3 += fTurb * 3.5 / sr;
+    const whine = Math.sin(2*Math.PI*ph1)*0.70 + Math.sin(2*Math.PI*ph2)*0.22 + Math.sin(2*Math.PI*ph3)*0.08;
+    lfsr ^= lfsr<<13; lfsr ^= lfsr>>17; lfsr ^= lfsr<<5;
+    const noise = (lfsr & 0xFFFF)/32768 - 1;
+    hpX += hpA * (noise - hpX);
+    const hiss = (noise - hpX) * 0.20 * Math.pow(p, 0.5);   // intake air hiss
+    const amp  = 0.25 + 0.75 * Math.min(1, Math.pow(p * 4, 0.7));
+    const fade = Math.min(1, (duration - t) / 1.5);
+    buf[i] = (whine + hiss) * amp * 0.055 * fade;
+  }
+  return buf;
+}
+
+function _assembleAPUStartup(sr) {
+  const gap     = Math.floor(sr * 0.03);
+  const starter = _synthAPUStarter(sr, 4.0);
+  const lightoff = _synthAPULightoff(sr);
+  const accel   = _synthAPUAccel(sr, 30.5);
+  const total   = starter.length + gap + lightoff.length + gap + accel.length;
+  const full    = new Float32Array(total);
+  let off = 0;
+  full.set(starter,  off); off += starter.length  + gap;
+  full.set(lightoff, off); off += lightoff.length + gap;
+  full.set(accel,    off);
+  return full;
+}
+
+export async function startApuSound() {
+  if (!_ctx) {
+    _ctx    = new AudioContext();
+    _master = _ctx.createGain();
+    _master.gain.value = 0;
+    _master.connect(_ctx.destination);
+  }
+  if (_ctx.state === 'suspended') await _ctx.resume();
+  const buf  = _assembleAPUStartup(_ctx.sampleRate);
+  const ab   = _ctx.createBuffer(1, buf.length, _ctx.sampleRate);
+  ab.copyToChannel(buf, 0);
+  const src  = _ctx.createBufferSource();
+  const gain = _ctx.createGain();
+  gain.gain.value = 0.80;
+  src.buffer = ab;
+  src.connect(gain);
+  gain.connect(_ctx.destination);
+  src.start();
+}
+
+function _assembleVK1Startup(sr) {
+  const gap     = Math.floor(sr * 0.04);
+  const starter = _synthVK1Starter(sr, 7.0);
+  const lightoff= _synthVK1Lightoff(sr);
+  const accel   = _synthVK1Accel(sr, 21.0);
+  const total   = starter.length + gap + lightoff.length + gap + accel.length;
+  const full    = new Float32Array(total);
+  let off = 0;
+  full.set(starter,  off); off += starter.length  + gap;
+  full.set(lightoff, off); off += lightoff.length + gap;
+  full.set(accel,    off);
+  /* Scale so accel peak matches oscillator idle output level */
+  const scale = ((_cfg?.masterGain ?? 0.22) * 0.4) / 0.072;
+  for (let i = 0; i < full.length; i++) full[i] *= scale;
+  return full;
+}
+
 export async function startEngineLifecycle() {
   /* Turbofan: enter 'starting' state — N1 physics ramps to idle and auto-transitions to 'running' */
   if (_engineType === 'geared-turbofan') {
@@ -1981,7 +2202,7 @@ export async function startEngineLifecycle() {
     startSound();   // spin up audio; sound level follows N1 via tickSound
     return;
   }
-  if (_engineType !== 'v12-supercharged' && _engineType !== 'radial-2000hp' && _engineType !== 'lycoming-o360') { startSound(); return; }
+  if (_engineType !== 'v12-supercharged' && _engineType !== 'radial-2000hp' && _engineType !== 'lycoming-o360' && _engineType !== 'turbojet-vk1') { startSound(); return; }
   if (S.engineState === 'starting' || S.engineState === 'running' || S.engineState === 'idle') return;
   if (S.coolantState === 'failed') return;
   if (S.fuelSelector === 'OFF' && S.fuelLeft !== null) return;   // fuel cut — no start
@@ -2001,6 +2222,8 @@ export async function startEngineLifecycle() {
     ? _assembleR2800Startup(_ctx.sampleRate)
     : _engineType === 'lycoming-o360'
     ? _assembleLycomingStartup(_ctx.sampleRate)
+    : _engineType === 'turbojet-vk1'
+    ? _assembleVK1Startup(_ctx.sampleRate)
     : _assembleStartup(_ctx.sampleRate);
   const ab  = _ctx.createBuffer(1, startupBuf.length, _ctx.sampleRate);
   ab.copyToChannel(startupBuf, 0);
@@ -2023,7 +2246,13 @@ export async function startEngineLifecycle() {
   src.onended = () => {
     _lifecycleSrc = null;
     _lifecycleStartedAt = null;
-    if (S.engineState !== 'starting') return;   // aborted (M pressed) — don't activate
+    if (S.engineState !== 'starting') return;   // aborted (Q pressed) — don't activate
+    if (_engineType === 'turbojet-vk1') {
+      /* VK-1 uses oscillator engine — start it now that startup sound has finished */
+      setState({ engineState: 'running', enginePower: 1.0 });
+      setTimeout(() => startSound(_engineType), 50);
+      return;
+    }
     if (!_workletNode) { setState({ engineState: 'off' }); return; }
     console.log('[OpenSim] Engine started — worklet active, spdT:', S.spdT);
     setState({ engineState: 'running', enginePower: 1.0, engineTemp: Math.min(1, (S.engineTemp ?? 0) + 0.8),
@@ -2097,6 +2326,18 @@ export function stopEngineLifecycle() {
     if (S.engineState === 'off' || S.engineState === 'shutdown') return;
     setState({ engineState: 'shutdown' });
     stopSound();   // fade audio; N1 physics handles state → 'off'
+    return;
+  }
+  /* VK-1: fuel cutoff — N1 spools down over ~8s */
+  if (_engineType === 'turbojet-vk1') {
+    if (S.engineState === 'off' || S.engineState === 'shutdown') return;
+    const maxSpd = S.aircraft?.envelope?.maxSpd ?? 567;
+    const throttle = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
+    _shutdownN1    = Math.round(20 + 80 * throttle);
+    _shutdownWallAt = performance.now();
+    setState({ engineState: 'shutdown' });
+    stopSound();
+    setTimeout(() => { if (S.engineState === 'shutdown') setState({ engineState: 'off' }); }, 8000);
     return;
   }
   if (_engineType !== 'v12-supercharged' && _engineType !== 'radial-2000hp' && _engineType !== 'lycoming-o360') { stopSound(); return; }

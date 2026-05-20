@@ -8,6 +8,7 @@
     "colors": [null, null, [0, 100, 72], null, null, [20, 22, 28], null]
   },
   "engine": {
+    "type": "turbofan",
     "model": "pw1500g",
     "chevrons": true,
     "thrustReverser": true

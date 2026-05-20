@@ -8,6 +8,7 @@
     "colors": [null, null, null, null, null, [210, 215, 220], null]
   },
   "engine": {
+    "type": "turbofan",
     "model": "ge-cf34",
     "chevrons": false,
     "thrustReverser": true

@@ -126,8 +126,8 @@ export function _buildWB(np) {
     { vF:        0.001, r: r,    col: 0 },              // ring nNose+0: wing-stn (fixed)
     { vF: -0.010 * ts,  r: r,    col: 0 },              // ring nNose+1: rear
     { vF: -0.014 * ts,  r: nr3-r*0.12, col: 0, cz: r*0.12 }, // ring nNose+2: top fixed, belly rises 0.24r
-    { vF: -0.017 * ts,  r: nr3-r*0.26,         cz: r*0.26 }, // ring nNose+3: belly rises 0.52r
-    { vF: -0.0205 * ts, r: nr3-r*0.42,         cz: r*0.42 }, // ring nNose+4: belly near centreline, close to tailTip
+    { vF: -0.017 * ts,  r: nr3-r*0.35,         cz: r*0.35 }, // ring nNose+3: belly rises
+    { vF: -0.0205 * ts, r: r*0.18,             cz: r*0.42 }, // ring nNose+4: small APU exhaust ring
   ]);
 
   const noseTip = V_.length;  V_.push([np.tipX, 0, np.tipCz ?? 0]);
@@ -141,13 +141,13 @@ export function _buildWB(np) {
     [-0.016*ts,  0,        vstabZ   ],  //  b+10 V-stab top fwd  (40° LE sweep)
     [-0.021*ts,  0,        vstabZ-0.001],//b+11 V-stab top aft
     [-0.017*ts,  nr3,      0.0      ],  //  b+12 R h-stab root fwd
-    [ tailX,     nr2,      0.0      ],  //  b+13 R h-stab root aft  (TE at tail)
+    [-0.0175*ts, nr2,      0.0      ],  //  b+13 R h-stab root aft
     [-0.019*ts,  0.008,    0.001    ],  //  b+14 R h-stab tip fwd  (30° LE sweep)
-    [ tailX,     0.008,    0.001    ],  //  b+15 R h-stab tip aft
+    [-0.0175*ts, 0.008,    0.001    ],  //  b+15 R h-stab tip aft
     [-0.017*ts, -nr3,      0.0      ],  //  b+16 L h-stab root fwd
-    [ tailX,    -nr2,      0.0      ],  //  b+17 L h-stab root aft
+    [-0.0175*ts,-nr2,      0.0      ],  //  b+17 L h-stab root aft
     [-0.019*ts, -0.008,    0.001    ],  //  b+18 L h-stab tip fwd
-    [ tailX,    -0.008,    0.001    ],  //  b+19 L h-stab tip aft
+    [-0.0175*ts,-0.008,    0.001    ],  //  b+19 L h-stab tip aft
     /* R engine rings (b+20..59) — eA..eE shift with wing rootLE via exOff */
     [ eA, ey,      ez+er   ],[ eA, ey+e7,   ez+e7   ],
     [ eA, ey+er,   ez      ],[ eA, ey+e7,   ez-e7   ],
@@ -279,8 +279,8 @@ export function _buildWB(np) {
   const _hTr = 0.00040;                           // root half-thickness
   const _hTt = 0.00025;                           // tip half-thickness
   const _hTE = 0.00005;                           // TE gap
-  const _hsRL = -0.014*ts, _hsRH = -0.017*ts, _hsRT = tailX;
-  const _hsTL = -0.016*ts, _hsTH = -0.019*ts, _hsTT = tailX;
+  const _hsRL = -0.014*ts, _hsRH = -0.01645*ts, _hsRT = -0.0175*ts;
+  const _hsTL = -0.016*ts, _hsTH = -0.01705*ts, _hsTT = -0.0175*ts;
   /* Root LE at ring nNose+2 (cz=r*0.12), root hinge at ring nNose+3 (cz=r*0.26) */
   const _hsRY  = nr3 - r*0.12;   // root LE y — equator of ring nNose+2
   const _hsRZ  = r * 0.12;       // root LE z center
@@ -347,8 +347,15 @@ export function _buildWB(np) {
      so the static wing face doesn't deform when spoilers deploy (b+228..b+231) */
   V_.push(WV[14].slice(), WV[15].slice(), WV[36].slice(), WV[37].slice());
 
-  /* Extra cockpit window panels (b+232+) — panels 2, 3, … for aircraft with cockpitPanels.
-     Each panel: 4 R verts then 4 L verts (y negated). Panel pi-1 starts at b+232+(pi-1)*8. */
+  /* V-stab LE nose vertices (b+232/b+233) — rounded cap, mirrors wing _leN approach.
+     Thickness in Y → nose sits at y=0, offset forward (more positive x) by half-thickness. */
+  V_.push(
+    [_vsRL + _vTr, 0, r      ],   // b+232  root LE nose
+    [_vsTL + _vTt, 0, vstabZ ],   // b+233  tip  LE nose
+  );
+
+  /* Extra cockpit window panels (b+234+) — panels 2, 3, … for aircraft with cockpitPanels.
+     Each panel: 4 R verts then 4 L verts (y negated). Panel pi-1 starts at b+234+(pi-1)*8. */
   if (np.cockpitPanels?.length > 1)
     for (let pi = 1; pi < np.cockpitPanels.length; pi++) {
       const p = np.cockpitPanels[pi];
@@ -410,7 +417,7 @@ export function _buildWB(np) {
     [b+118,b+147,b+101,b+100],[b+118,b+100,b+101,b+147],  // R winglet (LE→ailHinge root, swept tip)
     [b+122,b+151,b+103,b+102],[b+122,b+102,b+103,b+151],  // L winglet
     // V-stab airfoil (b+160..b+171)
-    [b+161,b+167,b+166,b+160],                             // LE cap (root→tip, filled forward face)
+    [b+166,b+233,b+232,b+160],[b+161,b+232,b+233,b+167],  // LE rounds +Y / -Y
     [b+160,b+162,b+168,b+166],[b+161,b+167,b+169,b+163],  // main body +Y/-Y
     [b+162,b+164,b+170,b+168],[b+163,b+169,b+171,b+165],  // rudder +Y/-Y
     [b+168,b+169,b+167,b+166],[b+170,b+171,b+169,b+168],  // tip cap fwd+aft
@@ -450,7 +457,7 @@ export function _buildWB(np) {
     10,10,10,10,                          // engine interior caps (R intake, R nozzle, L intake, L nozzle)
     1,1,1,1, 1,1,1,1,                          // LE rounds R+L (8)
     1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1, 9,9,9,9,  // R wing (14) + L wing (14) + winglets (4)
-    2,2,2,2,2,2,2, 3,3,3,3, 3,3,3,3,       // vstab airfoil (7) + R hstab (4) + L hstab (4)
+    2,2,2,2,2,2,2,2, 3,3,3,3, 3,3,3,3,     // vstab airfoil (8) + R hstab (4) + L hstab (4)
     4,4,4,4,4,4,4,4, 4,4,4,4,4,4,4,4,   // R engine A→B + B→C (16)
     7,7,7,7,7,7,7,7,                      // R engine C→D TR zone (8)
     4,4,4,4,4,4,4,4,                      // R engine D→E (8)
@@ -495,6 +502,7 @@ export function _buildWB(np) {
      custom intermediate vertices), then center post ring2:si0 → ring3:si0. */
   // (winSiInner/winSiOuter are used for window faces only, not the seam path)
   const SL_ = [];
+  let _frontWin = null;
   if (np.winFwdRi != null && np.radomeRi != null) {
     const fR = np.winFwdRi, rri = np.radomeRi;
     const aR = np.winAftRi;
@@ -523,6 +531,26 @@ export function _buildWB(np) {
     SL_.push([_kBase+1, rb[fR]+sI      ]);  // kink2     → ring2:sI (starboard aft diagonal)
     SL_.push([rb[rri]+(N-sI), _kBase   ]);  // ring1:N-sI → kink1 (port fwd diagonal)
     SL_.push([_kBase+1, rb[fR]+(N-sI)  ]);  // kink2     → ring2:N-sI (port aft diagonal)
+    /* Lower windshield dividers — true parallels to kink2→fR:sI / kink2→fR:N-sI.
+       D = v(fR:sI) − kink2;  new endpoint = kink1 + D  (same displacement vector). */
+    { const _k1   = V_[_kBase], _k2 = V_[_kBase + 1];
+      const _angSI = Math.PI * 0.5 - (sI / N) * Math.PI * 2;
+      const _rfR   = np.noseRings[fR].r;
+      const _epx   = _k1[0] + (np.noseRings[fR].vF - _k2[0]);
+      const _epy   =  _rfR * Math.cos(_angSI);          // Dy (kink2 has y=0)
+      const _epz   = _k1[2] + (_rfR * Math.sin(_angSI) - _k2[2]);
+      const _kPar  = V_.length;
+      V_.push([_epx,  _epy, _epz], [_epx, -_epy, _epz]);
+      SL_.push([_kBase,         _kPar    ], [_kBase,         _kPar + 1]);  // kink1 → new endpoints
+      SL_.push([rb[fR] + sI,    _kPar    ], [rb[fR] + (N-sI), _kPar + 1]);  // 2:2/2:14 → new endpoints
+      /* Expose corners for post-painter fill + silver outline (same path as cockpitPanels).
+         Winding is CCW in screen space so cross-product cull keeps the front-facing side:
+         starboard: kink2→2:sI→kPar→kink1  port: kink2→kink1→kPar+1→2:N-sI  */
+      _frontWin = [
+        [_kBase,   _kPar,        rb[fR]+sI,       _kBase+1],  // starboard — CCW from starboard
+        [_kBase+1, rb[fR]+(N-sI), _kPar+1,        _kBase  ],  // port — CCW from port
+      ];
+    }
     /* Center post */
     if (aR != null) {
       SL_.push([rb[fR]+0, rb[aR]+0]);
@@ -568,10 +596,11 @@ export function _buildWB(np) {
     [b+155,b+156],[b+156,b+157],                           // L LE nose span
     [b+140,b+141],[b+142,b+143],[b+148,b+149],[b+150,b+151],
     [b+140,b+142],[b+141,b+143],
-    // V-stab airfoil edges (b+160..b+171)
-    [b+160,b+161],[b+162,b+163],[b+164,b+165],       // root thickness: LE/hinge/TE
-    [b+166,b+167],[b+168,b+169],[b+170,b+171],       // tip thickness
-    [b+160,b+166],[b+161,b+167],                     // LE spanwise
+    // V-stab airfoil edges (b+160..b+171, b+232/233 LE nose)
+    [b+160,b+232],[b+232,b+161],[b+162,b+163],[b+164,b+165],  // root: LE nose halves + hinge/TE
+    [b+166,b+233],[b+233,b+167],[b+168,b+169],[b+170,b+171],  // tip:  LE nose halves + hinge/TE
+    [b+232,b+233],                                             // LE nose spanwise
+    [b+160,b+166],[b+161,b+167],                              // LE spanwise +Y/-Y
     [b+162,b+168],[b+163,b+169],                     // hinge spanwise
     [b+164,b+170],[b+165,b+171],                     // TE spanwise
     // R h-stab airfoil edges (b+172..b+183)
@@ -619,7 +648,7 @@ export function _buildWB(np) {
   return { V_, F_, FC_, E_, SE_, SL_, b, r, rb,
     winFwdRi: np.winFwdRi, winAftRi: np.winAftRi,
     winSiInner: np.winSiInner, winSiOuter: np.winSiOuter,
-    cockpitPanels: np.cockpitPanels,
+    cockpitPanels: np.cockpitPanels, frontWin: _frontWin,
     ey2: np.ey2, ez: np.ez, er: np.er, erc: np.erc, pz: np.pz, exOff,
     anim: { r_rt, r_hs, r_ail, r_sp_rt, r_sp_hs } };
 }

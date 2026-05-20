@@ -8,6 +8,7 @@ import { S, setState }   from './state.js';
 import { resetFailures }  from './failures.js';
 import { resetFuel }      from './fuel.js';
 import { resetBattery }   from './battery.js';
+import { resetElectrical } from './electrical.js';
 import { setCrewLang }    from './crew.js';
 
 /**
@@ -36,7 +37,7 @@ export async function loadMission(missionPath, aircraftPath) {
      Turbofan ground starts also begin 'off' — crew must run through start sequence.
      All airborne starts (cruise/approach missions) begin 'running'. */
   const hasColdStart =
-    ['v12-supercharged', 'radial-2000hp', 'lycoming-o360', 'electric'].includes(aircraft.sound?.engineType) ||
+    ['v12-supercharged', 'radial-2000hp', 'lycoming-o360', 'electric', 'turbojet-vk1'].includes(aircraft.sound?.engineType) ||
     (aircraft.engine?.type === 'turbofan' && startOnGround);
   const startEngineState = (startOnGround && hasColdStart) ? 'off' : 'running';
 
@@ -151,6 +152,7 @@ export async function loadMission(missionPath, aircraftPath) {
   resetFailures();
   resetFuel();
   resetBattery();
+  resetElectrical();
 
   /* Reset cockpit switches — all off at mission start */
   S.switches.master   = false;

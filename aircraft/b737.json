@@ -8,6 +8,7 @@
     "colors": [null, null, [30, 60, 120], null, null, [15, 18, 24], null, null, null, [30, 60, 120]]
   },
   "engine": {
+    "type": "turbofan",
     "model": "cfm56-7",
     "chevrons": false,
     "thrustReverser": true
