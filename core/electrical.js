@@ -110,7 +110,7 @@ export function tickElectrical(dt) {
   const n = ac.engine?.count ?? 2;
   const engGenOn = Array.from({ length: n }, () => (S.n1 ?? 0) > 56);
 
-  const apuGenOn = apuState === 'running';
+  const apuGenOn = apuState === 'running' && (S.apuGenSwitch ?? true);
 
   /* Derived bus states */
   const essentialBusPowered =

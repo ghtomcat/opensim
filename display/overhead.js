@@ -306,6 +306,7 @@ function _buildHTML() {
       ${_batPb('ohp-bat2', 'BAT 2')}
       <div class="ohp-divider"></div>
       ${_pb('ohp-ext-pwr', 'EXT<br>PWR', '')}
+      ${_pb('ohp-apu-gen', 'APU<br>GEN', '')}
     </div>
   </div>` : '';
 
@@ -545,6 +546,11 @@ function _attachHandlers() {
     setState({ extPwrOn: !(S.extPwrOn ?? false) });
     _updateSwitches();
   });
+
+  document.getElementById('ohp-apu-gen')?.addEventListener('click', () => {
+    setState({ apuGenSwitch: !(S.apuGenSwitch ?? true) });
+    _updateSwitches();
+  });
 }
 
 /* ── Switch state render ──────────────────────────────────────── */
@@ -665,6 +671,13 @@ function _updateSwitches() {
   _pbOn('ohp-ext-pwr', extOn);
   _pbDisabled('ohp-ext-pwr', !onGround);
   _sub('ohp-ext-pwr', onGround ? (extOn ? 'ON' : 'AVAIL') : '');
+
+  /* APU GEN */
+  const apuGenSw = S.apuGenSwitch ?? true;
+  const apuGenOn = S.apuGenOn ?? false;
+  _led('ohp-apu-gen', apuGenOn);
+  _pbOn('ohp-apu-gen', apuGenSw);
+  _sub('ohp-apu-gen', apuGenOn ? 'ON' : ((S.apuRunning ?? false) && !apuGenSw) ? 'OFF' : '');
 }
 
 /* ── Public API ───────────────────────────────────────────────── */

@@ -140,9 +140,10 @@ export const S = {
   apuMasterOn: false,    // APU MASTER switch (latching)
   apuState:   'off',     // 'off' | 'starting' | 'running'
   apuBleedOn: false,     // APU bleed valve
+  apuGenSwitch: true,    // APU GEN switch (true = ON, default closed)
   apuFireArmed: false,   // fire handle pulled — extinguisher armed
   apuRunning: false,     // derived from apuState
-  apuGenOn:   false,     // derived — APU feeding AC bus
+  apuGenOn:   false,     // derived — APU feeding AC bus (apuRunning && apuGenSwitch)
   engGenOn:   [],        // derived bool[] — one per engine
   engFireArmed: [],      // bool[] — fire handle pulled per engine
   engAgents:   [],       // bool[] — flat: [eng1_a1, eng1_a2, eng2_a1, eng2_a2, ...]
