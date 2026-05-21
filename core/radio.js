@@ -214,6 +214,26 @@ const PROFILES = {
     outputGain:    0.76,
   },
 
+  'rsiu-3': {
+    /* Soviet RSIU-3M AM, 100–156 MHz — Polish Air Force / MiG-15, Dęblin 1955.
+       Early Cold War Soviet military radio. Narrowband AM, 50 Hz European hum.
+       Heavier static than Western VHF. No squelch. Tube soft-clip. */
+    bandpass:      [380, 2500],     // narrow AM — early Soviet military hardware
+    presenceFreq:  1500,            // lower intelligibility peak — AM, not FM
+    presenceGain:  7,               // dB
+    presenceQ:     1.5,             // peaky — Soviet LC filter hardware
+    carrierFreq:   50,              // 50 Hz — Soviet/European power grid hum
+    carrierGain:   0.016,
+    whineFreq:     614,             // VK-1 centrifugal compressor at cruise power
+    whineGain:     0.009,
+    noiseFloor:    0.058,           // high noise — early 1950s military build quality
+    crackle:       0.040,
+    burstLevel:    0.17,
+    squelchTail:   false,           // no squelch on AM
+    saturation:    90,              // light tube soft-clip
+    outputGain:    0.80,
+  },
+
 };
 
 /* ── Worklet registration guard — tracked per AudioContext ── */

@@ -13,7 +13,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from '../core/state.js';
-import { getRpmValue } from '../core/sound.js';
+import { getRpmValue, getCurrentRpm } from '../core/sound.js';
 
 /* ── Palette ── */
 const P = {
@@ -77,7 +77,9 @@ export function renderBf109(canvas) {
   _drawKompass(    ctx, cx,      y2, r1 * 0.85, sc);
   _drawVariometer( ctx, cx + cw, y2, r1 * 0.85, sc);
 
-  _drawDrehzahl(ctx, cx - cw * 0.62, y3, r2, sc);
+  const _isJet = S.aircraft?.sound?.engineType === 'turbojet-vk1';
+  if (_isJet) _drawN1Messer(ctx, cx - cw * 0.62, y3, r2, sc);
+  else        _drawDrehzahl(ctx, cx - cw * 0.62, y3, r2, sc);
   _drawOelTemp( ctx, cx,             y3, r2, sc);
   _drawOelDruck(ctx, cx + cw * 0.62, y3, r2, sc);
 
@@ -567,6 +569,25 @@ function _drawDrehzahl(ctx, x, y, r, sc) {
   _needle(ctx, x, y, r, ang, 0.76, 0.20, sc);
   _cap(ctx, x, y, 4 * sc);
   _label(ctx, x, y, r, 'Drehzahlmesser', sc);
+}
+
+/* N1 Verdichter — turbojet N1 % (replaces Drehzahlmesser when engine is jet) */
+function _drawN1Messer(ctx, x, y, r, sc) {
+  const rpmStr = getCurrentRpm();
+  let n1 = 0;
+  if (rpmStr && rpmStr.startsWith('N1 ')) n1 = parseInt(rpmStr.slice(3), 10) || 0;
+  const maxN1 = 100, s0 = 220, sw = 280;
+  _base(ctx, x, y, r);
+  _ticks(ctx, x, y, r, s0, sw, 10, 4, sc);   /* 10% per major, 2.5% minor */
+  ctx.textBaseline = 'middle';
+  for (let v = 0; v <= maxN1; v += 20)
+    _num(ctx, x, y, r, s0 + (v / maxN1) * sw, String(v), 7.5, sc);
+  ctx.textBaseline = 'alphabetic';
+  _sublabel(ctx, x, y, r, 'N1 %', sc);
+  const ang = s0 + Math.min(1, n1 / maxN1) * sw;
+  _needle(ctx, x, y, r, ang, 0.76, 0.20, sc);
+  _cap(ctx, x, y, 4 * sc);
+  _label(ctx, x, y, r, 'Verdichter', sc);
 }
 
 /* Öltemperatur — 0–130°C. Thermally lagged state from physics.js. */
