@@ -36,6 +36,10 @@
     "thrustReverser": true,
     "nacellePaint": [230, 230, 234]
   },
+  "electrical": {
+    "extPwrB": true,
+    "batCount": 3
+  },
   "displays": [
     { "id": "pfd", "spec": "airbus-pfd", "screen": 0, "pages": ["airbus-pfd", "airbus-nd"] },
     { "id": "nd",  "spec": "airbus-nd",  "screen": 1, "pages": ["airbus-nd",  "airbus-ecam"] }

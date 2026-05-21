@@ -12,7 +12,7 @@
 
 import { S, setState }                             from '../core/state.js';
 import { stopEngineLifecycle, startApuSound, stopApuSound } from '../core/sound.js';
-import { apuMasterSet, apuStartPress, apuFirePull } from '../core/electrical.js';
+import { apuMasterSet, apuStartPress, apuFirePull, elecCfg } from '../core/electrical.js';
 
 /* ── DOM node ─────────────────────────────────────────────────── */
 let _el = null;
@@ -194,7 +194,7 @@ const _CSS = `
 
   /* Section container */
   .ohp-section {
-    width: 100%; max-width: 700px;
+    width: 100%; max-width: 900px;
     border: 1px solid #222638;
     border-radius: 4px;
     padding: 10px 14px 12px;
@@ -242,15 +242,50 @@ const _CSS = `
   .ohp-volt-disp.low   { color: #d09000; text-shadow: 0 0 4px #906000; }
   .ohp-volt-disp.crit  { color: #c83030; text-shadow: 0 0 4px #801818; }
 
+  /* IDG disconnect button + amber guard */
+  .ohp-gen-pair { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .ohp-idg-wrap { position: relative; display: flex; flex-direction: column; align-items: center; }
+  .ohp-idg-btn {
+    width: 52px; height: 28px;
+    background: #180a08; border: 1px solid #501818; border-radius: 3px;
+    display: flex; align-items: center; justify-content: center;
+    font: 700 7px/1 monospace; letter-spacing: 0.06em; color: #804040;
+    cursor: pointer; user-select: none;
+    transition: background 0.1s;
+  }
+  .ohp-idg-btn:hover { background: #221010; }
+  .ohp-idg-btn.disconnected { background: #3a0000; border-color: #ff4040; color: #ff6060; }
+  .ohp-idg-guard {
+    position: absolute; inset: -3px; z-index: 2;
+    background: rgba(180, 130, 20, 0.07); border: 2px solid #907020; border-radius: 3px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; overflow: visible;
+    transition: transform 0.28s ease, opacity 0.28s;
+    transform-origin: top center;
+  }
+  .ohp-idg-guard::before {
+    content: ''; position: absolute; top: -6px; left: -4px; right: -4px; height: 6px;
+    background: #111; border: 1px solid #2a2a2a; border-radius: 2px 2px 0 0;
+  }
+  .ohp-idg-guard::after {
+    content: ''; position: absolute; bottom: -9px; left: 50%; transform: translateX(-50%);
+    width: 14px; height: 8px;
+    background: #907018; border: 1px solid #b09020;
+    border-top: none; border-radius: 0 0 4px 4px; pointer-events: none;
+  }
+  .ohp-idg-guard span { font: 700 6px/1 monospace; letter-spacing: 0.08em; color: #a08030; }
+  .ohp-idg-guard.lifted { transform: perspective(200px) rotateX(-80deg); opacity: 0.15; pointer-events: none; }
+  .ohp-idg-label { font: 500 8px/1 monospace; letter-spacing: 0.06em; color: #60708c; margin-top: 2px; }
+
   /* Panel title + hint */
   .ohp-panel-title {
-    width: 100%; max-width: 700px;
+    width: 100%; max-width: 900px;
     font: 500 9px/1 monospace; letter-spacing: 0.16em; color: #303848;
     text-align: center; padding: 8px 0 4px;
     margin-bottom: auto;
   }
   .ohp-hint {
-    width: 100%; max-width: 700px;
+    width: 100%; max-width: 900px;
     font: 500 9px/1 monospace; letter-spacing: 0.12em; color: #283040;
     text-align: center; padding-top: 10px;
   }
@@ -293,20 +328,44 @@ function _batVoltage(charge, charging) {
 function _engCount() { return S.aircraft?.engine?.count ?? 2; }
 function _isTurbofan() { return S.aircraft?.engine?.type === 'turbofan'; }
 
+function _idgPair(i) {
+  /* IDG disconnect (guarded, amber) + GEN switch pushbutton */
+  return `<div class="ohp-gen-pair">
+    <div class="ohp-idg-wrap">
+      <div class="ohp-idg-btn" id="ohp-idg-${i}">IDG ${i}</div>
+      <div class="ohp-idg-guard" id="ohp-idg-guard-${i}"><span>DISC</span></div>
+    </div>
+    ${_pb(`ohp-gen-${i}`, 'GEN', `${i}`)}
+  </div>`;
+}
+
 /* ── Build inner HTML ─────────────────────────────────────────── */
 function _buildHTML() {
   const n = _engCount();
   const turbofan = _isTurbofan();
+  const cfg = turbofan ? elecCfg() : {};
 
   /* Electrical section — turbofan only */
+  const leftGenPairs  = Array.from({ length: Math.min(n, 2) }, (_, i) => _idgPair(i + 1)).join('');
+  const rightGenPairs = n >= 3 ? Array.from({ length: n - 2 }, (_, i) => _idgPair(i + 3)).join('') : '';
   const elecSection = turbofan ? `<div class="ohp-section">
     <div class="ohp-section-hdr">ELECTRICAL</div>
-    <div class="ohp-row">
+    <div class="ohp-row" style="margin-bottom:10px;">
       ${_batPb('ohp-bat1', 'BAT 1')}
       ${_batPb('ohp-bat2', 'BAT 2')}
+      ${cfg.batCount >= 3 ? _batPb('ohp-bat3', 'APU BAT') : ''}
       <div class="ohp-divider"></div>
-      ${_pb('ohp-ext-pwr', 'EXT<br>PWR', '')}
+      ${_pb('ohp-bus-tie', 'BUS<br>TIE', 'AUTO')}
+      <div class="ohp-divider"></div>
+      ${_pb('ohp-galley', 'GALLEY', '')}
+    </div>
+    <div class="ohp-row" style="align-items:flex-start; gap:8px;">
+      ${leftGenPairs}
+      <div class="ohp-divider"></div>
       ${_pb('ohp-apu-gen', 'APU<br>GEN', '')}
+      ${_pb('ohp-ext-pwr', 'EXT A', '')}
+      ${cfg.extPwrB ? _pb('ohp-ext-pwr-b', 'EXT B', '') : ''}
+      ${n >= 3 ? `<div class="ohp-divider"></div>${rightGenPairs}` : ''}
     </div>
   </div>` : '';
 
@@ -547,10 +606,54 @@ function _attachHandlers() {
     _updateSwitches();
   });
 
+  document.getElementById('ohp-ext-pwr-b')?.addEventListener('click', () => {
+    if (!(S.wow ?? false)) return;
+    setState({ extPwrBOn: !(S.extPwrBOn ?? false) });
+    _updateSwitches();
+  });
+
   document.getElementById('ohp-apu-gen')?.addEventListener('click', () => {
     setState({ apuGenSwitch: !(S.apuGenSwitch ?? true) });
     _updateSwitches();
   });
+
+  document.getElementById('ohp-bus-tie')?.addEventListener('click', () => {
+    setState({ busTieAuto: !(S.busTieAuto ?? true) });
+    _updateSwitches();
+  });
+
+  document.getElementById('ohp-galley')?.addEventListener('click', () => {
+    setState({ galleyOn: !(S.galleyOn ?? true) });
+    _updateSwitches();
+  });
+
+  document.getElementById('ohp-bat3')?.addEventListener('click', () => {
+    setState({ bat3On: !(S.bat3On ?? false) });
+    _updateSwitches();
+  });
+
+  /* IDG guards + disconnect buttons */
+  const n = _engCount();
+  for (let i = 1; i <= n; i++) {
+    document.getElementById(`ohp-idg-guard-${i}`)?.addEventListener('click', () => {
+      document.getElementById(`ohp-idg-guard-${i}`)?.classList.toggle('lifted');
+    });
+    document.getElementById(`ohp-idg-${i}`)?.addEventListener('click', () => {
+      const guard = document.getElementById(`ohp-idg-guard-${i}`);
+      if (!guard?.classList.contains('lifted')) return;
+      const conn = [...(S.idgConnected?.length ? S.idgConnected : Array(n).fill(true))];
+      if (!conn[i - 1]) return;   // already disconnected
+      conn[i - 1] = false;
+      setState({ idgConnected: conn });
+      _updateSwitches();
+    });
+    document.getElementById(`ohp-gen-${i}`)?.addEventListener('click', () => {
+      const sw = [...(S.engGenSwitch?.length ? S.engGenSwitch : Array(n).fill(true))];
+      sw[i - 1] = !sw[i - 1];
+      setState({ engGenSwitch: sw });
+      _updateSwitches();
+    });
+  }
 }
 
 /* ── Switch state render ──────────────────────────────────────── */
@@ -664,13 +767,18 @@ function _updateSwitches() {
     }
   }
 
-  /* External power */
+  /* External power A + B */
   const onGround = S.wow ?? false;
-  const extOn    = S.extPwrOn ?? false;
-  _led('ohp-ext-pwr', extOn, false, false);
-  _pbOn('ohp-ext-pwr', extOn);
+  const extOn    = S.extPwrOn  ?? false;
+  const extBOn   = S.extPwrBOn ?? false;
+  _led('ohp-ext-pwr',   extOn,  false, false);
+  _pbOn('ohp-ext-pwr',  extOn);
   _pbDisabled('ohp-ext-pwr', !onGround);
-  _sub('ohp-ext-pwr', onGround ? (extOn ? 'ON' : 'AVAIL') : '');
+  _sub('ohp-ext-pwr',   onGround ? (extOn  ? 'ON' : 'AVAIL') : '');
+  _led('ohp-ext-pwr-b', extBOn, false, false);
+  _pbOn('ohp-ext-pwr-b', extBOn);
+  _pbDisabled('ohp-ext-pwr-b', !onGround);
+  _sub('ohp-ext-pwr-b', onGround ? (extBOn ? 'ON' : 'AVAIL') : '');
 
   /* APU GEN */
   const apuGenSw = S.apuGenSwitch ?? true;
@@ -678,6 +786,53 @@ function _updateSwitches() {
   _led('ohp-apu-gen', apuGenOn);
   _pbOn('ohp-apu-gen', apuGenSw);
   _sub('ohp-apu-gen', apuGenOn ? 'ON' : ((S.apuRunning ?? false) && !apuGenSw) ? 'OFF' : '');
+
+  /* BUS TIE */
+  const tieAuto = S.busTieAuto ?? true;
+  _led('ohp-bus-tie', tieAuto);
+  _pbOn('ohp-bus-tie', tieAuto);
+  _sub('ohp-bus-tie', tieAuto ? 'AUTO' : 'MAN');
+
+  /* GALLEY */
+  const galleyOn = S.galleyOn ?? true;
+  _led('ohp-galley', galleyOn);
+  _pbOn('ohp-galley', galleyOn);
+
+  /* APU BAT */
+  const bat3on     = S.bat3On ?? false;
+  const bat3charge = S.bat3Charge ?? 100;
+  const bat3pct    = Math.round(bat3charge);
+  const bat3charging = (S.acEssBus ?? false) && bat3on;
+  _led('ohp-bat3', bat3on);
+  _pbOn('ohp-bat3', bat3on);
+  _sub('ohp-bat3', `${bat3pct}%`);
+  const bat3fill = document.getElementById('ohp-bat3-fill');
+  if (bat3fill) {
+    bat3fill.style.width = `${bat3pct}%`;
+    bat3fill.style.background = bat3pct > 20 ? '#00c840' : bat3pct > 10 ? '#d09000' : '#c83030';
+  }
+  const bat3volt = document.getElementById('ohp-bat3-volt');
+  if (bat3volt) {
+    bat3volt.textContent = bat3on ? `${_batVoltage(bat3charge, bat3charging)}V` : '--.-V';
+    bat3volt.classList.toggle('low',  bat3pct <= 20 && bat3pct > 10);
+    bat3volt.classList.toggle('crit', bat3pct <= 10);
+    bat3volt.classList.toggle('ohp-volt-disp', true);
+  }
+
+  /* IDG + GEN per engine */
+  const n2 = _engCount();
+  const idgConn = S.idgConnected?.length === n2 ? S.idgConnected : Array(n2).fill(true);
+  const genSw   = S.engGenSwitch?.length  === n2 ? S.engGenSwitch : Array(n2).fill(true);
+  const genOn   = S.engGenOn ?? [];
+  for (let i = 1; i <= n2; i++) {
+    const idg = document.getElementById(`ohp-idg-${i}`);
+    if (idg) idg.classList.toggle('disconnected', !idgConn[i - 1]);
+    const genOn_i = genOn[i - 1] ?? false;
+    const genSw_i = genSw[i - 1] ?? true;
+    _led(`ohp-gen-${i}`, genOn_i);
+    _pbOn(`ohp-gen-${i}`, genSw_i);
+    _sub(`ohp-gen-${i}`, genSw_i ? (genOn_i ? 'ON' : '') : 'OFF');
+  }
 }
 
 /* ── Public API ───────────────────────────────────────────────── */

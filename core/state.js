@@ -134,25 +134,46 @@ export const S = {
   /* ── Electrical system (turbofan aircraft) ── */
   bat1On:     false,     // BAT 1 master switch
   bat2On:     false,     // BAT 2 master switch
+  bat3On:     false,     // APU BAT master switch
   bat1Charge: 100,       // 0–100 %
-  bat2Charge: 100,       // 0–100 %
-  extPwrOn:   false,     // external power switch (ground only)
+  bat2Charge: 100,
+  bat3Charge: 100,
+  extPwrOn:   false,     // EXT PWR A (ground only)
+  extPwrBOn:  false,     // EXT PWR B (ground only)
   apuMasterOn: false,    // APU MASTER switch (latching)
   apuState:   'off',     // 'off' | 'starting' | 'running'
   apuBleedOn: false,     // APU bleed valve
-  apuGenSwitch: true,    // APU GEN switch (true = ON, default closed)
+  apuGenSwitch: true,    // APU GEN switch (true = ON)
   apuFireArmed: false,   // fire handle pulled — extinguisher armed
   apuRunning: false,     // derived from apuState
-  apuGenOn:   false,     // derived — APU feeding AC bus (apuRunning && apuGenSwitch)
+  apuGenOn:   false,     // derived — APU feeding AC bus
+  idgConnected: [],      // bool[] per engine — IDG mechanical coupling (false = disconnected, irreversible)
+  engGenSwitch: [],      // bool[] per engine — GEN switch ON/OFF
   engGenOn:   [],        // derived bool[] — one per engine
   engFireArmed: [],      // bool[] — fire handle pulled per engine
   engAgents:   [],       // bool[] — flat: [eng1_a1, eng1_a2, eng2_a1, eng2_a2, ...]
   apuAgent:    false,    // APU extinguisher agent discharged
   engMasters: [],        // bool[] — ENG MASTER switch per engine (pedestal)
   engMode:    'NORM',    // engine mode selector: 'NORM' | 'IGN+START' | 'CRANK'
-  essentialBusPowered: false,   // bat1 or bat2 on + charge > 2%
-  acBusPowered:        false,   // APU gen | eng gen | ext pwr
-  dcBusPowered:        false,   // AC bus (via TR) | essential bus
+  busTieAuto: true,      // bus tie mode: true=AUTO, false=MANUAL (open)
+  galleyOn:   true,      // galley power enabled
+  /* Per-AC-bus derived power states */
+  acBus11:    false,     // AC BUS 1-1 (ENG 1 generator)
+  acBus12:    false,     // AC BUS 1-2 (ENG 2 generator)
+  acBus23:    false,     // AC BUS 2-3 (ENG 3 generator)
+  acBus24:    false,     // AC BUS 2-4 (ENG 4 generator)
+  acEssBus:   false,     // AC ESSENTIAL BUS
+  dcBus1:     false,     // DC BUS 1 (TR1 from AC BUS 1-1)
+  dcBus2:     false,     // DC BUS 2 (TR2 from AC BUS 2-4)
+  dcEssBus:   false,     // DC ESSENTIAL BUS
+  /* Generator display values (synthesized, updated each tick) */
+  genVoltage: [],        // V per engine (115 VAC nominal)
+  genFreq:    [],        // Hz per engine (400 Hz nominal)
+  genLoad:    [],        // % per engine
+  /* Backward-compat aggregate flags */
+  essentialBusPowered: false,
+  acBusPowered:        false,
+  dcBusPowered:        false
 
   /* ── Hydraulic system (turbofan aircraft) ── */
   hydGreenPsi:     0,     // 0–3000 psi

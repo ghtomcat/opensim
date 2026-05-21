@@ -10,8 +10,13 @@
   "engine": {
     "type": "turbofan",
     "model": "pw1500g",
+    "count": 2,
     "chevrons": true,
     "thrustReverser": true
+  },
+  "electrical": {
+    "extPwrB": false,
+    "batCount": 3
   },
   "displays": [
     { "id": "pfd", "spec": "airbus-pfd", "screen": 0, "pages": ["airbus-pfd", "airbus-nd"] },

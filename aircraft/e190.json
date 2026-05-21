@@ -10,8 +10,13 @@
   "engine": {
     "type": "turbofan",
     "model": "ge-cf34",
+    "count": 2,
     "chevrons": false,
     "thrustReverser": true
+  },
+  "electrical": {
+    "extPwrB": false,
+    "batCount": 2
   },
   "displays": [
     { "id": "pfd", "spec": "e190-pfd", "screen": 0 }

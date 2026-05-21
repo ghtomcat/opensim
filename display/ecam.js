@@ -12,6 +12,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from '../core/state.js';
+import { elecCfg }    from '../core/electrical.js';
 
 const C = {
   bg:      '#030609',
@@ -169,97 +170,201 @@ function _drawSystemsRow(ctx, W, H, s) {
 }
 
 /* ════════════════════════════════════════════════════════════
-   LOWER ECAM — ELEC synoptic
+   LOWER ECAM — ELEC synoptic  (full A340 bus architecture)
+
+   Layout (top → bottom in lower half):
+     Row 1  Generators  GEN1  GEN2  APU  EXT  GEN3  GEN4
+     Row 2  AC buses    1-1   1-2  ESS  2-3   2-4
+     Row 3  TRs / bats  TR1  BAT1 BAT3 BAT2  TR2
+     Row 4  DC buses    DC1       ESS       DC2
    ════════════════════════════════════════════════════════════ */
 function _drawElecPage(ctx, W, top, H, s) {
-  const mid  = top + (H - top) * 0.5;
-  const pad  = 18 * s;
+  const n    = S.aircraft?.engine?.count ?? 2;
+  const cfg  = elecCfg();
+  const rowH = H - top;
+  const pad  = 14 * s;
 
-  _label(ctx, 'ELEC', W / 2, top + 14 * s, C.cyan, 10 * s);
+  _label(ctx, 'ELEC', W / 2, top + 11 * s, C.cyan, 9 * s);
 
-  /* ── AC section ── */
-  const acY   = top + 50 * s;
-  const acPow = S.acBusPowered ?? false;
-  const apuGen = S.apuGenOn ?? false;
-  const engGen = (S.engGenOn ?? []).some(Boolean);
-  const extPwr = (S.extPwrOn ?? false) && (S.wow ?? false);
+  /* State */
+  const engGenOn = S.engGenOn  ?? [];
+  const genV     = S.genVoltage ?? [];
+  const genF     = S.genFreq    ?? [];
+  const genL     = S.genLoad    ?? [];
+  const apuGenOn = S.apuGenOn ?? false;
+  const wow      = S.wow ?? false;
+  const extA     = (S.extPwrOn  ?? false) && wow;
+  const extB     = cfg.extPwrB && (S.extPwrBOn ?? false) && wow;
+  const tieAuto  = S.busTieAuto ?? true;
+  const bus11    = S.acBus11   ?? false;
+  const bus12    = S.acBus12   ?? false;
+  const bus23    = S.acBus23   ?? false;
+  const bus24    = S.acBus24   ?? false;
+  const acEss    = S.acEssBus  ?? false;
+  const dc1      = S.dcBus1    ?? false;
+  const dc2      = S.dcBus2    ?? false;
+  const dcEss    = S.dcEssBus  ?? false;
+  const essBus   = S.essentialBusPowered ?? false;
 
-  /* Source labels */
-  const srcX = [W*0.18, W*0.38, W*0.62, W*0.82];
-  const srcN = S.aircraft?.engine?.count ?? 4;
-  const engGenOn = S.engGenOn ?? [];
+  /* X columns — distribute evenly across 5 slots */
+  /* For 4-engine: GEN1 GEN2 | APU+EXT | GEN3 GEN4 */
+  const xs = n >= 4
+    ? { g1: W*0.09, g2: W*0.25, apu: W*0.50, g3: W*0.75, g4: W*0.91 }
+    : { g1: W*0.20, g2: W*0.45, apu: W*0.55, g3: null,   g4: null   };
+  const xBus11 = xs.g1, xBus12 = xs.g2, xApu = xs.apu;
+  const xBus23 = xs.g3 ?? xs.apu, xBus24 = xs.g4 ?? xs.apu;
+  const xEss   = W * 0.50;
+  const xDC1   = xBus11, xDC2 = n >= 4 ? xBus24 : xBus12;
+  const xBat1  = W * 0.33, xBat2 = W * 0.67, xBat3 = xEss;
 
-  /* AC BUS bar */
-  const busY = acY + 30 * s;
-  ctx.strokeStyle = acPow ? C.green : C.dim;
-  ctx.lineWidth   = 3 * s;
-  ctx.beginPath(); ctx.moveTo(pad, busY); ctx.lineTo(W - pad, busY); ctx.stroke();
-  _label(ctx, 'AC BUS', W/2, busY - 10*s, acPow ? C.green : C.amber, 8*s);
+  /* Y rows */
+  const genY  = top + rowH * 0.13;
+  const acY   = top + rowH * 0.30;
+  const trY   = top + rowH * 0.51;
+  const batY  = top + rowH * 0.67;
+  const dcY   = top + rowH * 0.83;
 
-  /* Generators */
-  const genLabels = srcN === 4
-    ? ['GEN 1', 'APU GEN', 'GEN 3/4', 'EXT PWR']
-    : ['GEN 1', 'APU GEN', 'GEN 2',   'EXT PWR'];
-  const genOn = [
-    engGenOn[0] ?? false,
-    apuGen,
-    srcN === 4 ? ((engGenOn[2] || engGenOn[3]) ?? false) : (engGenOn[1] ?? false),
-    extPwr,
-  ];
+  /* ── Helper: draw a generator box with values ── */
+  const _gen = (x, label, on, v, f, load) => {
+    const col = on ? C.green : C.dim;
+    _box(ctx, x, genY, 50*s, 30*s, col, s);
+    _label(ctx, label, x, genY - 8*s,  col, 6*s);
+    _label(ctx, on ? v.toFixed(0)+'V' : '---', x, genY - 1*s, col, 8*s);
+    _label(ctx, on ? f.toFixed(0)+'Hz': '',    x, genY + 8*s, col, 6*s);
+    _label(ctx, on ? load+'%' : '',            x, genY +15*s, col, 6*s);
+  };
 
-  genLabels.forEach((lbl, i) => {
-    const x = srcX[i];
-    const on = genOn[i];
-    ctx.strokeStyle = on ? C.green : C.dim;
-    ctx.lineWidth = 2 * s;
-    ctx.beginPath(); ctx.moveTo(x, acY - 10*s); ctx.lineTo(x, busY); ctx.stroke();
-    _box(ctx, x, acY - 22*s, 44*s, 18*s, on ? C.green : C.dim, s);
-    _label(ctx, lbl, x, acY - 22*s, on ? C.green : C.dim, 7*s);
-  });
+  /* ── Helper: draw AC bus bar ── */
+  const _acBus = (x, label, powered) => {
+    const col = powered ? C.green : C.dim;
+    ctx.strokeStyle = col; ctx.lineWidth = 3*s;
+    ctx.beginPath(); ctx.moveTo(x - 18*s, acY); ctx.lineTo(x + 18*s, acY); ctx.stroke();
+    _label(ctx, label, x, acY + 9*s, col, 6*s);
+  };
 
-  /* ── DC section ── */
-  const dcY    = busY + 50 * s;
-  const essBus = S.essentialBusPowered ?? false;
-  const dcBus  = S.dcBusPowered ?? false;
+  /* ── Helper: vertical line with optional midpoint label ── */
+  const _vline = (x, y1, y2, powered, midLabel = '') => {
+    const col = powered ? C.green : C.dim;
+    ctx.strokeStyle = col; ctx.lineWidth = 1.5*s;
+    ctx.beginPath(); ctx.moveTo(x, y1); ctx.lineTo(x, y2); ctx.stroke();
+    if (midLabel) _label(ctx, midLabel, x + 7*s, (y1 + y2)/2, col, 6*s);
+  };
 
-  ctx.strokeStyle = dcBus ? C.green : C.dim;
-  ctx.lineWidth   = 3 * s;
-  ctx.beginPath(); ctx.moveTo(pad, dcY); ctx.lineTo(W - pad, dcY); ctx.stroke();
-  _label(ctx, 'DC BUS', W/2, dcY - 10*s, dcBus ? C.green : C.amber, 8*s);
+  /* ── Helper: horizontal line (bus tie) ── */
+  const _hline = (x1, x2, y, powered) => {
+    const col = powered ? C.green : C.dim;
+    ctx.strokeStyle = col; ctx.lineWidth = 1.5*s;
+    ctx.setLineDash(tieAuto ? [] : [4*s, 3*s]);
+    ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke();
+    ctx.setLineDash([]);
+  };
 
-  /* Vertical line from AC to DC bus */
-  ctx.strokeStyle = dcBus ? C.green : C.dim;
-  ctx.lineWidth = 2 * s;
-  ctx.beginPath(); ctx.moveTo(W/2, busY); ctx.lineTo(W/2, dcY); ctx.stroke();
-  _label(ctx, 'TR', W/2, busY + 18*s, dcBus ? C.green : C.dim, 7*s);
+  /* ── Generators ── */
+  _gen(xs.g1, 'GEN 1', engGenOn[0]??false, genV[0]??0, genF[0]??0, genL[0]??0);
+  _gen(xs.g2, 'GEN 2', engGenOn[1]??false, genV[1]??0, genF[1]??0, genL[1]??0);
+  if (n >= 3) _gen(xs.g3, 'GEN 3', engGenOn[2]??false, genV[2]??0, genF[2]??0, genL[2]??0);
+  if (n >= 4) _gen(xs.g4, 'GEN 4', engGenOn[3]??false, genV[3]??0, genF[3]??0, genL[3]??0);
 
-  /* Batteries */
-  const bats = [
-    { key: 'bat1', x: W * 0.28, label: 'BAT 1' },
-    { key: 'bat2', x: W * 0.72, label: 'BAT 2' },
-  ];
-  bats.forEach(({ key, x, label }) => {
-    const on  = S[`${key}On`] ?? false;
+  /* APU GEN source box */
+  const apuCol = apuGenOn ? C.green : C.dim;
+  _box(ctx, xApu, genY - 4*s, 42*s, 20*s, apuCol, s);
+  _label(ctx, 'APU', xApu, genY - 8*s,  apuCol, 6*s);
+  _label(ctx, apuGenOn ? '115V' : '---', xApu, genY + 2*s, apuCol, 8*s);
+
+  /* EXT A (always) / EXT B (only if aircraft has dual external power) */
+  const extAcol = extA ? C.green : C.dim;
+  _box(ctx, xApu - 28*s, genY, 22*s, 14*s, extAcol, s);
+  _label(ctx, 'EXT A', xApu - 28*s, genY, extAcol, 5.5*s);
+  if (cfg.extPwrB) {
+    const extBcol = extB ? C.green : C.dim;
+    _box(ctx, xApu + 28*s, genY, 22*s, 14*s, extBcol, s);
+    _label(ctx, 'EXT B', xApu + 28*s, genY, extBcol, 5.5*s);
+  }
+
+  /* ── Gen → AC bus vertical lines ── */
+  _vline(xBus11, genY + 15*s, acY, bus11);
+  _vline(xBus12, genY + 15*s, acY, bus12);
+  _vline(xApu,   genY + 8*s,  acY, acEss, '');
+  if (n >= 3) _vline(xBus23, genY + 15*s, acY, bus23);
+  if (n >= 4) _vline(xBus24, genY + 15*s, acY, bus24);
+
+  /* ── AC buses ── */
+  _acBus(xBus11, '1-1', bus11);
+  _acBus(xBus12, '1-2', bus12);
+  if (n >= 3) _acBus(xBus23, '2-3', bus23);
+  if (n >= 4) _acBus(xBus24, '2-4', bus24);
+
+  /* AC ESS BUS (center, slightly below) */
+  const acEssY = acY + 10*s;
+  const essCol = acEss ? C.green : C.amber;
+  _box(ctx, xEss, acEssY + 4*s, 46*s, 14*s, essCol, s);
+  _label(ctx, 'AC ESS', xEss, acEssY + 4*s, essCol, 6*s);
+
+  /* Bus tie horizontal — between 1-2 and 2-3 */
+  if (n >= 4) {
+    const tieCol = (bus12 || bus23) ? C.green : C.dim;
+    _hline(xBus12 + 18*s, xBus23 - 18*s, acY, tieCol);
+    const tieMidX = (xBus12 + xBus23) / 2;
+    _label(ctx, tieAuto ? 'TIE' : 'TIE MAN', tieMidX, acY - 7*s,
+           tieAuto ? (tieCol === C.green ? C.green : C.dim) : C.amber, 5.5*s);
+  }
+
+  /* AC ESS feed lines from bus11 and bus24 */
+  _vline(xEss, acY, acEssY - 3*s, acEss);
+
+  /* ── TRs ── */
+  const tr1col = dc1  ? C.green : C.dim;
+  const tr2col = dc2  ? C.green : C.dim;
+  _vline(xDC1, acY,      trY - 8*s, dc1);
+  _box(ctx, xDC1, trY, 28*s, 14*s, tr1col, s);
+  _label(ctx, 'TR 1', xDC1, trY, tr1col, 6*s);
+
+  _vline(xDC2, acY,      trY - 8*s, dc2);
+  _box(ctx, xDC2, trY, 28*s, 14*s, tr2col, s);
+  _label(ctx, 'TR 2', xDC2, trY, tr2col, 6*s);
+
+  /* ── Batteries ── */
+  const _bat = (x, key, label) => {
+    const on  = S[`${key}On`]     ?? false;
     const pct = Math.round(S[`${key}Charge`] ?? 100);
     const v   = (20 + pct / 100 * 8.5).toFixed(1);
     const col = on ? (pct > 20 ? C.green : pct > 10 ? C.amber : C.red) : C.dim;
+    _vline(x, trY + 8*s, batY - 10*s, on && dcEss);
+    _box(ctx, x, batY, 46*s, 28*s, col, s);
+    _label(ctx, label,    x, batY - 8*s,  col, 5.5*s);
+    _label(ctx, v + 'V', x, batY + 1*s,  col, 8*s);
+    _label(ctx, pct+'%', x, batY + 11*s, col, 6*s);
+  };
+  _bat(xBat1, 'bat1', 'BAT 1');
+  _bat(xBat2, 'bat2', 'BAT 2');
+  if (cfg.batCount >= 3) _bat(xBat3, 'bat3', 'APU BAT');
 
-    ctx.strokeStyle = col; ctx.lineWidth = 2*s;
-    ctx.beginPath(); ctx.moveTo(x, dcY); ctx.lineTo(x, dcY + 22*s); ctx.stroke();
-    _box(ctx, x, dcY + 30*s, 52*s, 28*s, col, s);
-    _label(ctx, label, x, dcY + 26*s, col, 7*s);
-    _label(ctx, v + 'V',     x, dcY + 36*s, col, 8*s);
-    _label(ctx, pct + '%',   x, dcY + 46*s, col, 7*s);
-  });
+  /* ── DC buses ── */
+  _vline(xDC1, trY + 8*s, dcY, dc1);
+  _vline(xDC2, trY + 8*s, dcY, dc2);
 
-  /* Essential bus */
-  const essX = W / 2;
-  const essY = dcY + 28 * s;
-  ctx.strokeStyle = essBus ? C.green : C.amber;
-  ctx.lineWidth = 2 * s;
-  ctx.beginPath(); ctx.moveTo(essX, dcY); ctx.lineTo(essX, essY); ctx.stroke();
-  _box(ctx, essX, essY + 8*s, 52*s, 16*s, essBus ? C.green : C.amber, s);
-  _label(ctx, 'ESS BUS', essX, essY + 8*s, essBus ? C.green : C.amber, 7*s);
+  const dc1col = dc1  ? C.green : C.dim;
+  const dc2col = dc2  ? C.green : C.dim;
+  _box(ctx, xDC1, dcY + 7*s, 38*s, 14*s, dc1col, s);
+  _label(ctx, 'DC BUS 1', xDC1, dcY + 7*s, dc1col, 6*s);
+  _box(ctx, xDC2, dcY + 7*s, 38*s, 14*s, dc2col, s);
+  _label(ctx, 'DC BUS 2', xDC2, dcY + 7*s, dc2col, 6*s);
+
+  /* DC ESS BUS at center */
+  const dcEssCol = dcEss ? C.green : C.amber;
+  _box(ctx, xEss, dcY + 7*s, 50*s, 14*s, dcEssCol, s);
+  _label(ctx, 'DC ESS', xEss, dcY + 7*s, dcEssCol, 6*s);
+
+  /* Horizontal DC bus tie from DC1/DC2 to ESS */
+  ctx.strokeStyle = dcEss ? C.green : C.dim; ctx.lineWidth = 1.5*s;
+  ctx.beginPath();
+  ctx.moveTo(xDC1 + 19*s, dcY + 7*s);
+  ctx.lineTo(xEss - 25*s, dcY + 7*s);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(xDC2 - 19*s, dcY + 7*s);
+  ctx.lineTo(xEss + 25*s, dcY + 7*s);
+  ctx.stroke();
 
   _drawSystemsRow(ctx, W, H, s);
 }
