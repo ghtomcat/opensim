@@ -238,15 +238,51 @@
       ]
     },
     {
+      "title": "ELECTRICAL POWER-UP",
+      "type": "checklist",
+      "items": [
+        "BAT 1 — ON · overhead",
+        "BAT 2 — ON · overhead",
+        "APU BAT — ON · overhead",
+        "EXT PWR A — ON (ground only)",
+        "EXT PWR B — ON (ground only)",
+        "BUS TIE — AUTO · overhead",
+        "GALLEY — ON · overhead"
+      ]
+    },
+    {
+      "title": "APU START",
+      "type": "checklist",
+      "items": [
+        "APU MASTER — ON · overhead",
+        "APU START — press and hold",
+        "APU AVAIL (~35 sec) — green LED · check",
+        "APU GEN — ON · overhead",
+        "APU BLEED — ON · overhead"
+      ]
+    },
+    {
       "title": "ENGINE START",
       "type": "checklist",
       "items": [
-        "APU — running, bleed on",
-        "FUEL — pumps on, X-feed as required",
-        "ENG 1, 2, 3, 4 — START (E key)",
+        "ENG MODE — IGN/START · overhead rotary",
+        "ENG MASTER 1 2 3 4 — ON · pedestal",
+        "E key — start all engines",
         "N1 idle ~23% — check all 4 engines",
-        "ENG MASTER 1-4 — ON",
-        "Anti-ice — as required"
+        "ENG MODE — NORM · overhead rotary"
+      ]
+    },
+    {
+      "title": "AFTER START",
+      "type": "checklist",
+      "items": [
+        "GEN 1 · 2 · 3 · 4 — ON · check overhead LEDs",
+        "IDG 1-4 — connected · check overhead",
+        "APU BLEED — OFF · overhead",
+        "APU GEN — OFF (engines stable)",
+        "HYD GREEN · BLUE · YELLOW — check pressure",
+        "FUEL PUMPS 1-4 — ON · overhead",
+        "ANTI-ICE — as required"
       ]
     },
     {

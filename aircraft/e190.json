@@ -177,5 +177,113 @@
     { "alt": 3000,  "speech": "passing three thousand" },
     { "alt": 2000,  "speech": "passing two thousand" },
     { "alt": 1000,  "speech": "passing one thousand" }
+  ],
+  "kneeboard": [
+    {
+      "title": "ELECTRICAL POWER-UP",
+      "type": "checklist",
+      "items": [
+        "BAT 1 — ON · overhead",
+        "BAT 2 — ON · overhead",
+        "EXT PWR — ON (ground only)",
+        "BUS TIE — AUTO · overhead",
+        "GALLEY — ON · overhead"
+      ]
+    },
+    {
+      "title": "APU START",
+      "type": "checklist",
+      "items": [
+        "APU MASTER — ON · overhead",
+        "APU START — press and hold",
+        "APU AVAIL (~35 sec) — green LED · check",
+        "APU GEN — ON · overhead",
+        "APU BLEED — ON · overhead"
+      ]
+    },
+    {
+      "title": "ENGINE START",
+      "type": "checklist",
+      "items": [
+        "ENG MODE — IGN/START · overhead rotary",
+        "ENG MASTER 1 · 2 — ON · pedestal",
+        "E key — start sequence",
+        "N1 idle ~22% — check both engines",
+        "ENG MODE — NORM · overhead rotary"
+      ]
+    },
+    {
+      "title": "AFTER START",
+      "type": "checklist",
+      "items": [
+        "GEN 1 · 2 — ON · check overhead LEDs",
+        "IDG 1-2 — connected · check overhead",
+        "APU BLEED — OFF · overhead",
+        "APU GEN — OFF (engines stable)",
+        "HYD GREEN · BLUE · YELLOW — check pressure",
+        "FUEL PUMPS — ON · overhead",
+        "ANTI-ICE — as required"
+      ]
+    },
+    {
+      "title": "APPROACH FLOW",
+      "type": "briefing",
+      "items": [
+        "ATIS received · QNH noted",
+        "ILS freq tuned + identified",
+        "Approach briefed by PF — runway, course, DH",
+        "Minimums set — DH 200 ft",
+        "Missed approach briefed — climb hdg + alt",
+        "V-speeds confirmed — VREF, VLS, VFE"
+      ]
+    },
+    {
+      "title": "DESCENT CHECKLIST",
+      "type": "checklist",
+      "items": [
+        "SEAT BELTS — ON",
+        "ALTIMETERS — QNH set, both sides",
+        "BRIEFING — complete",
+        "FUEL — checked",
+        "LANDING PERF — checked"
+      ]
+    },
+    {
+      "title": "APPROACH CHECKLIST",
+      "type": "checklist",
+      "items": [
+        "BARO REF — set both sides",
+        "MDA/DH — set and crosschecked",
+        "ILS — tuned + identified",
+        "AUTOBRAKE — as required",
+        "FLAPS — as required for speed",
+        "SPEED — VAPP managed"
+      ]
+    },
+    {
+      "title": "LANDING CHECKLIST",
+      "type": "checklist",
+      "items": [
+        "CABIN CREW — advised",
+        "GEAR — DOWN · 3 GREEN",
+        "FLAPS — FULL",
+        "GROUND SPOILERS — ARMED",
+        "AUTOBRAKE — as required",
+        "LANDING LIGHTS — ON"
+      ]
+    },
+    {
+      "title": "MISSED APPROACH",
+      "type": "briefing",
+      "items": [
+        "Call: GO AROUND — FLAPS",
+        "TOGA thrust — apply",
+        "Pitch — 15° nose up",
+        "Gear — UP (positive climb)",
+        "Flaps — retract on schedule",
+        "Follow published missed approach",
+        "Advise ATC immediately"
+      ]
+    }
   ]
 }
