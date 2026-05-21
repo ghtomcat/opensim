@@ -852,25 +852,28 @@ export function drawFCU(ctx, W, H, style) {
 export function drawECAM(ctx, box, style) {
   const { x, y, w, h } = box;
   const f   = _MONO;
-  const grn = _c(style, 'engaged');   // green
-  const amb = _c(style, 'managed');   // amber
+  const grn = _c(style, 'engaged');
+  const amb = _c(style, 'managed');
   const red = '#ff3b3b';
   const wht = _c(style, 'white');
   const dim = 'rgba(200,215,225,0.35)';
+  const cyn = '#4dc5dc';
 
   ctx.fillStyle = '#030609';
   ctx.fillRect(x, y, w, h);
 
-  /* ── Zones ── */
-  const warnH  = h * 0.28;   // warning messages
-  const engH   = h * 0.48;   // engine parameters
-  const memoH  = h * 0.24;   // memo / status
+  const page = S.ecamPage ?? 'status';
+  if (page === 'elec') { _ecamElec(ctx, x, y, w, h, f, grn, amb, dim, cyn); return; }
+  if (page === 'hyd')  { _ecamHyd (ctx, x, y, w, h, f, grn, amb, dim, cyn); return; }
 
-  const warnY  = y;
-  const engY   = warnY + warnH;
-  const memoY  = engY  + engH;
+  /* ── STATUS / ENGINE page ─────────────────────────────────── */
+  const warnH = h * 0.28;
+  const engH  = h * 0.48;
+  const warnY = y;
+  const engY  = warnY + warnH;
+  const memoY = engY + engH;
 
-  /* ─ Warning zone ─ */
+  /* Warning zone */
   const hasWarn = Object.values(S.warnings ?? {}).some(Boolean);
   if (hasWarn) {
     let wy = warnY + h * 0.06;
@@ -883,106 +886,213 @@ export function drawECAM(ctx, box, style) {
       wy += h * 0.065;
     }
   } else {
-    ctx.font      = `${h * 0.042}px ${f}`;
-    ctx.fillStyle = dim;
-    ctx.textAlign = 'center';
+    ctx.font = `${h * 0.042}px ${f}`; ctx.fillStyle = dim; ctx.textAlign = 'center';
     ctx.fillText('NORMAL', x + w * 0.5, warnY + warnH * 0.52);
   }
 
-  /* Separator */
-  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-  ctx.lineWidth   = 1;
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(x, engY); ctx.lineTo(x + w, engY); ctx.stroke();
 
-  /* ─ Engine zone — two columns ─ */
-  const n1   = S.enginePower * 92;
-  const egt  = 390 + S.enginePower * 470;
-  const n2   = S.enginePower * 94 + 2;
-  const ff   = S.enginePower * 2800;
-  const engW = w * 0.46;
+  /* Engine zone — n columns */
+  const n     = S.aircraft?.engine?.count ?? 2;
+  const n1val = +(S.n1 ?? S.enginePower * 80).toFixed(1);
+  const egt   = Math.round(350 + Math.pow(n1val / 100, 1.5) * 500);
+  const n2val = +Math.min(99.9, n1val * 1.02 + 2).toFixed(1);
+  const ff    = Math.round(200 + Math.pow(n1val / 100, 2) * 3000);
+  const engW  = w / n;
 
-  function _eng(ex, label) {
+  for (let i = 0; i < n; i++) {
+    const ex = x + engW * i;
     const cx = ex + engW / 2;
+    ctx.font = `${h * 0.036}px ${f}`; ctx.fillStyle = dim; ctx.textAlign = 'center';
+    ctx.fillText(`ENG ${i + 1}`, cx, engY + h * 0.052);
 
-    ctx.font      = `${h * 0.040}px ${f}`;
-    ctx.fillStyle = dim;
-    ctx.textAlign = 'center';
-    ctx.fillText(label, cx, engY + h * 0.058);
-
-    /* N1 — large */
-    ctx.font      = `bold ${h * 0.110}px ${f}`;
-    ctx.fillStyle = n1 > 93 ? amb : grn;
+    ctx.font = `bold ${h * 0.095}px ${f}`; ctx.fillStyle = n1val > 93 ? amb : grn;
     ctx.textAlign = 'right';
-    ctx.fillText(n1.toFixed(1), ex + engW * 0.76, engY + h * 0.200);
-    ctx.font      = `${h * 0.038}px ${f}`;
-    ctx.fillStyle = dim;
-    ctx.fillText('%N1', ex + engW * 0.98, engY + h * 0.200);
+    ctx.fillText(n1val.toFixed(1), ex + engW * 0.78, engY + h * 0.185);
+    ctx.font = `${h * 0.032}px ${f}`; ctx.fillStyle = dim;
+    ctx.fillText('%N1', ex + engW * 0.98, engY + h * 0.185);
 
-    /* EGT */
-    ctx.font      = `bold ${h * 0.065}px ${f}`;
-    ctx.fillStyle = egt > 800 ? amb : grn;
+    ctx.font = `bold ${h * 0.058}px ${f}`; ctx.fillStyle = egt > 800 ? amb : grn;
     ctx.textAlign = 'right';
-    ctx.fillText(Math.round(egt), ex + engW * 0.76, engY + h * 0.310);
-    ctx.font      = `${h * 0.032}px ${f}`;
-    ctx.fillStyle = dim;
-    ctx.fillText('EGT °C', ex + engW * 0.98, engY + h * 0.310);
+    ctx.fillText(egt, ex + engW * 0.78, engY + h * 0.295);
+    ctx.font = `${h * 0.028}px ${f}`; ctx.fillStyle = dim;
+    ctx.fillText('EGT °C', ex + engW * 0.98, engY + h * 0.295);
 
-    /* N2 */
-    ctx.font      = `bold ${h * 0.052}px ${f}`;
-    ctx.fillStyle = grn;
-    ctx.textAlign = 'right';
-    ctx.fillText(n2.toFixed(1), ex + engW * 0.76, engY + h * 0.385);
-    ctx.font      = `${h * 0.028}px ${f}`;
-    ctx.fillStyle = dim;
-    ctx.fillText('%N2', ex + engW * 0.98, engY + h * 0.385);
+    ctx.font = `bold ${h * 0.046}px ${f}`; ctx.fillStyle = grn; ctx.textAlign = 'right';
+    ctx.fillText(n2val.toFixed(1), ex + engW * 0.78, engY + h * 0.375);
+    ctx.font = `${h * 0.026}px ${f}`; ctx.fillStyle = dim;
+    ctx.fillText('%N2', ex + engW * 0.98, engY + h * 0.375);
 
-    /* FF */
-    ctx.font      = `bold ${h * 0.052}px ${f}`;
-    ctx.fillStyle = grn;
-    ctx.textAlign = 'right';
-    ctx.fillText(Math.round(ff), ex + engW * 0.76, engY + h * 0.450);
-    ctx.font      = `${h * 0.028}px ${f}`;
-    ctx.fillStyle = dim;
-    ctx.fillText('FF KG/H', ex + engW * 0.98, engY + h * 0.450);
+    ctx.font = `bold ${h * 0.046}px ${f}`; ctx.fillStyle = grn; ctx.textAlign = 'right';
+    ctx.fillText(ff, ex + engW * 0.78, engY + h * 0.440);
+    ctx.font = `${h * 0.026}px ${f}`; ctx.fillStyle = dim;
+    ctx.fillText('FF KG/H', ex + engW * 0.98, engY + h * 0.440);
+
+    if (i < n - 1) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+      ctx.beginPath();
+      ctx.moveTo(ex + engW, engY + h * 0.02);
+      ctx.lineTo(ex + engW, engY + engH - h * 0.02);
+      ctx.stroke();
+    }
   }
 
-  _eng(x + w * 0.04, 'ENG 1');
-  _eng(x + w * 0.52, 'ENG 2');
-
-  /* Center vertical separator between engines */
-  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-  ctx.beginPath();
-  ctx.moveTo(x + w * 0.5, engY + h * 0.02);
-  ctx.lineTo(x + w * 0.5, engY + engH - h * 0.02);
-  ctx.stroke();
-
-  /* ─ Memo zone ─ */
+  /* Memo zone */
   ctx.strokeStyle = 'rgba(255,255,255,0.06)';
   ctx.beginPath(); ctx.moveTo(x, memoY); ctx.lineTo(x + w, memoY); ctx.stroke();
 
   const flapsLabel = ['CLEAN', 'CONF 1', 'CONF 2', 'CONF 3'][Math.min(S.flaps ?? 0, 3)];
   const gearLabel  = S.gear ? 'DN' : 'UP';
-  const gearCol    = S.gear ? grn : wht;
 
   const memos = [
-    { lbl: 'GEAR',  val: gearLabel,  col: gearCol },
-    { lbl: 'FLAPS', val: flapsLabel, col: S.flaps > 0 ? amb : grn },
-    { lbl: 'SEAT BELTS', val: 'ON',  col: wht },
-    { lbl: 'LDG LTS',    val: 'ON',  col: wht },
+    { lbl: 'GEAR',       val: gearLabel,  col: S.gear ? grn : wht },
+    { lbl: 'FLAPS',      val: flapsLabel, col: S.flaps > 0 ? amb : grn },
+    { lbl: 'SEAT BELTS', val: 'ON',       col: wht },
+    { lbl: 'LDG LTS',    val: 'ON',       col: wht },
   ];
 
-  const memoFs = h * 0.040;
-  const cols   = 2;
-  const memoW  = w / cols;
+  const memoFs = h * 0.038;
+  const mCols  = 2;
+  const memoW  = w / mCols;
   memos.forEach((m, i) => {
-    const mx = x + (i % cols) * memoW + memoW * 0.04;
-    const my = memoY + h * 0.062 + Math.floor(i / cols) * h * 0.070;
-    ctx.font      = `${memoFs}px ${f}`;
-    ctx.fillStyle = dim;
-    ctx.textAlign = 'left';
+    const mx = x + (i % mCols) * memoW + memoW * 0.04;
+    const my = memoY + h * 0.060 + Math.floor(i / mCols) * h * 0.068;
+    ctx.font = `${memoFs}px ${f}`; ctx.fillStyle = dim; ctx.textAlign = 'left';
     ctx.fillText(m.lbl, mx, my);
-    ctx.font      = `bold ${memoFs}px ${f}`;
-    ctx.fillStyle = m.col;
+    ctx.font = `bold ${memoFs}px ${f}`; ctx.fillStyle = m.col;
     ctx.fillText(m.val, mx + memoW * 0.42, my);
+  });
+}
+
+/* ── ECAM ELEC synoptic ─────────────────────────────────────── */
+function _ecamElec(ctx, x, y, w, h, f, grn, amb, dim, cyn) {
+  ctx.font = `bold ${h * 0.055}px ${f}`; ctx.fillStyle = cyn; ctx.textAlign = 'center';
+  ctx.fillText('ELEC', x + w / 2, y + h * 0.06);
+
+  const acPwr  = S.acBusPowered  ?? false;
+  const dcPwr  = S.dcBusPowered  ?? false;
+  const essPwr = S.essentialBusPowered ?? false;
+
+  /* AC bus bar */
+  const busY  = y + h * 0.22;
+  const barX0 = x + w * 0.08;
+  const barX1 = x + w * 0.92;
+  ctx.strokeStyle = acPwr ? grn : dim; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(barX0, busY); ctx.lineTo(barX1, busY); ctx.stroke();
+  ctx.font = `${h * 0.038}px ${f}`; ctx.fillStyle = acPwr ? grn : amb; ctx.textAlign = 'center';
+  ctx.fillText('AC BUS', x + w / 2, busY - h * 0.04);
+
+  /* Generators above bar */
+  const n        = S.aircraft?.engine?.count ?? 2;
+  const engGenOn = S.engGenOn ?? [];
+  const apuGen   = S.apuGenOn  ?? false;
+  const extPwr   = S.extPwrOn  ?? false;
+  const genLabels = ['GEN 1', 'APU', n === 4 ? 'GEN 4' : 'GEN 2', 'EXT'];
+  const genOn     = [engGenOn[0] ?? false, apuGen, engGenOn[n - 1] ?? false, extPwr];
+  const genXs     = [0.15, 0.38, 0.62, 0.85].map(r => x + w * r);
+  const genY      = y + h * 0.14;
+
+  genLabels.forEach((lbl, i) => {
+    const gx = genXs[i]; const on = genOn[i];
+    ctx.strokeStyle = on ? grn : dim; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(gx, genY); ctx.lineTo(gx, busY); ctx.stroke();
+    ctx.strokeRect(gx - w * 0.055, genY - h * 0.04, w * 0.11, h * 0.04);
+    ctx.font = `${h * 0.030}px ${f}`; ctx.fillStyle = on ? grn : dim; ctx.textAlign = 'center';
+    ctx.fillText(lbl, gx, genY - h * 0.015);
+  });
+
+  /* TR → DC bus */
+  const trY  = busY + h * 0.12;
+  const dcY  = trY  + h * 0.12;
+  ctx.strokeStyle = dcPwr ? grn : dim; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(x + w / 2, busY); ctx.lineTo(x + w / 2, dcY); ctx.stroke();
+  ctx.font = `${h * 0.030}px ${f}`; ctx.fillStyle = dcPwr ? grn : dim; ctx.textAlign = 'center';
+  ctx.fillText('TR', x + w / 2, trY);
+
+  ctx.strokeStyle = dcPwr ? grn : dim; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(barX0, dcY); ctx.lineTo(barX1, dcY); ctx.stroke();
+  ctx.font = `${h * 0.038}px ${f}`; ctx.fillStyle = dcPwr ? grn : amb; ctx.textAlign = 'center';
+  ctx.fillText('DC BUS', x + w / 2, dcY - h * 0.04);
+
+  /* Batteries */
+  const bats = [
+    { key: 'bat1', lbl: 'BAT 1', bx: x + w * 0.25 },
+    { key: 'bat2', lbl: 'BAT 2', bx: x + w * 0.75 },
+  ];
+  bats.forEach(({ key, lbl, bx }) => {
+    const on  = S[`${key}On`] ?? false;
+    const pct = Math.round(S[`${key}Charge`] ?? 100);
+    const v   = (20 + pct / 100 * 8.5).toFixed(1);
+    const col = on ? (pct > 20 ? grn : pct > 10 ? amb : '#ff4444') : dim;
+    ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(bx, dcY); ctx.lineTo(bx, dcY + h * 0.08); ctx.stroke();
+    ctx.strokeRect(bx - w * 0.08, dcY + h * 0.08, w * 0.16, h * 0.09);
+    ctx.font = `${h * 0.028}px ${f}`; ctx.fillStyle = col; ctx.textAlign = 'center';
+    ctx.fillText(lbl,     bx, dcY + h * 0.115);
+    ctx.fillText(v + 'V', bx, dcY + h * 0.148);
+    ctx.fillText(pct + '%', bx, dcY + h * 0.176);
+  });
+
+  /* Essential bus */
+  const essY = dcY + h * 0.10;
+  ctx.strokeStyle = essPwr ? grn : amb; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(x + w / 2, dcY); ctx.lineTo(x + w / 2, essY); ctx.stroke();
+  ctx.strokeRect(x + w / 2 - w * 0.08, essY, w * 0.16, h * 0.05);
+  ctx.font = `${h * 0.028}px ${f}`; ctx.fillStyle = essPwr ? grn : amb; ctx.textAlign = 'center';
+  ctx.fillText('ESS BUS', x + w / 2, essY + h * 0.032);
+}
+
+/* ── ECAM HYD synoptic ──────────────────────────────────────── */
+function _ecamHyd(ctx, x, y, w, h, f, grn, amb, dim, cyn) {
+  ctx.font = `bold ${h * 0.055}px ${f}`; ctx.fillStyle = cyn; ctx.textAlign = 'center';
+  ctx.fillText('HYD', x + w / 2, y + h * 0.06);
+
+  const systems = [
+    { lbl: 'GREEN',  psi: S.hydGreenPsi  ?? 0, edp: S.hydGreenEdp  ?? false, elec: S.hydGreenElecOn  ?? false, col: '#5dd47e', bx: x + w * 0.20 },
+    { lbl: 'BLUE',   psi: S.hydBluePsi   ?? 0, edp: false,                   elec: S.hydBlueElecOn   ?? false, col: '#4dc5dc', bx: x + w * 0.50 },
+    { lbl: 'YELLOW', psi: S.hydYellowPsi ?? 0, edp: S.hydYellowEdp ?? false, elec: S.hydYellowElecOn ?? false, col: '#ffb74d', bx: x + w * 0.80 },
+  ];
+
+  const barBot  = y + h * 0.82;
+  const barTop  = y + h * 0.18;
+  const barH    = barBot - barTop;
+  const nomY    = barTop + barH * (1 - 2500 / 3000);
+  const barW    = w * 0.10;
+
+  /* Nominal pressure dashed line */
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(x + w * 0.08, nomY); ctx.lineTo(x + w * 0.92, nomY); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.font = `${h * 0.028}px ${f}`; ctx.fillStyle = dim; ctx.textAlign = 'left';
+  ctx.fillText('2500', x + w * 0.02, nomY + h * 0.014);
+
+  systems.forEach(({ lbl, psi, edp, elec, col, bx }) => {
+    const norm   = Math.min(1, psi / 3000);
+    const fillH  = barH * norm;
+    const isLo   = psi < 2500;
+
+    /* Background bar */
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fillRect(bx - barW / 2, barTop, barW, barH);
+
+    /* Filled bar */
+    ctx.fillStyle = isLo ? amb : col;
+    ctx.fillRect(bx - barW / 2, barBot - fillH, barW, fillH);
+
+    /* PSI label */
+    ctx.font = `bold ${h * 0.040}px ${f}`; ctx.fillStyle = isLo ? amb : col; ctx.textAlign = 'center';
+    ctx.fillText(Math.round(psi), bx, barBot + h * 0.055);
+
+    /* System label */
+    ctx.font = `${h * 0.032}px ${f}`; ctx.fillStyle = col;
+    ctx.fillText(lbl, bx, barBot + h * 0.090);
+
+    /* Source labels */
+    ctx.font = `${h * 0.026}px ${f}`;
+    if (edp)  { ctx.fillStyle = grn; ctx.fillText('EDP', bx, barTop - h * 0.045); }
+    if (elec) { ctx.fillStyle = grn; ctx.fillText('ELEC', bx, barTop - h * 0.015); }
+    if (!edp && !elec) { ctx.fillStyle = amb; ctx.fillText('OFF', bx, barTop - h * 0.028); }
   });
 }

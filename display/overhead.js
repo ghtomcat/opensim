@@ -11,11 +11,15 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState }                             from '../core/state.js';
-import { startEngineLifecycle, stopEngineLifecycle, startApuSound, stopApuSound } from '../core/sound.js';
+import { stopEngineLifecycle, startApuSound, stopApuSound } from '../core/sound.js';
 import { apuMasterSet, apuStartPress, apuFirePull } from '../core/electrical.js';
 
 /* ── DOM node ─────────────────────────────────────────────────── */
 let _el = null;
+
+/* ── Test-lit flags (prevent _updateSwitches overriding LED) ─── */
+let _testLitAPU = false;
+const _testLitEng = {};
 
 /* ── CSS ──────────────────────────────────────────────────────── */
 const _CSS = `
@@ -52,6 +56,11 @@ const _CSS = `
   .ohp-pb:hover .ohp-pb-body   { background: #22273a; border-color: #404868; }
   .ohp-pb:active .ohp-pb-body  { background: #283050; }
   .ohp-pb-body.ohp-pb-on       { background: #182828; border-color: #304840; }
+  .ohp-pb-body.ohp-pb-on::after {
+    content: 'ON';
+    position: absolute; bottom: 3px; right: 4px;
+    font: 700 6px/1 monospace; letter-spacing: 0.05em; color: #d8e8d8;
+  }
   .ohp-pb-body.ohp-pb-disabled { opacity: 0.35; cursor: not-allowed; }
 
   /* LED */
@@ -84,48 +93,63 @@ const _CSS = `
   .ohp-fire-wrap {
     position: relative; display: flex; flex-direction: column; align-items: center; gap: 0;
   }
+  /* Fire button — dark so it reads as "behind the guard" */
   .ohp-fire-btn {
     width: 52px; height: 40px;
-    background: #5a0808;
-    border: 2px solid #c02020;
+    background: #100808;
+    border: 1px solid #401818;
     border-radius: 3px;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 3px;
     cursor: pointer; user-select: none;
-    transition: background 0.1s;
   }
-  .ohp-fire-btn:hover { background: #6e0e0e; }
-  .ohp-fire-btn.armed { background: #8a0000; border-color: #ff4040;
+  .ohp-fire-btn:hover { background: #1c0a0a; }
+  .ohp-fire-btn.armed { background: #3a0000; border-color: #ff4040;
                          box-shadow: 0 0 8px rgba(255,60,60,0.5); }
   .ohp-fire-led {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: #3a1010;
-    transition: background 0.15s, box-shadow 0.15s;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #2a0808;
+    border: 1px solid #401010;
   }
-  .ohp-fire-led.on { background: #ff3030; box-shadow: 0 0 6px #ff3030; }
+  .ohp-fire-led.on { background: #ff3030; box-shadow: 0 0 8px #ff3030, 0 0 16px rgba(255,50,50,0.5); border-color: #ff6060; }
   .ohp-fire-legend {
-    font: 700 8px/1 monospace; letter-spacing: 0.06em; color: #e08080;
+    font: 700 8px/1 monospace; letter-spacing: 0.06em; color: #804040;
   }
   .ohp-fire-label {
     font: 500 9px/1 monospace; letter-spacing: 0.08em; color: #904040;
   }
-  /* Guard cover that lifts */
+  /* Guard cover — nearly clear, red outline only; hinge and lever via pseudo-elements */
   .ohp-guard-cover {
     position: absolute; inset: -3px; z-index: 2;
-    background: #7a1212;
-    border: 1px solid #b03030;
-    border-radius: 4px;
+    background: rgba(200, 30, 30, 0.07);
+    border: 2px solid #c02020;
+    border-radius: 3px;
     display: flex; align-items: center; justify-content: center;
-    cursor: pointer;
-    transition: transform 0.22s ease, opacity 0.22s;
+    cursor: pointer; overflow: visible;
+    transition: transform 0.28s ease, opacity 0.28s;
     transform-origin: top center;
   }
+  /* Black hinge bar across the top */
+  .ohp-guard-cover::before {
+    content: '';
+    position: absolute; top: -6px; left: -4px; right: -4px; height: 6px;
+    background: #111; border: 1px solid #2a2a2a; border-radius: 2px 2px 0 0;
+  }
+  /* Small lift lever at the bottom center */
+  .ohp-guard-cover::after {
+    content: '';
+    position: absolute; bottom: -9px; left: 50%; transform: translateX(-50%);
+    width: 14px; height: 8px;
+    background: #b01818; border: 1px solid #d02020;
+    border-top: none; border-radius: 0 0 4px 4px;
+    pointer-events: none;
+  }
   .ohp-guard-cover span {
-    font: 700 7px/1 monospace; letter-spacing: 0.08em; color: #f09090;
+    font: 700 7px/1 monospace; letter-spacing: 0.08em; color: #c05050;
   }
   .ohp-guard-cover.lifted {
-    transform: perspective(120px) rotateX(-75deg);
-    opacity: 0.30; pointer-events: none;
+    transform: perspective(200px) rotateX(-80deg);
+    opacity: 0.15; pointer-events: none;
   }
   /* Small TEST button */
   .ohp-test-btn {
@@ -137,6 +161,18 @@ const _CSS = `
     transition: background 0.08s;
   }
   .ohp-test-btn:active { background: #283050; color: #c0d0e0; }
+  /* AGENT discharge buttons */
+  .ohp-agent-row { display: flex; gap: 3px; margin-top: 3px; }
+  .ohp-agent-btn {
+    padding: 3px 5px;
+    background: #081408; border: 1px solid #1a3a20; border-radius: 2px;
+    font: 700 6px/1 monospace; letter-spacing: 0.04em; color: #2a6040;
+    cursor: pointer; user-select: none;
+    transition: background 0.08s, color 0.08s;
+  }
+  .ohp-agent-btn:hover { background: #0e2016; color: #40a060; }
+  .ohp-agent-btn.discharged { background: #0e2a18; color: #50d080; border-color: #28804a; }
+  .ohp-agent-btn.unavail { opacity: 0.28; cursor: not-allowed; pointer-events: none; }
 
   /* Rotary mode selector */
   .ohp-rotary { display: flex; flex-direction: column; align-items: center; gap: 5px; }
@@ -273,21 +309,6 @@ function _buildHTML() {
     </div>
   </div>` : '';
 
-  /* Engine mode rotary */
-  const modeRotary = `<div class="ohp-rotary">
-    <div class="ohp-rot-row" id="ohp-eng-mode">
-      <button class="ohp-rot-opt" data-val="CRANK">CRANK</button>
-      <button class="ohp-rot-opt active" data-val="NORM">NORM</button>
-      <button class="ohp-rot-opt" data-val="IGN+START">IGN<br>START</button>
-    </div>
-    <div class="ohp-rot-label">ENG MODE</div>
-  </div>`;
-
-  /* Engine master switches */
-  const engMasters = Array.from({ length: n }, (_, i) =>
-    _pb(`ohp-eng-${i + 1}`, `ENG ${i + 1}`, 'MASTER')
-  ).join('');
-
   /* APU section */
   const apuSection = `<div class="ohp-section">
     <div class="ohp-section-hdr">APU</div>
@@ -306,6 +327,7 @@ function _buildHTML() {
         </div>
         <div class="ohp-fire-label">APU FIRE</div>
         <div class="ohp-test-btn" id="ohp-apu-fire-test">TEST</div>
+        <button class="ohp-agent-btn unavail" id="ohp-apu-agent">AGENT</button>
       </div>
     </div>
   </div>`;
@@ -327,19 +349,33 @@ function _buildHTML() {
   const hydSection = turbofan ? `<div class="ohp-section">
     <div class="ohp-section-hdr">HYDRAULICS</div>
     <div class="ohp-row">
-      ${_pb('ohp-hyd-green-elec',  'ELEC', 'GREEN')}
-      ${_pb('ohp-hyd-blue-elec',   'ELEC', 'BLUE')}
-      ${_pb('ohp-hyd-yellow-elec', 'ELEC', 'YELLOW')}
+      ${_pb('ohp-hyd-green-elec',  'GREEN',  'ELEC PMP')}
+      ${_pb('ohp-hyd-blue-elec',   'BLUE',   'ELEC PMP')}
+      ${_pb('ohp-hyd-yellow-elec', 'YELLOW', 'ELEC PMP')}
     </div>
   </div>` : '';
 
-  /* Engine start section */
+  /* Engine fire handles */
+  const engFireHandles = Array.from({ length: n }, (_, i) => `
+    <div class="ohp-fire-group">
+      <div class="ohp-fire-wrap">
+        <div class="ohp-fire-btn" id="ohp-eng-fire-${i + 1}">
+          <div class="ohp-fire-led" id="ohp-eng-fire-led-${i + 1}"></div>
+          <div class="ohp-fire-legend">FIRE</div>
+        </div>
+        <div class="ohp-guard-cover" id="ohp-eng-fire-guard-${i + 1}"><span>GUARD</span></div>
+      </div>
+      <div class="ohp-fire-label">ENG ${i + 1}</div>
+      <div class="ohp-test-btn" id="ohp-eng-fire-test-${i + 1}">TEST</div>
+      <div class="ohp-agent-row">
+        <button class="ohp-agent-btn unavail" id="ohp-eng-agent1-${i + 1}">AGENT1</button>
+        <button class="ohp-agent-btn unavail" id="ohp-eng-agent2-${i + 1}">AGENT2</button>
+      </div>
+    </div>`).join('');
   const engSection = `<div class="ohp-section">
-    <div class="ohp-section-hdr">ENGINE START</div>
-    <div class="ohp-row">
-      ${modeRotary}
-      <div class="ohp-divider"></div>
-      ${engMasters}
+    <div class="ohp-section-hdr">ENGINE FIRE</div>
+    <div class="ohp-row" style="flex-wrap:wrap; gap:12px;">
+      ${engFireHandles}
     </div>
   </div>`;
 
@@ -359,38 +395,35 @@ function _attachHandlers() {
   const n = _engCount();
   const turbofan = _isTurbofan();
 
-  /* Engine mode rotary */
-  document.querySelectorAll('#ohp-eng-mode .ohp-rot-opt').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('#ohp-eng-mode .ohp-rot-opt')
-        .forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      setState({ engMode: btn.dataset.val });
-    });
-  });
-
-  /* Engine master switches */
+  /* Engine fire handles */
   for (let i = 1; i <= n; i++) {
-    const pb = document.getElementById(`ohp-eng-${i}`);
-    if (!pb) continue;
-    pb.addEventListener('click', () => {
-      const mode    = S.engMode ?? 'NORM';
-      const masters = [...(S.engMasters ?? Array(n).fill(false))];
-      const wasOn   = masters[i - 1];
-      masters[i - 1] = !wasOn;
-      setState({ engMasters: masters });
-
-      if (!wasOn && mode === 'IGN+START') {
-        /* Engine start requires AC bus (APU or ext power must be on first) */
-        if (turbofan && !(S.acBusPowered ?? false)) {
-          masters[i - 1] = false;
-          setState({ engMasters: masters });
-          return;
-        }
-        startEngineLifecycle();
-      } else if (wasOn) {
-        stopEngineLifecycle();
-      }
+    document.getElementById(`ohp-eng-fire-guard-${i}`)?.addEventListener('click', () => {
+      document.getElementById(`ohp-eng-fire-guard-${i}`)?.classList.toggle('lifted');
+    });
+    document.getElementById(`ohp-eng-fire-${i}`)?.addEventListener('click', () => {
+      const guard = document.getElementById(`ohp-eng-fire-guard-${i}`);
+      if (!guard?.classList.contains('lifted')) return;
+      const fires = [...(S.engFireArmed ?? Array(n).fill(false))];
+      fires[i - 1] = true;
+      setState({ engFireArmed: fires });
+      /* Shut down engine if this was the last/only running engine */
+      if ((S.engineState ?? 'off') === 'running') stopEngineLifecycle();
+      _updateSwitches();
+    });
+    /* AGENT 1 */
+    document.getElementById(`ohp-eng-agent1-${i}`)?.addEventListener('click', () => {
+      if (!(S.engFireArmed?.[i - 1])) return;
+      const agents = [...(S.engAgents ?? [])];
+      agents[(i - 1) * 2] = true;
+      setState({ engAgents: agents });
+      _updateSwitches();
+    });
+    /* AGENT 2 */
+    document.getElementById(`ohp-eng-agent2-${i}`)?.addEventListener('click', () => {
+      if (!(S.engFireArmed?.[i - 1])) return;
+      const agents = [...(S.engAgents ?? [])];
+      agents[(i - 1) * 2 + 1] = true;
+      setState({ engAgents: agents });
       _updateSwitches();
     });
   }
@@ -432,14 +465,38 @@ function _attachHandlers() {
     _updateSwitches();
   });
 
-  /* APU FIRE TEST — momentarily lights the fire LED */
-  document.getElementById('ohp-apu-fire-test')?.addEventListener('mousedown', () => {
-    document.getElementById('ohp-apu-fire-led')?.classList.add('on');
-  });
-  document.getElementById('ohp-apu-fire-test')?.addEventListener('mouseup', () => {
-    if (!(S.apuFireArmed ?? false)) {
-      document.getElementById('ohp-apu-fire-led')?.classList.remove('on');
+  /* APU fire TEST — direct assignment, flags protect against _updateSwitches overriding */
+  const apuTestBtn = _el.querySelector('#ohp-apu-fire-test');
+  if (apuTestBtn) {
+    apuTestBtn.onclick = () => {
+      _testLitAPU = true;
+      _updateSwitches();
+      if (!(S.apuFireArmed ?? false)) {
+        setTimeout(() => { _testLitAPU = false; _updateSwitches(); }, 600);
+      }
+    };
+  }
+
+  /* Engine fire TEST buttons */
+  for (let j = 1; j <= n; j++) {
+    const testBtn = _el.querySelector(`#ohp-eng-fire-test-${j}`);
+    if (testBtn) {
+      const idx = j;
+      testBtn.onclick = () => {
+        _testLitEng[idx] = true;
+        _updateSwitches();
+        if (!(S.engFireArmed?.[idx - 1])) {
+          setTimeout(() => { _testLitEng[idx] = false; _updateSwitches(); }, 600);
+        }
+      };
     }
+  }
+
+  /* APU AGENT — only available after fire handle pulled */
+  document.getElementById('ohp-apu-agent')?.addEventListener('click', () => {
+    if (!(S.apuFireArmed ?? false)) return;
+    setState({ apuAgent: true });
+    _updateSwitches();
   });
 
   /* X-feed */
@@ -515,15 +572,29 @@ function _sub(id, text) {
 function _updateSwitches() {
   const n        = _engCount();
   const turbofan = _isTurbofan();
-  const masters  = S.engMasters  ?? Array(n).fill(false);
-  const fuelPumps = S.fuelPumps  ?? Array(n).fill(true);
-  const isRunning = ['running', 'starting'].includes(S.engineState ?? '');
+  const fuelPumps = S.fuelPumps ?? Array(n).fill(true);
 
-  /* Engine masters */
+  /* Engine fire handles + AGENT buttons */
+  const fires  = S.engFireArmed ?? Array(n).fill(false);
+  const agents = S.engAgents ?? [];
   for (let i = 1; i <= n; i++) {
-    const on = masters[i - 1] || (isRunning && i === 1);
-    _led(`ohp-eng-${i}`, on);
-    _pbOn(`ohp-eng-${i}`, masters[i - 1]);
+    const armed = fires[i - 1] ?? false;
+    document.getElementById(`ohp-eng-fire-${i}`)?.classList.toggle('armed', armed);
+    const led = document.getElementById(`ohp-eng-fire-led-${i}`);
+    if (led) led.classList.toggle('on', armed || !!_testLitEng[i]);
+    const a1 = document.getElementById(`ohp-eng-agent1-${i}`);
+    const a2 = document.getElementById(`ohp-eng-agent2-${i}`);
+    if (a1) { a1.classList.toggle('unavail', !armed); a1.classList.toggle('discharged', !!(agents[(i-1)*2])); }
+    if (a2) { a2.classList.toggle('unavail', !armed); a2.classList.toggle('discharged', !!(agents[(i-1)*2+1])); }
+  }
+
+  /* APU AGENT */
+  const apuAgent   = S.apuAgent ?? false;
+  const apuFireArmed = S.apuFireArmed ?? false;
+  const apuAgentEl = document.getElementById('ohp-apu-agent');
+  if (apuAgentEl) {
+    apuAgentEl.classList.toggle('unavail',    !apuFireArmed);
+    apuAgentEl.classList.toggle('discharged', apuAgent);
   }
 
   /* APU */
@@ -543,7 +614,7 @@ function _updateSwitches() {
   const fireArmed = S.apuFireArmed ?? false;
   document.getElementById('ohp-apu-fire')?.classList.toggle('armed', fireArmed);
   const fireLed = document.getElementById('ohp-apu-fire-led');
-  if (fireLed) fireLed.classList.toggle('on', fireArmed);
+  if (fireLed) fireLed.classList.toggle('on', fireArmed || _testLitAPU);
 
   /* Fuel */
   _led('ohp-xfeed', S.xfeedOpen ?? false);
@@ -551,12 +622,6 @@ function _updateSwitches() {
     _led(`ohp-fuel-${i}`, fuelPumps[i - 1] ?? true);
     _pbOn(`ohp-fuel-${i}`, fuelPumps[i - 1] ?? true);
   }
-
-  /* Engine mode rotary */
-  const mode = S.engMode ?? 'NORM';
-  document.querySelectorAll('#ohp-eng-mode .ohp-rot-opt').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.val === mode);
-  });
 
   /* Hydraulics */
   for (const [id, key] of [

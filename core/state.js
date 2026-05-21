@@ -144,6 +144,11 @@ export const S = {
   apuRunning: false,     // derived from apuState
   apuGenOn:   false,     // derived — APU feeding AC bus
   engGenOn:   [],        // derived bool[] — one per engine
+  engFireArmed: [],      // bool[] — fire handle pulled per engine
+  engAgents:   [],       // bool[] — flat: [eng1_a1, eng1_a2, eng2_a1, eng2_a2, ...]
+  apuAgent:    false,    // APU extinguisher agent discharged
+  engMasters: [],        // bool[] — ENG MASTER switch per engine (pedestal)
+  engMode:    'NORM',    // engine mode selector: 'NORM' | 'IGN+START' | 'CRANK'
   essentialBusPowered: false,   // bat1 or bat2 on + charge > 2%
   acBusPowered:        false,   // APU gen | eng gen | ext pwr
   dcBusPowered:        false,   // AC bus (via TR) | essential bus

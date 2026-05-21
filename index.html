@@ -2108,7 +2108,7 @@
   import { renderLM, handleLMClick } from './display/lm_display.js';
   import { renderDragon, handleDragonClick, isDragonTelemetry } from './display/dragon.js';
   import './display/g1000.js';  /* bridge exports used by panel_renderer */
-  import { renderECAM, initECAM } from './display/ecam.js';
+  import { renderECAM, initECAM, handleECAMClick } from './display/ecam.js';
   import { renderBf109 }       from './display/bf109.js';
   import { renderF4U1A }       from './display/f4u1a.js';
   import { renderHovercraft }  from './display/hovercraft_display.js';
@@ -2147,13 +2147,30 @@
     return pages[_screenPage[screenIdx] % pages.length] ?? null;
   }
 
-  /* Tab = cycle right display (ND→ECAM→…); Shift+Tab = cycle left display */
+  /* Tab: when ECAM is active on right screen → cycle ECAM sub-pages (status → elec → hyd → status).
+           otherwise → switch right screen display (ND ↔ ECAM).
+     Shift+Tab: always cycle left screen display. */
   window.addEventListener('keydown', e => {
     if (e.key !== 'Tab') return;
     const panel = S.aircraft?.panel;
     if (panel !== 'airbus' && panel !== 'e190') return;
     e.preventDefault();
     e.stopPropagation();
+    if (!e.shiftKey && _currentSpec(1) === 'airbus-ecam') {
+      const ecamPages = ['status', 'elec', 'hyd'];
+      const cur = S.ecamPage ?? 'status';
+      const idx = ecamPages.indexOf(cur);
+      if (idx < ecamPages.length - 1) {
+        /* Advance sub-page */
+        setState({ ecamPage: ecamPages[idx + 1] });
+      } else {
+        /* Last sub-page → back to ND */
+        const pages = _panelDisplayPages(1);
+        _screenPage[1] = (_screenPage[1] + 1) % pages.length;
+        setState({ ecamPage: 'status' });
+      }
+      return;
+    }
     const screen = e.shiftKey ? 0 : 1;
     const pages  = _panelDisplayPages(screen);
     if (pages.length < 2) return;
@@ -3630,6 +3647,15 @@
     _comEl.style.display = _hidecom ? 'none' : '';
     initOverhead();
     initECAM(ecamCanvas);
+    /* Route ndCanvas clicks to ECAM handler when airbus-ecam is the active spec */
+    ndCanvas.addEventListener('click', (e) => {
+      if (_currentSpec(1) !== 'airbus-ecam') return;
+      const rect = ndCanvas.getBoundingClientRect();
+      handleECAMClick(
+        (e.clientX - rect.left) / rect.width,
+        (e.clientY - rect.top)  / rect.height,
+      );
+    });
     initPedestal();
 
     /* Seed robot arm state if applicable — Three.js init happens lazily on first render */

@@ -22,6 +22,7 @@ const CRASH_OVERSPD  = 1.15;    // overspeed: above maxSpd × this factor → st
 export function tickPhysics(dt) {
   const ac = S.aircraft;
   if (!ac || S.paused || S.crashed) return;
+  if (!ac.envelope) return;  // non-flight vehicles (robot-arm, robot-dog, etc.)
 
   const prevAlt = S.alt;
 
@@ -153,10 +154,13 @@ export function tickPhysics(dt) {
       const muRoll  = perf.muRoll  ?? 0.05;   // grass ≈ 0.05, tarmac ≈ 0.02
       const muBrake = perf.muBrake ?? 0.35;
       const engineDead = (S.enginePower ?? 1.0) < 0.05;
-      const braking = ((S.spdT === 0 || engineDead || S.braking) && spd_ms > 0.5) ? 1 : 0;
+      /* Use actual (unclamped) speed for ground dynamics — spd_ms is clamped to 1 kt
+         for the flight model only (prevents division-by-zero in gamma calculation). */
+      const spd_ms_gnd = S.spd * 0.5144;
+      const braking = ((S.spdT === 0 || engineDead || S.braking) && spd_ms_gnd > 0.5) ? 1 : 0;
 
       const F_net     = T - D - (muRoll + braking * muBrake) * W;
-      const newSpd_ms = Math.max(0, spd_ms + F_net / mass * dt);
+      const newSpd_ms = Math.max(0, spd_ms_gnd + F_net / mass * dt);
 
       newSpd = newSpd_ms / 0.5144;
       newAlt = groundFt;

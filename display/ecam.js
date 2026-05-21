@@ -30,19 +30,23 @@ const FONT = '"IBM Plex Mono", "Courier New", monospace';
 export function initECAM(canvas) {
   canvas.addEventListener('click', (e) => {
     const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top)  / rect.height;
-    if (y < 0.5) return;   // upper ECAM — ignore
-    _handleLowerClick(x, y);
+    handleECAMClick(
+      (e.clientX - rect.left) / rect.width,
+      (e.clientY - rect.top)  / rect.height,
+      true,   // has upper half (standalone ecamCanvas)
+    );
   });
 }
 
-function _handleLowerClick(x, y) {
+/* Exported so ndCanvas can also route clicks here when showing airbus-ecam */
+export function handleECAMClick(x, y, hasUpperHalf = false) {
+  if (hasUpperHalf && y < 0.5) return;   // upper ECAM area — ignore
   const page = S.ecamPage ?? 'status';
-  /* Bottom strip (y > 0.88) — system labels */
+  /* Bottom strip: 5 equal columns FUEL=0, HYD=1, ELEC=2, PRESS=3, PACK=4 */
   if (y > 0.88) {
-    if      (x > 0.55 && x < 0.72) setState({ ecamPage: page === 'hyd'  ? 'status' : 'hyd'  });
-    else if (x > 0.72 && x < 0.88) setState({ ecamPage: page === 'elec' ? 'status' : 'elec' });
+    const col = Math.floor(x * 5);
+    if      (col === 1) setState({ ecamPage: page === 'hyd'  ? 'status' : 'hyd'  });
+    else if (col === 2) setState({ ecamPage: page === 'elec' ? 'status' : 'elec' });
     return;
   }
   /* Page header click → back to status */

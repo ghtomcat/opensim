@@ -6,6 +6,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from '../core/state.js';
+import { startEngineLifecycle, stopEngineLifecycle } from '../core/sound.js';
 
 let _el = null;
 
@@ -159,6 +160,85 @@ const _CSS = `
   .ped-sep {
     width: 200px; height: 1px; background: #181e28;
   }
+
+  /* ── Engine start ── */
+  .ped-eng-block {
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+  }
+  .ped-eng-block-label {
+    font: 600 9px/1 monospace; letter-spacing: 0.12em; color: #50607c;
+  }
+
+  /* Master flip toggle switches */
+  .ped-masters-row { display: flex; gap: 8px; }
+  .ped-flip-wrap   { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .ped-flip-top-label {
+    font: 600 7px/1 monospace; letter-spacing: 0.06em; color: #384858;
+  }
+  .ped-flip-track {
+    width: 48px; height: 24px;
+    background: #0c1016; border: 1px solid #1c2530; border-radius: 2px;
+    position: relative; cursor: pointer; user-select: none;
+  }
+  .ped-flip-off-lbl, .ped-flip-on-lbl {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    font: 600 6px/1 monospace; color: #283848; pointer-events: none;
+  }
+  .ped-flip-off-lbl { left: 3px; }
+  .ped-flip-on-lbl  { right: 3px; }
+  .ped-flip-lever {
+    position: absolute; top: 2px; bottom: 2px; width: 20px; left: 3px;
+    background: linear-gradient(160deg, #606878 0%, #404858 100%);
+    border: 1px solid #5a6878; border-radius: 2px;
+    display: flex; align-items: center; justify-content: center;
+    transition: left 0.14s ease;
+  }
+  .ped-flip-track.flip-on .ped-flip-lever { left: calc(100% - 23px); }
+  .ped-flip-lever-txt {
+    font: 700 6px/1.2 monospace; color: #9ab0c0; text-align: center; pointer-events: none;
+  }
+  /* ON state — lever brighter, track lit */
+  .ped-flip-track.flip-on { background: #0c1a12; border-color: #1e3a28; }
+  .ped-flip-track.flip-on .ped-flip-lever {
+    background: linear-gradient(160deg, #4a8060 0%, #2a5040 100%);
+    border-color: #4a7060;
+  }
+  .ped-flip-track.flip-on .ped-flip-lever-txt { color: #80d0a0; }
+
+  /* Rotary mode knob */
+  .ped-rotary-wrap  { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .ped-rotary-area  {
+    position: relative; width: 110px; height: 72px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ped-rotary-knob {
+    width: 46px; height: 46px; border-radius: 50%;
+    background: radial-gradient(circle at 34% 34%, #808898 0%, #50586a 45%, #282834 100%);
+    border: 2px solid #484858;
+    cursor: pointer; user-select: none;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.08);
+    transition: transform 0.20s ease;
+    position: relative; z-index: 1;
+  }
+  /* White indicator line, points up at 0° */
+  .ped-rotary-knob::after {
+    content: '';
+    position: absolute; top: 5px; left: 50%;
+    width: 3px; height: 13px;
+    background: #d8dce0; border-radius: 1px;
+    transform: translateX(-50%);
+  }
+  .ped-rot-lbl-crank, .ped-rot-lbl-norm, .ped-rot-lbl-ign {
+    position: absolute;
+    font: 700 6px/1.3 monospace; letter-spacing: 0.05em;
+    color: #506878; text-align: center; pointer-events: none; white-space: nowrap;
+  }
+  .ped-rot-lbl-crank { bottom: 0; left: 2px; }
+  .ped-rot-lbl-norm  { top: 0;    left: 50%; transform: translateX(-50%); }
+  .ped-rot-lbl-ign   { bottom: 0; right: 2px; }
+  .ped-rotary-sub {
+    font: 600 8px/1 monospace; letter-spacing: 0.10em; color: #485868;
+  }
 `;
 
 /* ── Helpers ──────────────────────────────────────────────────── */
@@ -235,6 +315,37 @@ function _buildHTML() {
     `<div class="ped-spdbk-pos" data-sb="${i}">${lbl}</div>`
   ).join('');
 
+  /* ── ENG START section (turbofan only) ── */
+  const turbofan = S.aircraft?.engine?.type === 'turbofan';
+  const engStartSection = turbofan ? (() => {
+    const flips = Array.from({ length: engCount }, (_, i) => `
+      <div class="ped-flip-wrap">
+        <div class="ped-flip-top-label">MASTER</div>
+        <div class="ped-flip-track" id="ped-master-${i + 1}">
+          <span class="ped-flip-off-lbl">OFF</span>
+          <div class="ped-flip-lever">
+            <span class="ped-flip-lever-txt">ENG<br>${i + 1}</span>
+          </div>
+          <span class="ped-flip-on-lbl">ON</span>
+        </div>
+      </div>`).join('');
+    return `
+      <div class="ped-sep"></div>
+      <div class="ped-eng-block">
+        <div class="ped-eng-block-label">ENGINE START</div>
+        <div class="ped-masters-row">${flips}</div>
+        <div class="ped-rotary-wrap">
+          <div class="ped-rotary-area">
+            <span class="ped-rot-lbl-crank">CRANK</span>
+            <div class="ped-rotary-knob" id="ped-rotary-knob"></div>
+            <span class="ped-rot-lbl-norm">NORM</span>
+            <span class="ped-rot-lbl-ign">IGN<br>START</span>
+          </div>
+          <div class="ped-rotary-sub">ENG MODE</div>
+        </div>
+      </div>`;
+  })() : '';
+
   return `
     <div class="ped-title">CENTRE PEDESTAL</div>
 
@@ -256,6 +367,8 @@ function _buildHTML() {
       </div>
     </div>
 
+    ${engStartSection}
+
     <div class="ped-hint">D · CLOSE</div>
   `;
 }
@@ -264,6 +377,40 @@ function _buildHTML() {
 
 function _attachHandlers() {
   if (!_el) return;
+
+  /* Rotary mode knob — click cycles CRANK → NORM → IGN+START */
+  const MODES = ['CRANK', 'NORM', 'IGN+START'];
+  const ANGLES = { 'CRANK': -120, 'NORM': 0, 'IGN+START': 120 };
+  document.getElementById('ped-rotary-knob')?.addEventListener('click', () => {
+    const cur  = S.engMode ?? 'NORM';
+    const next = MODES[(MODES.indexOf(cur) + 1) % MODES.length];
+    setState({ engMode: next });
+    const knob = document.getElementById('ped-rotary-knob');
+    if (knob) knob.style.transform = `rotate(${ANGLES[next]}deg)`;
+  });
+
+  /* Engine master flip switches */
+  const n = S.aircraft?.engine?.count ?? 2;
+  for (let i = 1; i <= n; i++) {
+    document.getElementById(`ped-master-${i}`)?.addEventListener('click', () => {
+      const mode    = S.engMode ?? 'NORM';
+      const masters = [...(S.engMasters ?? Array(n).fill(false))];
+      const wasOn   = masters[i - 1];
+      masters[i - 1] = !wasOn;
+      setState({ engMasters: masters });
+
+      if (!wasOn && mode === 'IGN+START') {
+        if (!(S.acBusPowered ?? false)) {
+          masters[i - 1] = false;
+          setState({ engMasters: masters });
+          return;
+        }
+        startEngineLifecycle();
+      } else if (wasOn) {
+        stopEngineLifecycle();
+      }
+    });
+  }
 
   /* Thrust profile detents — click any track to jump to nearest profile */
   _el.querySelectorAll('.ped-lever-track').forEach(track => {
@@ -338,6 +485,18 @@ function _update() {
   _el.querySelectorAll('.ped-spdbk-pos').forEach(btn => {
     btn.classList.toggle('ped-spdbk-sel', +btn.dataset.sb === curSB);
   });
+
+  /* Engine master flip switches */
+  const masters  = S.engMasters ?? Array(engCount).fill(false);
+  const running  = S.engineState === 'running';
+  for (let i = 1; i <= engCount; i++) {
+    const track = document.getElementById(`ped-master-${i}`);
+    if (track) track.classList.toggle('flip-on', !!(masters[i - 1] || running));
+  }
+  /* Rotary knob angle */
+  const ANGLES = { 'CRANK': -120, 'NORM': 0, 'IGN+START': 120 };
+  const knob = document.getElementById('ped-rotary-knob');
+  if (knob) knob.style.transform = `rotate(${ANGLES[S.engMode ?? 'NORM']}deg)`;
 }
 
 /* ── Public API ────────────────────────────────────────────────── */
