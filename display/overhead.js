@@ -633,7 +633,6 @@ function _attachHandlers() {
   });
 
   /* IDG guards + disconnect buttons */
-  const n = _engCount();
   for (let i = 1; i <= n; i++) {
     document.getElementById(`ohp-idg-guard-${i}`)?.addEventListener('click', () => {
       document.getElementById(`ohp-idg-guard-${i}`)?.classList.toggle('lifted');
