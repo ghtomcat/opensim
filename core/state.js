@@ -173,7 +173,7 @@ export const S = {
   /* Backward-compat aggregate flags */
   essentialBusPowered: false,
   acBusPowered:        false,
-  dcBusPowered:        false
+  dcBusPowered:        false,
 
   /* ── Hydraulic system (turbofan aircraft) ── */
   hydGreenPsi:     0,     // 0–3000 psi
