@@ -2245,6 +2245,148 @@ export function stopApuSound() {
   }, 5000);
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   CFM56 TURBOFAN STARTUP — Airbus A320 / A340 / A350 family
+   Air Turbine Starter (ATS) → light-off → spool to idle.
+   Ref recording analysis: ATS cluster 350-420 Hz, fan idle 2nd harmonic
+   at ~103 Hz (= 2 × 52 Hz fundamentalIdle), broadband bypass noise dominant.
+   ══════════════════════════════════════════════════════════════════ */
+
+function _synthCFM56ATS(sr, duration = 18.0) {
+  /* Pneumatic air turbine starter: high-freq whine + air rush.
+     Spools from 300→420 Hz over 10 s then holds; 4 s fade at end. */
+  const N = Math.floor(sr * duration);
+  const buf = new Float32Array(N);
+  let lfsr = 0xA8B2, ph1 = 0, ph2 = 0, ph3 = 0, ph4 = 0;
+  for (let i = 0; i < N; i++) {
+    const t = i / sr;
+    const atsFreq = 300 + 120 * Math.min(1, t / 10);   // 300→420 Hz
+    ph1 += atsFreq     / sr;
+    ph2 += atsFreq * 2 / sr;
+    ph3 += atsFreq * 3 / sr;
+    ph4 += atsFreq * 4 / sr;
+    const motor = Math.sin(2*Math.PI*ph1) * 0.70
+                + Math.sin(2*Math.PI*ph2) * 0.20
+                + Math.sin(2*Math.PI*ph3) * 0.07
+                + Math.sin(2*Math.PI*ph4) * 0.03;
+    lfsr ^= lfsr << 13; lfsr ^= lfsr >> 17; lfsr ^= lfsr << 5;
+    const rush = ((lfsr & 0xFFFF) / 32768 - 1) * 0.14;   // pneumatic air
+    const attack  = Math.min(1, t / 2.0);
+    const release = Math.min(1, (duration - t) / 4.0);
+    buf[i] = (motor + rush) * attack * release * 0.030;
+  }
+  return buf;
+}
+
+function _synthCFM56Lightoff(sr) {
+  /* ~0.6 s: brief igniter click → sub-bass combustion whomp (45 Hz resonator) */
+  const dur = 0.60, N = Math.floor(sr * dur);
+  const buf = new Float32Array(N);
+  let lfsr = 0xD3A7, resX = 0, resY = 0;
+  const resR   = 0.93;
+  const resCos = Math.cos(2 * Math.PI * 45 / sr);
+  const resSin = Math.sin(2 * Math.PI * 45 / sr);
+  let transEnv = 1.0, noiseEnv = 1.0;
+  const tD = Math.exp(-80 / sr);   // ~12 ms transient
+  const nD = Math.exp(-6  / sr);   // ~170 ms noise tail
+  for (let i = 0; i < N; i++) {
+    const t = i / sr;
+    transEnv *= tD; noiseEnv *= nD;
+    lfsr ^= lfsr << 13; lfsr ^= lfsr >> 17; lfsr ^= lfsr << 5;
+    const noise = (lfsr & 0xFFFF) / 32768 - 1;
+    /* Igniter click — 50 ms high-freq transient */
+    const click = (t < 0.005) ? Math.sin(2*Math.PI*900*t) * (1 - t / 0.005) * 0.9 : 0;
+    const raw = transEnv * 0.65 + noise * noiseEnv * 0.35 + click;
+    const nx = resR*(resX*resCos - resY*resSin) + raw;
+    const ny = resR*(resX*resSin + resY*resCos);
+    resX = nx; resY = ny;
+    buf[i] = (raw * 0.15 + resX * 0.85) * 2.4;
+  }
+  return buf;
+}
+
+function _synthCFM56Accel(sr, duration = 36.0) {
+  /* N1 continues ramping.  At entry (t_abs=18 s in physics curve with τ=25 s):
+       N1_frac = 1 − e^(−18/25) ≈ 0.514 → fan fundamental ≈ 27 Hz.
+     At exit (t_abs=54 s):
+       N1_frac = 1 − e^(−54/25) ≈ 0.884 → fan fundamental ≈ 46 Hz (near 52 Hz idle).
+     Bypass noise dominates (matches broadband WAV profile).
+     Fades to 0 at end — oscillator engine hands off via startSound(). */
+  const N = Math.floor(sr * duration);
+  const buf = new Float32Array(N);
+  let lfsr = 0xE1F9;
+  let phFan = 0, phFan2 = 0, phFan4 = 0, phN2 = 0, phN2h = 0, phAts = 0;
+  let hpX = 0, resX = 0, resY = 0;
+  const hpA   = 1 - Math.exp(-2*Math.PI*480 / sr);   // HP bypass rush >480 Hz
+  const resR   = 0.91;
+  const resCos = Math.cos(2*Math.PI*52 / sr);
+  const resSin = Math.sin(2*Math.PI*52 / sr);
+
+  for (let i = 0; i < N; i++) {
+    const t = i / sr;
+    const p = t / duration;
+    /* N1 fraction — physics curve continued from t_abs=18 s */
+    const n1f = 1 - Math.exp(-(18 + t) / 25);
+
+    /* Fan: 1× 2× 4× harmonics rising toward idle frequency */
+    const fF  = 52 * n1f;
+    phFan  += fF      / sr;
+    phFan2 += fF * 2  / sr;
+    phFan4 += fF * 4  / sr;
+    const fan = Math.sin(2*Math.PI*phFan)  * 0.82
+              + Math.sin(2*Math.PI*phFan2) * 0.24
+              + Math.sin(2*Math.PI*phFan4) * 0.06;
+
+    /* N2 (HP spool) — rises ~1.6× faster than N1, contributes mid-freq ring */
+    const n2f  = Math.min(1, n1f * 1.6);
+    const fN2  = 167 * n2f;
+    phN2  += fN2     / sr;
+    phN2h += fN2 * 2 / sr;
+    const n2 = (Math.sin(2*Math.PI*phN2) * 0.55 + Math.sin(2*Math.PI*phN2h) * 0.20)
+               * n2f * 0.35;
+
+    /* Bypass rush — HP-filtered white noise, grows with n1² */
+    lfsr ^= lfsr << 13; lfsr ^= lfsr >> 17; lfsr ^= lfsr << 5;
+    const noise = (lfsr & 0xFFFF) / 32768 - 1;
+    hpX += hpA * (noise - hpX);
+    const bypass = (noise - hpX) * 0.40 * n1f * n1f;
+
+    /* Combustion resonance — low-pass noise through 52 Hz resonator */
+    const raw = noise * 0.20;
+    const nx = resR*(resX*resCos - resY*resSin) + raw;
+    const ny = resR*(resX*resSin + resY*resCos);
+    resX = nx; resY = ny;
+    const roar = resX * 0.14 * n1f;
+
+    /* ATS shedding echo — fades over first 4 s after lightoff */
+    const atsEnv = Math.max(0, 1 - t / 4.0);
+    phAts += 420 / sr;
+    const atsEcho = Math.sin(2*Math.PI*phAts) * atsEnv * 0.22;
+
+    const amp  = 0.38 + 0.62 * Math.pow(n1f, 0.55);
+    const fade = Math.min(1, (duration - t) / 2.5);
+    buf[i] = (fan + n2 + bypass + roar + atsEcho) * amp * 0.068 * fade;
+  }
+  return buf;
+}
+
+function _assembleCFM56Startup(sr) {
+  const gap     = Math.floor(sr * 0.04);
+  const ats     = _synthCFM56ATS(sr, 18.0);
+  const lightoff= _synthCFM56Lightoff(sr);
+  const accel   = _synthCFM56Accel(sr, 36.0);
+  const total   = ats.length + gap + lightoff.length + gap + accel.length;
+  const full    = new Float32Array(total);
+  let off = 0;
+  full.set(ats,     off); off += ats.length     + gap;
+  full.set(lightoff,off); off += lightoff.length + gap;
+  full.set(accel,   off);
+  /* Scale so accel peak matches oscillator running gain (masterGain) */
+  const scale = (_cfg?.masterGain ?? 0.14) / 0.068;
+  for (let i = 0; i < full.length; i++) full[i] *= scale;
+  return full;
+}
+
 function _assembleVK1Startup(sr) {
   const gap     = Math.floor(sr * 0.04);
   const starter = _synthVK1Starter(sr, 7.0);
@@ -2263,11 +2405,38 @@ function _assembleVK1Startup(sr) {
 }
 
 export async function startEngineLifecycle() {
-  /* Turbofan: enter 'starting' state — N1 physics ramps to idle and auto-transitions to 'running' */
+  /* Turbofan: CFM56 startup synthesis → oscillator handoff */
   if (_engineType === 'geared-turbofan') {
     if (S.engineState === 'starting' || S.engineState === 'running') return;
-    setState({ engineState: 'starting', enginePower: 1.0, n1: S.n1 ?? 0 });
-    startSound();   // spin up audio; sound level follows N1 via tickSound
+    setState({ engineState: 'starting', enginePower: 0.01, n1: S.n1 ?? 0 });
+
+    if (!_ctx) {
+      _ctx    = new AudioContext();
+      _master = _ctx.createGain();
+      _master.gain.value = 0;
+      _master.connect(_ctx.destination);
+    }
+    if (_ctx.state === 'suspended') await _ctx.resume();
+
+    const startupBuf = _assembleCFM56Startup(_ctx.sampleRate);
+    const ab  = _ctx.createBuffer(1, startupBuf.length, _ctx.sampleRate);
+    ab.copyToChannel(startupBuf, 0);
+    const src = _ctx.createBufferSource();
+    src.buffer = ab;
+    _master.gain.value = 1.0;
+    src.connect(_master);
+    _lifecycleSrc        = src;
+    _lifecycleStartedAt  = _ctx.currentTime;
+
+    src.onended = () => {
+      _lifecycleSrc       = null;
+      _lifecycleStartedAt = null;
+      if (S.engineState !== 'starting') return;
+      setState({ engineState: 'running', enginePower: 1.0 });
+      setTimeout(() => startSound(), 50);   // fresh context; oscillator ramps from 0
+    };
+
+    src.start();
     return;
   }
   if (_engineType !== 'v12-supercharged' && _engineType !== 'radial-2000hp' && _engineType !== 'lycoming-o360' && _engineType !== 'turbojet-vk1') { startSound(); return; }
@@ -2393,6 +2562,8 @@ export function stopEngineLifecycle() {
   if (_engineType === 'geared-turbofan') {
     if (S.engineState === 'off' || S.engineState === 'shutdown') return;
     setState({ engineState: 'shutdown' });
+    /* Abort startup buffer if still playing; prevent onended from starting oscillator */
+    if (_lifecycleSrc) { _lifecycleSrc.onended = null; try { _lifecycleSrc.stop(); } catch {} _lifecycleSrc = null; }
     stopSound();   // fade audio; N1 physics handles state → 'off'
     return;
   }
