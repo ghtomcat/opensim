@@ -1,0 +1,94 @@
+{
+  "id": "deblin-1955",
+  "phase": "ground",
+  "commProfile": "rsiu-3",
+  "characters": {
+    "atc":   { "commProfile": "rsiu-3" },
+    "pilot": { "commProfile": "rsiu-3" }
+  },
+  "title": "Przechwycenie · Dęblin 1955",
+  "description": "Twelve years ago a Spitfire. Today a red fifteen. Same hands. Different orders.",
+  "author": "Markus Leutwyler",
+  "fiction_note": "Por. Stanisław Wróbel is a fictional character. 303 Squadron RAF, Dęblin Military Academy, and MiG-15 intercept operations in the Polish Air Force are historical.",
+  "aircraft": "aircraft/mig15.json",
+  "weather": {
+    "source": "manual",
+    "manual": {
+      "temp": 24,
+      "wdir": 250,
+      "wspd": 8,
+      "visibility": 9999,
+      "altim": 1018,
+      "turbulence": 0
+    }
+  },
+  "initialState": {
+    "lat": 51.551,
+    "lon": 21.893,
+    "alt": 361,
+    "spd": 0,
+    "hdg": 250,
+    "pitch": 0,
+    "roll": 0
+  },
+  "departure": {
+    "icao": "EPDE",
+    "name": "Lotnisko Wojskowe Dęblin",
+    "runway": "25",
+    "elevation": 361
+  },
+  "arrival": {
+    "icao": "EPDE",
+    "name": "Lotnisko Wojskowe Dęblin",
+    "runway": "25",
+    "elevation": 361
+  },
+  "narrative": [
+    "Dęblin. Polen.",
+    "Juli 1955.",
+    "Alarm. Ein Fremder über Sektor Ost.",
+    "Kein Transponder. Keine Antwort.",
+    "Steig auf FL420. Warten auf Freigabe.",
+    "Dieselben Hände. Andere Befehle."
+  ],
+  "com": {
+    "title": "RSB-5",
+    "xpdrLabel": "IFF",
+    "active": "118.100",
+    "standby": "121.500",
+    "freqs": {
+      "118.100": { "label": "DĘBLIN WIEŻA" },
+      "121.500": { "label": "GUARD" },
+      "119.800": { "label": "NAPROWADZANIE" }
+    }
+  },
+  "atcClearances": [
+    {
+      "trigger": { "type": "time", "t": 4 },
+      "audio": "audio/deblin/deblin_wiezha_start.mp3",
+      "voice": "atc"
+    },
+    {
+      "trigger": { "type": "after", "idx": 0, "delay": 1.5 },
+      "audio": "audio/deblin/deblin_wrobel_zrozumialem.mp3",
+      "voice": "crew"
+    },
+    {
+      "trigger": { "type": "airborne" },
+      "audio": "audio/deblin/deblin_naprow_wektor.mp3",
+      "voice": "atc"
+    },
+    {
+      "trigger": { "type": "after", "idx": 2, "delay": 1.5 },
+      "audio": "audio/deblin/deblin_wrobel_wektor.mp3",
+      "voice": "crew"
+    }
+  ],
+
+  "debrief": [
+    "FL420 erreicht?",
+    "Sichtkontakt mit dem Ziel hergestellt?",
+    "Landung ohne Zwischenfall?"
+  ],
+  "timeOfDay": 14.5
+}

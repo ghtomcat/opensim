@@ -1,0 +1,107 @@
+{
+  "id": "mig15",
+  "name": "MiG-15 'Fagot'",
+  "clock": "analog",
+  "panel": "bf109",
+  "callsign": "Red 15",
+  "icaoType": "MG15",
+
+  "manualControl": true,
+
+  "envelope": {
+    "cruiseAlt": 42000,
+    "maxAlt":    50000,
+    "cruiseSpd": 440,
+    "maxSpd":    567,
+    "spdProfile": {
+      "42000": 440,
+      "20000": 490,
+      "10000": 450,
+      "5000":  390,
+      "1000":  260,
+      "0":     150
+    }
+  },
+
+  "performance": {
+    "mass":      4806,
+    "wingArea":  20.6,
+    "thrustMax": 26500,
+    "CL_0":      0.12,
+    "CL_alpha":  4.8,
+    "CL_max":    1.5,
+    "CD_0":      0.022,
+    "gearDrag":  0.012,
+    "inducedK":  0.065,
+    "Vr":        140,
+    "muRoll":    0.03,
+    "muBrake":   0.30
+  },
+
+  "handling": {
+    "rollRate":  60,
+    "pitchRate":  6,
+    "spdRate":    5,
+    "maxBank":   90,
+    "maxPitch":  35
+  },
+
+  "flaps": [
+    { "label": "0°",  "dCL_max": 0.00, "dCD_0": 0.000 },
+    { "label": "20°", "dCL_max": 0.25, "dCD_0": 0.018 },
+    { "label": "35°", "dCL_max": 0.45, "dCD_0": 0.055 }
+  ],
+
+  "sound": {
+    "engineType": "turbojet-vk1"
+  },
+
+  "com": {
+    "title": "RSB-5",
+    "active":  "121.500",
+    "standby": "121.500",
+    "freqs": {
+      "121.500": { "label": "GUARD" }
+    }
+  },
+
+  "situations": [
+    { "label": "GROUND",   "alt": 1450,  "spd":   0, "hdg": 280, "altT": 1450,  "spdT":   0 },
+    { "label": "TAKEOFF",  "alt": 1450,  "spd": 140, "hdg": 280, "altT": 10000, "spdT": 567 },
+    { "label": "CLIMB",    "alt": 10000, "spd": 420, "hdg": 280, "altT": 42000, "spdT": 440 },
+    { "label": "CRUISE",   "alt": 42000, "spd": 440, "hdg": 280, "altT": 42000, "spdT": 440 },
+    { "label": "APPROACH", "alt": 3000,  "spd": 220, "hdg": 280, "altT": 1500,  "spdT": 160 }
+  ],
+
+  "thrustProfiles": [
+    { "label": "IDLE",  "spdT":   0 },
+    { "label": "CLB",   "spdT": 380 },
+    { "label": "MAX",   "spdT": 490 },
+    { "label": "TOGA",  "spdT": 567 }
+  ],
+
+  "fmaPhases": [
+    { "minAlt": 10000, "vals": ["MAN", "", "HDG", "CLB", ""], "cols": ["white","white","green","cyan","white"] },
+    { "minAlt": 1000,  "vals": ["MAN", "", "HDG", "DES", ""], "cols": ["white","white","green","cyan","white"] },
+    { "minAlt": 0,     "vals": ["MAN", "", "HDG", "APP", ""], "cols": ["white","white","green","green","white"] }
+  ],
+
+  "gpws": [
+    { "alt": 1000, "text": "1 0 0 0", "speech": "one thousand", "red": false },
+    { "alt":  500, "text": "5 0 0",   "speech": "five hundred", "red": false },
+    { "alt":  100, "text": "1 0 0",   "speech": "one hundred",  "red": true  }
+  ],
+
+  "pmCallouts": [],
+
+  "onboarding": [
+    { "key": "Mouse (drag) / Arrow keys", "desc": "Stick · Rudder" },
+    { "key": "F",                         "desc": "Flaps" },
+    { "key": "G",                         "desc": "Gear up/down" },
+    { "key": "+ / −",                     "desc": "Throttle ±" },
+    { "key": "t / T",                     "desc": "Pitch trim" },
+    { "key": "B (hold)",                  "desc": "Brakes" },
+    { "key": "V",                         "desc": "Outside view" },
+    { "key": "P",                         "desc": "Pause" }
+  ]
+}

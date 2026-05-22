@@ -1,0 +1,66 @@
+{
+  "id": "radom-airshow",
+  "phase": "ground",
+  "title": "Radom Air Show — Red 15",
+  "description": "The last flying MiG-15 in Poland. Radom. The crowd waits.",
+  "author": "Markus Leutwyler",
+  "aircraft": "aircraft/mig15.json",
+  "weather": {
+    "source": "live",
+    "icao": "EPRA",
+    "fallback": {
+      "temp": 24,
+      "wdir": 270,
+      "wspd": 8,
+      "visibility": 9999,
+      "altim": 1018,
+      "turbulence": 0
+    }
+  },
+  "initialState": {
+    "lat": 51.389,
+    "lon": 21.213,
+    "alt": 610,
+    "spd": 0,
+    "hdg": 270,
+    "pitch": 0,
+    "roll": 0
+  },
+  "departure": {
+    "icao": "EPRA",
+    "name": "Radom-Piastów",
+    "runway": "27",
+    "elevation": 610
+  },
+  "arrival": {
+    "icao": "EPRA",
+    "name": "Radom-Piastów",
+    "runway": "27",
+    "elevation": 610
+  },
+  "narrative": [
+    "Radom. Polen.",
+    "Die einzige noch fliegende MiG-15.",
+    "VK-1 kalt. Wartung komplett.",
+    "Zehntausend Menschen hinter dem Zaun.",
+    "Rote Fünfzehn.",
+    "Nicht die letzte Fahrt."
+  ],
+  "com": {
+    "title": "RSB-5",
+    "xpdrLabel": "IFF",
+    "active": "118.100",
+    "standby": "121.500",
+    "freqs": {
+      "118.100": { "label": "RADOM TOWER" },
+      "121.500": { "label": "GUARD" },
+      "119.350": { "label": "RADOM APPROACH" }
+    }
+  },
+  "debrief": [
+    "VK-1 sauber angelassen?",
+    "Showmanöver sauber abgeflogen?",
+    "Landung auf der Achse?"
+  ],
+  "timeOfDay": 14.5
+}
