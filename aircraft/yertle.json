@@ -1,0 +1,35 @@
+{
+  "id":   "yertle",
+  "name": "Yertle Quadruped Dog",
+  "type": "robot-dog",
+  "vehicleType": "robot-dog",
+  "map": false,
+
+  "specs": {
+    "dof": 12,
+    "legs": 4,
+    "servo": "20 kg·cm @ 6.8V",
+    "driver": "PCA9685 @ 50Hz",
+    "controller": "LILYGO T-CAN485 (ESP32)",
+    "body_mm": "180 × 160 × 60"
+  },
+
+  "joints": [
+    { "name": "LF Shoulder", "axis": "X", "min": -90, "max": 90,  "home": 0 },
+    { "name": "LF Thigh",    "axis": "Y", "min": -90, "max": 90,  "home": 0 },
+    { "name": "LF Shin",     "axis": "Y", "min": -90, "max": 90,  "home": 0 },
+    { "name": "RF Shoulder", "axis": "X", "min": -90, "max": 90,  "home": 0 },
+    { "name": "RF Thigh",    "axis": "Y", "min": -90, "max": 90,  "home": 0 },
+    { "name": "RF Shin",     "axis": "Y", "min": -90, "max": 90,  "home": 0 },
+    { "name": "LB Shoulder", "axis": "X", "min": -90, "max": 90,  "home": 0 },
+    { "name": "LB Thigh",    "axis": "Y", "min": -90, "max": 90,  "home": 0 },
+    { "name": "LB Shin",     "axis": "Y", "min": -90, "max": 90,  "home": 0 },
+    { "name": "RB Shoulder", "axis": "X", "min": -90, "max": 90,  "home": 0 },
+    { "name": "RB Thigh",    "axis": "Y", "min": -90, "max": 90,  "home": 0 },
+    { "name": "RB Shin",     "axis": "Y", "min": -90, "max": 90,  "home": 0 }
+  ],
+
+  "sound": { "engineType": "none" },
+  "manualControl": true,
+  "fixedGear": true
+}

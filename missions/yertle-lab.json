@@ -1,0 +1,28 @@
+{
+  "id": "yertle-lab",
+  "title": "Yertle · Dog Lab",
+  "phase": "ground",
+
+  "initialState": {
+    "alt": 0, "spd": 0, "hdg": 0,
+    "pitch": 0, "roll": 0,
+    "lat": 47.50, "lon": 8.72
+  },
+
+  "departure": {
+    "icao": "BENCH",
+    "name": "Faigle3D Workshop",
+    "elevation": 0
+  },
+
+  "weather": {
+    "source": "manual",
+    "manual": { "wdir": 0, "wspd": 0, "turbulence": 0 }
+  },
+
+  "debrief": [
+    { "q": "What is the shoulder joint rotation axis?" },
+    { "q": "Which channels drive the thigh and shin joints?" },
+    { "q": "How does the PCA9685 translate pulse width to joint angle?" }
+  ]
+}
