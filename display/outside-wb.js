@@ -79,12 +79,13 @@ export function _buildWB(np) {
 
   /* Engine X offset — shifts all ring positions with wing rootLE (default rootLE=0.005 → exOff=0) */
   const exOff = (np.wing?.rootLE ?? 0.005) - 0.005;
-  const eA = 0.005 + exOff;   // intake ring face
-  const eB = 0.001 + exOff;   // fan cowl ring
-  const eC = -0.001 + exOff;  // TR forward ring / pylon aft
-  const eD = -0.002 + exOff;  // TR aft ring
-  const eE = -0.003 + exOff;  // nozzle ring
-  const ePF = 0.003 + exOff;  // pylon fwd attach
+  const eLen = np.eLen ?? 1.0;  // nacelle length scale (1.0 = default; shorter engines < 1.0)
+  const eA = 0.005 + exOff;   // intake ring face (fixed — always at wing rootLE)
+  const eB = eA - 0.004 * eLen;  // fan cowl ring
+  const eC = eA - 0.006 * eLen;  // TR forward ring / pylon aft
+  const eD = eA - 0.007 * eLen;  // TR aft ring
+  const eE = eA - 0.008 * eLen;  // nozzle ring
+  const ePF = eA - 0.002 * eLen; // pylon fwd attach
 
   /* Derive all wing constants from the per-aircraft wing spec */
   const w    = np.wing;
@@ -116,8 +117,8 @@ export function _buildWB(np) {
 
   /* Winglet geometry — auto-derives X from tipLE/tipTE, height from winglet type */
   const _wlType = np.winglet ?? 'classic';
-  const _wlH  = { classic: 0.0030, sharklet: 0.0065, blended: 0.0042, raked: 0.0015 }[_wlType] ?? 0.0030;
-  const _wlSw = { classic: 0.0012, sharklet: 0.0040, blended: 0.0022, raked: 0.0035 }[_wlType] ?? 0.0012;
+  const _wlH  = { classic: 0.0030, sharklet: 0.0065, blended: 0.0055, raked: 0.0015 }[_wlType] ?? 0.0030;
+  const _wlSw = { classic: 0.0012, sharklet: 0.0040, blended: 0.0008, raked: 0.0035 }[_wlType] ?? 0.0012;
   const wy   = hs;
   const wz   = dh + _wlH;
   const nTotal = nNose + 5;            // + 5 fixed tail rings
@@ -125,20 +126,20 @@ export function _buildWB(np) {
     ...np.noseRings,                                    // rings 0…nNose-1: aircraft-specific nose
     { vF:        0.001, r: r,    col: 0 },              // ring nNose+0: wing-stn (fixed)
     { vF: -0.010 * ts,  r: r,    col: 0 },              // ring nNose+1: rear
-    { vF: -0.014 * ts,  r: nr3-r*0.12, col: 0, cz: r*0.12 }, // ring nNose+2: top fixed, belly rises 0.24r
-    { vF: -0.017 * ts,  r: nr3-r*0.35,         cz: r*0.35 }, // ring nNose+3: belly rises
-    { vF: -0.0205 * ts, r: r*0.18,             cz: r*0.42 }, // ring nNose+4: small APU exhaust ring
+    { vF: -0.014 * ts,  ry: r, rz: r*0.88, col: 0, cz: r*0.12 }, // ring nNose+2: full width, belly rises
+    { vF: -0.017 * ts,  ry: r, rz: r*0.65,         cz: r*0.35 }, // ring nNose+3: full width, belly rises
+    { vF: -0.0205 * ts, ry: r*0.28, rz: r*0.22, cz: r*0.70 }, // ring nNose+4: APU exhaust, belly risen
   ]);
 
   const noseTip = V_.length;  V_.push([np.tipX, 0, np.tipCz ?? 0]);
-  const tailTip = V_.length;  V_.push([tailX, 0, r * 0.42]);
+  const tailTip = V_.length;  V_.push([tailX, 0, r * 0.70]);
 
   V_.push(  /* non-tube vertices — b+0..b+151 */
     WV[0], WV[1], WV[4], WV[5],    // b+0..3:  R root lower LE/TE, R tip lower LE/TE
     WV[22], WV[23], WV[26], WV[27], // b+4..7:  L root lower LE/TE, L tip lower LE/TE
     [-0.013*ts,  0,        r        ],  //  b+8  V-stab base fwd
     [-0.019*ts,  0,        r        ],  //  b+9  V-stab base aft
-    [-0.016*ts,  0,        vstabZ   ],  //  b+10 V-stab top fwd  (40° LE sweep)
+    [(np.vstabTipLE??-0.016)*ts, 0, vstabZ],  //  b+10 V-stab top fwd
     [-0.021*ts,  0,        vstabZ-0.001],//b+11 V-stab top aft
     [-0.017*ts,  nr3,      0.0      ],  //  b+12 R h-stab root fwd
     [-0.0175*ts, nr2,      0.0      ],  //  b+13 R h-stab root aft
@@ -256,7 +257,7 @@ export function _buildWB(np) {
   const _vTt = 0.00040;                        // tip half-thickness (≈9% t/c)
   const _vTE = 0.00008;                        // closed TE half-gap
   const _vsRL = -0.013*ts, _vsRH = -0.017*ts, _vsRT = -0.019*ts;  // root LE/hinge/TE
-  const _vsTL = -0.016*ts, _vsTH = -0.019*ts, _vsTT = tailX;      // tip LE/hinge/TE
+  const _vsTL = (np.vstabTipLE ?? -0.016)*ts, _vsTH = -0.019*ts, _vsTT = tailX; // tip LE/hinge/TE
   V_.push(
     [_vsRL, +_vTr,       r        ], // b+160  root LE  +Y
     [_vsRL, -_vTr,       r        ], // b+161  root LE  -Y
@@ -282,9 +283,9 @@ export function _buildWB(np) {
   const _hsRL = -0.014*ts, _hsRH = -0.01645*ts, _hsRT = -0.0175*ts;
   const _hsTL = -0.016*ts, _hsTH = -0.01705*ts, _hsTT = -0.0175*ts;
   /* Root LE at ring nNose+2 (cz=r*0.12), root hinge at ring nNose+3 (cz=r*0.26) */
-  const _hsRY  = nr3 - r*0.12;   // root LE y — equator of ring nNose+2
+  const _hsRY  = r;               // root LE y — ry-equator of ring nNose+2 (ry=r)
   const _hsRZ  = r * 0.12;       // root LE z center
-  const _hsHY  = nr3 - r*0.26;   // hinge/TE root y — equator of ring nNose+3
+  const _hsHY  = r;              // hinge/TE root y — ry-equator of ring nNose+3 (ry=r)
   const _hsHZ  = r * 0.26;       // hinge/TE root z center
   V_.push(
     // R side (b+172..b+183)
@@ -561,7 +562,7 @@ export function _buildWB(np) {
   E_.push(
     [wStn+6, b+0],[wStn+6, b+1],[wStn+10, b+4],[wStn+10, b+5],   // fuselage → lower wing root
     [wStn+6, b+116],[wStn+6, b+117],[wStn+10, b+120],[wStn+10, b+121],  // fuselage → upper wing root
-    [tail,    b+8],[tail,    b+9],
+    [tail,         b+8],[rb[nNose+3], b+9],
     [tail+N4, b+12],[tail+N3, b+16],
   );
   /* Non-tube edges */
@@ -649,7 +650,8 @@ export function _buildWB(np) {
     winFwdRi: np.winFwdRi, winAftRi: np.winAftRi,
     winSiInner: np.winSiInner, winSiOuter: np.winSiOuter,
     cockpitPanels: np.cockpitPanels, frontWin: _frontWin,
-    ey2: np.ey2, ez: np.ez, er: np.er, erc: np.erc, pz: np.pz, exOff,
+    ey2: np.ey2, ez: np.ez, er: np.er, erc: np.erc, pz: np.pz, exOff, eLen,
+    eApos: eA, eBpos: eB,
     anim: { r_rt, r_hs, r_ail, r_sp_rt, r_sp_hs } };
 }
 
@@ -678,6 +680,7 @@ export function _acGeoFromJson(aircraft, baseNp) {
     windows:       nose.windows       ?? baseNp.windows,
     tailX:         jGeo.tailX         ?? baseNp.tailX,
     vstabZ:        jGeo.vstabZ        ?? baseNp.vstabZ,
+    vstabTipLE:    jGeo.vstabTipLE    ?? baseNp.vstabTipLE,
     ey:            jGeo.engineY       ?? baseNp.ey,
     ey2:           jGeo.engineY2      ?? baseNp.ey2,
     ez:            jGeo.engineZ       ?? baseNp.ez,
@@ -686,6 +689,7 @@ export function _acGeoFromJson(aircraft, baseNp) {
     pz:            jGeo.pylonZ        ?? baseNp.pz,
     wing:          aircraft.wing      ?? baseNp.wing,
     winglet:       aircraft.winglet   ?? baseNp.winglet,
+    eLen:          jGeo.engineLen     ?? baseNp.eLen ?? 1.0,
   };
 }
 

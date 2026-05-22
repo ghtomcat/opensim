@@ -17,7 +17,7 @@ import { setCrewLang }    from './crew.js';
  * Returns the loaded { mission, aircraft } objects after patching state.
  */
 export async function loadMission(missionPath, aircraftPath) {
-  const _fetch = (p) => fetch(p, { cache: 'no-cache' }).then(r => r.json());
+  const _fetch = (p) => fetch(`${p}?v=${Date.now()}`).then(r => r.json());
   const [mission, aircraft] = await Promise.all([
     typeof missionPath  === 'object' ? missionPath  : _fetch(missionPath),
     typeof aircraftPath === 'object' ? aircraftPath : _fetch(aircraftPath),

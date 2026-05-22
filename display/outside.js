@@ -406,6 +406,21 @@ function animHinge(verts, idxs, r, angle, axis, src) {
   }
 }
 
+/* ── Nacelle inlet lip ring — polished metal leading edge at intake face ─────
+   Drawn as a thick silver stroke at the outer rim of the fan face projection.
+   Uses the same hub/rim as the fan disk so it's always co-centred with the fan. */
+function _drawIntakeLip(ctx, hubPt, rimPt, dpr) {
+  const r = Math.hypot(rimPt.x - hubPt.x, rimPt.y - hubPt.y);
+  if (r < 3) return;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(218, 224, 232, 0.90)';
+  ctx.lineWidth = Math.max(2.5, r * 0.11);
+  ctx.beginPath();
+  ctx.arc(hubPt.x, hubPt.y, r, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
 /* ── Generic turbofan fan-face renderer (screen-space) ───────────────────────
    hubPt  projected center of fan disk  {x, y, d}
    rimPt  projected rim vertex (sets disk radius in pixels)
@@ -2038,8 +2053,8 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         /* Fixed fairing body — flap slides on tracks inside, fairing stays put */
         const fxFwd  = fxH - fChord * 0.10;            // fwd tip (slightly aft of hinge)
         const fxBel  = fxH - fChord * 0.22;            // belly max
-        const fxAft1 = fxH - fChord * 0.55;            // aft body (past TE)
-        const fxAft2 = fxH - fChord * 0.75;            // aft tip (extends behind TE)
+        const fxAft1 = fxH - fChord * 0.20;            // aft body (near TE)
+        const fxAft2 = fxH - fChord * 0.33;            // aft tip (~3% past TE)
 
         /* Spine: [x, zt, depth-below-attachment, half-width] */
         const spine = [
@@ -2537,10 +2552,11 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   }
 
   /* Swiss cross — winglets always; vtail only when no livery decal covers it */
-  if (S.aircraft?.swissCross) {
+  if (S.aircraft?.livery?.swissCross) {
     const _hasVtailDecal = S.aircraft?.livery?.decals?.some(d => d.surface === 'vtail');
+    const _crossV = S.aircraft.livery.swissCrossV ?? 0.5;
     if (!_hasVtailDecal)
-      _drawSwissCross(ctx, pts[_b+8], pts[_b+9], pts[_b+11], pts[_b+10]);   // v-stab
+      _drawSwissCross(ctx, pts[_b+8], pts[_b+9], pts[_b+11], pts[_b+10], _crossV);   // v-stab
     _drawSwissCross(ctx, pts[_b+118], pts[_b+147], pts[_b+101], pts[_b+100]);  // R winglet
     _drawSwissCross(ctx, pts[_b+122], pts[_b+151], pts[_b+103], pts[_b+102]);  // L winglet
   }
@@ -2597,7 +2613,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
 
   /* Livery decals — SVG paths mapped onto named surfaces */
   const _livDecals = S.aircraft?.livery?.decals;
-  if (_livDecals?.length) _drawLiveryDecals(ctx, _livDecals, pts, FC_, F_);
+  if (_livDecals?.length) _drawLiveryDecals(ctx, _livDecals, pts, verts, FC_, F_, project, camSide);
 
   /* Prop disk — C172 and Bf109, only while engine running */
   if ((isC172 || isBf109 || isF4U) && S.engineState === 'running') {
@@ -2625,13 +2641,31 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
          hub.d < fan.d → engine faces us; hub.d < fusCenter.d → not occluded by body. */
       const _rHub = pts[_b+158], _rFan = pts[_b+28];
       const _lHub = pts[_b+159], _lFan = pts[_b+68];
-      const _eXpos = 0.005 + (_wbGeo?.exOff ?? 0);
+      const _eXpos = _wbGeo?.eApos ?? (0.005 + (_wbGeo?.exOff ?? 0));
       const _fusCtr = project([_eXpos, 0, 0]);
       const _fusCullD = _fusCtr ? _fusCtr.d + 0.0005 : Infinity;
-      if (_rHub && _rFan && _rHub.d < _rFan.d && _rHub.d < _fusCullD)
-        _drawTurbofanFace(ctx, _rHub, pts[_b+20], ePow, dpr, 22);  // R inner
-      if (_lHub && _lFan && _lHub.d < _lFan.d && _lHub.d < _fusCullD)
-        _drawTurbofanFace(ctx, _lHub, pts[_b+60], ePow, dpr, 22);  // L inner
+      if (_rHub && _rFan && _rHub.d < _rFan.d && _rHub.d < _fusCullD) {
+        /* Average distance hub→each eA ring vertex: all at same x → same perspective depth,
+           no axial-offset radius inflation from angled views. */
+        const _rRads = [20,21,22,23,24,25,26,27].map(i=>pts[_b+i]).filter(Boolean)
+          .map(p=>Math.hypot(p.x-_rHub.x, p.y-_rHub.y));
+        const _rR = _rRads.length ? _rRads.reduce((a,b)=>a+b)/_rRads.length : 0;
+        if (_rR > 3) {
+          const _rimR = { x: _rHub.x, y: _rHub.y - _rR, d: _rHub.d };
+          _drawTurbofanFace(ctx, _rHub, _rimR, ePow, dpr, 22);
+          _drawIntakeLip(ctx, _rHub, _rimR, dpr);
+        }
+      }
+      if (_lHub && _lFan && _lHub.d < _lFan.d && _lHub.d < _fusCullD) {
+        const _lRads = [60,61,62,63,64,65,66,67].map(i=>pts[_b+i]).filter(Boolean)
+          .map(p=>Math.hypot(p.x-_lHub.x, p.y-_lHub.y));
+        const _rL = _lRads.length ? _lRads.reduce((a,b)=>a+b)/_lRads.length : 0;
+        if (_rL > 3) {
+          const _rimL = { x: _lHub.x, y: _lHub.y - _rL, d: _lHub.d };
+          _drawTurbofanFace(ctx, _lHub, _rimL, ePow, dpr, 22);
+          _drawIntakeLip(ctx, _lHub, _rimL, dpr);
+        }
+      }
       /* 4-engine aircraft (A340): also render outer engine fans at ey2 */
       const _ey2 = _wbGeo?.ey2;
       if (_ey2) {
@@ -2645,8 +2679,14 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         const pBR = project([0.001 + _ex2,  _ey2, _ez2]);
         const pBL = project([0.001 + _ex2, -_ey2, _ez2]);
         const _fusCullD2 = _fusCtr ? _fusCtr.d + 0.0005 : Infinity;
-        if (pHR && pRR && pBR && pHR.d < pBR.d && pHR.d < _fusCullD2) _drawTurbofanFace(ctx, pHR, pRR, ePow, dpr, 22);
-        if (pHL && pRL && pBL && pHL.d < pBL.d && pHL.d < _fusCullD2) _drawTurbofanFace(ctx, pHL, pRL, ePow, dpr, 22);
+        if (pHR && pRR && pBR && pHR.d < pBR.d && pHR.d < _fusCullD2) {
+          _drawTurbofanFace(ctx, pBR, pRR, ePow, dpr, 22);
+          _drawIntakeLip(ctx, pBR, pRR, dpr);
+        }
+        if (pHL && pRL && pBL && pHL.d < pBL.d && pHL.d < _fusCullD2) {
+          _drawTurbofanFace(ctx, pBL, pRL, ePow, dpr, 22);
+          _drawIntakeLip(ctx, pBL, pRL, dpr);
+        }
       }
     }
   }
@@ -2738,36 +2778,6 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     return camSide > 0 ? -rW : fP;
   }
 
-  /* Wireframe edges on top */
-  ctx.save();
-  ctx.strokeStyle = 'rgba(175,195,215,0.65)';
-  ctx.lineWidth   = Math.max(1, devicePixelRatio);
-  ctx.beginPath();
-  for (const [a, b] of E_) {
-    /* F9 stage sep: main vehicle = S2+Dragon (v48-v96) + MVac nozzle (v122-v138) */
-    if (isF9 && rStage >= 2) {
-      const inMain = v => (v >= 48 && v <= 96) || (v >= 122 && v <= 138);
-      if (!inMain(a) || !inMain(b)) continue;
-    }
-    /* Saturn V LES jettison: hide tower lattice (mid-ring verts 173-176 + diagonals) */
-    if (isSV && S.lesJettisoned && (a >= 173 || b >= 173)) continue;
-    /* Saturn V staging: hide spent stage edges
-       S-IC body/interstage: verts 0–47 + fin verts 161–172
-       S-II body/skirt:      verts 48–79                           */
-    if (isSV && rStage >= 2 && ((a <= 47 || (a >= 161 && a <= 172)) || (b <= 47 || (b >= 161 && b <= 172)))) continue;
-    if (isSV && rStage >= 3 && ((a >= 48 && a <= 79) || (b >= 48 && b <= 79))) continue;
-    if (isSV && S.sivbSep   && ((a >= 80 && a <= 111) || (b >= 80 && b <= 111))) continue;
-    if (isSV && _inTDSep    && ((a >= 96 && a <= 111) || (b >= 96 && b <= 111))) continue;
-    const pa = (isSV && _inTDSep && ptsCSM && a >= 112) ? ptsCSM[a] : pts[a];
-    const pb = (isSV && _inTDSep && ptsCSM && b >= 112) ? ptsCSM[b] : pts[b];
-    if (!pa || !pb) continue;
-    /* Cull edges that are entirely on the back side */
-    if (edgeCamDir(a) > 0 && edgeCamDir(b) > 0) continue;
-    ctx.moveTo(pa.x, pa.y);
-    ctx.lineTo(pb.x, pb.y);
-  }
-  ctx.stroke();
-  ctx.restore();
 
   /* Radome seam edges — distinct bright accent line */
   if (SE_.length > 0) {
@@ -3107,7 +3117,7 @@ ctx.save();
   const _lightList = isC172 ? (S.masterBat ? _LIGHTS_c172 : null)
     : (!isF9 && !isBf109 && !isF4U && !isMig15 && !isSV) ? (() => {
         if (!_wbGeo) return _LIGHTS_wb;
-        const _lwg = (_WB_NP[S.aircraft?.id] ?? _WB_NP.default).wing ?? _WB_WING_DEFAULT;
+        const _lwg = S.aircraft?.wing ?? _WB_WING_DEFAULT;
         const _ltY = _lwg.span;
         const _ltZ = _lwg.dihedral + 0.003;
         const _ltX = (_lwg.tipLE + _lwg.tipTE) / 2;
@@ -3618,87 +3628,201 @@ function _engineOverlays(pts, faces, acEng, _b = 162) {
 }
 
 /* ── Livery decals — SVG paths projected onto named surface group ─
-   decals: array from aircraft.livery.decals
-   pts:    projected vertex array from _drawWireframe
-   FC_, F_: face-color and face-vertex arrays                       */
-function _drawLiveryDecals(ctx, decals, pts, FC_, F_) {
-  const SURF = { vtail: 2, nose: 6, fuselage: 0 };
+   Per-face affine mapping: each visible face gets its own SVG→screen
+   transform derived from UV coordinates, eliminating cylinder distortion.
+   Fallback to bounding-box for decals without placement.               */
+function _drawLiveryDecals(ctx, decals, pts, verts, FC_, F_, project, camSide = 0) {
+  /* engine maps to both regular nacelle (4) and TR zone (7) so the logo is uninterrupted */
+  const SURF = { vtail: 2, nose: 6, fuselage: 0, engine: [4, 7], winglet: 9 };
   for (const decal of decals) {
-    const cIdx = SURF[decal.surface];
-    if (cIdx === undefined) continue;
-
-    /* Collect projected points from visible (front-facing) faces only */
-    const sPts = [];
-    for (let fi = 0; fi < F_.length; fi++) {
-      if (FC_[fi] !== cIdx) continue;
-      const fv = F_[fi];
-      const fp = fv.map(vi => pts[vi]);
-      if (fp.some(p => !p)) continue;
-      const cross = (fp[1].x - fp[0].x) * (fp[2].y - fp[0].y)
-                  - (fp[1].y - fp[0].y) * (fp[2].x - fp[0].x);
-      if (cross < 0) continue;
-      for (const p of fp) sPts.push(p);
-    }
-    if (sPts.length < 3) continue;
-
-    /* Screen bounding box of the surface */
-    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
-    for (const p of sPts) {
-      if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x;
-      if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y;
-    }
-    const sw = x1 - x0, sh = y1 - y0;
-    if (sw < 4 || sh < 4) continue;
-
-    /* Parse viewBox: "minX minY width height" */
+    const cIdxVal = SURF[decal.surface];
+    if (cIdxVal === undefined) continue;
+    const cIdxList = Array.isArray(cIdxVal) ? cIdxVal : [cIdxVal];
     const vb = (decal.viewBox ?? '0 0 100 100').split(' ').map(Number);
     const [vbX, vbY, vbW, vbH] = vb;
-    const sx = sw / vbW, sy = sh / vbH;
+    const elems = decal.elements ?? [];
+    if (!elems.length) continue;
 
-    ctx.save();
-    /* Clip to actual face polygons — prevents decal bleeding onto winglets/nose */
-    ctx.beginPath();
-    for (let fi2 = 0; fi2 < F_.length; fi2++) {
-      if (FC_[fi2] !== cIdx) continue;
-      const fv2 = F_[fi2].map(vi => pts[vi]);
-      if (fv2.some(p => !p)) continue;
-      const cr2 = (fv2[1].x-fv2[0].x)*(fv2[2].y-fv2[0].y) - (fv2[1].y-fv2[0].y)*(fv2[2].x-fv2[0].x);
-      if (cr2 < 0) continue;
-      ctx.moveTo(fv2[0].x, fv2[0].y);
-      for (let i2 = 1; i2 < fv2.length; i2++) ctx.lineTo(fv2[i2].x, fv2[i2].y);
-      ctx.closePath();
-    }
-    ctx.clip();
-    ctx.transform(sx, 0, 0, sy, x0 - vbX * sx, y0 - vbY * sy);
-    for (const el of decal.elements ?? []) {
-      ctx.save();
-      if (el.rotate) {
-        const rcx = el.rcx ?? (vbX + vbW / 2);
-        const rcy = el.rcy ?? (vbY + vbH / 2);
-        ctx.translate(rcx, rcy);
-        ctx.rotate(el.rotate * Math.PI / 180);
-        ctx.translate(-rcx, -rcy);
+    function drawElems() {
+      for (const el of elems) {
+        ctx.save();
+        if (el.rotate) {
+          const rcx = el.rcx ?? (vbX + vbW / 2);
+          const rcy = el.rcy ?? (vbY + vbH / 2);
+          ctx.translate(rcx, rcy);
+          ctx.rotate(el.rotate * Math.PI / 180);
+          ctx.translate(-rcx, -rcy);
+        }
+        ctx.fillStyle = el.fill ?? '#ffffff';
+        ctx.globalAlpha = el.opacity ?? 1;
+        ctx.fill(new Path2D(el.d));
+        ctx.restore();
       }
-      ctx.fillStyle = el.fill ?? '#ffffff';
-      ctx.globalAlpha = el.opacity ?? 1;
-      ctx.fill(new Path2D(el.d));
+    }
+
+    if (decal.placement && verts) {
+      /* Per-face affine: placement[0..3] defines a UV quad in 3D world space.
+         U = placement[0]→placement[1], V = placement[0]→placement[3].        */
+      const pl = decal.placement;
+      const P0 = pl[0], P1 = pl[1], P3 = pl[3];
+      const Ux = P1[0]-P0[0], Uy = P1[1]-P0[1], Uz = P1[2]-P0[2];
+      const Vx = P3[0]-P0[0], Vy = P3[1]-P0[1], Vz = P3[2]-P0[2];
+      const lenU2 = Ux*Ux + Uy*Uy + Uz*Uz;
+      const lenV2 = Vx*Vx + Vy*Vy + Vz*Vz;
+      if (lenU2 < 1e-20 || lenV2 < 1e-20) continue;
+
+      for (let fi = 0; fi < F_.length; fi++) {
+        if (!cIdxList.includes(FC_[fi])) continue;
+        const fv = F_[fi];
+        const fp = fv.map(vi => pts[vi]);
+        if (fp.some(p => !p)) continue;
+        /* Front-face cull */
+        const cross = (fp[1].x-fp[0].x)*(fp[2].y-fp[0].y)
+                    - (fp[1].y-fp[0].y)*(fp[2].x-fp[0].x);
+        if (cross < 0) continue;
+
+        /* Engine decals: only render on the near-side engine (prevents far engine bleeding through) */
+        if (decal.surface === 'engine' && camSide !== 0 && verts) {
+          const avgY = fv.reduce((s, vi) => s + verts[vi][1], 0) / fv.length;
+          if (camSide > 0 && avgY < 0) continue;
+          if (camSide < 0 && avgY > 0) continue;
+        }
+
+        /* Vtail LE-nose round faces have mixed UV chirality — skip them.
+           Identified by having a vertex on the y=0 centreline. */
+        if (FC_[fi] === 2 && verts && fv.some(vi => Math.abs(verts[vi][1]) < 0.00005)) continue;
+
+        /* Project each vertex onto placement plane → UV ∈ [0,1]×[0,1] */
+        const uvs = fv.map(vi => {
+          const W = verts[vi];
+          const dx = W[0]-P0[0], dy = W[1]-P0[1], dz = W[2]-P0[2];
+          return { u: (dx*Ux+dy*Uy+dz*Uz)/lenU2,
+                   v: (dx*Vx+dy*Vy+dz*Vz)/lenV2 };
+        });
+
+        /* Skip faces entirely outside the placement quad */
+        if (uvs.every(uv => uv.u < -0.05) || uvs.every(uv => uv.u > 1.05) ||
+            uvs.every(uv => uv.v < -0.05) || uvs.every(uv => uv.v > 1.05)) continue;
+
+        /* Map UV → SVG coordinate space with automatic chirality detection.
+           The screen triangle (d0,d1,d2) is always CCW (passed cull test).
+           If the UV triangle in SVG space is CW (detUV < 0), flip u so the
+           affine is orientation-preserving rather than mirroring the decal.
+           Different surface types (tube vs flat panel) have opposite winding,
+           so the flip must be detected per-face rather than hardcoded.           */
+        const li = fv.length - 1;
+        const svgsRaw = uvs.map(uv => ({ x: vbX + uv.u*vbW, y: vbY + uv.v*vbH }));
+        const detUV = (svgsRaw[1].x-svgsRaw[0].x)*(svgsRaw[li].y-svgsRaw[0].y)
+                    - (svgsRaw[1].y-svgsRaw[0].y)*(svgsRaw[li].x-svgsRaw[0].x);
+        const autoFlip = detUV < 0;
+        const doFlip = decal.flipU ? !autoFlip : autoFlip;
+        const svgs = doFlip
+          ? uvs.map(uv => ({ x: vbX + (1 - uv.u)*vbW, y: vbY + uv.v*vbH }))
+          : svgsRaw;
+
+        /* Solve affine SVG→screen from 3 vertices (0, 1, last) */
+        const s0=svgs[0], s1=svgs[1], s2=svgs[li];
+        const d0=fp[0],   d1=fp[1],   d2=fp[li];
+        const ds1x=s1.x-s0.x, ds1y=s1.y-s0.y;
+        const ds3x=s2.x-s0.x, ds3y=s2.y-s0.y;
+        const dd1x=d1.x-d0.x, dd1y=d1.y-d0.y;
+        const dd3x=d2.x-d0.x, dd3y=d2.y-d0.y;
+        const det = ds1x*ds3y - ds1y*ds3x;
+        if (Math.abs(det) < 0.01) continue;
+        const ma = (dd1x*ds3y - dd3x*ds1y) / det;
+        const mc = (ds1x*dd3x - ds3x*dd1x) / det;
+        const mb = (dd1y*ds3y - dd3y*ds1y) / det;
+        const md = (ds1x*dd3y - ds3x*dd1y) / det;
+        const me = d0.x - ma*s0.x - mc*s0.y;
+        const mf = d0.y - mb*s0.x - md*s0.y;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(fp[0].x, fp[0].y);
+        for (let i = 1; i < fp.length; i++) ctx.lineTo(fp[i].x, fp[i].y);
+        ctx.closePath();
+        ctx.clip();
+        ctx.transform(ma, mb, mc, md, me, mf);
+        drawElems();
+        ctx.restore();
+      }
+
+      /* Debug: project placement quad to screen and draw colored outline */
+      if (decal.debug) {
+        const sp = [pl[0], pl[1], pl[2] ?? [P1[0]+P3[0]-P0[0], P1[1]+P3[1]-P0[1], P1[2]+P3[2]-P0[2]], pl[3]].map(c => project(c));
+        if (sp.every(p => p)) {
+          ctx.save();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = '#ff3300';
+          ctx.beginPath();
+          ctx.moveTo(sp[0].x, sp[0].y);
+          for (let i = 1; i < 4; i++) ctx.lineTo(sp[i].x, sp[i].y);
+          ctx.closePath();
+          ctx.stroke();
+          ctx.strokeStyle = '#0088ff';  // U: P0→P1
+          ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.moveTo(sp[0].x, sp[0].y); ctx.lineTo(sp[1].x, sp[1].y); ctx.stroke();
+          ctx.strokeStyle = '#00cc44';  // V: P0→P3
+          ctx.beginPath(); ctx.moveTo(sp[0].x, sp[0].y); ctx.lineTo(sp[3].x, sp[3].y); ctx.stroke();
+          ctx.fillStyle = '#ff3300';
+          ctx.font = 'bold 11px monospace';
+          ['P0','P1','P2','P3'].forEach((lbl, i) => ctx.fillText(lbl, sp[i].x+3, sp[i].y-4));
+          ctx.restore();
+        }
+      }
+    } else {
+      /* Fallback: fit SVG into screen bounding box of all visible surface faces */
+      const sPts = [];
+      for (let fi = 0; fi < F_.length; fi++) {
+        if (!cIdxList.includes(FC_[fi])) continue;
+        const fv = F_[fi], fp = fv.map(vi => pts[vi]);
+        if (fp.some(p => !p)) continue;
+        const cross = (fp[1].x-fp[0].x)*(fp[2].y-fp[0].y)
+                    - (fp[1].y-fp[0].y)*(fp[2].x-fp[0].x);
+        if (cross < 0) continue;
+        for (const p of fp) sPts.push(p);
+      }
+      if (sPts.length < 3) continue;
+      let bx0=Infinity, bx1=-Infinity, by0=Infinity, by1=-Infinity;
+      for (const p of sPts) {
+        if (p.x<bx0) bx0=p.x; if (p.x>bx1) bx1=p.x;
+        if (p.y<by0) by0=p.y; if (p.y>by1) by1=p.y;
+      }
+      const sw=bx1-bx0, sh=by1-by0;
+      if (sw<4 || sh<4) continue;
+      const sx=sw/vbW, sy=sh/vbH;
+      ctx.save();
+      ctx.beginPath();
+      for (let fi2 = 0; fi2 < F_.length; fi2++) {
+        if (!cIdxList.includes(FC_[fi2])) continue;
+        const fv2 = F_[fi2].map(vi => pts[vi]);
+        if (fv2.some(p => !p)) continue;
+        const cr2 = (fv2[1].x-fv2[0].x)*(fv2[2].y-fv2[0].y)
+                  - (fv2[1].y-fv2[0].y)*(fv2[2].x-fv2[0].x);
+        if (cr2 < 0) continue;
+        ctx.moveTo(fv2[0].x, fv2[0].y);
+        for (let i2 = 1; i2 < fv2.length; i2++) ctx.lineTo(fv2[i2].x, fv2[i2].y);
+        ctx.closePath();
+      }
+      ctx.clip();
+      ctx.transform(sx, 0, 0, sy, bx0 - vbX*sx, by0 - vbY*sy);
+      drawElems();
       ctx.restore();
     }
-    ctx.restore();
   }
 }
 
 /* ── Swiss cross on V-stab tail fin ──────────────────────────── */
-function _drawSwissCross(ctx, p0, p1, p2, p3) {
+function _drawSwissCross(ctx, p0, p1, p2, p3, vFrac = 0.5) {
   if (!p0 || !p1 || !p2 || !p3) return;
   // p0=fwd_base, p1=aft_base, p2=aft_top, p3=fwd_top
   const bmx = (p0.x + p1.x) * 0.5, bmy = (p0.y + p1.y) * 0.5;
   const tmx = (p2.x + p3.x) * 0.5, tmy = (p2.y + p3.y) * 0.5;
-  const fcx = (bmx + tmx) * 0.5, fcy = (bmy + tmy) * 0.5;
+  const fcx = bmx*(1-vFrac) + tmx*vFrac, fcy = bmy*(1-vFrac) + tmy*vFrac;
   const upLen = Math.hypot(tmx - bmx, tmy - bmy);
   if (upLen < 4) return;
-  const uux = (tmx - bmx) / upLen, uuy = (tmy - bmy) / upLen;
-  const urx = uuy, ury = -uux;             // right ⊥ up
+  const uux = 0, uuy = -1;                // screen up (fixed vertical)
+  const urx = 1, ury =  0;               // screen right (fixed horizontal)
   const sc  = upLen * 0.38;               // cross fits ~76% of fin height
 
   /* plus-sign polygon — 12 vertices in local (right, up) space */
