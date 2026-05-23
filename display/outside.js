@@ -1019,6 +1019,12 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const cosCP = Math.cos(camPitch), sinCP = Math.sin(camPitch);
   const sinEl = Math.sin(orbitElDeg * DEG), cosEl = Math.cos(orbitElDeg * DEG);
 
+  /* Blinn-Phong halfway vector — camera-side-aware, used for specular on aircraft skin */
+  const _vDir = camSide > 0 ? [0, 1, 0] : [-1, 0, 0];
+  const _Hac  = (v => v.map(x => x / Math.hypot(...v)))(
+    [_LD[0]+_vDir[0], _LD[1]+_vDir[1], _LD[2]+_vDir[2]]
+  );
+
   /* Project body-frame vertex → { x, y, d } (d = cam fwd depth for sorting) */
   function project([vF, vR, vU]) {
     let fP, rR, uR;
@@ -1471,6 +1477,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     const [nF, nR, nU] = rotateNormal(FN_[i]);
     const amb  = (isF9 && FC_[i] === 4) ? 0.55 : 0.18;
     const br   = litBr(nF, nR, nU, amb);
+    const spec = Math.pow(Math.max(0, nF*_Hac[0] + nR*_Hac[1] + nU*_Hac[2]), 28);
     const avgD = ps.reduce((s, p) => s + p.d, 0) / ps.length;
 
     /* Smooth shading: gradient across quad using per-vertex radial normals */
@@ -1487,7 +1494,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       }
     }
 
-    return { ps, br, avgD, col: COL_[FC_[i]], grad };
+    return { ps, br, spec, avgD, col: COL_[FC_[i]], grad };
   }).filter(Boolean);
 
   /* Booster faces — Stage 1 body + grid fins */
@@ -2358,7 +2365,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   /* Fill shaded faces */
   for (const f of faces) {
     if (f.draw) { f.draw(); continue; }
-    const { ps, br, col, grad } = f;
+    const { ps, br, spec, col, grad } = f;
     if (grad) {
       const { pL, pR, brL, brR } = grad;
       const gl = ctx.createLinearGradient(pL.x, pL.y, pR.x, pR.y);
@@ -2373,6 +2380,19 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     for (let k = 1; k < ps.length; k++) ctx.lineTo(ps[k].x, ps[k].y);
     ctx.closePath();
     ctx.fill();
+
+    /* Specular highlight — additive white sheen on faces oriented toward camera+sun */
+    if (spec > 0.04) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = `rgba(255,255,255,${(spec * 0.30).toFixed(3)})`;
+      ctx.beginPath();
+      ctx.moveTo(ps[0].x, ps[0].y);
+      for (let k = 1; k < ps.length; k++) ctx.lineTo(ps[k].x, ps[k].y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
   }
 
   /* ── Cockpit window panels (cockpitPanels) — post-painter pass, bypasses depth sort ──
