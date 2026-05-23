@@ -1,0 +1,175 @@
+{
+  "id": "ift-13",
+  "phase": "launch",
+  "title": "IFT-13 — First Starship Catch",
+  "description": "Predicted Q3 2026. S40 / B20. First attempt to catch Ship with Mechazilla arms. Nominal 6-engine burn to orbit. Booster catch at Starbase. Ship completes one orbit, reentry, Mechazilla catch attempt.",
+  "author": "Markus Leutwyler",
+  "aircraft": "starship",
+  "timeOfDay": 0.94,
+  "water": false,
+  "weather": {
+    "source": "manual",
+    "manual": {
+      "wdir": 120,
+      "wspd": 8,
+      "turbulence": 0.03,
+      "altim": 1015,
+      "temp": 27
+    }
+  },
+  "initialState": {
+    "lat":   25.997,
+    "lon":  -97.155,
+    "alt":   10,
+    "spd":   0,
+    "hdg":   110,
+    "pitch": 90,
+    "roll":  0
+  },
+  "departure": {
+    "name": "Starbase OLP-2",
+    "elevation": 10
+  },
+  "arrival": null,
+  "com": {
+    "title": "MISSION AUDIO",
+    "loops": [
+      { "id": "silence", "label": "SILENCE" },
+      { "id": "ambient", "label": "PAD AMBIENT", "audio": "audio/launch-ambient.mp3" }
+    ],
+    "active": "silence"
+  },
+  "atcClearances": [
+    {
+      "t": 0,
+      "text": "T minus 60 seconds. Starship is go for launch.",
+      "voice": "atc"
+    },
+    {
+      "t": 30,
+      "text": "T minus 30 seconds.",
+      "voice": "atc"
+    },
+    {
+      "t": 50,
+      "text": "T minus 10. 9. 8. 7. 6. 5. 4. 3. 2. 1.",
+      "voice": "atc"
+    },
+    {
+      "t": 57,
+      "text": "Engine start sequence.",
+      "voice": "atc"
+    },
+    {
+      "t": 60,
+      "text": "Liftoff. Starship lifts off from Starbase.",
+      "voice": "atc"
+    },
+    {
+      "t": 105,
+      "text": "Max Q.",
+      "voice": "atc"
+    },
+    {
+      "t": 202,
+      "text": "Super Heavy main engine cutoff.",
+      "voice": "atc"
+    },
+    {
+      "t": 204,
+      "text": "Stage separation confirmed. Hot-staging nominal. Ship ignition — all six Raptors.",
+      "voice": "atc"
+    },
+    {
+      "t": 229,
+      "text": "Booster boostback burn — nominal.",
+      "voice": "atc"
+    },
+    {
+      "t": 420,
+      "text": "Booster entry burn start.",
+      "voice": "atc"
+    },
+    {
+      "t": 438,
+      "text": "Booster entry burn complete.",
+      "voice": "atc"
+    },
+    {
+      "t": 470,
+      "text": "Booster landing burn start. Mechazilla arms are go.",
+      "voice": "atc"
+    },
+    {
+      "t": 484,
+      "text": "Booster 20 — caught. Mechazilla catch confirmed. Booster is secure.",
+      "voice": "atc"
+    },
+    {
+      "t": 551,
+      "text": "SECO. Ship reached orbital velocity on all six Raptors. Nominal.",
+      "voice": "atc"
+    },
+    {
+      "t": 1117,
+      "text": "Payload bay open. Beginning Starlink simulator deployment.",
+      "voice": "atc"
+    },
+    {
+      "t": 1635,
+      "text": "Payload deployment complete. 22 simulators away.",
+      "voice": "atc"
+    },
+    {
+      "t": 2327,
+      "text": "Raptor engine relight confirmed. Ship performing on-orbit burn.",
+      "voice": "atc"
+    },
+    {
+      "t": 2867,
+      "text": "Ship entering the atmosphere. Reentry corridor nominal.",
+      "voice": "atc"
+    },
+    {
+      "t": 3836,
+      "text": "Transonic.",
+      "voice": "atc"
+    },
+    {
+      "t": 3845,
+      "text": "Subsonic.",
+      "voice": "atc"
+    },
+    {
+      "t": 3920,
+      "text": "Ship 40 on approach to Starbase. Mechazilla arms are go for catch.",
+      "voice": "atc"
+    },
+    {
+      "t": 3966,
+      "text": "Landing burn start.",
+      "voice": "atc"
+    },
+    {
+      "t": 3982,
+      "text": "Ship 40 — caught. Mechazilla catch confirmed. First full stack recovered.",
+      "voice": "atc"
+    }
+  ],
+  "narrative": [
+    "Starbase, Texas.",
+    "2026.",
+    "Ship 40. Booster 20.",
+    "All six Raptors — nominal burn to orbit.",
+    "Booster 20 caught by Mechazilla.",
+    "One orbit.",
+    "Ship 40 caught by Mechazilla.",
+    "First full Starship stack recovered."
+  ],
+  "debrief": [
+    "Did all six Raptors perform nominally through SECO?",
+    "Was the booster catch confirmed at T+7:54?",
+    "Did Ship 40 complete one full orbit before reentry?",
+    "Was the Ship catch the first time both stages were recovered on the same flight?"
+  ]
+}
