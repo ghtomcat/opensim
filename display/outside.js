@@ -994,7 +994,10 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         const _top = (isSS ? 0.040 : isSV ? 0.038 : 0.024) + _tR * 3.5;
         const _bot = (isSS ? -0.025 : isSV ? -0.030 : -0.016) - _tR * 3.0;
         minCU = Math.min(minCU, _bot); maxCU = Math.max(maxCU, _top);
-        minCR = Math.min(minCR, -_tR * 12.0); maxCR = Math.max(maxCR, _tR * 12.0);
+        /* SS: tower is at -vU 2.2→6.8r, arm tip at +vU 1.6r → in side cam fP≈-vU */
+        const _crLo = isSS ? -_tR * 7.5 : -_tR * 9.8;
+        const _crHi = isSS ?  _tR * 2.0 :  _tR * 9.8;
+        minCR = Math.min(minCR, _crLo); maxCR = Math.max(maxCR, _crHi);
       }
     }
     /* Fallback if no vertices survived filtering */
@@ -3788,11 +3791,11 @@ ctx.save();
       _trF([[olpT,-olpSvR,-trenchH],[olpT,-olpSvR,+trenchH],[olpB,-olpSvR,+trenchH],[olpB,-olpSvR,-trenchH]], '#08090e');
       _trF([[olpB,-olpSvR,-trenchH],[olpB,+olpSvR,-trenchH],[olpB,+olpSvR,+trenchH],[olpB,-olpSvR,+trenchH]], '#06070c');
 
-      /* ── Mechazilla tower — steel lattice, taller than the full stack ── */
+      /* ── Mechazilla tower — heavy steel lattice, close to rocket ── */
       const towerTop = tvF0 + (_vFtop - _vFbase) + _r * 3.5;
-      const vUi  = -_r * 5.5;    // inner edge (toward rocket)
-      const vUo  = -_r * 12.0;   // outer edge
-      const vRh  = _r * 1.1;     // half-depth in vR
+      const vUi  = -_r * 2.2;    // inner face — just outside the rocket body
+      const vUo  = -_r * 6.8;    // outer face — ~20 m wide tower
+      const vRh  = _r * 1.25;    // half-depth front-to-back
       const nLev = 10;
       const lvs  = Array.from({length:nLev}, (_,i) => tvF0 + (i/(nLev-1)) * (towerTop - tvF0));
       const twrSegs = [];
@@ -3817,12 +3820,17 @@ ctx.save();
       }
       _drawPadSegs(twrSegs, '#7a8898', Math.max(1.5, 1.5 * dpr));
 
-      /* ── Mechazilla catch arms — two horizontal booms at grid-fin height ── */
-      const armVF    = tvF0 + (0.013 - _vFbase);   // world height of grid-fin top
-      const armHT    = _r * 0.18;   // half-thickness (vF axis)
-      const armHW    = _r * 0.25;   // half-width (vR axis)
-      const armTip   = -_r * 1.3;   // tip end — just inside rocket body radius
-      const armRoot  = vUi;         // root end — tower face
+      /* ── Mechazilla catch arms — slide up/down the tower ──
+         armVF drives arm height. Pre-launch: at grid-fin level.
+         S.mechazillaArmVF can override for assembly / animated catch. */
+      const _gridFinWorldVF = tvF0 + (0.013 - _vFbase);   // grid-fin height in world frame
+      const armVF    = S.mechazillaArmVF != null
+                       ? (tvF0 + S.mechazillaArmVF)        // mission-driven position
+                       : _gridFinWorldVF;                   // default: catch-ready
+      const armHT    = _r * 0.22;   // half-thickness (vF axis)
+      const armHW    = _r * 0.32;   // half-width (vR axis)
+      const armTip   = +_r * 1.6;   // tip reaches past rocket to far side
+      const armRoot  = vUi;         // root attached to tower inner face
 
       const _drawArm = (vRc) => {
         const ac = [
@@ -3860,9 +3868,15 @@ ctx.save();
           ctx.stroke();
           ctx.restore();
         }
+        /* Diagonal wire braces from arm to tower (suggest truss structure) */
+        const midU = (armTip + armRoot) * 0.5;
+        _drawPadSegs([
+          [[armVF+armHT, vRc, armRoot], [armVF-armHT, vRc, midU]],
+          [[armVF-armHT, vRc, armRoot], [armVF+armHT, vRc, midU]],
+        ], '#8090a0', Math.max(1, 1 * dpr));
       };
-      _drawArm(+_r * 0.6);
-      _drawArm(-_r * 0.6);
+      _drawArm(+_r * 0.7);
+      _drawArm(-_r * 0.7);
     } // riseNm < 0.150
   } // isSS
 
