@@ -8,7 +8,7 @@ import { S } from '../core/state.js';
 import { renderTerrain } from './terrain.js';
 import { getMapReservedRight } from './map.js';
 import { moonECI } from '../core/rocket.js';
-import { buildTube, buildWingSurface, computeFaceNormals } from './outside-shared.js';
+import { buildTube, buildWingSurface, computeFaceNormals, _buildRocket } from './outside-shared.js';
 import {
   _r, _nr1, _nr2, _nr3, _hs, _ey, _ez, _pz, _er, _e7, _efr, _ef7, _erc, _e7c, _wr, _dh,
   _WB_WING_DEFAULT, _WB_NP, _buildWB, _acGeoFromJson, _wbCache,
@@ -431,6 +431,8 @@ let _fanAngle = 0;
    because ES module exports cannot be reassigned by importers. */
 let _svSepLastAcId = null;
 let _svSepPrevStage = 1;
+/* Rocket geometry cache for Starship / data-driven rocket vehicles */
+const _ssRocketCache_mut = {};
 
 function _drawTurbofanFace(ctx, hubPt, rimPt, power, dpr, nBlades = 22) {
   if (!hubPt || !rimPt) return;
@@ -884,9 +886,19 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const isC172  = (S.aircraft?.panel === 'g1000' || S.aircraft?.panel === 'dr400');
   const isSV    = !isC172 && (S.aircraft?.id === 'saturn-v');
   const isF9    = !isC172 && !isSV && (S.aircraft?.id?.startsWith('falcon9') || S.aircraft?.vehicleType === 'rocket');
-  const isBf109  = !isC172 && !isF9 && !isSV && (S.aircraft?.id === 'bf109');
-  const isF4U    = !isC172 && !isF9 && !isSV && !isBf109 && (S.aircraft?.id === 'f4u1a');
-  const isMig15  = !isC172 && !isF9 && !isSV && !isBf109 && !isF4U && (S.aircraft?.id === 'mig15');
+  const isSS    = !isC172 && !isSV && !isF9 && (S.aircraft?.vehicleType === 'starship');
+  const isBf109  = !isC172 && !isF9 && !isSV && !isSS && (S.aircraft?.id === 'bf109');
+  const isF4U    = !isC172 && !isF9 && !isSV && !isSS && !isBf109 && (S.aircraft?.id === 'f4u1a');
+  const isMig15  = !isC172 && !isF9 && !isSV && !isSS && !isBf109 && !isF4U && (S.aircraft?.id === 'mig15');
+
+  /* Starship / Super Heavy — build from aircraft.rocketGeometry on first use */
+  const _ssRocketCache = _ssRocketCache_mut;
+  if (isSS && S.aircraft?.rocketGeometry) {
+    const _id = S.aircraft.id;
+    if (!_ssRocketCache[_id]) _ssRocketCache[_id] = _buildRocket(S.aircraft.rocketGeometry);
+  }
+  const _ssGeo = isSS ? (_ssRocketCache_mut[S.aircraft?.id] ?? null) : null;
+
   /* Rebuild geometry every frame (no cache) — re-enable cache when geometry is final */
   if (S.aircraft?.nose) {
     const _acId   = S.aircraft.id;
@@ -894,14 +906,14 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     _geo2.FN_ = computeFaceNormals(_geo2.V_, _geo2.F_);
     _wbCache[_acId] = _geo2;
   }
-  const _wbGeo = (!isC172 && !isF9 && !isBf109 && !isF4U && !isMig15 && !isSV)
+  const _wbGeo = (!isC172 && !isF9 && !isBf109 && !isF4U && !isMig15 && !isSV && !isSS)
     ? (_wbCache[S.aircraft?.id] ?? _wbCache.default) : null;
   const _b   = _wbGeo?.b ?? 162;  // base index of non-tube vertices; 162 for nNose=5, 194 for nNose=7
-  const V_   = isC172 ? _V_c172      : isF9 ? _V_f9      : isBf109 ? _V_b109      : isF4U ? _V_f4u      : isMig15 ? _V_mig15 : isSV ? _V_sv      : _wbGeo.V_;
-  const F_   = isC172 ? _F_c172      : isF9 ? _F_f9      : isBf109 ? _F_b109      : isF4U ? _F_f4u      : isMig15 ? _F_mig15   : isSV ? _F_sv      : _wbGeo.F_;
-  const FC_  = isC172 ? _FC_c172     : isF9 ? _FC_f9     : isBf109 ? _FC_b109     : isF4U ? _FC_f4u     : isMig15 ? _FC_mig15  : isSV ? _FC_sv     : _wbGeo.FC_;
-  const FN_  = isC172 ? _FN_c172     : isF9 ? _FN_f9     : isBf109 ? _FN_b109     : isF4U ? _FN_f4u     : isMig15 ? _FN_mig15  : isSV ? _FN_sv     : _wbGeo.FN_;
-  const E_   = isC172 ? _E_c172      : isF9 ? _E_f9      : isBf109 ? _E_b109      : isF4U ? _E_f4u      : isMig15 ? _E_mig15   : isSV ? _E_sv      : _wbGeo.E_;
+  const V_   = isC172 ? _V_c172 : isF9 ? _V_f9 : isBf109 ? _V_b109 : isF4U ? _V_f4u : isMig15 ? _V_mig15 : isSV ? _V_sv : isSS ? (_ssGeo?.V_ ?? []) : _wbGeo.V_;
+  const F_   = isC172 ? _F_c172 : isF9 ? _F_f9 : isBf109 ? _F_b109 : isF4U ? _F_f4u : isMig15 ? _F_mig15 : isSV ? _F_sv : isSS ? (_ssGeo?.F_ ?? []) : _wbGeo.F_;
+  const FC_  = isC172 ? _FC_c172 : isF9 ? _FC_f9 : isBf109 ? _FC_b109 : isF4U ? _FC_f4u : isMig15 ? _FC_mig15 : isSV ? _FC_sv : isSS ? (_ssGeo?.FC_ ?? []) : _wbGeo.FC_;
+  const FN_  = isC172 ? _FN_c172 : isF9 ? _FN_f9 : isBf109 ? _FN_b109 : isF4U ? _FN_f4u : isMig15 ? _FN_mig15 : isSV ? _FN_sv : isSS ? (_ssGeo?.FN_ ?? []) : _wbGeo.FN_;
+  const E_   = isC172 ? _E_c172 : isF9 ? _E_f9 : isBf109 ? _E_b109 : isF4U ? _E_f4u : isMig15 ? _E_mig15 : isSV ? _E_sv : isSS ? (_ssGeo?.E_ ?? []) : _wbGeo.E_;
   const SE_  = _wbGeo?.SE_ ?? [];
   const SL_  = _wbGeo?.SL_ ?? [];
   const _livCol    = S.aircraft?.livery?.colors;
@@ -910,6 +922,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
      overrides slots 4 (engine body) and 7 (TR zone, same nacelle color).
      Always produces a new array so downstream callers can't mutate _COLORS. */
   const COL_ = isC172 ? _COLORS_c172 : isF9 ? _COLORS_f9 : isBf109 ? _COLORS_b109 : isF4U ? _COLORS_f4u : isMig15 ? _COLORS_mig15 : isSV ? _COLORS_sv
+             : isSS ? (_ssGeo?.COLORS_ ?? [])
              : _COLORS.map((c, i) => {
                  if (_nacPaint  && (i === 4 || i === 7)) return _nacPaint;
                  return _livCol?.[i] ?? c;
@@ -921,7 +934,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const cosR = Math.cos(R), sinR = Math.sin(R);
   /* Rockets spin around their longitudinal axis (pre-roll before pitch).
      Aircraft bank around the camera forward axis (post-pitch roll). */
-  const isBodyRoll = isSV || isF9;
+  const isBodyRoll = isSV || isF9 || isSS;
 
   const W = canvas.width, H = canvas.height;
   const ctx   = canvas.getContext('2d');
@@ -1428,6 +1441,9 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     /* F9 stage sep: main vehicle = S2 + Dragon + MVac nozzle (faces 48-95 + 96-103) */
     if (isF9 && rStage >= 2 && (i < 48 || (i > 95 && i < 104))) return null;
 
+    /* Starship / Super Heavy stage sep: hide all faces below the stageRanges[0].faceEnd */
+    if (isSS && rStage >= 2 && _ssGeo?.stageRanges?.[0] && i < _ssGeo.stageRanges[0].faceEnd) return null;
+
     /* TR zone: skip C→D faces and replace with cascade overlay */
     if (_trActive && FC_[i] === 7) return null;
 
@@ -1711,6 +1727,17 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       _drawPlume(pts[138], _nzVac, [0.003, 0, 0], 0.032, 3.2 * _engFrac);
   }
 
+  if (isSS && _ssGeo && pastIgnition && !S.rocketCoast && !S.rocketSECO) {
+    const ssClusters = _ssGeo.engineClusters ?? [];
+    const activeClusters = ssClusters.filter(c => c.stage <= rStage);
+    for (const cluster of activeClusters) {
+      /* Plume origin at engine plane, scaled by cluster's outermost ring radius */
+      const outerR = cluster.rings[cluster.rings.length - 1]?.radius ?? 0.002;
+      const pNoz = project([cluster.vF, 0, 0]);
+      if (pNoz) _drawPlume(pNoz, outerR, [cluster.vF, 0, 0], 0.022, 1.8 * _engFrac);
+    }
+  }
+
   if (isSV && pastIgnition && !(S.rocketCoast ?? false) && !S.rocketSECO) {
     const svStage = S.rocketStage ?? 1;
     /* S-IC — 5× F-1, RP-1/LOX orange plume, emits from nozzle exit plane */
@@ -1911,6 +1938,59 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     if (!spsTopR.some(p => !p)) {
       const avgD = spsTopR.reduce((s,p)=>s+p.d,0)/nNoz;
       faces.push({ ps: spsTopR, br: 0.06, avgD, col: [52, 50, 48] });
+    }
+  }
+
+  /* ── Raptor nozzle bells — Starship / Super Heavy ─────────────────
+     Iterates over engineClusters from aircraft.rocketGeometry.
+     Each cluster has rings of engines; each ring defines count, radius,
+     nozzleR (exit radius), nozzleLen.  Renders 6-sided frustum per bell. */
+  if (isSS && _ssGeo) {
+    const nNoz = 6;  // hexagon cross-section — lighter than 8
+    const raptorOn = pastIgnition && !S.rocketCoast && !S.rocketSECO;
+    for (const cluster of (_ssGeo.engineClusters ?? [])) {
+      if (rStage >= 2 && cluster.stage < 2) continue;  // SH cluster hidden after sep
+      for (const ring of cluster.rings) {
+        const { count, radius, nozzleR, nozzleLen } = ring;
+        const nzRt  = nozzleR * 0.45;  // throat (attachment end)
+        const isVac = ring.type === 'Vac';
+        for (let ei = 0; ei < count; ei++) {
+          const ea = (ei / count) * Math.PI * 2;
+          const cR = radius * Math.sin(ea), cU = radius * Math.cos(ea);
+          const topR = [], botR = [];
+          for (let si = 0; si < nNoz; si++) {
+            const a = (si / nNoz) * Math.PI * 2;
+            topR.push(project([cluster.vF,              cR + nzRt * Math.cos(a), cU + nzRt * Math.sin(a)]));
+            botR.push(project([cluster.vF - nozzleLen,  cR + nozzleR * Math.cos(a), cU + nozzleR * Math.sin(a)]));
+          }
+          if (camSide > 0) for (let si = 0; si < nNoz; si++) {
+            const sj = (si + 1) % nNoz;
+            const ps = [topR[si], botR[si], botR[sj], topR[sj]];
+            if (ps.some(p => !p)) continue;
+            const p0 = ps[0], p1 = ps[1], p2 = ps[2];
+            if ((p1.x-p0.x)*(p2.y-p0.y) - (p1.y-p0.y)*(p2.x-p0.x) < 0) continue;
+            const aMid = ((si + 0.5) / nNoz) * Math.PI * 2;
+            const [nF, nR, nU] = rotateNormal([0, Math.cos(aMid), Math.sin(aMid)]);
+            const spec = Math.pow(Math.max(0, nF*_H[0] + nR*_H[1] + nU*_H[2]), 32);
+            const avgD = ps.reduce((s, p) => s + p.d, 0) / 4;
+            faces.push({ ps, br: Math.min(1, litBr(nF, nR, nU, 0.14) + 0.4 * spec), avgD, col: [30, 28, 28] });
+          }
+          if (!botR.some(p => !p)) {
+            const p0 = botR[0], p1 = botR[1], p2 = botR[2];
+            if ((p1.x-p0.x)*(p2.y-p0.y) - (p1.y-p0.y)*(p2.x-p0.x) >= 0) {
+              const avgD = botR.reduce((s,p)=>s+p.d,0)/nNoz;
+              const pStyle = isVac ? 'lh2' : 'rp1';
+              faces.push({ ps: botR, br: raptorOn ? 1.0 : 0.07, avgD,
+                           col: raptorOn ? _PLUME_HOT[pStyle] : _PLUME_OFF[pStyle] });
+            }
+          }
+          if (!topR.some(p => !p)) {
+            const avgD = topR.reduce((s,p)=>s+p.d,0)/nNoz;
+            faces.push({ ps: topR, br: raptorOn ? 0.9 : 0.06, avgD,
+                         col: raptorOn ? _PLUME_HOT.lh2 : [28, 26, 26] });
+          }
+        }
+      }
     }
   }
 

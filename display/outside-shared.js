@@ -130,3 +130,98 @@ export function computeFaceNormals(V_, F_) {
     return len > 1e-10 ? n.map(x => x/len) : [0, 0, 1];
   });
 }
+
+/* ── Procedural rocket geometry builder ────────────────────────────
+   _buildRocket(rocketGeometry) — reads aircraft.rocketGeometry from JSON.
+   Schema:
+     nSides      polygon sides (default 16)
+     colors      color table  [r,g,b][]
+     bodyRings   [{ vF, r, col }]  — fed directly to buildTube
+     noseTip     vF of the tip vertex (null = no tip cap)
+     stageSep    ring index array that marks stage-boundary planes, e.g. [5]
+     gridFins    [{ vFBot, vFTop, rBody, rTip, col }]  — 4 fins at ±rR/±uR
+     bodyFlaps   [{ vFBot, vFTop, rBody, rTip, axis:'uR'|'rR', col }] — 2 flaps each
+     engineClusters  [{ vF, stage, rings:[{ count, radius, nozzleR, nozzleLen, type? }] }]
+   Returns { V_, F_, FC_, E_, FN_, COLORS_, rb, stageRanges, engineClusters }
+     stageRanges  [{ faceEnd }]  — face index where each stage's geometry ends
+     engineClusters  metadata for the nozzle renderer (position, rings)
+   ─────────────────────────────────────────────────────────────── */
+export function _buildRocket(rg) {
+  const N      = rg.nSides ?? 16;
+  const rings  = rg.bodyRings ?? [];
+  const { V_, F_, FC_, E_, rb } = buildTube(N, rings);
+
+  /* Nose tip cap */
+  const tipVF  = rg.noseTip;
+  const tipIdx = tipVF != null ? V_.length : null;
+  if (tipIdx != null) {
+    V_.push([tipVF, 0, 0]);
+    const lr = rings.length - 1;
+    for (let si = 0; si < N; si++) {
+      F_.push([tipIdx, rb[lr] + (si + 1) % N, rb[lr] + si]);
+      FC_.push(rings[lr].col ?? 0);
+    }
+  }
+
+  /* Longerons at 0 / 90 / 180 / 270° */
+  for (const si of [0, N >> 2, N >> 1, (3 * N) >> 2]) {
+    for (let ri = 0; ri < rings.length - 1; ri++) E_.push([rb[ri] + si, rb[ri + 1] + si]);
+    if (tipIdx != null) E_.push([rb[rings.length - 1] + si, tipIdx]);
+  }
+
+  /* Stage separation face ranges
+     stageSep: ring indices where one stage ends and the next begins.
+     Faces from tube section i→i+1 start at face index i*N.
+     "stage 1 ends after section (sep-1)→sep", so faceEnd = sep * N. */
+  const stageRanges = (rg.stageSep ?? []).map(ri => ({ faceEnd: ri * N }));
+
+  /* Helper: push a rectangular fin/flap panel (both sides) at 4 positions */
+  function _addPanel(corners, col) {
+    const base = V_.length;
+    for (const c of corners) V_.push(c);
+    F_.push([base, base+1, base+2, base+3], [base+3, base+2, base+1, base]);
+    FC_.push(col, col);
+    /* Three outer edges (root edge is shared with body — not drawn) */
+    E_.push([base, base+3], [base+3, base+2], [base+2, base+1]);
+  }
+
+  /* Grid fins — 4 fins at ±uR and ±rR */
+  for (const fin of (rg.gridFins ?? [])) {
+    const { vFBot, vFTop, rBody, rTip, col = 3 } = fin;
+    _addPanel([[vFBot,0,rBody],[vFTop,0,rBody],[vFTop,0,rTip],[vFBot,0,rTip]], col);
+    _addPanel([[vFBot,rBody,0],[vFTop,rBody,0],[vFTop,rTip,0],[vFBot,rTip,0]], col);
+    _addPanel([[vFBot,0,-rBody],[vFTop,0,-rBody],[vFTop,0,-rTip],[vFBot,0,-rTip]], col);
+    _addPanel([[vFBot,-rBody,0],[vFTop,-rBody,0],[vFTop,-rTip,0],[vFBot,-rTip,0]], col);
+  }
+
+  /* Body flaps — 2 flaps each at ±uR or ±rR */
+  for (const flap of (rg.bodyFlaps ?? [])) {
+    const { vFBot, vFTop, rBody, rTip, axis = 'uR', col = 3 } = flap;
+    if (axis === 'uR') {
+      _addPanel([[vFBot,0,rBody],[vFTop,0,rBody],[vFTop,0,rTip],[vFBot,0,rTip]], col);
+      _addPanel([[vFBot,0,-rBody],[vFTop,0,-rBody],[vFTop,0,-rTip],[vFBot,0,-rTip]], col);
+    } else {
+      _addPanel([[vFBot,rBody,0],[vFTop,rBody,0],[vFTop,rTip,0],[vFBot,rTip,0]], col);
+      _addPanel([[vFBot,-rBody,0],[vFTop,-rBody,0],[vFTop,-rTip,0],[vFBot,-rTip,0]], col);
+    }
+  }
+
+  /* Engine cluster ring outlines + metadata for the nozzle renderer */
+  const engineClusters = (rg.engineClusters ?? []).map(cluster => {
+    const clRings = cluster.rings.map(ring => {
+      const { count, radius } = ring;
+      const base = V_.length;
+      for (let i = 0; i < count; i++) {
+        const a = (i / count) * Math.PI * 2;
+        V_.push([cluster.vF, radius * Math.sin(a), radius * Math.cos(a)]);
+      }
+      for (let i = 0; i < count; i++) E_.push([base + i, base + (i + 1) % count]);
+      return { base, ...ring };
+    });
+    return { vF: cluster.vF, stage: cluster.stage ?? 1, rings: clRings };
+  });
+
+  const FN_     = computeFaceNormals(V_, F_);
+  const COLORS_ = rg.colors ?? [];
+  return { V_, F_, FC_, E_, FN_, COLORS_, rb, stageRanges, engineClusters };
+}

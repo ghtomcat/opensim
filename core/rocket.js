@@ -564,6 +564,26 @@ function _tickOrbit(dt) {
     if (newAlt <= 0 && !S.dragonSplashdown) setState({ dragonSplashdown: true });
   }
 
+  /* ── Starship reentry drag + splashdown ─────────────────────────
+     Active for vehicleType='starship' on descending ballistic arc.
+     Body-flap Cd is higher than Dragon heat shield; no parachutes.  */
+  if (S.aircraft?.vehicleType === 'starship' && !S.starshipSplashdown) {
+    if (newAlt < 80_000 && newFPA < 0) {
+      const rho = rhoAtAlt(newAlt);
+      const spd = Math.sqrt(nvx*nvx + nvy*nvy + nvz*nvz);
+      if (spd > 1) {
+        const SS_CDA = 400;  // Starship body + flaps deployed ~400 m² effective
+        const SS_MASS = 120_000;  // dry + residuals ≈ 120 t
+        const dragAcc = 0.5 * rho * SS_CDA * spd * spd / SS_MASS;
+        reentryG = dragAcc / G0;
+        const df = Math.min(dragAcc * dt / spd, 0.5);
+        nvx -= nvx * df; nvy -= nvy * df; nvz -= nvz * df;
+        if (newAlt < 5_000 && !S.starshipReentry) setState({ starshipReentry: true });
+      }
+    }
+    if (newAlt <= 0) setState({ starshipSplashdown: true, warpFactor: 1 });
+  }
+
   /* Speed */
   const newSpd = Math.sqrt(nvx*nvx + nvy*nvy + nvz*nvz);
 
@@ -840,7 +860,7 @@ export function tickRocket(dt) {
     if (deorbitT && !S.dragonDeorbit && mT >= deorbitT) _applyDeorbitBurn(deorbitDv);
 
     /* Stop propagation after splashdown — drop warp */
-    if (S.dragonSplashdown) { setState({ warpFactor: 1 }); return; }
+    if (S.dragonSplashdown || S.starshipSplashdown) { setState({ warpFactor: 1 }); return; }
 
     _tickOrbit(dt);       // Keplerian propagation — replaces flat-Earth update
     return;

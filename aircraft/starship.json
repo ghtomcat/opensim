@@ -1,0 +1,171 @@
+{
+  "id": "starship",
+  "name": "Starship / Super Heavy",
+  "vehicleType": "starship",
+  "clock": "met",
+  "ignitionTime": 60,
+  "manualControl": false,
+  "map": true,
+  "panel": "f9",
+  "callsign": "STARSHIP",
+  "icaoType": "STAR",
+
+  "performance": {
+    "massWet": 5000000,
+    "Cd": 0.35,
+    "area": 63.6,
+    "stages": [
+      {
+        "name": "Super Heavy — 33× Raptor 2",
+        "engineCount": 33,
+        "thrustSL": 74000000,
+        "thrustVac": 80000000,
+        "isp": 327,
+        "massWet": 3675000,
+        "massDry": 275000,
+        "burnDuration": 170
+      },
+      {
+        "name": "Starship — 6× Raptor 2",
+        "engineCount": 6,
+        "thrustSL": 0,
+        "thrustVac": 7590000,
+        "isp": 363,
+        "massWet": 1200000,
+        "massDry": 100000,
+        "burnDuration": 360
+      }
+    ],
+    "payload": 0,
+    "gLimit": 6.0,
+    "qLimit": 80000,
+    "cegCutoffG": 0,
+    "guidanceDuration": 9999,
+    "fpaProfile": [
+      [  60,  90],
+      [  80,  88],
+      [ 100,  84],
+      [ 130,  74],
+      [ 160,  58],
+      [ 200,  38],
+      [ 225,  22],
+      [ 250,  12],
+      [ 285,   4],
+      [ 400,   2],
+      [ 600,   1],
+      [9999,   0]
+    ],
+    "recovery": {
+      "catch": true,
+      "flipDuration": 18,
+      "boostbackEngines": 3,
+      "boostbackThrottle": 1.0,
+      "boostbackDuration": 28,
+      "entryBurnAlt_m": 65000,
+      "entryBurnEngines": 13,
+      "entryBurnThrottle": 0.45,
+      "entryBurnDuration": 18,
+      "landingBurnAlt_m": 800,
+      "landingBurnEngines": 3
+    }
+  },
+
+  "rocketGeometry": {
+    "nSides": 16,
+    "colors": [
+      [145, 150, 160],
+      [206, 211, 218],
+      [220, 222, 226],
+      [ 70,  74,  86],
+      [ 16,  18,  26]
+    ],
+
+    "bodyRings": [
+      { "vF": -0.025, "r": 0.00243, "col": 0 },
+      { "vF": -0.021, "r": 0.00243, "col": 0 },
+      { "vF": -0.015, "r": 0.00243, "col": 1 },
+      { "vF":  0.000, "r": 0.00243, "col": 1 },
+      { "vF":  0.008, "r": 0.00243, "col": 1 },
+      { "vF":  0.013, "r": 0.00243, "col": 1 },
+      { "vF":  0.016, "r": 0.00243, "col": 1 },
+      { "vF":  0.020, "r": 0.00243, "col": 1 },
+      { "vF":  0.030, "r": 0.00243, "col": 1 },
+      { "vF":  0.035, "r": 0.00243, "col": 2 },
+      { "vF":  0.037, "r": 0.00226, "col": 2 },
+      { "vF":  0.038, "r": 0.00187, "col": 2 },
+      { "vF":  0.039, "r": 0.00122, "col": 2 },
+      { "vF":  0.040, "r": 0.00036, "col": 2 }
+    ],
+
+    "noseTip": 0.0410,
+
+    "stageSep": [5],
+
+    "gridFins": [
+      {
+        "vFBot":  0.007,
+        "vFTop":  0.013,
+        "rBody":  0.00243,
+        "rTip":   0.00520,
+        "col": 3
+      }
+    ],
+
+    "bodyFlaps": [
+      {
+        "vFBot":  0.016,
+        "vFTop":  0.024,
+        "rBody":  0.00243,
+        "rTip":   0.00490,
+        "axis":   "uR",
+        "col": 3
+      },
+      {
+        "vFBot":  0.030,
+        "vFTop":  0.035,
+        "rBody":  0.00243,
+        "rTip":   0.00460,
+        "axis":   "rR",
+        "col": 3
+      }
+    ],
+
+    "engineClusters": [
+      {
+        "vF": -0.025,
+        "stage": 1,
+        "rings": [
+          { "count":  3, "radius": 0.00027, "nozzleR": 0.00033, "nozzleLen": 0.0038 },
+          { "count": 10, "radius": 0.00135, "nozzleR": 0.00033, "nozzleLen": 0.0038 },
+          { "count": 20, "radius": 0.00213, "nozzleR": 0.00033, "nozzleLen": 0.0038 }
+        ]
+      },
+      {
+        "vF": 0.013,
+        "stage": 2,
+        "rings": [
+          { "count": 3, "radius": 0.00054, "nozzleR": 0.00033, "nozzleLen": 0.0035, "type": "SL"  },
+          { "count": 3, "radius": 0.00027, "nozzleR": 0.00054, "nozzleLen": 0.0060, "type": "Vac" }
+        ]
+      }
+    ]
+  },
+
+  "sound": { "engineType": "none" },
+
+  "kneeboard": [
+    {
+      "title": "STARSHIP IFT PROFILE",
+      "type": "briefing",
+      "items": [
+        "T+0:00  Ignition — 33 Raptors light",
+        "T+0:10  Clamp release — liftoff",
+        "T+2:45  Stage separation — Super Heavy boostback burn",
+        "T+7:00  Super Heavy catch — Mechazilla arms",
+        "T+9:00  Starship SECO — suborbital coast begins",
+        "T+50:00 Starship reentry — body flaps deployed",
+        "T+65:00 Splashdown — Indian Ocean"
+      ]
+    }
+  ]
+}
