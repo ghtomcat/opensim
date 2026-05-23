@@ -1025,6 +1025,13 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     [_LD[0]+_vDir[0], _LD[1]+_vDir[1], _LD[2]+_vDir[2]]
   );
 
+  /* Camera direction in body frame [fP, rR, uR] — from surface toward camera.
+     Used for cockpit-panel backface culling, which needs 3D normals because
+     the 2D cross-product sign flips at orbit elevations (wrong-side panel bleeds). */
+  const _cpCamF = camSide > 0 ? -sinEl * cosP : -1;
+  const _cpCamR = camSide > 0 ?  cosEl         :  0;
+  const _cpCamU = camSide > 0 ?  sinEl * sinP  :  0;
+
   /* Project body-frame vertex → { x, y, d } (d = cam fwd depth for sorting) */
   function project([vF, vR, vU]) {
     let fP, rR, uR;
@@ -1411,7 +1418,8 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     bPts = bVerts.map(project);
   }
 
-  const _DBG_CULL = false;  // ← set true to paint front=blue, back=red
+  const _DBG_CULL   = false;  // ← set true to paint front=blue, back=red
+  const _DBG_PANELS = false;  // ← set true to label cockpitPanel corners with coords
 
   const _trActive = !isF9 && !isSV && !isC172 && !isBf109 && !isF4U && !isMig15 && !!(S.thrustReverser);
 
@@ -2402,56 +2410,78 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
      Shared edges between adjacent panels are detected and suppressed so they don't
      draw a silver divider line through what should look like a single window.         */
   if (_wbGeo?.cockpitPanels) {
-    const _ek = (a, b) => {
-      const ka = `${Math.round(a.x*10)},${Math.round(a.y*10)}`;
-      const kb = `${Math.round(b.x*10)},${Math.round(b.y*10)}`;
-      return ka < kb ? `${ka}|${kb}` : `${kb}|${ka}`;
+    /* Rounded-corner path for a projected quad — arcTo rounds each corner */
+    const _rPoly = (pts, r) => {
+      const n = pts.length;
+      ctx.moveTo((pts[n-1].x + pts[0].x) * 0.5, (pts[n-1].y + pts[0].y) * 0.5);
+      for (let i = 0; i < n; i++) {
+        const p = pts[(i-1+n) % n], c = pts[i], e = pts[(i+1) % n];
+        const d1 = Math.hypot(c.x - p.x, c.y - p.y) * 0.5;
+        const d2 = Math.hypot(e.x - c.x, e.y - c.y) * 0.5;
+        ctx.arcTo(c.x, c.y, (c.x + e.x) * 0.5, (c.y + e.y) * 0.5, Math.min(r, d1, d2));
+      }
     };
+    const rr = 12 * dpr;  // corner radius in screen pixels
     for (const ySign of [+1, -1]) {
-      // Project all panels; cull back-facing ones
       const projPanels = _wbGeo.cockpitPanels.map(corners => {
+        /* 3D face normal backface cull — 2D cross-product is unreliable at orbit
+           elevations (sign flips, wrong-side panel bleeds through fuselage). */
+        const [ax, ay, az] = corners[0];
+        const [bx, by, bz] = corners[3];
+        const [cx, cy, cz] = corners[2];
+        const e1x = bx - ax, e1y = (by - ay) * ySign, e1z = bz - az;
+        const e2x = cx - ax, e2y = (cy - ay) * ySign, e2z = cz - az;
+        const nx = e1y * e2z - e1z * e2y;
+        const ny = e1z * e2x - e1x * e2z;
+        const nz = e1x * e2y - e1y * e2x;
+        if (nx * _cpCamF + ny * _cpCamR + nz * _cpCamU <= 0) return null;
         const vs = [corners[0], corners[3], corners[2], corners[1]]
           .map(([x, y, z]) => project([x, ySign * y, z]));
         if (vs.some(v => !v)) return null;
-        const cross = (vs[1].x - vs[0].x) * (vs[2].y - vs[0].y)
-                    - (vs[1].y - vs[0].y) * (vs[2].x - vs[0].x);
-        return cross >= 0 ? vs : null;
+        return vs;
       });
-      // Count edge appearances across all visible panels
-      const edgeCount = {};
-      for (const vs of projPanels) {
-        if (!vs) continue;
-        for (let i = 0; i < vs.length; i++) {
-          const key = _ek(vs[i], vs[(i + 1) % vs.length]);
-          edgeCount[key] = (edgeCount[key] || 0) + 1;
-        }
-      }
       ctx.save();
-      // Fill all visible panels
-      ctx.fillStyle = 'rgba(8,18,35,0.62)';
+      ctx.fillStyle   = 'rgba(8,18,35,0.62)';
+      ctx.strokeStyle = 'rgb(210,215,220)';
+      ctx.lineWidth   = 2.5 * dpr;
       for (const vs of projPanels) {
         if (!vs) continue;
-        ctx.beginPath();
-        ctx.moveTo(vs[0].x, vs[0].y);
-        for (let k = 1; k < vs.length; k++) ctx.lineTo(vs[k].x, vs[k].y);
-        ctx.closePath();
+        ctx.beginPath(); _rPoly(vs, rr); ctx.closePath();
         ctx.fill();
-      }
-      // Stroke only exterior (non-shared) edges
-      ctx.strokeStyle = 'rgba(190,195,208,0.88)';
-      ctx.lineWidth = Math.max(1.2, dpr * 1.2);
-      for (const vs of projPanels) {
-        if (!vs) continue;
-        for (let i = 0; i < vs.length; i++) {
-          if (edgeCount[_ek(vs[i], vs[(i + 1) % vs.length])] > 1) continue;
-          ctx.beginPath();
-          ctx.moveTo(vs[i].x, vs[i].y);
-          ctx.lineTo(vs[(i + 1) % vs.length].x, vs[(i + 1) % vs.length].y);
-          ctx.stroke();
-        }
+        ctx.stroke();
       }
       ctx.restore();
     }
+  }
+
+  /* ── cockpitPanels vertex debug overlay ───────────────────────────────────── */
+  if (_DBG_PANELS && _wbGeo?.cockpitPanels) {
+    const _pCols = ['#00ffff','#ffff00','#ff66ff','#66ff66'];
+    ctx.save();
+    ctx.font = `bold ${Math.round(9 * dpr)}px monospace`;
+    ctx.textAlign = 'left';
+    for (const ySign of [+1, -1]) {
+      for (let pi = 0; pi < _wbGeo.cockpitPanels.length; pi++) {
+        const panel = _wbGeo.cockpitPanels[pi];
+        const col   = _pCols[pi % _pCols.length];
+        for (let ci = 0; ci < panel.length; ci++) {
+          const [cx, cy, cz] = panel[ci];
+          const sp = project([cx, ySign * cy, cz]);
+          if (!sp) continue;
+          /* dot */
+          ctx.fillStyle = col;
+          ctx.beginPath(); ctx.arc(sp.x, sp.y, 4 * dpr, 0, Math.PI * 2); ctx.fill();
+          /* label — show JSON coords × 10000 as integers */
+          const label = `p${pi}c${ci}`;
+          ctx.fillStyle = 'rgba(0,0,0,0.75)';
+          const tw = ctx.measureText(label).width;
+          ctx.fillRect(sp.x + 6 * dpr, sp.y - 9 * dpr, tw + 4 * dpr, 12 * dpr);
+          ctx.fillStyle = col;
+          ctx.fillText(label, sp.x + 8 * dpr, sp.y);
+        }
+      }
+    }
+    ctx.restore();
   }
 
   /* Front glass windows — post-painter fill + silver outline, side view only.
