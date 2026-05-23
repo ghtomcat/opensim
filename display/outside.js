@@ -885,8 +885,8 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
 
   const isC172  = (S.aircraft?.panel === 'g1000' || S.aircraft?.panel === 'dr400');
   const isSV    = !isC172 && (S.aircraft?.id === 'saturn-v');
-  const isF9    = !isC172 && !isSV && (S.aircraft?.id?.startsWith('falcon9') || S.aircraft?.vehicleType === 'rocket');
-  const isSS    = !isC172 && !isSV && !isF9 && (S.aircraft?.vehicleType === 'starship');
+  const isSS    = !isC172 && !isSV && (S.aircraft?.id === 'starship');
+  const isF9    = !isC172 && !isSV && !isSS && (S.aircraft?.id?.startsWith('falcon9') || S.aircraft?.vehicleType === 'rocket');
   const isBf109  = !isC172 && !isF9 && !isSV && !isSS && (S.aircraft?.id === 'bf109');
   const isF4U    = !isC172 && !isF9 && !isSV && !isSS && !isBf109 && (S.aircraft?.id === 'f4u1a');
   const isMig15  = !isC172 && !isF9 && !isSV && !isSS && !isBf109 && !isF4U && (S.aircraft?.id === 'mig15');
@@ -1296,6 +1296,8 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       ? [96, 108, 109, 97, 130, 131]               // MiG-15: noseTip(96), R tip upper LE/TE(108/109), tailTip(97), L tip upper LE/TE(130/131)
       : isSV
       ? [160, 0, 4, 8, 12]                         // Saturn V: tip, aft base cardinal points
+      : isSS
+      ? [_ssGeo?.tipVIdx ?? 0, 0, 4, 8, 12]        // Starship: noseTip, aft base cardinal points
       : [_b-2, _b+118, _b+147, _b-1, _b+122, _b+151];  // WB: noseTip, R tip upper LE/ail-hinge, tailTip, L tip upper LE/ail-hinge
 
     /* Rotate each silhouette vertex into world-aligned frame (same as project()) */

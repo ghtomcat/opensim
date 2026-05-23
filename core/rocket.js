@@ -567,7 +567,7 @@ function _tickOrbit(dt) {
   /* ── Starship reentry drag + splashdown ─────────────────────────
      Active for vehicleType='starship' on descending ballistic arc.
      Body-flap Cd is higher than Dragon heat shield; no parachutes.  */
-  if (S.aircraft?.vehicleType === 'starship' && !S.starshipSplashdown) {
+  if (S.aircraft?.id === 'starship' && !S.starshipSplashdown) {
     if (newAlt < 80_000 && newFPA < 0) {
       const rho = rhoAtAlt(newAlt);
       const spd = Math.sqrt(nvx*nvx + nvy*nvy + nvz*nvz);

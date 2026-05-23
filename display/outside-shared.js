@@ -223,5 +223,5 @@ export function _buildRocket(rg) {
 
   const FN_     = computeFaceNormals(V_, F_);
   const COLORS_ = rg.colors ?? [];
-  return { V_, F_, FC_, E_, FN_, COLORS_, rb, stageRanges, engineClusters };
+  return { V_, F_, FC_, E_, FN_, COLORS_, rb, stageRanges, engineClusters, tipVIdx: tipIdx };
 }

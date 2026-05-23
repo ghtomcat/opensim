@@ -1,7 +1,7 @@
 {
   "id": "starship",
   "name": "Starship / Super Heavy",
-  "vehicleType": "starship",
+  "vehicleType": "rocket",
   "clock": "met",
   "ignitionTime": 60,
   "manualControl": false,
