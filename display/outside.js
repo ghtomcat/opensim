@@ -1444,8 +1444,12 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     /* F9 stage sep: main vehicle = S2 + Dragon + MVac nozzle (faces 48-95 + 96-103) */
     if (isF9 && rStage >= 2 && (i < 48 || (i > 95 && i < 104))) return null;
 
-    /* Starship / Super Heavy stage sep: hide all faces below the stageRanges[0].faceEnd */
-    if (isSS && rStage >= 2 && _ssGeo?.stageRanges?.[0] && i < _ssGeo.stageRanges[0].faceEnd) return null;
+    /* Starship / Super Heavy stage sep: hide SH body faces + grid fins */
+    if (isSS && rStage >= 2 && _ssGeo?.stageRanges?.[0]) {
+      const sr0 = _ssGeo.stageRanges[0];
+      if (i < sr0.faceEnd) return null;
+      if (sr0.gridFinFaceStart != null && i >= sr0.gridFinFaceStart && i < sr0.gridFinFaceEnd) return null;
+    }
 
     /* TR zone: skip C→D faces and replace with cascade overlay */
     if (_trActive && FC_[i] === 7) return null;
@@ -1523,6 +1527,23 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
 
     return { ps, br, spec, avgD, col: COL_[FC_[i]], grad };
   }).filter(Boolean);
+
+  /* Starship stage sep: fill open bottom ring of Ship with a disc cap */
+  if (isSS && rStage >= 2 && _ssGeo) {
+    const _ssRg = S.aircraft?.rocketGeometry;
+    const _sepRi = (_ssRg?.stageSep ?? [])[0] ?? 5;
+    const _ssRb  = _ssGeo.rb;
+    const _ssV   = _ssGeo.V_;
+    const _ssN   = _ssRg?.nSides ?? 16;
+    if (_ssRb && _ssV && _sepRi < _ssRb.length) {
+      const _capPts = [];
+      for (let si = 0; si < _ssN; si++) _capPts.push(project(_ssV[_ssRb[_sepRi] + si]));
+      if (!_capPts.some(p => !p)) {
+        const _capD = _capPts.reduce((s,p)=>s+p.d,0)/_ssN;
+        faces.push({ ps: _capPts, br: 0.10, avgD: _capD, col: _ssGeo.COLORS_[1] ?? [200,205,210] });
+      }
+    }
+  }
 
   /* Booster faces — Stage 1 body + grid fins */
   if (bPts) {
@@ -1654,9 +1675,9 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
 
   /* Plume colours — shared by exit discs so they stay in sync with the plume.
      ROOT = gradient stop 0 (outer root), HOT = stop 0.08 (inner glow / disc face) */
-  const _PLUME_ROOT = { rp1: [255, 240, 160], lh2: [215, 240, 255] };
-  const _PLUME_HOT  = { rp1: [255, 165,  60], lh2: [170, 215, 255] };
-  const _PLUME_OFF  = { rp1: [ 22,  18,  15], lh2: [ 15,  18,  24] };
+  const _PLUME_ROOT = { rp1: [255, 240, 160], lh2: [215, 240, 255], ch4: [255, 252, 235] };
+  const _PLUME_HOT  = { rp1: [255, 165,  60], lh2: [170, 215, 255], ch4: [255, 230, 170] };
+  const _PLUME_OFF  = { rp1: [ 22,  18,  15], lh2: [ 15,  18,  24], ch4: [ 20,  18,  14] };
 
   /* style: 'rp1' = RP-1/LOX yellow-white (F-1, Merlin)
             'lh2' = LH2/LOX blue-white (J-2)            */
@@ -1693,6 +1714,13 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       grad.addColorStop(0.10, 'rgba(170,215,255,0.68)');
       grad.addColorStop(0.30, 'rgba( 90,155,245,0.36)');
       grad.addColorStop(0.60, 'rgba( 50, 90,210,0.12)');
+      grad.addColorStop(1.0,  'rgba(  0,  0,  0,0.00)');
+    } else if (style === 'ch4') {
+      /* Methane/LOX (Raptor) — clean pale cream-white, less orange than RP-1 */
+      grad.addColorStop(0,    `rgba(255,252,235,${(0.92 * flick).toFixed(2)})`);
+      grad.addColorStop(0.08, 'rgba(255,230,170,0.75)');
+      grad.addColorStop(0.25, 'rgba(210,170, 90,0.38)');
+      grad.addColorStop(0.55, 'rgba(120, 80, 20,0.14)');
       grad.addColorStop(1.0,  'rgba(  0,  0,  0,0.00)');
     } else {
       grad.addColorStop(0,    `rgba(255,240,160,${(0.88 * flick).toFixed(2)})`);
@@ -1732,12 +1760,12 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
 
   if (isSS && _ssGeo && pastIgnition && !S.rocketCoast && !S.rocketSECO) {
     const ssClusters = _ssGeo.engineClusters ?? [];
-    const activeClusters = ssClusters.filter(c => c.stage <= rStage);
+    const activeClusters = ssClusters.filter(c => c.stage === rStage);
     for (const cluster of activeClusters) {
       /* Plume origin at engine plane, scaled by cluster's outermost ring radius */
       const outerR = cluster.rings[cluster.rings.length - 1]?.radius ?? 0.002;
       const pNoz = project([cluster.vF, 0, 0]);
-      if (pNoz) _drawPlume(pNoz, outerR, [cluster.vF, 0, 0], 0.022, 1.8 * _engFrac);
+      if (pNoz) _drawPlume(pNoz, outerR, [cluster.vF, 0, 0], 0.022, 1.8 * _engFrac, 'ch4');
     }
   }
 
@@ -1747,7 +1775,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     if (svStage === 1) {
       const _nzExit = -0.030 - _sv1r * 0.58;
       const pNoz = project([_nzExit, 0, 0]);
-      _drawPlume(pNoz, _sv1r, [_nzExit, 0, 0], 0.026, 0.72 * _engFrac);
+      _drawPlume(pNoz, _sv1r, [_nzExit, 0, 0], 0.030, 1.4 * _engFrac);
     }
     /* S-II — 5× J-2, LH2/LOX blue-white, emits from nozzle exit plane */
     else if (svStage === 2) {
@@ -1982,7 +2010,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
             const p0 = botR[0], p1 = botR[1], p2 = botR[2];
             if ((p1.x-p0.x)*(p2.y-p0.y) - (p1.y-p0.y)*(p2.x-p0.x) >= 0) {
               const avgD = botR.reduce((s,p)=>s+p.d,0)/nNoz;
-              const pStyle = isVac ? 'lh2' : 'rp1';
+              const pStyle = isVac ? 'lh2' : (isSS ? 'ch4' : 'rp1');
               faces.push({ ps: botR, br: raptorOn ? 1.0 : 0.07, avgD,
                            col: raptorOn ? _PLUME_HOT[pStyle] : _PLUME_OFF[pStyle] });
             }

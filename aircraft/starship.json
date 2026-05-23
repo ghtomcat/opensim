@@ -107,6 +107,7 @@
         "vFTop":  0.013,
         "rBody":  0.00243,
         "rTip":   0.00520,
+        "count":  3,
         "col": 3
       }
     ],
@@ -135,17 +136,17 @@
         "vF": -0.025,
         "stage": 1,
         "rings": [
-          { "count":  3, "radius": 0.00027, "nozzleR": 0.00033, "nozzleLen": 0.0038 },
-          { "count": 10, "radius": 0.00135, "nozzleR": 0.00033, "nozzleLen": 0.0038 },
-          { "count": 20, "radius": 0.00213, "nozzleR": 0.00033, "nozzleLen": 0.0038 }
+          { "count":  3, "radius": 0.00027, "nozzleR": 0.00033, "nozzleLen": 0.0020 },
+          { "count": 10, "radius": 0.00135, "nozzleR": 0.00033, "nozzleLen": 0.0020 },
+          { "count": 20, "radius": 0.00213, "nozzleR": 0.00033, "nozzleLen": 0.0020 }
         ]
       },
       {
         "vF": 0.013,
         "stage": 2,
         "rings": [
-          { "count": 3, "radius": 0.00054, "nozzleR": 0.00033, "nozzleLen": 0.0035, "type": "SL"  },
-          { "count": 3, "radius": 0.00027, "nozzleR": 0.00054, "nozzleLen": 0.0060, "type": "Vac" }
+          { "count": 3, "radius": 0.00027, "nozzleR": 0.00033, "nozzleLen": 0.0020, "type": "SL"  },
+          { "count": 3, "radius": 0.00054, "nozzleR": 0.00054, "nozzleLen": 0.0060, "type": "Vac" }
         ]
       }
     ]

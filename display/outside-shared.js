@@ -143,7 +143,7 @@ export function computeFaceNormals(V_, F_) {
      bodyFlaps   [{ vFBot, vFTop, rBody, rTip, axis:'uR'|'rR', col }] — 2 flaps each
      engineClusters  [{ vF, stage, rings:[{ count, radius, nozzleR, nozzleLen, type? }] }]
    Returns { V_, F_, FC_, E_, FN_, COLORS_, rb, stageRanges, engineClusters }
-     stageRanges  [{ faceEnd }]  — face index where each stage's geometry ends
+     stageRanges  [{ faceEnd, gridFinFaceStart, gridFinFaceEnd }]  — stage-1 body end + grid-fin range
      engineClusters  metadata for the nozzle renderer (position, rings)
    ─────────────────────────────────────────────────────────────── */
 export function _buildRocket(rg) {
@@ -185,13 +185,25 @@ export function _buildRocket(rg) {
     E_.push([base, base+3], [base+3, base+2], [base+2, base+1]);
   }
 
-  /* Grid fins — 4 fins at ±uR and ±rR */
+  /* Grid fins — `count` fins evenly distributed (default 4 at ±uR / ±rR) */
+  const gridFinFaceStart = F_.length;
   for (const fin of (rg.gridFins ?? [])) {
-    const { vFBot, vFTop, rBody, rTip, col = 3 } = fin;
-    _addPanel([[vFBot,0,rBody],[vFTop,0,rBody],[vFTop,0,rTip],[vFBot,0,rTip]], col);
-    _addPanel([[vFBot,rBody,0],[vFTop,rBody,0],[vFTop,rTip,0],[vFBot,rTip,0]], col);
-    _addPanel([[vFBot,0,-rBody],[vFTop,0,-rBody],[vFTop,0,-rTip],[vFBot,0,-rTip]], col);
-    _addPanel([[vFBot,-rBody,0],[vFTop,-rBody,0],[vFTop,-rTip,0],[vFBot,-rTip,0]], col);
+    const { vFBot, vFTop, rBody, rTip, col = 3, count = 4 } = fin;
+    for (let fi = 0; fi < count; fi++) {
+      const a = (fi / count) * Math.PI * 2;
+      const sA = Math.sin(a), cA = Math.cos(a);
+      _addPanel([
+        [vFBot, rBody * sA, rBody * cA],
+        [vFTop, rBody * sA, rBody * cA],
+        [vFTop, rTip  * sA, rTip  * cA],
+        [vFBot, rTip  * sA, rTip  * cA],
+      ], col);
+    }
+  }
+  const gridFinFaceEnd = F_.length;
+  if (stageRanges.length > 0) {
+    stageRanges[0].gridFinFaceStart = gridFinFaceStart;
+    stageRanges[0].gridFinFaceEnd   = gridFinFaceEnd;
   }
 
   /* Body flaps — 2 flaps each at ±uR or ±rR */

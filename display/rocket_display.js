@@ -300,11 +300,13 @@ export function renderRocket(canvas) {
     const egY = mTop;
     const egW = s2Width * 0.16;
     const egH = H * 0.20;
+    const _stageCluster = ac.rocketGeometry?.engineClusters?.find(c => c.stage === stage);
     _drawEngineGrid(ctx, egX, egY, egW, egH,
       totalEnginesDisp,
       S.rocketActiveEngines ?? totalEnginesDisp,
       S.rocketFailedEngines  ?? [],
-      S.rocketCECOEngines    ?? []);
+      S.rocketCECOEngines    ?? [],
+      _stageCluster?.rings ?? null);
   }
 
   /* ── Booster telemetry panel (right side, appears at stage sep) ── */
@@ -506,7 +508,7 @@ function _drawBoosterPanel(ctx, x0, y0, w, h, lblFontSz, vFontSz) {
 }
 
 /* ── Engine status grid (multi-engine vehicles) ── */
-function _drawEngineGrid(ctx, x, y, w, h, totalEngines, activeEngines, failedEngines, cecoEngines = []) {
+function _drawEngineGrid(ctx, x, y, w, h, totalEngines, activeEngines, failedEngines, cecoEngines = [], ringLayout = null) {
   ctx.save();
 
   /* Background */
@@ -523,13 +525,29 @@ function _drawEngineGrid(ctx, x, y, w, h, totalEngines, activeEngines, failedEng
   ctx.textBaseline = 'bottom';
   ctx.fillText(`${activeEngines}/${totalEngines} ENG`, x + w / 2, y + h);
 
-  /* Engine dots — Octaweb layout for 9, circle for others */
-  const cx   = x + w / 2;
-  const cy   = y + h * 0.42;
-  const dotR = Math.min(w, h) * 0.072;
+  /* Engine dots */
+  const cx = x + w / 2;
+  const cy = y + h * 0.42;
   const positions = [];
+  let dotR = Math.min(w, h) * 0.072;
 
-  if (totalEngines === 9) {
+  if (ringLayout && ringLayout.length > 0) {
+    /* Concentric ring layout from aircraft engineClusters */
+    const maxRad = Math.max(...ringLayout.map(r => r.radius));
+    const dispR  = Math.min(w * 0.46, h * 0.38);
+    const scale  = maxRad > 0 ? dispR / maxRad : 1;
+    for (const ring of ringLayout) {
+      const pr = ring.radius * scale;
+      for (let i = 0; i < ring.count; i++) {
+        const a = (i / ring.count) * Math.PI * 2 - Math.PI / 2;
+        positions.push([cx + pr * Math.cos(a), cy + pr * Math.sin(a)]);
+      }
+    }
+    /* Dot size: fill ~36% of the tightest arc gap */
+    const minArc = Math.min(...ringLayout.filter(r => r.count > 1).map(r =>
+      (2 * Math.PI * r.radius * scale) / r.count));
+    dotR = Math.max(1.5, Math.min(minArc * 0.36, Math.min(w, h) * 0.068));
+  } else if (totalEngines === 9) {
     /* 8 outer in octagon + 1 center (index 8) */
     const outerR = Math.min(w, h * 0.75) * 0.33;
     for (let i = 0; i < 8; i++) {
