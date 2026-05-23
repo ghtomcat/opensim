@@ -1,0 +1,173 @@
+{
+  "id": "ift-12",
+  "phase": "launch",
+  "title": "IFT-12 — Starship V3 Debut",
+  "description": "22 May 2026. First flight of Starship V3 (S39 / B19). One Raptor fails on ship — autonomous guidance extends burn 62 s to compensate. Booster lost in Gulf after boostback anomaly. Ship splashes down in Indian Ocean.",
+  "author": "Markus Leutwyler",
+  "aircraft": "starship",
+  "timeOfDay": 0.94,
+  "water": false,
+  "weather": {
+    "source": "manual",
+    "manual": {
+      "wdir": 120,
+      "wspd": 10,
+      "turbulence": 0.05,
+      "altim": 1015,
+      "temp": 28
+    }
+  },
+  "initialState": {
+    "lat":   25.997,
+    "lon":  -97.155,
+    "alt":   10,
+    "spd":   0,
+    "hdg":   110,
+    "pitch": 90,
+    "roll":  0
+  },
+  "departure": {
+    "name": "Starbase OLP-2",
+    "elevation": 10
+  },
+  "arrival": null,
+  "com": {
+    "title": "MISSION AUDIO",
+    "loops": [
+      { "id": "silence", "label": "SILENCE" },
+      { "id": "ambient", "label": "PAD AMBIENT", "audio": "audio/launch-ambient.mp3" }
+    ],
+    "active": "silence"
+  },
+  "engineFailures": [
+    {
+      "t": 218,
+      "stageIdx": 1,
+      "activeEngines": 5,
+      "failedEngines": [5],
+      "_note": "Raptor 5 on ship shuts down ~6 s after sep ignition; guidance extends burn autonomously"
+    }
+  ],
+  "atcClearances": [
+    {
+      "t": 0,
+      "text": "T minus 60 seconds. Starship is go for launch.",
+      "voice": "atc"
+    },
+    {
+      "t": 30,
+      "text": "T minus 30 seconds.",
+      "voice": "atc"
+    },
+    {
+      "t": 50,
+      "text": "T minus 10. 9. 8. 7. 6. 5. 4. 3. 2. 1.",
+      "voice": "atc"
+    },
+    {
+      "t": 57,
+      "text": "Engine start sequence.",
+      "voice": "atc"
+    },
+    {
+      "t": 60,
+      "text": "Liftoff. Starship lifts off from Starbase.",
+      "voice": "atc"
+    },
+    {
+      "t": 105,
+      "text": "Max Q.",
+      "voice": "atc"
+    },
+    {
+      "t": 202,
+      "text": "Super Heavy main engine cutoff.",
+      "voice": "atc"
+    },
+    {
+      "t": 204,
+      "text": "Stage separation confirmed. Hot-staging nominal. Ship ignition.",
+      "voice": "atc"
+    },
+    {
+      "t": 220,
+      "text": "We show an engine shutdown on Ship. Guidance is compensating — burn will extend.",
+      "voice": "atc"
+    },
+    {
+      "t": 229,
+      "text": "Booster boostback burn has ended early. Tracking multiple engine anomalies on Booster 19.",
+      "voice": "atc"
+    },
+    {
+      "t": 380,
+      "text": "Booster 19 — uncontrolled impact in the Gulf of Mexico. We will review the data.",
+      "voice": "atc"
+    },
+    {
+      "t": 551,
+      "text": "Nominal SECO window open. Ship continuing to burn on five engines.",
+      "voice": "atc"
+    },
+    {
+      "t": 613,
+      "text": "SECO confirmed. Ship reached target trajectory on five Raptors. Autonomous guidance performed nominally.",
+      "voice": "atc"
+    },
+    {
+      "t": 1117,
+      "text": "Payload bay open. Beginning Starlink simulator deployment.",
+      "voice": "atc"
+    },
+    {
+      "t": 1635,
+      "text": "Payload deployment complete. 22 simulators away.",
+      "voice": "atc"
+    },
+    {
+      "t": 2327,
+      "text": "Raptor engine relight confirmed. Ship performing on-orbit burn.",
+      "voice": "atc"
+    },
+    {
+      "t": 2867,
+      "text": "Ship entering the atmosphere over the Indian Ocean approach corridor.",
+      "voice": "atc"
+    },
+    {
+      "t": 3836,
+      "text": "Transonic.",
+      "voice": "atc"
+    },
+    {
+      "t": 3845,
+      "text": "Subsonic.",
+      "voice": "atc"
+    },
+    {
+      "t": 3966,
+      "text": "Landing burn start.",
+      "voice": "atc"
+    },
+    {
+      "t": 3982,
+      "text": "Splashdown confirmed. Ship 39 in the Indian Ocean.",
+      "voice": "atc"
+    }
+  ],
+  "narrative": [
+    "Starbase, Texas.",
+    "22 May 2026.",
+    "First flight of Starship V3.",
+    "Ship 39. Booster 19.",
+    "One Raptor fails on Ship — guidance extends burn 62 seconds.",
+    "Booster 19 lost in the Gulf.",
+    "Ship completes the mission."
+  ],
+  "debrief": [
+    "Did the engine failure callout come at T+2:30?",
+    "Did the ship reach SECO despite flying on 5 engines?",
+    "How much longer did the burn last compared to a nominal 6-engine flight?",
+    "What happened to Booster 19 in the Gulf?"
+  ]
+}
