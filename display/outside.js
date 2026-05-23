@@ -3877,6 +3877,54 @@ ctx.save();
       };
       _drawArm(+_r * 0.7);
       _drawArm(-_r * 0.7);
+
+      /* ── Steam / exhaust cloud — 33 Raptors, water deluge ── */
+      {
+        const ignT       = S.aircraft?.ignitionTime ?? 0;
+        const sinceIgn   = Math.max(0, (S.time ?? 0) - ignT);
+        const growFactor = Math.min(1, sinceIgn / 4.0);   // grows over ~4 s
+        const steamFade  = Math.max(0, 1 - riseNm / 0.040);
+        const steamAlpha = padAlpha * steamFade * growFactor;
+
+        if (steamAlpha > 0.01) {
+          /* Two emission points flanking the trench, same as SV */
+          const steamSides = [
+            { vU: -(trenchH + _r * 0.5) },   // tower side
+            { vU: +(trenchH + _r * 0.5) },   // far side
+          ];
+          /* 33 engines → larger cloud than Saturn V */
+          const steamR = growFactor * (_r * 9 + riseNm * 5) * focal / Math.max(0.01, camSide);
+          for (const { vU: sU } of steamSides) {
+            const cPt = pw([olpT, 0, sU]);
+            if (!cPt) continue;
+            const g1 = ctx.createRadialGradient(cPt.x, cPt.y, 0, cPt.x, cPt.y, steamR);
+            g1.addColorStop(0,   `rgba(240,242,245,${(steamAlpha * 0.75).toFixed(3)})`);
+            g1.addColorStop(0.5, `rgba(225,228,232,${(steamAlpha * 0.38).toFixed(3)})`);
+            g1.addColorStop(1,   `rgba(200,210,220,0)`);
+            ctx.save();
+            ctx.fillStyle = g1;
+            ctx.beginPath();
+            ctx.arc(cPt.x, cPt.y, steamR, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+            /* Inner exhaust glow — methane burns clean, less amber than RP-1 */
+            const hotPt = pw([olpT - _r * 0.4, 0, sU * 0.4]);
+            if (hotPt) {
+              const hotR = steamR * 0.40;
+              const g2 = ctx.createRadialGradient(hotPt.x, hotPt.y, 0, hotPt.x, hotPt.y, hotR);
+              g2.addColorStop(0,   `rgba(240,220,140,${(steamAlpha * 0.45).toFixed(3)})`);
+              g2.addColorStop(0.6, `rgba(180,140, 60,${(steamAlpha * 0.18).toFixed(3)})`);
+              g2.addColorStop(1,   `rgba(120, 80, 20,0)`);
+              ctx.save();
+              ctx.fillStyle = g2;
+              ctx.beginPath();
+              ctx.arc(hotPt.x, hotPt.y, hotR, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.restore();
+            }
+          }
+        }
+      }
     } // riseNm < 0.150
   } // isSS
 
