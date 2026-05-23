@@ -1174,7 +1174,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       if (Math.abs(rudCmd) > 0.02)
         animHinge(verts, rudTE, r_ru, -(rudCmd * 25 * DEG), 'y', _V_mig15);
     }
-  } else if (!isF9 && !isBf109 && !isF4U && !isMig15 && !isSV) {
+  } else if (!isF9 && !isSS && !isBf109 && !isF4U && !isMig15 && !isSV) {
     const flap   = S.flaps ?? 0;
     const sb     = S.speedBrake ?? 0;
     /* AP aircraft (no manualControl): add heading error so arrow-key turns show aileron deflection.
@@ -1436,7 +1436,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const _DBG_CULL   = false;  // ← set true to paint front=blue, back=red
   const _DBG_PANELS = false;  // ← set true to label cockpitPanel corners with coords
 
-  const _trActive = !isF9 && !isSV && !isC172 && !isBf109 && !isF4U && !isMig15 && !!(S.thrustReverser);
+  const _trActive = !isF9 && !isSS && !isSV && !isC172 && !isBf109 && !isF4U && !isMig15 && !!(S.thrustReverser);
 
   /* Build shaded face list with average depth */
   const faces = F_.map((fi, i) => {
@@ -1997,7 +1997,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   }
 
   /* Engine overlays: thrust-reverser cascade + chevrons */
-  if (!isF9 && !isSV && !isC172 && !isBf109 && !isF4U && !isMig15) _engineOverlays(pts, faces, S.aircraft?.engine, _b);
+  if (!isF9 && !isSS && !isSV && !isC172 && !isBf109 && !isF4U && !isMig15) _engineOverlays(pts, faces, S.aircraft?.engine, _b);
 
   /* Outer engine nacelles — 4-engine WB aircraft (A340 etc.) with ey2 defined */
   const _oey2 = _wbGeo?.ey2;
@@ -2236,7 +2236,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     GV_[4],
     _lerpV3([-0.001,-0.0008, -_r+0.001], GV_[5], _gearP),
   ];
-  if (!isF9 && !isSV && (isC172 || isBf109 || isF4U || _gearP > 0.01)) {
+  if (!isF9 && !isSS && !isSV && (isC172 || isBf109 || isF4U || _gearP > 0.01)) {
     const _wbR   = _wbGeo?.r ?? _r;
     const _midV3 = (a, b) => [(a[0]+b[0])/2, (a[1]+b[1])/2, (a[2]+b[2])/2];
     for (const [a, b] of _GE) {
@@ -2374,7 +2374,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   }
 
   /* Gear bay doors — pushed into faces for correct depth sorting with wing */
-  if (!isF9 && !isSV && !isC172 && !isBf109 && !isF4U && _gearP > 0.02) {
+  if (!isF9 && !isSS && !isSV && !isC172 && !isBf109 && !isF4U && _gearP > 0.02) {
     const _gdR = _wbGeo?.r ?? _r;
     const nTR  = _gdR * 0.12, nAxH = nTR * 0.55, nTW = nTR * 0.40;
     const nSX  = 0.013;
@@ -2766,7 +2766,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   }
 
   /* Turbofan fan face — wide-body (WB) aircraft only */
-  if (!isC172 && !isF9 && !isBf109 && !isF4U && !isMig15 && !isSV) {
+  if (!isC172 && !isF9 && !isSS && !isBf109 && !isF4U && !isMig15 && !isSV) {
     const ePow = S.enginePower ?? 0;
     if (ePow > 0 || S.engineState === 'running') {
       /* Only draw fan disk when intake faces camera AND engine is not behind fuselage.
@@ -3168,7 +3168,7 @@ ctx.save();
 
 
   /* Passenger windows + door outlines — wide-body only, properly perspective-projected */
-  if (!isF9 && !isSV && !isC172 && !isBf109 && !isF4U && !isMig15) {
+  if (!isF9 && !isSV && !isSS && !isC172 && !isBf109 && !isF4U && !isMig15) {
     /* Draw a quad from 4 body-space corners — depth-culls if center is on far side */
     const _quad3d = (x, y, z, hw, hh, fill, stroke, round = false) => {
       const pc = project([x, 0, 0]);
@@ -3247,7 +3247,7 @@ ctx.save();
 
   /* Aircraft lights — WB tip positions derived from wing geometry */
   const _lightList = isC172 ? (S.masterBat ? _LIGHTS_c172 : null)
-    : (!isF9 && !isBf109 && !isF4U && !isMig15 && !isSV) ? (() => {
+    : (!isF9 && !isSS && !isBf109 && !isF4U && !isMig15 && !isSV) ? (() => {
         if (!_wbGeo) return _LIGHTS_wb;
         const _lwg = S.aircraft?.wing ?? _WB_WING_DEFAULT;
         const _ltY = _lwg.span;
