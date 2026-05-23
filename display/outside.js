@@ -986,15 +986,15 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       }
     }
     /* Include launch tower in auto-fit only while still near the pad */
-    if ((isSV || isF9) && camSide > 0) {
+    if ((isSV || isF9 || isSS) && camSide > 0) {
       const _padNm = (S.mission?.departure?.elevation ?? 0) * FT_NM;
       const _rise  = Math.max(0, (S.alt ?? 0) * FT_NM - _padNm);
       if (_rise < 0.050) {
-        const _tR  = isSV ? 0.0028 : 0.0020;
-        const _top = (isSV ? 0.038 : 0.024) + _tR * 2;
-        const _bot = (isSV ? -0.030 : -0.016) - 0.004;
+        const _tR  = isSS ? 0.00243 : isSV ? 0.0028 : 0.0020;
+        const _top = (isSS ? 0.040 : isSV ? 0.038 : 0.024) + _tR * 3.5;
+        const _bot = (isSS ? -0.025 : isSV ? -0.030 : -0.016) - _tR * 3.0;
         minCU = Math.min(minCU, _bot); maxCU = Math.max(maxCU, _top);
-        minCR = Math.min(minCR, -_tR * 9.8); maxCR = Math.max(maxCR, _tR * 9.8);
+        minCR = Math.min(minCR, -_tR * 12.0); maxCR = Math.max(maxCR, _tR * 12.0);
       }
     }
     /* Fallback if no vertices survived filtering */
@@ -3675,6 +3675,196 @@ ctx.save();
     }
   } // riseNm < 0.150
   } // isSV || isF9
+
+  /* ── Starbase OLP + Mechazilla tower + catch arms ──────────────── */
+  if (isSS) {
+    const riseNm   = _svRise;
+    if (riseNm < 0.150) {
+      const padAlpha = Math.min(1, Math.max(0, (0.150 - riseNm) / 0.100));
+      const _r       = 0.00243;
+      const _vFbase  = -0.025;
+      const _vFtop   =  0.040;
+      const tvF0     = _vFbase - riseNm;   // world-anchored platform top
+
+      const cosO = Math.cos(orbitAzDeg * DEG), sinO = Math.sin(orbitAzDeg * DEG);
+      const pw = ([vF, vR_, vU_]) => {
+        const vR2 = vR_ * cosO - vU_ * sinO;
+        const vU2 = vR_ * sinO + vU_ * cosO;
+        let   fP  = vF * cosP - vU2 * sinP;
+        const uR  = vF * sinP + vU2 * cosP;
+        let   vR3 = vR2;
+        if (orbitElDeg !== 0) {
+          const fP2 = fP * cosEl + vR2 * sinEl;
+          vR3 = -fP * sinEl + vR2 * cosEl;
+          fP  = fP2;
+        }
+        const cfW = camSide > 0 ? camSide - vR3 : camBack + fP;
+        const crW = camSide > 0 ? fP : vR3;
+        const cuW = uR - camUp;
+        const cf  = cfW * cosCP + cuW * sinCP;
+        const cu  = cuW * cosCP - cfW * sinCP;
+        if (cf < 0.002) return null;
+        return { x: cx + crW / cf * focal, y: cy - cu / cf * focal, d: cfW };
+      };
+
+      const _drawPadSegs = (segs, color, lw) => {
+        ctx.save();
+        ctx.globalAlpha = padAlpha;
+        ctx.strokeStyle = color;
+        ctx.lineWidth   = lw;
+        ctx.beginPath();
+        for (const [a, b] of segs) {
+          const pa = pw(a), pb = pw(b);
+          if (!pa || !pb) continue;
+          ctx.moveTo(pa.x, pa.y);
+          ctx.lineTo(pb.x, pb.y);
+        }
+        ctx.stroke();
+        ctx.restore();
+      };
+
+      /* ── OLP (permanent launch platform) — solid slab + flame trench ── */
+      const olpH    = _r * 3.0;    // ~27 m tall
+      const trenchH = _r * 2.0;    // flame trench half-width (~18 m)
+      const olpSvU  = _r * 4.5;    // away from tower
+      const olpSvUt = _r * 12.5;   // toward tower
+      const olpSvR  = _r * 4.2;    // half-depth front-to-back
+      const olpT = tvF0, olpB = tvF0 - olpH;
+
+      const _drawOlpSlice = (vUlo, vUhi) => {
+        const mc = [
+          [olpT,-olpSvR,vUlo],[olpT,+olpSvR,vUlo],[olpT,+olpSvR,vUhi],[olpT,-olpSvR,vUhi],
+          [olpB,-olpSvR,vUlo],[olpB,+olpSvR,vUlo],[olpB,+olpSvR,vUhi],[olpB,-olpSvR,vUhi],
+        ];
+        const mcpd = mc.map(pw);
+        const mFaces = [
+          { idx:[0,3,2,1], col:'#606570' },
+          { idx:[7,6,5,4], col:'#1a1e28' },
+          { idx:[0,4,7,3], col:'#3a4050' },
+          { idx:[0,1,5,4], col:'#454c5c' },
+          { idx:[3,7,6,2], col:'#454c5c' },
+          { idx:[1,2,6,5], col:'#525a68' },
+        ];
+        mFaces.sort((a,b) => {
+          const da = a.idx.reduce((s,i)=>s+(mcpd[i]?.d??0),0)/4;
+          const db = b.idx.reduce((s,i)=>s+(mcpd[i]?.d??0),0)/4;
+          return db - da;
+        });
+        for (const {idx,col} of mFaces) {
+          const ps = idx.map(i => mcpd[i]);
+          if (ps.some(p=>!p)) continue;
+          ctx.save();
+          ctx.globalAlpha = padAlpha;
+          ctx.fillStyle   = col;
+          ctx.strokeStyle = 'rgba(120,130,145,0.4)';
+          ctx.lineWidth   = Math.max(0.5, 0.5 * dpr);
+          ctx.beginPath();
+          ctx.moveTo(ps[0].x, ps[0].y);
+          for (let k=1;k<ps.length;k++) ctx.lineTo(ps[k].x, ps[k].y);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+        }
+      };
+      _drawOlpSlice(-olpSvUt, -trenchH);
+      _drawOlpSlice(+trenchH, +olpSvU);
+
+      /* Flame trench interior */
+      const _trF = (pts, col) => {
+        const ps = pts.map(pw);
+        if (!ps.every(Boolean)) return;
+        ctx.save();
+        ctx.globalAlpha = padAlpha;
+        ctx.fillStyle   = col;
+        ctx.beginPath();
+        ctx.moveTo(ps[0].x, ps[0].y);
+        ps.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      };
+      _trF([[olpT,+olpSvR,-trenchH],[olpT,+olpSvR,+trenchH],[olpB,+olpSvR,+trenchH],[olpB,+olpSvR,-trenchH]], '#0c0f18');
+      _trF([[olpT,-olpSvR,-trenchH],[olpT,-olpSvR,+trenchH],[olpB,-olpSvR,+trenchH],[olpB,-olpSvR,-trenchH]], '#08090e');
+      _trF([[olpB,-olpSvR,-trenchH],[olpB,+olpSvR,-trenchH],[olpB,+olpSvR,+trenchH],[olpB,-olpSvR,+trenchH]], '#06070c');
+
+      /* ── Mechazilla tower — steel lattice, taller than the full stack ── */
+      const towerTop = tvF0 + (_vFtop - _vFbase) + _r * 3.5;
+      const vUi  = -_r * 5.5;    // inner edge (toward rocket)
+      const vUo  = -_r * 12.0;   // outer edge
+      const vRh  = _r * 1.1;     // half-depth in vR
+      const nLev = 10;
+      const lvs  = Array.from({length:nLev}, (_,i) => tvF0 + (i/(nLev-1)) * (towerTop - tvF0));
+      const twrSegs = [];
+      for (let i = 0; i < nLev - 1; i++) {
+        const l0 = lvs[i], l1 = lvs[i+1];
+        twrSegs.push(
+          [[l0,-vRh,vUi],[l1,-vRh,vUi]], [[l0,+vRh,vUi],[l1,+vRh,vUi]],
+          [[l0,-vRh,vUo],[l1,-vRh,vUo]], [[l0,+vRh,vUo],[l1,+vRh,vUo]],
+        );
+      }
+      for (const lv of lvs) {
+        twrSegs.push(
+          [[lv,-vRh,vUi],[lv,+vRh,vUi]], [[lv,-vRh,vUo],[lv,+vRh,vUo]],
+          [[lv,-vRh,vUi],[lv,-vRh,vUo]], [[lv,+vRh,vUi],[lv,+vRh,vUo]],
+        );
+      }
+      for (let i = 0; i < nLev - 1; i++) {
+        const l0 = lvs[i], l1 = lvs[i+1];
+        twrSegs.push([[l0,-vRh,vUi],[l1,+vRh,vUi]], [[l0,+vRh,vUi],[l1,-vRh,vUi]]);
+        const [vU0,vU1] = i%2===0 ? [vUi,vUo] : [vUo,vUi];
+        twrSegs.push([[l0,-vRh,vU0],[l1,-vRh,vU1]], [[l0,+vRh,vU0],[l1,+vRh,vU1]]);
+      }
+      _drawPadSegs(twrSegs, '#7a8898', Math.max(1.5, 1.5 * dpr));
+
+      /* ── Mechazilla catch arms — two horizontal booms at grid-fin height ── */
+      const armVF    = tvF0 + (0.013 - _vFbase);   // world height of grid-fin top
+      const armHT    = _r * 0.18;   // half-thickness (vF axis)
+      const armHW    = _r * 0.25;   // half-width (vR axis)
+      const armTip   = -_r * 1.3;   // tip end — just inside rocket body radius
+      const armRoot  = vUi;         // root end — tower face
+
+      const _drawArm = (vRc) => {
+        const ac = [
+          [armVF+armHT, vRc-armHW, armTip],  [armVF+armHT, vRc+armHW, armTip],
+          [armVF+armHT, vRc+armHW, armRoot], [armVF+armHT, vRc-armHW, armRoot],
+          [armVF-armHT, vRc-armHW, armTip],  [armVF-armHT, vRc+armHW, armTip],
+          [armVF-armHT, vRc+armHW, armRoot], [armVF-armHT, vRc-armHW, armRoot],
+        ].map(pw);
+        const aFaces = [
+          {idx:[0,3,2,1], col:'#909aa8'},   // top
+          {idx:[7,6,5,4], col:'#404850'},   // bottom
+          {idx:[0,4,7,3], col:'#686e7a'},   // -vR side
+          {idx:[1,2,6,5], col:'#787e8a'},   // +vR side
+          {idx:[0,1,5,4], col:'#585f6a'},   // tip
+          {idx:[2,3,7,6], col:'#585f6a'},   // root
+        ];
+        aFaces.sort((a,b) => {
+          const da = a.idx.reduce((s,i)=>s+(ac[i]?.d??0),0)/4;
+          const db = b.idx.reduce((s,i)=>s+(ac[i]?.d??0),0)/4;
+          return db - da;
+        });
+        for (const {idx,col} of aFaces) {
+          const ps = idx.map(i => ac[i]);
+          if (ps.some(p=>!p)) continue;
+          ctx.save();
+          ctx.globalAlpha = padAlpha;
+          ctx.fillStyle   = col;
+          ctx.strokeStyle = 'rgba(160,170,185,0.3)';
+          ctx.lineWidth   = Math.max(0.5, 0.5 * dpr);
+          ctx.beginPath();
+          ctx.moveTo(ps[0].x, ps[0].y);
+          for (let k=1;k<ps.length;k++) ctx.lineTo(ps[k].x, ps[k].y);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+        }
+      };
+      _drawArm(+_r * 0.6);
+      _drawArm(-_r * 0.6);
+    } // riseNm < 0.150
+  } // isSS
 
   /* ── CSM orbit-mode detail: windows, seams, RCS, soot ── */
   if (isSV && S.rocketOrbit && !_inTDSep) _drawCSMOrbitDetail(ctx, pts, project, dpr, camSide);
