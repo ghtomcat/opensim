@@ -179,7 +179,8 @@ function _renderChaseCam(canvas) {
   renderTerrain(canvas, { outsideView: true, cxOverride: _cxC });
   S.lat=sL;S.lon=sLo;S.alt=sA;S.pitch=sP;S.roll=sR;S.hdg=sH;
 
-  _drawWireframe(canvas, S.wow ? 0 : acP, (S.wow ? 0 : acR) + _orbitAz, camBack, camUp, 0);
+  const _useWowPitchC = S.wow && S.aircraft?.vehicleType !== 'rocket';
+  _drawWireframe(canvas, _useWowPitchC ? 0 : acP, (_useWowPitchC ? 0 : acR) + _orbitAz, camBack, camUp, 0);
   _drawLabel(canvas, 'CHASE CAM');
 }
 
@@ -235,8 +236,8 @@ function _renderSideCam(canvas) {
   S.lat=sL;S.lon=sLo;S.alt=sA;S.hdg=sH;S.pitch=sP;S.roll=sR;
 
   /* Wireframe: _orbitAz rolls the model, _orbitEl tilts the camera. Terrain untouched. */
-  if (S.wow) _drawWireframe(canvas, 0, renderOrbit, 0, sideUp, sideDist, false, 0, _orbitEl);
-  else       _drawWireframe(canvas, acP, acR + renderOrbit, 0, sideUp, sideDist, false, 0, _orbitEl);
+  const _useWowPitch = S.wow && S.aircraft?.vehicleType !== 'rocket';
+  _drawWireframe(canvas, _useWowPitch ? 0 : acP, (_useWowPitch ? 0 : acR) + renderOrbit, 0, sideUp, sideDist, false, 0, _orbitEl);
   _drawLabel(canvas, 'SIDE CAM');
   if (S.paused) _drawPauseOverlay(canvas);
 }
@@ -953,7 +954,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     const hfV    = Math.atan(Math.tan(FOV_H / 2 * DEG) * H / W);
     const PAD    = 1.15;
     /* Stage-aware vertex filtering — only include vertices of currently-shown structure */
-    const _afStage      = (isF9 || isSV) ? (S.rocketStage ?? 1) : 0;
+    const _afStage      = (isF9 || isSV || isSS) ? (S.rocketStage ?? 1) : 0;
     const _afLesJett    = isSV && !!(S.lesJettisoned);
     const _afSivbSep    = isSV && !!(S.sivbSep);
     let minCR = Infinity, maxCR = -Infinity, minCU = Infinity, maxCU = -Infinity;
@@ -1375,7 +1376,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   });
 
   /* Booster projection (F9 stage separation) */
-  const rStage = (isF9 || isSV) ? (S.rocketStage ?? 1) : 0;
+  const rStage = (isF9 || isSV || isSS) ? (S.rocketStage ?? 1) : 0;
 
   /* Detect Saturn V stage separation — tumble animation + director cut */
   if (isSV) {
