@@ -985,6 +985,9 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         minCU = Math.min(minCU, uR); maxCU = Math.max(maxCU, uR);
       }
     }
+    /* Snapshot rocket-only centre before tower inflates the bounds */
+    const pivotCR = isFinite(minCR) ? (minCR + maxCR) / 2 : 0;
+    const pivotCU = isFinite(minCU) ? (minCU + maxCU) / 2 : 0;
     /* Include launch tower in auto-fit only while still near the pad */
     if ((isSV || isF9 || isSS) && camSide > 0) {
       const _padNm = (S.mission?.departure?.elevation ?? 0) * FT_NM;
@@ -1011,10 +1014,10 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     const d = Math.max(halfCR * PAD / Math.tan(hfH), halfCU * PAD / Math.tan(hfV));
     if (camSide > 0) { camSide = d * _orbitZoom; }
     else              { camBack = d * _orbitZoom; camUp = d * _orbitZoom * 0.18; }
-    /* Shift cx/cy so the bounding-box centre lands at the viewport centre */
+    /* Shift cx/cy so the rocket centre lands at the viewport centre */
     const _camD = camSide > 0 ? camSide : camBack;
-    cx -= centerCR * focal / _camD;
-    cy += centerCU * focal / _camD;
+    cx -= pivotCR * focal / _camD;
+    cy += pivotCU * focal / _camD;
 
     /* ── Auto-director: blend camSide (zoom) + cy (look-at shift) ── */
     if (isSV && camSide > 0) {
@@ -3868,12 +3871,30 @@ ctx.save();
           ctx.stroke();
           ctx.restore();
         }
-        /* Diagonal wire braces from arm to tower (suggest truss structure) */
-        const midU = (armTip + armRoot) * 0.5;
-        _drawPadSegs([
-          [[armVF+armHT, vRc, armRoot], [armVF-armHT, vRc, midU]],
-          [[armVF-armHT, vRc, armRoot], [armVF+armHT, vRc, midU]],
-        ], '#8090a0', Math.max(1, 1 * dpr));
+        /* Truss X-bracing along arm length (5 panels, seen from side) */
+        const span = armTip - armRoot;
+        const nPan = 5;
+        const pW   = span / nPan;
+        const tSegs = [];
+        for (let i = 0; i <= nPan; i++) {
+          const u = armRoot + i * pW;
+          tSegs.push([[armVF+armHT, vRc, u], [armVF-armHT, vRc, u]]);   // vertical divider
+          if (i < nPan) {
+            tSegs.push([[armVF+armHT, vRc, u],    [armVF-armHT, vRc, u+pW]]);  // \ diagonal
+            tSegs.push([[armVF-armHT, vRc, u],    [armVF+armHT, vRc, u+pW]]);  // / diagonal
+          }
+        }
+        _drawPadSegs(tSegs, 'rgba(140,158,175,0.28)', Math.max(0.6, 0.7 * dpr));
+        /* Fan of diagonal support struts from carriage lower mount to arm underside
+           (matches the radiating support structure visible in the reference) */
+        const mountF = armVF - _r * 0.9;   // carriage attachment below arm
+        const supportSegs = [
+          [[mountF, vRc, armRoot], [armVF-armHT, vRc, armRoot + span * 0.18]],
+          [[mountF, vRc, armRoot], [armVF-armHT, vRc, armRoot + span * 0.36]],
+          [[mountF, vRc, armRoot], [armVF-armHT, vRc, armRoot + span * 0.52]],
+          [[mountF, vRc, armRoot], [armVF-armHT, vRc, armRoot + span * 0.65]],
+        ];
+        _drawPadSegs(supportSegs, '#6a7a8a', Math.max(1, 1.2 * dpr));
       };
       _drawArm(+_r * 0.7);
       _drawArm(-_r * 0.7);

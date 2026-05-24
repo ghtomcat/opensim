@@ -1577,6 +1577,12 @@
     .ss-card.ss-card-inst { border-color: rgba(255,200,50,0.14); }
     .ss-card.ss-card-inst .ss-card-id { color: rgba(255,200,50,0.72); }
     .ss-card.selected.ss-card-inst { border-color: rgba(255,200,50,0.55); }
+    /* Named crew cards */
+    .ss-card.ss-crew-named { min-width: 158px; text-align: left; padding: 14px 18px; }
+    .ss-card.ss-crew-named .ss-card-id { font-size: 9px; letter-spacing: 0.2em; color: rgba(232,237,242,0.35); margin-bottom: 4px; }
+    .ss-card.ss-crew-named .ss-crew-name { font-family: "Syne", sans-serif; font-size: 13px; font-weight: 700; color: var(--white); margin-bottom: 4px; line-height: 1.2; }
+    .ss-card.ss-crew-named .ss-card-label { font-size: 9px; }
+    .ss-card.ss-crew-named.ss-card-inst .ss-crew-name { color: rgba(255,200,50,0.72); }
 
     /* ── On-screen keyboard (touch devices) ── */
     #osk {
@@ -2646,6 +2652,11 @@
         orders: 'Launch site: Kennedy Space Center LC-39A.\nTarget: Fra Mauro highlands, lunar surface.\n\nFlight sequence:\nT+00:00  F-1 ignition · Liftoff\nT+02:35m  TLI ignition\nT+55:54m  Oxygen tank explosion — ABORT\nT+77:02m  Moon pericynthion — 254 km altitude\nT+79:57m  PC+2 burn — LM DPS, 263 s\nT+141:30m  LM Aquarius jettisoned\nT+142:54m  Reentry\n\nAll crew survived.',
         atmosphere: 'April 11, 1970.\nJim Lovell. Jack Swigert. Fred Haise.\n\nAt T+55 hours, an oxygen tank explodes 330,000 km from Earth.\nThe lunar module Aquarius becomes a lifeboat.\nThe Moon\'s gravity becomes the engine that brings them home.\n\n"Houston, we\'ve had a problem."',
       },
+      crew: [
+        { id: 'CDR', name: 'Jim Lovell',    callsign: 'LOVELL',  role: 'PF', label: 'Commander' },
+        { id: 'CMP', name: 'Jack Swigert',  callsign: 'SWIGERT', role: 'PM', label: 'Command Module Pilot' },
+        { id: 'LMP', name: 'Fred Haise',    callsign: 'HAISE',   role: 'PM', label: 'Lunar Module Pilot' },
+      ],
       roles: [
         { id: 'CDR', label: 'Commander — Lovell' },
         { id: 'CMP', label: 'Command Module Pilot — Swigert' },
@@ -2665,6 +2676,11 @@
         orders: 'Launch site: Kennedy Space Center LC-39A.\nTarget: Lunar orbit, 112 × 114 km.\n\nFlight sequence:\nT+00:00  F-1 ignition · Liftoff\nT+00:12  Roll/pitch program\nT+01:21  Max Q · 13 km altitude\nT+02:15  Center F-1 cutoff\nT+02:42  S-IC cutoff · 67 km\nT+02:44  S-IC / S-II separation\nT+09:11  S-II cutoff · 185 km\nT+09:25  S-IVB ignition\nT+11:24  Earth parking orbit achieved\nT+2h 50m  Translunar injection burn',
         atmosphere: 'December 21, 1968.\nFrank Borman, James Lovell, William Anders.\nThe first human beings to leave Earth\'s gravity.\n\nOn Christmas Eve, orbiting the Moon, they read from Genesis.\nAnders photographed Earthrise.\n\n"We came all this way to explore the Moon,\nand the most important thing is that we discovered the Earth."',
       },
+      crew: [
+        { id: 'CDR', name: 'Frank Borman',   callsign: 'BORMAN', role: 'PF', label: 'Commander' },
+        { id: 'CMP', name: 'James Lovell',   callsign: 'LOVELL', role: 'PM', label: 'Command Module Pilot' },
+        { id: 'LMP', name: 'William Anders', callsign: 'ANDERS', role: 'PM', label: 'Lunar Module Pilot' },
+      ],
       roles: [
         { id: 'CDR', label: 'Commander — Borman' },
         { id: 'CMP', label: 'Command Module Pilot — Lovell' },
@@ -2701,6 +2717,11 @@
           'Target orbit: 400 km × 200 km · 51.6°',
         ],
       },
+      crew: [
+        { id: 'CDR',   name: 'Robert Behnken', callsign: 'BEHNKEN', role: 'PF', label: 'Commander' },
+        { id: 'PILOT', name: 'Douglas Hurley', callsign: 'HURLEY',  role: 'PM', label: 'Pilot' },
+        { id: 'INST',  name: 'Instructor',      callsign: 'INST',    role: 'INSTRUCTOR', label: 'Instructor' },
+      ],
       roles: [
         { id: 'CDR',        label: 'Commander' },
         { id: 'PILOT',      label: 'Pilot' },
@@ -2764,6 +2785,13 @@
         orders: 'Launch site: Kennedy Space Center LC-39A.\nTarget orbit: 590 km circular · 51.6° inclination.\nMission duration: 3 days.\n\nFlight sequence:\nT+00:00  9-engine ignition · Liftoff\nT+01:12  CECO — center engine cutoff\nT+02:33  MECO · Stage separation\nT+02:53  Boostback burn — 3 engines\nT+08:45  SECO · Orbit insertion\nT+08:45+ Stage 1 RTLS · LZ-1',
         atmosphere: 'Four people.\nNo professional astronauts.\nNo government agency.\n\nA rocket, a capsule, and a crew that trained for this.\nThe door Jared opened.\nWe walked through.',
       },
+      crew: [
+        { id: 'CDR',  name: 'Markus Leutwyler', callsign: 'ML',   role: 'PF', label: 'Commander' },
+        { id: 'PLT',  name: 'Lydia Meier',       callsign: 'LM',   role: 'PF', label: 'Pilot' },
+        { id: 'MS1',  name: 'Pradeep Sapkota',   callsign: 'PS',   role: 'PM', label: 'Mission Specialist 1' },
+        { id: 'MS2',  name: 'TBD',               callsign: 'MS2',  role: 'PM', label: 'Mission Specialist 2' },
+        { id: 'INST', name: 'Instructor',         callsign: 'INST', role: 'INSTRUCTOR', label: 'Instructor' },
+      ],
       roles: [
         { id: 'CDR',        label: 'Commander' },
         { id: 'PILOT',      label: 'Pilot' },
@@ -3522,12 +3550,10 @@
       { id: 'OVC 1500', label: 'Overcast 1500',    override: { source: 'manual', manual: { wdir: 240, wspd: 15, altim: 1008, temp: 8, dewp: 7, visib: '5',   clouds: [{ cover: 'OVC', base: 1500 }] } } },
     ];
 
-    /* ── Crew presets — use mission-defined roles if present ── */
-    const CREW_PRESETS = m.roles?.length > 0 ? m.roles : [
-      { id: 'PF',         label: 'Pilot Flying' },
-      { id: 'PM',         label: 'Pilot Monitoring' },
-      { id: 'INSTRUCTOR', label: 'Instructor mode' },
-    ];
+    /* ── Crew presets — use named crew if present, else roles; hide section if neither ── */
+    const CREW_PRESETS = m.crew?.length > 0 ? m.crew
+      : m.roles?.length > 0 ? m.roles
+      : [];
 
     /* ── Failure presets ── */
     const hasCarbHeat = ['c172', 'robin-dr400'].includes(m.aircraft);
@@ -3540,22 +3566,29 @@
     ];
 
     let selWx   = 'LIVE';
-    let selCrew = S.role ?? 'PF';
+    let selCrew = S.pilotId ?? S.role ?? CREW_PRESETS[0]?.id ?? null;
     let selFail = 'CLEAN';
     let randomTiming = true;
 
     function _buildCards(containerId, presets, getCurrent, setCurrent, extraClass) {
       const el2 = document.getElementById(containerId);
       el2.innerHTML = '';
+      const isNamedCrew = presets.some(p => p.name);
       presets.forEach(p => {
-        const isInst = p.id === 'INSTRUCTOR';
+        const isInst = p.id === 'INSTRUCTOR' || p.id === 'INST';
         const card = document.createElement('div');
         card.className = 'ss-card'
           + (p.id === getCurrent() ? ' selected' : '')
           + (isInst ? ' ss-card-inst' : '')
+          + (isNamedCrew ? ' ss-crew-named' : '')
           + (extraClass ? ' ' + extraClass : '');
         card.dataset.id = p.id;
-        card.innerHTML = `<div class="ss-card-id${isInst ? ' ss-card-id-inst' : ''}">${p.id}</div><div class="ss-card-label">${p.label}</div>`;
+        if (isNamedCrew) {
+          const roleLabel = p.role === 'INSTRUCTOR' ? 'Instructor' : p.role ? `${p.label ?? p.id} · ${p.role}` : (p.label ?? p.id);
+          card.innerHTML = `<div class="ss-card-id">${p.id}</div><div class="ss-crew-name">${p.name}</div><div class="ss-card-label">${roleLabel}</div>`;
+        } else {
+          card.innerHTML = `<div class="ss-card-id${isInst ? ' ss-card-id-inst' : ''}">${p.id}</div><div class="ss-card-label">${p.label}</div>`;
+        }
         card.addEventListener('click', () => {
           setCurrent(p.id);
           el2.querySelectorAll('.ss-card').forEach(c => c.classList.toggle('selected', c.dataset.id === p.id));
@@ -3565,7 +3598,13 @@
     }
 
     _buildCards('ss-wx-cards',   WX_PRESETS,   () => selWx,   v => { selWx   = v; });
-    _buildCards('ss-crew-cards', CREW_PRESETS, () => selCrew, v => { selCrew = v; });
+    const crewSection = document.getElementById('ss-crew-cards').closest('.ss-section');
+    if (CREW_PRESETS.length > 0) {
+      crewSection.style.display = '';
+      _buildCards('ss-crew-cards', CREW_PRESETS, () => selCrew, v => { selCrew = v; });
+    } else {
+      crewSection.style.display = 'none';
+    }
     _buildCards('ss-cards',      FAIL_PRESETS, () => selFail, v => {
       selFail = v;
       document.getElementById('ss-timing').style.display = v === 'CLEAN' ? 'none' : 'flex';
@@ -3620,7 +3659,13 @@
 
       m._scenarioFailures  = injected;
       m._weatherOverride   = wxPreset?.override;   /* null = keep LIVE; object = manual */
-      setState({ role: selCrew });
+      const crewMember = CREW_PRESETS.find(p => p.id === selCrew);
+      setState({
+        role:          crewMember?.role ?? selCrew,
+        pilotId:       selCrew,
+        pilotName:     crewMember?.name    ?? null,
+        pilotCallsign: crewMember?.callsign ?? null,
+      });
 
       el.classList.remove('visible');
       setTimeout(() => init(m.id, m.aircraft), 400);
@@ -4181,7 +4226,7 @@
     const _active   = _profiles?.find(p => p.spdT === S.spdT)?.label ?? '---';
     document.getElementById('pv-thrust').textContent = _active;
     document.getElementById('pv-mode').textContent = S.mode;
-    document.getElementById('pv-role').textContent = S.role;
+    document.getElementById('pv-role').textContent = S.pilotCallsign ?? S.role;
     /* RPM — only meaningful for piston engines */
     const rpm = getCurrentRpm();
     document.getElementById('pv-rpm').textContent = rpm ?? '---';
