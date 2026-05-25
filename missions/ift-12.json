@@ -18,13 +18,13 @@
     }
   },
   "initialState": {
-    "lat":   25.997,
-    "lon":  -97.155,
-    "alt":   10,
-    "spd":   0,
-    "hdg":   116,
+    "lat": 25.997,
+    "lon": -97.155,
+    "alt": 10,
+    "spd": 0,
+    "hdg": 116,
     "pitch": 90,
-    "roll":  0
+    "roll": 0
   },
   "departure": {
     "name": "Starbase OLP-2",
@@ -34,125 +34,167 @@
   "com": {
     "title": "MISSION AUDIO",
     "loops": [
-      { "id": "silence", "label": "SILENCE" },
-      { "id": "ambient", "label": "PAD AMBIENT", "audio": "audio/launch-ambient.mp3" }
+      {
+        "id": "silence",
+        "label": "SILENCE"
+      },
+      {
+        "id": "ambient",
+        "label": "PAD AMBIENT",
+        "audio": "audio/launch-ambient.mp3"
+      }
     ],
     "active": "silence"
   },
+  "reentryGuidance": {
+    "targetLat": -22,
+    "targetLon": 115,
+    "ldRatio": 2.0,
+    "bankGain": 0.8,
+    "bankMax": 75
+  },
   "engineFailures": [
     {
-      "t": 218,
+      "t": 242,
       "stageIdx": 1,
       "activeEngines": 5,
-      "failedEngines": [5],
+      "failedEngines": [
+        5
+      ],
+      "burnExtension": 62,
       "_note": "Raptor 5 on ship shuts down ~6 s after sep ignition; guidance extends burn autonomously"
     }
   ],
   "atcClearances": [
     {
       "t": 0,
-      "text": "T minus 60 seconds. Starship is go for launch.",
-      "voice": "atc"
-    },
-    {
-      "t": 30,
-      "text": "T minus 30 seconds.",
-      "voice": "atc"
+      "voice": "atc",
+      "text": "All right, all operators on countdown one."
     },
     {
       "t": 50,
-      "text": "T minus 10. 9. 8. 7. 6. 5. 4. 3. 2. 1.",
-      "voice": "atc"
+      "voice": "atc",
+      "text": "Flight directors go for launch."
     },
     {
-      "t": 57,
-      "text": "Engine start sequence.",
-      "voice": "atc"
+      "t": 52,
+      "voice": "nar1",
+      "text": "10. 9. 8. 7. 6. 5. 4. 3. Ignition."
     },
     {
-      "t": 60,
-      "text": "Liftoff. Starship lifts off from Starbase.",
-      "voice": "atc"
+      "t": 65,
+      "voice": "atc",
+      "text": "We have set you downrange."
     },
     {
-      "t": 105,
-      "text": "Max Q.",
-      "voice": "atc"
+      "t": 70,
+      "voice": "atc",
+      "text": "Opter chamber pressure nominal."
     },
     {
-      "t": 202,
-      "text": "Super Heavy main engine cutoff.",
-      "voice": "atc"
+      "t": 90,
+      "voice": "nar1",
+      "text": "33 out of 33 Raptor 3 engines on booster V3, ascending over the Gulf now."
     },
     {
-      "t": 204,
-      "text": "Stage separation confirmed. Hot-staging nominal. Ship ignition.",
-      "voice": "atc"
+      "t": 120,
+      "voice": "atc",
+      "text": "Booster and ship avionics power telemetry nominal."
     },
     {
       "t": 220,
-      "text": "We show an engine shutdown on Ship. Guidance is compensating — burn will extend.",
-      "voice": "atc"
+      "voice": "nar1",
+      "text": "Successful hot staging separation. We are not seeing as many booster engines ignite as we expected for boostback."
     },
     {
-      "t": 229,
-      "text": "Booster boostback burn has ended early. Tracking multiple engine anomalies on Booster 19.",
-      "voice": "atc"
+      "t": 240,
+      "voice": "nar1",
+      "text": "It looks like we just had an early boostback shutdown."
     },
     {
-      "t": 380,
-      "text": "Booster 19 — uncontrolled impact in the Gulf of Mexico. We will review the data.",
-      "voice": "atc"
+      "t": 570,
+      "voice": "nar1",
+      "text": "Arvacs have shut down. Sea levels have shut down. Ship FTS is saved."
     },
     {
-      "t": 551,
-      "text": "Nominal SECO window open. Ship continuing to burn on five engines.",
-      "voice": "atc"
+      "t": 720,
+      "voice": "atc",
+      "text": "Awaiting the callout of nominal insertion."
     },
     {
-      "t": 613,
-      "text": "SECO confirmed. Ship reached target trajectory on five Raptors. Autonomous guidance performed nominally.",
-      "voice": "atc"
+      "t": 1080,
+      "voice": "nar1",
+      "text": "Within bounds of what we analyzed. It's on a trajectory now headed towards the other side of the planet."
     },
     {
-      "t": 1117,
-      "text": "Payload bay open. Beginning Starlink simulator deployment.",
-      "voice": "atc"
+      "t": 1260,
+      "voice": "nar1",
+      "text": "PEZ door is open. Pew pew. Two down, 20 to go."
     },
     {
-      "t": 1635,
-      "text": "Payload deployment complete. 22 simulators away.",
-      "voice": "atc"
+      "t": 1560,
+      "voice": "nar1",
+      "text": "Starship, basically serving the first Dodger dogs to low Earth orbit."
     },
     {
-      "t": 2327,
-      "text": "Raptor engine relight confirmed. Ship performing on-orbit burn.",
-      "voice": "atc"
+      "t": 1570,
+      "voice": "nar1",
+      "text": "Let there be light."
     },
     {
-      "t": 2867,
-      "text": "Ship entering the atmosphere over the Indian Ocean approach corridor.",
-      "voice": "atc"
+      "t": 3360,
+      "voice": "atc",
+      "text": "Engine chill has started."
     },
     {
-      "t": 3836,
-      "text": "Transonic.",
-      "voice": "atc"
+      "t": 3540,
+      "voice": "atc",
+      "text": "Entry max heating. Entry max Q."
     },
     {
-      "t": 3845,
-      "text": "Subsonic.",
-      "voice": "atc"
+      "t": 3720,
+      "voice": "nar1",
+      "text": "Ship has passed through the peak heating region. External temperatures are coming down."
     },
     {
-      "t": 3966,
-      "text": "Landing burn start.",
-      "voice": "atc"
+      "t": 3780,
+      "voice": "atc",
+      "text": "Ship flap load test has started."
     },
     {
-      "t": 3982,
-      "text": "Splashdown confirmed. Ship 39 in the Indian Ocean.",
-      "voice": "atc"
+      "t": 3810,
+      "voice": "atc",
+      "text": "Test is complete."
+    },
+    {
+      "t": 3840,
+      "voice": "atc",
+      "text": "Starship is starting the RTLS banking maneuver."
+    },
+    {
+      "t": 3900,
+      "voice": "atc",
+      "text": "Starship is subsonic and is on target."
+    },
+    {
+      "t": 4020,
+      "voice": "nar1",
+      "text": "Landing burn start up."
+    },
+    {
+      "t": 4030,
+      "voice": "nar2",
+      "text": "Two engine flip."
+    },
+    {
+      "t": 4035,
+      "voice": "nar1",
+      "text": "Successful flip."
+    },
+    {
+      "t": 4050,
+      "voice": "atc",
+      "text": "On target landing."
     }
   ],
   "narrative": [

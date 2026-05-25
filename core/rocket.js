@@ -561,28 +561,100 @@ function _tickOrbit(dt) {
     if (newAlt < BLACKOUT_EXIT && S.dragonBlackout && !S.dragonSignal) setState({ dragonSignal: true });
 
     /* Splashdown */
-    if (newAlt <= 0 && !S.dragonSplashdown) setState({ dragonSplashdown: true });
+    if (newAlt <= 0 && !S.dragonSplashdown) {
+      setState({ dragonSplashdown: true });
+    }
   }
 
-  /* ── Starship reentry drag + splashdown ─────────────────────────
+  /* ── Starship reentry — drag + lift + bank-angle guidance ───────
      Active for vehicleType='starship' on descending ballistic arc.
-     Body-flap Cd is higher than Dragon heat shield; no parachutes.  */
+     Lift is perpendicular to velocity, rotated by a bank angle that
+     a proportional controller drives toward the target bearing.
+     mission.reentryGuidance = { targetLat, targetLon, ldRatio,
+                                  bankGain, bankMax }
+     Without reentryGuidance (or ldRatio = 0) behaviour is unchanged. */
   if (S.aircraft?.id === 'starship' && !S.starshipSplashdown) {
-    if (newAlt < 80_000 && newFPA < 0) {
+    if (newAlt < 80_000 && (S.pitch ?? 0) < 0) {
       const rho = rhoAtAlt(newAlt);
       const spd = Math.sqrt(nvx*nvx + nvy*nvy + nvz*nvz);
       if (spd > 1) {
-        const SS_CDA = 400;  // Starship body + flaps deployed ~400 m² effective
-        const SS_MASS = 120_000;  // dry + residuals ≈ 120 t
+        const SS_CDA  = 400;
+        const SS_MASS = 120_000;
         const dragAcc = 0.5 * rho * SS_CDA * spd * spd / SS_MASS;
         reentryG = dragAcc / G0;
+
+        /* Drag — retrograde */
         const df = Math.min(dragAcc * dt / spd, 0.5);
         nvx -= nvx * df; nvy -= nvy * df; nvz -= nvz * df;
+
+        /* Lift + steering */
+        const rg  = S.mission?.reentryGuidance;
+        const LD  = rg?.ldRatio ?? 0;
+        if (LD > 0) {
+          const liftAcc = dragAcc * LD;
+
+          /* Unit vectors */
+          const vHx = nvx/spd, vHy = nvy/spd, vHz = nvz/spd;
+          const rHx = nrx/nr,  rHy = nry/nr,  rHz = nrz/nr;
+
+          /* Lift-up: component of r̂ perpendicular to v̂ */
+          const vDotR = vHx*rHx + vHy*rHy + vHz*rHz;
+          let luX = rHx - vDotR*vHx, luY = rHy - vDotR*vHy, luZ = rHz - vDotR*vHz;
+          const luMag = Math.sqrt(luX*luX + luY*luY + luZ*luZ);
+          if (luMag > 1e-6) { luX /= luMag; luY /= luMag; luZ /= luMag; }
+
+          /* "Right": v̂ × lift-up */
+          const lrX = vHy*luZ - vHz*luY;
+          const lrY = vHz*luX - vHx*luZ;
+          const lrZ = vHx*luY - vHy*luX;
+
+          /* Current velocity heading (newHdg not yet in scope — compute inline) */
+          const _slat = Math.sin(newLat * DEG), _clat = Math.cos(newLat * DEG);
+          const _slon = Math.sin(newLon * DEG), _clon = Math.cos(newLon * DEG);
+          const _vE   = -_slon * nvx + _clon * nvy;
+          const _vN   = -_slat * _clon * nvx - _slat * _slon * nvy + _clat * nvz;
+          const curHdg = (Math.atan2(_vE, _vN) / DEG + 360) % 360;
+
+          /* Bearing to target → heading error → bank command */
+          const tLat = (rg.targetLat ?? 0) * DEG;
+          const tLon = (rg.targetLon ?? 0) * DEG;
+          const cLat = newLat * DEG, cLon = newLon * DEG;
+          const dLon = tLon - cLon;
+          const bearing = Math.atan2(
+            Math.sin(dLon) * Math.cos(tLat),
+            Math.cos(cLat) * Math.sin(tLat) - Math.sin(cLat) * Math.cos(tLat) * Math.cos(dLon)
+          ) / DEG;
+          const headingErr = ((bearing - curHdg + 540) % 360) - 180;
+          const bankMax  = rg.bankMax  ?? 75;
+          const bankGain = rg.bankGain ?? 0.8;
+          const bankCmd  = Math.max(-bankMax, Math.min(bankMax, bankGain * headingErr));
+
+          /* Rate-limit bank angle (~15°/s, matching real body-flap actuation) */
+          const prevBank = S.starshipBankAngle ?? 0;
+          const maxRate  = 15 * dt;
+          const bank     = prevBank + Math.max(-maxRate, Math.min(maxRate, bankCmd - prevBank));
+
+          /* Lift vector rotated by bank */
+          const bRad = bank * DEG;
+          const ldX = Math.cos(bRad)*luX + Math.sin(bRad)*lrX;
+          const ldY = Math.cos(bRad)*luY + Math.sin(bRad)*lrY;
+          const ldZ = Math.cos(bRad)*luZ + Math.sin(bRad)*lrZ;
+
+          nvx += ldX * liftAcc * dt;
+          nvy += ldY * liftAcc * dt;
+          nvz += ldZ * liftAcc * dt;
+
+          setState({ starshipBankAngle: bank });
+        }
+
         if (newAlt < 5_000 && !S.starshipReentry) setState({ starshipReentry: true });
       }
     }
-    if (newAlt <= 0) setState({ starshipSplashdown: true, warpFactor: 1 });
+    if (newAlt <= 0) {
+      setState({ starshipSplashdown: true, warpFactor: 1 });
+    }
   }
+  const clampedAlt = Math.max(0, newAlt);
 
   /* Speed */
   const newSpd = Math.sqrt(nvx*nvx + nvy*nvy + nvz*nvz);
@@ -606,6 +678,31 @@ function _tickOrbit(dt) {
   /* Orbital period — T = 2π√(a³/GM), a ≈ r for near-circular orbit */
   const T_orb = 2 * Math.PI * Math.sqrt(Math.pow(nr, 3) / GM);
 
+  /* ── Starship belly-flop visual attitude ────────────────────────
+     Purely visual: drives outside.js rendering, not physics.
+     Post-SECO: body pitch converges toward 0° (belly-first, max drag).
+     Near landing: rapid flip to -90° (engines-down) over flipDuration. */
+  let starshipBodyPitch = S.starshipBodyPitch ?? newFPA;
+  if (S.aircraft?.id === 'starship' && !S.starshipSplashdown) {
+    const _rec  = S.aircraft?.performance?.recovery ?? {};
+    const _fDur = _rec.flipDuration ?? 18;
+    const _fAlt = (_rec.landingBurnAlt_m ?? 800) + 2000;  // start flip with enough time to complete
+
+    if (!S.starshipFlipStartT && newAlt <= _fAlt && vRad < 0) {
+      setState({ starshipFlipStartT: mT });
+    }
+
+    if (S.starshipFlipStartT) {
+      const elapsed = mT - (S.starshipFlipStartT ?? mT);
+      const frac    = Math.max(0, Math.min(1, elapsed / _fDur));
+      const eased   = 1 - (1 - frac) * (1 - frac);   // ease-out: fast start, slow finish
+      starshipBodyPitch = eased * 90;
+    } else {
+      /* Belly-flop: exponential convergence to 0° — ~60 s time constant */
+      starshipBodyPitch += (0 - starshipBodyPitch) * (1 - Math.exp(-dt / 60));
+    }
+  }
+
   /* Cislunar trail — only after TLI (parking orbit triangles are noise on this map) */
   if (S.rocketTLI && ((S.cislunarTrail?.length === 0) || mT - _lastTrailT >= 1800)) {
     _lastTrailT = mT;
@@ -617,8 +714,8 @@ function _tickOrbit(dt) {
   setState({
     spd:   newSpd / 0.5144,
     spdT:  newSpd / 0.5144,
-    alt:   newAlt / 0.3048,
-    altT:  newAlt / 0.3048,
+    alt:   clampedAlt / 0.3048,
+    altT:  clampedAlt / 0.3048,
     pitch: newFPA,
     vs:    vRad * 196.85,
     lat:   newLat,
@@ -628,8 +725,9 @@ function _tickOrbit(dt) {
     rocketDynQ: 0,
     orbitVec:   { rx: nrx, ry: nry, rz: nrz, vx: nvx, vy: nvy, vz: nvz },
     orbitPass,
-    orbitPeriod:    T_orb,
-    _orbitPrevLat:  newLat,
+    orbitPeriod:      T_orb,
+    _orbitPrevLat:    newLat,
+    starshipBodyPitch,
     time: (S.time ?? 0) + dt,
   });
 }
@@ -898,10 +996,14 @@ export function tickRocket(dt) {
   let   activeEngines = S.rocketActiveEngines ?? totalEngines;
 
   const failures = S.mission?.engineFailures ?? [];
+  let totalBurnExt = 0;
   for (const f of failures) {
     if (mT >= f.t && mT < f.t + dt && (f.stageIdx ?? 0) === stage - 1) {
       activeEngines = f.activeEngines ?? activeEngines;
       setState({ rocketActiveEngines: activeEngines, rocketFailedEngines: f.failedEngines ?? [] });
+    }
+    if (mT >= f.t && (f.stageIdx ?? 0) === stage - 1) {
+      totalBurnExt += f.burnExtension ?? 0;
     }
   }
 
@@ -910,8 +1012,8 @@ export function tickRocket(dt) {
   if (coasting) {
     /* Stage separation coast — no thrust, count 6 s */
     if (mT - coastT >= 6 && stage < stages.length) {
-      /* Capture booster state for RTLS recovery */
-      if (!S.booster?.active && !S.booster?.landed && perf.recovery?.rtls) {
+      /* Capture booster state for RTLS or catch recovery */
+      if (!S.booster?.active && !S.booster?.landed && (perf.recovery?.rtls || perf.recovery?.catch)) {
         const spd_ms  = (S.spd ?? 0) * 0.5144;
         const fpa_rad = (S.pitch ?? 0) * DEG;
         setState({ booster: {
@@ -944,7 +1046,7 @@ export function tickRocket(dt) {
     /* Check time-based burnout — caps burn to historical duration */
     const stgIgnT    = S.rocketStageIgnitionT ?? ignitionTime;
     const burnDur    = stg.burnDuration;
-    const timeCutoff = burnDur && (mT - stgIgnT) >= burnDur;
+    const timeCutoff = burnDur && (mT - stgIgnT) >= burnDur + totalBurnExt;
 
     if (timeCutoff) {
       /* Force burnout at the historical time */

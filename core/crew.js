@@ -379,8 +379,10 @@ function _voiceFor(voiceName) {
   switch (voiceName) {
     case 'pm':        return { voice: _pmVoice,                          rate: 0.92, pitch: 1.18, volume: 0.9  };
     case 'crew':      return { voice: female ? _pmVoice : _pfVoice,      rate: 0.92, pitch: 0.88, volume: 0.9  };
-    case 'narrator':  return { voice: _narratorVoice,                    rate: 0.95, pitch: 0.88, volume: 1.0  };
-    case 'narrator2': return { voice: _narrator2Voice,                   rate: 0.95, pitch: 1.08, volume: 1.0  };
+    case 'narrator':
+    case 'nar1':      return { voice: _narratorVoice,                    rate: 0.95, pitch: 0.88, volume: 1.0  };
+    case 'narrator2':
+    case 'nar2':      return { voice: _narrator2Voice,                   rate: 0.95, pitch: 1.08, volume: 1.0  };
     default:          return { voice: _atcVoice,                         rate: 1.00, pitch: 1.00, volume: 1.0  };
   }
 }

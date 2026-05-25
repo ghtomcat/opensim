@@ -2126,7 +2126,7 @@
   import { initOverhead, toggleOverhead, renderOverhead } from './display/overhead.js';
   import { initPedestal, togglePedestal, renderPedestal } from './display/pedestal.js';
   import { initSound, startSound, stopSound, startEngineLifecycle, stopEngineLifecycle, switchEngine, tickSound, getCurrentRpm, silenceAll, apDisconnectChime } from './core/sound.js';
-  import { initOutside, tickOutside, outsideInvalidate, setOutsideCamMode } from './display/outside.js';
+  import { initOutside, tickOutside, outsideInvalidate, setOutsideCamMode } from './display/outside.js?v=3';
   import { initKneeboard, toggleKneeboard, tickKneeboard } from './display/kneeboard.js';
   import { initMap, renderMap, toggleMap, showMap, hideMap, initVelisMap, hideVelisMap, initG1000Map, hideG1000Map } from './display/map.js';
   import { renderCislunar, renderMoonMap, resetCislunar } from './display/cislunar.js';
@@ -3998,8 +3998,13 @@
       }
       if (e.key === 'c' || e.key === 'C') {
         if (S.aircraft?.vehicleType === 'rocket') {
-          /* Saturn V has no booster cam (mode 5 uses F9 geometry) */
-          const rocketModes = S.aircraft?.id === 'saturn-v' ? [0, 1, 2, 4] : [0, 1, 2, 4, 5];
+          /* Saturn V has no booster cam (mode 5 uses F9 geometry).
+             Starship mode 5 = body cam (IFT-style side mount).
+             Starship adds ship cam (mode 6) when mission has reentryGuidance. */
+          const _hasShipCam = S.aircraft?.id === 'starship' && S.mission?.reentryGuidance;
+          const rocketModes = S.aircraft?.id === 'saturn-v' ? [0, 1, 2, 4]
+                            : _hasShipCam                   ? [0, 1, 2, 4, 5, 6]
+                            :                                 [0, 1, 2, 4, 5];
           const idx = rocketModes.indexOf(_outsideCamMode);
           _outsideCamMode = rocketModes[(idx + 1) % rocketModes.length];
         } else {
@@ -4540,6 +4545,16 @@
   function checkDebrief() {
     if (_debriefShown) return;
 
+    /* Rocket missions end on splashdown, not on alt/vs — landing burn slows
+       the ship to near-zero so vs < -100 is never met on a successful flight. */
+    if (S.aircraft?.vehicleType === 'rocket') {
+      if (S.starshipSplashdown || S.dragonSplashdown) {
+        _debriefShown = true;
+        setTimeout(() => showDebrief(false, 'MISSION COMPLETE'), 3000);
+      }
+      return;
+    }
+
     if (S.mission?.id === 'wolfskopf-1942') {
       const ePow    = S.enginePower ?? 1;
       const spd     = S.spd ?? 999;
@@ -4558,11 +4573,11 @@
     }
   }
 
-  function showDebrief(crashed = false) {
+  function showDebrief(crashed = false, title = null) {
     const el = document.getElementById('debrief');
-    el.querySelector('.debrief-title').textContent = crashed
+    el.querySelector('.debrief-title').textContent = title ?? (crashed
       ? `CRASH${S.crashReason ? ' — ' + S.crashReason : ''}`
-      : 'Debrief';
+      : 'Debrief');
 
     /* Approach score block */
     const sc = _computeApproachScore();

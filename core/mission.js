@@ -147,6 +147,11 @@ export async function loadMission(missionPath, aircraftPath) {
       dragonDrogue:        false,
       dragonMains:         false,
       dragonSplashdown:    false,
+      starshipSplashdown:  false,
+      starshipReentry:     false,
+      starshipBankAngle:   0,
+      starshipBodyPitch:   null,
+      starshipFlipStartT:  null,
     });
   }
 
