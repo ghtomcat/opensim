@@ -185,18 +185,26 @@ export function _buildRocket(rg) {
     E_.push([base, base+3], [base+3, base+2], [base+2, base+1]);
   }
 
-  /* Grid fins — `count` fins evenly distributed (default 4 at ±uR / ±rR) */
+  /* Grid fins — `count` fins evenly distributed.
+     Face normal = ±vF (axial): fin face is perpendicular to airflow.
+     From the side the fin appears as a thin radial line (edge-on), which is
+     aerodynamically correct — air flows axially through/against the face.
+     halfWidth controls tangential half-span; defaults to arm/2 for a square fin. */
   const gridFinFaceStart = F_.length;
   for (const fin of (rg.gridFins ?? [])) {
-    const { vFBot, vFTop, rBody, rTip, col = 3, count = 4 } = fin;
+    const { vFBot, vFTop, rBody, rTip, col = 3, count = 4, startAngle = 0 } = fin;
+    const vFMid = (vFBot + vFTop) / 2;
+    const arm   = rTip - rBody;
+    const halfW = fin.halfWidth ?? arm / 2;
     for (let fi = 0; fi < count; fi++) {
-      const a = (fi / count) * Math.PI * 2;
+      const a  = ((fi / count) + (startAngle / 360)) * Math.PI * 2;
       const sA = Math.sin(a), cA = Math.cos(a);
+      /* Tangential direction (⊥ to radial in the y-z plane) = (cA, -sA) in (vR, vU) */
       _addPanel([
-        [vFBot, rBody * sA, rBody * cA],
-        [vFTop, rBody * sA, rBody * cA],
-        [vFTop, rTip  * sA, rTip  * cA],
-        [vFBot, rTip  * sA, rTip  * cA],
+        [vFMid, rBody * sA - halfW * cA, rBody * cA + halfW * sA],  // inner-left
+        [vFMid, rBody * sA + halfW * cA, rBody * cA - halfW * sA],  // inner-right
+        [vFMid, rTip  * sA + halfW * cA, rTip  * cA - halfW * sA],  // outer-right
+        [vFMid, rTip  * sA - halfW * cA, rTip  * cA + halfW * sA],  // outer-left
       ], col);
     }
   }
@@ -206,15 +214,26 @@ export function _buildRocket(rg) {
     stageRanges[0].gridFinFaceEnd   = gridFinFaceEnd;
   }
 
-  /* Body flaps — 2 flaps each at ±uR or ±rR */
+  /* Body flaps — 2 flaps each at ±uR or ±rR
+     leadInset sweeps only the leading (forward) tip corner aft:
+       root edge runs the full vFBot→vFTop; tip leading corner at vFTop-leadInset.
+       (right-trapezoid shape: root full-length, tip slightly shorter at leading edge)
+     Vertex layout per panel: [0]=root-aft [1]=root-fore [2]=tip-fore [3]=tip-aft
+     Tip verts (2,3) are animated; root verts (0,1) stay fixed at rBody. */
+  const bodyFlapInfo = [];
   for (const flap of (rg.bodyFlaps ?? [])) {
-    const { vFBot, vFTop, rBody, rTip, axis = 'uR', col = 3 } = flap;
+    const { vFBot, vFTop, rBody, rTip, axis = 'uR', col = 3, leadInset = 0 } = flap;
+    const vFTopT = vFTop - leadInset;   // leading-edge vF at the tip (swept back)
     if (axis === 'uR') {
-      _addPanel([[vFBot,0,rBody],[vFTop,0,rBody],[vFTop,0,rTip],[vFBot,0,rTip]], col);
-      _addPanel([[vFBot,0,-rBody],[vFTop,0,-rBody],[vFTop,0,-rTip],[vFBot,0,-rTip]], col);
+      bodyFlapInfo.push({ base: V_.length, faceBase: F_.length, axis, dir: +1, rBody, rTip, vFBot, vFTop, vFTopT });
+      _addPanel([[vFBot,0,rBody],[vFTop,0,rBody],[vFTopT,0,rTip],[vFBot,0,rTip]], col);
+      bodyFlapInfo.push({ base: V_.length, faceBase: F_.length, axis, dir: -1, rBody, rTip, vFBot, vFTop, vFTopT });
+      _addPanel([[vFBot,0,-rBody],[vFTop,0,-rBody],[vFTopT,0,-rTip],[vFBot,0,-rTip]], col);
     } else {
-      _addPanel([[vFBot,rBody,0],[vFTop,rBody,0],[vFTop,rTip,0],[vFBot,rTip,0]], col);
-      _addPanel([[vFBot,-rBody,0],[vFTop,-rBody,0],[vFTop,-rTip,0],[vFBot,-rTip,0]], col);
+      bodyFlapInfo.push({ base: V_.length, faceBase: F_.length, axis, dir: +1, rBody, rTip, vFBot, vFTop, vFTopT });
+      _addPanel([[vFBot,rBody,0],[vFTop,rBody,0],[vFTopT,rTip,0],[vFBot,rTip,0]], col);
+      bodyFlapInfo.push({ base: V_.length, faceBase: F_.length, axis, dir: -1, rBody, rTip, vFBot, vFTop, vFTopT });
+      _addPanel([[vFBot,-rBody,0],[vFTop,-rBody,0],[vFTopT,-rTip,0],[vFBot,-rTip,0]], col);
     }
   }
 
@@ -233,7 +252,37 @@ export function _buildRocket(rg) {
     return { vF: cluster.vF, stage: cluster.stage ?? 1, rings: clRings };
   });
 
+  /* Heat shield — recolour the windward half (si ∈ [N/4, 3N/4)) of Ship body faces,
+     plus the outward face of windward body flap panels.
+     rg.heatShield: { fromRing, col }  fromRing defaults to stageSep[0]. */
+  if (rg.heatShield) {
+    const hs   = rg.heatShield;
+    const hsC  = hs.col ?? 4;
+    const riS  = hs.fromRing ?? (rg.stageSep?.[0] ?? 0);
+    const siA  = Math.floor(N / 4);
+    const siB  = Math.floor(3 * N / 4);
+    /* Body ring segments */
+    for (let ri = riS; ri < rings.length - 1; ri++)
+      for (let si = siA; si < siB; si++) FC_[ri * N + si] = hsC;
+    /* Nose tip fan — full 360° (S39 tiles wrap all the way around) */
+    if (tipIdx != null) {
+      const nBase = (rings.length - 1) * N;
+      for (let si = 0; si < N; si++) FC_[nBase + si] = hsC;
+    }
+    /* Body flap windward faces (-vU = belly direction).
+       rR axis: face 0 has normal +U (dir=+1) or -U (dir=-1). The belly face
+       (-U direction) is face 0 when dir=-1, face 1 when dir=+1.
+       uR axis: dir=-1 front face (faceBase) faces the camera from the side. */
+    for (const fi of bodyFlapInfo) {
+      if (fi.axis === 'rR') {
+        FC_[fi.dir === -1 ? fi.faceBase : fi.faceBase + 1] = hsC;
+      } else if (fi.axis === 'uR' && fi.dir === -1) {
+        FC_[fi.faceBase] = hsC;
+      }
+    }
+  }
+
   const FN_     = computeFaceNormals(V_, F_);
   const COLORS_ = rg.colors ?? [];
-  return { V_, F_, FC_, E_, FN_, COLORS_, rb, stageRanges, engineClusters, tipVIdx: tipIdx };
+  return { V_, F_, FC_, E_, FN_, COLORS_, rb, stageRanges, engineClusters, tipVIdx: tipIdx, bodyFlapInfo };
 }

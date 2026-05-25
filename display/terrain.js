@@ -267,7 +267,7 @@ function _isOcean(lat, lon) {
   return true;
 }
 
-export function renderTerrain(canvas, { outsideView = false, cxOverride = null } = {}) {
+export function renderTerrain(canvas, { outsideView = false, cxOverride = null, focalScale = 1 } = {}) {
   const W = canvas.width  = canvas.offsetWidth  * devicePixelRatio;
   const H = canvas.height = canvas.offsetHeight * devicePixelRatio;
   const ctx = canvas.getContext('2d');
@@ -286,7 +286,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null }
   const agl    = Math.max(1, (S.alt ?? 1000) - elevFt);
   const altNm  = agl * FT_NM;
 
-  const focal = (W / 2) / Math.tan(FOV_H / 2 * DEG);
+  const focal = (W / 2) / Math.tan(FOV_H / 2 * DEG) * focalScale;
   const cosP  = Math.cos(pitch), sinP = Math.sin(pitch);
   const cosR  = Math.cos(roll),  sinR = Math.sin(roll);
   const cosH  = Math.cos(hdg),   sinH = Math.sin(hdg);

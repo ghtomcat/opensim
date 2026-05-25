@@ -842,6 +842,7 @@ function _renderWorldMap(ctx, W, H, dpr) {
 
   /* In Keplerian orbit: always show the full globe */
   const inOrbit = !!(S.rocketOrbit);
+  const altKm   = (S.alt ?? 0) * 0.3048 / 1000;
 
   /* Compute target extent from track + launch + current */
   const allLats = [launchLat, curLat, ..._track.map(p => p.lat), ..._boosterTrack.map(p => p.lat)];
@@ -852,23 +853,43 @@ function _renderWorldMap(ctx, W, H, dpr) {
   const rawMinLon = Math.min(...allLons);
   const rawMaxLon = Math.max(...allLons);
 
-  /* Target window: fit the track with padding, minimum 10° lat × 16° lon.
-     When in orbit, show the full globe centred on 0°,0°.                 */
-  const tgtCLat    = inOrbit ? 0  : (rawMinLat + rawMaxLat) / 2;
-  const tgtCLon    = inOrbit ? 0  : (rawMinLon + rawMaxLon) / 2;
-  const tgtLatSpan = inOrbit ? 180 : Math.min(180, Math.max(rawMaxLat - rawMinLat + 6, 10));
-  const tgtLonSpan = inOrbit ? 360 : Math.min(360, Math.max(rawMaxLon - rawMinLon + 8, 16));
+  /* Landing-phase zoom: below 50 km on descent (track peak already exceeded 50 km).
+     Scales span 8° → 2° proportional to altitude, centred on current position.
+     Note: rocketOrbit is true even for suborbital trajectories after SECO, so we
+     do NOT gate on !inOrbit — altitude alone is the correct discriminator. */
+  const LAND_KM = 50;
+  const peakAlt = _track.reduce((m, p) => Math.max(m, p.alt ?? 0), 0);
+  const isLanding = altKm < LAND_KM && peakAlt > LAND_KM;
+
+  /* Target window — landing zoom takes priority over orbit-globe view */
+  let tgtCLat, tgtCLon, tgtLatSpan, tgtLonSpan;
+  if (isLanding) {
+    const t = Math.max(0, Math.min(1, altKm / LAND_KM));
+    tgtLatSpan = 2.0 + t * 6.0;        // 2° at 0 km → 8° at 50 km
+    tgtLonSpan = tgtLatSpan * 1.6;
+    tgtCLat = curLat;
+    tgtCLon = curLon;
+  } else if (inOrbit) {
+    tgtCLat = 0; tgtCLon = 0; tgtLatSpan = 180; tgtLonSpan = 360;
+  } else {
+    tgtCLat    = (rawMinLat + rawMaxLat) / 2;
+    tgtCLon    = (rawMinLon + rawMaxLon) / 2;
+    tgtLatSpan = Math.min(180, Math.max(rawMaxLat - rawMinLat + 6, 10));
+    tgtLonSpan = Math.min(360, Math.max(rawMaxLon - rawMinLon + 8, 16));
+  }
 
   /* Reset on mission change */
   if (_dispCLat === null) { _dispCLat = tgtCLat; _dispCLon = tgtCLon;
                             _dispLatSpan = tgtLatSpan; _dispLonSpan = tgtLonSpan; }
 
-  /* Smooth lerp toward target — zoom out fast, zoom in slow */
-  const k = tgtLonSpan > _dispLonSpan ? 0.06 : 0.02;
-  _dispCLat    += (tgtCLat    - _dispCLat)    * k;
-  _dispCLon    += (tgtCLon    - _dispCLon)    * k;
-  _dispLatSpan += (tgtLatSpan - _dispLatSpan) * k;
-  _dispLonSpan += (tgtLonSpan - _dispLonSpan) * k;
+  /* Smooth lerp toward target — zoom out fast, zoom in slow.
+     During landing phase: faster centre tracking (vehicle moving quickly). */
+  const kCentre = isLanding ? 0.12 : (tgtLonSpan > _dispLonSpan ? 0.06 : 0.02);
+  const kSpan   = tgtLonSpan > _dispLonSpan ? 0.06 : 0.02;
+  _dispCLat    += (tgtCLat    - _dispCLat)    * kCentre;
+  _dispCLon    += (tgtCLon    - _dispCLon)    * kCentre;
+  _dispLatSpan += (tgtLatSpan - _dispLatSpan) * kSpan;
+  _dispLonSpan += (tgtLonSpan - _dispLonSpan) * kSpan;
 
   const cLat    = _dispCLat;
   const cLon    = _dispCLon;

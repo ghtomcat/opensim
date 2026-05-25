@@ -78,11 +78,13 @@ const _COLORS = [
 
 let _canvas    = null;
 let _camMode   = 0;
-let _finAngle  = 0;   // grid fin fold: 0 = stowed aft, Math.PI/2 = deployed
+let _finAngle    = 0;            // F9 grid fin fold: 0 = stowed aft, Math.PI/2 = deployed
+let _ssFlapAngle = Math.PI / 2;  // Starship body flap: π/2 = extended (static geometry)
 
 let _orbitAz    = 0;     // side-cam orbit azimuth (degrees, 0 = starboard)
 let _orbitEl    = 12;    // elevation above horizontal (degrees, +12 = slightly above)
 let _orbitZoom  = 1.0;   // side-cam zoom multiplier (1 = auto-fit; >1 = farther out)
+let _bodyCamZoom = 1.0;  // body-cam optical zoom (1 = native FOV)
 let _orbitDragX = null;  // non-null while drag is active
 let _orbitDragY = null;
 
@@ -102,19 +104,22 @@ export function initOutside() {
   });
   window.addEventListener('mouseup', () => { _orbitDragX = null; _orbitDragY = null; });
 
-  /* Wheel / trackpad gestures in side cam and chase cam. */
+  /* Wheel / trackpad gestures in side cam, chase cam, ship cam, and body cam. */
   window.addEventListener('wheel', e => {
-    if (_camMode !== 1 && _camMode !== 2) return;
+    if (_camMode !== 1 && _camMode !== 2 && _camMode !== 5 && _camMode !== 6) return;
     e.preventDefault();
-    /* Full orbit always available in side cam: scroll = zoom, drag = orbit */
-    _orbitZoom = Math.max(0.02, Math.min(10, _orbitZoom * Math.exp(e.deltaY * 0.015)));
-    _orbitAz   = ((_orbitAz - e.deltaX * 0.35) % 360 + 360) % 360;
+    if (_camMode === 5) {
+      _bodyCamZoom = Math.max(0.5, Math.min(8, _bodyCamZoom * Math.exp(e.deltaY * 0.015)));
+    } else {
+      _orbitZoom = Math.max(0.02, Math.min(10, _orbitZoom * Math.exp(e.deltaY * 0.015)));
+      if (_camMode !== 6) _orbitAz = ((_orbitAz - e.deltaX * 0.35) % 360 + 360) % 360;
+    }
   }, { passive: false });
 
   /* 0 key: reset orbit + zoom to default while paused */
   window.addEventListener('keydown', e => {
-    if (e.key === '0' && S.paused && (_camMode === 1 || _camMode === 2)) {
-      _orbitAz = 0; _orbitEl = 12; _orbitZoom = 1;
+    if (e.key === '0' && S.paused && (_camMode === 1 || _camMode === 2 || _camMode === 5 || _camMode === 6)) {
+      _orbitAz = 0; _orbitEl = 12; _orbitZoom = 1; _bodyCamZoom = 1;
     }
   });
 }
@@ -140,14 +145,79 @@ export function tickOutside() {
   else if (_camMode === 2) _renderSideCam(_canvas);
   else if (_camMode === 3) _renderWingView(_canvas);
   else if (_camMode === 4) _renderPlumeCam(_canvas);
-  else if (_camMode === 5) _renderBoosterCam(_canvas);
+  else if (_camMode === 5) {
+    if (S.aircraft?.id === 'starship') _renderSSBodyCam(_canvas);
+    else _renderBoosterCam(_canvas);
+  }
+  else if (_camMode === 6) _renderShipCam(_canvas);
   else                     renderTerrain(_canvas);
+}
+
+/* ── Starship reentry plasma sheath overlay ───────────────────────
+   Draws ionised-air glow after terrain but before the wireframe.
+   Active 80→10 km after SECO.  Real hypersonic plasma is pink/magenta
+   (ionised N₂/O₂), not orange.  Side cam gets an elongated ellipse
+   spanning the full belly; chase cam gets a circular halo. */
+function _drawSSReentryPlasma(canvas, cx, cy, camBackNm, bellySide = false) {
+  if (S.aircraft?.id !== 'starship' || !S.rocketSECO) return;
+  const altKm = (S.alt ?? 0) * 0.0003048;
+  if (altKm < 10 || altKm > 80) return;
+
+  const heat = Math.min(1, (altKm - 10) / 45);  // 0 at 10 km, 1 at 55 km
+  const W = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d');
+  ctx.save();
+
+  if (bellySide) {
+    /* Side cam: elongated ellipse along body axis, biased toward belly.
+       Screen-fraction sizing is immune to wireframe auto-fit scaling.  */
+    const halfLen = W * 0.28 * heat;
+    const halfWid = H * 0.09 * heat;
+    if (halfLen < 2 || halfWid < 2) { ctx.restore(); return; }
+    const bellyOff = H * 0.04;
+    ctx.translate(cx, cy + bellyOff);
+    ctx.scale(halfLen / halfWid, 1);           // stretch circle → ellipse
+
+    const cA = 0.55 + heat * 0.30;
+    const g  = ctx.createRadialGradient(0, 0, halfWid * 0.10, 0, 0, halfWid);
+    g.addColorStop(0,    `rgba(255,240,255,${cA.toFixed(2)})`);
+    g.addColorStop(0.20, `rgba(255,130,210,${(cA * 0.75).toFixed(2)})`);
+    g.addColorStop(0.45, `rgba(230,50,160,${(cA * 0.40).toFixed(2)})`);
+    g.addColorStop(0.72, 'rgba(180,10,100,0.08)');
+    g.addColorStop(1,    'rgba(140,0,60,0)');
+
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, halfWid, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    /* Chase cam: circular halo centred on body.                        */
+    const focal  = (W / 2) / Math.tan(FOV_H / 2 * DEG);
+    const bodyR  = Math.max(8 * devicePixelRatio, 0.00243 / camBackNm * focal);
+    const outerR = Math.max(bodyR * 8, H * 0.16 * heat);
+
+    const cA = 0.52 + heat * 0.35;
+    const g  = ctx.createRadialGradient(cx, cy, bodyR * 0.4, cx, cy, outerR);
+    g.addColorStop(0,    `rgba(255,240,255,${cA.toFixed(2)})`);
+    g.addColorStop(0.20, `rgba(255,130,210,${(cA * 0.70).toFixed(2)})`);
+    g.addColorStop(0.48, `rgba(230,50,160,${(cA * 0.32).toFixed(2)})`);
+    g.addColorStop(0.76, 'rgba(180,10,100,0.06)');
+    g.addColorStop(1,    'rgba(140,0,60,0)');
+
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
 }
 
 /* ── Chase cam ────────────────────────────────────────────────── */
 function _renderChaseCam(canvas) {
   const hdgRad = (S.hdg  ?? 0) * DEG;
-  const acP    =  S.pitch ?? 0;
+  const _isSS  = S.aircraft?.id === 'starship';
+  const acP    = (_isSS && S.rocketSECO) ? (S.starshipBodyPitch ?? S.pitch ?? 0) : (S.pitch ?? 0);
   const acR    = S.aircraft?.vehicleType === 'rocket' ? (S.rocketRoll ?? 0) : (S.roll ?? 0);
   const cosLat = Math.cos((S.lat ?? 47) * DEG);
 
@@ -174,10 +244,15 @@ function _renderChaseCam(canvas) {
   S.lon   = (S.lon??8)    + dE / (60 * cosLat);
   S.alt   = (S.alt??3000) + _groundOffsetFt() + camUpZ / FT_NM;
   S.hdg   = ((_orbitAz + 180) % 360 + 360) % 360;
-  S.pitch = Math.atan2(-camUpZ, camBackZ) / DEG;  /* angle unchanged, zoom cancels */
+  const _chasePitch = Math.atan2(-camUpZ, camBackZ) / DEG;
+  S.pitch = _chasePitch;
   S.roll  = 0;
+  const _tcCLat = S.lat, _tcCLon = S.lon, _tcCAlt = S.alt, _tcCHdg = S.hdg;
   renderTerrain(canvas, { outsideView: true, cxOverride: _cxC });
   S.lat=sL;S.lon=sLo;S.alt=sA;S.pitch=sP;S.roll=sR;S.hdg=sH;
+
+  const W = canvas.width, H = canvas.height;
+  _drawOrbitalClouds(canvas.getContext('2d'), W, H, _chasePitch, _tcCAlt, _tcCLat, _tcCLon, _tcCHdg);
 
   const _useWowPitchC = S.wow && S.aircraft?.vehicleType !== 'rocket';
   _drawWireframe(canvas, _useWowPitchC ? 0 : acP, (_useWowPitchC ? 0 : acR) + _orbitAz, camBack, camUp, 0);
@@ -187,7 +262,8 @@ function _renderChaseCam(canvas) {
 /* ── Side cam (starboard) ─────────────────────────────────────── */
 function _renderSideCam(canvas) {
   const hdgRad   = (S.hdg  ?? 0) * DEG;
-  const acP      =  S.pitch ?? 0;
+  const _isSS    = S.aircraft?.id === 'starship';
+  const acP      = (_isSS && S.rocketSECO) ? (S.starshipBodyPitch ?? S.pitch ?? 0) : (S.pitch ?? 0);
   const acR      = S.aircraft?.vehicleType === 'rocket' ? (S.rocketRoll ?? 0) : (S.roll ?? 0);
   const cosLat   = Math.cos((S.lat ?? 47) * DEG);
   const rightRad = hdgRad + Math.PI / 2;
@@ -230,10 +306,15 @@ function _renderSideCam(canvas) {
   S.alt   = (S.alt??3000) + _groundOffsetFt() + (sideUp + vElev) / FT_NM;
   S.hdg   = S.wow ? ((terrainOrbit + 180) % 360 + 360) % 360
                   : ((S.hdg??0) - 90 - terrainOrbit + 360) % 360;
-  S.pitch = Math.atan2(-(sideUp + vElev), hDist) / DEG;
+  const _sidePitch = Math.atan2(-(sideUp + vElev), hDist) / DEG;
+  S.pitch = _sidePitch;
   S.roll  = 0;
+  const _tcSLat = S.lat, _tcSLon = S.lon, _tcSAlt = S.alt, _tcSHdg = S.hdg;
   renderTerrain(canvas, { outsideView: true, cxOverride: _cxS });
   S.lat=sL;S.lon=sLo;S.alt=sA;S.hdg=sH;S.pitch=sP;S.roll=sR;
+
+  const W = canvas.width, H = canvas.height;
+  _drawOrbitalClouds(canvas.getContext('2d'), W, H, _sidePitch, _tcSAlt, _tcSLat, _tcSLon, _tcSHdg);
 
   /* Wireframe: _orbitAz rolls the model, _orbitEl tilts the camera. Terrain untouched. */
   const _useWowPitch = S.wow && S.aircraft?.vehicleType !== 'rocket';
@@ -432,6 +513,8 @@ let _fanAngle = 0;
    because ES module exports cannot be reassigned by importers. */
 let _svSepLastAcId = null;
 let _svSepPrevStage = 1;
+let _rktSepLastAcId = null;
+let _rktSepPrevStage = 1;
 /* Rocket geometry cache for Starship / data-driven rocket vehicles */
 const _ssRocketCache_mut = {};
 
@@ -967,6 +1050,10 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         if (vF < -0.006 && _afStage >= 2) continue;               // S-IC aft separated
       }
       if (isF9 && _afStage >= 2 && _vi < 48) continue;            // F9 first stage separated
+      if (isSS && _afStage >= 2 && _ssGeo?.stageRanges?.[0]) {
+        const _sepVF = _ssGeo.V_[_ssGeo.stageRanges[0].faceEnd]?.[0] ?? 0.013;
+        if (vF < _sepVF) continue;                                // SS booster + grid fin verts
+      }
       let fP, rR, uR;
       if (isBodyRoll) {
         const vR2 =  vR * cosR - vU * sinR;
@@ -1012,12 +1099,32 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     const halfCR   = (maxCR - minCR) / 2;
     const halfCU   = (maxCU - minCU) / 2;
     const d = Math.max(halfCR * PAD / Math.tan(hfH), halfCU * PAD / Math.tan(hfV));
-    if (camSide > 0) { camSide = d * _orbitZoom; }
-    else              { camBack = d * _orbitZoom; camUp = d * _orbitZoom * 0.18; }
-    /* Shift cx/cy so the rocket centre lands at the viewport centre */
-    const _camD = camSide > 0 ? camSide : camBack;
-    cx -= pivotCR * focal / _camD;
-    cy += pivotCU * focal / _camD;
+    if (camSide > 0) {
+      const _origCamSide = camSide;
+      camSide = d * _orbitZoom;
+      /* Keep elevation angle constant through auto-fit: if camUp >> camSide (e.g.
+         rocket at high altitude), the camera pitch goes nearly vertical and the
+         body cross-section compresses to sub-pixel height.  Scale camUp with the
+         same factor so the wireframe elevation stays at the intended angle. */
+      camUp = camUp * (camSide / _origCamSide);
+      /* Perspective-correct centering: at high altitude camUp >> camSide so the
+         camera pitch is nearly vertical.  The naive pivotCU/camSide approximation
+         breaks and the rocket drifts off-centre as _orbitZoom changes.  Project
+         the pivot through the full tilt transform instead. */
+      const _afCuW = pivotCU - camUp;
+      const _afCp  = Math.atan2(-camUp, camSide);
+      const _afCos = Math.cos(_afCp), _afSin = Math.sin(_afCp);
+      const _afCf  = camSide * _afCos + _afCuW * _afSin;
+      const _afCu  = _afCuW  * _afCos - camSide * _afSin;
+      cx -= pivotCR / _afCf * focal;
+      cy += _afCu   / _afCf * focal;
+    } else {
+      camBack = d * _orbitZoom;
+      camUp   = d * _orbitZoom * 0.18;
+      const _camD = camBack;
+      cx -= pivotCR * focal / _camD;
+      cy += pivotCU * focal / _camD;
+    }
 
     /* ── Auto-director: blend camSide (zoom) + cy (look-at shift) ── */
     if (isSV && camSide > 0) {
@@ -1048,9 +1155,9 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   /* Camera direction in body frame [fP, rR, uR] — from surface toward camera.
      Used for cockpit-panel backface culling, which needs 3D normals because
      the 2D cross-product sign flips at orbit elevations (wrong-side panel bleeds). */
-  const _cpCamF = camSide > 0 ? -sinEl * cosP : -1;
+  const _cpCamF = camSide > 0 ?  sinEl * sinP  : -1;
   const _cpCamR = camSide > 0 ?  cosEl         :  0;
-  const _cpCamU = camSide > 0 ?  sinEl * sinP  :  0;
+  const _cpCamU = camSide > 0 ?  sinEl * cosP  :  0;
 
   /* Project body-frame vertex → { x, y, d } (d = cam fwd depth for sorting) */
   function project([vF, vR, vU]) {
@@ -1067,9 +1174,9 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
 
     /* Elevation orbit: tilt the scene up/down around the camera horizontal axis */
     if (orbitElDeg !== 0 && camSide > 0) {
-      const fP2 = fP * cosEl + rR * sinEl;
-      rR = -fP * sinEl + rR * cosEl;
-      fP = fP2;
+      const rR2 = rR * cosEl + uR * sinEl;
+      uR = -rR * sinEl + uR * cosEl;
+      rR = rR2;
     }
 
     let cfW, crW, cuW;
@@ -1233,6 +1340,51 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         animHinge(verts, [_bL+225], r2,      +sa, 'z', _wbV);  // L 0.50 TE
         animHinge(verts, [_bL+227], r3,      +sa, 'z', _wbV);  // L 0.75 TE
         animHinge(verts, [_bL+231], r_sp_hs, +sa, 'z', _wbV);  // L break TE
+      }
+    }
+  }
+  if (isSS && _ssGeo?.bodyFlapInfo?.length) {
+    /* Body flap hinge. θ=π/2 → static geometry (perpendicular to body, launch position).
+       θ=2π/3 → reentry drag: tips angled forward and further out.
+       Tip verts (base+2, base+3) rotate about root edge; root verts fixed at rBody. */
+
+    /* Flap load test — rapid oscillation between the times of the "flap load test"
+       ATC callouts in the mission (scan once per render; negligible cost). */
+    let _flapTestT0 = 0, _flapTestT1 = 0;
+    for (const c of S.mission?.atcClearances ?? []) {
+      if (c.text?.includes('flap load test')) {
+        if (c.text.includes('started'))  _flapTestT0 = c.t;
+        else if (c.text.includes('complete')) _flapTestT1 = c.t;
+      }
+    }
+    const _simT = S.time ?? 0;
+    const isLoadTest = _flapTestT0 > 0 && _simT >= _flapTestT0 && _simT <= _flapTestT1;
+
+    let flapTarget;
+    let trackRate;
+    if (isLoadTest) {
+      /* Oscillate ±25° around the reentry hold position at ~5 cycles over 30 s */
+      const testPhase = (_simT - _flapTestT0) / Math.max(1, _flapTestT1 - _flapTestT0);
+      flapTarget = Math.PI * 2 / 3 + Math.sin(testPhase * Math.PI * 10) * (Math.PI / 7.2);
+      trackRate  = 0.25;  // snap fast so oscillation is visible
+    } else {
+      flapTarget = ((S.rocketStage ?? 1) >= 2 && (S.rocketSECO ?? false))
+        ? Math.PI * 2 / 3 : Math.PI / 2;
+      trackRate  = 0.015;
+    }
+    _ssFlapAngle += (flapTarget - _ssFlapAngle) * trackRate;
+    if (verts === V_) verts = V_.map(v => v.slice());
+    const _fsa = Math.sin(_ssFlapAngle), _fca = Math.cos(_ssFlapAngle);
+    for (const fi of _ssGeo.bodyFlapInfo) {
+      const arm  = fi.rTip - fi.rBody;
+      const rOut = (fi.rBody + arm * _fsa) * fi.dir;
+      const vFTipFore = fi.vFTopT ?? fi.vFTop;  // tip leading edge (inset from root)
+      if (fi.axis === 'uR') {
+        verts[fi.base + 2] = [vFTipFore - arm * _fca, 0, rOut];
+        verts[fi.base + 3] = [fi.vFBot  - arm * _fca, 0, rOut];
+      } else {
+        verts[fi.base + 2] = [vFTipFore - arm * _fca, rOut, 0];
+        verts[fi.base + 3] = [fi.vFBot  - arm * _fca, rOut, 0];
       }
     }
   }
@@ -1406,6 +1558,17 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     _dir._tliWas = tliNow;
   }
 
+  /* Detect F9 / Starship stage separation — snap zoom to active stage */
+  if (isF9 || isSS) {
+    if (_rktSepLastAcId !== S.aircraft?.id) {
+      _rktSepLastAcId  = S.aircraft?.id;
+      _rktSepPrevStage = rStage;
+    } else if (rStage > _rktSepPrevStage) {
+      _rktSepPrevStage = rStage;
+      _orbitZoom = 1;
+    }
+  }
+
   const hasLM = isSV && ((S.sivbSep ?? false) || _inTDSep) && !!(S.mission?.hasLM);
   const lmPts = (hasLM && !_inTDSep) ? _V_lm.map(project) : null;
 
@@ -1438,6 +1601,38 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       return [rvF + bOffF, vR + bOffR, rvU + bOffU];
     });
     bPts = bVerts.map(project);
+  }
+
+  /* Starship Super Heavy booster — fall-away / flip / recovery rendering */
+  let ssBPts = null, ssCosdP = 1, ssSindP = 0;
+  if (isSS && rStage >= 2 && S.booster?.active && _ssGeo?.V_) {
+    const b      = S.booster;
+    const cosLat = Math.cos((S.lat ?? 0) * DEG);
+    const dN     = ((b.lat ?? 0) - (S.lat ?? 0)) * 60;
+    const dE     = ((b.lon ?? 0) - (S.lon ?? 0)) * 60 * cosLat;
+    const dUp    = ((b.alt ?? 0) - (S.alt ?? 0)) * FT_NM;
+    const cosH   = Math.cos((S.hdg ?? 0) * DEG);
+    const sinH   = Math.sin((S.hdg ?? 0) * DEG);
+    const dFwdH  = dN * cosH + dE * sinH;
+    const dRtH   = -dN * sinH + dE * cosH;
+    const bOffF  = dFwdH * cosP + dUp * sinP;
+    const bOffR  = dRtH;
+    const bOffU  = -dFwdH * sinP + dUp * cosP;
+    const rec    = S.aircraft?.performance?.recovery ?? {};
+    const phAge  = (S.time ?? 0) - (b.phaseStartT ?? 0);
+    const latePhases = ['boostback', 'coast', 'entry', 'glide', 'landing'];
+    const dPDeg  = b.phase === 'flip'
+      ? 180 * Math.min(1, phAge / (rec.flipDuration ?? 18))
+      : latePhases.includes(b.phase) ? 180 : 0;
+    const dP2    = dPDeg * DEG;
+    ssCosdP      = Math.cos(dP2);
+    ssSindP      = Math.sin(dP2);
+    const ssBVerts = _ssGeo.V_.map(([vF, vR, vU]) => {
+      const rvF = vF * ssCosdP - vU * ssSindP;
+      const rvU = vF * ssSindP + vU * ssCosdP;
+      return [rvF + bOffF, vR + bOffR, rvU + bOffU];
+    });
+    ssBPts = ssBVerts.map(project);
   }
 
   const _DBG_CULL   = false;  // ← set true to paint front=blue, back=red
@@ -1497,7 +1692,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       const nU2 = vn1 * sinR + vn2 * cosR;
       const fPn = vn0 * cosP - nU2 * sinP;
       let   rWn = nR2;
-      if (orbitElDeg !== 0 && camSide > 0) rWn = -fPn * sinEl + rWn * cosEl;
+      if (orbitElDeg !== 0 && camSide > 0) { const uWn = nU2 * cosP + vn0 * sinP; rWn = rWn * cosEl + uWn * sinEl; }
       isBackFace = camSide > 0 ? rWn < 0 : fPn > 0;
     } else {
       const p0 = ps[0], p1 = ps[1], p2 = ps[2];
@@ -1572,6 +1767,52 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
   }
 
+  /* Starship Super Heavy booster faces — SH body + grid fins + end caps */
+  if (ssBPts && _ssGeo) {
+    const sr0  = _ssGeo.stageRanges?.[0];
+    const fEnd = sr0?.faceEnd          ?? 0;
+    const gfS  = sr0?.gridFinFaceStart ?? fEnd;
+    const gfE  = sr0?.gridFinFaceEnd   ?? fEnd;
+    const _ssRg   = S.aircraft?.rocketGeometry;
+    const _nSidesB = _ssRg?.nSides ?? 16;
+    const _sepRiB  = (_ssRg?.stageSep ?? [])[0] ?? 5;
+    /* Top cap — sep plane ring, covers the open top where Ship pulled away */
+    if (_ssGeo.rb && _sepRiB < _ssGeo.rb.length) {
+      const _topPts = [];
+      for (let si = 0; si < _nSidesB; si++) _topPts.push(ssBPts[_ssGeo.rb[_sepRiB] + si]);
+      if (!_topPts.some(p => !p)) {
+        const _topD = _topPts.reduce((s,p)=>s+p.d,0)/_nSidesB;
+        faces.push({ ps: _topPts, br: 0.10, avgD: _topD, col: _ssGeo.COLORS_[1] ?? [200,205,210] });
+      }
+    }
+    for (let i = 0; i < _ssGeo.F_.length; i++) {
+      if (i >= fEnd && !(i >= gfS && i < gfE)) continue;
+      const fi = _ssGeo.F_[i];
+      const ps = fi.map(vi => ssBPts[vi]);
+      if (ps.some(p => !p)) continue;
+      const p0=ps[0], p1=ps[1], p2=ps[2];
+      if ((p1.x-p0.x)*(p2.y-p0.y)-(p1.y-p0.y)*(p2.x-p0.x) < 0) continue;
+      const [nF, nR, nU] = _ssGeo.FN_[i];
+      const rnF = nF * ssCosdP - nU * ssSindP;
+      const rnU = nF * ssSindP + nU * ssCosdP;
+      const [wF, wR, wU] = rotateNormal([rnF, nR, rnU]);
+      const br   = litBr(wF, wR, wU, 0.18);
+      const avgD = ps.reduce((s,p) => s+p.d, 0) / ps.length;
+      const col  = _ssGeo.COLORS_[_ssGeo.FC_[i]];
+      if (col) faces.push({ ps, br, avgD, col });
+    }
+    /* Aft disc cap (engine side, ring 0) — plugs the open base when booster flips */
+    const _ssN0 = _ssGeo.rb?.[0];
+    if (_ssN0 != null) {
+      const _aftPts = [];
+      for (let si = 0; si < _nSidesB; si++) _aftPts.push(ssBPts[_ssN0 + si]);
+      if (!_aftPts.some(p => !p)) {
+        const _aftD = _aftPts.reduce((s,p)=>s+p.d,0)/_nSidesB;
+        faces.push({ ps: _aftPts, br: 0.12, avgD: _aftD, col: _ssGeo.COLORS_[0] ?? [130,135,145] });
+      }
+    }
+  }
+
   /* Cryogenic effects — LOX vent + tank vapor (ground gas closeout phase).
      Venting represents strongback/GSE line disconnects before ignition.   */
   if (isF9 && (S.spd ?? 0) < 5) {
@@ -1643,9 +1884,9 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
 
       /* Apply orbit elevation rotation (same as project()) */
       if (orbitElDeg !== 0 && camSide > 0) {
-        const fP2 = mF * cosEl + mR * sinEl;
-        mR = -mF * sinEl + mR * cosEl;
-        mF = fP2;
+        const mR2 = mR * cosEl + mU * sinEl;
+        mU = -mR * sinEl + mU * cosEl;
+        mR = mR2;
       }
 
       /* Camera-space depth and horizontal for a direction vector at infinity */
@@ -1722,11 +1963,11 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       grad.addColorStop(0.60, 'rgba( 50, 90,210,0.12)');
       grad.addColorStop(1.0,  'rgba(  0,  0,  0,0.00)');
     } else if (style === 'ch4') {
-      /* Methane/LOX (Raptor) — clean pale cream-white, less orange than RP-1 */
-      grad.addColorStop(0,    `rgba(255,252,235,${(0.92 * flick).toFixed(2)})`);
-      grad.addColorStop(0.08, 'rgba(255,230,170,0.75)');
-      grad.addColorStop(0.25, 'rgba(210,170, 90,0.38)');
-      grad.addColorStop(0.55, 'rgba(120, 80, 20,0.14)');
+      /* Methane/LOX (Raptor) — near-white, no orange/soot; cool grey fade */
+      grad.addColorStop(0,    `rgba(255,255,248,${(0.92 * flick).toFixed(2)})`);
+      grad.addColorStop(0.08, 'rgba(255,250,225,0.65)');
+      grad.addColorStop(0.25, 'rgba(220,228,225,0.28)');
+      grad.addColorStop(0.55, 'rgba(160,178,185,0.09)');
       grad.addColorStop(1.0,  'rgba(  0,  0,  0,0.00)');
     } else {
       grad.addColorStop(0,    `rgba(255,240,160,${(0.88 * flick).toFixed(2)})`);
@@ -1771,7 +2012,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       /* Plume origin at engine plane, scaled by cluster's outermost ring radius */
       const outerR = cluster.rings[cluster.rings.length - 1]?.radius ?? 0.002;
       const pNoz = project([cluster.vF, 0, 0]);
-      if (pNoz) _drawPlume(pNoz, outerR, [cluster.vF, 0, 0], 0.022, 1.8 * _engFrac, 'ch4');
+      if (pNoz) _drawPlume(pNoz, outerR, [cluster.vF, 0, 0], 0.014, 1.8 * _engFrac, 'ch4');
     }
   }
 
@@ -1984,7 +2225,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
      nozzleR (exit radius), nozzleLen.  Renders 6-sided frustum per bell. */
   if (isSS && _ssGeo) {
     const nNoz = 6;  // hexagon cross-section — lighter than 8
-    const raptorOn = pastIgnition && !S.rocketCoast && !S.rocketSECO;
+    const raptorOn = pastIgnition && !S.rocketCoast && (!S.rocketSECO || !!S.starshipFlipStartT);
     for (const cluster of (_ssGeo.engineClusters ?? [])) {
       if (rStage >= 2 && cluster.stage < 2) continue;  // SH cluster hidden after sep
       for (const ring of cluster.rings) {
@@ -2466,6 +2707,13 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     _pushMain(+1); _pushMain(-1);
   }
 
+  /* Starship reentry plasma — drawn after auto-fit so (cx,cy) is the correct
+     body centre on screen, before faces so the wireframe renders on top.    */
+  if (isSS) {
+    if (camSide > 0) _drawSSReentryPlasma(canvas, cx, cy, camSide, true);
+    else             _drawSSReentryPlasma(canvas, cx, cy, camBack, false);
+  }
+
   /* Painter's algorithm: farthest first */
   faces.sort((a, b) => b.avgD - a.avgD);
 
@@ -2926,21 +3174,23 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
      Returns the camera-depth derivative of the vertex normal: negative = faces toward camera. */
   function edgeCamDir(vi) {
     const [nF, nR, nU] = VN_[vi];
-    let fP, rW;
+    let fP, rW, uW;
     if (isBodyRoll) {
       const nR2 = nR * cosR - nU * sinR;
       const nU2 = nR * sinR + nU * cosR;
       fP = nF * cosP - nU2 * sinP;
       rW = nR2;
+      uW = nF * sinP + nU2 * cosP;
     } else {
       fP = nF * cosP - nU * sinP;
       const uP = nF * sinP + nU * cosP;
       rW = nR * cosR + uP * sinR;
+      uW = -nR * sinR + uP * cosR;
     }
     if (orbitElDeg !== 0 && camSide > 0) {
-      const fP2 = fP * cosEl + rW * sinEl;
-      rW = -fP * sinEl + rW * cosEl;
-      fP = fP2;
+      const rW2 = rW * cosEl + uW * sinEl;
+      uW = -rW * sinEl + uW * cosEl;
+      rW = rW2;
     }
     return camSide > 0 ? -rW : fP;
   }
@@ -3356,12 +3606,12 @@ ctx.save();
       const vR2 = vR_ * cosO - vU_ * sinO;
       const vU2 = vR_ * sinO + vU_ * cosO;
       let   fP  = vF * cosP - vU2 * sinP;
-      const uR  = vF * sinP + vU2 * cosP;
+      let   uR  = vF * sinP + vU2 * cosP;
       let   vR3 = vR2;
       if (orbitElDeg !== 0) {
-        const fP2 = fP * cosEl + vR2 * sinEl;
-        vR3 = -fP * sinEl + vR2 * cosEl;
-        fP  = fP2;
+        const vR4 = vR3 * cosEl + uR * sinEl;
+        uR  = -vR3 * sinEl + uR * cosEl;
+        vR3 = vR4;
       }
       const cfW = camSide > 0 ? camSide - vR3 : camBack + fP;
       const crW = camSide > 0 ? fP : vR3;
@@ -3685,7 +3935,7 @@ ctx.save();
   /* ── Starbase OLP + Mechazilla tower + catch arms ──────────────── */
   if (isSS) {
     const riseNm   = _svRise;
-    if (riseNm < 0.150) {
+    if (riseNm < 0.150 && !S.rocketSECO) {
       const padAlpha = Math.min(1, Math.max(0, (0.150 - riseNm) / 0.100));
       const _r       = 0.00243;
       const _vFbase  = -0.025;
@@ -3697,12 +3947,12 @@ ctx.save();
         const vR2 = vR_ * cosO - vU_ * sinO;
         const vU2 = vR_ * sinO + vU_ * cosO;
         let   fP  = vF * cosP - vU2 * sinP;
-        const uR  = vF * sinP + vU2 * cosP;
+        let   uR  = vF * sinP + vU2 * cosP;
         let   vR3 = vR2;
         if (orbitElDeg !== 0) {
-          const fP2 = fP * cosEl + vR2 * sinEl;
-          vR3 = -fP * sinEl + vR2 * cosEl;
-          fP  = fP2;
+          const vR4 = vR3 * cosEl + uR * sinEl;
+          uR  = -vR3 * sinEl + uR * cosEl;
+          vR3 = vR4;
         }
         const cfW = camSide > 0 ? camSide - vR3 : camBack + fP;
         const crW = camSide > 0 ? fP : vR3;
@@ -3947,6 +4197,47 @@ ctx.save();
         }
       }
     } // riseNm < 0.150
+
+    /* ── Landing steam — Raptor plume hits water, reuses liftoff cloud style ── */
+    if (S.starshipFlipStartT && !S.starshipSplashdown && rStage >= 2) {
+      const sinceFlip  = Math.max(0, (S.time ?? 0) - S.starshipFlipStartT);
+      const growFactor = Math.min(1, sinceFlip / 3.5);
+      const steamAlpha = growFactor * 0.72;
+      if (steamAlpha > 0.01) {
+        const _r    = 0.00243;
+        const engPt = project([0.013, 0, 0]);   // ship Raptor cluster — bottom after flip
+        if (engPt) {
+          const dist  = camSide > 0 ? camSide : camBack;
+          const steamR = growFactor * _r * 10 * focal / Math.max(0.01, dist);
+          /* Two puffs flanking the engine cluster (left/right), same as liftoff trench sides */
+          for (const off of [-1, +1]) {
+            const pPt = project([0.013, off * _r * 1.5, 0]) ?? engPt;
+            const g1 = ctx.createRadialGradient(pPt.x, pPt.y, 0, pPt.x, pPt.y, steamR);
+            g1.addColorStop(0,   `rgba(240,242,245,${(steamAlpha * 0.70).toFixed(3)})`);
+            g1.addColorStop(0.5, `rgba(225,228,232,${(steamAlpha * 0.35).toFixed(3)})`);
+            g1.addColorStop(1,   'rgba(200,210,220,0)');
+            ctx.save();
+            ctx.fillStyle = g1;
+            ctx.beginPath();
+            ctx.arc(pPt.x, pPt.y, steamR, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+          /* Inner methane exhaust glow — same tint as liftoff */
+          const hotR = steamR * 0.42;
+          const g2 = ctx.createRadialGradient(engPt.x, engPt.y, 0, engPt.x, engPt.y, hotR);
+          g2.addColorStop(0,   `rgba(240,220,140,${(steamAlpha * 0.50).toFixed(3)})`);
+          g2.addColorStop(0.6, `rgba(180,140, 60,${(steamAlpha * 0.20).toFixed(3)})`);
+          g2.addColorStop(1,   'rgba(120,80,20,0)');
+          ctx.save();
+          ctx.fillStyle = g2;
+          ctx.beginPath();
+          ctx.arc(engPt.x, engPt.y, hotR, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+    }
   } // isSS
 
   /* ── CSM orbit-mode detail: windows, seams, RCS, soot ── */
@@ -4421,6 +4712,271 @@ function _renderPlumeCam(canvas) {
 const BCAM_SIDE = 0.13;   // NM lateral separation from booster body
 const BCAM_UP   = 50 * FT_NM;  // slight elevation above booster mid-body
 
+/* ── Orbital cloud patches — world-space ECEF projection, matches terrain.js projGlobe.
+   Clouds sit at fixed lat/lon on Earth's surface so they drift as the spacecraft moves.
+   camLat/camLon/camAltFt/camHdgDeg: terrain camera state (may differ from aircraft for
+   side/chase cams which render terrain from an offset position).                        */
+function _drawOrbitalClouds(ctx, W, H, pitchDeg, camAltFt, camLat, camLon, camHdgDeg, focalScale = 1) {
+  const R_E      = 3438.19;
+  const camAltNm = camAltFt * FT_NM;
+  if (camAltNm < 30) return;
+  const R_ac = R_E + camAltNm;
+  const focal = (W / 2) / Math.tan(FOV_H / 2 * DEG) * focalScale;
+  const cx = W / 2, cy = H / 2;
+
+  /* ECEF basis at camera position — mirrors terrain.js globe setup */
+  const aLatR  = camLat * DEG, aLonR = camLon * DEG;
+  const sinALat = Math.sin(aLatR), cosALat = Math.cos(aLatR);
+  const cosALon = Math.cos(aLonR), sinALon = Math.sin(aLonR);
+  const upEx = cosALat*cosALon, upEy = cosALat*sinALon, upEz = sinALat;  // nadir→cam
+  const nEx  = -sinALat*cosALon, nEy = -sinALat*sinALon, nEz = cosALat;
+  const eEx  = -sinALon, eEy = cosALon, eEz = 0;
+  const cH   = camHdgDeg * DEG;
+  const cosH = Math.cos(cH), sinH = Math.sin(cH);
+  const fEx  = nEx*cosH+eEx*sinH, fEy = nEy*cosH+eEy*sinH, fEz = nEz*cosH+eEz*sinH;
+  const rEx  = eEx*cosH-nEx*sinH, rEy = eEy*cosH-nEy*sinH, rEz = eEz*cosH-nEz*sinH;
+  const acX  = R_ac*upEx, acY = R_ac*upEy, acZ = R_ac*upEz;
+  const pitch = pitchDeg * DEG;
+  const cosP = Math.cos(pitch), sinP = Math.sin(pitch);
+
+  /* Iterate over a world grid at fixed 12° spacing */
+  const GSTEP    = 12;
+  const maxAng   = Math.acos(Math.min(1, R_E / R_ac)) / DEG + 6;
+  const nCells   = Math.ceil(maxAng / GSTEP) + 1;
+  const latC     = Math.round(camLat / GSTEP) * GSTEP;
+  const lonC     = Math.round(camLon / GSTEP) * GSTEP;
+
+  for (let di = -nCells; di <= nCells; di++) {
+    const gLat = latC + di * GSTEP;
+    if (gLat < -84 || gLat > 84) continue;
+
+    for (let dj = -nCells; dj <= nCells; dj++) {
+      const gLon = ((lonC + dj * GSTEP) % 360 + 540) % 360 - 180;
+
+      /* Stable integer key per cell — consistent across lon ±180 wrap */
+      const iLat = (Math.round(gLat / GSTEP) + 8) & 0xFF;
+      const iLon = Math.round(((gLon + 180) / GSTEP)) % 30;
+      const h1   = (Math.imul(iLat * 137 + iLon, 2654435761) ^ 0xABCD1234) >>> 0;
+
+      if ((h1 & 0xFF) > 76) continue;       // ~30 % cloud cover
+
+      const h2 = (Math.imul(h1, 1234567891) ^ 0xDEAD5678) >>> 0;
+
+      /* Cloud centre jittered within cell */
+      const cloudLat = gLat + ((h1 >>  8) & 0xFF) / 255 * GSTEP;
+      const cloudLon = ((gLon + ((h1 >> 16) & 0xFF) / 255 * GSTEP) + 360) % 360 - 180;
+
+      const lr  = cloudLat * DEG, lnr = cloudLon * DEG;
+      const cLt = Math.cos(lr),  sLt = Math.sin(lr);
+      const cLn = Math.cos(lnr), sLn = Math.sin(lnr);
+
+      /* Skip far hemisphere (same guard as terrain.js projGlobe) */
+      if (cLt*cLn*upEx + cLt*sLn*upEy + sLt*upEz < 0) continue;
+
+      /* Vector from camera to cloud point on Earth's surface */
+      const px = R_E*cLt*cLn - acX;
+      const py = R_E*cLt*sLn - acY;
+      const pz = R_E*sLt      - acZ;
+
+      /* Project — mirrors terrain.js proj() with roll=0 */
+      const fwd   = px*fEx + py*fEy + pz*fEz;
+      const right = px*rEx + py*rEy + pz*rEz;
+      const up_   = px*upEx + py*upEy + pz*upEz;   // upAdd − altNm in terrain.js notation
+      const cf    = fwd*cosP + up_*sinP;
+      if (cf < 1e-4) continue;
+      const cu    = up_*cosP - fwd*sinP;
+
+      const sx = cx + right/cf * focal;
+      const sy = cy - cu/cf * focal;
+      if (sx < -W*0.3 || sx > W*1.3 || sy < -H*0.3 || sy > H*1.3) continue;
+
+      /* Screen radius from angular size (2°–5.5° per blob) */
+      const angRad = 2.0 + ((h2 & 0xFF) / 255) * 3.5;
+      const pxR    = focal * Math.tan(angRad * DEG);
+
+      /* Foreshortening: squarer near nadir, flattened near limb */
+      const dist     = Math.sqrt(px*px + py*py + pz*pz);
+      const ndot     = -(px*upEx + py*upEy + pz*upEz) / dist;  // 1=nadir 0=limb
+      const rx = pxR;
+      const ry = pxR * (0.20 + Math.max(0, ndot) * 0.80);
+      if (rx < 2 || ry < 1) continue;
+
+      const pa = 0.16 + ((h1 >> 24) & 0xFF) / 255 * 0.42;
+
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.scale(1, ry / rx);
+      const grd = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+      grd.addColorStop(0,    `rgba(240,247,255,${pa.toFixed(2)})`);
+      grd.addColorStop(0.52, `rgba(235,244,255,${(pa * 0.55).toFixed(2)})`);
+      grd.addColorStop(1,    'rgba(228,242,255,0)');
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.arc(0, 0, rx, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+}
+
+/* ── Starship body cam hull overlay — geometry-driven from rocketGeometry ──
+   Draws the ship-section cylinder silhouette, specular rim, and body flaps
+   using the actual bodyRings / bodyFlaps JSON data.
+   Coordinate mapping: rMax(0.00243) → bXMax = W*0.18 (hull tangent X);
+   vF → screenY with camera at vF=0.024, scale 40.9H px/unit.
+   Body flap dir=+1 (the +vR leeward side) rendered post-SECO. */
+function _drawSSBodyHull(ctx, W, H, dpr) {
+  const id = S.aircraft?.id;
+  const rg = S.aircraft?.rocketGeometry;
+  if (!id || !rg) return;
+  if (!_ssRocketCache_mut[id]) _ssRocketCache_mut[id] = _buildRocket(rg);
+  const geo = _ssRocketCache_mut[id];
+
+  const rings     = rg.bodyRings ?? [];
+  const sepIdx    = rg.stageSep?.[0] ?? 0;
+  const shipRings = rings.slice(sepIdx);
+  if (shipRings.length < 2) return;
+
+  const rMax  = 0.00243;
+  const bXMax = W * 0.18;
+  const xSc   = bXMax / rMax;
+  const vFcam = 0.024;
+  const ySc   = 40.9 * H;
+
+  const sY = vF => H * 0.5 - (vF - vFcam) * ySc;
+  const sX = r  => r * xSc;
+
+  /* Hull silhouette — clip to ring profile, fill gradient */
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(0, H + 20);
+  for (const ring of shipRings) ctx.lineTo(sX(ring.r), sY(ring.vF));
+  ctx.lineTo(0, sY(shipRings[shipRings.length - 1].vF) - 20);
+  ctx.closePath();
+  ctx.clip();
+  const bodyFill = ctx.createLinearGradient(0, 0, bXMax * 1.10, 0);
+  bodyFill.addColorStop(0,    'rgba(13,15,21,1.00)');
+  bodyFill.addColorStop(0.68, 'rgba(20,23,31,0.97)');
+  bodyFill.addColorStop(0.88, 'rgba(48,55,70,0.75)');
+  bodyFill.addColorStop(1,    'rgba(0,0,0,0)');
+  ctx.fillStyle = bodyFill;
+  ctx.fillRect(0, -20, bXMax * 1.12, H + 40);
+  ctx.restore();
+
+  /* Specular rim */
+  const rimX = bXMax * 0.91, rimW = bXMax * 0.14;
+  const rimGrad = ctx.createLinearGradient(rimX - rimW, 0, rimX + rimW * 0.8, 0);
+  rimGrad.addColorStop(0,    'rgba(145,162,185,0)');
+  rimGrad.addColorStop(0.42, 'rgba(198,218,242,0.68)');
+  rimGrad.addColorStop(0.72, 'rgba(218,235,255,0.88)');
+  rimGrad.addColorStop(1,    'rgba(175,198,225,0)');
+  ctx.fillStyle = rimGrad;
+  ctx.fillRect(rimX - rimW, 0, rimW * 2, H);
+
+  /* Body flaps — dir=+1 (+vR side) visible from leeward body cam */
+  if ((S.rocketSECO ?? false) && (S.rocketStage ?? 1) >= 2) {
+    const COLORS_  = geo.COLORS_;
+    const [fc, fg, fb] = COLORS_[3] ?? [70, 74, 86];
+    for (const fi of geo.bodyFlapInfo) {
+      if (fi.dir !== +1) continue;
+      if (fi.vFBot < vFcam) continue;  // camera is on the aft flap — only the fore flap (above camera) is visible
+      const yAft   = sY(fi.vFBot);
+      const yFore  = sY(fi.vFTop);
+      const yForeT = sY(fi.vFTopT);   // tip leading edge swept aft by leadInset
+      const xRoot  = sX(fi.rBody) * 0.38;  // root left edge blends into hull shadow
+      const xTip   = sX(fi.rTip);
+      if (Math.min(yFore, yAft) > H || Math.max(yFore, yAft) < 0) continue;
+      ctx.save();
+      ctx.fillStyle   = `rgba(${fc},${fg},${fb},0.92)`;
+      ctx.strokeStyle = 'rgba(130,148,170,0.55)';
+      ctx.lineWidth   = Math.max(0.8, dpr);
+      ctx.beginPath();
+      ctx.moveTo(xRoot, yAft);
+      ctx.lineTo(xRoot, yFore);
+      ctx.lineTo(xTip,  yForeT);
+      ctx.lineTo(xTip,  yAft);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(175,195,220,0.42)';
+      ctx.lineWidth   = Math.max(1, 1.5 * dpr);
+      ctx.beginPath();
+      ctx.moveTo(xRoot, yFore);
+      ctx.lineTo(xTip, yForeT);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+}
+
+/* ── Starship body cam — side-mounted camera looking outward ──────
+   Body occupies left ~18% of frame as a dark cylinder rim.
+   Earth + curvature fills the rest. Raptor plume lower-left on burn. */
+function _renderSSBodyCam(canvas) {
+  const W = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d');
+  const dpr = devicePixelRatio || 1;
+
+  /* Terrain: look 90° starboard + 20° down from ship attitude */
+  const sL=S.lat, sLo=S.lon, sA=S.alt, sH=S.hdg, sP=S.pitch, sR=S.roll;
+  S.hdg   = ((S.hdg ?? 0) + 90 + 360) % 360;
+  S.pitch = -20;
+  S.roll  = 0;
+  renderTerrain(canvas, { outsideView: true, focalScale: _bodyCamZoom });
+  S.lat=sL; S.lon=sLo; S.alt=sA; S.hdg=sH; S.pitch=sP; S.roll=sR;
+
+  /* ── Orbital cloud patches — world-space, drift with Earth motion ── */
+  _drawOrbitalClouds(ctx, W, H, -20, S.alt ?? 0,
+    S.lat ?? 0, S.lon ?? 0, ((S.hdg ?? 0) + 90 + 360) % 360, _bodyCamZoom);
+
+  /* ── Hull silhouette + body flaps — geometry-driven ── */
+  _drawSSBodyHull(ctx, W, H, dpr);
+
+  /* ── Raptor plume — ascent or landing flip ── */
+  const ignT      = S.aircraft?.ignitionTime ?? 0;
+  const isAscent  = (S.time ?? 0) >= ignT && !(S.rocketCoast ?? false) && !(S.rocketSECO ?? false);
+  const isLanding = !!(S.starshipFlipStartT) && !(S.starshipSplashdown ?? false);
+
+  if (isAscent || isLanding) {
+    const _bX  = W * 0.18;
+    const pX   = _bX * 0.40;
+    const pY0  = H * 0.78;
+    const pLen = H * 0.30;
+    const pW   = _bX * 0.55;
+
+    // Tapered plume shape fanning outward and downward
+    const pGrad = ctx.createLinearGradient(pX, pY0, pX, pY0 + pLen);
+    pGrad.addColorStop(0,    'rgba(255,250,255,0.96)');
+    pGrad.addColorStop(0.07, 'rgba(255,160,225,0.88)');
+    pGrad.addColorStop(0.22, 'rgba(235, 65,175,0.58)');
+    pGrad.addColorStop(0.52, 'rgba(195, 18,125,0.24)');
+    pGrad.addColorStop(1,    'rgba(150,  0, 85,0.00)');
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(pX - pW * 0.30, pY0);
+    ctx.quadraticCurveTo(pX - pW * 0.72, pY0 + pLen * 0.50, pX - pW * 0.20, pY0 + pLen);
+    ctx.lineTo(pX + pW * 0.20, pY0 + pLen);
+    ctx.quadraticCurveTo(pX + pW * 0.72, pY0 + pLen * 0.50, pX + pW * 0.30, pY0);
+    ctx.closePath();
+    ctx.fillStyle = pGrad;
+    ctx.fill();
+    ctx.restore();
+
+    // Nozzle-exit glow
+    const gGrad = ctx.createRadialGradient(pX, pY0, 0, pX, pY0, pW * 0.52);
+    gGrad.addColorStop(0,   'rgba(255,255,255,0.95)');
+    gGrad.addColorStop(0.28,'rgba(255,210,245,0.65)');
+    gGrad.addColorStop(1,   'rgba(220,110,185,0.00)');
+    ctx.save();
+    ctx.fillStyle = gGrad;
+    ctx.beginPath(); ctx.arc(pX, pY0, pW * 0.52, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  const _zoomLabel = _bodyCamZoom !== 1 ? `BODY CAM  ${_bodyCamZoom.toFixed(1)}×` : 'BODY CAM';
+  _drawLabel(canvas, _zoomLabel);
+}
+
 function _renderBoosterCam(canvas) {
   const b = S.booster;
   const bLat = b?.lat ?? S.lat ?? 0;
@@ -4595,6 +5151,162 @@ function _renderBoosterCam(canvas) {
   }
 
   _drawLabel(canvas, 'BOOSTER CAM');
+}
+
+/* ── Ship cam — fixed recovery-vessel camera at splashdown target ─
+   Renders terrain from the Indian Ocean surface, draws cloud layers
+   at realistic altitudes, and projects the approaching Starship as a
+   plasma streak that cools into a visible silhouette.               */
+const SCAM_HFT = 20;  // camera eye-height above sea level (feet)
+
+/* Cloud layers: altFt / cover fraction / rgb / max alpha */
+const _SCAM_CLOUDS = [
+  { altFt:  2500, cover: 0.65, rgb: [228, 238, 248], a: 0.50 },  // stratocumulus
+  { altFt:  9000, cover: 0.42, rgb: [242, 248, 255], a: 0.36 },  // altocumulus
+  { altFt: 26000, cover: 0.28, rgb: [252, 255, 255], a: 0.22 },  // cirrus
+];
+
+function _renderShipCam(canvas) {
+  const rg = S.mission?.reentryGuidance;
+  if (!rg) { renderTerrain(canvas, { outsideView: true }); _drawLabel(canvas, 'SHIP CAM'); return; }
+
+  const cLat   = rg.targetLat ?? -22;
+  const cLon   = rg.targetLon ?? 115;
+  const cosLat = Math.cos(cLat * DEG);
+
+  /* Ship vector from camera (NM) */
+  const dN       = ((S.lat ?? cLat) - cLat) * 60;
+  const dE       = ((S.lon ?? cLon) - cLon) * 60 * cosLat;
+  const shipAltNm = (S.alt ?? 0) * FT_NM;
+  const camAltNm  = SCAM_HFT * FT_NM;
+  const horizDist  = Math.hypot(dN, dE) || 0.001;
+  const bearingToShip = (Math.atan2(dE, dN) / DEG + 360) % 360;
+  const elevToShip    = Math.atan2(shipAltNm - camAltNm, horizDist) / DEG;
+  const camPitch      = Math.max(2, elevToShip);
+
+  /* Render ocean terrain — force water=true so fallback color is blue, not green */
+  const _savedWater = S.mission?.water;
+  if (S.mission) S.mission.water = true;
+  const sL=S.lat, sLo=S.lon, sA=S.alt, sH=S.hdg, sP=S.pitch, sR=S.roll;
+  S.lat = cLat; S.lon = cLon; S.alt = SCAM_HFT;
+  S.hdg = bearingToShip; S.pitch = camPitch; S.roll = 0;
+  renderTerrain(canvas, { outsideView: true });
+  S.lat=sL; S.lon=sLo; S.alt=sA; S.hdg=sH; S.pitch=sP; S.roll=sR;
+  if (S.mission) S.mission.water = _savedWater;
+
+  const W = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d');
+  const dpr   = devicePixelRatio;
+  /* _orbitZoom used as optical zoom — scroll to zoom in on the approaching ship */
+  const focal = (W / 2) / Math.tan(FOV_H / 2 * DEG) * _orbitZoom;
+  const cx = W / 2, cy = H / 2;
+
+  /* ── Cloud layers ── drawn before ship so ship shows through them
+     when it descends into a layer, the semi-transparent band dims it. */
+  for (const cl of _SCAM_CLOUDS) {
+    const clAltNm = cl.altFt * FT_NM;
+    const clElev  = Math.atan2(clAltNm - camAltNm, horizDist) / DEG;
+    const clY     = cy - Math.tan((clElev - camPitch) * DEG) * focal;
+    const bandH   = H * 0.045 * cl.cover;
+    if (clY < -bandH * 2 || clY > H + bandH * 2) continue;
+
+    /* Soft gradient band spanning full width */
+    const [r, g, b] = cl.rgb;
+    const a = cl.a * cl.cover;
+    const grad = ctx.createLinearGradient(0, clY - bandH, 0, clY + bandH);
+    grad.addColorStop(0,   `rgba(${r},${g},${b},0)`);
+    grad.addColorStop(0.28,`rgba(${r},${g},${b},${a.toFixed(2)})`);
+    grad.addColorStop(0.72,`rgba(${r},${g},${b},${a.toFixed(2)})`);
+    grad.addColorStop(1,   `rgba(${r},${g},${b},0)`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, clY - bandH, W, bandH * 2);
+
+    /* Irregular puffs — deterministic hash per slot, kept small */
+    const step = 55 * dpr;
+    const n    = Math.ceil(W / step) + 2;
+    for (let i = 0; i < n; i++) {
+      const h  = ((i * 2654435761) ^ 0xABCD1234) >>> 0;
+      const px = (i - 0.5) * step + ((h & 0xFF) / 255 - 0.5) * step * 0.9;
+      const py = clY + (((h >> 8) & 0xFF) / 255 - 0.5) * bandH * 0.65;
+      const pr = (5 + ((h >> 16) & 0xFF) / 255 * 12) * dpr;
+      const pa = (a * 0.5 * ((h >> 24) & 0xFF) / 255).toFixed(2);
+      ctx.fillStyle = `rgba(${r},${g},${b},${pa})`;
+      ctx.beginPath();
+      ctx.ellipse(px, py, pr * 2.5, pr, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  /* ── Approaching Starship ── */
+  const rangeNm  = Math.hypot(horizDist, shipAltNm);
+  const rangeKm  = rangeNm * 1.852;
+  const shipAltKm = shipAltNm * 1.852;
+
+  if (rangeKm < 12000 && shipAltNm > 0) {
+    const shipY = cy - Math.tan((elevToShip - camPitch) * DEG) * focal;
+    const shipX = cx;
+
+    /* Apparent pixel radius of 52-m body */
+    const bodyLenNm   = 0.028;
+    const screenR     = Math.max(1.5 * dpr, bodyLenNm / rangeNm * focal);
+
+    /* Phase: hot reentry 80→10 km, post-reentry below 10 km, otherwise faint */
+    const hotReentry  = S.rocketSECO && shipAltKm > 10 && shipAltKm < 80;
+    const subsonic    = S.rocketSECO && shipAltKm <= 10;
+
+    if (hotReentry) {
+      /* Plasma fireball — colours cool with altitude */
+      const heat = Math.min(1, (shipAltKm - 10) / 50);  // 1 = peak at 60 km, 0 at 10 km
+      const g1 = ctx.createRadialGradient(shipX, shipY, 0, shipX, shipY, screenR * 5.5);
+      g1.addColorStop(0,    `rgba(255,${Math.round(240 - heat*80)},${Math.round(180 - heat*140)},0.95)`);
+      g1.addColorStop(0.18, `rgba(255,${Math.round(160 - heat*60)}, 30,0.72)`);
+      g1.addColorStop(0.42, `rgba(${Math.round(230 - heat*30)}, 60,  5,0.38)`);
+      g1.addColorStop(0.70, `rgba(180, 25,  0,0.14)`);
+      g1.addColorStop(1,    'rgba(140,  0,  0,0)');
+      ctx.fillStyle = g1;
+      ctx.beginPath(); ctx.arc(shipX, shipY, screenR * 5.5, 0, Math.PI * 2); ctx.fill();
+      /* Bright core */
+      ctx.fillStyle = 'rgba(255,255,245,0.98)';
+      ctx.beginPath(); ctx.arc(shipX, shipY, screenR, 0, Math.PI * 2); ctx.fill();
+    } else if (subsonic) {
+      /* Post-reentry: heat is bleeding off — faint amber glow + visible body */
+      const heatCool = Math.max(0, shipAltKm / 10);   // 1 at 10 km, 0 at sea level
+      const g2 = ctx.createRadialGradient(shipX, shipY, 0, shipX, shipY, screenR * 3.5);
+      g2.addColorStop(0,   `rgba(255,210,150,${(0.35 * heatCool).toFixed(2)})`);
+      g2.addColorStop(0.4, `rgba(180,210,240,${(0.28 * (1 - heatCool * 0.5)).toFixed(2)})`);
+      g2.addColorStop(1,   'rgba(140,180,220,0)');
+      ctx.fillStyle = g2;
+      ctx.beginPath(); ctx.arc(shipX, shipY, screenR * 3.5, 0, Math.PI * 2); ctx.fill();
+      /* Elongated body silhouette — 3:1 aspect ratio, belly toward camera */
+      ctx.save();
+      ctx.translate(shipX, shipY);
+      const bodyAngle = Math.atan2(dE, dN);   // bearing angle → body axis on screen
+      ctx.rotate(bodyAngle + Math.PI / 2);
+      ctx.scale(1, 0.35);
+      ctx.fillStyle = 'rgba(105,115,130,0.92)';
+      ctx.beginPath(); ctx.arc(0, 0, screenR, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    } else {
+      /* Suborbital coast — faint star-like point */
+      const g3 = ctx.createRadialGradient(shipX, shipY, 0, shipX, shipY, screenR * 2);
+      g3.addColorStop(0, 'rgba(210,235,255,0.60)');
+      g3.addColorStop(1, 'rgba(190,220,255,0)');
+      ctx.fillStyle = g3;
+      ctx.beginPath(); ctx.arc(shipX, shipY, screenR * 2, 0, Math.PI * 2); ctx.fill();
+    }
+
+    /* Data tag */
+    ctx.save();
+    ctx.font      = `${Math.round(10 * dpr)}px "IBM Plex Mono", monospace`;
+    ctx.fillStyle = 'rgba(140,195,225,0.88)';
+    ctx.textAlign = 'left';
+    const tagX = shipX + screenR * 6 + 4 * dpr;
+    const tagY = shipY + 4 * dpr;
+    ctx.fillText(`S39  ALT ${Math.round(shipAltKm)} km  RNG ${Math.round(rangeKm)} km`, tagX, tagY);
+    ctx.restore();
+  }
+
+  _drawLabel(canvas, 'SHIP CAM');
 }
 
 /* ── Label ────────────────────────────────────────────────────── */
