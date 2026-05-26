@@ -215,26 +215,66 @@ export function _buildRocket(rg) {
   }
 
   /* Body flaps — 2 flaps each at ±uR or ±rR
-     leadInset sweeps only the leading (forward) tip corner aft:
-       root edge runs the full vFBot→vFTop; tip leading corner at vFTop-leadInset.
-       (right-trapezoid shape: root full-length, tip slightly shorter at leading edge)
-     Vertex layout per panel: [0]=root-aft [1]=root-fore [2]=tip-fore [3]=tip-aft
-     Tip verts (2,3) are animated; root verts (0,1) stay fixed at rBody. */
+     Vertex layout per panel:
+       Thin (thick=0): [0]=root-aft [1]=root-fore [2]=tip-fore [3]=tip-aft  (animated: 2,3)
+       Thick          : [0-3]=leeward face, [4-7]=windward face (same vF/vR, vU=-thick)
+                        leeward colInner (silver), windward col (recoloured to hs by hs section)
+                        animated tip verts: 2,3 (leeward) and 6,7 (windward)
+     Thickness is added in the -vU direction (belly/windward side) for rR axis flaps. */
   const bodyFlapInfo = [];
   for (const flap of (rg.bodyFlaps ?? [])) {
-    const { vFBot, vFTop, rBody, rTip, axis = 'uR', col = 3, leadInset = 0 } = flap;
-    const vFTopT = vFTop - leadInset;   // leading-edge vF at the tip (swept back)
-    if (axis === 'uR') {
-      bodyFlapInfo.push({ base: V_.length, faceBase: F_.length, axis, dir: +1, rBody, rTip, vFBot, vFTop, vFTopT });
-      _addPanel([[vFBot,0,rBody],[vFTop,0,rBody],[vFTopT,0,rTip],[vFBot,0,rTip]], col);
-      bodyFlapInfo.push({ base: V_.length, faceBase: F_.length, axis, dir: -1, rBody, rTip, vFBot, vFTop, vFTopT });
-      _addPanel([[vFBot,0,-rBody],[vFTop,0,-rBody],[vFTopT,0,-rTip],[vFBot,0,-rTip]], col);
-    } else {
-      bodyFlapInfo.push({ base: V_.length, faceBase: F_.length, axis, dir: +1, rBody, rTip, vFBot, vFTop, vFTopT });
-      _addPanel([[vFBot,rBody,0],[vFTop,rBody,0],[vFTopT,rTip,0],[vFBot,rTip,0]], col);
-      bodyFlapInfo.push({ base: V_.length, faceBase: F_.length, axis, dir: -1, rBody, rTip, vFBot, vFTop, vFTopT });
-      _addPanel([[vFBot,-rBody,0],[vFTop,-rBody,0],[vFTopT,-rTip,0],[vFBot,-rTip,0]], col);
-    }
+    const { vFBot, vFTop, rBody, rTip, axis = 'uR', col = 3, colInner = col, leadInset = 0, thick = 0 } = flap;
+    const vFTopT = vFTop - leadInset;
+
+    const _addFlap = (dir) => {
+      const s = dir;  // sign shorthand
+      bodyFlapInfo.push({ base: V_.length, faceBase: F_.length, axis, dir, rBody, rTip, vFBot, vFTop, vFTopT, thick });
+      if (thick <= 0) {
+        if (axis === 'uR') {
+          _addPanel([[vFBot,0,s*rBody],[vFTop,0,s*rBody],[vFTopT,0,s*rTip],[vFBot,0,s*rTip]], col);
+        } else {
+          _addPanel([[vFBot,s*rBody,0],[vFTop,s*rBody,0],[vFTopT,s*rTip,0],[vFBot,s*rTip,0]], col);
+        }
+      } else {
+        /* Thick rR flap: 8 vertices, leeward at vU=0, windward at vU=-thick */
+        const b = V_.length;
+        V_.push(
+          [vFBot,  s*rBody,   0     ],  // 0 root-aft  leeward
+          [vFTop,  s*rBody,   0     ],  // 1 root-fore leeward
+          [vFTopT, s*rTip,    0     ],  // 2 tip-fore  leeward  (animated)
+          [vFBot,  s*rTip,    0     ],  // 3 tip-aft   leeward  (animated)
+          [vFBot,  s*rBody,  -thick ],  // 4 root-aft  windward
+          [vFTop,  s*rBody,  -thick ],  // 5 root-fore windward
+          [vFTopT, s*rTip,   -thick ],  // 6 tip-fore  windward (animated)
+          [vFBot,  s*rTip,   -thick ],  // 7 tip-aft   windward (animated)
+        );
+        /* Flat faces — winding differs by dir so normals point correctly */
+        if (dir > 0) {
+          F_.push([b,b+1,b+2,b+3]);   FC_.push(colInner); // leeward  normal +vU
+          F_.push([b+7,b+6,b+5,b+4]); FC_.push(col);      // windward normal -vU
+        } else {
+          F_.push([b+3,b+2,b+1,b]);   FC_.push(colInner); // leeward  normal +vU
+          F_.push([b+4,b+5,b+6,b+7]); FC_.push(col);      // windward normal -vU
+        }
+        /* Edge faces — leading, tip, trailing (root edge shared with body, not closed) */
+        if (dir > 0) {
+          F_.push([b+1,b+5,b+6,b+2]); FC_.push(col); // leading
+          F_.push([b+2,b+6,b+7,b+3]); FC_.push(col); // tip
+          F_.push([b+3,b+7,b+4,b  ]); FC_.push(col); // trailing
+        } else {
+          F_.push([b+2,b+6,b+5,b+1]); FC_.push(col); // leading
+          F_.push([b+3,b+7,b+6,b+2]); FC_.push(col); // tip
+          F_.push([b,  b+4,b+7,b+3]); FC_.push(col); // trailing
+        }
+        /* Edges: both face perimeters + connecting depth lines at all four corners */
+        E_.push([b,b+3],[b+3,b+2],[b+2,b+1]);            // leeward outline (no root)
+        E_.push([b+4,b+7],[b+7,b+6],[b+6,b+5]);          // windward outline (no root)
+        E_.push([b,b+4],[b+1,b+5],[b+2,b+6],[b+3,b+7]);  // depth edges
+      }
+    };
+
+    _addFlap(+1);
+    _addFlap(-1);
   }
 
   /* Engine cluster ring outlines + metadata for the nozzle renderer */
@@ -269,13 +309,12 @@ export function _buildRocket(rg) {
       const nBase = (rings.length - 1) * N;
       for (let si = 0; si < N; si++) FC_[nBase + si] = hsC;
     }
-    /* Body flap windward faces (-vU = belly direction).
-       rR axis: face 0 has normal +U (dir=+1) or -U (dir=-1). The belly face
-       (-U direction) is face 0 when dir=-1, face 1 when dir=+1.
-       uR axis: dir=-1 front face (faceBase) faces the camera from the side. */
+    /* Body flap windward (belly, -vU) faces.
+       Thick panels: windward is always faceBase+1 (layout is consistent for both dirs).
+       Thin panels: face 0 dir=-1 or face 1 dir=+1 (winding flips with dir sign). */
     for (const fi of bodyFlapInfo) {
       if (fi.axis === 'rR') {
-        FC_[fi.dir === -1 ? fi.faceBase : fi.faceBase + 1] = hsC;
+        FC_[fi.thick ? fi.faceBase + 1 : (fi.dir === -1 ? fi.faceBase : fi.faceBase + 1)] = hsC;
       } else if (fi.axis === 'uR' && fi.dir === -1) {
         FC_[fi.faceBase] = hsC;
       }

@@ -118,7 +118,9 @@
         "rTip": 0.0049,
         "axis": "rR",
         "leadInset": 0.005,
-        "col": 3
+        "col": 3,
+        "colInner": 1,
+        "thick": 0.00040
       },
       {
         "vFBot": 0.03,
@@ -127,7 +129,9 @@
         "rTip": 0.0046,
         "axis": "rR",
         "leadInset": 0.003,
-        "col": 3
+        "col": 3,
+        "colInner": 1,
+        "thick": 0.00040
       }
     ],
     "engineClusters": [

@@ -84,25 +84,35 @@ let _ssFlapAngle = Math.PI / 2;  // Starship body flap: π/2 = extended (static 
 let _orbitAz    = 0;     // side-cam orbit azimuth (degrees, 0 = starboard)
 let _orbitEl    = 12;    // elevation above horizontal (degrees, +12 = slightly above)
 let _orbitZoom  = 1.0;   // side-cam zoom multiplier (1 = auto-fit; >1 = farther out)
+let _orbitPanX  = 0;     // chase-cam horizontal pan (pixels at current zoom, right = positive)
 let _bodyCamZoom = 1.0;  // body-cam optical zoom (1 = native FOV)
 let _orbitDragX = null;  // non-null while drag is active
 let _orbitDragY = null;
+let _panDragX   = null;  // non-null while right-click pan drag is active
 
 export function initOutside() {
   _canvas = document.getElementById('outside-canvas');
 
-  /* Drag-to-orbit: active in side cam (2) and chase cam (1). */
+  /* Left-drag: orbit (Az/El).  Right-drag (chase cam only): pan camera laterally. */
   window.addEventListener('mousedown', e => {
-    if (_camMode === 1 || _camMode === 2) { _orbitDragX = e.clientX; _orbitDragY = e.clientY; }
+    if (_camMode === 1 || _camMode === 2) {
+      if (e.button === 2 && _camMode === 1) { _panDragX = e.clientX; }
+      else { _orbitDragX = e.clientX; _orbitDragY = e.clientY; }
+    }
   });
   window.addEventListener('mousemove', e => {
     if (_orbitDragX !== null) {
       _orbitAz = ((_orbitAz + (e.clientX - _orbitDragX) * 0.4) % 360 + 360) % 360;
-      _orbitEl = Math.max(-85, Math.min(85, _orbitEl - (e.clientY - _orbitDragY) * 0.3));
+      _orbitEl = ((_orbitEl - (e.clientY - _orbitDragY) * 0.3) % 360 + 360) % 360;
       _orbitDragX = e.clientX; _orbitDragY = e.clientY;
     }
+    if (_panDragX !== null) {
+      _orbitPanX += (e.clientX - _panDragX) * (devicePixelRatio || 1);
+      _panDragX = e.clientX;
+    }
   });
-  window.addEventListener('mouseup', () => { _orbitDragX = null; _orbitDragY = null; });
+  window.addEventListener('mouseup', () => { _orbitDragX = null; _orbitDragY = null; _panDragX = null; });
+  window.addEventListener('contextmenu', e => { if (_camMode === 1) e.preventDefault(); });
 
   /* Wheel / trackpad gestures in side cam, chase cam, ship cam, and body cam. */
   window.addEventListener('wheel', e => {
@@ -119,7 +129,7 @@ export function initOutside() {
   /* 0 key: reset orbit + zoom to default while paused */
   window.addEventListener('keydown', e => {
     if (e.key === '0' && S.paused && (_camMode === 1 || _camMode === 2 || _camMode === 5 || _camMode === 6)) {
-      _orbitAz = 0; _orbitEl = 12; _orbitZoom = 1; _bodyCamZoom = 1;
+      _orbitAz = 0; _orbitEl = 12; _orbitZoom = 1; _orbitPanX = 0; _bodyCamZoom = 1;
     }
   });
 }
@@ -221,12 +231,9 @@ function _renderChaseCam(canvas) {
   const acR    = S.aircraft?.vehicleType === 'rocket' ? (S.rocketRoll ?? 0) : (S.roll ?? 0);
   const cosLat = Math.cos((S.lat ?? 47) * DEG);
 
-  /* Orbit elevation: adjust camera back/up keeping total distance constant */
-  const baseDist = Math.hypot(CHASE_BACK, CHASE_UP);
-  const baseEl   = Math.atan2(CHASE_UP, CHASE_BACK);
-  const totalEl  = baseEl + _orbitEl * DEG;
-  const camBack  = baseDist * Math.cos(totalEl);
-  const camUp    = baseDist * Math.sin(totalEl);
+  /* Terrain camera: fixed position — _orbitEl only rotates the wireframe, not the terrain */
+  const camBack = CHASE_BACK;
+  const camUp   = CHASE_UP;
 
   /* Orbit azimuth: heading-relative in flight; absolute when on ground */
   const orbitRad = S.wow ? _orbitAz * DEG : hdgRad - Math.PI + _orbitAz * DEG;
@@ -255,8 +262,8 @@ function _renderChaseCam(canvas) {
   _drawOrbitalClouds(canvas.getContext('2d'), W, H, _chasePitch, _tcCAlt, _tcCLat, _tcCLon, _tcCHdg);
 
   const _useWowPitchC = S.wow && S.aircraft?.vehicleType !== 'rocket';
-  _drawWireframe(canvas, _useWowPitchC ? 0 : acP, (_useWowPitchC ? 0 : acR) + _orbitAz, camBack, camUp, 0);
-  _drawLabel(canvas, 'CHASE CAM');
+  _drawWireframe(canvas, _useWowPitchC ? 0 : acP, _useWowPitchC ? 0 : acR, camBack, camUp, 0, false, _orbitAz, _orbitEl, _orbitPanX);
+  _drawLabel(canvas, `CHASE CAM  Az:${_orbitAz.toFixed(0)}  El:${_orbitEl.toFixed(1)}  Z:${_orbitZoom.toFixed(2)}  PanX:${_orbitPanX.toFixed(0)}`);
 }
 
 /* ── Side cam (starboard) ─────────────────────────────────────── */
@@ -963,7 +970,7 @@ function _drawCSMOrbitDetail(ctx, pts, project, dpr, camSide) {
 }
 
 /* ── Core wireframe + shading renderer ───────────────────────── */
-function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, wingView = false, orbitAzDeg = 0, orbitElDeg = 0) {
+function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, wingView = false, orbitAzDeg = 0, orbitElDeg = 0, panX = 0) {
   /* Advance fan rotation angle — capped so it doesn't spin during static frames */
   _fanAngle = (_fanAngle + Math.min(0.06, (S.enginePower ?? 0) * 0.35)) % (Math.PI * 2);
 
@@ -1016,6 +1023,8 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const P = acPitchDeg * DEG, R = acRollDeg * DEG;
   const cosP = Math.cos(P), sinP = Math.sin(P);
   const cosR = Math.cos(R), sinR = Math.sin(R);
+  const sinEl = Math.sin(orbitElDeg * DEG), cosEl = Math.cos(orbitElDeg * DEG);
+  const sinAz = Math.sin(orbitAzDeg * DEG), cosAz = Math.cos(orbitAzDeg * DEG);
   /* Rockets spin around their longitudinal axis (pre-roll before pitch).
      Aircraft bank around the camera forward axis (post-pitch roll). */
   const isBodyRoll = isSV || isF9 || isSS;
@@ -1068,8 +1077,11 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         minCR = Math.min(minCR, fP); maxCR = Math.max(maxCR, fP);
         minCU = Math.min(minCU, uR); maxCU = Math.max(maxCU, uR);
       } else {
-        minCR = Math.min(minCR, rR); maxCR = Math.max(maxCR, rR);
-        minCU = Math.min(minCU, uR); maxCU = Math.max(maxCU, uR);
+        const _bbUR0 = orbitElDeg !== 0 ? -fP * sinEl + uR * cosEl : uR;
+        const _bbRR  = orbitAzDeg !== 0 ? rR * cosAz - _bbUR0 * sinAz : rR;
+        const _bbUR  = orbitAzDeg !== 0 ? rR * sinAz + _bbUR0 * cosAz : _bbUR0;
+        minCR = Math.min(minCR, _bbRR); maxCR = Math.max(maxCR, _bbRR);
+        minCU = Math.min(minCU, _bbUR); maxCU = Math.max(maxCU, _bbUR);
       }
     }
     /* Snapshot rocket-only centre before tower inflates the bounds */
@@ -1139,12 +1151,12 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         cy -= sh.lF * dBlend * focal / camSide;
       }
     }
+    if (panX !== 0) cx += panX;
   }
 
   const camDist  = camSide > 0 ? camSide : camBack;
   const camPitch = Math.atan2(-camUp, camDist);
   const cosCP = Math.cos(camPitch), sinCP = Math.sin(camPitch);
-  const sinEl = Math.sin(orbitElDeg * DEG), cosEl = Math.cos(orbitElDeg * DEG);
 
   /* Blinn-Phong halfway vector — camera-side-aware, used for specular on aircraft skin */
   const _vDir = camSide > 0 ? [0, 1, 0] : [-1, 0, 0];
@@ -1172,10 +1184,22 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       rR =  vR * cosR + uP * sinR; uR = -vR * sinR + uP * cosR;
     }
 
-    /* Elevation orbit: tilt the scene up/down around the camera horizontal axis */
+    /* Elevation orbit: tilt the scene up/down around the camera horizontal axis.
+       Side cam (camSide>0): camera is right of ship → rotate in rR-uR plane.
+       Chase cam (camSide=0): camera is behind ship → rotate in fP-uR plane. */
     if (orbitElDeg !== 0 && camSide > 0) {
       const rR2 = rR * cosEl + uR * sinEl;
       uR = -rR * sinEl + uR * cosEl;
+      rR = rR2;
+    } else if (orbitElDeg !== 0) {
+      const fP2 = fP * cosEl + uR * sinEl;
+      uR = -fP * sinEl + uR * cosEl;
+      fP = fP2;
+    }
+    /* Azimuth: rotate around fP (depth) axis — tilts body axis left/right in screen space */
+    if (orbitAzDeg !== 0 && camSide === 0) {
+      const rR2 = rR * cosAz - uR * sinAz;
+      uR = rR * sinAz + uR * cosAz;
       rR = rR2;
     }
 
@@ -1385,6 +1409,10 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       } else {
         verts[fi.base + 2] = [vFTipFore - arm * _fca, rOut, 0];
         verts[fi.base + 3] = [fi.vFBot  - arm * _fca, rOut, 0];
+        if (fi.thick) {
+          verts[fi.base + 6] = [vFTipFore - arm * _fca, rOut, -fi.thick];
+          verts[fi.base + 7] = [fi.vFBot  - arm * _fca, rOut, -fi.thick];
+        }
       }
     }
   }
@@ -4819,105 +4847,169 @@ function _drawOrbitalClouds(ctx, W, H, pitchDeg, camAltFt, camLat, camLon, camHd
   }
 }
 
-/* ── Starship body cam hull overlay — geometry-driven from rocketGeometry ──
-   Draws the ship-section cylinder silhouette, specular rim, and body flaps
-   using the actual bodyRings / bodyFlaps JSON data.
-   Coordinate mapping: rMax(0.00243) → bXMax = W*0.18 (hull tangent X);
-   vF → screenY with camera at vF=0.024, scale 40.9H px/unit.
-   Body flap dir=+1 (the +vR leeward side) rendered post-SECO. */
+/* ── Starship body cam hull overlay ──
+   SIDE VIEW: camera on leeward fore body flap (vF=0.030), looking radially outward.
+   Ship axis VERTICAL: near/metallic at top, engine end at bottom.
+   Large fX makes the hull a wide curved surface (~38% of frame), matching IFT-3 footage. */
 function _drawSSBodyHull(ctx, W, H, dpr) {
   const id = S.aircraft?.id;
   const rg = S.aircraft?.rocketGeometry;
   if (!id || !rg) return;
   if (!_ssRocketCache_mut[id]) _ssRocketCache_mut[id] = _buildRocket(rg);
-  const geo = _ssRocketCache_mut[id];
+  const geo    = _ssRocketCache_mut[id];
+  const COLORS_ = geo.COLORS_;
 
-  const rings     = rg.bodyRings ?? [];
-  const sepIdx    = rg.stageSep?.[0] ?? 0;
-  const shipRings = rings.slice(sepIdx);
-  if (shipRings.length < 2) return;
+  const rBody  = 0.00243;
+  const vF_cam = 0.030;
+  const vF_far = 0.013;
+  const camH   = 2.0;
+  const fX     = H * 0.55;   // wide focal → hull silhouette spans ~38% of frame width
+  const fY     = H * 0.19;   // vertical focal — hull bottom at ~63% H
+  const cx     = W * 0.20;   // leeward center x
+  const cy     = H * 0.03;   // near edge at top of frame
+  const zClip  = 0.05;
+  const zDF    = 0.10;        // axial depth factor → hull tapers toward engine end
 
-  const rMax  = 0.00243;
-  const bXMax = W * 0.18;
-  const xSc   = bXMax / rMax;
-  const vFcam = 0.024;
-  const ySc   = 40.9 * H;
+  const z_ax_max = (vF_cam - vF_far) / rBody;  // ≈ 7.0
 
-  const sY = vF => H * 0.5 - (vF - vFcam) * ySc;
-  const sX = r  => r * xSc;
+  /* Side-view projection with axial perspective.
+     depth = (camH − cos a) + z_ax × zDF
+     sin(a) → screen X,  z_ax → screen Y */
+  const proj = (sinA, cosA, z_ax) => {
+    const depth = (camH - cosA) + z_ax * zDF;
+    if (depth < zClip) return null;
+    return [
+      (sinA  / depth) * fX + cx,
+      (z_ax  / depth) * fY + cy,
+    ];
+  };
 
-  /* Hull silhouette — clip to ring profile, fill gradient */
+  /* Silhouette: cos(a_sil) = 1/camH = 0.5 */
+  const cosSil = 1.0 / camH;
+  const sinSil = Math.sqrt(1.0 - cosSil * cosSil);  // 0.866
+
+  /* z_ax list */
+  const zList = [0];
+  for (const ring of (rg.bodyRings ?? [])) {
+    if (ring.vF >= vF_far - 0.001 && ring.vF <= vF_cam + 0.001) {
+      const z = (vF_cam - ring.vF) / rBody;
+      if (!zList.some(zz => Math.abs(zz - z) < 0.12)) zList.push(z);
+    }
+  }
+  for (let z = 0.35; z <= z_ax_max + 0.05; z += 0.35) {
+    if (!zList.some(zz => Math.abs(zz - z) < 0.12)) zList.push(z);
+  }
+  zList.sort((a, b) => a - b);
+
+  const projL = zList.map(z => proj( sinSil, cosSil, z)).filter(Boolean);
+  const projR = zList.map(z => proj(-sinSil, cosSil, z)).filter(Boolean);
+  if (projL.length < 2) return;
+
+  const sy_near  = cy;
+  const sy_far   = proj(sinSil, cosSil, z_ax_max)?.[1] ?? H * 0.88;
+  const t_hs     = 0.50;
+
+  const [mr, mg, mb] = COLORS_[1] ?? [206, 211, 218];
+  const [hr, hg, hb] = COLORS_[4] ?? [16, 18, 26];
+
+  const drawHullPath = () => {
+    ctx.beginPath();
+    ctx.moveTo(projL[0][0], projL[0][1]);
+    for (let i = 1; i < projL.length; i++) ctx.lineTo(projL[i][0], projL[i][1]);
+    for (let i = projR.length - 1; i >= 0; i--) ctx.lineTo(projR[i][0], projR[i][1]);
+    ctx.closePath();
+  };
+
+  /* ── Axial gradient: metallic (top/near) → heat-shield (bottom/far) ── */
   ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(0, H + 20);
-  for (const ring of shipRings) ctx.lineTo(sX(ring.r), sY(ring.vF));
-  ctx.lineTo(0, sY(shipRings[shipRings.length - 1].vF) - 20);
-  ctx.closePath();
-  ctx.clip();
-  const bodyFill = ctx.createLinearGradient(0, 0, bXMax * 1.10, 0);
-  bodyFill.addColorStop(0,    'rgba(13,15,21,1.00)');
-  bodyFill.addColorStop(0.68, 'rgba(20,23,31,0.97)');
-  bodyFill.addColorStop(0.88, 'rgba(48,55,70,0.75)');
-  bodyFill.addColorStop(1,    'rgba(0,0,0,0)');
-  ctx.fillStyle = bodyFill;
-  ctx.fillRect(0, -20, bXMax * 1.12, H + 40);
+  drawHullPath();
+  const syBot = Math.min(H * 1.05, sy_far);
+  const axGrad = ctx.createLinearGradient(0, sy_near, 0, syBot);
+  axGrad.addColorStop(0,                       `rgba(${Math.min(255,mr+20)},${Math.min(255,mg+18)},${Math.min(255,mb+16)},0.97)`);
+  axGrad.addColorStop(Math.max(0.02, t_hs - 0.12), `rgba(${mr},${mg},${mb},0.96)`);
+  axGrad.addColorStop(t_hs,                    `rgba(${(mr*2+hr)/3|0},${(mg*2+hg)/3|0},${(mb*2+hb)/3|0},0.96)`);
+  axGrad.addColorStop(Math.min(0.98, t_hs + 0.08), `rgba(${hr+28},${hg+24},${hb+30},0.97)`);
+  axGrad.addColorStop(1,                       `rgba(${hr},${hg},${hb},0.98)`);
+  ctx.fillStyle = axGrad;
+  ctx.fill();
   ctx.restore();
 
-  /* Specular rim */
-  const rimX = bXMax * 0.91, rimW = bXMax * 0.14;
-  const rimGrad = ctx.createLinearGradient(rimX - rimW, 0, rimX + rimW * 0.8, 0);
-  rimGrad.addColorStop(0,    'rgba(145,162,185,0)');
-  rimGrad.addColorStop(0.42, 'rgba(198,218,242,0.68)');
-  rimGrad.addColorStop(0.72, 'rgba(218,235,255,0.88)');
-  rimGrad.addColorStop(1,    'rgba(175,198,225,0)');
-  ctx.fillStyle = rimGrad;
-  ctx.fillRect(rimX - rimW, 0, rimW * 2, H);
+  /* ── Circumferential shading — physically-based Lambert darkening ──
+     At camH=2 the silhouette is at ±60°.  Brightness = (camH·cos a − 1)/(camH−1).
+     Stop t-positions are derived from the angle→screen mapping, not linear in a. */
+  const sxL_n = projL[0][0], sxR_n = projR[0][0];
+  ctx.save();
+  drawHullPath();
+  const edgeGrad = ctx.createLinearGradient(sxR_n, 0, sxL_n, 0);
+  // t=0 / 1.0  → a=±60° (silhouette, tangent)  brightness=0
+  // t≈0.026/0.974 → a=±45°                     brightness=0.41
+  // t≈0.118/0.882 → a=±30°                     brightness=0.73
+  // t≈0.283/0.717 → a=±15°                     brightness=0.93
+  // t=0.50        → a=0° (leeward centre)       brightness=1.0
+  edgeGrad.addColorStop(0,     'rgba(0,0,0,0.93)');
+  edgeGrad.addColorStop(0.026, 'rgba(0,0,0,0.58)');
+  edgeGrad.addColorStop(0.118, 'rgba(0,0,0,0.27)');
+  edgeGrad.addColorStop(0.283, 'rgba(0,0,0,0.07)');
+  edgeGrad.addColorStop(0.50,  'rgba(255,255,255,0.10)');
+  edgeGrad.addColorStop(0.717, 'rgba(0,0,0,0.07)');
+  edgeGrad.addColorStop(0.882, 'rgba(0,0,0,0.27)');
+  edgeGrad.addColorStop(0.974, 'rgba(0,0,0,0.58)');
+  edgeGrad.addColorStop(1,     'rgba(0,0,0,0.93)');
+  ctx.fillStyle = edgeGrad;
+  ctx.fill();
+  ctx.restore();
 
-  /* Body flaps — dir=+1 (+vR side) visible from leeward body cam */
+  /* ── Specular highlight along leeward spine ── */
+  {
+    const spineHW = Math.abs(sxL_n - sxR_n) * 0.10;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(cx - spineHW, sy_near, spineHW * 2, Math.min(H, sy_far) - sy_near);
+    const sg = ctx.createLinearGradient(cx - spineHW, 0, cx + spineHW, 0);
+    sg.addColorStop(0,   'rgba(245,252,255,0)');
+    sg.addColorStop(0.5, 'rgba(245,252,255,0.20)');
+    sg.addColorStop(1,   'rgba(245,252,255,0)');
+    ctx.fillStyle = sg;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /* ── Aft body flap (after SECO, stage ≥ 2) ── */
   if ((S.rocketSECO ?? false) && (S.rocketStage ?? 1) >= 2) {
-    const COLORS_  = geo.COLORS_;
-    const [fc, fg, fb] = COLORS_[3] ?? [70, 74, 86];
-    for (const fi of geo.bodyFlapInfo) {
-      if (fi.dir !== +1) continue;
-      if (fi.vFBot < vFcam) continue;  // camera is on the aft flap — only the fore flap (above camera) is visible
-      const yAft   = sY(fi.vFBot);
-      const yFore  = sY(fi.vFTop);
-      const yForeT = sY(fi.vFTopT);   // tip leading edge swept aft by leadInset
-      const xRoot  = sX(fi.rBody) * 0.38;  // root left edge blends into hull shadow
-      const xTip   = sX(fi.rTip);
-      if (Math.min(yFore, yAft) > H || Math.max(yFore, yAft) < 0) continue;
-      ctx.save();
-      ctx.fillStyle   = `rgba(${fc},${fg},${fb},0.92)`;
-      ctx.strokeStyle = 'rgba(130,148,170,0.55)';
-      ctx.lineWidth   = Math.max(0.8, dpr);
+    const aftFlap = (rg.bodyFlaps ?? []).find(f => f.vFBot < 0.028);
+    const vFBot  = aftFlap?.vFBot ?? 0.016;
+    const vFTop  = aftFlap?.vFTop ?? 0.024;
+    const rTipN  = Math.min((aftFlap?.rTip ?? 0.0049) / rBody, 1.10);
+    const z_bot  = (vF_cam - vFBot) / rBody;
+    const z_top  = (vF_cam - vFTop) / rBody;
+    const q0 = proj( sinSil,       cosSil,       z_bot);
+    const q1 = proj( sinSil,       cosSil,       z_top);
+    const q2 = proj( sinSil*rTipN, cosSil*rTipN, z_top);
+    const q3 = proj( sinSil*rTipN, cosSil*rTipN, z_bot);
+    if (q0 && q1 && q2 && q3) {
+      const [fc, fg, fb] = COLORS_[3] ?? [70, 74, 86];
       ctx.beginPath();
-      ctx.moveTo(xRoot, yAft);
-      ctx.lineTo(xRoot, yFore);
-      ctx.lineTo(xTip,  yForeT);
-      ctx.lineTo(xTip,  yAft);
+      ctx.moveTo(q0[0], q0[1]); ctx.lineTo(q1[0], q1[1]);
+      ctx.lineTo(q2[0], q2[1]); ctx.lineTo(q3[0], q3[1]);
       ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.strokeStyle = 'rgba(175,195,220,0.42)';
-      ctx.lineWidth   = Math.max(1, 1.5 * dpr);
-      ctx.beginPath();
-      ctx.moveTo(xRoot, yFore);
-      ctx.lineTo(xTip, yForeT);
-      ctx.stroke();
-      ctx.restore();
+      ctx.fillStyle   = `rgba(${fc},${fg},${fb},0.88)`;
+      ctx.strokeStyle = 'rgba(16,22,36,0.80)';
+      ctx.lineWidth   = Math.max(1.5, 2 * dpr);
+      ctx.fill(); ctx.stroke();
     }
   }
 }
 
-/* ── Starship body cam — side-mounted camera looking outward ──────
-   Body occupies left ~18% of frame as a dark cylinder rim.
-   Earth + curvature fills the rest. Raptor plume lower-left on burn. */
+/* ── Starship body cam — leeward fore body flap, looking sideways ──
+   Terrain rendered looking starboard (+90°) with slight downward pitch.
+   Earth fills the right portion; hull strip is drawn on the left. */
 function _renderSSBodyCam(canvas) {
   const W = canvas.width, H = canvas.height;
   const ctx = canvas.getContext('2d');
   const dpr = devicePixelRatio || 1;
 
-  /* Terrain: look 90° starboard + 20° down from ship attitude */
+  /* Terrain: camera on fore body flap, looking starboard + slightly down.
+     Ship body appears on the left; Earth/clouds fill the right of frame. */
   const sL=S.lat, sLo=S.lon, sA=S.alt, sH=S.hdg, sP=S.pitch, sR=S.roll;
   S.hdg   = ((S.hdg ?? 0) + 90 + 360) % 360;
   S.pitch = -20;
@@ -4929,34 +5021,37 @@ function _renderSSBodyCam(canvas) {
   _drawOrbitalClouds(ctx, W, H, -20, S.alt ?? 0,
     S.lat ?? 0, S.lon ?? 0, ((S.hdg ?? 0) + 90 + 360) % 360, _bodyCamZoom);
 
-  /* ── Hull silhouette + body flaps — geometry-driven ── */
-  _drawSSBodyHull(ctx, W, H, dpr);
+  /* ── Hull wireframe: fixed camera at Az:37 El:189.3 Z:1.33 PanX:-334
+     Camera is bolted to hull → hull appears constant across all flight states. */
+  const _savedZoom = _orbitZoom;
+  _orbitZoom = 1.33;
+  _drawWireframe(canvas, 0, 0, CHASE_BACK, CHASE_UP, 0, false, 37, 189.3, -334 * dpr);
+  _orbitZoom = _savedZoom;
 
-  /* ── Raptor plume — ascent or landing flip ── */
+  /* ── Raptor plume — ascent / landing: engine glow at bottom of frame ── */
   const ignT      = S.aircraft?.ignitionTime ?? 0;
   const isAscent  = (S.time ?? 0) >= ignT && !(S.rocketCoast ?? false) && !(S.rocketSECO ?? false);
   const isLanding = !!(S.starshipFlipStartT) && !(S.starshipSplashdown ?? false);
 
   if (isAscent || isLanding) {
-    const _bX  = W * 0.18;
-    const pX   = _bX * 0.40;
-    const pY0  = H * 0.78;
-    const pLen = H * 0.30;
-    const pW   = _bX * 0.55;
+    /* Engines are aft = bottom of "looking forward" frame; plume rises upward */
+    const pX   = W * 0.26;
+    const pY0  = H * 0.98;
+    const pLen = H * 0.24;
+    const pW   = W * 0.18;
 
-    // Tapered plume shape fanning outward and downward
-    const pGrad = ctx.createLinearGradient(pX, pY0, pX, pY0 + pLen);
-    pGrad.addColorStop(0,    'rgba(255,250,255,0.96)');
-    pGrad.addColorStop(0.07, 'rgba(255,160,225,0.88)');
-    pGrad.addColorStop(0.22, 'rgba(235, 65,175,0.58)');
-    pGrad.addColorStop(0.52, 'rgba(195, 18,125,0.24)');
+    const pGrad = ctx.createLinearGradient(pX, pY0, pX, pY0 - pLen);
+    pGrad.addColorStop(0,    'rgba(255,250,255,0.90)');
+    pGrad.addColorStop(0.08, 'rgba(255,160,225,0.72)');
+    pGrad.addColorStop(0.28, 'rgba(235, 65,175,0.40)');
+    pGrad.addColorStop(0.60, 'rgba(195, 18,125,0.12)');
     pGrad.addColorStop(1,    'rgba(150,  0, 85,0.00)');
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(pX - pW * 0.30, pY0);
-    ctx.quadraticCurveTo(pX - pW * 0.72, pY0 + pLen * 0.50, pX - pW * 0.20, pY0 + pLen);
-    ctx.lineTo(pX + pW * 0.20, pY0 + pLen);
-    ctx.quadraticCurveTo(pX + pW * 0.72, pY0 + pLen * 0.50, pX + pW * 0.30, pY0);
+    ctx.moveTo(pX - pW * 0.28, pY0);
+    ctx.quadraticCurveTo(pX - pW * 0.65, pY0 - pLen * 0.50, pX - pW * 0.16, pY0 - pLen);
+    ctx.lineTo(pX + pW * 0.16, pY0 - pLen);
+    ctx.quadraticCurveTo(pX + pW * 0.65, pY0 - pLen * 0.50, pX + pW * 0.28, pY0);
     ctx.closePath();
     ctx.fillStyle = pGrad;
     ctx.fill();
@@ -4964,9 +5059,9 @@ function _renderSSBodyCam(canvas) {
 
     // Nozzle-exit glow
     const gGrad = ctx.createRadialGradient(pX, pY0, 0, pX, pY0, pW * 0.52);
-    gGrad.addColorStop(0,   'rgba(255,255,255,0.95)');
-    gGrad.addColorStop(0.28,'rgba(255,210,245,0.65)');
-    gGrad.addColorStop(1,   'rgba(220,110,185,0.00)');
+    gGrad.addColorStop(0,    'rgba(255,255,255,0.90)');
+    gGrad.addColorStop(0.28, 'rgba(255,210,245,0.55)');
+    gGrad.addColorStop(1,    'rgba(220,110,185,0.00)');
     ctx.save();
     ctx.fillStyle = gGrad;
     ctx.beginPath(); ctx.arc(pX, pY0, pW * 0.52, 0, Math.PI * 2); ctx.fill();
