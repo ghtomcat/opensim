@@ -85,6 +85,7 @@ let _orbitAz    = 0;     // side-cam orbit azimuth (degrees, 0 = starboard)
 let _orbitEl    = 12;    // elevation above horizontal (degrees, +12 = slightly above)
 let _orbitZoom  = 1.0;   // side-cam zoom multiplier (1 = auto-fit; >1 = farther out)
 let _orbitPanX  = 0;     // chase-cam horizontal pan (pixels at current zoom, right = positive)
+let _orbitInitAc = null; // last aircraft id for which orbit defaults were applied
 let _bodyCamZoom = 1.0;  // body-cam optical zoom (1 = native FOV)
 let _orbitDragX = null;  // non-null while drag is active
 let _orbitDragY = null;
@@ -129,7 +130,7 @@ export function initOutside() {
   /* 0 key: reset orbit + zoom to default while paused */
   window.addEventListener('keydown', e => {
     if (e.key === '0' && S.paused && (_camMode === 1 || _camMode === 2 || _camMode === 5 || _camMode === 6)) {
-      _orbitAz = 0; _orbitEl = 12; _orbitZoom = 1; _orbitPanX = 0; _bodyCamZoom = 1;
+      _orbitInitAc = null; _bodyCamZoom = 1;  // force re-apply aircraft defaults on next frame
     }
   });
 }
@@ -225,6 +226,18 @@ function _drawSSReentryPlasma(canvas, cx, cy, camBackNm, bellySide = false) {
 
 /* ── Chase cam ────────────────────────────────────────────────── */
 function _renderChaseCam(canvas) {
+  /* Apply per-aircraft orbit defaults once when aircraft changes */
+  const _acId = S.aircraft?.id ?? null;
+  if (_acId !== _orbitInitAc) {
+    _orbitInitAc = _acId;
+    const od = S.aircraft?.chaseCamOrbit;
+    if (od) {
+      _orbitAz = od.az ?? _orbitAz; _orbitEl = od.el ?? _orbitEl;
+      _orbitZoom = od.zoom ?? _orbitZoom; _orbitPanX = od.panX ?? _orbitPanX;
+    } else {
+      _orbitAz = 0; _orbitEl = 12; _orbitZoom = 1; _orbitPanX = 0;
+    }
+  }
   const hdgRad = (S.hdg  ?? 0) * DEG;
   const _isSS  = S.aircraft?.id === 'starship';
   const acP    = (_isSS && S.rocketSECO) ? (S.starshipBodyPitch ?? S.pitch ?? 0) : (S.pitch ?? 0);
@@ -323,9 +336,12 @@ function _renderSideCam(canvas) {
   const W = canvas.width, H = canvas.height;
   _drawOrbitalClouds(canvas.getContext('2d'), W, H, _sidePitch, _tcSAlt, _tcSLat, _tcSLon, _tcSHdg);
 
-  /* Wireframe: _orbitAz rolls the model, _orbitEl tilts the camera. Terrain untouched. */
+  /* Wireframe: _orbitAz rolls the model, _orbitEl tilts the camera. Terrain untouched.
+     If the aircraft has a custom chaseCamOrbit its El is calibrated for chase-cam geometry
+     (camSide=0 fP-uR plane) and must not bleed into the side cam (camSide>0 rR-uR plane). */
   const _useWowPitch = S.wow && S.aircraft?.vehicleType !== 'rocket';
-  _drawWireframe(canvas, _useWowPitch ? 0 : acP, (_useWowPitch ? 0 : acR) + renderOrbit, 0, sideUp, sideDist, false, 0, _orbitEl);
+  const _scEl = S.aircraft?.chaseCamOrbit ? 12 : _orbitEl;
+  _drawWireframe(canvas, _useWowPitch ? 0 : acP, (_useWowPitch ? 0 : acR) + renderOrbit, 0, sideUp, sideDist, false, 0, _scEl);
   _drawLabel(canvas, 'SIDE CAM');
   if (S.paused) _drawPauseOverlay(canvas);
 }
@@ -5021,12 +5037,10 @@ function _renderSSBodyCam(canvas) {
   _drawOrbitalClouds(ctx, W, H, -20, S.alt ?? 0,
     S.lat ?? 0, S.lon ?? 0, ((S.hdg ?? 0) + 90 + 360) % 360, _bodyCamZoom);
 
-  /* ── Hull wireframe: fixed camera at Az:37 El:189.3 Z:1.33 PanX:-334
-     Camera is bolted to hull → hull appears constant across all flight states. */
-  const _savedZoom = _orbitZoom;
-  _orbitZoom = 1.33;
-  _drawWireframe(canvas, 0, 0, CHASE_BACK, CHASE_UP, 0, false, 37, 189.3, -334 * dpr);
-  _orbitZoom = _savedZoom;
+  /* ── Hull wireframe: same parameters as chase cam — actual pitch/roll, user orbit ── */
+  const _bcP = S.rocketSECO ? (S.starshipBodyPitch ?? S.pitch ?? 0) : (S.pitch ?? 0);
+  const _bcR = S.rocketRoll ?? 0;
+  _drawWireframe(canvas, _bcP, _bcR, CHASE_BACK, CHASE_UP, 0, false, _orbitAz, _orbitEl, _orbitPanX);
 
   /* ── Raptor plume — ascent / landing: engine glow at bottom of frame ── */
   const ignT      = S.aircraft?.ignitionTime ?? 0;

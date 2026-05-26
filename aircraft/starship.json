@@ -9,6 +9,7 @@
   "panel": "f9",
   "callsign": "STARSHIP",
   "icaoType": "STAR",
+  "chaseCamOrbit": { "az": 37, "el": 189.9, "zoom": 1.27, "panX": -334 },
   "performance": {
     "massWet": 5000000,
     "Cd": 0.35,
@@ -99,6 +100,7 @@
     },
     "noseTip": 0.041,
     "stageSep": [5],
+    "skirt": { "vFBot": 0.012, "col": 0 },
     "gridFins": [
       {
         "vFBot": 0.009,
@@ -139,17 +141,17 @@
         "vF": -0.025,
         "stage": 1,
         "rings": [
-          { "count": 3,  "radius": 0.00027, "nozzleR": 0.00033, "nozzleLen": 0.002 },
-          { "count": 10, "radius": 0.00135, "nozzleR": 0.00033, "nozzleLen": 0.002 },
-          { "count": 20, "radius": 0.00213, "nozzleR": 0.00033, "nozzleLen": 0.002 }
+          { "count": 3,  "radius": 0.00027, "nozzleR": 0.00033, "nozzleLen": 0.001 },
+          { "count": 10, "radius": 0.00135, "nozzleR": 0.00033, "nozzleLen": 0.001 },
+          { "count": 20, "radius": 0.00213, "nozzleR": 0.00033, "nozzleLen": 0.001 }
         ]
       },
       {
         "vF": 0.013,
         "stage": 2,
         "rings": [
-          { "count": 3, "radius": 0.00027, "nozzleR": 0.00033, "nozzleLen": 0.002, "type": "SL"  },
-          { "count": 3, "radius": 0.00054, "nozzleR": 0.00054, "nozzleLen": 0.006, "type": "Vac" }
+          { "count": 3, "radius": 0.00027, "nozzleR": 0.00033, "nozzleLen": 0.001, "type": "SL"  },
+          { "count": 3, "radius": 0.00054, "nozzleR": 0.00054, "nozzleLen": 0.001, "type": "Vac" }
         ]
       }
     ]

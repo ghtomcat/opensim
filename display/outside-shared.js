@@ -277,6 +277,25 @@ export function _buildRocket(rg) {
     _addFlap(-1);
   }
 
+  /* Cylindrical engine skirt — wraps aft of stageSep[0] ring down to vFBot */
+  if (rg.skirt) {
+    const { vFBot, col = 0 } = rg.skirt;
+    const aftRi  = rg.stageSep?.[0] ?? 0;
+    const aftR   = rings[aftRi].r ?? rings[aftRi].ry;
+    const skBase = V_.length;
+    for (let si = 0; si < N; si++) {
+      const a = Math.PI * 0.5 - (si / N) * Math.PI * 2;
+      V_.push([vFBot, aftR * Math.cos(a), aftR * Math.sin(a)]);
+    }
+    for (let si = 0; si < N; si++) {
+      const sj = (si + 1) % N;
+      F_.push([skBase+si, skBase+sj, rb[aftRi]+sj, rb[aftRi]+si]);
+      FC_.push(col);
+    }
+    for (let si = 0; si < N; si++) E_.push([skBase+si, skBase+(si+1)%N]);
+    for (const si of [0, N>>2, N>>1, (3*N)>>2]) E_.push([rb[aftRi]+si, skBase+si]);
+  }
+
   /* Engine cluster ring outlines + metadata for the nozzle renderer */
   const engineClusters = (rg.engineClusters ?? []).map(cluster => {
     const clRings = cluster.rings.map(ring => {
