@@ -157,7 +157,7 @@ export function tickOutside() {
   else if (_camMode === 3) _renderWingView(_canvas);
   else if (_camMode === 4) _renderPlumeCam(_canvas);
   else if (_camMode === 5) {
-    if (S.aircraft?.id === 'starship') _renderSSBodyCam(_canvas);
+    if (S.aircraft?.id === 'starship' && (S.rocketStage ?? 1) >= 2) _renderSSBodyCam(_canvas);
     else _renderBoosterCam(_canvas);
   }
   else if (_camMode === 6) _renderShipCam(_canvas);
@@ -1413,12 +1413,17 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       trackRate  = 0.015;
     }
     _ssFlapAngle += (flapTarget - _ssFlapAngle) * trackRate;
+    /* Differential bank-angle offset: drives left/right flap asymmetry during reentry.
+       starshipBankAngle ±75° → ±~19° differential per flap (0.25 rad/rad gain).
+       dir=+1 and dir=-1 flaps on each pair deflect in opposite directions. */
+    const _bankOff = (S.starshipBankAngle ?? 0) * DEG * 0.25;
     if (verts === V_) verts = V_.map(v => v.slice());
-    const _fsa = Math.sin(_ssFlapAngle), _fca = Math.cos(_ssFlapAngle);
     for (const fi of _ssGeo.bodyFlapInfo) {
-      const arm  = fi.rTip - fi.rBody;
-      const rOut = (fi.rBody + arm * _fsa) * fi.dir;
-      const vFTipFore = fi.vFTopT ?? fi.vFTop;  // tip leading edge (inset from root)
+      const flapA = _ssFlapAngle + _bankOff * fi.dir;
+      const _fsa  = Math.sin(flapA), _fca = Math.cos(flapA);
+      const arm   = fi.rTip - fi.rBody;
+      const rOut  = (fi.rBody + arm * _fsa) * fi.dir;
+      const vFTipFore = fi.vFTopT ?? fi.vFTop;
       if (fi.axis === 'uR') {
         verts[fi.base + 2] = [vFTipFore - arm * _fca, 0, rOut];
         verts[fi.base + 3] = [fi.vFBot  - arm * _fca, 0, rOut];
@@ -2133,11 +2138,10 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         }
       }
 
-      /* Top attachment cap — throat glow when firing */
+      /* Top attachment cap — dark backing plate inside bell */
       if (!topR.some(p => !p)) {
         const avgD = topR.reduce((s,p)=>s+p.d,0)/nNoz;
-        faces.push({ ps: topR, br: f1On ? 1.0 : 0.06, avgD,
-                     col: f1On ? _PLUME_HOT.rp1 : _PLUME_OFF.rp1 });
+        faces.push({ ps: topR, br: 0.06, avgD, col: _PLUME_OFF.rp1 });
       }
     }
   }
@@ -2206,8 +2210,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       }
       if (!topR.some(p => !p)) {
         const avgD = topR.reduce((s,p)=>s+p.d,0)/nNoz;
-        faces.push({ ps: topR, br: j2On ? 1.0 : 0.06, avgD,
-                     col: j2On ? _PLUME_HOT[style] : _PLUME_OFF[style] });
+        faces.push({ ps: topR, br: 0.06, avgD, col: _PLUME_OFF[style] });
       }
     }
   };
@@ -2308,8 +2311,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
           }
           if (!topR.some(p => !p)) {
             const avgD = topR.reduce((s,p)=>s+p.d,0)/nNoz;
-            faces.push({ ps: topR, br: raptorOn ? 0.9 : 0.06, avgD,
-                         col: raptorOn ? _PLUME_HOT.lh2 : [28, 26, 26] });
+            faces.push({ ps: topR, br: 0.06, avgD, col: [28, 26, 26] });
           }
         }
       }
@@ -2751,11 +2753,16 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     _pushMain(+1); _pushMain(-1);
   }
 
-  /* Starship reentry plasma — drawn after auto-fit so (cx,cy) is the correct
-     body centre on screen, before faces so the wireframe renders on top.    */
+  /* Starship reentry plasma — project the actual body midpoint (vF=0.027 =
+     centre of stage-2 span 0.013→0.041) rather than cx/cy, because cx is the
+     perspective-projection origin and can differ from the on-screen position
+     of the rocket centre (especially in side cam after stage sep).           */
   if (isSS) {
-    if (camSide > 0) _drawSSReentryPlasma(canvas, cx, cy, camSide, true);
-    else             _drawSSReentryPlasma(canvas, cx, cy, camBack, false);
+    const _pSSMid = project([0.027, 0, 0]);
+    const _pCx = _pSSMid?.x ?? cx;
+    const _pCy = _pSSMid?.y ?? cy;
+    if (camSide > 0) _drawSSReentryPlasma(canvas, _pCx, _pCy, camSide, true);
+    else             _drawSSReentryPlasma(canvas, _pCx, _pCy, camBack, false);
   }
 
   /* Painter's algorithm: farthest first */
@@ -5041,46 +5048,6 @@ function _renderSSBodyCam(canvas) {
   const _bcP = S.rocketSECO ? (S.starshipBodyPitch ?? S.pitch ?? 0) : (S.pitch ?? 0);
   const _bcR = S.rocketRoll ?? 0;
   _drawWireframe(canvas, _bcP, _bcR, CHASE_BACK, CHASE_UP, 0, false, _orbitAz, _orbitEl, _orbitPanX);
-
-  /* ── Raptor plume — ascent / landing: engine glow at bottom of frame ── */
-  const ignT      = S.aircraft?.ignitionTime ?? 0;
-  const isAscent  = (S.time ?? 0) >= ignT && !(S.rocketCoast ?? false) && !(S.rocketSECO ?? false);
-  const isLanding = !!(S.starshipFlipStartT) && !(S.starshipSplashdown ?? false);
-
-  if (isAscent || isLanding) {
-    /* Engines are aft = bottom of "looking forward" frame; plume rises upward */
-    const pX   = W * 0.26;
-    const pY0  = H * 0.98;
-    const pLen = H * 0.24;
-    const pW   = W * 0.18;
-
-    const pGrad = ctx.createLinearGradient(pX, pY0, pX, pY0 - pLen);
-    pGrad.addColorStop(0,    'rgba(255,250,255,0.90)');
-    pGrad.addColorStop(0.08, 'rgba(255,160,225,0.72)');
-    pGrad.addColorStop(0.28, 'rgba(235, 65,175,0.40)');
-    pGrad.addColorStop(0.60, 'rgba(195, 18,125,0.12)');
-    pGrad.addColorStop(1,    'rgba(150,  0, 85,0.00)');
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(pX - pW * 0.28, pY0);
-    ctx.quadraticCurveTo(pX - pW * 0.65, pY0 - pLen * 0.50, pX - pW * 0.16, pY0 - pLen);
-    ctx.lineTo(pX + pW * 0.16, pY0 - pLen);
-    ctx.quadraticCurveTo(pX + pW * 0.65, pY0 - pLen * 0.50, pX + pW * 0.28, pY0);
-    ctx.closePath();
-    ctx.fillStyle = pGrad;
-    ctx.fill();
-    ctx.restore();
-
-    // Nozzle-exit glow
-    const gGrad = ctx.createRadialGradient(pX, pY0, 0, pX, pY0, pW * 0.52);
-    gGrad.addColorStop(0,    'rgba(255,255,255,0.90)');
-    gGrad.addColorStop(0.28, 'rgba(255,210,245,0.55)');
-    gGrad.addColorStop(1,    'rgba(220,110,185,0.00)');
-    ctx.save();
-    ctx.fillStyle = gGrad;
-    ctx.beginPath(); ctx.arc(pX, pY0, pW * 0.52, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-  }
 
   const _zoomLabel = _bodyCamZoom !== 1 ? `BODY CAM  ${_bodyCamZoom.toFixed(1)}×` : 'BODY CAM';
   _drawLabel(canvas, _zoomLabel);
