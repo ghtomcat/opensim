@@ -350,9 +350,9 @@ function _renderSideCam(canvas) {
   if (S.paused) _drawPauseOverlay(canvas);
 }
 
-/* ── Wing view — close-up from cockpit level, left wing ───────── */
-const WING_SIDE = 0.009;   // NM — just outside fuselage, cockpit-window distance
-const WING_UP   = 0.0025;  // NM — slightly above wing plane
+/* ── Wing view — just outside fuselage, at cabin-window height ─── */
+const WING_SIDE = 0.0033;  // NM — fuselage radius + small margin (r = 0.0025)
+const WING_UP   = 0.0008;  // NM — at window level, slightly above fuselage centre
 
 function _renderWingView(canvas) {
   const hdgRad   = (S.hdg  ?? 0) * DEG;
@@ -2458,8 +2458,8 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     const _ftRootY = _wbGeo.r;
     const _ftBrkY  = _ftSpan * _ftFB;
     /* Pod dimensions — width and depth relative to fuselage radius */
-    const ftW = _wbGeo.r * 0.22;    // half-width of pod at widest point
-    const ftD = _wbGeo.r * 0.18;    // max depth below wing lower surface
+    const ftW = _wbGeo.r * 0.26;    // half-width of pod at widest point
+    const ftD = _wbGeo.r * 0.24;    // max depth below wing lower surface
     /* Correct wing lower surface Z — linear interpolation root→break→tip */
     const ftWR   = _wbGeo.r * 0.7071;
     const ftzR   = -ftWR;
@@ -2482,19 +2482,20 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         const fChord = fxLE - fxTE;
         const fxH   = fxLE - fChord * _ftFH;          // hinge — never moves
         const fZtop  = wLowerZ(yAbs);                  // wing lower surface z at this station
-        /* Fixed fairing body — flap slides on tracks inside, fairing stays put */
-        const fxFwd  = fxH - fChord * 0.10;            // fwd tip (slightly aft of hinge)
-        const fxBel  = fxH - fChord * 0.22;            // belly max
-        const fxAft1 = fxH - fChord * 0.20;            // aft body (near TE)
-        const fxAft2 = fxH - fChord * 0.33;            // aft tip (~3% past TE)
+        /* Spine runs forward→aft.  TE is at fxH - fChord*(1-_ftFH) = fxH - 0.30·fChord.
+           Hinge (fxH) is the aft end of the fixed fairing and the pivot for the movable can. */
+        const fxFwdTip = fxH + fChord * 0.22;  // deep into wing structure (22% fwd of hinge)
+        const fxBelly  = fxH + fChord * 0.03;  // belly/max-depth just ahead of hinge
+        const fxAft1   = fxH - fChord * 0.12;  // aft body — folds with flap
+        const fxAft2   = fxH - fChord * 0.33;  // aft tip  — 3% past TE (folds)
 
-        /* Spine: [x, zt, depth-below-attachment, half-width] */
+        /* Spine: monotonically forward→aft; hinge is back of fixed section */
         const spine = [
-          { x: fxFwd,  zt: fZtop, dp: ftD*0.06, hw: 0,        fixed: true  },  // fwd tip
-          { x: fxBel,  zt: fZtop, dp: ftD,       hw: ftW,      fixed: true  },  // belly max
-          { x: fxH,    zt: fZtop, dp: ftD*0.72,  hw: ftW*0.82, fixed: true  },  // hinge (pivot)
-          { x: fxAft1, zt: fZtop, dp: ftD*0.35,  hw: ftW*0.40, fixed: false },  // aft body — folds with flap
-          { x: fxAft2, zt: fZtop, dp: ftD*0.06,  hw: 0,        fixed: false },  // aft tip  — folds with flap
+          { x: fxFwdTip, zt: fZtop, dp: ftD*0.05, hw: 0,          fixed: true  },  // fwd tip (into wing)
+          { x: fxBelly,  zt: fZtop, dp: ftD,       hw: ftW,        fixed: true  },  // belly max
+          { x: fxH,      zt: fZtop, dp: ftD*0.80,  hw: ftW*0.88,   fixed: true  },  // hinge — back of fixed
+          { x: fxAft1,   zt: fZtop, dp: ftD*0.42,  hw: ftW*0.46,   fixed: false },  // aft body — folds
+          { x: fxAft2,   zt: fZtop, dp: ftD*0.05,  hw: 0,          fixed: false },  // aft tip
         ];
 
         /* Flap fold angle for aft fairing section */
