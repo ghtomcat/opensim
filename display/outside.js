@@ -295,20 +295,25 @@ function _renderSideCam(canvas) {
   const sideDist = (isRocket ? Math.max(SIDE_SIDE, altNm * 0.25) : SIDE_SIDE) * _orbitZoom;
   const sideUp   = (isRocket ? Math.max(SIDE_UP,   altNm * 0.05) : SIDE_UP)   * _orbitZoom;
 
-  /* Director shot orbit — terrain camera gets shot contribution only.
-     User _orbitAz / _orbitEl never touch the terrain camera. */
+  /* For rockets: _orbitAz rolls the body (longitudinal pre-pitch spin).
+     For aircraft: _orbitAz orbits the camera around the aircraft — swings
+     terrain camera position + wireframe viewpoint (no banking of model). */
   let terrainOrbit = 0;
-  let renderOrbit  = _orbitAz;
+  let renderOrbit  = isRocket ? _orbitAz : 0;
+  let sideOrbitAz  = isRocket ? 0 : _orbitAz;  // wireframe cam orbit (aircraft only)
   {
     const db = _dirBlend();
     if (db > 0 && _dir.shot) {
       const shotAz = (_DIR_SHOTS[_dir.shot].orbitAz ?? 0) * db;
       terrainOrbit += shotAz;
-      renderOrbit  += shotAz;
+      if (isRocket) renderOrbit += shotAz;
+      else          sideOrbitAz += shotAz;
     }
   }
+  // Aircraft in-flight: swing terrain camera with user orbit (opposite sign: +az → toward nose)
+  if (!isRocket && !S.wow) terrainOrbit -= _orbitAz;
 
-  /* Terrain camera: fixed default elevation (12°), no user orbit offset. */
+  /* Terrain camera: fixed default elevation (12°), user orbit swings position only. */
   const tElRad    = 12 * DEG;
   const tOrbitRad = S.wow ? terrainOrbit * DEG : rightRad + terrainOrbit * DEG;
   const hDist     = sideDist * Math.cos(tElRad);
@@ -336,12 +341,11 @@ function _renderSideCam(canvas) {
   const W = canvas.width, H = canvas.height;
   _drawOrbitalClouds(canvas.getContext('2d'), W, H, _sidePitch, _tcSAlt, _tcSLat, _tcSLon, _tcSHdg);
 
-  /* Wireframe: _orbitAz rolls the model, _orbitEl tilts the camera. Terrain untouched.
-     If the aircraft has a custom chaseCamOrbit its El is calibrated for chase-cam geometry
-     (camSide=0 fP-uR plane) and must not bleed into the side cam (camSide>0 rR-uR plane). */
+  /* Wireframe: rockets: _orbitAz rolls body; aircraft: _orbitAz orbits camera via sideOrbitAz.
+     El: aircraft with chaseCamOrbit use fixed 12° so chase-calibrated El doesn't bleed here. */
   const _useWowPitch = S.wow && S.aircraft?.vehicleType !== 'rocket';
   const _scEl = S.aircraft?.chaseCamOrbit ? 12 : _orbitEl;
-  _drawWireframe(canvas, _useWowPitch ? 0 : acP, (_useWowPitch ? 0 : acR) + renderOrbit, 0, sideUp, sideDist, false, 0, _scEl);
+  _drawWireframe(canvas, _useWowPitch ? 0 : acP, (_useWowPitch ? 0 : acR) + renderOrbit, 0, sideUp, sideDist, false, sideOrbitAz, _scEl);
   _drawLabel(canvas, 'SIDE CAM');
   if (S.paused) _drawPauseOverlay(canvas);
 }
@@ -1212,11 +1216,20 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       uR = -fP * sinEl + uR * cosEl;
       fP = fP2;
     }
-    /* Azimuth: rotate around fP (depth) axis — tilts body axis left/right in screen space */
+    /* Chase cam azimuth: rotate around fP (depth) axis — tilts body L/R in screen space */
     if (orbitAzDeg !== 0 && camSide === 0) {
       const rR2 = rR * cosAz - uR * sinAz;
       uR = rR * sinAz + uR * cosAz;
       rR = rR2;
+    }
+    /* Side cam azimuth: orbit camera around aircraft's up axis (fP-rR plane).
+       Positive az swings camera toward nose; negative toward tail.
+       Derived from camera at [camSide·sin(α), camSide·cos(α)] looking at origin:
+       cfW = camSide - fP·sinAz - rR·cosAz → achieve via pre-rotation of fP/rR. */
+    if (orbitAzDeg !== 0 && camSide > 0) {
+      const fP2 = fP * cosAz - rR * sinAz;
+      rR        = fP * sinAz + rR * cosAz;
+      fP = fP2;
     }
 
     let cfW, crW, cuW;

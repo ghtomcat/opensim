@@ -4060,6 +4060,9 @@
         pfd.style.display = ''; ecam.style.display = 'none';
         document.body.classList.add('outside-active');
         uiEls.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = ''; });
+        if (S.aircraft?.vehicleType !== 'rocket' && _outsideCamMode === 0) {
+          _outsideCamMode = 1; setOutsideCamMode(1);
+        }
         outsideInvalidate();
       } else {
         /* mode === 2 — full outside */
@@ -4069,6 +4072,9 @@
         pfd.style.display = 'none'; ecam.style.display = 'none';
         document.body.classList.remove('outside-active');
         uiEls.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+        if (S.aircraft?.vehicleType !== 'rocket' && _outsideCamMode === 0) {
+          _outsideCamMode = 1; setOutsideCamMode(1);
+        }
         outsideInvalidate();
       }
     }
