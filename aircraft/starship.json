@@ -1,5 +1,6 @@
 {
   "id": "starship",
+  "render": "starship",
   "name": "Starship / Super Heavy",
   "vehicleType": "rocket",
   "clock": "met",

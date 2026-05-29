@@ -344,3 +344,18 @@ export function _buildRocket(rg) {
   const COLORS_ = rg.colors ?? [];
   return { V_, F_, FC_, E_, FN_, COLORS_, rb, stageRanges, engineClusters, tipVIdx: tipIdx, bodyFlapInfo };
 }
+
+/* Rotate a hinged surface by arc displacement.
+   angle: signed — positive = TE up (z) or TE right (y).
+   src: base positions to read from; omit to read from verts (accumulated). */
+export function animHinge(verts, idxs, r, angle, axis, src) {
+  const dX   = r * (1 - Math.cos(angle));
+  const dLat = r * Math.sin(angle);
+  const base = src ?? verts;
+  for (const vi of idxs) {
+    const v = base[vi];
+    verts[vi] = axis === 'z'
+      ? [v[0]+dX, v[1],      v[2]+dLat]
+      : [v[0]+dX, v[1]+dLat, v[2]     ];
+  }
+}

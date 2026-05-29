@@ -1,6 +1,8 @@
 /* OpenSim — display/outside-b109.js
    Messerschmitt Bf 109 geometry. */
-import { buildTube, buildWingSurface, computeFaceNormals } from './outside-shared.js';
+import { buildTube, buildWingSurface, computeFaceNormals, animHinge } from './outside-shared.js';
+
+const DEG = Math.PI / 180;
 
 export const _spb    = 0.00044;  // Bf 109 spinner base radius (tighter — longer pointy spinner)
 
@@ -314,3 +316,24 @@ export const _GV_b109 = [
   /* 4 */ [-0.012,  0,      -0.0006 ],  // tail strut top
   /* 5 */ [-0.012,  0,      -0.0012 ],  // tail wheel
 ];
+
+/* Animate control surfaces (flaps/ailerons/elevator/rudder). Returns a clone. */
+export function animSurfaces_b109({ flapCfg, ailCmd, elevCmd, rudCmd }) {
+  const verts = _V_b109.map(v => v.slice());
+  const { r_fl, r_el, r_ru, r_ail } = _anim_b109;
+  if (flapCfg > 0)
+    animHinge(verts, [99,144,103,146,148,152,154,158], r_fl, -(flapCfg*10*DEG), 'z', _V_b109);
+  if (Math.abs(ailCmd) > 0.01) {
+    const aa = ailCmd * 25 * DEG;
+    animHinge(verts, [175,101,176,150], r_ail, -aa, 'z', _V_b109);  // R: TE down
+    animHinge(verts, [177,105,178,156], r_ail, +aa, 'z', _V_b109);  // L: TE up
+  }
+  if (Math.abs(elevCmd) > 0.02)
+    animHinge(verts, [111,113,115,117,180,182,184,186], r_el, elevCmd*20*DEG, 'z', _V_b109);
+  if (Math.abs(rudCmd) > 0.02)
+    animHinge(verts, [107,109], r_ru, -(rudCmd*25*DEG), 'y', _V_b109);
+  return verts;
+}
+
+/* Prop-disk anchors: hub (spin centre = noseTip) + tip (radius reference). */
+export const _PROP_b109 = { hub: 96, tip: 118 };

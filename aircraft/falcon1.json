@@ -1,5 +1,6 @@
 {
   "id":          "falcon1",
+  "render":          "falcon9",
   "name":        "Falcon 1",
   "clock":       "met",
   "vehicleType": "rocket",

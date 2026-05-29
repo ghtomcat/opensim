@@ -1,5 +1,7 @@
 {
   "id": "f4u1a",
+  "render": "f4u",
+  "gear": { "fixed": true, "tires": [[1, 0.001276], [3, 0.001276], [5, 0.00066]] },
   "panel": "f4u",
   "name": "Vought F4U-1A Corsair",
   "clock": "analog",

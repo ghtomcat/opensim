@@ -1,6 +1,8 @@
 /* OpenSim — display/outside-c172.js
    Cessna 172 geometry. */
-import { buildTube, buildWingSurface, computeFaceNormals } from './outside-shared.js';
+import { buildTube, buildWingSurface, computeFaceNormals, animHinge } from './outside-shared.js';
+
+const DEG = Math.PI / 180;
 
 export const _cr  = 0.0018;   // cowl ring radius
 export const _xr  = 0.0021;   // cabin ring radius
@@ -315,3 +317,24 @@ export const _GV_c172 = [
   /* 4 */ [ 0.000, -0.0014,   -_xr        ],  // L main top
   /* 5 */ [ 0.000, -0.0014,   -_xr-0.0020 ],  // L main wheel
 ];
+
+/* Animate control surfaces for the given command set (flaps/ailerons/
+   elevator/rudder). Returns a freshly-cloned vertex array. */
+export function animSurfaces_c172({ flapCfg, ailCmd, elevCmd, rudCmd }) {
+  const verts = _V_c172.map(v => v.slice());
+  if (flapCfg > 0)
+    animHinge(verts, [83,108,87,110,128,132,134,138], _anim_c172.r_fl, -(flapCfg*10*DEG), 'z', _V_c172);
+  if (Math.abs(ailCmd) > 0.01) {
+    const aa = ailCmd * 18 * DEG;
+    animHinge(verts, [181,85,182,130], _anim_c172.r_ail, -aa, 'z');  // R: TE down
+    animHinge(verts, [183,89,184,136], _anim_c172.r_ail, +aa, 'z');  // L: TE up
+  }
+  if (Math.abs(elevCmd) > 0.02)
+    animHinge(verts, [95,97,99,101,148,150,156,158], _anim_c172.r_el, elevCmd*20*DEG, 'z');
+  if (Math.abs(rudCmd) > 0.02)
+    animHinge(verts, [91,93], _anim_c172.r_ru, -(rudCmd*25*DEG), 'y');
+  return verts;
+}
+
+/* Prop-disk anchors: hub (spin centre = noseTip) + tip (radius reference). */
+export const _PROP_c172 = { hub: 80, tip: 106 };

@@ -1,6 +1,8 @@
 /* OpenSim — display/outside-f4u.js
    Vought F4U Corsair geometry. */
-import { buildTube, buildWingSurface, computeFaceNormals } from './outside-shared.js';
+import { buildTube, buildWingSurface, computeFaceNormals, animHinge } from './outside-shared.js';
+
+const DEG = Math.PI / 180;
 
 export const _f4uCowlR = 0.00220;  // R-2800 radial cowl radius
 export const _f4uFRy   = 0.00130;  // body half-width
@@ -346,3 +348,24 @@ export const _GV_f4u = [
   /* 4 */ [-0.012,   0,      -0.0008 ],  // tail wheel strut top
   /* 5 */ [-0.012,   0,      -0.0015 ],  // tail wheel center
 ];
+
+/* Animate control surfaces (flaps/ailerons/elevator/rudder). Returns a clone. */
+export function animSurfaces_f4u({ flapCfg, ailCmd, elevCmd, rudCmd }) {
+  const verts = _V_f4u.map(v => v.slice());
+  const { r_fl, r_el, r_ru, r_ail } = _anim_f4u;
+  if (flapCfg > 0)
+    animHinge(verts, [101,103,154,156], r_fl, -(flapCfg*15*DEG), 'z', _V_f4u);
+  if (Math.abs(ailCmd) > 0.01) {
+    const aa = ailCmd * 25 * DEG;
+    animHinge(verts, [183,105,184,158], r_ail, -aa, 'z', _V_f4u);
+    animHinge(verts, [185,113,186,166], r_ail, +aa, 'z', _V_f4u);
+  }
+  if (Math.abs(elevCmd) > 0.02)
+    animHinge(verts, [119,121,123,125,188,190,192,194], r_el, elevCmd*20*DEG, 'z', _V_f4u);
+  if (Math.abs(rudCmd) > 0.02)
+    animHinge(verts, [115,117], r_ru, -(rudCmd*25*DEG), 'y', _V_f4u);
+  return verts;
+}
+
+/* Prop-disk anchors: hub (spin centre = noseTip) + tip (radius reference). */
+export const _PROP_f4u = { hub: 96, tip: 126 };

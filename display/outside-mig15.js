@@ -14,7 +14,9 @@
      160-171 L h-stab (mirror of R)
      172-179 canopy (windscreen base L/R, top R/L, crown L/R, aft R/L)     */
 
-import { buildTube, buildWingSurface, computeFaceNormals } from './outside-shared.js';
+import { buildTube, buildWingSurface, computeFaceNormals, animHinge } from './outside-shared.js';
+
+const DEG = Math.PI / 180;
 
 export const _m15r   = 0.0021;   // max fuselage radius
 export const _m15ir  = 0.0019;   // intake lip radius
@@ -234,3 +236,23 @@ export const _GV_mig15 = [
   [-0.001, -0.0060, -_m15r  * 0.85 - 0.0032],  // 5 L main wheel
 ];
 export const _GE_mig15 = [[0,1],[2,3],[4,5]];
+
+/* Animate control surfaces (flaps/ailerons/elevator/rudder). Returns a clone. */
+export function animSurfaces_mig15({ flapCfg, ailCmd, elevCmd, rudCmd }) {
+  const verts = _V_mig15.map(v => v.slice());
+  const { r_fl, r_flb, r_ail, r_el, r_ru, flapRoot, flapBrk, ailR, ailL, elR, elL, rudTE } = _anim_mig15;
+  if (flapCfg > 0) {
+    animHinge(verts, flapRoot, r_fl,  -(flapCfg * 10 * DEG), 'z', _V_mig15);
+    animHinge(verts, flapBrk,  r_flb, -(flapCfg * 10 * DEG), 'z', _V_mig15);
+  }
+  if (Math.abs(ailCmd) > 0.01) {
+    const aa = ailCmd * 25 * DEG;
+    animHinge(verts, ailR, r_ail, -aa, 'z', _V_mig15);
+    animHinge(verts, ailL, r_ail, +aa, 'z', _V_mig15);
+  }
+  if (Math.abs(elevCmd) > 0.02)
+    animHinge(verts, [...elR, ...elL], r_el, elevCmd * 20 * DEG, 'z', _V_mig15);
+  if (Math.abs(rudCmd) > 0.02)
+    animHinge(verts, rudTE, r_ru, -(rudCmd * 25 * DEG), 'y', _V_mig15);
+  return verts;
+}

@@ -1,5 +1,6 @@
 {
   "id": "robin-dr400",
+  "render": "c172",
   "name": "Robin DR400/140B Dauphin",
   "clock": "digital",
   "panel": "dr400",

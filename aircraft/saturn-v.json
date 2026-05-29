@@ -1,5 +1,6 @@
 {
   "id":          "saturn-v",
+  "render":          "saturn-v",
   "name":        "Saturn V",
   "clock":       "met",
   "vehicleType": "rocket",

@@ -8,7 +8,7 @@ import { S } from '../core/state.js';
 import { renderTerrain } from './terrain.js';
 import { getMapReservedRight } from './map.js';
 import { moonECI } from '../core/rocket.js';
-import { buildTube, buildWingSurface, computeFaceNormals, _buildRocket } from './outside-shared.js';
+import { buildTube, buildWingSurface, computeFaceNormals, _buildRocket, animHinge } from './outside-shared.js';
 import {
   _r, _nr1, _nr2, _nr3, _hs, _ey, _ez, _pz, _er, _e7, _efr, _ef7, _erc, _e7c, _wr, _dh,
   _WB_WING_DEFAULT, _WB_NP, _buildWB, _acGeoFromJson, _wbCache,
@@ -17,22 +17,26 @@ import {
 import {
   _cr, _xr, _abr, _tr, _hs172, _dh172, _hst172, _hst_th, _vst_th, _pr172, _sp172,
   _C172_WING, _COLORS_c172,
-  _V_c172, _F_c172, _FC_c172, _E_c172, _anim_c172, _FN_c172, _LIGHTS_c172, _GV_c172
+  _V_c172, _F_c172, _FC_c172, _E_c172, _anim_c172, _FN_c172, _LIGHTS_c172, _GV_c172,
+  animSurfaces_c172, _PROP_c172
 } from './outside-c172.js';
 import {
   _spb,
   _bcR, _bfRy, _bfRz, _baRy, _baRz, _btRy, _btRz,
   _b9hs, _b9dh, _b9vH, _b9hw, _b9pr, _bCzH, _bCyW,
-  _COLORS_b109, _V_b109, _F_b109, _FC_b109, _E_b109, _anim_b109, _FN_b109, _GV_b109
+  _COLORS_b109, _V_b109, _F_b109, _FC_b109, _E_b109, _anim_b109, _FN_b109, _GV_b109,
+  animSurfaces_b109, _PROP_b109
 } from './outside-b109.js';
 import {
   _f4uCowlR, _f4uFRy, _f4uFRz, _f4uARy, _f4uARz, _f4uTRy, _f4uTRz,
   _f4uHS, _f4uVH, _f4uHW, _f4uPropR, _f4uSpb, _f4uCzH, _f4uCyW,
-  _COLORS_f4u, _V_f4u, _F_f4u, _FC_f4u, _E_f4u, _anim_f4u, _FN_f4u, _GV_f4u
+  _COLORS_f4u, _V_f4u, _F_f4u, _FC_f4u, _E_f4u, _anim_f4u, _FN_f4u, _GV_f4u,
+  animSurfaces_f4u, _PROP_f4u
 } from './outside-f4u.js';
 import {
   _m15r, _m15ir,
-  _COLORS_mig15, _V_mig15, _F_mig15, _FC_mig15, _E_mig15, _anim_mig15, _FN_mig15, _GV_mig15
+  _COLORS_mig15, _V_mig15, _F_mig15, _FC_mig15, _E_mig15, _anim_mig15, _FN_mig15, _GV_mig15,
+  animSurfaces_mig15
 } from './outside-mig15.js';
 import {
   _sv1r, _sv3r, _svcr, _svcr2, _svFS, _svLT,
@@ -75,6 +79,62 @@ const _COLORS = [
   [195, 205, 215], // 9 winglets        — default = wing color; override via livery index 9
   [ 15,  15,  18], // 10 engine interior — near-black for intake/nozzle cap faces
 ];
+
+/* ── Render profile → geometry bundle ──────────────────────────────
+   Each aircraft declares its renderer via the "render" field in its JSON
+   (e.g. "render": "c172"). Several aircraft share one profile — the Robin
+   DR400 reuses the C172 geometry, every Falcon variant reuses "falcon9".
+   That many-to-one mapping is why the renderer choice belongs in the
+   aircraft data, not reverse-engineered from id/panel here. _renderProfile
+   falls back to id/panel detection for aircraft that predate the field.
+
+   The procedural geometry itself stays in the outside-*.js modules (it is
+   built with trig, not expressible as flat JSON). Starship and the default
+   "wb" body build their geometry per-frame, so they are resolved at draw
+   time below rather than living in this static table. */
+function _renderProfile(ac) {
+  if (ac?.render) return ac.render;
+  if (ac?.panel === 'g1000' || ac?.panel === 'dr400') return 'c172';
+  if (ac?.id === 'saturn-v') return 'saturn-v';
+  if (ac?.id === 'starship') return 'starship';
+  if (ac?.id?.startsWith('falcon9') || ac?.vehicleType === 'rocket') return 'falcon9';
+  if (ac?.id === 'bf109') return 'bf109';
+  if (ac?.id === 'f4u1a') return 'f4u';
+  if (ac?.id === 'mig15') return 'mig15';
+  return 'wb';
+}
+
+const _GEO_REGISTRY = {
+  c172:       { V_: _V_c172,  F_: _F_c172,  FC_: _FC_c172,  FN_: _FN_c172,  E_: _E_c172,  COL_: _COLORS_c172,  GV_: _GV_c172,  prop: _PROP_c172 },
+  bf109:      { V_: _V_b109,  F_: _F_b109,  FC_: _FC_b109,  FN_: _FN_b109,  E_: _E_b109,  COL_: _COLORS_b109,  GV_: _GV_b109,  prop: _PROP_b109 },
+  f4u:        { V_: _V_f4u,   F_: _F_f4u,   FC_: _FC_f4u,   FN_: _FN_f4u,   E_: _E_f4u,   COL_: _COLORS_f4u,   GV_: _GV_f4u,   prop: _PROP_f4u  },
+  mig15:      { V_: _V_mig15, F_: _F_mig15, FC_: _FC_mig15, FN_: _FN_mig15, E_: _E_mig15, COL_: _COLORS_mig15, GV_: _GV_mig15 },
+  falcon9:    { V_: _V_f9,    F_: _F_f9,    FC_: _FC_f9,    FN_: _FN_f9,    E_: _E_f9,    COL_: _COLORS_f9,    GV_: _GV       },
+  'saturn-v': { V_: _V_sv,    F_: _F_sv,    FC_: _FC_sv,    FN_: _FN_sv,    E_: _E_sv,    COL_: _COLORS_sv,    GV_: _GV       },
+};
+
+/* Per-aircraft control-surface animators. The C172/warbird family shares the
+   command model below; each module owns the hinge geometry. */
+const _CTRL_ANIM = {
+  c172:  animSurfaces_c172,
+  bf109: animSurfaces_b109,
+  f4u:   animSurfaces_f4u,
+  mig15: animSurfaces_mig15,
+};
+
+/* Flap/aileron/elevator/rudder commands for the C172/warbird family, derived
+   from autopilot/control targets in S. (WB airliners use a different model.) */
+function _warbirdCtrlCmd(maxBank) {
+  const clamp    = (x) => Math.max(-1, Math.min(1, x));
+  const flapCfg  = S.flaps ?? 0;
+  const ailCmd   = clamp((S.rollT ?? 0) / maxBank);
+  const pitchErr = (S.pitchT ?? 0) - (S.pitch ?? 0);
+  const elevCmd  = clamp(pitchErr / 10 + (S.trim ?? 0) / 10);
+  const hdgDelta = ((((S.hdgT ?? 0) - (S.hdg ?? 0)) + 540) % 360) - 180;
+  const rudCmd   = clamp(hdgDelta / 20);
+  const active   = flapCfg > 0 || Math.abs(ailCmd) > 0.01 || Math.abs(elevCmd) > 0.02 || Math.abs(rudCmd) > 0.02;
+  return { flapCfg, ailCmd, elevCmd, rudCmd, active };
+}
 
 let _canvas    = null;
 let _camMode   = 0;
@@ -498,21 +558,6 @@ function drawActuatorRod(ctx, pa, pb, dpr) {
   ctx.closePath();
   ctx.fillStyle   = 'rgba(90,105,125,0.85)';  ctx.fill();
   ctx.strokeStyle = 'rgba(185,200,215,0.80)';  ctx.stroke();
-}
-
-/* Rotate a hinged surface by arc displacement.
-   angle: signed — positive = TE up (z) or TE right (y).
-   src: base positions to read from; omit to read from verts (accumulated). */
-function animHinge(verts, idxs, r, angle, axis, src) {
-  const dX   = r * (1 - Math.cos(angle));
-  const dLat = r * Math.sin(angle);
-  const base = src ?? verts;
-  for (const vi of idxs) {
-    const v = base[vi];
-    verts[vi] = axis === 'z'
-      ? [v[0]+dX, v[1],      v[2]+dLat]
-      : [v[0]+dX, v[1]+dLat, v[2]     ];
-  }
 }
 
 /* ── Nacelle inlet lip ring — polished metal leading edge at intake face ─────
@@ -1010,13 +1055,16 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   /* Advance fan rotation angle — capped so it doesn't spin during static frames */
   _fanAngle = (_fanAngle + Math.min(0.06, (S.enginePower ?? 0) * 0.35)) % (Math.PI * 2);
 
-  const isC172  = (S.aircraft?.panel === 'g1000' || S.aircraft?.panel === 'dr400');
-  const isSV    = !isC172 && (S.aircraft?.id === 'saturn-v');
-  const isSS    = !isC172 && !isSV && (S.aircraft?.id === 'starship');
-  const isF9    = !isC172 && !isSV && !isSS && (S.aircraft?.id?.startsWith('falcon9') || S.aircraft?.vehicleType === 'rocket');
-  const isBf109  = !isC172 && !isF9 && !isSV && !isSS && (S.aircraft?.id === 'bf109');
-  const isF4U    = !isC172 && !isF9 && !isSV && !isSS && !isBf109 && (S.aircraft?.id === 'f4u1a');
-  const isMig15  = !isC172 && !isF9 && !isSV && !isSS && !isBf109 && !isF4U && (S.aircraft?.id === 'mig15');
+  /* Single-valued render profile (from aircraft JSON "render" field, with
+     id/panel fallback). The is* flags are mutually exclusive by construction. */
+  const profile = _renderProfile(S.aircraft);
+  const isC172  = profile === 'c172';
+  const isSV    = profile === 'saturn-v';
+  const isSS    = profile === 'starship';
+  const isF9    = profile === 'falcon9';
+  const isBf109 = profile === 'bf109';
+  const isF4U   = profile === 'f4u';
+  const isMig15 = profile === 'mig15';
 
   /* Starship / Super Heavy — build from aircraft.rocketGeometry on first use */
   const _ssRocketCache = _ssRocketCache_mut;
@@ -1036,25 +1084,29 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const _wbGeo = (!isC172 && !isF9 && !isBf109 && !isF4U && !isMig15 && !isSV && !isSS)
     ? (_wbCache[S.aircraft?.id] ?? _wbCache.default) : null;
   const _b   = _wbGeo?.b ?? 162;  // base index of non-tube vertices; 162 for nNose=5, 194 for nNose=7
-  const V_   = isC172 ? _V_c172 : isF9 ? _V_f9 : isBf109 ? _V_b109 : isF4U ? _V_f4u : isMig15 ? _V_mig15 : isSV ? _V_sv : isSS ? (_ssGeo?.V_ ?? []) : _wbGeo.V_;
-  const F_   = isC172 ? _F_c172 : isF9 ? _F_f9 : isBf109 ? _F_b109 : isF4U ? _F_f4u : isMig15 ? _F_mig15 : isSV ? _F_sv : isSS ? (_ssGeo?.F_ ?? []) : _wbGeo.F_;
-  const FC_  = isC172 ? _FC_c172 : isF9 ? _FC_f9 : isBf109 ? _FC_b109 : isF4U ? _FC_f4u : isMig15 ? _FC_mig15 : isSV ? _FC_sv : isSS ? (_ssGeo?.FC_ ?? []) : _wbGeo.FC_;
-  const FN_  = isC172 ? _FN_c172 : isF9 ? _FN_f9 : isBf109 ? _FN_b109 : isF4U ? _FN_f4u : isMig15 ? _FN_mig15 : isSV ? _FN_sv : isSS ? (_ssGeo?.FN_ ?? []) : _wbGeo.FN_;
-  const E_   = isC172 ? _E_c172 : isF9 ? _E_f9 : isBf109 ? _E_b109 : isF4U ? _E_f4u : isMig15 ? _E_mig15 : isSV ? _E_sv : isSS ? (_ssGeo?.E_ ?? []) : _wbGeo.E_;
+  /* Static geometry comes from the registry; Starship (_ssGeo) and the
+     default body (_wbGeo) are built per-frame and resolved here. */
+  const _reg = _GEO_REGISTRY[profile];
+  const V_   = _reg ? _reg.V_  : isSS ? (_ssGeo?.V_  ?? []) : _wbGeo.V_;
+  const F_   = _reg ? _reg.F_  : isSS ? (_ssGeo?.F_  ?? []) : _wbGeo.F_;
+  const FC_  = _reg ? _reg.FC_ : isSS ? (_ssGeo?.FC_ ?? []) : _wbGeo.FC_;
+  const FN_  = _reg ? _reg.FN_ : isSS ? (_ssGeo?.FN_ ?? []) : _wbGeo.FN_;
+  const E_   = _reg ? _reg.E_  : isSS ? (_ssGeo?.E_  ?? []) : _wbGeo.E_;
   const SE_  = _wbGeo?.SE_ ?? [];
   const SL_  = _wbGeo?.SL_ ?? [];
   const _livCol    = S.aircraft?.livery?.colors;
   const _nacPaint  = S.aircraft?.engine?.nacellePaint ?? null;
-  /* Build per-frame color table: livery overrides first, then nacelle paint
-     overrides slots 4 (engine body) and 7 (TR zone, same nacelle color).
-     Always produces a new array so downstream callers can't mutate _COLORS. */
-  const COL_ = isC172 ? _COLORS_c172 : isF9 ? _COLORS_f9 : isBf109 ? _COLORS_b109 : isF4U ? _COLORS_f4u : isMig15 ? _COLORS_mig15 : isSV ? _COLORS_sv
+  /* Build per-frame color table: registry profiles use their fixed palette;
+     the default body applies livery overrides first, then nacelle paint over
+     slots 4 (engine body) and 7 (TR zone). Always a new array so downstream
+     callers can't mutate _COLORS. */
+  const COL_ = _reg ? _reg.COL_
              : isSS ? (_ssGeo?.COLORS_ ?? [])
              : _COLORS.map((c, i) => {
                  if (_nacPaint  && (i === 4 || i === 7)) return _nacPaint;
                  return _livCol?.[i] ?? c;
                });
-  const GV_  = isC172 ? _GV_c172     : isBf109 ? _GV_b109 : isF4U ? _GV_f4u : isMig15 ? _GV_mig15 : _GV;
+  const GV_  = _reg ? _reg.GV_ : _GV;
 
   const P = acPitchDeg * DEG, R = acRollDeg * DEG;
   const cosP = Math.cos(P), sinP = Math.sin(P);
@@ -1271,102 +1323,16 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     return { x: cx + crW / cf * focal, y: cy - cu / cf * focal, d: cfW };
   }
 
-  /* Flaps + ailerons */
+  /* Flaps + ailerons — C172/warbird family share one command model and
+     dispatch to per-aircraft hinge animators living in their own modules.
+     Rockets (falcon9/saturn-v/starship) have no surfaces here; WB airliners
+     use the distinct Fowler-flap / speedbrake model below. */
   let verts = V_;
-  if (isC172) {
-    const flapCfg  = S.flaps ?? 0;
-    const maxBank  = S.aircraft?.handling?.maxBank ?? 60;
-    const ailCmd   = Math.max(-1, Math.min(1, (S.rollT ?? 0) / maxBank));
-    const pitchErr = (S.pitchT ?? 0) - (S.pitch ?? 0);
-    const elevCmd  = Math.max(-1, Math.min(1, pitchErr / 10 + (S.trim ?? 0) / 10));
-    const hdgDelta = ((((S.hdgT ?? 0) - (S.hdg ?? 0)) + 540) % 360) - 180;
-    const rudCmd   = Math.max(-1, Math.min(1, hdgDelta / 20));
-    if (flapCfg > 0 || Math.abs(ailCmd) > 0.01 || Math.abs(elevCmd) > 0.02 || Math.abs(rudCmd) > 0.02) {
-      verts = _V_c172.map(v => v.slice());
-      if (flapCfg > 0)
-        animHinge(verts, [83,108,87,110,128,132,134,138], _anim_c172.r_fl, -(flapCfg*10*DEG), 'z', _V_c172);
-      if (Math.abs(ailCmd) > 0.01) {
-        const aa = ailCmd * 18 * DEG;
-        animHinge(verts, [181,85,182,130], _anim_c172.r_ail, -aa, 'z');  // R: TE down
-        animHinge(verts, [183,89,184,136], _anim_c172.r_ail, +aa, 'z');  // L: TE up
-      }
-      if (Math.abs(elevCmd) > 0.02)
-        animHinge(verts, [95,97,99,101,148,150,156,158], _anim_c172.r_el, elevCmd*20*DEG, 'z');
-      if (Math.abs(rudCmd) > 0.02)
-        animHinge(verts, [91,93], _anim_c172.r_ru, -(rudCmd*25*DEG), 'y');
-    }
-  } else if (isBf109) {
-    const flapCfg  = S.flaps ?? 0;
-    const maxBank  = S.aircraft?.handling?.maxBank ?? 60;
-    const ailCmd   = Math.max(-1, Math.min(1, (S.rollT ?? 0) / maxBank));
-    const pitchErr = (S.pitchT ?? 0) - (S.pitch ?? 0);
-    const elevCmd  = Math.max(-1, Math.min(1, pitchErr / 10 + (S.trim ?? 0) / 10));
-    const hdgDelta = ((((S.hdgT ?? 0) - (S.hdg ?? 0)) + 540) % 360) - 180;
-    const rudCmd   = Math.max(-1, Math.min(1, hdgDelta / 20));
-    if (flapCfg > 0 || Math.abs(ailCmd) > 0.01 || Math.abs(elevCmd) > 0.02 || Math.abs(rudCmd) > 0.02) {
-      verts = _V_b109.map(v => v.slice());
-      const { r_fl, r_el, r_ru, r_ail } = _anim_b109;
-      if (flapCfg > 0)
-        animHinge(verts, [99,144,103,146,148,152,154,158], r_fl, -(flapCfg*10*DEG), 'z', _V_b109);
-      if (Math.abs(ailCmd) > 0.01) {
-        const aa = ailCmd * 25 * DEG;
-        animHinge(verts, [175,101,176,150], r_ail, -aa, 'z', _V_b109);  // R: TE down
-        animHinge(verts, [177,105,178,156], r_ail, +aa, 'z', _V_b109);  // L: TE up
-      }
-      if (Math.abs(elevCmd) > 0.02)
-        animHinge(verts, [111,113,115,117,180,182,184,186], r_el, elevCmd*20*DEG, 'z', _V_b109);
-      if (Math.abs(rudCmd) > 0.02)
-        animHinge(verts, [107,109], r_ru, -(rudCmd*25*DEG), 'y', _V_b109);
-    }
-  } else if (isF4U) {
-    const flapCfg  = S.flaps ?? 0;
-    const maxBank  = S.aircraft?.handling?.maxBank ?? 60;
-    const ailCmd   = Math.max(-1, Math.min(1, (S.rollT ?? 0) / maxBank));
-    const pitchErr = (S.pitchT ?? 0) - (S.pitch ?? 0);
-    const elevCmd  = Math.max(-1, Math.min(1, pitchErr / 10 + (S.trim ?? 0) / 10));
-    const hdgDelta = ((((S.hdgT ?? 0) - (S.hdg ?? 0)) + 540) % 360) - 180;
-    const rudCmd   = Math.max(-1, Math.min(1, hdgDelta / 20));
-    if (flapCfg > 0 || Math.abs(ailCmd) > 0.01 || Math.abs(elevCmd) > 0.02 || Math.abs(rudCmd) > 0.02) {
-      verts = _V_f4u.map(v => v.slice());
-      const { r_fl, r_el, r_ru, r_ail } = _anim_f4u;
-      if (flapCfg > 0)
-        animHinge(verts, [101,103,154,156], r_fl, -(flapCfg*15*DEG), 'z', _V_f4u);
-      if (Math.abs(ailCmd) > 0.01) {
-        const aa = ailCmd * 25 * DEG;
-        animHinge(verts, [183,105,184,158], r_ail, -aa, 'z', _V_f4u);
-        animHinge(verts, [185,113,186,166], r_ail, +aa, 'z', _V_f4u);
-      }
-      if (Math.abs(elevCmd) > 0.02)
-        animHinge(verts, [119,121,123,125,188,190,192,194], r_el, elevCmd*20*DEG, 'z', _V_f4u);
-      if (Math.abs(rudCmd) > 0.02)
-        animHinge(verts, [115,117], r_ru, -(rudCmd*25*DEG), 'y', _V_f4u);
-    }
-  } else if (isMig15) {
-    const flapCfg  = S.flaps ?? 0;
-    const maxBank  = S.aircraft?.handling?.maxBank ?? 60;
-    const ailCmd   = Math.max(-1, Math.min(1, (S.rollT ?? 0) / maxBank));
-    const pitchErr = (S.pitchT ?? 0) - (S.pitch ?? 0);
-    const elevCmd  = Math.max(-1, Math.min(1, pitchErr / 10 + (S.trim ?? 0) / 10));
-    const hdgDelta = ((((S.hdgT ?? 0) - (S.hdg ?? 0)) + 540) % 360) - 180;
-    const rudCmd   = Math.max(-1, Math.min(1, hdgDelta / 20));
-    if (flapCfg > 0 || Math.abs(ailCmd) > 0.01 || Math.abs(elevCmd) > 0.02 || Math.abs(rudCmd) > 0.02) {
-      verts = _V_mig15.map(v => v.slice());
-      const { r_fl, r_flb, r_ail, r_el, r_ru, flapRoot, flapBrk, ailR, ailL, elR, elL, rudTE } = _anim_mig15;
-      if (flapCfg > 0) {
-        animHinge(verts, flapRoot, r_fl,  -(flapCfg * 10 * DEG), 'z', _V_mig15);
-        animHinge(verts, flapBrk,  r_flb, -(flapCfg * 10 * DEG), 'z', _V_mig15);
-      }
-      if (Math.abs(ailCmd) > 0.01) {
-        const aa = ailCmd * 25 * DEG;
-        animHinge(verts, ailR, r_ail, -aa, 'z', _V_mig15);
-        animHinge(verts, ailL, r_ail, +aa, 'z', _V_mig15);
-      }
-      if (Math.abs(elevCmd) > 0.02)
-        animHinge(verts, [...elR, ...elL], r_el, elevCmd * 20 * DEG, 'z', _V_mig15);
-      if (Math.abs(rudCmd) > 0.02)
-        animHinge(verts, rudTE, r_ru, -(rudCmd * 25 * DEG), 'y', _V_mig15);
-    }
-  } else if (!isF9 && !isSS && !isBf109 && !isF4U && !isMig15 && !isSV) {
+  const _ctrlAnim = _CTRL_ANIM[profile];
+  if (_ctrlAnim) {
+    const cmd = _warbirdCtrlCmd(S.aircraft?.handling?.maxBank ?? 60);
+    if (cmd.active) verts = _ctrlAnim(cmd);
+  } else if (profile === 'wb') {
     const flap   = S.flaps ?? 0;
     const sb     = S.speedBrake ?? 0;
     /* AP aircraft (no manualControl): add heading error so arrow-key turns show aileron deflection.
@@ -2587,10 +2553,18 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
   }
 
-  /* Gear struts and tires — pushed into face list so they depth-sort with fuselage */
-  const _gearP  = (!isC172 && !isBf109 && !isF4U) ? (S.gearAnim ?? (S.gear ? 1 : 0)) : 1;
+  /* Gear struts and tires — pushed into face list so they depth-sort with fuselage.
+     Gear behaviour is data-driven from the aircraft JSON "gear" block:
+       gear.fixed  — never retracts, always drawn, no bay doors (C172/Bf109/F4U)
+       gear.tires  — explicit [gearVertexIndex, radius] list; static gear positions
+                     (fixed-gear aircraft + the MiG-15, whose gear retracts but
+                     whose tires sit at fixed model vertices).
+     Aircraft with neither (airliners) use the procedural retractable-gear path. */
+  const _gearFixed = !!S.aircraft?.gear?.fixed;
+  const _gearTires = S.aircraft?.gear?.tires;
+  const _gearP  = _gearFixed ? 1 : (S.gearAnim ?? (S.gear ? 1 : 0));
   const _lerpV3 = (up, dn, t) => [up[0]+(dn[0]-up[0])*t, up[1]+(dn[1]-up[1])*t, up[2]+(dn[2]-up[2])*t];
-  const _animGV = (isC172 || isBf109 || isF4U || isMig15) ? GV_ : [
+  const _animGV = _gearTires ? GV_ : [
     GV_[0],
     _lerpV3([0.013,  0.0005, -_r+0.001], GV_[1], _gearP),
     GV_[2],
@@ -2598,7 +2572,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     GV_[4],
     _lerpV3([-0.001,-0.0008, -_r+0.001], GV_[5], _gearP),
   ];
-  if (!isF9 && !isSS && !isSV && (isC172 || isBf109 || isF4U || _gearP > 0.01)) {
+  if (!isF9 && !isSS && !isSV && (_gearFixed || _gearP > 0.01)) {
     const _wbR   = _wbGeo?.r ?? _r;
     const _midV3 = (a, b) => [(a[0]+b[0])/2, (a[1]+b[1])/2, (a[2]+b[2])/2];
     for (const [a, b] of _GE) {
@@ -2606,7 +2580,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       if (!pa || !pb) continue;
       faces.push({ avgD: (pa.d+pb.d)/2, draw: () => { ctx.save(); drawStrutTube(ctx, pa, pb, dpr); ctx.restore(); } });
     }
-    if (!isC172 && !isBf109 && !isF4U && !isMig15) {
+    if (!_gearTires) {
       const nA = project([0.007, 0, -_wbR + 0.0008]);
       const nM = project(_midV3(_animGV[0], _animGV[1]));
       if (nA && nM) faces.push({ avgD: (nA.d+nM.d)/2, draw: () => { ctx.save(); drawStrutTube(ctx, nA, nM, dpr); ctx.restore(); } });
@@ -2654,23 +2628,8 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         }});
       }
     }
-    if (isC172) {
-      for (const [vi, tR] of [[1, _xr*0.48], [3, _xr*0.56], [5, _xr*0.56]]) {
-        const wc = GV_[vi], pt = project(wc);
-        if (pt) faces.push({ avgD: pt.d, draw: () => { ctx.save(); drawVolumetricTire(ctx, wc, tR, project); ctx.restore(); } });
-      }
-    } else if (isBf109) {
-      for (const [vi, tR] of [[1, _bcR*0.55], [3, _bcR*0.55], [5, _bcR*0.26]]) {
-        const wc = GV_[vi], pt = project(wc);
-        if (pt) faces.push({ avgD: pt.d, draw: () => { ctx.save(); drawVolumetricTire(ctx, wc, tR, project); ctx.restore(); } });
-      }
-    } else if (isF4U) {
-      for (const [vi, tR] of [[1, _f4uCowlR*0.58], [3, _f4uCowlR*0.58], [5, _f4uCowlR*0.30]]) {
-        const wc = GV_[vi], pt = project(wc);
-        if (pt) faces.push({ avgD: pt.d, draw: () => { ctx.save(); drawVolumetricTire(ctx, wc, tR, project); ctx.restore(); } });
-      }
-    } else if (isMig15) {
-      for (const [vi, tR] of [[1, _m15r*0.60], [3, _m15r*0.70], [5, _m15r*0.70]]) {
+    if (_gearTires) {
+      for (const [vi, tR] of _gearTires) {
         const wc = GV_[vi], pt = project(wc);
         if (pt) faces.push({ avgD: pt.d, draw: () => { ctx.save(); drawVolumetricTire(ctx, wc, tR, project); ctx.restore(); } });
       }
@@ -2736,7 +2695,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   }
 
   /* Gear bay doors — pushed into faces for correct depth sorting with wing */
-  if (!isF9 && !isSS && !isSV && !isC172 && !isBf109 && !isF4U && _gearP > 0.02) {
+  if (!isF9 && !isSS && !isSV && !_gearFixed && _gearP > 0.02) {
     const _gdR = _wbGeo?.r ?? _r;
     const nTR  = _gdR * 0.12, nAxH = nTR * 0.55, nTW = nTR * 0.40;
     const nSX  = 0.013;
@@ -3170,10 +3129,11 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
   }
 
-  /* Prop disk — C172 and Bf109, only while engine running */
-  if ((isC172 || isBf109 || isF4U) && S.engineState === 'running') {
-    const p0    = isBf109 ? pts[96] : isF4U ? pts[96] : pts[80];
-    const pProp = isBf109 ? pts[118] : isF4U ? pts[126] : pts[106];
+  /* Prop disk — propeller aircraft, only while engine running. Hub/tip anchor
+     vertices come from the aircraft's geometry module via the registry. */
+  if (_reg?.prop && S.engineState === 'running') {
+    const p0    = pts[_reg.prop.hub];
+    const pProp = pts[_reg.prop.tip];
     if (p0 && pProp) {
       const r = Math.hypot(pProp.x - p0.x, pProp.y - p0.y);
       if (r > 2) {

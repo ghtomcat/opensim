@@ -1,5 +1,7 @@
 {
   "id": "bf109",
+  "render": "bf109",
+  "gear": { "fixed": true, "tires": [[1, 0.00088], [3, 0.00088], [5, 0.000416]] },
   "name": "Messerschmitt Bf 109 G-4",
   "clock": "analog",
   "tanks": { "left": 400, "right": 0, "unit": "L" },

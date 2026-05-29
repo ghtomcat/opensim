@@ -1,5 +1,7 @@
 {
   "id": "c172",
+  "render": "c172",
+  "gear": { "fixed": true, "tires": [[1, 0.001008], [3, 0.001176], [5, 0.001176]] },
   "name": "Cessna 172S Skyhawk",
   "clock": "digital",
   "approachSpeed": 65,
