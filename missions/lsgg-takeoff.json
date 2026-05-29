@@ -1,5 +1,5 @@
 {
-  "id": "lsgg-approach",
+  "id": "lsgg-takeoff",
   "phase": "ground",
   "title": "Takeoff — Genève LSGG",
   "description": "Helvetic Airways E190 ready for departure from runway 23. Live METAR. Cleared for immediate takeoff. Mountains ahead.",
@@ -8,12 +8,13 @@
   "departure": {
     "icao": "LSGG",
     "name": "Genève",
+    "runway": "23",
     "elevation": 1411
   },
   "arrival": null,
   "initialState": {
-    "lat": 46.248,
-    "lon": 6.135,
+    "lat": 46.2452,
+    "lon": 6.1238,
     "alt": 1411,
     "spd": 0,
     "hdg": 228,

@@ -224,6 +224,7 @@ export function tickPhysics(dt) {
     /* ── Autopilot convergence ── */
     const apGround = S.mission?.departure?.elevation ?? S.mission?.arrival?.elevation
                   ?? ac.situations?.[0]?.alt ?? 0;
+    const apOnGnd  = S.alt <= apGround + 0.5;
     const agl      = S.alt - apGround;
 
     /* Cap descent rate by AGL: full 2400 fpm above 500 ft,
@@ -236,12 +237,15 @@ export function tickPhysics(dt) {
     const pitchRate = 1.5 * dt;
     const rollRate  = 3  * dt;
 
-    newAlt   = Math.max(apGround, converge(S.alt, S.altT, altRate));
+    /* Don't climb while on the ground — altitude target is a preselect only.
+       Aircraft leaves the ground only when it's already airborne (alt > apGround). */
+    newAlt   = apOnGnd ? apGround : Math.max(apGround, converge(S.alt, S.altT, altRate));
     newSpd   = converge(S.spd,   spdTarget, spdRate);
     newHdg   = convergeHdg(S.hdg, S.hdgT,  hdgRate);
     newPitch = converge(S.pitch, S.pitchT,  pitchRate);
     newRoll  = converge(S.roll,  S.rollT,   rollRate);
     vs       = (newAlt - prevAlt) / dt * 60;
+    newWow   = apOnGnd;
   }
 
   /* ── ILS tracking ── */

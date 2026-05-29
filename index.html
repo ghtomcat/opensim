@@ -2254,6 +2254,7 @@
     else if (mx >= altX && mx < vsX)  { knob = 'alt'; }
     if (!knob) return;
     evt.preventDefault();
+    evt.stopPropagation();
     _fcuDrag = { startY: evt.clientY, knob,
                  startSpd: S.spdT, startHdg: S.hdgT, startAlt: S.altT };
     fcuCanvas.style.cursor = 'ns-resize';
@@ -2329,7 +2330,7 @@
       ],
     },
     {
-      id: 'lsgg-approach', aircraft: 'e190',
+      id: 'lsgg-takeoff', aircraft: 'e190',
       acName: 'Embraer E190-E2', engine: 'Pratt & Whitney PW1900G · GTF',
       location: 'Genève LSGG', title: 'Takeoff · RWY 23', era: 'MODERN', accent: '#00cfb0',
       briefing: {

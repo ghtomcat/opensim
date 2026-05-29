@@ -530,6 +530,22 @@ function _drawIntakeLip(ctx, hubPt, rimPt, dpr) {
   ctx.restore();
 }
 
+/* Black strip just inside the intake lip — the dark annular band between
+   the silver lip and the fan blade area visible on real turbofan engines. */
+function _drawIntakeBlackStrip(ctx, hubPt, rimPt, dpr) {
+  const r = Math.hypot(rimPt.x - hubPt.x, rimPt.y - hubPt.y);
+  if (r < 3) return;
+  const stripW = Math.max(1.5, r * 0.13);
+  const rInner = r - stripW * 0.5;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(8, 10, 14, 0.88)';
+  ctx.lineWidth = stripW;
+  ctx.beginPath();
+  ctx.arc(hubPt.x, hubPt.y, rInner, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
 /* ── Generic turbofan fan-face renderer (screen-space) ───────────────────────
    hubPt  projected center of fan disk  {x, y, d}
    rimPt  projected rim vertex (sets disk radius in pixels)
@@ -1186,10 +1202,19 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
 
   /* Camera direction in body frame [fP, rR, uR] — from surface toward camera.
      Used for cockpit-panel backface culling, which needs 3D normals because
-     the 2D cross-product sign flips at orbit elevations (wrong-side panel bleeds). */
-  const _cpCamF = camSide > 0 ?  sinEl * sinP  : -1;
-  const _cpCamR = camSide > 0 ?  cosEl         :  0;
+     the 2D cross-product sign flips at orbit elevations (wrong-side panel bleeds).
+     When side-cam orbit is active the camera swings in the fP-rR plane, so we
+     rotate the direction vector by the inverse orbit angle to match project(). */
+  let _cpCamF = camSide > 0 ?  sinEl * sinP  : -1;
+  let _cpCamR = camSide > 0 ?  cosEl         :  0;
   const _cpCamU = camSide > 0 ?  sinEl * cosP  :  0;
+  if (camSide > 0 && orbitAzDeg !== 0) {
+    const oRad = orbitAzDeg * DEG;
+    const cosO = Math.cos(oRad), sinO = Math.sin(oRad);
+    const cpF2  = _cpCamF * cosO + _cpCamR * sinO;
+    _cpCamR     = -_cpCamF * sinO + _cpCamR * cosO;
+    _cpCamF     = cpF2;
+  }
 
   /* Project body-frame vertex → { x, y, d } (d = cam fwd depth for sorting) */
   function project([vF, vR, vU]) {
@@ -1788,7 +1813,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       }
     }
 
-    return { ps, br, spec, avgD, col: COL_[FC_[i]], grad };
+    return { ps, br, spec, avgD, col: COL_[FC_[i]], grad, fc: FC_[i] };
   }).filter(Boolean);
 
   /* Starship stage sep: fill open bottom ring of Ship with a disc cap */
@@ -2498,19 +2523,20 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
           { x: fxAft2,   zt: fZtop, dp: ftD*0.05,  hw: 0,          fixed: false },  // aft tip
         ];
 
-        /* Flap fold angle for aft fairing section */
-        const _ftFa  = (S.flaps ?? 0) * 15 * DEG;
-        const _cosFa = Math.cos(_ftFa), _sinFa = Math.sin(_ftFa);
+        /* Flap fold angle + Fowler aft-slide for aft fairing section */
+        const _ftFa     = (S.flaps ?? 0) * 15 * DEG;
+        const _cosFa    = Math.cos(_ftFa), _sinFa = Math.sin(_ftFa);
+        const _ftFowler = _ftFa * fChord * (1 - _ftFH) * 1.5;  // matches flap anim fowlerShift
 
         /* Cross-section at each station: TL, TR, BL, BR
-           Aft (non-fixed) points rotate around hinge [fxH, fY, fZtop] */
+           Aft (non-fixed) points rotate + Fowler-slide to match flap motion */
         const csAt = ({ x, zt, dp, hw, fixed }) => {
           let x0 = x, zt0 = zt, ztB = zt - dp;
           if (!fixed && _ftFa > 0) {
             const dx = x - fxH;
-            x0  = fxH + dx * _cosFa;
-            zt0 = fZtop + dx * _sinFa;       // top surface rotates with hinge
-            ztB = fZtop + dx * _sinFa - dp * _cosFa;  // belly rotates too
+            x0  = fxH + dx * _cosFa - _ftFowler;  // rotate + aft slide
+            zt0 = fZtop + dx * _sinFa;
+            ztB = fZtop + dx * _sinFa - dp * _cosFa;
           }
           return [
             project([x0, fY + hw,      zt0]),   // TL
@@ -2851,7 +2877,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         ctx.arcTo(c.x, c.y, (c.x + e.x) * 0.5, (c.y + e.y) * 0.5, Math.min(r, d1, d2));
       }
     };
-    const rr = 12 * dpr;  // corner radius in screen pixels
+    const rr = (_wbGeo.cockpitPanelR ?? 12) * dpr;
     for (const ySign of [+1, -1]) {
       const projPanels = _wbGeo.cockpitPanels.map(corners => {
         /* 3D face normal backface cull — 2D cross-product is unreliable at orbit
@@ -2859,12 +2885,18 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         const [ax, ay, az] = corners[0];
         const [bx, by, bz] = corners[3];
         const [cx, cy, cz] = corners[2];
-        const e1x = bx - ax, e1y = (by - ay) * ySign, e1z = bz - az;
-        const e2x = cx - ax, e2y = (cy - ay) * ySign, e2z = cz - az;
+        const e1x = bx - ax, e1y = by - ay, e1z = bz - az;
+        const e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
         const nx = e1y * e2z - e1z * e2y;
         const ny = e1z * e2x - e1x * e2z;
         const nz = e1x * e2y - e1y * e2x;
-        if (nx * _cpCamF + ny * _cpCamR + nz * _cpCamU <= 0) return null;
+        /* Far-side guard: never draw the panel on the opposite side of the fuselage.
+           The 3D normal cull alone fails at high elevation — the nz*_cpCamU term can
+           carry the far-side panel into positive territory even when the camera is clearly
+           on the opposite side.  ySign*_cpCamR < 0 means "camera is on the wrong side." */
+        if (ySign * _cpCamR < -0.15) return null;
+        /* Mirror for port side: correct normal is [nx, -ny, nz], so negate _cpCamR. */
+        if (nx * _cpCamF + ny * (ySign * _cpCamR) + nz * _cpCamU <= 0) return null;
         const vs = [corners[0], corners[3], corners[2], corners[1]]
           .map(([x, y, z]) => project([x, ySign * y, z]));
         if (vs.some(v => !v)) return null;
@@ -3031,14 +3063,21 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
   }
 
-  /* Swiss cross — winglets always; vtail only when no livery decal covers it */
+  /* Swiss cross — winglets always; vtail only when no livery decal covers it.
+     Winglet outer-face normals are ±rR: show R cross when camera is starboard (_cpCamR > 0),
+     L cross when camera is port (_cpCamR < 0).  V-stab is on the centreline — show from
+     either side using the 2D cross-product of its projected face. */
   if (S.aircraft?.livery?.swissCross) {
     const _hasVtailDecal = S.aircraft?.livery?.decals?.some(d => d.surface === 'vtail');
     const _crossV = S.aircraft.livery.swissCrossV ?? 0.5;
-    if (!_hasVtailDecal)
+    const _vsFront = (a, b, c) => a && b && c &&
+      Math.abs((b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x)) > 0;
+    if (!_hasVtailDecal && _vsFront(pts[_b+8], pts[_b+9], pts[_b+11]))
       _drawSwissCross(ctx, pts[_b+8], pts[_b+9], pts[_b+11], pts[_b+10], _crossV);   // v-stab
-    _drawSwissCross(ctx, pts[_b+118], pts[_b+147], pts[_b+101], pts[_b+100]);  // R winglet
-    _drawSwissCross(ctx, pts[_b+122], pts[_b+151], pts[_b+103], pts[_b+102]);  // L winglet
+    if (_cpCamR > 0)
+      _drawSwissCross(ctx, pts[_b+118], pts[_b+147], pts[_b+101], pts[_b+100]);  // R winglet
+    if (_cpCamR < 0)
+      _drawSwissCross(ctx, pts[_b+122], pts[_b+151], pts[_b+103], pts[_b+102]);  // L winglet
   }
 
   /* MiG-15 Polish markings: szachownica on V-stab + "602" painted on port fuselage */
@@ -3095,6 +3134,42 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const _livDecals = S.aircraft?.livery?.decals;
   if (_livDecals?.length) _drawLiveryDecals(ctx, _livDecals, pts, verts, FC_, F_, project, camSide);
 
+  /* Re-stamp near-side wing + winglet faces after livery to prevent livery bleeding over them.
+     Near-side faces have avgD < camSide (they're between camera and fuselage centre).
+     Far-side faces have avgD > camSide and must stay behind the fuselage — skip them. */
+  if (_wbGeo && !wingView && camSide > 0) {
+    for (const f of faces) {
+      if (f.draw || (f.fc !== 1 && f.fc !== 9)) continue;
+      if (f.avgD >= camSide) continue;
+      const { ps, br, col, grad, spec } = f;
+      if (grad) {
+        const { pL, pR, brL, brR } = grad;
+        const gl = ctx.createLinearGradient(pL.x, pL.y, pR.x, pR.y);
+        gl.addColorStop(0, _wCol(col, brL));
+        gl.addColorStop(1, _wCol(col, brR));
+        ctx.fillStyle = gl;
+      } else {
+        ctx.fillStyle = _wCol(col, br);
+      }
+      ctx.beginPath();
+      ctx.moveTo(ps[0].x, ps[0].y);
+      for (let k = 1; k < ps.length; k++) ctx.lineTo(ps[k].x, ps[k].y);
+      ctx.closePath();
+      ctx.fill();
+      if (spec > 0.04) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = `rgba(255,255,255,${(spec * 0.30).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.moveTo(ps[0].x, ps[0].y);
+        for (let k = 1; k < ps.length; k++) ctx.lineTo(ps[k].x, ps[k].y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+  }
+
   /* Prop disk — C172 and Bf109, only while engine running */
   if ((isC172 || isBf109 || isF4U) && S.engineState === 'running') {
     const p0    = isBf109 ? pts[96] : isF4U ? pts[96] : pts[80];
@@ -3118,31 +3193,43 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     const ePow = S.enginePower ?? 0;
     if (ePow > 0 || S.engineState === 'running') {
       /* Only draw fan disk when intake faces camera AND engine is not behind fuselage.
-         hub.d < fan.d → engine faces us; hub.d < fusCenter.d → not occluded by body. */
+         hub.d < fan.d → engine faces us; hub.d < fusCenter.d → not occluded by body.
+         _cpCamF > 0.35 → camera must have significant forward component (intake faces +fP);
+         prevents fan showing until ~20° of orbit away from the pure side view. */
       const _rHub = pts[_b+158], _rFan = pts[_b+28];
       const _lHub = pts[_b+159], _lFan = pts[_b+68];
       const _eXpos = _wbGeo?.eApos ?? (0.005 + (_wbGeo?.exOff ?? 0));
       const _fusCtr = project([_eXpos, 0, 0]);
       const _fusCullD = _fusCtr ? _fusCtr.d + 0.0005 : Infinity;
-      if (_rHub && _rFan && _rHub.d < _rFan.d && _rHub.d < _fusCullD) {
+      if (_rHub && _rFan && _rHub.d < _rFan.d && _rHub.d < _fusCullD && _cpCamF > 0.35) {
         /* Average distance hub→each eA ring vertex: all at same x → same perspective depth,
            no axial-offset radius inflation from angled views. */
         const _rRads = [20,21,22,23,24,25,26,27].map(i=>pts[_b+i]).filter(Boolean)
           .map(p=>Math.hypot(p.x-_rHub.x, p.y-_rHub.y));
         const _rR = _rRads.length ? _rRads.reduce((a,b)=>a+b)/_rRads.length : 0;
         if (_rR > 3) {
-          const _rimR = { x: _rHub.x, y: _rHub.y - _rR, d: _rHub.d };
-          _drawTurbofanFace(ctx, _rHub, _rimR, ePow, dpr, 22);
+          const _rimR     = { x: _rHub.x, y: _rHub.y - _rR,        d: _rHub.d };
+          const _fanRimR  = { x: _rHub.x, y: _rHub.y - _rR * 0.82, d: _rHub.d };
+          ctx.save(); ctx.fillStyle = COL_[4]; ctx.globalAlpha = 0.32;
+          ctx.beginPath(); ctx.arc(_rHub.x, _rHub.y, _rR * 0.82, 0, Math.PI*2); ctx.fill();
+          ctx.restore();
+          _drawIntakeBlackStrip(ctx, _rHub, _rimR, dpr);
+          _drawTurbofanFace(ctx, _rHub, _fanRimR, ePow, dpr, 22);
           _drawIntakeLip(ctx, _rHub, _rimR, dpr);
         }
       }
-      if (_lHub && _lFan && _lHub.d < _lFan.d && _lHub.d < _fusCullD) {
+      if (_lHub && _lFan && _lHub.d < _lFan.d && _lHub.d < _fusCullD && _cpCamF > 0.35) {
         const _lRads = [60,61,62,63,64,65,66,67].map(i=>pts[_b+i]).filter(Boolean)
           .map(p=>Math.hypot(p.x-_lHub.x, p.y-_lHub.y));
         const _rL = _lRads.length ? _lRads.reduce((a,b)=>a+b)/_lRads.length : 0;
         if (_rL > 3) {
-          const _rimL = { x: _lHub.x, y: _lHub.y - _rL, d: _lHub.d };
-          _drawTurbofanFace(ctx, _lHub, _rimL, ePow, dpr, 22);
+          const _rimL     = { x: _lHub.x, y: _lHub.y - _rL,        d: _lHub.d };
+          const _fanRimL  = { x: _lHub.x, y: _lHub.y - _rL * 0.82, d: _lHub.d };
+          ctx.save(); ctx.fillStyle = COL_[4]; ctx.globalAlpha = 0.32;
+          ctx.beginPath(); ctx.arc(_lHub.x, _lHub.y, _rL * 0.82, 0, Math.PI*2); ctx.fill();
+          ctx.restore();
+          _drawIntakeBlackStrip(ctx, _lHub, _rimL, dpr);
+          _drawTurbofanFace(ctx, _lHub, _fanRimL, ePow, dpr, 22);
           _drawIntakeLip(ctx, _lHub, _rimL, dpr);
         }
       }
@@ -3159,12 +3246,26 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         const pBR = project([0.001 + _ex2,  _ey2, _ez2]);
         const pBL = project([0.001 + _ex2, -_ey2, _ez2]);
         const _fusCullD2 = _fusCtr ? _fusCtr.d + 0.0005 : Infinity;
-        if (pHR && pRR && pBR && pHR.d < pBR.d && pHR.d < _fusCullD2) {
-          _drawTurbofanFace(ctx, pBR, pRR, ePow, dpr, 22);
+        if (pHR && pRR && pBR && pHR.d < pBR.d && pHR.d < _fusCullD2 && _cpCamF > 0.35) {
+          const _oRr = Math.hypot(pRR.x-pBR.x, pRR.y-pBR.y);
+          if (_oRr > 3) {
+            const _oFanRR = { x: pBR.x, y: pBR.y - _oRr * 0.82, d: pBR.d };
+            ctx.save(); ctx.fillStyle = COL_[4]; ctx.globalAlpha = 0.32;
+            ctx.beginPath(); ctx.arc(pBR.x, pBR.y, _oRr * 0.82, 0, Math.PI*2); ctx.fill(); ctx.restore();
+            _drawIntakeBlackStrip(ctx, pBR, pRR, dpr);
+            _drawTurbofanFace(ctx, pBR, _oFanRR, ePow, dpr, 22);
+          }
           _drawIntakeLip(ctx, pBR, pRR, dpr);
         }
-        if (pHL && pRL && pBL && pHL.d < pBL.d && pHL.d < _fusCullD2) {
-          _drawTurbofanFace(ctx, pBL, pRL, ePow, dpr, 22);
+        if (pHL && pRL && pBL && pHL.d < pBL.d && pHL.d < _fusCullD2 && _cpCamF > 0.35) {
+          const _oRl = Math.hypot(pRL.x-pBL.x, pRL.y-pBL.y);
+          if (_oRl > 3) {
+            const _oFanRL = { x: pBL.x, y: pBL.y - _oRl * 0.82, d: pBL.d };
+            ctx.save(); ctx.fillStyle = COL_[4]; ctx.globalAlpha = 0.32;
+            ctx.beginPath(); ctx.arc(pBL.x, pBL.y, _oRl * 0.82, 0, Math.PI*2); ctx.fill(); ctx.restore();
+            _drawIntakeBlackStrip(ctx, pBL, pRL, dpr);
+            _drawTurbofanFace(ctx, pBL, _oFanRL, ePow, dpr, 22);
+          }
           _drawIntakeLip(ctx, pBL, pRL, dpr);
         }
       }
