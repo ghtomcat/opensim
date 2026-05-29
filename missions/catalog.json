@@ -1,0 +1,827 @@
+[
+  {
+    "id": "lszh-approach",
+    "aircraft": "a350",
+    "acName": "Airbus A350-900",
+    "engine": "Rolls-Royce Trent XWB · GTF",
+    "location": "Zürich LSZH",
+    "title": "ILS Approach · RWY 28",
+    "era": "MODERN",
+    "accent": "#4dc5dc",
+    "briefing": {
+      "date": "LSZH · RWY 28 · ILS 110.300",
+      "pilot": "Captain / First Officer",
+      "unit": "Zurich Approach 119.700",
+      "aircraft": "Airbus A350-900 · FMGS engaged",
+      "orders": "Cleared ILS 28. Descend 4000ft.\nExpect vectors from LOBEP. Speed 250kt below FL100.\nGear down abeam threshold. Full flaps by FAP.\nDecision height: 700ft. Go-around: climb 5000ft, track 283°.",
+      "atmosphere": "Live METAR active. Weather may differ from brief.\nOpen kneeboard (K) for full approach plate."
+    },
+    "roles": [
+      {
+        "id": "PF",
+        "label": "Pilot Flying"
+      },
+      {
+        "id": "PM",
+        "label": "Pilot Monitoring"
+      },
+      {
+        "id": "INSTRUCTOR",
+        "label": "Instructor"
+      }
+    ]
+  },
+  {
+    "id": "lsgg-takeoff",
+    "aircraft": "e190",
+    "acName": "Embraer E190-E2",
+    "engine": "Pratt & Whitney PW1900G · GTF",
+    "location": "Genève LSGG",
+    "title": "Takeoff · RWY 23",
+    "era": "MODERN",
+    "accent": "#00cfb0",
+    "briefing": {
+      "date": "LSGG · RWY 23 · Departure",
+      "pilot": "Captain / First Officer",
+      "unit": "Geneva Ground / Tower",
+      "aircraft": "Embraer E190-E2 · Helvetic Airways",
+      "orders": "Start engines (E key). Taxi to RWY 23 via Foxtrot and November.\nHold short — one departure ahead. Cleared takeoff when ready.\nMaintain RWY heading to 1000ft AGL. Squawk 4712.\nClimb FL240. Mont Blanc at 12 o'clock.",
+      "atmosphere": "Live METAR active.\nGeneva — Lake to the right, mountains straight ahead.\nHelvetica. Clean, efficient, on time."
+    },
+    "roles": [
+      {
+        "id": "PF",
+        "label": "Pilot Flying"
+      },
+      {
+        "id": "PM",
+        "label": "Pilot Monitoring"
+      },
+      {
+        "id": "INSTRUCTOR",
+        "label": "Instructor"
+      }
+    ]
+  },
+  {
+    "id": "egll-approach",
+    "aircraft": "b737",
+    "acName": "Boeing 737-800",
+    "engine": "CFM International CFM56-7B · Twin",
+    "location": "London Heathrow EGLL",
+    "title": "ILS Approach · RWY 27L",
+    "era": "MODERN",
+    "accent": "#3060b4",
+    "briefing": {
+      "date": "EGLL · RWY 27L · ILS 110.300",
+      "pilot": "Captain / First Officer",
+      "unit": "London Heathrow Tower 118.700",
+      "aircraft": "Boeing 737-800 · British Airways · Speedbird",
+      "orders": "Cleared ILS 27L. Descend FL100, speed 250kt below.\nExpect LOREL arrival via WILLO. Vectors to localizer.\nGear down by 2500ft. Flaps full by FAP.\nDecision height: 200ft. Go-around: climb 3000ft, track 270°.",
+      "atmosphere": "Runway 27L. The busiest approach in Europe.\nYou've flown this dozens of times.\nBut every landing is the first."
+    },
+    "roles": [
+      {
+        "id": "PF",
+        "label": "Pilot Flying"
+      },
+      {
+        "id": "PM",
+        "label": "Pilot Monitoring"
+      },
+      {
+        "id": "INSTRUCTOR",
+        "label": "Instructor"
+      }
+    ]
+  },
+  {
+    "id": "evra-approach",
+    "aircraft": "a220",
+    "acName": "Airbus A220-300",
+    "engine": "Pratt & Whitney PW1500G · GTF",
+    "location": "Warsaw → Rīga EVRA",
+    "title": "Cruise · FL350 · Inbound",
+    "era": "MODERN",
+    "accent": "#7ec8e3",
+    "briefing": {
+      "date": "EVRA · Cruise phase · FL350",
+      "pilot": "Captain / First Officer",
+      "unit": "Warsaw Control → Vilnius Control",
+      "aircraft": "Airbus A220-300 · Air Baltic",
+      "orders": "Stable at FL350, 290kt. Baltic Sea ahead left.\nRequest descent via Vilnius — target FL240 then approach.\nApproach brief due at 9500ft (opens automatically).\nILS 36, course 360°, DH 200ft.",
+      "atmosphere": "Live METAR at EVRA active.\nAir Baltic. The whole fleet is A220. Every aircraft, every route."
+    },
+    "roles": [
+      {
+        "id": "PF",
+        "label": "Pilot Flying"
+      },
+      {
+        "id": "PM",
+        "label": "Pilot Monitoring"
+      },
+      {
+        "id": "INSTRUCTOR",
+        "label": "Instructor"
+      }
+    ]
+  },
+  {
+    "id": "fimp-takeoff",
+    "aircraft": "a340",
+    "acName": "Airbus A340-313",
+    "engine": "4× CFM International CFM56-5C4",
+    "location": "Mauritius FIMP",
+    "title": "Takeoff · RWY 14 → LSZH",
+    "era": "MODERN",
+    "accent": "#c8a060",
+    "briefing": {
+      "date": "FIMP · RWY 14 · Departure → LSZH",
+      "pilot": "Captain / First Officer",
+      "unit": "Mauritius Ground / Tower",
+      "aircraft": "Airbus A340-313 · Edelweiss Air · HB-JMF",
+      "orders": "Start all 4 engines (E key). Taxi to RWY 14.\nCleared takeoff — wind 130° at 12kt.\nV1 162kt  Vr 165kt  V2 181kt. Heavy — 275t.\nMaintain RWY heading to 3000ft. Climb FL370.",
+      "atmosphere": "Sunrise over the Indian Ocean. Warm, humid.\nEdelweiss Air — Zürich bound. 10h 40min ahead.\n4 engines. Long haul. The way it used to be done."
+    },
+    "roles": [
+      {
+        "id": "PF",
+        "label": "Pilot Flying"
+      },
+      {
+        "id": "PM",
+        "label": "Pilot Monitoring"
+      },
+      {
+        "id": "INSTRUCTOR",
+        "label": "Instructor"
+      }
+    ]
+  },
+  {
+    "id": "grenchen-neuchatel",
+    "aircraft": "c172",
+    "acName": "Cessna 172S Skyhawk",
+    "engine": "Lycoming IO-360 · 180hp",
+    "location": "Grenchen LSZG → Neuchâtel LSGN",
+    "title": "Cross-Country · Schnupperflug Route",
+    "era": "PPL",
+    "accent": "#e8a838",
+    "briefing": {
+      "date": "LSZG · LSGN · LSZG · VFR",
+      "pilot": "Student Pilot",
+      "unit": "Flugschule Grenchen",
+      "aircraft": "HB-TBD · Cessna 172S · IO-360 180hp",
+      "orders": "Depart Grenchen runway 26. Climb westbound.\nTrack over Bielersee at 4500ft.\nSide approach Neuchâtel from east. Runway 23.\nLand. Fuel if needed. Depart runway 05.\nReturn Grenchen via Bielersee. Runway 26.",
+      "atmosphere": "You flew this route before.\nYou were in the right seat then.\nNow you fly it."
+    }
+  },
+  {
+    "id": "grenchen-circuit",
+    "aircraft": "robin-dr400",
+    "acName": "Robin DR400/140B",
+    "engine": "Lycoming O-320 · 160hp",
+    "location": "Grenchen LSZG",
+    "title": "VFR Circuit",
+    "era": "PPL",
+    "accent": "#e8a838",
+    "briefing": {
+      "date": "LSZG · Piste 26 · CTAF 122.275",
+      "pilot": "Student Pilot",
+      "unit": "Flugschule Grenchen",
+      "aircraft": "HB-KFG · Robin DR400/140B · O-320 160hp",
+      "orders": "Platzrunde links. Platzhöhe 2200ft QNH.\nPiste 26 · Asphalt · 900m.\nCrosswind bei 800ft AGL links eindrehen.\nEndanflug 70kt, Klappen 30°. Aufsetzen bei den Zahlen.",
+      "atmosphere": "Low wing. Stick, not yoke.\nYou flew this aircraft already."
+    }
+  },
+  {
+    "id": "lszg-velis",
+    "aircraft": "velis-hb-syc",
+    "acName": "Pipistrel Velis Electro",
+    "engine": "E-811 · 57.6 kW electric",
+    "location": "Grenchen LSZG",
+    "title": "Electric Circuit · HB-SYC",
+    "era": "PPL · Electric",
+    "accent": "#5dd4e8",
+    "briefing": {
+      "date": "LSZG · Runway 26 · CTAF 122.275",
+      "pilot": "Student Pilot",
+      "unit": "Flugschule Grenchen",
+      "aircraft": "HB-SYC · Pipistrel Velis Electro · 57.6 kW",
+      "orders": "Left-hand circuit. Circuit altitude 2200ft QNH.\nRunway 26 · Asphalt · 900m.\nVr 55kt · Vy 70kt · Approach 65kt.\nLand with ≥ 27% SOC. No go-around below that.",
+      "atmosphere": "Nearly silent.\nNo magnetos. No carb heat. No mixture.\nWatch the EPSI. Manage your energy.\nHB-SYC. The same one."
+    }
+  },
+  {
+    "id": "lszf-pattern",
+    "aircraft": "c172",
+    "acName": "Cessna 172S Skyhawk",
+    "engine": "Lycoming IO-360 · 180hp",
+    "location": "Speck-Fehraltorf LSZF",
+    "title": "VFR Pattern",
+    "era": "PPL",
+    "accent": "#5dd47e",
+    "briefing": {
+      "date": "LSZF · Grassbahn 26 · CTAF 122.800",
+      "pilot": "Student Pilot",
+      "unit": "Schule: Fluggruppe Fehraltorf",
+      "aircraft": "HB-CBX · Cessna 172S · IO-360 180hp",
+      "orders": "Circuits to the north. Circuit height 2500ft QNH.\nRunway grass · 700m · condition dry.\nWind check on backleg. Aim for 65kt on final.\nFlaps 30 by turning base. Touchdown at numbers.",
+      "atmosphere": "Deer possible on runway edge at dawn.\nUse the trim. Let her settle.\nGrease it on."
+    }
+  },
+  {
+    "id": "hahnweide-1944",
+    "aircraft": "bf109",
+    "acName": "Messerschmitt Bf 109 G-4",
+    "engine": "Daimler-Benz DB 601 · 1175hp",
+    "location": "Hahnweide EDST",
+    "title": "Airshow Ground Run",
+    "era": "2025",
+    "accent": "#ffb74d",
+    "briefing": {
+      "date": "Hahnweide · EDST · 2025",
+      "pilot": "Charlie Brown · Display Pilot",
+      "unit": "Historic Flight Germany",
+      "aircraft": "D-FEML · Bf 109 E-4 · WkNr. 1983",
+      "orders": "Ground run and low pass. Display axis: runway centreline.\nDB 601 warm-up: 3 minutes at 800 RPM minimum.\nMax RPM display pass: 2400. Gear stays down.\nTaxi back via delta. Crowds left of runway.",
+      "atmosphere": "This aircraft last flew in combat on 24 January 1942,\nnear Titovka, Russian Arctic.\nThe pilot was never found.\n\nAn Englishman is flying her home."
+    }
+  },
+  {
+    "id": "melun-1918",
+    "aircraft": "avro504",
+    "acName": "Avro 504K",
+    "engine": "Le Rhône 9J · 110hp",
+    "location": "Melun-Villaroche",
+    "title": "Patrol · Marne 1918",
+    "era": "1918",
+    "accent": "#d4a843",
+    "briefing": {
+      "classification": "CONFIDENTIAL · R.F.C. OPERATIONAL ORDER",
+      "date": "12 July 1918 · Melun-Villaroche",
+      "pilot": "Sub-Lieutenant, R.A.F.",
+      "unit": "No. 7 Squadron · Royal Flying Corps",
+      "aircraft": "Avro 504K · Le Rhône 9J · 110hp",
+      "orders": "Morning patrol. Marne sector, south bank.\nEnemy observation balloons reported N.E. at 1800ft.\nAltitude 3000ft. Duration 90 minutes.\nEngine: Le Rhône 9J. Blip switch controls mixture at low RPM.\nReturn via Melun field from the west. Signal green.",
+      "atmosphere": "The front is twenty miles east.\nYou will hear it before you see it."
+    }
+  },
+  {
+    "id": "wolfskopf-1942",
+    "aircraft": "bf109",
+    "acName": "Messerschmitt Bf 109 G-4",
+    "engine": "Daimler-Benz DB 601 · 1175hp",
+    "location": "Murmansk · Arctic",
+    "title": "Operation Wolfskopf",
+    "era": "1942",
+    "accent": "#8888cc",
+    "briefing": {
+      "classification": "GEHEIME KOMMANDOSACHE",
+      "date": "24. Januar 1942 · 11:40 Ortszeit · Titovka-Sektor",
+      "pilot": "Leutnant Friedreich Hundertwasser von Kämpf",
+      "unit": "II./JG 5 \"Eismeer\" · Petsamo",
+      "aircraft": "Bf 109 E-4 · WkNr. 1983",
+      "orders": "Freie Jagd. Sektor 7-Nord, Kola-Halbinsel.\nFeindlicher Luftverkehr über Titovka gemeldet.\nRückkehr bis 14:00. Nach eigenem Ermessen.\n\nWetter: −22°C · Wind 180/18kt · Sicht 8km\nBewölkung 2000ft · kein Instrumentenflug möglich.",
+      "atmosphere": "Er wusste, dass er zurückkommen würde.\naber er kannte die felder dort unten nicht.",
+      "image": "images/friedrich.png",
+      "document": "images/gkdos-wolfskopf.png"
+    }
+  },
+  {
+    "id": "bougainville-1943",
+    "aircraft": "f4u1a",
+    "acName": "Vought F4U-1A Corsair",
+    "engine": "Pratt & Whitney R-2800-8 Double Wasp · 2000hp",
+    "location": "Bougainville · South Pacific",
+    "title": "The Wasp · Bougainville",
+    "era": "1943",
+    "accent": "#c8a850",
+    "briefing": {
+      "classification": "CONFIDENTIAL · TASK FORCE 38",
+      "date": "11 November 1943 · 10:30 Local · Ondonga, New Georgia",
+      "pilot": "Lt. Edward \"Big Ed\" Beeler",
+      "unit": "VF-17 \"Jolly Rogers\" · USS Bunker Hill (CV-17)",
+      "aircraft": "F4U-1A Corsair · BuNo 02465 · \"The Wasp\"",
+      "orders": "CAP assignment. Altitude 15,000 ft over Empress Augusta Bay.\nBogeys reported bearing 350, angels 12, thirty miles.\nEngaged mixed formation — Zeros and Vals.\nFour kills confirmed. No damage. RTB Ondonga.\n\nWeather: 28°C · Wind 120/12kt · Visibility unlimited\nNote: Today is Armistice Day.",
+      "atmosphere": "Twenty-five years since the last one ended.\nThe Wasp is on your nose.\nShe has no idea what's coming.",
+      "image": "images/ed_beeler.png",
+      "document": "images/betty_joe.png"
+    }
+  },
+  {
+    "id": "rabaul-1943",
+    "aircraft": "f4u1a",
+    "acName": "Vought F4U-1A Corsair",
+    "engine": "Pratt & Whitney R-2800-8 Double Wasp · 2000hp",
+    "location": "Rabaul · New Britain",
+    "title": "No Bomber Lost · Rabaul",
+    "era": "1943",
+    "accent": "#c8a850",
+    "briefing": {
+      "classification": "CONFIDENTIAL · TASK FORCE 38",
+      "date": "11 November 1943 · 0830 Local · USS Bunker Hill CV-17",
+      "pilot": "Lt. Ira \"Ike\" Kepford",
+      "unit": "VF-17 \"Jolly Rogers\" · USS Bunker Hill (CV-17)",
+      "aircraft": "F4U-1A Corsair · VF-17",
+      "orders": "Strike escort. Simpson Harbor, Rabaul.\nEscort bomber formation from launch to egress.\nExpect heavy AA and fighter opposition — 30+ Zeros reported.\nNo bomber is to be lost to enemy air action.\nRTB USS Bunker Hill.\n\nWeather: 28°C · Wind 110/15kt · Visibility unlimited\nNote: Today is Armistice Day.",
+      "atmosphere": "Rabaul is the most defended base in the Pacific.\nTwo hundred aircraft. Heavy AA. Three airfields.\nThe bombers are counting on you.\nNo bomber lost. That is the record. Hold it.",
+      "image": "images/ed_beeler.png",
+      "document": "images/betty_joe.png"
+    }
+  },
+  {
+    "id": "deblin-1955",
+    "aircraft": "mig15",
+    "acName": "Mikoyan-Gurevich MiG-15 \"Fagot\"",
+    "engine": "Klimov VK-1 · 26.5 kN",
+    "location": "Dęblin · Polen",
+    "title": "Przechwycenie · Dęblin 1955",
+    "era": "1955",
+    "accent": "#cc2233",
+    "briefing": {
+      "classification": "TAJNE · LOTNICTWO WOJSK LĄDOWYCH",
+      "date": "Juli 1955 · 14:30 Ortszeit · Lotnisko Wojskowe Dęblin",
+      "pilot": "Por. Stanisław Wróbel",
+      "unit": "Szkoła Lotnicza Dęblin · Polskie Siły Powietrzne",
+      "aircraft": "MiG-15 \"Fagot\" · VK-1 · Rote 15",
+      "orders": "PRZECHWYCENIE — Sektor Wschód, Juli 1955.\nAlarm Ost. Unbekanntes Flugzeug — Transponder negativ.\nKurs 090. Steigflug FL420. VK-1 — Vollschub.\nSichtkontakt herstellen. Identität feststellen.\n\nFeuer nur auf ausdrücklichen Befehl der Bodenleitstelle.\nSowjetischer Verbindungsoffizier: Befehlsgewalt liegt bei Moskau.",
+      "atmosphere": "Er saß in einer MiG-15.\nZwölf Jahre zuvor saß er in einem Spitfire.\nBeide flogen gut.\nDas war das Problem.",
+      "image": "images/wrobel-1955.png",
+      "document": "images/deblin-rozkaz.png"
+    }
+  },
+  {
+    "id": "nordmeer-1956",
+    "aircraft": "tu95ms",
+    "acName": "Tupolev Tu-95MS Bear H",
+    "engine": "Kuznetsov NK-12MV × 4 · Turboprop",
+    "location": "Olenya · Kola Peninsula",
+    "title": "Aufklärungsflug · Nordmeer 1956",
+    "era": "1956",
+    "accent": "#cc4444",
+    "briefing": {
+      "classification": "СОВЕРШЕННО СЕКРЕТНО",
+      "date": "04. März 1956 · 06:15 Ortszeit · Olenya Air Base",
+      "pilot": "Борт 11 · Подполковник",
+      "unit": "Long-Range Aviation · Soviet Air Forces",
+      "aircraft": "Tu-95MS Bear H · NK-12MV × 4 · 44740 kW",
+      "orders": "Reconnaissance mission. Track 015. Climb to FL260.\nCoast-out Nordkap — radio silence from that point.\nPhotographic run FL030–FL050 over target.\nReturn via own route. Fuel for 9 hours.\n\nWetter: −14°C · Wind 320/25kt · Sicht 6km\nKein Aufklärungsflugzeug kehrt mit leeren Kameras zurück.",
+      "atmosphere": "Vier Propeller, contra-rotierend.\nDas Grollen der NK-12 ist zu hören in Tromsø.\nSie wissen, dass ihr kommt.\nSie können euch nicht aufhalten.",
+      "document": "images/nordmeer-briefing-ru.png",
+      "document_en": "images/nordmeer-briefing-en.png",
+      "image": "images/olenya-1956.png"
+    }
+  },
+  {
+    "id": "hovercraft-test",
+    "aircraft": "hovercraft_timo",
+    "acName": "Timo's Hovercraft",
+    "engine": "Freewing DF-80 (Lift) · FMS 90mm (Thrust)",
+    "location": "Workshop / School",
+    "title": "Plenum Physics · First Hover",
+    "era": "LAB",
+    "accent": "#39d0d0",
+    "briefing": {
+      "date": "Workshop · Schüler Physikprojekt",
+      "pilot": "Timo",
+      "unit": "OpenSim Hovercraft Lab",
+      "aircraft": "Timo's Hovercraft · 600×400mm · 3.4 kg · Plenum 0.24 m²",
+      "orders": "Lift EDF: Freewing DF-80-12B @ 6S — 3300g Freiluft.\nESC-Limit: 80% = 2640g effektiv.\nSchwebedruck: 3.4 kg × 9.81 / 0.24 m² = 139 Pa.\nSchiebregler: Gewicht · Drosselklappe · Schürzendichtheit.",
+      "atmosphere": "Theorie trifft Realität.\nDieser Simulator läuft neben dem echten Hovercraft.\nWenn der Hovercraft schwebt, zeigt die Telemetrie dieselben Werte."
+    }
+  },
+  {
+    "id": "hovercraft-demo",
+    "aircraft": "hovercraft_timo",
+    "acName": "Hovercraft Demo — Timo & Markus",
+    "engine": "Freewing DF-80 · FMS 90mm · HobbyKing 64mm · FMS 50mm",
+    "location": "Faigle3D Workshop",
+    "title": "Dual Vehicle · Plenum Comparison",
+    "era": "LAB",
+    "accent": "#f85149",
+    "briefing": {
+      "date": "Faigle3D Workshop · Hovercraft Demonstrator",
+      "pilot": "Timo + Markus",
+      "unit": "OpenSim Hovercraft Lab",
+      "aircraft": "Timo: 600×400mm · 3.4 kg · Plenum 0.24 m²\nMarkus (H2D): 320×280mm · 0.8 kg · GPS-Autonomie",
+      "orders": "Zwei Fahrzeuge. Ein Simulator.\nTimo: Manuelle Steuerung · Lift + Thrust Regler.\nMarkus: MANUAL / HOVER / TRACK (GPS-Autopilot).\nVehicle-Selector: TIMO · BEIDE · MARKUS.",
+      "atmosphere": "Faigle3D H2D — Hovercraft Demonstrator.\nDieselbe Physik. Zwei Maßstäbe.\nVergleich: Plenumdruck · Schwebekraft · Wirkungsgrad."
+    }
+  },
+  {
+    "id": "hovercraft-markus",
+    "aircraft": "hovercraft_markus",
+    "acName": "Markus' Demonstrator",
+    "engine": "HobbyKing 64mm (Lift) · FMS 50mm (Thrust)",
+    "location": "Faigle3D Workshop",
+    "title": "H2D · GPS Autonomy Test",
+    "era": "LAB",
+    "accent": "#f85149",
+    "briefing": {
+      "date": "Faigle3D Workshop · H2D Demonstrator",
+      "pilot": "Markus",
+      "unit": "Faigle3D Hovercraft Lab",
+      "aircraft": "Markus' Demonstrator · 320×280mm · 0.8 kg · Plenum 0.0896 m²",
+      "orders": "Lift EDF: HobbyKing 64mm @ 4S.\nSchwebedruck: 0.8 kg × 9.81 / 0.0896 m² = 87.6 Pa.\nAutonomie: MANUAL · HOVER · TRACK.\nTRACK: Zielpeilung mit Schieberegler setzen.",
+      "atmosphere": "Faigle3D H2D — Hovercraft Demonstrator.\nKleiner. Schneller. Autonom.\nGPS-Tracking im Testlauf."
+    }
+  },
+  {
+    "id": "so101-workspace",
+    "aircraft": "so101",
+    "acName": "SO-101 Robot Arm",
+    "engine": "Feetech STS3215 × 6 · 30 kg·cm · 12V",
+    "location": "Faigle3D Workshop",
+    "title": "Workspace · Familiarisation",
+    "era": "LAB",
+    "accent": "#bc8cff",
+    "briefing": {
+      "date": "Workshop · Robot Arm Lab",
+      "pilot": "Markus",
+      "unit": "OpenSim Robot Lab",
+      "aircraft": "SO-101 · 6-DOF · Feetech STS3215 × 6 · Reach 280mm · Payload 500g",
+      "orders": "Tab — cycle joint (J1–J6)\n← → — rotate selected joint (Shift = ×5)\nSpace — gripper open / close\nH — home position\n\nMove the arm through targets A → B → C.\nStay within the safe workspace envelope.",
+      "atmosphere": "The architecture made physical.\nSix joints. One black box.\nEvery command logged. Every decision recorded.\n\nHuman always PF."
+    }
+  },
+  {
+    "id": "yertle-lab",
+    "aircraft": "yertle",
+    "acName": "Yertle Robot Dog",
+    "engine": "20 kg·cm Servos × 12 · PCA9685 · 6.8V",
+    "location": "Faigle3D Workshop",
+    "title": "Dog Lab · Visualisation",
+    "era": "LAB",
+    "accent": "#4ade80",
+    "briefing": {
+      "date": "Workshop · Quadruped Lab",
+      "pilot": "Markus",
+      "unit": "OpenSim Robot Lab",
+      "aircraft": "Yertle · 12-DOF · 4 legs · ESP32 T-CAN485 · PCA9685",
+      "orders": "[ / ] — cycle joint\n1–0, -, = — jump to joint 1–12\n← → — rotate joint  (Shift = ×5)\nH — home all joints\nL — log transforms to console",
+      "atmosphere": "Four legs. Twelve joints.\nOne calibration at a time.\n\nThe dog stands ready."
+    }
+  },
+  {
+    "id": "hostomel-2022",
+    "aircraft": "an225",
+    "acName": "Antonov An-225 Mriya",
+    "engine": "ZMKB Progress D-18T × 6 · High-Bypass Turbofan",
+    "location": "Hostomel · Ukraine",
+    "title": "Mriya · Die letzte Reise",
+    "era": "2022",
+    "accent": "#2255aa",
+    "briefing": {
+      "classification": "ANTONOV AIRLINES · CARGO MANIFEST",
+      "date": "3. Februar 2022 · Hostomel (UKKM)",
+      "pilot": "UR-82060 · Kommandant und Besatzung",
+      "unit": "Antonov Airlines · Hostomel, Ukraine",
+      "aircraft": "An-225 Mriya · UR-82060 · D-18T × 6 · 1 377 kN",
+      "orders": "Departure: UKKM Hostomel. Destination: EDDP Leipzig/Halle.\nFlight level: FL390. Route: UKKM–EPWA–EDDP.\nPayload: cargo, manifest on board.\nEstimated flight time: 2h 45min.\n\nWetter: +2°C · Wind 220/08kt · Sicht gut\nPiste 18 · 2 520 m · Flaps F1 · Vr 175 kt\nVollbremsung bis Pistenende if rejected.",
+      "atmosphere": "Sie ist das einzige ihrer Art auf der Welt.\nGebaut, um das Unmögliche zu tragen.\nHeute: Leipzig.\n\nAm 24. Februar beginnt die Invasion.\nAm 27. Februar 2022 wird sie auf diesem Flughafen zerstört.\n\nSie weiß es nicht.\nSie startet."
+    }
+  },
+  {
+    "id": "apollo13",
+    "aircraft": "saturn-v",
+    "acName": "Saturn V",
+    "engine": "F-1 × 5 · Rocketdyne",
+    "location": "Kennedy Space Center · LC-39A",
+    "title": "Apollo 13 · Houston, We've Had a Problem",
+    "era": "ORBIT",
+    "eraLabel": "1970",
+    "accent": "#c0a060",
+    "briefing": {
+      "classification": "NASA · MISSION SUMMARY",
+      "date": "11 April 1970 · 19:13 UTC",
+      "pilot": "CDR: Jim Lovell · CMP: Jack Swigert · LMP: Fred Haise",
+      "unit": "NASA Manned Spacecraft Center · Houston",
+      "aircraft": "Saturn V AS-508 · S-IC: 5 × F-1 · 33.4 MN · S-II: 5 × J-2 · S-IVB: 1 × J-2",
+      "orders": "Launch site: Kennedy Space Center LC-39A.\nTarget: Fra Mauro highlands, lunar surface.\n\nFlight sequence:\nT+00:00  F-1 ignition · Liftoff\nT+02:35m  TLI ignition\nT+55:54m  Oxygen tank explosion — ABORT\nT+77:02m  Moon pericynthion — 254 km altitude\nT+79:57m  PC+2 burn — LM DPS, 263 s\nT+141:30m  LM Aquarius jettisoned\nT+142:54m  Reentry\n\nAll crew survived.",
+      "atmosphere": "April 11, 1970.\nJim Lovell. Jack Swigert. Fred Haise.\n\nAt T+55 hours, an oxygen tank explodes 330,000 km from Earth.\nThe lunar module Aquarius becomes a lifeboat.\nThe Moon's gravity becomes the engine that brings them home.\n\n\"Houston, we've had a problem.\""
+    },
+    "crew": [
+      {
+        "id": "CDR",
+        "name": "Jim Lovell",
+        "callsign": "LOVELL",
+        "role": "PF",
+        "label": "Commander"
+      },
+      {
+        "id": "CMP",
+        "name": "Jack Swigert",
+        "callsign": "SWIGERT",
+        "role": "PM",
+        "label": "Command Module Pilot"
+      },
+      {
+        "id": "LMP",
+        "name": "Fred Haise",
+        "callsign": "HAISE",
+        "role": "PM",
+        "label": "Lunar Module Pilot"
+      }
+    ],
+    "roles": [
+      {
+        "id": "CDR",
+        "label": "Commander — Lovell"
+      },
+      {
+        "id": "CMP",
+        "label": "Command Module Pilot — Swigert"
+      },
+      {
+        "id": "LMP",
+        "label": "Lunar Module Pilot — Haise"
+      }
+    ]
+  },
+  {
+    "id": "apollo8",
+    "aircraft": "saturn-v",
+    "acName": "Saturn V",
+    "engine": "F-1 × 5 · Rocketdyne",
+    "location": "Kennedy Space Center · LC-39A",
+    "title": "Apollo 8 · First to the Moon",
+    "era": "ORBIT",
+    "eraLabel": "1968",
+    "accent": "#b8c4a0",
+    "briefing": {
+      "classification": "NASA · MISSION SUMMARY",
+      "date": "21 December 1968 · 12:51 UTC",
+      "pilot": "CDR: Frank Borman · CMP: James Lovell · LMP: William Anders",
+      "unit": "NASA Manned Spacecraft Center · Houston",
+      "aircraft": "Saturn V AS-503 · S-IC: 5 × F-1 · 33.4 MN · S-II: 5 × J-2 · S-IVB: 1 × J-2",
+      "orders": "Launch site: Kennedy Space Center LC-39A.\nTarget: Lunar orbit, 112 × 114 km.\n\nFlight sequence:\nT+00:00  F-1 ignition · Liftoff\nT+00:12  Roll/pitch program\nT+01:21  Max Q · 13 km altitude\nT+02:15  Center F-1 cutoff\nT+02:42  S-IC cutoff · 67 km\nT+02:44  S-IC / S-II separation\nT+09:11  S-II cutoff · 185 km\nT+09:25  S-IVB ignition\nT+11:24  Earth parking orbit achieved\nT+2h 50m  Translunar injection burn",
+      "atmosphere": "December 21, 1968.\nFrank Borman, James Lovell, William Anders.\nThe first human beings to leave Earth's gravity.\n\nOn Christmas Eve, orbiting the Moon, they read from Genesis.\nAnders photographed Earthrise.\n\n\"We came all this way to explore the Moon,\nand the most important thing is that we discovered the Earth.\""
+    },
+    "crew": [
+      {
+        "id": "CDR",
+        "name": "Frank Borman",
+        "callsign": "BORMAN",
+        "role": "PF",
+        "label": "Commander"
+      },
+      {
+        "id": "CMP",
+        "name": "James Lovell",
+        "callsign": "LOVELL",
+        "role": "PM",
+        "label": "Command Module Pilot"
+      },
+      {
+        "id": "LMP",
+        "name": "William Anders",
+        "callsign": "ANDERS",
+        "role": "PM",
+        "label": "Lunar Module Pilot"
+      }
+    ],
+    "roles": [
+      {
+        "id": "CDR",
+        "label": "Commander — Borman"
+      },
+      {
+        "id": "CMP",
+        "label": "Command Module Pilot — Lovell"
+      },
+      {
+        "id": "LMP",
+        "label": "Lunar Module Pilot — Anders"
+      }
+    ]
+  },
+  {
+    "id": "falcon1-omelek",
+    "aircraft": "falcon1",
+    "acName": "Falcon 1",
+    "engine": "Merlin 1C + Kestrel · SpaceX",
+    "location": "Omelek Island · Marshall Islands",
+    "title": "First Orbit · Flight 4",
+    "era": "ORBIT",
+    "eraLabel": "2008",
+    "accent": "#c0c8d8",
+    "briefing": {
+      "classification": "SPACEX · MISSION SUMMARY",
+      "date": "28 September 2008 · 23:15 UTC",
+      "pilot": "Falcon 1 · S/N F1-004",
+      "unit": "Space Exploration Technologies Corp.",
+      "aircraft": "Merlin 1C · 355 kN SL · Stage 2: Kestrel · 31 kN",
+      "orders": "Launch site: Omelek Island, Marshall Islands.\nTarget orbit: 621 km circular · 9.35° inclination.\nPayload: RatSat (mass simulator, 165 kg).\n\nFlight sequence:\nT+00:00  Merlin ignition · Liftoff\nT+01:09  Max-Q\nT+02:49  MECO · Stage separation\nT+02:55  Stage 2 ignition (Kestrel)\nT+09:31  SECO · Orbit insertion",
+      "atmosphere": "Three failures.\nFirst: a fuel leak ignited on ascent.\nSecond: stage-1 re-contacted stage-2.\nThird: residual thrust caused re-contact again.\n\nThis is the fourth attempt.\nThey had enough hardware for one more flight.\nAfter this, the program was over — or it was not."
+    }
+  },
+  {
+    "id": "crew-demo2",
+    "aircraft": "falcon9-b5-demo2",
+    "acName": "Falcon 9 Block 5",
+    "engine": "9× Merlin 1D+ + MVac · SpaceX",
+    "location": "Kennedy Space Center · LC-39A",
+    "title": "Crew Dragon Demo-2 · RTLS",
+    "era": "ORBIT",
+    "eraLabel": "2020",
+    "accent": "#a0b8d8",
+    "briefing": {
+      "classification": "SPACEX · MISSION SUMMARY",
+      "date": "30 May 2020 · 19:22 UTC",
+      "pilot": "Robert Behnken · Douglas Hurley",
+      "items": [
+        "First crewed Falcon 9",
+        "Dragon Endeavour — Crew Dragon capsule",
+        "Stage 1 B1058 returns to LZ-1",
+        "RTLS: Boostback · Entry · Landing burns",
+        "Target orbit: 400 km × 200 km · 51.6°"
+      ]
+    },
+    "crew": [
+      {
+        "id": "CDR",
+        "name": "Robert Behnken",
+        "callsign": "BEHNKEN",
+        "role": "PF",
+        "label": "Commander"
+      },
+      {
+        "id": "PILOT",
+        "name": "Douglas Hurley",
+        "callsign": "HURLEY",
+        "role": "PM",
+        "label": "Pilot"
+      },
+      {
+        "id": "INST",
+        "name": "Instructor",
+        "callsign": "INST",
+        "role": "INSTRUCTOR",
+        "label": "Instructor"
+      }
+    ],
+    "roles": [
+      {
+        "id": "CDR",
+        "label": "Commander"
+      },
+      {
+        "id": "PILOT",
+        "label": "Pilot"
+      },
+      {
+        "id": "MS1",
+        "label": "Mission Specialist 1"
+      },
+      {
+        "id": "MS2",
+        "label": "Mission Specialist 2"
+      },
+      {
+        "id": "INSTRUCTOR",
+        "label": "Instructor"
+      }
+    ]
+  },
+  {
+    "id": "crs1",
+    "aircraft": "falcon9-b1",
+    "acName": "Falcon 9 v1.0",
+    "engine": "9× Merlin 1C + MVac · SpaceX",
+    "location": "Cape Canaveral · SLC-40",
+    "title": "CRS-1 · Engine Out to ISS",
+    "era": "ORBIT",
+    "eraLabel": "2012",
+    "accent": "#7090b8",
+    "briefing": {
+      "classification": "SPACEX · MISSION SUMMARY",
+      "date": "8 October 2012 · 00:35 UTC",
+      "pilot": "Falcon 9 v1.0 · Flight 3",
+      "unit": "Space Exploration Technologies Corp.",
+      "aircraft": "9× Merlin 1C · 3807 kN SL · Stage 2: MVac · 411 kN",
+      "orders": "Launch site: Cape Canaveral SLC-40.\nTarget orbit: ~400 km circular · 51.6° inclination.\nPayload: Dragon C2+ · ISS cargo.\n\nFlight sequence:\nT+00:00  9-engine ignition · Liftoff\nT+01:19  Engine 1 failure\nT+02:58  MECO · Stage separation\nT+03:05  MVac ignition\nT+10:10  SECO · Orbit insertion",
+      "atmosphere": "Engine 1 fails at T+79 seconds.\n\nEight engines carry Dragon to orbit anyway.\nISS gets its cargo.\nOrbcomm does not — orbit too low to raise.\n\nThe rocket flew the mission on its own terms."
+    }
+  },
+  {
+    "id": "ift-12",
+    "aircraft": "starship",
+    "acName": "Starship V3 / Super Heavy",
+    "engine": "33× Raptor 2 + 6× Raptor 2 Vac · SpaceX",
+    "location": "Starbase · OLP-2",
+    "title": "IFT-12 — Starship V3 Debut · 5-Engine SECO",
+    "era": "ORBIT",
+    "eraLabel": "2026",
+    "accent": "#8899bb",
+    "briefing": {
+      "classification": "SPACEX · MISSION SUMMARY",
+      "date": "22 May 2026 · 22:33 UTC",
+      "pilot": "S39 / B19 · Integrated Flight Test 12",
+      "unit": "Space Exploration Technologies Corp.",
+      "aircraft": "33× Raptor 2 · 74 MN SL · Ship: 6× Raptor 2 Vac · 7.59 MN",
+      "orders": "Launch site: Starbase OLP-2.\nTarget trajectory: suborbital · Indian Ocean splashdown.\nPayload: 22 Starlink simulators.\n\nFlight sequence:\nT+00:00  33-engine ignition · Liftoff\nT+02:22  MECO · Stage separation · Hot-stage\nT+03:38  Raptor 5 shutdown — guidance extends burn 62 s\nT+10:13  SECO on 5 engines — nominal trajectory achieved\nT+65:22  Splashdown · Indian Ocean",
+      "atmosphere": "One engine fails.\nGuidance rewrites the burn in real time.\nThe ship reaches orbit anyway.\n\nBooster 19 does not come home.\nBut the mission is complete."
+    }
+  },
+  {
+    "id": "ift-13",
+    "aircraft": "starship",
+    "acName": "Starship V3 / Super Heavy",
+    "engine": "33× Raptor 2 + 6× Raptor 2 Vac · SpaceX",
+    "location": "Starbase · OLP-2",
+    "title": "IFT-13 — First Mechazilla Ship Catch",
+    "era": "ORBIT",
+    "eraLabel": "2026",
+    "accent": "#6688aa",
+    "briefing": {
+      "classification": "SPACEX · MISSION SUMMARY (PREDICTED)",
+      "date": "2026 · Starbase OLP-2",
+      "pilot": "S40 / B20 · Integrated Flight Test 13",
+      "unit": "Space Exploration Technologies Corp.",
+      "aircraft": "33× Raptor 2 · 74 MN SL · Ship: 6× Raptor 2 Vac · 7.59 MN",
+      "orders": "Launch site: Starbase OLP-2.\nTarget trajectory: one orbit · Starbase return.\nPayload: 22 Starlink simulators.\n\nFlight sequence:\nT+00:00  33-engine ignition · Liftoff\nT+02:22  MECO · Stage separation · Hot-stage\nT+07:54  Booster 20 — Mechazilla catch confirmed\nT+09:11  SECO · Orbital velocity\nT+65:22  Ship 40 — Mechazilla catch confirmed",
+      "atmosphere": "This is a prediction.\nFlight has not happened yet.\n\nIf the guidance holds and the arms are ready —\nfor the first time, both stages come home."
+    }
+  },
+  {
+    "id": "inspiration5",
+    "aircraft": "falcon9-b5-590",
+    "acName": "Dragon Inspiration",
+    "engine": "9× Merlin 1D+ + MVac · SpaceX",
+    "location": "Kennedy Space Center · LC-39A",
+    "title": "Inspiration5 · Commander Leutwyler",
+    "era": "ORBIT",
+    "eraLabel": "2030",
+    "accent": "#d4a840",
+    "briefing": {
+      "classification": "INSPIRATION5 · MISSION SUMMARY",
+      "date": "2030 · Kennedy Space Center LC-39A",
+      "pilot": "CDR  Markus Leutwyler\nPLT  Lydia Meier\nMS1  Pradeep Sapkota\nMS2  TBD",
+      "unit": "Dragon Inspiration · Falcon 9 Block 5",
+      "aircraft": "9× Merlin 1D+ · 7607 kN SL · Stage 2: MVac · 934 kN vac",
+      "orders": "Launch site: Kennedy Space Center LC-39A.\nTarget orbit: 590 km circular · 51.6° inclination.\nMission duration: 3 days.\n\nFlight sequence:\nT+00:00  9-engine ignition · Liftoff\nT+01:12  CECO — center engine cutoff\nT+02:33  MECO · Stage separation\nT+02:53  Boostback burn — 3 engines\nT+08:45  SECO · Orbit insertion\nT+08:45+ Stage 1 RTLS · LZ-1",
+      "atmosphere": "Four people.\nNo professional astronauts.\nNo government agency.\n\nA rocket, a capsule, and a crew that trained for this.\nThe door Jared opened.\nWe walked through."
+    },
+    "crew": [
+      {
+        "id": "CDR",
+        "name": "Markus Leutwyler",
+        "callsign": "ML",
+        "role": "PF",
+        "label": "Commander"
+      },
+      {
+        "id": "PLT",
+        "name": "Lydia Meier",
+        "callsign": "LM",
+        "role": "PF",
+        "label": "Pilot"
+      },
+      {
+        "id": "MS1",
+        "name": "Pradeep Sapkota",
+        "callsign": "PS",
+        "role": "PM",
+        "label": "Mission Specialist 1"
+      },
+      {
+        "id": "MS2",
+        "name": "TBD",
+        "callsign": "MS2",
+        "role": "PM",
+        "label": "Mission Specialist 2"
+      },
+      {
+        "id": "INST",
+        "name": "Instructor",
+        "callsign": "INST",
+        "role": "INSTRUCTOR",
+        "label": "Instructor"
+      }
+    ],
+    "roles": [
+      {
+        "id": "CDR",
+        "label": "Commander"
+      },
+      {
+        "id": "PILOT",
+        "label": "Pilot"
+      },
+      {
+        "id": "MS1",
+        "label": "Mission Specialist 1"
+      },
+      {
+        "id": "MS2",
+        "label": "Mission Specialist 2"
+      },
+      {
+        "id": "INSTRUCTOR",
+        "label": "Instructor"
+      }
+    ]
+  }
+]
