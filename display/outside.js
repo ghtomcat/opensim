@@ -1328,6 +1328,28 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
     if (isBackFace && !_DBG_CULL) return null;
 
+    /* Wing-root occlusion (WB, no depth buffer). Inboard wing faces sit right at
+       the fuselage tangent (root attaches at radius ≈ r). In a head-on/axial view
+       the round fuselage should hide the far/tangent root, but the culled near
+       belly exposes it, so wing slivers leak across the fuselage. Cull an inboard
+       wing face when its outward radial normal doesn't face the camera — the same
+       facing test used for the windows. Outboard wing (ρ ≫ r) is never affected,
+       and the near-side root (radial toward camera) is kept, so side/¾ views are
+       unchanged. */
+    if (_wbGeo && FC_[i] === 1) {
+      let _cx = 0, _cy = 0, _cz = 0;
+      for (const vi of fi) { const v = verts[vi]; _cx += v[0]; _cy += v[1]; _cz += v[2]; }
+      _cx /= fi.length; _cy /= fi.length; _cz /= fi.length;
+      const _rho = Math.hypot(_cy, _cz);
+      const _fr  = _wbGeo.r ?? _r;
+      if (_rho > 1e-6 && _rho < _fr * 1.25) {
+        const _e   = _fr * 0.6;
+        const _pc  = project([_cx, _cy, _cz]);
+        const _pco = project([_cx, _cy + (_cy / _rho) * _e, _cz + (_cz / _rho) * _e]);
+        if (_pc && _pco && _pco.d > _pc.d - _e * 0.35) return null;
+      }
+    }
+
     if (_DBG_CULL) {
       const avgD = ps.reduce((s, p) => s + p.d, 0) / ps.length;
       return { ps, br: 1, avgD, col: isBackFace ? [200, 0, 0] : [0, 80, 200] };
