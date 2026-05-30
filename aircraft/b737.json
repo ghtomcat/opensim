@@ -3,6 +3,7 @@
   "name": "Boeing 737-800",
   "registration": "G-DOCB",
   "cabinWindows": 86,
+  "windowsToEngineLip": 14,
   "doors": [0.0124, -0.026],
   "overwingExits": [19, 20],
   "flapTracks": 4,

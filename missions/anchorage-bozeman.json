@@ -44,6 +44,23 @@
       ]
     }
   },
+  "com": {
+    "title": "COM 1",
+    "active": "121.900",
+    "standby": "118.300",
+    "freqs": {
+      "121.900": { "label": "PANC GROUND",
+                   "checkin": "{cs}, Anchorage Ground. Taxi to runway one five via Kilo, hold short." },
+      "118.400": { "label": "PANC CLEARANCE DELIVERY", "squawk": true,
+                   "checkin": "{cs}, Anchorage Clearance. Cleared to Bozeman as filed, climb maintain one zero thousand, departure one one nine decimal one." },
+      "124.600": { "label": "PANC ATIS", "atis": true },
+      "118.300": { "label": "PANC TOWER",
+                   "checkin": "{cs}, Anchorage Tower. Runway one five, cleared for takeoff." },
+      "119.100": { "label": "PANC DEPARTURE",
+                   "checkin": "{cs}, Anchorage Departure. Radar contact, climb and maintain one zero thousand." },
+      "121.500": { "label": "GUARD" }
+    }
+  },
   "atcClearances": [
     {
       "alt": 200,

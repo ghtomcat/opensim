@@ -356,7 +356,9 @@ function _onTune(freq) {
     const alt   = S.alt ? Math.round(S.alt) : null;
     const spd   = S.spd ? Math.round(S.spd) : 0;
     const phase = S.mission?.phase ?? null;
-    const text  = info.checkin(cs, alt, spd, phase);
+    const text  = typeof info.checkin === 'function'
+      ? info.checkin(cs, alt, spd, phase)
+      : String(info.checkin).replace(/\{cs\}/g, cs);
     if (text) setTimeout(() => speakATC(text), 1200);
   }
 }

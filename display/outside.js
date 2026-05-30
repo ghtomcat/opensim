@@ -2716,12 +2716,15 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const _livDecals = S.aircraft?.livery?.decals;
   if (_livDecals?.length) _drawLiveryDecals(ctx, _livDecals, pts, verts, FC_, F_, project, camSide);
 
-  /* Aircraft registration — small text on the aft-lower fuselage (below the
-     window line), placed from the fuselage geometry so it works for any WB/NB. */
+  /* Aircraft registration — small text on the aft fuselage, placed from the
+     fuselage geometry so it works for any WB/NB. European-style registrations
+     ride below the window line; US (N-prefix) registrations sit above it. */
   if (S.aircraft?.registration && _wbGeo) {
     const _rgR = _wbGeo.r, _rgReg = S.aircraft.registration;
     const _rgVbW = Math.max(48, _rgReg.length * 12);
-    const _rgZT = -_rgR * 0.10, _rgZB = -_rgR * 0.44;     // band just below the windows
+    const _rgUS  = /^N/i.test(_rgReg);                    // US registration → above windows
+    const _rgZT  = _rgUS ?  _rgR * 0.44 :  -_rgR * 0.10;  // band edges, above or below windows
+    const _rgZB  = _rgUS ?  _rgR * 0.10 :  -_rgR * 0.44;
     const _rgU  = (_rgZT - _rgZB) * (_rgVbW / 20);        // x-width matched to text aspect
     const _rgXF = (S.aircraft?.tailX ?? -0.021) * 0.40;   // front edge, well aft on the fuselage
     _drawLiveryDecals(ctx, [{
@@ -3286,7 +3289,25 @@ ctx.save();
     const wStroke = 'rgba(110,140,175,0.50)';
     const _nCabW = S.aircraft?.cabinWindows;
     const nW  = _nCabW ? Math.round(_nCabW / 2) : 12;
-    const xA  = _nCabW ? 0.008 : 0.011, xB = _nCabW ? -0.025 : -0.008;
+    /* Window row begins just aft of the forward door (forward-most door entry),
+       so the cabin windows start right after it rather than leaving a gap. */
+    const _doorXsW  = S.aircraft?.doors;
+    const _fwdDoorX = _doorXsW?.length ? Math.max(..._doorXsW) : null;
+    const xA  = _fwdDoorX != null ? _fwdDoorX - _wbR * 0.33
+              : (_nCabW ? 0.008 : 0.011);
+    /* Window pitch can be anchored to a reference: "windowsToEngineLip" gives the
+       number of windows counted from the first window (just aft of the fwd door)
+       to the engine inlet lip (x == wing.rootLE). That fixes a realistic pitch and
+       lets the row end where 43 windows actually reach, instead of a guessed xB. */
+    const _winToLip = S.aircraft?.windowsToEngineLip;
+    const _engLipX  = S.aircraft?.wing?.rootLE;
+    let xB;
+    if (_winToLip > 1 && _engLipX != null && _fwdDoorX != null) {
+      const _wPitch = (xA - _engLipX) / (_winToLip - 1);
+      xB = xA - _wPitch * (nW - 1);
+    } else {
+      xB = _nCabW ? -0.025 : -0.008;
+    }
     for (let i = 0; i < nW; i++) {
       const wx = nW > 1 ? xA + (xB - xA) * i / (nW - 1) : (xA + xB) / 2;
       _quad3d(wx,  _wbR, wZ, hw, hh, wFill, wStroke, true);
