@@ -3154,11 +3154,21 @@ ctx.save();
 
   /* Passenger windows + door outlines — wide-body only, properly perspective-projected */
   if (!isF9 && !isSV && !isSS && !isC172 && !isBf109 && !isF4U && !isMig15) {
-    /* Draw a quad from 4 body-space corners — depth-culls if center is on far side */
+    const _fr = _wbGeo?.r ?? _r;
+    /* Draw a quad from 4 body-space corners. Cull unless the decal's outward
+       radial normal faces the camera: push the centre outward along the body
+       radius and require it to come closer. This hides the far-side rows AND
+       the near-edge-on rows in a head-on/axial view, where the round fuselage
+       occludes them. */
     const _quad3d = (x, y, z, hw, hh, fill, stroke, round = false) => {
-      const pc = project([x, 0, 0]);
       const pw = project([x, y, z]);
-      if (!pc || !pw || pw.d > pc.d + 0.0008) return;
+      if (!pw) return;
+      const rn  = Math.hypot(y, z) || 1;
+      const eps = _fr * 0.6;
+      const po  = project([x, y + (y / rn) * eps, z + (z / rn) * eps]);
+      /* Require the outward point to come meaningfully closer (normal faces the
+         camera by a margin); edge-on rows in a head-on view are culled. */
+      if (!po || po.d > pw.d - eps * 0.35) return;
       const p0 = project([x + hw, y, z + hh]);
       const p1 = project([x - hw, y, z + hh]);
       const p2 = project([x - hw, y, z - hh]);
