@@ -823,5 +823,37 @@
         "label": "Instructor"
       }
     ]
+  },
+  {
+    "id": "anchorage-bozeman",
+    "aircraft": "b737max9",
+    "acName": "Boeing 737 MAX 9",
+    "engine": "CFM LEAP-1B · Twin",
+    "location": "Anchorage PANC",
+    "title": "Anchorage → Bozeman · Tarmac",
+    "era": "MODERN",
+    "accent": "#0F2B51",
+    "briefing": {
+      "date": "PANC · Tarmac · Dep RWY 15",
+      "pilot": "Captain / First Officer",
+      "unit": "Anchorage Ground / Tower 118.300",
+      "aircraft": "Boeing 737 MAX 9 · Alaska Airlines",
+      "orders": "On the ramp at Ted Stevens. Start engines, taxi to runway one five.\nClimb runway heading, then direct Bozeman.\n2,400 km southeast over the Wrangells and the northern Rockies.",
+      "atmosphere": "Anchorage. Mountains on every side.\nThe Eskimo on the tail has flown this state for seventy years.\nBozeman, Montana — five hours south."
+    },
+    "roles": [
+      {
+        "id": "PF",
+        "label": "Pilot Flying"
+      },
+      {
+        "id": "PM",
+        "label": "Pilot Monitoring"
+      },
+      {
+        "id": "INSTRUCTOR",
+        "label": "Instructor"
+      }
+    ]
   }
 ]

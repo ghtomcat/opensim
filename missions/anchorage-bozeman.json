@@ -1,0 +1,69 @@
+{
+  "id": "anchorage-bozeman",
+  "phase": "departure",
+  "title": "Anchorage → Bozeman",
+  "description": "Alaska 737 MAX 9 on the tarmac at Ted Stevens Anchorage, bound for Bozeman Yellowstone. Live METAR. Start up, taxi, and depart south over Cook Inlet.",
+  "author": "Markus Leutwyler",
+  "aircraft": "b737max9",
+  "timeOfDay": 14,
+  "departure": {
+    "icao": "PANC",
+    "name": "Ted Stevens Anchorage Intl",
+    "elevation": 152
+  },
+  "arrival": {
+    "icao": "KBZN",
+    "name": "Bozeman Yellowstone Intl",
+    "runway": "12",
+    "elevation": 4473
+  },
+  "initialState": {
+    "lat": 61.1744,
+    "lon": -149.9961,
+    "alt": 152,
+    "spd": 0,
+    "hdg": 150,
+    "pitch": 0,
+    "roll": 0
+  },
+  "weather": {
+    "source": "live",
+    "icao": "PANC",
+    "fallback": {
+      "wdir": 0,
+      "wspd": 6,
+      "altim": 1015,
+      "temp": 9,
+      "dewp": 2,
+      "visib": "10+",
+      "clouds": [
+        {
+          "cover": "FEW",
+          "base": 7000
+        }
+      ]
+    }
+  },
+  "atcClearances": [
+    {
+      "alt": 200,
+      "pm": "anchorage ground, Alaska nine three two, ready to taxi runway one five",
+      "atc": "Alaska nine three two, taxi to runway one five via taxiway kilo, hold short"
+    },
+    {
+      "alt": 1500,
+      "pm": "Alaska nine three two, airborne runway one five",
+      "atc": "Alaska nine three two, radar contact, climb and maintain one zero thousand, fly heading one eight zero"
+    },
+    {
+      "alt": 10000,
+      "pm": "Alaska nine three two, leaving ten thousand",
+      "atc": "Alaska nine three two, contact anchorage center one two five decimal three, direct Bozeman, good day"
+    },
+    {
+      "alt": 24000,
+      "pm": "anchorage center, Alaska nine three two, flight level two four zero",
+      "atc": "Alaska nine three two, roger, maintain flight level three six zero, Bozeman altimeter coming"
+    }
+  ]
+}
