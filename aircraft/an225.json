@@ -1,6 +1,7 @@
 {
   "id": "an225",
   "name": "Antonov An-225 Mriya",
+  "registration": "UR-82060",
   "clock": "digital",
   "callsign": "UR-82060",
   "icaoType": "A225",

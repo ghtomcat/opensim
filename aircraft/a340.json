@@ -1,6 +1,7 @@
 {
   "id": "a340",
   "name": "Airbus A340-300",
+  "registration": "HB-JME",
   "subtype": "A340-313 (CFM56-5C4)",
   "cabinWindows": 87,
   "flapTracks": 8,

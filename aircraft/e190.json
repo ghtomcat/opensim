@@ -1,6 +1,7 @@
 {
   "id": "e190",
   "name": "Embraer E190-E2",
+  "registration": "HB-AZE",
   "flapTracks": 6,
   "clock": "digital",
   "panel": "e190",

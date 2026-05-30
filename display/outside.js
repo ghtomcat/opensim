@@ -508,30 +508,36 @@ function drawActuatorRod(ctx, pa, pb, dpr) {
 /* ── Nacelle inlet lip ring — polished metal leading edge at intake face ─────
    Drawn as a thick silver stroke at the outer rim of the fan face projection.
    Uses the same hub/rim as the fan disk so it's always co-centred with the fan. */
-function _drawIntakeLip(ctx, hubPt, rimPt, dpr) {
+function _drawIntakeLip(ctx, hubPt, rimPt, dpr, foreshorten = 1, fsAngle = 0) {
   const r = Math.hypot(rimPt.x - hubPt.x, rimPt.y - hubPt.y);
   if (r < 3) return;
   ctx.save();
+  ctx.translate(hubPt.x, hubPt.y);
+  ctx.rotate(fsAngle);
+  ctx.scale(1, Math.max(0.04, foreshorten));   // ellipse off-axis, sliver edge-on
   ctx.strokeStyle = 'rgba(218, 224, 232, 0.90)';
   ctx.lineWidth = Math.max(2.5, r * 0.11);
   ctx.beginPath();
-  ctx.arc(hubPt.x, hubPt.y, r, 0, Math.PI * 2);
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
 }
 
 /* Black strip just inside the intake lip — the dark annular band between
    the silver lip and the fan blade area visible on real turbofan engines. */
-function _drawIntakeBlackStrip(ctx, hubPt, rimPt, dpr) {
+function _drawIntakeBlackStrip(ctx, hubPt, rimPt, dpr, foreshorten = 1, fsAngle = 0) {
   const r = Math.hypot(rimPt.x - hubPt.x, rimPt.y - hubPt.y);
   if (r < 3) return;
   const stripW = Math.max(1.5, r * 0.13);
   const rInner = r - stripW * 0.5;
   ctx.save();
+  ctx.translate(hubPt.x, hubPt.y);
+  ctx.rotate(fsAngle);
+  ctx.scale(1, Math.max(0.04, foreshorten));
   ctx.strokeStyle = 'rgba(8, 10, 14, 0.88)';
   ctx.lineWidth = stripW;
   ctx.beginPath();
-  ctx.arc(hubPt.x, hubPt.y, rInner, 0, Math.PI * 2);
+  ctx.arc(0, 0, rInner, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
 }
@@ -2710,6 +2716,23 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const _livDecals = S.aircraft?.livery?.decals;
   if (_livDecals?.length) _drawLiveryDecals(ctx, _livDecals, pts, verts, FC_, F_, project, camSide);
 
+  /* Aircraft registration — small text on the aft-lower fuselage (below the
+     window line), placed from the fuselage geometry so it works for any WB/NB. */
+  if (S.aircraft?.registration && _wbGeo) {
+    const _rgR = _wbGeo.r, _rgReg = S.aircraft.registration;
+    const _rgVbW = Math.max(48, _rgReg.length * 12);
+    const _rgZT = -_rgR * 0.10, _rgZB = -_rgR * 0.44;     // band just below the windows
+    const _rgU  = (_rgZT - _rgZB) * (_rgVbW / 20);        // x-width matched to text aspect
+    const _rgXF = (S.aircraft?.tailX ?? -0.021) * 0.40;   // front edge, well aft on the fuselage
+    _drawLiveryDecals(ctx, [{
+      surface: 'fuselage',
+      viewBox: `0 0 ${_rgVbW} 20`,
+      placement: [[_rgXF, _rgR, _rgZT], [_rgXF - _rgU, _rgR, _rgZT],
+                  [_rgXF - _rgU, _rgR, _rgZB], [_rgXF, _rgR, _rgZB]],
+      elements: [{ text: _rgReg, fill: 'rgb(45,48,56)', x: _rgVbW / 2, y: 11, size: 15 }],
+    }], pts, verts, FC_, F_, project, camSide);
+  }
+
   /* Re-stamp near-side wing + winglet faces after livery to prevent livery bleeding over them.
      Near-side faces have avgD < camSide (they're between camera and fuselage centre).
      Far-side faces have avgD > camSide and must stay behind the fuselage — skip them. */
@@ -2777,17 +2800,29 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
          forward component (not a pure side view). */
       const _drawEngineInlet = (lipHub, lipR, fanRing, fanScale) => {
         if (!lipHub || lipR < 3) return;
+        /* One foreshorten ellipse for the whole inlet, taken from the fan-plane
+           ring: fs = minor/major (1 head-on → ~0 edge-on), ang = major axis.
+           The lip ring, black strip, dark bore and fan all share it so the inlet
+           reads as a single oval from the side rather than a circle + ellipse. */
+        const e   = fanRing.length >= 4 ? _fanEllipse(fanRing) : null;
+        const fs  = e ? Math.max(0.04, e.minorR / e.majorR) : 1;
+        const ang = e ? e.angle : 0;
         const rim = { x: lipHub.x, y: lipHub.y - lipR };
-        ctx.save(); ctx.fillStyle = COL_[4]; ctx.globalAlpha = 0.32;
-        ctx.beginPath(); ctx.arc(lipHub.x, lipHub.y, lipR * 0.82, 0, Math.PI * 2); ctx.fill();
+        /* dark inlet bore — foreshortened disc at the lip */
+        ctx.save();
+        ctx.translate(lipHub.x, lipHub.y); ctx.rotate(ang); ctx.scale(1, fs);
+        ctx.fillStyle = COL_[4]; ctx.globalAlpha = 0.32;
+        ctx.beginPath(); ctx.arc(0, 0, lipR * 0.82, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
-        _drawIntakeBlackStrip(ctx, lipHub, rim, dpr);
-        if (fanRing.length >= 4) {
-          const e = _fanEllipse(fanRing), maj = e.majorR * fanScale;
+        _drawIntakeBlackStrip(ctx, lipHub, rim, dpr, fs, ang);
+        /* Fan blades only when looking into the intake — hidden edge-on/side-on
+           (you can't see down a turbofan inlet from abeam). */
+        if (e && fs >= 0.45) {
+          const maj = e.majorR * fanScale;
           if (maj > 3) _drawTurbofanFace(ctx, { x: e.cx, y: e.cy },
-            { x: e.cx + maj, y: e.cy }, ePow, dpr, 22, e.minorR / e.majorR, e.angle);
+            { x: e.cx + maj, y: e.cy }, ePow, dpr, 22, fs, ang);
         }
-        _drawIntakeLip(ctx, lipHub, rim, dpr);
+        _drawIntakeLip(ctx, lipHub, rim, dpr, fs, ang);
       };
       /* Mean screen radius from a hub to ring vertices (all same x → same depth). */
       const _ringRad = (hub, idxs) => {
@@ -4122,7 +4157,16 @@ function _drawLiveryDecals(ctx, decals, pts, verts, FC_, F_, project, camSide = 
         }
         ctx.fillStyle = el.fill ?? '#ffffff';
         ctx.globalAlpha = el.opacity ?? 1;
-        ctx.fill(new Path2D(el.d));
+        if (el.text != null) {
+          /* Text element (registrations, simple titles) — drawn in the same
+             SVG→surface affine, so it wraps/perspectives like a path decal. */
+          ctx.font = `${el.weight ?? '700'} ${el.size ?? 16}px ${el.font ?? 'Arial, Helvetica, sans-serif'}`;
+          ctx.textAlign = el.align ?? 'center';
+          ctx.textBaseline = el.baseline ?? 'middle';
+          ctx.fillText(el.text, el.x ?? 0, el.y ?? 0);
+        } else {
+          ctx.fill(new Path2D(el.d));
+        }
         ctx.restore();
       }
     }

@@ -1,6 +1,7 @@
 {
   "id": "a220",
   "name": "Airbus A220-300",
+  "registration": "YL-CSJ",
   "cabinWindows": 44,
   "doors": [0.011, -0.018],
   "winglet": "blended",

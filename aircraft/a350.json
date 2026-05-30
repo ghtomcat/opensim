@@ -1,6 +1,7 @@
 {
   "id": "a350",
   "name": "Airbus A350-900",
+  "registration": "HB-IFA",
   "flapTracks": 8,
   "clock": "digital",
   "panel": "airbus",
