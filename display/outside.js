@@ -549,13 +549,18 @@ let _svSepPrevStage = 1;
 let _rktSepLastAcId = null;
 let _rktSepPrevStage = 1;
 
-function _drawTurbofanFace(ctx, hubPt, rimPt, power, dpr, nBlades = 22) {
+function _drawTurbofanFace(ctx, hubPt, rimPt, power, dpr, nBlades = 22, foreshorten = 1, fsAngle = 0) {
   if (!hubPt || !rimPt) return;
   const r = Math.hypot(rimPt.x - hubPt.x, rimPt.y - hubPt.y);
   if (r < 3) return;
-  const cx = hubPt.x, cy = hubPt.y;
   const hubR = r * 0.28, tipR = r * 0.94;
   ctx.save();
+  /* Draw the disk in an origin-centred frame, then squash it along the engine
+     axis so the fan reads as a foreshortened ellipse from oblique views (and
+     collapses to a sliver edge-on) rather than a billboard always facing us. */
+  ctx.translate(hubPt.x, hubPt.y);
+  ctx.rotate(fsAngle);
+  ctx.scale(1, Math.max(0.04, foreshorten));
 
   if (power < 0.05) {
     /* Static — N tapered blade quads */
@@ -564,10 +569,10 @@ function _drawTurbofanFace(ctx, hubPt, rimPt, power, dpr, nBlades = 22) {
       const a  = _fanAngle + i / nBlades * Math.PI * 2;
       const aL = a - 0.085, aR = a + 0.085;
       ctx.beginPath();
-      ctx.moveTo(cx + hubR * Math.cos(aL), cy + hubR * Math.sin(aL));
-      ctx.lineTo(cx + tipR * Math.cos(aL - 0.10), cy + tipR * Math.sin(aL - 0.10));
-      ctx.lineTo(cx + tipR * Math.cos(aR - 0.14), cy + tipR * Math.sin(aR - 0.14));
-      ctx.lineTo(cx + hubR * Math.cos(aR), cy + hubR * Math.sin(aR));
+      ctx.moveTo(hubR * Math.cos(aL), hubR * Math.sin(aL));
+      ctx.lineTo(tipR * Math.cos(aL - 0.10), tipR * Math.sin(aL - 0.10));
+      ctx.lineTo(tipR * Math.cos(aR - 0.14), tipR * Math.sin(aR - 0.14));
+      ctx.lineTo(hubR * Math.cos(aR), hubR * Math.sin(aR));
       ctx.closePath(); ctx.fill();
     }
   } else if (power < 0.30) {
@@ -579,24 +584,24 @@ function _drawTurbofanFace(ctx, hubPt, rimPt, power, dpr, nBlades = 22) {
       const a  = _fanAngle + i / nBlades * Math.PI * 2;
       const aL = a - 0.10, aR = a + 0.10;
       ctx.beginPath();
-      ctx.moveTo(cx + hubR * Math.cos(aL), cy + hubR * Math.sin(aL));
-      ctx.lineTo(cx + tipR * Math.cos(aL - 0.12), cy + tipR * Math.sin(aL - 0.12));
-      ctx.lineTo(cx + tipR * Math.cos(aR - 0.16), cy + tipR * Math.sin(aR - 0.16));
-      ctx.lineTo(cx + hubR * Math.cos(aR), cy + hubR * Math.sin(aR));
+      ctx.moveTo(hubR * Math.cos(aL), hubR * Math.sin(aL));
+      ctx.lineTo(tipR * Math.cos(aL - 0.12), tipR * Math.sin(aL - 0.12));
+      ctx.lineTo(tipR * Math.cos(aR - 0.16), tipR * Math.sin(aR - 0.16));
+      ctx.lineTo(hubR * Math.cos(aR), hubR * Math.sin(aR));
       ctx.closePath(); ctx.fill();
     }
     /* Blur wash */
-    const bGrad = ctx.createRadialGradient(cx, cy, hubR, cx, cy, tipR);
+    const bGrad = ctx.createRadialGradient(0, 0, hubR, 0, 0, tipR);
     bGrad.addColorStop(0, `rgba(138,152,168,${(t * 0.32).toFixed(2)})`);
     bGrad.addColorStop(1, `rgba(78,90,106,${(t * 0.20).toFixed(2)})`);
-    ctx.fillStyle = bGrad; ctx.beginPath(); ctx.arc(cx, cy, tipR, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = bGrad; ctx.beginPath(); ctx.arc(0, 0, tipR, 0, Math.PI*2); ctx.fill();
   } else {
     /* Running — solid blur disk + faint streaks */
-    const bGrad = ctx.createRadialGradient(cx, cy, hubR, cx, cy, tipR);
+    const bGrad = ctx.createRadialGradient(0, 0, hubR, 0, 0, tipR);
     bGrad.addColorStop(0,   'rgba(152,165,180,0.58)');
     bGrad.addColorStop(0.5, 'rgba(112,124,140,0.44)');
     bGrad.addColorStop(1,   'rgba(72,84,100,0.32)');
-    ctx.fillStyle = bGrad; ctx.beginPath(); ctx.arc(cx, cy, tipR, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = bGrad; ctx.beginPath(); ctx.arc(0, 0, tipR, 0, Math.PI*2); ctx.fill();
     /* Radial streaks */
     ctx.globalAlpha = 0.10;
     ctx.strokeStyle = 'rgba(210,222,235,1)';
@@ -604,8 +609,8 @@ function _drawTurbofanFace(ctx, hubPt, rimPt, power, dpr, nBlades = 22) {
     for (let i = 0; i < 9; i++) {
       const a = _fanAngle + i / 9 * Math.PI * 2;
       ctx.beginPath();
-      ctx.moveTo(cx + hubR * Math.cos(a), cy + hubR * Math.sin(a));
-      ctx.lineTo(cx + tipR * Math.cos(a), cy + tipR * Math.sin(a));
+      ctx.moveTo(hubR * Math.cos(a), hubR * Math.sin(a));
+      ctx.lineTo(tipR * Math.cos(a), tipR * Math.sin(a));
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
@@ -613,14 +618,30 @@ function _drawTurbofanFace(ctx, hubPt, rimPt, power, dpr, nBlades = 22) {
 
   /* Spinner cone */
   ctx.fillStyle = 'rgba(52,58,70,0.97)';
-  ctx.beginPath(); ctx.arc(cx, cy, hubR, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(0, 0, hubR, 0, Math.PI*2); ctx.fill();
 
   /* Outer cowl ring */
   ctx.strokeStyle = 'rgba(158,172,188,0.78)';
   ctx.lineWidth   = Math.max(0.8, dpr * 0.7);
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.stroke();
 
   ctx.restore();
+}
+
+/* Fit an ellipse to a circular ring's projected vertices (perspective image of
+   a circle ≈ ellipse). Returns centroid, major/minor screen radii and the
+   major-axis angle — used to draw the recessed fan foreshortened. */
+function _fanEllipse(ringPts) {
+  let cx = 0, cy = 0;
+  for (const p of ringPts) { cx += p.x; cy += p.y; }
+  cx /= ringPts.length; cy /= ringPts.length;
+  let majorR = 0, angle = 0, minorR = Infinity;
+  for (const p of ringPts) {
+    const dx = p.x - cx, dy = p.y - cy, rr = Math.hypot(dx, dy);
+    if (rr > majorR) { majorR = rr; angle = Math.atan2(dy, dx); }
+    if (rr < minorR) minorR = rr;
+  }
+  return { cx, cy, majorR, minorR, angle };
 }
 
 
@@ -2765,12 +2786,19 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         const _rR = _rRads.length ? _rRads.reduce((a,b)=>a+b)/_rRads.length : 0;
         if (_rR > 3) {
           const _rimR     = { x: _rHub.x, y: _rHub.y - _rR,        d: _rHub.d };
-          const _fanRimR  = { x: _rHub.x, y: _rHub.y - _rR * 0.82, d: _rHub.d };
           ctx.save(); ctx.fillStyle = COL_[4]; ctx.globalAlpha = 0.32;
           ctx.beginPath(); ctx.arc(_rHub.x, _rHub.y, _rR * 0.82, 0, Math.PI*2); ctx.fill();
           ctx.restore();
           _drawIntakeBlackStrip(ctx, _rHub, _rimR, dpr);
-          _drawTurbofanFace(ctx, _rHub, _fanRimR, ePow, dpr, 22);
+          /* Recessed fan: centred on the fan-plane ring (eB, behind the lip) and
+             foreshortened to its projected ellipse, so it sets back into the
+             inlet and turns away from the camera off-axis. */
+          const _rFanRing = [28,29,30,31,32,33,34,35].map(i=>pts[_b+i]).filter(Boolean);
+          if (_rFanRing.length >= 4) {
+            const _e = _fanEllipse(_rFanRing), _maj = _e.majorR * 0.83;
+            if (_maj > 3) _drawTurbofanFace(ctx, { x: _e.cx, y: _e.cy },
+              { x: _e.cx + _maj, y: _e.cy }, ePow, dpr, 22, _e.minorR / _e.majorR, _e.angle);
+          }
           _drawIntakeLip(ctx, _rHub, _rimR, dpr);
         }
       }
@@ -2780,12 +2808,16 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         const _rL = _lRads.length ? _lRads.reduce((a,b)=>a+b)/_lRads.length : 0;
         if (_rL > 3) {
           const _rimL     = { x: _lHub.x, y: _lHub.y - _rL,        d: _lHub.d };
-          const _fanRimL  = { x: _lHub.x, y: _lHub.y - _rL * 0.82, d: _lHub.d };
           ctx.save(); ctx.fillStyle = COL_[4]; ctx.globalAlpha = 0.32;
           ctx.beginPath(); ctx.arc(_lHub.x, _lHub.y, _rL * 0.82, 0, Math.PI*2); ctx.fill();
           ctx.restore();
           _drawIntakeBlackStrip(ctx, _lHub, _rimL, dpr);
-          _drawTurbofanFace(ctx, _lHub, _fanRimL, ePow, dpr, 22);
+          const _lFanRing = [68,69,70,71,72,73,74,75].map(i=>pts[_b+i]).filter(Boolean);
+          if (_lFanRing.length >= 4) {
+            const _e = _fanEllipse(_lFanRing), _maj = _e.majorR * 0.83;
+            if (_maj > 3) _drawTurbofanFace(ctx, { x: _e.cx, y: _e.cy },
+              { x: _e.cx + _maj, y: _e.cy }, ePow, dpr, 22, _e.minorR / _e.majorR, _e.angle);
+          }
           _drawIntakeLip(ctx, _lHub, _rimL, dpr);
         }
       }
