@@ -3227,7 +3227,7 @@ ctx.save();
        radius and require it to come closer. This hides the far-side rows AND
        the near-edge-on rows in a head-on/axial view, where the round fuselage
        occludes them. */
-    const _quad3d = (x, y, z, hw, hh, fill, stroke, round = false) => {
+    const _quad3d = (x, y, z, hw, hh, fill, stroke, round = false, rFrac = 0.30) => {
       const pw = project([x, y, z]);
       if (!pw) return;
       const rn  = Math.hypot(y, z) || 1;
@@ -3258,7 +3258,7 @@ ctx.save();
         ctx.translate(cx, cy);
         ctx.rotate(angle);
         ctx.beginPath();
-        ctx.roundRect(-sw / 2, -sh / 2, sw, sh, Math.min(sw, sh) * 0.30);
+        ctx.roundRect(-sw / 2, -sh / 2, sw, sh, Math.min(sw, sh) * rFrac);
         if (fill)   { ctx.fillStyle   = fill;   ctx.fill();   }
         if (stroke) { ctx.strokeStyle = stroke; ctx.stroke(); }
         ctx.restore();
@@ -3293,15 +3293,39 @@ ctx.save();
       _quad3d(wx, -_wbR, wZ, hw, hh, wFill, wStroke, true);
     }
 
-    /* Doors — positions from aircraft JSON or default pairs */
+    /* Doors — positions from aircraft JSON or default pairs. Each door: black
+       border, silver inner outline, a small window in the upper part, and a
+       handle at mid-height. */
     const _doorXs3 = S.aircraft?.doors ?? [0.009, -0.006];
     const dhw = _wbR * 0.190;
     const dhh = _wbR * 0.360;
     const dZ  = _wbR * 0.08;
-    const dStroke = 'rgba(145,160,178,0.70)';
+    const _dBlk    = 'rgba(16,20,26,0.90)';     // outer black border
+    const _dSilver = 'rgba(198,204,213,0.80)';  // inner silver outline
+    const _dGlass  = 'rgba(38,54,80,0.88)';     // door-window glass
+    const _dHandle = 'rgba(70,76,88,0.95)';     // handle
     for (const dx of _doorXs3) {
-      _quad3d(dx,  _wbR, dZ, dhw, dhh, null, dStroke);
-      _quad3d(dx, -_wbR, dZ, dhw, dhh, null, dStroke);
+      for (const yS of [_wbR, -_wbR]) {
+        _quad3d(dx, yS, dZ,              dhw,        dhh,        null,    _dBlk,    true);  // black border
+        _quad3d(dx, yS, dZ,              dhw * 0.84, dhh * 0.90, null,    _dSilver, true);  // silver inner
+        _quad3d(dx, yS, dZ + dhh * 0.50, dhw * 0.34, dhw * 0.34, _dGlass, _dSilver, true, 0.5); // upper circular window
+        _quad3d(dx, yS, dZ,              dhw * 0.34, dhh * 0.05, _dHandle, null,     true);       // mid handle
+      }
+    }
+
+    /* Overwing emergency exits — rounded near-black frame around specific cabin
+       windows, given by 1-based window index in the JSON ("overwingExits":
+       [19, 20]). Drawn on both sides; N entries = N exits per side. */
+    const _owExits = S.aircraft?.overwingExits;
+    if (_owExits) {
+      const ohw = hw * 1.18, ohh = hh * 1.55;
+      const oStroke = 'rgba(14,16,22,0.92)';
+      for (const wi of _owExits) {
+        const _oi = wi - 1;
+        const ox = nW > 1 ? xA + (xB - xA) * _oi / (nW - 1) : (xA + xB) / 2;
+        _quad3d(ox,  _wbR, wZ, ohw, ohh, null, oStroke, true);
+        _quad3d(ox, -_wbR, wZ, ohw, ohh, null, oStroke, true);
+      }
     }
 
     ctx.restore();

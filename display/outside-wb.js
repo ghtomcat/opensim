@@ -649,7 +649,7 @@ export function _buildWB(np) {
   return { V_, F_, FC_, E_, SE_, SL_, b, r, rb,
     winFwdRi: np.winFwdRi, winAftRi: np.winAftRi,
     winSiInner: np.winSiInner, winSiOuter: np.winSiOuter,
-    cockpitPanels: np.cockpitPanels, frontWin: _frontWin,
+    cockpitPanels: np.cockpitPanels, cockpitPanelR: np.cockpitPanelR, frontWin: _frontWin,
     ey2: np.ey2, ez: np.ez, er: np.er, erc: np.erc, pz: np.pz, exOff, eLen,
     eApos: eA, eBpos: eB,
     anim: { r_rt, r_hs, r_ail, r_sp_rt, r_sp_hs } };
@@ -677,6 +677,7 @@ export function _acGeoFromJson(aircraft, baseNp) {
     winSiInner:    nose.winSiInner    ?? baseNp.winSiInner,
     winSiOuter:    nose.winSiOuter    ?? baseNp.winSiOuter,
     cockpitPanels: nose.cockpitPanels ?? baseNp.cockpitPanels,
+    cockpitPanelR: nose.cockpitPanelR ?? baseNp.cockpitPanelR,
     windows:       nose.windows       ?? baseNp.windows,
     tailX:         jGeo.tailX         ?? baseNp.tailX,
     vstabZ:        jGeo.vstabZ        ?? baseNp.vstabZ,
