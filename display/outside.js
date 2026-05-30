@@ -2769,93 +2769,71 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   if (!isC172 && !isF9 && !isSS && !isBf109 && !isF4U && !isMig15 && !isSV) {
     const ePow = S.enginePower ?? 0;
     if (ePow > 0 || S.engineState === 'running') {
-      /* Only draw fan disk when intake faces camera AND engine is not behind fuselage.
-         hub.d < fan.d → engine faces us; hub.d < fusCenter.d → not occluded by body.
-         _cpCamF > 0.35 → camera must have significant forward component (intake faces +fP);
-         prevents fan showing until ~20° of orbit away from the pure side view. */
-      const _rHub = pts[_b+158], _rFan = pts[_b+28];
-      const _lHub = pts[_b+159], _lFan = pts[_b+68];
-      const _eXpos = _wbGeo?.eApos ?? (0.005 + (_wbGeo?.exOff ?? 0));
+      /* Draw one engine inlet: dark bore + black strip + recessed fan (fitted to
+         the fan-plane ring's projected ellipse, so it sets back into the inlet and
+         foreshortens off-axis) + front lip ring. Shared by the inner pair and the
+         A340 outer pair. Gating per engine: hub.d < fan.d → intake faces us;
+         hub.d < fusCenter → not behind the body; _cpCamF > 0.35 → camera has a
+         forward component (not a pure side view). */
+      const _drawEngineInlet = (lipHub, lipR, fanRing, fanScale) => {
+        if (!lipHub || lipR < 3) return;
+        const rim = { x: lipHub.x, y: lipHub.y - lipR };
+        ctx.save(); ctx.fillStyle = COL_[4]; ctx.globalAlpha = 0.32;
+        ctx.beginPath(); ctx.arc(lipHub.x, lipHub.y, lipR * 0.82, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+        _drawIntakeBlackStrip(ctx, lipHub, rim, dpr);
+        if (fanRing.length >= 4) {
+          const e = _fanEllipse(fanRing), maj = e.majorR * fanScale;
+          if (maj > 3) _drawTurbofanFace(ctx, { x: e.cx, y: e.cy },
+            { x: e.cx + maj, y: e.cy }, ePow, dpr, 22, e.minorR / e.majorR, e.angle);
+        }
+        _drawIntakeLip(ctx, lipHub, rim, dpr);
+      };
+      /* Mean screen radius from a hub to ring vertices (all same x → same depth). */
+      const _ringRad = (hub, idxs) => {
+        const rs = idxs.map(i => pts[_b+i]).filter(Boolean)
+          .map(p => Math.hypot(p.x - hub.x, p.y - hub.y));
+        return rs.length ? rs.reduce((a, b) => a + b) / rs.length : 0;
+      };
+      /* Project 8 points around a circle in the y-z plane (engine disc face). */
+      const _projRing = (x, yc, zc, rad) => {
+        const ring = [];
+        for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2;
+          const p = project([x, yc + Math.cos(a) * rad, zc + Math.sin(a) * rad]);
+          if (p) ring.push(p); }
+        return ring;
+      };
+
+      const _eXpos  = _wbGeo?.eApos ?? (0.005 + (_wbGeo?.exOff ?? 0));
       const _fusCtr = project([_eXpos, 0, 0]);
       const _fusCullD = _fusCtr ? _fusCtr.d + 0.0005 : Infinity;
-      if (_rHub && _rFan && _rHub.d < _rFan.d && _rHub.d < _fusCullD && _cpCamF > 0.35) {
-        /* Average distance hub→each eA ring vertex: all at same x → same perspective depth,
-           no axial-offset radius inflation from angled views. */
-        const _rRads = [20,21,22,23,24,25,26,27].map(i=>pts[_b+i]).filter(Boolean)
-          .map(p=>Math.hypot(p.x-_rHub.x, p.y-_rHub.y));
-        const _rR = _rRads.length ? _rRads.reduce((a,b)=>a+b)/_rRads.length : 0;
-        if (_rR > 3) {
-          const _rimR     = { x: _rHub.x, y: _rHub.y - _rR,        d: _rHub.d };
-          ctx.save(); ctx.fillStyle = COL_[4]; ctx.globalAlpha = 0.32;
-          ctx.beginPath(); ctx.arc(_rHub.x, _rHub.y, _rR * 0.82, 0, Math.PI*2); ctx.fill();
-          ctx.restore();
-          _drawIntakeBlackStrip(ctx, _rHub, _rimR, dpr);
-          /* Recessed fan: centred on the fan-plane ring (eB, behind the lip) and
-             foreshortened to its projected ellipse, so it sets back into the
-             inlet and turns away from the camera off-axis. */
-          const _rFanRing = [28,29,30,31,32,33,34,35].map(i=>pts[_b+i]).filter(Boolean);
-          if (_rFanRing.length >= 4) {
-            const _e = _fanEllipse(_rFanRing), _maj = _e.majorR * 0.83;
-            if (_maj > 3) _drawTurbofanFace(ctx, { x: _e.cx, y: _e.cy },
-              { x: _e.cx + _maj, y: _e.cy }, ePow, dpr, 22, _e.minorR / _e.majorR, _e.angle);
-          }
-          _drawIntakeLip(ctx, _rHub, _rimR, dpr);
-        }
-      }
-      if (_lHub && _lFan && _lHub.d < _lFan.d && _lHub.d < _fusCullD && _cpCamF > 0.35) {
-        const _lRads = [60,61,62,63,64,65,66,67].map(i=>pts[_b+i]).filter(Boolean)
-          .map(p=>Math.hypot(p.x-_lHub.x, p.y-_lHub.y));
-        const _rL = _lRads.length ? _lRads.reduce((a,b)=>a+b)/_lRads.length : 0;
-        if (_rL > 3) {
-          const _rimL     = { x: _lHub.x, y: _lHub.y - _rL,        d: _lHub.d };
-          ctx.save(); ctx.fillStyle = COL_[4]; ctx.globalAlpha = 0.32;
-          ctx.beginPath(); ctx.arc(_lHub.x, _lHub.y, _rL * 0.82, 0, Math.PI*2); ctx.fill();
-          ctx.restore();
-          _drawIntakeBlackStrip(ctx, _lHub, _rimL, dpr);
-          const _lFanRing = [68,69,70,71,72,73,74,75].map(i=>pts[_b+i]).filter(Boolean);
-          if (_lFanRing.length >= 4) {
-            const _e = _fanEllipse(_lFanRing), _maj = _e.majorR * 0.83;
-            if (_maj > 3) _drawTurbofanFace(ctx, { x: _e.cx, y: _e.cy },
-              { x: _e.cx + _maj, y: _e.cy }, ePow, dpr, 22, _e.minorR / _e.majorR, _e.angle);
-          }
-          _drawIntakeLip(ctx, _lHub, _rimL, dpr);
-        }
-      }
-      /* 4-engine aircraft (A340): also render outer engine fans at ey2 */
+
+      /* Inner engines — geometry carries explicit intake (eA) + fan (eB) rings.
+         Fan ring is the fan cowl (≈1.2× bore), so scale 0.83 → bore-sized fan. */
+      const _rHub = pts[_b+158], _rFan = pts[_b+28];
+      const _lHub = pts[_b+159], _lFan = pts[_b+68];
+      if (_rHub && _rFan && _rHub.d < _rFan.d && _rHub.d < _fusCullD && _cpCamF > 0.35)
+        _drawEngineInlet(_rHub, _ringRad(_rHub, [20,21,22,23,24,25,26,27]),
+          [28,29,30,31,32,33,34,35].map(i=>pts[_b+i]).filter(Boolean), 0.83);
+      if (_lHub && _lFan && _lHub.d < _lFan.d && _lHub.d < _fusCullD && _cpCamF > 0.35)
+        _drawEngineInlet(_lHub, _ringRad(_lHub, [60,61,62,63,64,65,66,67]),
+          [68,69,70,71,72,73,74,75].map(i=>pts[_b+i]).filter(Boolean), 0.83);
+
+      /* Outer engines (A340) — no ring vertices; project the lip hub/rim and a
+         fan-plane ring (radius _er2 = bore) at the same nacelle position. */
       const _ey2 = _wbGeo?.ey2;
       if (_ey2) {
-        const _ez2 = _oEzForOuter;           // same Z as nacelle geometry
-        const _er2 = _wbGeo.er ?? _er;
-        const _ex2 = _oXOffForOuter;          // same sweep-corrected X as nacelle geometry
-        const pHR = project([0.005 + _ex2,  _ey2, _ez2]);
-        const pRR = project([0.005 + _ex2,  _ey2, _ez2 + _er2]);
-        const pHL = project([0.005 + _ex2, -_ey2, _ez2]);
-        const pRL = project([0.005 + _ex2, -_ey2, _ez2 + _er2]);
-        const pBR = project([0.001 + _ex2,  _ey2, _ez2]);
-        const pBL = project([0.001 + _ex2, -_ey2, _ez2]);
-        const _fusCullD2 = _fusCtr ? _fusCtr.d + 0.0005 : Infinity;
-        if (pHR && pRR && pBR && pHR.d < pBR.d && pHR.d < _fusCullD2 && _cpCamF > 0.35) {
-          const _oRr = Math.hypot(pRR.x-pBR.x, pRR.y-pBR.y);
-          if (_oRr > 3) {
-            const _oFanRR = { x: pBR.x, y: pBR.y - _oRr * 0.82, d: pBR.d };
-            ctx.save(); ctx.fillStyle = COL_[4]; ctx.globalAlpha = 0.32;
-            ctx.beginPath(); ctx.arc(pBR.x, pBR.y, _oRr * 0.82, 0, Math.PI*2); ctx.fill(); ctx.restore();
-            _drawIntakeBlackStrip(ctx, pBR, pRR, dpr);
-            _drawTurbofanFace(ctx, pBR, _oFanRR, ePow, dpr, 22);
-          }
-          _drawIntakeLip(ctx, pBR, pRR, dpr);
-        }
-        if (pHL && pRL && pBL && pHL.d < pBL.d && pHL.d < _fusCullD2 && _cpCamF > 0.35) {
-          const _oRl = Math.hypot(pRL.x-pBL.x, pRL.y-pBL.y);
-          if (_oRl > 3) {
-            const _oFanRL = { x: pBL.x, y: pBL.y - _oRl * 0.82, d: pBL.d };
-            ctx.save(); ctx.fillStyle = COL_[4]; ctx.globalAlpha = 0.32;
-            ctx.beginPath(); ctx.arc(pBL.x, pBL.y, _oRl * 0.82, 0, Math.PI*2); ctx.fill(); ctx.restore();
-            _drawIntakeBlackStrip(ctx, pBL, pRL, dpr);
-            _drawTurbofanFace(ctx, pBL, _oFanRL, ePow, dpr, 22);
-          }
-          _drawIntakeLip(ctx, pBL, pRL, dpr);
-        }
+        const _ez2 = _oEzForOuter, _er2 = _wbGeo.er ?? _er, _ex2 = _oXOffForOuter;
+        const _outerInlet = (ySign) => {
+          const lipHub = project([0.005 + _ex2, ySign * _ey2, _ez2]);
+          const lipRim = project([0.005 + _ex2, ySign * _ey2, _ez2 + _er2]);
+          const fanHub = project([0.001 + _ex2, ySign * _ey2, _ez2]);
+          if (!lipHub || !lipRim || !fanHub) return;
+          if (!(lipHub.d < fanHub.d && lipHub.d < _fusCullD && _cpCamF > 0.35)) return;
+          _drawEngineInlet(lipHub, Math.hypot(lipRim.x - lipHub.x, lipRim.y - lipHub.y),
+            _projRing(0.001 + _ex2, ySign * _ey2, _ez2, _er2), 0.82);
+        };
+        _outerInlet(+1); _outerInlet(-1);
       }
     }
   }
