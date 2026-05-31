@@ -106,14 +106,19 @@ axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1
 
 | Aircraft | Engine | Notes |
 |----------|--------|-------|
-| Airbus A350-900 | Rolls-Royce Trent XWB | Autopilot, FMGS |
-| Airbus A220-300 | Pratt & Whitney PW1500G | Airbaltic livery, Airbus-style PFD/ND/ECAM |
-| Embraer E190-E2 | Pratt & Whitney PW1700G | Helvetic Airways, E-Jets glass cockpit |
+| Airbus A350-900 | Rolls-Royce Trent XWB | HB-IFA, autopilot, FMGS |
+| Airbus A340-300 | CFM56-5C4 × 4 | Edelweiss HB-JME — data-driven from airport-planning DWG |
+| Boeing 777-300ER | GE90-115B | Singapore 9V-SWY — data-driven, stepped GE90 core nozzle |
+| Boeing 737-800 | CFM56-7B | G-DOCB |
+| Boeing 737 MAX 9 | CFM LEAP-1B | N932AK, scimitar winglets |
+| Airbus A220-300 | Pratt & Whitney PW1500G | airBaltic livery, Airbus-style PFD/ND/ECAM |
+| Embraer E190-E2 | Pratt & Whitney PW1900G | Helvetic Airways, E-Jets glass cockpit |
 | Cessna 172S Skyhawk | Lycoming IO-360 · 180hp | G1000 glass cockpit, cold-dark startup, grass strip |
 | Robin DR400/140B Dauphin | Lycoming O-320 · 160hp | Flugschule Grenchen checklists |
 | Pipistrel Velis Electro HB-SYC | Pipistrel E-811 · 57.6 kW | EPSI panel, battery SOC management, Grenchen |
 | Vought F4U-1A Corsair | Pratt & Whitney R-2800 · 2000hp | Bent-wing bird, Pacific theatre |
 | Messerschmitt Bf 109 G-4 | Daimler-Benz DB 601 · 1175hp | AudioWorklet 12-cylinder impulse model |
+| MiG-15 'Fagot' | Klimov VK-1 | Centrifugal compressor intake, splitter vane |
 | Avro 504K | Le Rhône 9J · 110hp | Gyroscopic precession, rotary blip switch |
 | Tupolev Tu-95MS Bear H | Kuznetsov NK-12MV × 4 · 44740kW | Russian crew voices, contra-rotation LFO |
 | Antonov An-225 Mriya | ZMKB Progress D-18T × 6 · 1 377 kN | Ukrainian crew voices, 500 t, Hostomel 2022 |
@@ -127,6 +132,25 @@ axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1
 | Falcon 9 Block 1 | 333 400 kg, 9 Merlins, no recovery |
 | Falcon 9 Block 5 | 549 054 kg, RTLS booster recovery, MECO→SECO→Keplerian orbit |
 | Falcon 9 Block 5 (590 km) | Tuned for 590 km near-circular insertion — Inspiration5 |
+| Starship / Super Heavy | Full stack, Raptor sea-level + vacuum, engine skirt |
+| Saturn V | Apollo lunar stack, F-1 first stage |
+
+---
+
+## Data-driven airliners
+
+Airliners here are not shaped by eye. Manufacturers publish **airport-planning drawings** (DWG) so airports can lay out gates and taxiways — every fuselage station, wing root, gear track and engine position dimensioned to the millimetre. OpenSim reads those numbers.
+
+Each airliner JSON carries a `dimensions` block of real measurements, and the wireframe geometry is *derived* from it:
+
+- fuselage diameter sets the model scale
+- the wing-to-body fairing is a flat-bottomed super-ellipse from its DWG cross-section
+- landing gear from track / wheelbase / strut lengths
+- wing position from its root station — move it and the engines, pylons and flap-track fairings follow
+- the engine nacelle is a parametric builder — fan-cowl ratio, nacelle profile, stepped core nozzle — so a GE90 reads differently from a CFM56
+- cockpit windows as explicit polygons matched to the type
+
+Truth in, truth out. Accuracy is intrinsic, and a wrong number shows up as a visibly wrong shape. The A340-300 HB-JME (Edelweiss) is the reference build; the 777-300ER and A350 follow the same method.
 
 ---
 
