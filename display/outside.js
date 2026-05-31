@@ -2125,7 +2125,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
           bN.push(project([x, yc-halfT, zb])); bF.push(project([x, yc+halfT, zb]));
           tN.push(project([x, yc-halfT, zt])); tF.push(project([x, yc+halfT, zt]));
         }
-        const col = COL_[16];
+        const col = COL_[0];
         for (let i=0;i<M;i++){
           _pushQuad(bN[i], tN[i], tN[i+1], bN[i+1], col);   // near side
           _pushQuad(bF[i], bF[i+1], tF[i+1], tF[i], col);   // far side
@@ -2696,7 +2696,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       });
       ctx.save();
       ctx.fillStyle   = 'rgba(8,18,35,0.62)';
-      ctx.strokeStyle = 'rgb(210,215,220)';
+      ctx.strokeStyle = 'rgb(168,173,180)';   // silver window frame
       ctx.lineWidth   = 2.5 * dpr;
       for (const pp of projPanels) {
         if (!pp) continue;
@@ -4468,7 +4468,14 @@ function _drawLiveryDecals(ctx, decals, pts, verts, FC_, F_, project, camSide = 
           ctx.textBaseline = el.baseline ?? 'middle';
           ctx.fillText(el.text, el.x ?? 0, el.y ?? 0);
         } else {
-          ctx.fill(new Path2D(el.d));
+          const _path = new Path2D(el.d);
+          if (el.fill !== 'none') ctx.fill(_path);
+          if (el.stroke) {                         // optional outline (e.g. logo blue edging)
+            ctx.strokeStyle = el.stroke;
+            ctx.lineWidth   = el.strokeWidth ?? 1;
+            ctx.lineJoin    = 'round';
+            ctx.stroke(_path);
+          }
         }
         ctx.restore();
       }

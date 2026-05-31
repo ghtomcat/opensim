@@ -714,7 +714,7 @@ export function _buildWB(np) {
         let rho = 0;
         for (const vi of q) rho += Math.hypot(V_[vi][1], V_[vi][2]);
         if (rho / 4 < r * 1.012) continue;   // inside/on the skin → not part of the lobe
-        F_.push(q); FC_.push(15);
+        F_.push(q); FC_.push(0);   // fuselage colour
       }
   }
 
