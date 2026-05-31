@@ -2872,6 +2872,17 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       _drawSwissCross(ctx, pts[_b+122], pts[_b+151], pts[_b+103], pts[_b+102]);  // L winglet
   }
 
+  /* Winglet logo (e.g. Edelweiss flower) — billboards the vtail decal's flower onto
+     the near-side winglet. Enable with livery.wingletLogo. */
+  if (S.aircraft?.livery?.wingletLogo && _wbGeo) {
+    const _wlDec = S.aircraft.livery.decals?.find(d => d.surface === 'vtail');
+    if (_wlDec?.elements) {
+      const _wlVb = (_wlDec.viewBox ?? '0 0 50 50').split(' ').map(Number);
+      if (_cpCamR > 0) _drawWingletLogo(ctx, pts[_b+118], pts[_b+147], pts[_b+101], pts[_b+100], _wlDec.elements, _wlVb);
+      if (_cpCamR < 0) _drawWingletLogo(ctx, pts[_b+122], pts[_b+151], pts[_b+103], pts[_b+102], _wlDec.elements, _wlVb);
+    }
+  }
+
   /* MiG-15 Polish markings: szachownica on V-stab + "602" painted on port fuselage */
   if (isMig15) {
     _drawPolishRoundel(ctx, pts[142], pts[143], pts[145], pts[144]);
@@ -4672,6 +4683,35 @@ function _drawSwissCross(ctx, p0, p1, p2, p3, vFrac = 0.5) {
   ctx.lineTo(x9,y9); ctx.lineTo(xA,yA); ctx.lineTo(xB,yB);
   ctx.closePath();
   ctx.fill();
+  ctx.restore();
+}
+
+/* ── Winglet logo — billboard an SVG decal (e.g. the Edelweiss flower) onto the
+   winglet quad, centred and scaled to it, clipped to the quad. Reuses the same
+   path elements as the surface decal (fill + optional stroke).                */
+function _drawWingletLogo(ctx, p0, p1, p2, p3, els, vb) {
+  if (!p0 || !p1 || !p2 || !p3 || !els) return;
+  const bmx = (p0.x + p1.x) * 0.5, bmy = (p0.y + p1.y) * 0.5;
+  const tmx = (p2.x + p3.x) * 0.5, tmy = (p2.y + p3.y) * 0.5;
+  const upLen = Math.hypot(tmx - bmx, tmy - bmy);
+  if (upLen < 5) return;
+  const cx = (bmx + tmx) * 0.5, cy = (bmy + tmy) * 0.5;
+  const [vbx, vby, vbw, vbh] = vb;
+  const sc = upLen * 0.85 / vbh;                       // fit ~85% of the winglet height
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y);
+  ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y);
+  ctx.closePath(); ctx.clip();                         // clip to the winglet (screen space)
+  ctx.translate(cx, cy);
+  ctx.scale(sc, sc);
+  ctx.translate(-(vbx + vbw / 2), -(vby + vbh / 2));   // centre the viewBox on the quad
+  for (const el of els) {
+    if (el.d == null) continue;
+    const path = new Path2D(el.d);
+    if (el.fill && el.fill !== 'none') { ctx.fillStyle = el.fill; ctx.fill(path); }
+    if (el.stroke) { ctx.strokeStyle = el.stroke; ctx.lineWidth = (el.strokeWidth ?? 1); ctx.lineJoin = 'round'; ctx.stroke(path); }
+  }
   ctx.restore();
 }
 

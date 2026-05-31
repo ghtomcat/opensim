@@ -15,6 +15,7 @@
   "clock": "digital",
   "panel": "airbus",
   "livery": {
+    "wingletLogo": true,
     "colors": [
       null,
       null,
@@ -31,7 +32,13 @@
         0,
         0
       ],
-      null
+      null,
+      null,
+      [
+        204,
+        0,
+        0
+      ]
     ],
     "decals": [
       {
