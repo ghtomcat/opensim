@@ -4,6 +4,8 @@
   "registration": "N932AK",
   "cabinWindows": 86,
   "windowsToEngineLip": 14,
+  "windowGaps": [14, 15],
+  "windowGapSize": 1,
   "tailX": -0.026,
   "doors": [
     0.0124,

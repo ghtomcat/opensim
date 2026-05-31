@@ -3297,21 +3297,27 @@ ctx.save();
               : (_nCabW ? 0.008 : 0.011);
     /* Window pitch can be anchored to a reference: "windowsToEngineLip" gives the
        number of windows counted from the first window (just aft of the fwd door)
-       to the engine inlet lip (x == wing.rootLE). That fixes a realistic pitch and
-       lets the row end where 43 windows actually reach, instead of a guessed xB. */
+       to the engine inlet lip (x == wing.rootLE). That fixes a realistic pitch
+       instead of a guessed aft end. */
     const _winToLip = S.aircraft?.windowsToEngineLip;
     const _engLipX  = S.aircraft?.wing?.rootLE;
-    let xB;
-    if (_winToLip > 1 && _engLipX != null && _fwdDoorX != null) {
-      const _wPitch = (xA - _engLipX) / (_winToLip - 1);
-      xB = xA - _wPitch * (nW - 1);
-    } else {
-      xB = _nCabW ? -0.025 : -0.008;
+    const _wPitch = (_winToLip > 1 && _engLipX != null && _fwdDoorX != null)
+      ? (xA - _engLipX) / (_winToLip - 1)
+      : (nW > 1 ? (xA - (_nCabW ? -0.025 : -0.008)) / (nW - 1) : 0);
+    /* Extra spacing over the wing box: "windowGaps" lists 1-based window numbers
+       after which an additional gap (windowGapSize, in pitch units) is inserted,
+       shifting every following window aft — this reproduces the 737's uneven
+       spacing at the centre-section frames (e.g. after windows 14 and 15). */
+    const _wGaps  = S.aircraft?.windowGaps;
+    const _wGapSz = S.aircraft?.windowGapSize ?? 1;
+    const winXs = [];
+    for (let i = 0, _acc = 0; i < nW; i++) {
+      if (_wGaps?.includes(i)) _acc += _wPitch * _wGapSz;  // gap after window i (1-based)
+      winXs.push(nW > 1 ? xA - _wPitch * i - _acc : xA - _wPitch / 2);
     }
     for (let i = 0; i < nW; i++) {
-      const wx = nW > 1 ? xA + (xB - xA) * i / (nW - 1) : (xA + xB) / 2;
-      _quad3d(wx,  _wbR, wZ, hw, hh, wFill, wStroke, true);
-      _quad3d(wx, -_wbR, wZ, hw, hh, wFill, wStroke, true);
+      _quad3d(winXs[i],  _wbR, wZ, hw, hh, wFill, wStroke, true);
+      _quad3d(winXs[i], -_wbR, wZ, hw, hh, wFill, wStroke, true);
     }
 
     /* Doors — positions from aircraft JSON or default pairs. Each door: black
@@ -3342,8 +3348,7 @@ ctx.save();
       const ohw = hw * 1.18, ohh = hh * 1.55;
       const oStroke = 'rgba(14,16,22,0.92)';
       for (const wi of _owExits) {
-        const _oi = wi - 1;
-        const ox = nW > 1 ? xA + (xB - xA) * _oi / (nW - 1) : (xA + xB) / 2;
+        const ox = winXs[wi - 1] ?? winXs[0];
         _quad3d(ox,  _wbR, wZ, ohw, ohh, null, oStroke, true);
         _quad3d(ox, -_wbR, wZ, ohw, ohh, null, oStroke, true);
       }
