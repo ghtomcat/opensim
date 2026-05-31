@@ -67,6 +67,10 @@ export function _buildWB(np) {
   const nr2 = r * 0.7071;
   const nr3 = r * 0.9239;
   const wr  = r * 0.7071;
+  /* Wing vertical position: by default the root lower surface sits on the 45°
+     lower-diagonal (z = -wr). `wing.rootZ` overrides it (lower-surface z, from the
+     DWG); the whole wing — break, tip, spoilers (via WV), pylons — shifts with it. */
+  const wzShift = (np.wing?.rootZ ?? -wr) + wr;
   const ey  = np.ey  ?? _ey;
   const ez  = np.ez  ?? _ez;
   const er  = np.er  ?? _er;
@@ -75,7 +79,7 @@ export function _buildWB(np) {
   const e7  = er  * 0.7071;
   const erc = np.erc ?? _erc;
   const e7c = erc * 0.7071;
-  const pz  = np.pz  ?? _pz;
+  const pz  = (np.pz  ?? _pz) + wzShift;   // pylon top follows the wing underside
 
   /* Engine X offset — shifts all ring positions with wing rootLE (default rootLE=0.005 → exOff=0) */
   const exOff = (np.wing?.rootLE ?? 0.005) - 0.005;
@@ -106,9 +110,9 @@ export function _buildWB(np) {
 
   /* Derive aileron hinge positions and r_ail from buildWingSurface */
   const _ws = buildWingSurface({
-    root: { y: wr,  z: -wr,  LE: rLE, TE: rTE, thick: wtr },
-    brk:  { y: wh,  z: wzh,  LE: wxhL, TE: wxhT, thick: wth },
-    tip:  { y: hs,  z: dh,   LE: tLE,  TE: tTE,  thick: wtt },
+    root: { y: wr,  z: -wr + wzShift, LE: rLE, TE: rTE, thick: wtr },
+    brk:  { y: wh,  z: wzh + wzShift, LE: wxhL, TE: wxhT, thick: wth },
+    tip:  { y: hs,  z: dh  + wzShift, LE: tLE,  TE: tTE,  thick: wtt },
     flapHinge: fh,
     ailHinge: 0.70,
   });

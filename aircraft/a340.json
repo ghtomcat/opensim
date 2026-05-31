@@ -287,6 +287,7 @@
   },
   "wing": {
     "span": 0.0267,
+    "rootZ": -0.001605,
     "rootLE": -0.002437,
     "rootTE": -0.011437,
     "tipLE": -0.017437,
@@ -723,7 +724,8 @@
     "wingTipThickness": 298,
     "mainGearHalfTrack": 5348,
     "noseTipToMainGear": 31958,
-    "mainGearStrutLength": 2810
+    "mainGearStrutLength": 2810,
+    "midWingRootToTop": 3785
   },
   "bellyFairing": {
     "fromX": -0.00055,

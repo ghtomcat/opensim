@@ -2091,9 +2091,10 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     const ftD = _wbGeo.r * 0.24;    // max depth below wing lower surface
     /* Correct wing lower surface Z — linear interpolation root→break→tip */
     const ftWR   = _wbGeo.r * 0.7071;
-    const ftzR   = -ftWR;
-    const ftzB   = -ftWR + _ftFB * (_ftwg.dihedral + ftWR);
-    const ftzT   = _ftwg.dihedral;
+    const _ftSh  = (_ftwg.rootZ ?? -ftWR) + ftWR;   // wing vertical shift (wing.rootZ)
+    const ftzR   = -ftWR + _ftSh;
+    const ftzB   = -ftWR + _ftFB * (_ftwg.dihedral + ftWR) + _ftSh;
+    const ftzT   = _ftwg.dihedral + _ftSh;
     const wLowerZ = (yAbs) => {
       if (yAbs <= _ftBrkY)
         return ftzR + (yAbs - ftWR) / Math.max(_ftBrkY - ftWR, 1e-9) * (ftzB - ftzR);
@@ -2258,7 +2259,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       for (let i=1;i<pj.length;i++) ctx.lineTo(pj[i].x, pj[i].y);
       ctx.closePath();
       ctx.fillStyle = col; ctx.fill();
-      ctx.strokeStyle = 'rgba(70,80,95,0.90)'; ctx.lineWidth = Math.max(1, dpr*0.9); ctx.stroke();
+      ctx.strokeStyle = 'rgba(10,12,16,0.92)'; ctx.lineWidth = Math.max(1, dpr*0.9); ctx.stroke();
       /* Reg tag — last two chars of the registration, as on the real nose-gear door */
       if (tag) {
         let cx=0, cy=0; for (const p of pj) { cx+=p.x; cy+=p.y; } cx/=pj.length; cy/=pj.length;
@@ -2301,50 +2302,53 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     {
       const _dCol = 'rgba(228,230,234,0.96)';
       const _nz   = (v, e) => { const y=v[1], z=v[2], rho=Math.hypot(y,z)||1; return [v[0], y+(y/rho)*e, z+(z/rho)*e]; };
-      const _quadFace = (pts3, fill, strokeA, bias=0) => {
-        const p = pts3.map(project);
+      /* Curved door panel: sampled M×2 along (x, param s) so it follows the fairing
+         cross-section instead of being a flat quad. ptFn(x, s) → 3D point. */
+      const _curvedPanel = (xF, xA, s0, s1, ptFn, fill, stroke, bias=0) => {
+        const M = 4, fwd = [], aft = [];
+        for (let k=0;k<=M;k++){ const s=s0+(s1-s0)*k/M; fwd.push(ptFn(xF,s)); aft.push(ptFn(xA,s)); }
+        const p = [...fwd, ...aft.reverse()].map(project);
         if (p.some(q=>!q)) return;
         faces.push({ avgD: p.reduce((s,q)=>s+q.d,0)/p.length + bias, draw: () => {
           ctx.save(); ctx.beginPath(); ctx.moveTo(p[0].x,p[0].y);
           for (let i=1;i<p.length;i++) ctx.lineTo(p[i].x,p[i].y);
           ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
-          ctx.strokeStyle = strokeA; ctx.lineWidth = Math.max(1, dpr*0.9); ctx.stroke();
+          ctx.strokeStyle = stroke; ctx.lineWidth = Math.max(1, dpr*0.9); ctx.stroke();
           ctx.restore();
         }});
       };
       /* Main gear: dark wheel-well cutout + big bay doors that open mid-cycle and
          close again once the gear is down/up (a tent function of _gearP), leaving
-         only the strut-width leg door open. */
+         only the strut-width leg door open. All panels follow the fairing curve. */
       const _bigOpen = Math.max(0, Math.min(1, (0.5 - Math.abs(_gearP - 0.5)) / 0.42));
       const _bθ = _bigOpen * Math.PI * 0.5;
       for (const [sign, top, axle] of [[1, 2, 3], [-1, 4, 5]]) {
         const _wL   = _mTR * 2.8;                       // well fore/aft half-length
         const _yIn  = sign * _gwR * 0.16;               // inboard well edge
-        const _yStr = sign * (_gMy - _mTR * 0.9);       // big-door ↔ strut-slot boundary
-        const _yOut = sign * (_gMy + _mTR * 0.8);       // outboard well edge
-        /* (a) dark well cutout — the opening in the fairing belly (behind the doors) */
-        _quadFace(
-          [[_gMx+_wL,_yIn],[_gMx-_wL,_yIn],[_gMx-_wL,_yOut],[_gMx+_wL,_yOut]]
-            .map(([x,y]) => _nz([x, y, _bodyLowerZ(x,y)], 0.00002)),
+        const _yStr = sign * _gwR * 0.90;               // fairing edge — big door stays on the fairing
+        const _yLeg = sign * _gMy;                      // strut (leg door reaches out to here)
+        const _aIn  = Math.abs(_yIn);
+        /* (a) dark well cutout — the full well opening, centreline out to the strut */
+        _curvedPanel(_gMx+_wL, _gMx-_wL, _yIn, _yLeg,
+          (x,y) => _nz([x, y, _bodyLowerZ(x,y)], 0.00002),
           'rgba(10,12,16,0.96)', 'rgba(0,0,0,0.80)', 1e-6);
-        /* (b) big bay door — covers the inboard well; hinged at _yIn, swings down */
-        const _bigPt = (xx) => {
-          const zH=_bodyLowerZ(xx,_yIn), zO=_bodyLowerZ(xx,_yStr);
-          const len=Math.hypot(_yStr-_yIn, zO-zH);
-          const yF=_yIn+(_yStr-_yIn)*Math.cos(_bθ), zF=zH-len*Math.sin(_bθ);
-          return { h:_nz([xx,_yIn,zH],0.00006), f:_nz([xx,yF,zF],0.00006) };
-        };
-        const _bF=_bigPt(_gMx+_wL), _bA=_bigPt(_gMx-_wL);
-        _quadFace([_bF.h,_bA.h,_bA.f,_bF.f], _dCol, 'rgba(70,80,95,0.90)');
-        /* (c) strut leg door — strut-width slot, inboard edge on the fairing, outboard
-           edge attached to the leg so it follows the strut and stays open when down */
+        /* (b) big bay door — curved panel hinged at _yIn; conforms to the fairing
+           when closed (_bθ=0) and rotates rigidly down about the hinge when open */
+        _curvedPanel(_gMx+_wL, _gMx-_wL, _yIn, _yStr, (x,y) => {
+          const zH = _bodyLowerZ(x, _yIn), zc = _bodyLowerZ(x, y);
+          const ay = Math.abs(y) - _aIn, dz = zc - zH;
+          const L = Math.hypot(ay, dz), φ = Math.atan2(dz, ay);
+          return _nz([x, sign*(_aIn + L*Math.cos(φ-_bθ)), zH + L*Math.sin(φ-_bθ)], 0.00006);
+        }, _dCol, 'rgba(10,12,16,0.92)');
+        /* (c) strut leg door — inboard edge rides the fairing curve, outboard edge is
+           pinned to the leg (follows the strut, stays open when the gear is down) */
         const _hl=_mTR*1.3, _stT=_animGV[top], _stA=_animGV[axle];
-        const _fZ=_stT[2]+(_stA[2]-_stT[2])*0.42, _fY=_stT[1];
-        _quadFace([
-          _nz([_gMx+_hl,_yStr,_bodyLowerZ(_gMx+_hl,_yStr)],0.00006),
-          _nz([_gMx-_hl,_yStr,_bodyLowerZ(_gMx-_hl,_yStr)],0.00006),
-          [_gMx-_hl,_fY,_fZ], [_gMx+_hl,_fY,_fZ],
-        ], _dCol, 'rgba(70,80,95,0.90)');
+        const _fZ=_stT[2]+(_stA[2]-_stT[2])*0.42;
+        _curvedPanel(_gMx+_hl, _gMx-_hl, 0, 1, (x,u) => {
+          const y = _yStr + (_yLeg - _yStr)*u;
+          const z = _bodyLowerZ(x, y)*(1-u) + _fZ*u;     // fairing curve → leg
+          return _nz([x, y, z], 0.00006);
+        }, _dCol, 'rgba(10,12,16,0.92)');
       }
       /* Nose bay — the starboard leaf carries the reg tag (last two chars), as on
          many real airliners (e.g. "ME" of HB-JME on the nose-gear door). */
