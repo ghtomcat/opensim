@@ -48,8 +48,8 @@
     "main": {
       "type": "bogie",
       "axles": 3,
-      "x": -0.0081,
-      "y": 0.0049,
+      "x": -0.006927,
+      "y": 0.004780,
       "len": 0.002,
       "tireR": 0.00055,
       "door": true
@@ -459,10 +459,38 @@
     "vstabTipLE": -0.019,
     "engineY": 0.0095,
     "engineZ": -0.0032,
-    "engineR": 0.0018,
+    "engineR": 0.001531,
     "engineRC": 0.0011,
     "pylonZ": -0.001,
-    "engineLen": 1.15
+    "engineLen": 1.15,
+    "fanCowlLen": 0.004671,
+    "coreNozzle": [
+      [0.004671, 0.001009],
+      [0.005735, 0.000721],
+      [0.005735, 0.000703],
+      [0.006062, 0.000615],
+      [0.006062, 0.000496],
+      [0.007331, 0.000048]
+    ]
+  },
+  "dimensions": {
+    "_note": "from Boeing 777-300ER airport-planning DWG @ 1:500.7; drawing-mm × 0.0004356 = model, × 500.7 = real-mm",
+    "fuselageDiameter": 6206,
+    "noseTipToNoseGear": 5900,
+    "noseTipToFairingStart": 24902,
+    "fairingLength": 20202,
+    "fairingWidth": 6092,
+    "fairingMaxDepthBelowBelly": 207,
+    "noseTipToMainGear": 36699,
+    "mainGearTrack": 10988,
+    "fanCowlDiameter": 4223,
+    "fanCowlLength": 5369
+  },
+  "bellyFairing": {
+    "fromX": 0.003336,
+    "toX": -0.01424,
+    "maxWidth": 0.00265,
+    "maxDepth": 0.00018
   },
   "envelope": {
     "cruiseAlt": 35000,

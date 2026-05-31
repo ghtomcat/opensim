@@ -74,7 +74,7 @@ export function _buildWB(np) {
   const ey  = np.ey  ?? _ey;
   let   ez  = np.ez  ?? _ez;
   const er  = np.er  ?? _er;
-  const efr = er * 1.20;
+  const efr = er * (np.fanCowlRatio ?? 1.20);   // fan-cowl bulge ratio (GE90 fat ~1.28, CFM56 lean ~1.15)
   const ef7 = efr * 0.7071;
   const e7  = er  * 0.7071;
   const erc = np.erc ?? _erc;
@@ -84,12 +84,16 @@ export function _buildWB(np) {
   /* Engine X offset — shifts all ring positions with wing rootLE (default rootLE=0.005 → exOff=0) */
   const exOff = (np.wing?.rootLE ?? 0.005) - 0.005;
   const eLen = np.eLen ?? 1.0;  // nacelle length scale (1.0 = default; shorter engines < 1.0)
-  const eA = 0.005 + exOff;   // intake ring face (fixed — always at wing rootLE)
-  const eB = eA - 0.004 * eLen;  // fan cowl ring
-  const eC = eA - 0.006 * eLen;  // TR forward ring / pylon aft
-  const eD = eA - 0.007 * eLen;  // TR aft ring
-  const eE = eA - 0.008 * eLen;  // nozzle ring
-  const ePF = eA - 0.002 * eLen; // pylon fwd attach
+  /* Nacelle profile — x-offsets (×eLen) from the intake for [fanCowl, TR-fwd, TR-aft,
+     nozzle]. The nozzle offset (last) sets how far the core sticks out aft: a GE90
+     has a long, tapered, visible nozzle; a CFM56 ends bluntly (nozzle near TR-aft). */
+  const _nprof = np.nacelleProfile ?? [0.004, 0.006, 0.007, 0.008];
+  const eA = 0.005 + exOff;          // intake ring face (fixed — always at wing rootLE)
+  const eB = eA - _nprof[0] * eLen;  // fan cowl ring
+  const eC = eA - _nprof[1] * eLen;  // TR forward ring / pylon aft
+  const eD = eA - _nprof[2] * eLen;  // TR aft ring
+  const eE = eA - _nprof[3] * eLen;  // nozzle ring
+  const ePF = eA - 0.002 * eLen;     // pylon fwd attach
 
   /* Derive all wing constants from the per-aircraft wing spec */
   const w    = np.wing;
@@ -765,6 +769,8 @@ export function _acGeoFromJson(aircraft, baseNp) {
     wing:          aircraft.wing      ?? baseNp.wing,
     winglet:       aircraft.winglet   ?? baseNp.winglet,
     eLen:          jGeo.engineLen     ?? baseNp.eLen ?? 1.0,
+    fanCowlRatio:  jGeo.fanCowlRatio  ?? baseNp.fanCowlRatio,
+    nacelleProfile: jGeo.nacelleProfile ?? baseNp.nacelleProfile,
     bellyFairing:  aircraft.bellyFairing ?? baseNp.bellyFairing,
   };
 }
