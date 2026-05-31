@@ -672,6 +672,32 @@ export function _buildWB(np) {
       if (E_[i].some(v => _wlV.has(v))) E_.splice(i, 1);
   }
 
+  /* Core nozzle (data-driven stepped exhaust, e.g. GE90) — a concentric octagonal
+     lofted tube behind the fan cowl, from np.coreNozzle = [[xOffsetFromIntake, radius]].
+     Both engines; dark engine-interior colour (10). Appended (own vertex indices). */
+  if (np.coreNozzle && np.coreNozzle.length >= 2) {
+    for (const sgn of [1, -1]) {
+      const ecy = sgn * ey, cnRows = [];
+      for (const [xo, rr] of np.coreNozzle) {
+        const x = eA - xo, r7r = rr * 0.7071, row = V_.length;
+        V_.push(
+          [x, ecy,     ez+rr ], [x, ecy+r7r, ez+r7r],
+          [x, ecy+rr,  ez     ], [x, ecy+r7r, ez-r7r],
+          [x, ecy,     ez-rr ], [x, ecy-r7r, ez-r7r],
+          [x, ecy-rr,  ez     ], [x, ecy-r7r, ez+r7r],
+        );
+        cnRows.push(row);
+      }
+      for (let i = 0; i < cnRows.length - 1; i++) {
+        const cnCol = i === 0 ? 17 : 10;   // section 1 silver (17); sections 2-3 + plug black (10)
+        for (let s = 0; s < 8; s++) {
+          const sj = (s + 1) % 8;
+          F_.push([cnRows[i]+s, cnRows[i]+sj, cnRows[i+1]+sj, cnRows[i+1]+s]); FC_.push(cnCol);
+        }
+      }
+    }
+  }
+
   /* Belly fairing (wing-to-body fairing) — its OWN structure built onto the lower
      fuselage (see DWG head-on cross-section): a wider, flatter-bottomed lobe that
      flares past the fuselage circle on both sides and drops below the belly, with
@@ -771,6 +797,8 @@ export function _acGeoFromJson(aircraft, baseNp) {
     eLen:          jGeo.engineLen     ?? baseNp.eLen ?? 1.0,
     fanCowlRatio:  jGeo.fanCowlRatio  ?? baseNp.fanCowlRatio,
     nacelleProfile: jGeo.nacelleProfile ?? baseNp.nacelleProfile,
+    coreNozzle:    jGeo.coreNozzle    ?? baseNp.coreNozzle,
+    fanCowlLen:    jGeo.fanCowlLen    ?? baseNp.fanCowlLen,
     bellyFairing:  aircraft.bellyFairing ?? baseNp.bellyFairing,
   };
 }

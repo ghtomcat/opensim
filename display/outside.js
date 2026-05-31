@@ -88,6 +88,7 @@ const _COLORS = [
   [150, 230, 140], // 14 debug green 4 (light)
   [225,  55,  55], // 15 debug red (radome)
   [ 55,  95, 235], // 16 debug blue (roof)
+  [172, 176, 184], // 17 nozzle silver (brushed metal — core-nozzle sections)
 ];
 
 /* ── Render profile → geometry bundle ──────────────────────────────
@@ -634,9 +635,22 @@ function _drawTurbofanFace(ctx, hubPt, rimPt, power, dpr, nBlades = 22, foreshor
     ctx.globalAlpha = 1;
   }
 
-  /* Spinner cone */
-  ctx.fillStyle = 'rgba(52,58,70,0.97)';
+  /* Spinner cone — radial highlight reads as a 3-D nose cone, plus the spinning
+     warning swirl you see on turbofan spinners (rotates with the fan). */
+  const _spG = ctx.createRadialGradient(-hubR*0.32, -hubR*0.32, hubR*0.08, 0, 0, hubR);
+  _spG.addColorStop(0, 'rgba(120,128,140,0.98)');
+  _spG.addColorStop(1, 'rgba(36,42,54,0.98)');
+  ctx.fillStyle = _spG;
   ctx.beginPath(); ctx.arc(0, 0, hubR, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = 'rgba(232,236,242,0.80)';
+  ctx.lineWidth   = Math.max(0.5, dpr * 0.45);
+  ctx.beginPath();
+  for (let t = 0; t <= 1.001; t += 0.06) {
+    const a = _fanAngle + t * Math.PI * 2.2, rr = hubR * 0.88 * t;
+    const x = rr * Math.cos(a), y = rr * Math.sin(a);
+    t === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.stroke();
 
   /* Outer cowl ring */
   ctx.strokeStyle = 'rgba(158,172,188,0.78)';
@@ -3627,12 +3641,21 @@ ctx.save();
         if (!_wbGeo) return _LIGHTS_wb;
         const _lwg = S.aircraft?.wing ?? _WB_WING_DEFAULT;
         const _ltY = _lwg.span;
-        const _ltZ = _lwg.dihedral + 0.003;
+        /* tip-light height tracks the winglet type (0 for raked/none, so the lights
+           sit on the bare wingtip instead of floating where a winglet would be) */
+        const _wlHt = ({ classic: 0.0030, sharklet: 0.0065, blended: 0.0055, raked: 0.0015, none: 0 })[S.aircraft?.winglet ?? 'classic'] ?? 0.0030;
+        const _ltZ = _lwg.dihedral + _wlHt;
         const _ltX = (_lwg.tipLE + _lwg.tipTE) / 2;
+        /* Wingtip lights: the forward colour (R green / L red) with the white rear
+           position light just AFT of it — so you can read approach vs. departure. */
+        const _ltD  = Math.abs(_lwg.tipLE - _lwg.tipTE) * 0.15;
+        const _ltXf = _ltX + _ltD;   // colour, forward
+        const _ltXa = _ltX - _ltD;   // white, aft
         return [
-          { pos: [_ltX,  _ltY, _ltZ], col: [  0, 210,  80], key: 'nav'     },
-          { pos: [_ltX, -_ltY, _ltZ], col: [220,  40,  40], key: 'nav'     },
-          { pos: [(_wbGeo.V_[_wbGeo.b+166][0]+_wbGeo.V_[_wbGeo.b+168][0])/2, 0, _wbGeo.V_[_wbGeo.b+166][2]], col: [255, 255, 255], key: 'nav' },
+          { pos: [_ltXf,  _ltY, _ltZ], col: [  0, 210,  80], key: 'nav'     },  // R green (fwd)
+          { pos: [_ltXf, -_ltY, _ltZ], col: [220,  40,  40], key: 'nav'     },  // L red (fwd)
+          { pos: [_ltXa,  _ltY, _ltZ], col: [255, 255, 255], key: 'nav'     },  // R white (aft)
+          { pos: [_ltXa, -_ltY, _ltZ], col: [255, 255, 255], key: 'nav'     },  // L white (aft)
           { pos: [ 0.001,  0, _wbGeo.r], col: [220, 50, 50], key: 'beacon' },
           { pos: [_ltX,  _ltY, _ltZ], col: [255, 255, 255], key: 'strobe'  },
           { pos: [_ltX, -_ltY, _ltZ], col: [255, 255, 255], key: 'strobe'  },

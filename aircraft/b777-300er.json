@@ -10,14 +10,14 @@
   "cabinWindows": 124,
   "windowEndX": -0.036,
   "doors": [
-    0.014,
+    0.019588,
     0.003,
     -0.01,
     -0.023,
-    -0.035
+    -0.026718
   ],
   "cheatline": {
-    "fromX": 0.0134,
+    "fromX": 0.019588,
     "toX": -0.034,
     "sweepFromX": -0.024,
     "sweepAngle": 76,
@@ -459,10 +459,12 @@
     "vstabTipLE": -0.019,
     "engineY": 0.0095,
     "engineZ": -0.0032,
-    "engineR": 0.001531,
-    "engineRC": 0.0011,
+    "engineR": 0.001837,
+    "engineRC": 0.00163,
     "pylonZ": -0.001,
     "engineLen": 1.15,
+    "fanCowlRatio": 1.0,
+    "nacelleProfile": [0.0008, 0.0025, 0.0035, 0.004062],
     "fanCowlLen": 0.004671,
     "coreNozzle": [
       [0.004671, 0.001009],
@@ -477,6 +479,8 @@
     "_note": "from Boeing 777-300ER airport-planning DWG @ 1:500.7; drawing-mm × 0.0004356 = model, × 500.7 = real-mm",
     "fuselageDiameter": 6206,
     "noseTipToNoseGear": 5900,
+    "noseTipToDoor1": 6221,
+    "noseTipToDoor5": 59446,
     "noseTipToFairingStart": 24902,
     "fairingLength": 20202,
     "fairingWidth": 6092,
