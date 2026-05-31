@@ -82,6 +82,12 @@ const _COLORS = [
   [  8,  10,  14], // 8 cockpit windows — near-black glass
   [195, 205, 215], // 9 winglets        — default = wing color; override via livery index 9
   [ 15,  15,  18], // 10 engine interior — near-black for intake/nozzle cap faces
+  [ 20, 100,  30], // 11 debug green 1 (dark)
+  [ 45, 150,  55], // 12 debug green 2
+  [ 95, 200,  90], // 13 debug green 3
+  [150, 230, 140], // 14 debug green 4 (light)
+  [225,  55,  55], // 15 debug red (radome)
+  [ 55,  95, 235], // 16 debug blue (roof)
 ];
 
 /* ── Render profile → geometry bundle ──────────────────────────────
@@ -2071,7 +2077,10 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   if (_wbGeo && (S.aircraft?.flapTracks ?? 0) > 0) {
     const _ftN   = S.aircraft.flapTracks;
     const _ftPS  = Math.round(_ftN / 2);
-    const _ftwg  = _wbGeo.wing ?? _WB_WING_DEFAULT;
+    /* Use the aircraft's actual wing (same source the wing surface is built from)
+       so the pods sit on the real trailing edge — _wbGeo doesn't carry .wing, so
+       the old _wbGeo.wing silently fell back to the generic default. */
+    const _ftwg  = S.aircraft?.wing ?? _wbGeo.wing ?? _WB_WING_DEFAULT;
     const _ftSpan = _ftwg.span;
     const _ftFB   = _ftwg.flapBreak ?? 0.72;
     const _ftFH   = _ftwg.flapHinge ?? 0.70;
@@ -2209,6 +2218,60 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const _mTR  = _gC.main?.tireR ?? _gwR * 0.16;
   const _bogPitch  = _mTR * 0.85;   // fore/aft axle spacing in the bogie
   const _gAx  = _gC.main?.axles ?? (_gC.main?.type === 'bogie' ? 2 : 1);
+  /* Lower body-surface z at station x, lateral y — the belly-fairing super-ellipse
+     lobe where x falls inside the fairing span, else the bare fuselage circle.
+     Mirrors the fairing math in outside-wb.js so the gear bay doors hug the skin. */
+  const _bfG = S.aircraft?.bellyFairing;
+  const _bodyLowerZ = (x, y) => {
+    const rr = _gwR;
+    let z = -Math.sqrt(Math.max(0, rr*rr - y*y));      // bare fuselage circle
+    if (_bfG && _bfG.fromX != null && x <= _bfG.fromX && x >= _bfG.toX) {
+      const prog = (_bfG.fromX - x) / (_bfG.fromX - _bfG.toX), ramp = 0.26;
+      let t = prog < ramp ? prog/ramp : prog > 1-ramp ? (1-prog)/ramp : 1;
+      t = t < 1 ? t*t*(3-2*t) : 1;
+      const maxHW = _bfG.maxWidth ?? rr, depth = _bfG.maxDepth ?? 0;
+      const halfW = rr + t*(maxHW - rr);
+      const ztop = rr*(1 - 0.78*t), zbot = -(rr + t*depth);
+      const Vz = (ztop-zbot)*0.5, czf = (ztop+zbot)*0.5, nExp = 2 + t*1.1;
+      const yn = Math.min(1, Math.abs(y)/halfW);
+      const zf = czf - Vz * Math.pow(Math.max(0, 1 - Math.pow(yn, nExp)), 1/nExp);
+      if (zf < z) z = zf;
+    }
+    return z;
+  };
+  /* A bay door = a curved panel flush with the lower skin, sampled along x so it
+     follows the fairing/fuselage curvature. Nudged a hair proud to avoid z-fight. */
+  const _drawBayDoor = (xF, xA, y0, y1, col, tag) => {
+    const M = 5, ring = [];
+    const add = (x, y) => {
+      const z = _bodyLowerZ(x, y), rho = Math.hypot(y, z) || 1, e = 0.00004;
+      ring.push([x, y + (y/rho)*e, z + (z/rho)*e]);
+    };
+    for (let k=0;k<=M;k++) add(xF, y0 + (y1-y0)*k/M);
+    for (let k=0;k<=M;k++) add(xA, y1 + (y0-y1)*k/M);
+    const pj = ring.map(project);
+    if (pj.some(p=>!p)) return;
+    const avgD = pj.reduce((s,p)=>s+p.d,0)/pj.length;
+    faces.push({ avgD, draw: () => {
+      ctx.save();
+      ctx.beginPath(); ctx.moveTo(pj[0].x, pj[0].y);
+      for (let i=1;i<pj.length;i++) ctx.lineTo(pj[i].x, pj[i].y);
+      ctx.closePath();
+      ctx.fillStyle = col; ctx.fill();
+      ctx.strokeStyle = 'rgba(70,80,95,0.90)'; ctx.lineWidth = Math.max(1, dpr*0.9); ctx.stroke();
+      /* Reg tag — last two chars of the registration, as on the real nose-gear door */
+      if (tag) {
+        let cx=0, cy=0; for (const p of pj) { cx+=p.x; cy+=p.y; } cx/=pj.length; cy/=pj.length;
+        const h = Math.hypot(pj[0].x-pj[M].x, pj[0].y-pj[M].y);   // across-door span
+        const fs = Math.max(5, h * 0.42);
+        ctx.fillStyle = 'rgba(40,44,52,0.95)';
+        ctx.font = `700 ${fs}px Arial, Helvetica, sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(tag, cx, cy);
+      }
+      ctx.restore();
+    }});
+  };
   /* Down (extended) positions; struts retract toward the belly as gearP → 0. */
   const _gvDn = [
     [_gNx, 0,     -_gwR], [_gNx, 0,     -_gwR - _gNl],
@@ -2230,6 +2293,65 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       const pa = project(_animGV[a]), pb = project(_animGV[b]);
       if (!pa || !pb) continue;
       faces.push({ avgD: (pa.d+pb.d)/2, draw: () => { ctx.save(); drawStrutTube(ctx, pa, pb, dpr); ctx.restore(); } });
+    }
+    /* Landing-gear bay doors — flush curved panels that conform to the lower skin.
+       Main bay sits in the fairing near the keel (the wing gear retracts inboard,
+       so these stay closed with the leg outboard when the gear is down); nose bay
+       on the lower fuselage, split either side of the nose leg. */
+    {
+      const _dCol = 'rgba(228,230,234,0.96)';
+      const _nz   = (v, e) => { const y=v[1], z=v[2], rho=Math.hypot(y,z)||1; return [v[0], y+(y/rho)*e, z+(z/rho)*e]; };
+      const _quadFace = (pts3, fill, strokeA, bias=0) => {
+        const p = pts3.map(project);
+        if (p.some(q=>!q)) return;
+        faces.push({ avgD: p.reduce((s,q)=>s+q.d,0)/p.length + bias, draw: () => {
+          ctx.save(); ctx.beginPath(); ctx.moveTo(p[0].x,p[0].y);
+          for (let i=1;i<p.length;i++) ctx.lineTo(p[i].x,p[i].y);
+          ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
+          ctx.strokeStyle = strokeA; ctx.lineWidth = Math.max(1, dpr*0.9); ctx.stroke();
+          ctx.restore();
+        }});
+      };
+      /* Main gear: dark wheel-well cutout + big bay doors that open mid-cycle and
+         close again once the gear is down/up (a tent function of _gearP), leaving
+         only the strut-width leg door open. */
+      const _bigOpen = Math.max(0, Math.min(1, (0.5 - Math.abs(_gearP - 0.5)) / 0.42));
+      const _bθ = _bigOpen * Math.PI * 0.5;
+      for (const [sign, top, axle] of [[1, 2, 3], [-1, 4, 5]]) {
+        const _wL   = _mTR * 2.8;                       // well fore/aft half-length
+        const _yIn  = sign * _gwR * 0.16;               // inboard well edge
+        const _yStr = sign * (_gMy - _mTR * 0.9);       // big-door ↔ strut-slot boundary
+        const _yOut = sign * (_gMy + _mTR * 0.8);       // outboard well edge
+        /* (a) dark well cutout — the opening in the fairing belly (behind the doors) */
+        _quadFace(
+          [[_gMx+_wL,_yIn],[_gMx-_wL,_yIn],[_gMx-_wL,_yOut],[_gMx+_wL,_yOut]]
+            .map(([x,y]) => _nz([x, y, _bodyLowerZ(x,y)], 0.00002)),
+          'rgba(10,12,16,0.96)', 'rgba(0,0,0,0.80)', 1e-6);
+        /* (b) big bay door — covers the inboard well; hinged at _yIn, swings down */
+        const _bigPt = (xx) => {
+          const zH=_bodyLowerZ(xx,_yIn), zO=_bodyLowerZ(xx,_yStr);
+          const len=Math.hypot(_yStr-_yIn, zO-zH);
+          const yF=_yIn+(_yStr-_yIn)*Math.cos(_bθ), zF=zH-len*Math.sin(_bθ);
+          return { h:_nz([xx,_yIn,zH],0.00006), f:_nz([xx,yF,zF],0.00006) };
+        };
+        const _bF=_bigPt(_gMx+_wL), _bA=_bigPt(_gMx-_wL);
+        _quadFace([_bF.h,_bA.h,_bA.f,_bF.f], _dCol, 'rgba(70,80,95,0.90)');
+        /* (c) strut leg door — strut-width slot, inboard edge on the fairing, outboard
+           edge attached to the leg so it follows the strut and stays open when down */
+        const _hl=_mTR*1.3, _stT=_animGV[top], _stA=_animGV[axle];
+        const _fZ=_stT[2]+(_stA[2]-_stT[2])*0.42, _fY=_stT[1];
+        _quadFace([
+          _nz([_gMx+_hl,_yStr,_bodyLowerZ(_gMx+_hl,_yStr)],0.00006),
+          _nz([_gMx-_hl,_yStr,_bodyLowerZ(_gMx-_hl,_yStr)],0.00006),
+          [_gMx-_hl,_fY,_fZ], [_gMx+_hl,_fY,_fZ],
+        ], _dCol, 'rgba(70,80,95,0.90)');
+      }
+      /* Nose bay — the starboard leaf carries the reg tag (last two chars), as on
+         many real airliners (e.g. "ME" of HB-JME on the nose-gear door). */
+      const _regTag = (S.aircraft?.registration ?? '').replace(/[^A-Za-z0-9]/g, '').slice(-2).toUpperCase();
+      const _nF = _gNx + _nTR * 1.9, _nA = _gNx - _nTR * 1.9;
+      _drawBayDoor(_nF, _nA,  0.0003,  _gwR * 0.46, _dCol, _regTag);
+      _drawBayDoor(_nF, _nA, -0.0003, -_gwR * 0.46, _dCol);
     }
     if (!_gearTires) {
       const nA = project([_gNx - 0.002, 0, -_wbR + 0.0008]);
@@ -2373,63 +2495,8 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
   }
 
-  /* Gear bay doors — pushed into faces for correct depth sorting with wing */
-  if (!isF9 && !isSS && !isSV && !_gearFixed && _gearP > 0.02) {
-    const _gdR = _wbGeo?.r ?? _r;
-    const nTR  = _gdR * 0.12, nAxH = nTR * 0.55, nTW = nTR * 0.40;
-    const nSX  = 0.013;
-    const nX1  = nSX + nTR * 0.8, nX2 = _GV[0][0] - nTR * 0.6;
-    const nH   = nAxH + nTW + nTR * 0.30;
-    const mTR  = _gdR * 0.16, mAxH = mTR * 0.55, mTW = mTR * 0.40;
-    const mX1  = _GV[2][0] + mTR * 2.0, mX2 = _GV[2][0] - mTR * 2.5, mXm = (mX1+mX2)*0.5;
-    const mHi  = _GV[2][1] - (mAxH + mTW) - mTR * 0.25;
-    const mW   = (mAxH + mTW) * 2.0 + mTR * 0.50;
-    const doorFrac = _gearP < 0.15 ? _gearP / 0.15 : 1.0;
-    const nθ   = doorFrac * Math.PI * 0.5;
-    const AERO = 0.33;
-    const tFwd = _gearP < 0.15 ? _gearP/0.15 : _gearP > 0.85 ? (1-_gearP)/0.15 : 1.0;
-    const tAft = _gearP < 0.15 ? _gearP/0.15 : _gearP > 0.85 ? 1-(1-AERO)*(_gearP-0.85)/0.15 : 1.0;
-    const mθF  = tFwd * Math.PI * 0.5, mθA = tAft * Math.PI * 0.5;
-    const fa   = (doorFrac * 0.88).toFixed(2), sa = (doorFrac * 0.75).toFixed(2);
-    const mfA  = (Math.max(tFwd,tAft)*0.88).toFixed(2), msA = (Math.max(tFwd,tAft)*0.75).toFixed(2);
-
-    const _dDoor = (corners, fillA, strokeA) => {
-      const p2 = corners.map(project);
-      if (!p2.every(Boolean)) return;
-      const avgD = p2.reduce((s,p) => s+p.d, 0) / p2.length;
-      faces.push({ avgD, draw: () => {
-        ctx.save(); ctx.lineWidth = Math.max(1.5, devicePixelRatio * 1.5);
-        ctx.beginPath(); p2.forEach((p,i) => i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y));
-        ctx.closePath();
-        ctx.fillStyle   = `rgba(22,27,35,${fillA})`; ctx.fill();
-        ctx.strokeStyle = `rgba(0,0,0,0.90)`; ctx.stroke();
-        ctx.restore();
-      }});
-    };
-    /* Gear well cutout */
-    for (const [x1,x2,y1,y2] of [[nX1,nX2,-nH,nH],[mX1,mX2,mHi,mHi+mW],[mX1,mX2,-(mHi+mW),-mHi]]) {
-      const wp = [[x1,y1,-_gdR],[x2,y1,-_gdR],[x2,y2,-_gdR],[x1,y2,-_gdR]].map(project);
-      if (wp.every(Boolean)) {
-        const avgD = wp.reduce((s,p)=>s+p.d,0)/wp.length;
-        faces.push({ avgD, draw: () => {
-          ctx.save(); ctx.fillStyle='rgba(10,12,16,0.96)'; ctx.beginPath();
-          wp.forEach((p,i) => i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y));
-          ctx.closePath(); ctx.fill(); ctx.restore();
-        }});
-      }
-    }
-    const ndy = nH * Math.cos(nθ), ndz = -nH * Math.sin(nθ);
-    _dDoor([[nX1,0,-_gdR],[nX2,0,-_gdR],[nX2,+ndy,-_gdR+ndz],[nX1,+ndy,-_gdR+ndz]], fa, sa);
-    _dDoor([[nX1,0,-_gdR],[nX2,0,-_gdR],[nX2,-ndy,-_gdR+ndz],[nX1,-ndy,-_gdR+ndz]], fa, sa);
-    const _pushMain = (sign) => {
-      const Hi = sign*mHi;
-      const fdy=sign*mW*Math.cos(mθF), fdz=-mW*Math.sin(mθF);
-      const ady=sign*mW*Math.cos(mθA), adz=-mW*Math.sin(mθA);
-      _dDoor([[mX1,Hi,-_gdR],[mXm,Hi,-_gdR],[mXm,Hi+fdy,-_gdR+fdz],[mX1,Hi+fdy,-_gdR+fdz]], mfA, msA);
-      _dDoor([[mXm,Hi,-_gdR],[mX2,Hi,-_gdR],[mX2,Hi+ady,-_gdR+adz],[mXm,Hi+ady,-_gdR+adz]], mfA, msA);
-    };
-    _pushMain(+1); _pushMain(-1);
-  }
+  /* (Legacy belly-hinged gear bay doors removed — superseded by the data-driven,
+     fairing-conforming bay doors drawn in the gear block above.) */
 
   /* Starship reentry plasma — project the actual body midpoint (vF=0.027 =
      centre of stage-2 span 0.013→0.041) rather than cx/cy, because cx is the
@@ -3026,10 +3093,10 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   }
 
 
-  /* Radome seam edges — distinct bright accent line */
+  /* Radome seam edges — accent line (per-aircraft colour; default bright red) */
   if (SE_.length > 0) {
     ctx.save();
-    ctx.strokeStyle = 'rgba(220,60,60,0.90)';
+    ctx.strokeStyle = S.aircraft?.nose?.radomeSeamCol ?? 'rgba(220,60,60,0.90)';
     ctx.lineWidth   = Math.max(1.5, devicePixelRatio * 1.5);
     ctx.beginPath();
     for (const [sa, sb] of SE_) {
@@ -3389,9 +3456,13 @@ ctx.save();
     const _winToLip = S.aircraft?.windowsToEngineLip;
     const _engLipX  = S.aircraft?.wing?.rootLE;
     const _winEndX = S.aircraft?.windowEndX ?? (_nCabW ? -0.025 : -0.008);
-    const _wPitch = (_winToLip > 1 && _engLipX != null && _fwdDoorX != null)
-      ? (xA - _engLipX) / (_winToLip - 1)
-      : (nW > 1 ? (xA - _winEndX) / (nW - 1) : 0);
+    /* DWG anchor: N windows between door 1 and door 2 → pitch = doorGap/(N+1). */
+    const _wbd = S.aircraft?.dimensions?.windowsBetweenDoor1and2;
+    const _wPitch = (_wbd > 0 && _doorXsW?.length >= 2)
+      ? Math.abs(_doorXsW[0] - _doorXsW[1]) / (_wbd + 1)
+      : (_winToLip > 1 && _engLipX != null && _fwdDoorX != null)
+        ? (xA - _engLipX) / (_winToLip - 1)
+        : (nW > 1 ? (xA - _winEndX) / (nW - 1) : 0);
     /* Extra spacing over the wing box: "windowGaps" lists 1-based window numbers
        after which an additional gap (windowGapSize, in pitch units) is inserted,
        shifting every following window aft — this reproduces the 737's uneven
@@ -3403,7 +3474,14 @@ ctx.save();
       if (_wGaps?.includes(i)) _acc += _wPitch * _wGapSz;  // gap after window i (1-based)
       winXs.push(nW > 1 ? xA - _wPitch * i - _acc : xA - _wPitch / 2);
     }
+    /* Skip any window the doors would cover: a window is hidden when its glass
+       overlaps a door in x (door half-width dhw=_wbR*0.190 + window half-width hw).
+       winXs keeps all entries (overwing-exit indices stay valid) — we just don't
+       draw the covered ones, reproducing the real frame-for-door substitution. */
+    const _winDoorClear = _wbR * 0.190 + hw;
+    const _winUnderDoor = wx => _doorXsW?.some(dx => Math.abs(wx - dx) < _winDoorClear);
     for (let i = 0; i < nW; i++) {
+      if (_winUnderDoor(winXs[i])) continue;
       _quad3d(winXs[i],  _wbR, wZ, hw, hh, wFill, wStroke, true);
       _quad3d(winXs[i], -_wbR, wZ, hw, hh, wFill, wStroke, true);
     }

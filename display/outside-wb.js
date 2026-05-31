@@ -489,14 +489,12 @@ export function _buildWB(np) {
     }
     E_.push([rb[nTotal-1]+si, tailTip]);
   }
-  /* Radome rings: full circumference circles — ring 0 (nose-tip ring) + radomeRi (outer boundary) */
+  /* Radome seam: full-circumference circle at the radomeRi boundary (the seam sits
+     after the tip rings — no spurious circle at the very tip). */
   const SE_ = [];
   if (np.radomeRi != null) {
     const rri = np.radomeRi;
-    for (const ri of [0, rri]) {
-      if (!rb[ri]) continue;
-      for (let si = 0; si < N; si++) SE_.push([rb[ri]+si, rb[ri]+(si+1)%N]);
-    }
+    if (rb[rri]) for (let si = 0; si < N; si++) SE_.push([rb[rri]+si, rb[rri]+(si+1)%N]);
   }
   /* Nose panel seam lines: outer longitudinals (si=sO, N-sO) straight from radomeRi to
      winFwdRi, then center seam ring1:si0 → kink1 → kink2 → ring2:si0 (two kinks via
@@ -656,6 +654,56 @@ export function _buildWB(np) {
       if (E_[i].some(v => _wlV.has(v))) E_.splice(i, 1);
   }
 
+  /* Belly fairing (wing-to-body fairing) — its OWN structure built onto the lower
+     fuselage (see DWG head-on cross-section): a wider, flatter-bottomed lobe that
+     flares past the fuselage circle on both sides and drops below the belly, with
+     its crest tucked up inside the fuselage (hidden by the painter's algorithm).
+     Appended as separate rings so it doesn't disturb the tube's vertex indices.
+       maxWidth = half-width at widest (> r);  maxDepth = drop below the belly.
+     Cross-section is a super-ellipse (exponent > 2 ⇒ flat bottom + fuller sides);
+     it morphs from the plain fuselage circle at the fore/aft ends to the full lobe
+     across a flat-topped envelope so it sits along the whole wing box. */
+  const bf = np.bellyFairing;
+  if (bf && bf.fromX != null && bf.toX != null) {
+    const maxHW = bf.maxWidth ?? r, depth = bf.maxDepth ?? 0, nF = 16, ramp = 0.26;
+    const fRows = [];
+    for (let i = 0; i <= nF; i++) {
+      const prog = i / nF, x = bf.fromX + (bf.toX - bf.fromX) * prog;
+      // flat-topped envelope: smoothstep up over the first `ramp`, hold, down over the last
+      let t;
+      if (prog < ramp)          { const u = prog / ramp;       t = u * u * (3 - 2 * u); }
+      else if (prog > 1 - ramp) { const u = (1 - prog) / ramp; t = u * u * (3 - 2 * u); }
+      else                        t = 1;
+      const halfW = r + t * (maxHW - r);
+      const ztop  = r * (1 - 0.78 * t);      // crest tucks from +r (fuselage) up under the skin
+      const zbot  = -(r + t * depth);        // keel drops below the belly
+      const Vz = (ztop - zbot) * 0.5, czf = (ztop + zbot) * 0.5;
+      const nExp = 2 + t * 1.1;              // 2 = circle (ends) → ~3 flat-bottomed lobe (mid)
+      const p = 2 / nExp;
+      const row = V_.length;
+      for (let si = 0; si < N; si++) {
+        const a = Math.PI * 0.5 - (si / N) * Math.PI * 2;
+        const ca = Math.cos(a), sa = Math.sin(a);
+        const y = halfW * Math.sign(ca) * Math.pow(Math.abs(ca), p);
+        const z = czf + Vz * Math.sign(sa) * Math.pow(Math.abs(sa), p);
+        V_.push([x, y, z]);
+      }
+      fRows.push(row);
+    }
+    // Only draw faces that poke OUT past the fuselage skin — the belly lobe.
+    // Faces at/inside the skin (the crest tucked up inside, the fore/aft fade)
+    // are skipped, so the fairing never wraps around the upper fuselage.
+    for (let i = 0; i < nF; i++)
+      for (let si = 0; si < N; si++) {
+        const sj = (si + 1) % N;
+        const q = [fRows[i]+si, fRows[i]+sj, fRows[i+1]+sj, fRows[i+1]+si];
+        let rho = 0;
+        for (const vi of q) rho += Math.hypot(V_[vi][1], V_[vi][2]);
+        if (rho / 4 < r * 1.012) continue;   // inside/on the skin → not part of the lobe
+        F_.push(q); FC_.push(15);
+      }
+  }
+
   return { V_, F_, FC_, E_, SE_, SL_, b, r, rb,
     winFwdRi: np.winFwdRi, winAftRi: np.winAftRi,
     winSiInner: np.winSiInner, winSiOuter: np.winSiOuter,
@@ -674,6 +722,7 @@ export function _acGeoFromJson(aircraft, baseNp) {
   const r    = jGeo.r ?? nose.r ?? baseNp.r ?? _r;
   const rings = (nose.noseRings ?? baseNp.noseRings ?? []).map(rg => ({
     ...rg, r: rg.rFrac != null ? r * rg.rFrac : rg.r,
+    ...(rg.rzTopFrac != null ? { rzTop: r * rg.rzTopFrac } : {}),
   }));
   return {
     ...baseNp,
@@ -701,6 +750,7 @@ export function _acGeoFromJson(aircraft, baseNp) {
     wing:          aircraft.wing      ?? baseNp.wing,
     winglet:       aircraft.winglet   ?? baseNp.winglet,
     eLen:          jGeo.engineLen     ?? baseNp.eLen ?? 1.0,
+    bellyFairing:  aircraft.bellyFairing ?? baseNp.bellyFairing,
   };
 }
 

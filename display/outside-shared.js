@@ -15,10 +15,14 @@ export function buildTube(nSides, rings) {
   for (const ring of rings) {
     rb.push(V_.length);
     const ry = ring.r ?? ring.ry, rz = ring.r ?? ring.rz;
+    const rzTop = ring.rzTop ?? rz;   // top-half vertical radius — egg/asymmetric cross-section
     const cy = ring.cy ?? 0, cz = ring.cz ?? 0;
+    const tlt = ring.tilt ?? 0;   // rake the TOP half of the ring aft (e.g. windscreen): tilt=1 ≈ 45°
     for (let si = 0; si < nSides; si++) {
       const a = Math.PI * 0.5 - (si / nSides) * Math.PI * 2;
-      V_.push([ring.vF, cy + ry * Math.cos(a), cz + rz * Math.sin(a)]);
+      const s = Math.sin(a);
+      const rzv = s >= 0 ? rzTop : rz;   // semicircle bottom + (flatter/taller) top
+      V_.push([ring.vF - tlt * rzv * Math.max(0, s), cy + ry * Math.cos(a), cz + rzv * s]);
     }
   }
   for (let ri = 0; ri < rings.length - 1; ri++) {
