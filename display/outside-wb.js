@@ -698,6 +698,24 @@ export function _buildWB(np) {
     }
   }
 
+  /* Fan spinner — a forward-pointing cone at each engine intake (3-D, so it shows
+     from the side where the 2-D fan face goes edge-on). Dark, sized off the fan. */
+  {
+    const spR = er * 0.16, spR7 = spR * 0.7071;
+    for (const sgn of [1, -1]) {
+      const scy = sgn * ey, base = V_.length;
+      V_.push(   // base ring on the fan-disk plane (eB) so it co-centres with the 2-D fan face
+        [eB, scy,     ez+spR ], [eB, scy+spR7, ez+spR7],
+        [eB, scy+spR, ez     ], [eB, scy+spR7, ez-spR7],
+        [eB, scy,     ez-spR ], [eB, scy-spR7, ez-spR7],
+        [eB, scy-spR, ez     ], [eB, scy-spR7, ez+spR7],
+      );
+      const tip = V_.length;
+      V_.push([eA, scy, ez]);   // tip forward at the intake plane
+      for (let s = 0; s < 8; s++) { F_.push([tip, base + (s+1)%8, base + s]); FC_.push(4); }
+    }
+  }
+
   /* Belly fairing (wing-to-body fairing) — its OWN structure built onto the lower
      fuselage (see DWG head-on cross-section): a wider, flatter-bottomed lobe that
      flares past the fuselage circle on both sides and drops below the belly, with
@@ -753,7 +771,7 @@ export function _buildWB(np) {
     winSiInner: np.winSiInner, winSiOuter: np.winSiOuter,
     cockpitPanels: np.cockpitPanels, cockpitPanelR: np.cockpitPanelR, frontWin: _frontWin,
     ey2: np.ey2, er: np.er, erc: np.erc, pz: np.pz, exOff, eLen, efr,
-    eApos: eA, eBpos: eB, eCpos: eC, eDpos: eD, eEpos: eE,
+    eApos: eA, eBpos: eB, eCpos: eC, eDpos: eD, eEpos: eE, coreNozzle: np.coreNozzle,
     anim: { r_rt, r_hs, r_ail, r_sp_rt, r_sp_hs } };
 }
 

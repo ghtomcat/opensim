@@ -2109,7 +2109,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     // engine configs: inner (ey) + outer (ey2 if present)
     const _engs = [{
       ey: _wbGeo.ey ?? _ey, ez: _wbGeo.ez ?? _ez, er: _wbGeo.er ?? _er, efr: _wbGeo.efr ?? (_wbGeo.er ?? _er)*1.2,
-      eA: _wbGeo.eApos, eB: _wbGeo.eBpos, eC: _wbGeo.eCpos, eE: _wbGeo.eEpos,
+      eA: _wbGeo.eApos, eB: _wbGeo.eBpos, eC: _wbGeo.eCpos, eE: _wbGeo.eEpos, cn: _wbGeo.coreNozzle,
     }];
     if (_oey2) _engs.push({
       ey: _oey2, ez: _oEzForOuter, er: _wbGeo.er ?? _er, efr: (_wbGeo.er ?? _er)*1.2,
@@ -2130,8 +2130,15 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         const noseZ = e.ez + nacR(xFwd);
         // top edge: wing underside under the wing (x ≤ LE), tapering down to the nose forward of it
         const topZ = (x) => x <= le ? wz : _ilerp(x, le, wz, xFwd, noseZ);
-        // bottom edge: nacelle top where the nacelle exists; aft of the nozzle it fairs up to the wing TE
-        const botZ = (x) => x >= e.eE ? e.ez + nacR(x) : _ilerp(x, e.eE, e.ez + nacR(e.eE), te, wz);
+        // bottom edge: rides the fan cowl top, drops onto the silver core-nozzle section 1 and rides
+        // it, then fairs up to the wing TE aft of section 1. (No core nozzle → cowl saddle + fair-up.)
+        const _cn = e.cn;
+        const s1x1 = _cn ? e.eA - _cn[1][0] : e.eE;            // section 1 aft end (silver)
+        const coreR1 = (x) => _ilerp(x, e.eE, _cn[0][1], s1x1, _cn[1][1]);   // section 1 top radius
+        const botZ = (x) =>
+            x >= e.eE       ? e.ez + nacR(x)                                      // fan cowl top
+          : _cn && x >= s1x1 ? e.ez + coreR1(x)                                   // section 1 top
+          :                   _ilerp(x, s1x1, e.ez + (_cn ? coreR1(s1x1) : nacR(e.eE)), te, wz);  // → wing TE
         const bN=[], bF=[], tN=[], tF=[];
         for (let i=0;i<=M;i++){
           const x = xFwd + (xAft - xFwd)*i/M;
@@ -3657,8 +3664,8 @@ ctx.save();
           { pos: [_ltXa,  _ltY, _ltZ], col: [255, 255, 255], key: 'nav'     },  // R white (aft)
           { pos: [_ltXa, -_ltY, _ltZ], col: [255, 255, 255], key: 'nav'     },  // L white (aft)
           { pos: [ 0.001,  0, _wbGeo.r], col: [220, 50, 50], key: 'beacon' },
-          { pos: [_ltX,  _ltY, _ltZ], col: [255, 255, 255], key: 'strobe'  },
-          { pos: [_ltX, -_ltY, _ltZ], col: [255, 255, 255], key: 'strobe'  },
+          { pos: [_ltXa,  _ltY, _ltZ], col: [255, 255, 255], key: 'strobe'  },  // strobe co-located with aft white
+          { pos: [_ltXa, -_ltY, _ltZ], col: [255, 255, 255], key: 'strobe'  },
           { pos: [ 0.013,  0,  0    ], col: [255, 248, 220], key: 'landing' },
         ];
       })() : null;

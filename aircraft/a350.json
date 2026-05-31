@@ -65,7 +65,23 @@
     "dihedral": 0.0020, "rootThick": 0.00105, "tipThick": 0.00022,
     "flapBreak": 0.58, "flapHinge": 0.72
   },
-  "geometry": { "tailX": -0.0388 },
+  "geometry": {
+    "tailX": -0.0388,
+    "engineR": 0.00156,
+    "engineRC": 0.001384,
+    "engineLen": 0.9766,
+    "fanCowlRatio": 1.0,
+    "nacelleProfile": [0.0008, 0.0025, 0.0035, 0.004062],
+    "fanCowlLen": 0.003967,
+    "coreNozzle": [
+      [0.003967, 0.000857],
+      [0.004870, 0.000612],
+      [0.004870, 0.000597],
+      [0.005148, 0.000522],
+      [0.005148, 0.000421],
+      [0.006226, 0.000041]
+    ]
+  },
   "envelope": {
     "cruiseAlt": 35000,
     "maxAlt": 43000,
