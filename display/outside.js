@@ -211,7 +211,13 @@ function _groundOffsetFt() {
   if (id === 'c172')          return (_xr + 0.0020 + _xr * 0.56) / FT_NM;  // ~32 ft
   if (id.startsWith('bf109')) return 0.0032 / FT_NM;  // ~19 ft
   if (id.startsWith('f4u'))   return 0.0038 / FT_NM;  // ~23 ft
-  return (_r + 0.0032 + _r * 0.16) / FT_NM;  // WB main gear ~37 ft
+  /* WB / airliners — body-centre to wheel-bottom = belly + main strut + tire,
+     derived from the same per-aircraft gear geometry the renderer uses. */
+  const _g = S.aircraft?.gear ?? {};
+  const _r2 = S.aircraft?.nose?.r ?? S.aircraft?.geometry?.r ?? _r;
+  const _ml = _g.main?.len ?? 0.0032;
+  const _mt = _g.main?.tireR ?? _r2 * 0.16;
+  return (_r2 + _ml + _mt) / FT_NM;
 }
 
 export function tickOutside() {
@@ -2187,13 +2193,35 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const _gearTires = S.aircraft?.gear?.tires;
   const _gearP  = _gearFixed ? 1 : (S.gearAnim ?? (S.gear ? 1 : 0));
   const _lerpV3 = (up, dn, t) => [up[0]+(dn[0]-up[0])*t, up[1]+(dn[1]-up[1])*t, up[2]+(dn[2]-up[2])*t];
+  /* WB landing-gear geometry — data-driven from the aircraft JSON "gear" block,
+     with defaults matching the legacy hardcoded positions so the other widebodies
+     render unchanged:
+       gear.main: { x (station), y (half-track), len (belly→axle), tireR, axles }
+       gear.nose: { x (station), len, tireR }                                     */
+  const _gC   = S.aircraft?.gear ?? {};
+  const _gwR  = _wbGeo?.r ?? _r;
+  const _gNx  = _gC.nose?.x   ?? 0.009;
+  const _gNl  = _gC.nose?.len ?? 0.0022;
+  const _gMx  = _gC.main?.x   ?? -0.001;
+  const _gMy  = _gC.main?.y   ?? 0.0020;
+  const _gMl  = _gC.main?.len ?? 0.0032;
+  const _nTR  = _gC.nose?.tireR ?? _gwR * 0.12;
+  const _mTR  = _gC.main?.tireR ?? _gwR * 0.16;
+  const _bogPitch  = _mTR * 0.85;   // fore/aft axle spacing in the bogie
+  const _gAx  = _gC.main?.axles ?? (_gC.main?.type === 'bogie' ? 2 : 1);
+  /* Down (extended) positions; struts retract toward the belly as gearP → 0. */
+  const _gvDn = [
+    [_gNx, 0,     -_gwR], [_gNx, 0,     -_gwR - _gNl],
+    [_gMx,  _gMy, -_gwR], [_gMx,  _gMy, -_gwR - _gMl],
+    [_gMx, -_gMy, -_gwR], [_gMx, -_gMy, -_gwR - _gMl],
+  ];
   const _animGV = _gearTires ? GV_ : [
-    GV_[0],
-    _lerpV3([0.013,  0.0005, -_r+0.001], GV_[1], _gearP),
-    GV_[2],
-    _lerpV3([-0.001, 0.0008, -_r+0.001], GV_[3], _gearP),
-    GV_[4],
-    _lerpV3([-0.001,-0.0008, -_r+0.001], GV_[5], _gearP),
+    _gvDn[0],
+    _lerpV3([_gNx,      0.0005, -_gwR+0.001], _gvDn[1], _gearP),
+    _gvDn[2],
+    _lerpV3([_gMx,  _gMy*0.4,   -_gwR+0.001], _gvDn[3], _gearP),
+    _gvDn[4],
+    _lerpV3([_gMx, -_gMy*0.4,   -_gwR+0.001], _gvDn[5], _gearP),
   ];
   if (!isF9 && !isSS && !isSV && (_gearFixed || _gearP > 0.01)) {
     const _wbR   = _wbGeo?.r ?? _r;
@@ -2204,7 +2232,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       faces.push({ avgD: (pa.d+pb.d)/2, draw: () => { ctx.save(); drawStrutTube(ctx, pa, pb, dpr); ctx.restore(); } });
     }
     if (!_gearTires) {
-      const nA = project([0.007, 0, -_wbR + 0.0008]);
+      const nA = project([_gNx - 0.002, 0, -_wbR + 0.0008]);
       const nM = project(_midV3(_animGV[0], _animGV[1]));
       if (nA && nM) faces.push({ avgD: (nA.d+nM.d)/2, draw: () => { ctx.save(); drawStrutTube(ctx, nA, nM, dpr); ctx.restore(); } });
       /* Two side actuator braces per main gear — fore and aft of strut,
@@ -2219,11 +2247,11 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
           return [m[0], m[1] + sign * _sActFld, m[2]];
         };
         /* Fore brace */
-        const frTop = [+0.001, sY, _sActZ];
+        const frTop = [_gMx + 0.002, sY, _sActZ];
         const frBot = [strPt[0] + 0.0008, strPt[1], strPt[2]];
         const frKne = knee3(frTop, frBot);
         /* Aft brace */
-        const arTop = [-0.003, sY, _sActZ];
+        const arTop = [_gMx - 0.002, sY, _sActZ];
         const arBot = [strPt[0] - 0.0008, strPt[1], strPt[2]];
         const arKne = knee3(arTop, arBot);
         const pFrT = project(frTop), pFrK = project(frKne), pFrB = project(frBot);
@@ -2249,6 +2277,36 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
           }
           ctx.restore();
         }});
+
+        /* Outboard gear-leg door (gear.main.door) — the side-stays fold the leg
+           inboard, and this door closes the wheel well; when extended it hangs on
+           the outboard side of the leg. A flat body-coloured panel. */
+        if (_gC.main?.door) {
+          const _dHW = _mTR * 1.6;                       // door half-length (fore/aft)
+          const _dYo = sign * (_gMy + _mTR * 0.85);      // outboard of the bogie
+          const _dZt = -_wbR + 0.0002;                   // top at the belly
+          const _dZb = _animGV[gv3][2] + _mTR * 0.8;     // bottom above the axle
+          const _dPts = [
+            [_gMx + _dHW, _dYo, _dZt], [_gMx - _dHW, _dYo, _dZt],
+            [_gMx - _dHW, _dYo, _dZb], [_gMx + _dHW, _dYo, _dZb],
+          ].map(project);
+          if (_dPts.every(Boolean)) {
+            const _dD = _dPts.reduce((s, p) => s + p.d, 0) / 4;
+            faces.push({ avgD: _dD, draw: () => {
+              ctx.save();
+              ctx.beginPath();
+              ctx.moveTo(_dPts[0].x, _dPts[0].y);
+              for (let i = 1; i < 4; i++) ctx.lineTo(_dPts[i].x, _dPts[i].y);
+              ctx.closePath();
+              ctx.fillStyle   = 'rgba(228,230,234,0.97)';
+              ctx.fill();
+              ctx.strokeStyle = 'rgba(120,130,145,0.85)';
+              ctx.lineWidth   = dpr * 0.9;
+              ctx.stroke();
+              ctx.restore();
+            }});
+          }
+        }
       }
     }
     if (_gearTires) {
@@ -2258,28 +2316,26 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       }
     } else {
       const _gearCfg   = S.aircraft?.gear ?? {};
-      const _nTR = _wbR * 0.12;
-      const _mTR = _wbR * 0.16;
-      const _bogPitch  = _mTR * 0.85;   // fore/aft axle spacing in bogie
-      const _mainBogie = _gearCfg.main?.type === 'bogie';
 
       /* Nose gear */
       { const wc = _animGV[1], pt = project(wc);
         if (pt) faces.push({ avgD: pt.d, draw: () => { ctx.save(); drawTirePair(ctx, wc, _nTR, project, dpr); ctx.restore(); } }); }
 
-      /* Main gear — bogie (2 axles fore/aft) or single pair */
+      /* Main gear — N-axle bogie (fore/aft) or a single pair (gear.main.axles) */
       for (const vi of [3, 5]) {
         const wc = _animGV[vi], pt = project(wc);
         if (!pt) continue;
-        const _bp = _bogPitch, _mb = _mainBogie;
         faces.push({ avgD: pt.d, draw: () => {
           ctx.save();
-          if (_mb) {
-            const wcF = [wc[0]+_bp, wc[1], wc[2]], wcA = [wc[0]-_bp, wc[1], wc[2]];
-            drawTirePair(ctx, wcF, _mTR, project, dpr);
-            drawTirePair(ctx, wcA, _mTR, project, dpr);
-            const pF = project(wcF), pA = project(wcA);
-            if (pF && pA) drawStrutTube(ctx, pF, pA, dpr);
+          if (_gAx >= 2) {
+            const ends = [];
+            for (let k = 0; k < _gAx; k++) {
+              const off = (k - (_gAx - 1) / 2) * 2 * _bogPitch;
+              const wck = [wc[0] + off, wc[1], wc[2]];
+              drawTirePair(ctx, wck, _mTR, project, dpr);
+              const pk = project(wck); if (pk) ends.push(pk);
+            }
+            if (ends.length >= 2) drawStrutTube(ctx, ends[0], ends[ends.length - 1], dpr);
           } else {
             drawTirePair(ctx, wc, _mTR, project, dpr);
           }
@@ -2289,7 +2345,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
 
       /* Center gear — bogie on centerline (A340 etc.) */
       if (_gearCfg.center && _gearP > 0.01) {
-        const _cgX   = _GV[3][0];                                 // same X as main gear
+        const _cgX   = _gMx;                                      // same X as main gear
         const _cgWhl = _lerpV3([_cgX, 0, -_wbR + 0.001], [_cgX, 0, -_wbR - 0.0032], _gearP);
         /* center strut from belly attachment to bogie pivot */
         const cgPivotA = project([_cgX, 0, -_wbR * 0.50]);
