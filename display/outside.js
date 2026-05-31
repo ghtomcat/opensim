@@ -2640,18 +2640,25 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
      Shared edges between adjacent panels are detected and suppressed so they don't
      draw a silver divider line through what should look like a single window.         */
   if (_wbGeo?.cockpitPanels) {
-    /* Rounded-corner path for a projected quad — arcTo rounds each corner */
-    const _rPoly = (pts, r) => {
+    /* Rounded-corner path for a projected polygon — arcTo rounds each corner by its
+       own radius rs[i] (0 = sharp). */
+    const _rPoly = (pts, rs) => {
       const n = pts.length;
       ctx.moveTo((pts[n-1].x + pts[0].x) * 0.5, (pts[n-1].y + pts[0].y) * 0.5);
       for (let i = 0; i < n; i++) {
         const p = pts[(i-1+n) % n], c = pts[i], e = pts[(i+1) % n];
         const d1 = Math.hypot(c.x - p.x, c.y - p.y) * 0.5;
         const d2 = Math.hypot(e.x - c.x, e.y - c.y) * 0.5;
-        ctx.arcTo(c.x, c.y, (c.x + e.x) * 0.5, (c.y + e.y) * 0.5, Math.min(r, d1, d2));
+        ctx.arcTo(c.x, c.y, (c.x + e.x) * 0.5, (c.y + e.y) * 0.5, Math.min(rs[i], d1, d2));
       }
     };
     const rr = (_wbGeo.cockpitPanelR ?? 12) * dpr;
+    /* A corner shared with another panel rounds sharp (0) so adjacent windows meet
+       cleanly instead of each arcing away from the vertex and leaving a notch. */
+    const _vKey = (x,y,z) => `${x.toFixed(6)},${y.toFixed(6)},${z.toFixed(6)}`;
+    const _vCount = {};
+    for (const panel of _wbGeo.cockpitPanels)
+      for (const [x,y,z] of panel) { const k = _vKey(x,y,z); _vCount[k] = (_vCount[k]||0) + 1; }
     for (const ySign of [+1, -1]) {
       const projPanels = _wbGeo.cockpitPanels.map(corners => {
         /* 3D face normal backface cull — 2D cross-product is unreliable at orbit
@@ -2671,18 +2678,29 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         if (ySign * _cpCamR < -0.15) return null;
         /* Mirror for port side: correct normal is [nx, -ny, nz], so negate _cpCamR. */
         if (nx * _cpCamF + ny * (ySign * _cpCamR) + nz * _cpCamU <= 0) return null;
-        const vs = [corners[0], corners[3], corners[2], corners[1]]
-          .map(([x, y, z]) => project([x, ySign * y, z]));
+        /* Reverse winding for the fill, for any corner count (was hardcoded to 4). */
+        const order = [corners[0], ...corners.slice(1).reverse()];
+        const vs = order.map(([x, y, z]) => project([x, ySign * y, z]));
         if (vs.some(v => !v)) return null;
-        return vs;
+        /* Skip degenerate sliver projections — a window that wraps the nose collapses
+           to a near-line at grazing angles (tiny area for a long perimeter). */
+        let area = 0, perim = 0;
+        for (let i = 0; i < vs.length; i++) {
+          const a = vs[i], b = vs[(i + 1) % vs.length];
+          area  += a.x * b.y - b.x * a.y;
+          perim += Math.hypot(b.x - a.x, b.y - a.y);
+        }
+        if (perim < 1e-3 || Math.abs(area) * 0.5 / (perim * perim) < 0.003) return null;
+        const rs = order.map(([x,y,z]) => _vCount[_vKey(x,y,z)] >= 2 ? 0 : rr);
+        return { vs, rs };
       });
       ctx.save();
       ctx.fillStyle   = 'rgba(8,18,35,0.62)';
       ctx.strokeStyle = 'rgb(210,215,220)';
       ctx.lineWidth   = 2.5 * dpr;
-      for (const vs of projPanels) {
-        if (!vs) continue;
-        ctx.beginPath(); _rPoly(vs, rr); ctx.closePath();
+      for (const pp of projPanels) {
+        if (!pp) continue;
+        ctx.beginPath(); _rPoly(pp.vs, pp.rs); ctx.closePath();
         ctx.fill();
         ctx.stroke();
       }
@@ -2723,7 +2741,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   /* Front glass windows — post-painter fill + silver outline, side view only.
      These panels face outward-starboard/port so they are only visible from the side
      camera (camSide > 0).  The winding gives cross>0 from the near side, <0 from far. */
-  if (_wbGeo?.frontWin && camSide > 0) {
+  if (_wbGeo?.frontWin && camSide > 0 && !_wbGeo.cockpitPanels) {
     ctx.save();
     for (const [vA, vB, vC, vD] of _wbGeo.frontWin) {
       const vs = [pts[vA], pts[vB], pts[vC], pts[vD]];
