@@ -72,7 +72,7 @@ export function _buildWB(np) {
      DWG); the whole wing — break, tip, spoilers (via WV), pylons — shifts with it. */
   const wzShift = (np.wing?.rootZ ?? -wr) + wr;
   const ey  = np.ey  ?? _ey;
-  const ez  = np.ez  ?? _ez;
+  let   ez  = np.ez  ?? _ez;
   const er  = np.er  ?? _er;
   const efr = er * 1.20;
   const ef7 = efr * 0.7071;
@@ -103,6 +103,16 @@ export function _buildWB(np) {
   const wxhT = rTE + fb * (tTE - rTE);          // TE x at span-break
   const wzh  = -wr + fb * (dh + wr);            // lower-surface z at span-break
   const wth  = wtr + fb * (wtt - wtr);          // thickness at span-break
+  /* Engine vertical position: if `engineTopGap` (nacelle top below the wing
+     underside, model units) is given, derive ez from the wing so the gap stays
+     true as the wing moves; otherwise keep the literal engineZ. */
+  if (np.engineTopGap != null) {
+    const _z0 = -wr + wzShift, _zB = wzh + wzShift, _zT = dh + wzShift;
+    const _wczEy = ey <= wh
+      ? _z0 + (ey - wr) / Math.max(wh - wr, 1e-9) * (_zB - _z0)
+      : _zB + (ey - wh) / Math.max(hs - wh, 1e-9) * (_zT - _zB);
+    ez = _wczEy - np.engineTopGap - er;
+  }
   const wfxR = rLE + fh * (rTE - rLE);          // x at root flap-hinge line
   const wfxH = wxhL + fh * (wxhT - wxhL);       // x at span-break flap-hinge
   const r_rt = -(rTE - wfxR);                   // root: dist from flap-hinge to TE
@@ -708,12 +718,12 @@ export function _buildWB(np) {
       }
   }
 
-  return { V_, F_, FC_, E_, SE_, SL_, b, r, rb,
+  return { V_, F_, FC_, E_, SE_, SL_, b, r, rb, ey: np.ey, ez, wing: np.wing, wzShift,
     winFwdRi: np.winFwdRi, winAftRi: np.winAftRi,
     winSiInner: np.winSiInner, winSiOuter: np.winSiOuter,
     cockpitPanels: np.cockpitPanels, cockpitPanelR: np.cockpitPanelR, frontWin: _frontWin,
-    ey2: np.ey2, ez: np.ez, er: np.er, erc: np.erc, pz: np.pz, exOff, eLen,
-    eApos: eA, eBpos: eB,
+    ey2: np.ey2, er: np.er, erc: np.erc, pz: np.pz, exOff, eLen, efr,
+    eApos: eA, eBpos: eB, eCpos: eC, eDpos: eD, eEpos: eE,
     anim: { r_rt, r_hs, r_ail, r_sp_rt, r_sp_hs } };
 }
 
@@ -750,6 +760,7 @@ export function _acGeoFromJson(aircraft, baseNp) {
     ez:            jGeo.engineZ       ?? baseNp.ez,
     er:            jGeo.engineR       ?? baseNp.er,
     erc:           jGeo.engineRC      ?? baseNp.erc,
+    engineTopGap:  jGeo.engineTopGap  ?? baseNp.engineTopGap,
     pz:            jGeo.pylonZ        ?? baseNp.pz,
     wing:          aircraft.wing      ?? baseNp.wing,
     winglet:       aircraft.winglet   ?? baseNp.winglet,

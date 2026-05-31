@@ -1968,24 +1968,25 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const _oXOffForOuter = (() => {
     if (!_oey2 || !_wbGeo) return _wbGeo?.exOff ?? 0;
     const base   = _wbGeo.exOff ?? 0;
-    const _oWD2  = (_WB_NP[S.aircraft?.id] ?? _WB_NP.default).wing ?? _WB_WING_DEFAULT;
-    const _oEyI2 = (_WB_NP[S.aircraft?.id] ?? _WB_NP.default).ey ?? _ey;
+    const _oWD2  = _wbGeo.wing ?? _WB_WING_DEFAULT;       // actual wing, not the generic default
+    const _oEyI2 = _wbGeo.ey ?? _ey;
     const _oR2   = _wbGeo.r ?? _r;
     const _oDen  = Math.max((_oWD2.span ?? 0.0267) - _oR2 * 0.7071, 1e-9);
     return base + (_oey2 - _oEyI2) / _oDen * ((_oWD2.tipLE ?? -0.015) - (_oWD2.rootLE ?? 0));
   })();
   const _oEzForOuter = (() => {
     if (!_oey2 || !_wbGeo) return _wbGeo?.ez ?? _ez;
-    const _oWD  = (_WB_NP[S.aircraft?.id] ?? _WB_NP.default).wing ?? _WB_WING_DEFAULT;
+    const _oWD  = _wbGeo.wing ?? _WB_WING_DEFAULT;        // actual wing, not the generic default
     const _oR   = _wbGeo.r  ?? _r;
     const _oWR  = _oR * 0.7071;
     const _oSpn = _oWD.span ?? 0.0267;
     const _oFB  = _oWD.flapBreak ?? 0.58;
     const _oWH  = _oWR + (_oSpn - _oWR) * _oFB;
     const _oDih = _oWD.dihedral ?? 0;
-    const _oWzR = -_oWR;
-    const _oWzB = -_oWR + _oFB * (_oDih + _oWR);
-    const _oWzT = _oDih;
+    const _oSh  = _wbGeo.wzShift ?? 0;                    // wing vertical shift (wing.rootZ)
+    const _oWzR = -_oWR + _oSh;
+    const _oWzB = -_oWR + _oFB * (_oDih + _oWR) + _oSh;
+    const _oWzT = _oDih + _oSh;
     const wCz   = (y) => y <= _oWH
       ? _oWzR + (y - _oWR) / Math.max(_oWH - _oWR, 1e-9) * (_oWzB - _oWzR)
       : _oWzB + (y - _oWH) / Math.max(_oSpn - _oWH, 1e-9) * (_oWzT - _oWzB);
@@ -2059,16 +2060,80 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         if (cr < 0) continue;
         faces.push({ ps: f, br: 0.22, avgD: f.reduce((s,p)=>s+p.d,0)/f.length - 0.0002, col: _oIntCol });
       }
-      /* Pylon — nacelle top to wing-bottom Z at outer span station */
-      const _oTop = project([_oeB,  yo, _oez + _oer]);
-      const _oPF  = project([_oePF, yo, _opz2]);
-      const _oPA  = project([_oeC,  yo, _opz2]);
-      if (_oTop && _oPF && _oPA) {
-        for (const ps of [[_oPF, _oTop, _oPA], [_oPF, _oPA, _oTop]]) {
-          const cr = (ps[1].x-ps[0].x)*(ps[2].y-ps[0].y)-(ps[1].y-ps[0].y)*(ps[2].x-ps[0].x);
-          if (cr < 0) continue;
-          faces.push({ ps, br: 0.72, avgD: ps.reduce((s,p)=>s+p.d,0)/ps.length, col: COL_[0] });
+      /* (pylon drawn parametrically below, unified for inner + outer engines) */
+    }
+  }
+
+  /* ── Engine pylons — parametric streamlined struts (all 4 engines) ───────────
+     Bottom edge saddles onto the nacelle top (ez + nacelle radius along the chord),
+     top edge fairs into the wing underside; forward of the wing LE the strut tapers
+     down to a nose on the cowl. Thin thickness in y. Debug-blue for now. */
+  if (_wbGeo && !wingView) {
+    const _pR   = _wbGeo.r ?? _r;
+    const _pWR  = _pR * 0.7071;
+    const _pW   = _wbGeo.wing ?? _WB_WING_DEFAULT;
+    const _pSh  = _wbGeo.wzShift ?? 0;
+    const _pSpn = _pW.span ?? 0.0267, _pFB = _pW.flapBreak ?? 0.58, _pDih = _pW.dihedral ?? 0;
+    const _pWH  = _pWR + (_pSpn - _pWR) * _pFB;
+    const _pZ0  = -_pWR + _pSh, _pZB = -_pWR + _pFB*(_pDih+_pWR) + _pSh, _pZT = _pDih + _pSh;
+    const _wingLowZ = (y) => { const a = Math.abs(y);
+      return a <= _pWH ? _pZ0 + (a-_pWR)/Math.max(_pWH-_pWR,1e-9)*(_pZB-_pZ0)
+                       : _pZB + (a-_pWH)/Math.max(_pSpn-_pWH,1e-9)*(_pZT-_pZB); };
+    const _wingLE = (y) => { const ts = Math.abs(y) / Math.max(_pSpn,1e-9);
+      return (_pW.rootLE ?? 0) + ((_pW.tipLE ?? -0.015) - (_pW.rootLE ?? 0)) * ts; };
+    const _wingTE = (y) => { const ts = Math.abs(y) / Math.max(_pSpn,1e-9);
+      return (_pW.rootTE ?? -0.009) + ((_pW.tipTE ?? -0.019) - (_pW.rootTE ?? -0.009)) * ts; };
+
+    const _pushTri = (a,b,c,col) => {
+      if (!a||!b||!c) return;
+      const cr = (b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
+      if (cr < 0) return;
+      faces.push({ ps:[a,b,c], br:0.66, avgD:(a.d+b.d+c.d)/3, col });
+    };
+    const _pushQuad = (a,b,c,d,col) => { _pushTri(a,b,c,col); _pushTri(a,c,d,col); };
+
+    // engine configs: inner (ey) + outer (ey2 if present)
+    const _engs = [{
+      ey: _wbGeo.ey ?? _ey, ez: _wbGeo.ez ?? _ez, er: _wbGeo.er ?? _er, efr: _wbGeo.efr ?? (_wbGeo.er ?? _er)*1.2,
+      eA: _wbGeo.eApos, eB: _wbGeo.eBpos, eC: _wbGeo.eCpos, eE: _wbGeo.eEpos,
+    }];
+    if (_oey2) _engs.push({
+      ey: _oey2, ez: _oEzForOuter, er: _wbGeo.er ?? _er, efr: (_wbGeo.er ?? _er)*1.2,
+      eA: 0.005 + _oXOffForOuter, eB: 0.001 + _oXOffForOuter, eC: -0.001 + _oXOffForOuter, eE: -0.003 + _oXOffForOuter,
+    });
+    const _ilerp = (x,x0,y0,x1,y1) => y0 + (x-x0)/((x1-x0)||1e-9)*(y1-y0);
+
+    for (const e of _engs) {
+      if (e.eA == null || e.eB == null || e.eC == null || e.eE == null) continue;
+      const halfT = e.er * 0.22, M = 10;
+      // nacelle radius along x: intake→fan bulge (efr@eB) → core (er@eC) → core aft
+      const nacR = (x) => x >= e.eB ? _ilerp(x, e.eA, e.er, e.eB, e.efr)
+                        : x >= e.eC ? _ilerp(x, e.eB, e.efr, e.eC, e.er) : e.er;
+      for (const sgn of [1, -1]) {
+        const yc = sgn * e.ey, wz = _wingLowZ(yc), le = _wingLE(yc), te = _wingTE(yc);
+        const xFwd = le + 0.75 * (e.eA - le);      // nose: forward 75% of the engine's forward section
+        const xAft = te;                            // covers the whole wing chord, out to the TE
+        const noseZ = e.ez + nacR(xFwd);
+        // top edge: wing underside under the wing (x ≤ LE), tapering down to the nose forward of it
+        const topZ = (x) => x <= le ? wz : _ilerp(x, le, wz, xFwd, noseZ);
+        // bottom edge: nacelle top where the nacelle exists; aft of the nozzle it fairs up to the wing TE
+        const botZ = (x) => x >= e.eE ? e.ez + nacR(x) : _ilerp(x, e.eE, e.ez + nacR(e.eE), te, wz);
+        const bN=[], bF=[], tN=[], tF=[];
+        for (let i=0;i<=M;i++){
+          const x = xFwd + (xAft - xFwd)*i/M;
+          const zb = botZ(x), zt = topZ(x);
+          bN.push(project([x, yc-halfT, zb])); bF.push(project([x, yc+halfT, zb]));
+          tN.push(project([x, yc-halfT, zt])); tF.push(project([x, yc+halfT, zt]));
         }
+        const col = COL_[16];
+        for (let i=0;i<M;i++){
+          _pushQuad(bN[i], tN[i], tN[i+1], bN[i+1], col);   // near side
+          _pushQuad(bF[i], bF[i+1], tF[i+1], tF[i], col);   // far side
+          _pushQuad(tN[i], tF[i], tF[i+1], tN[i+1], col);   // top (wing fair)
+          _pushQuad(bN[i], bN[i+1], bF[i+1], bF[i], col);   // bottom (nacelle saddle)
+        }
+        _pushQuad(bN[0], bF[0], tF[0], tN[0], col);         // front nose cap
+        _pushQuad(bN[M], tN[M], tF[M], bF[M], col);         // aft face (at wing LE)
       }
     }
   }

@@ -304,6 +304,7 @@
     "engineY": 0.0097,
     "engineY2": 0.0171,
     "engineZ": -0.0023,
+    "engineTopGap": 0.000711,
     "engineR": 0.00108,
     "engineRC": 0.00075,
     "pylonZ": -0.00068
@@ -725,7 +726,8 @@
     "mainGearHalfTrack": 5348,
     "noseTipToMainGear": 31958,
     "mainGearStrutLength": 2810,
-    "midWingRootToTop": 3785
+    "midWingRootToTop": 3785,
+    "engineTopBelowWing": 802
   },
   "bellyFairing": {
     "fromX": -0.00055,
