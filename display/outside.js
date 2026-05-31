@@ -2726,7 +2726,11 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     const _rgZT  = _rgUS ?  _rgR * 0.44 :  -_rgR * 0.10;  // band edges, above or below windows
     const _rgZB  = _rgUS ?  _rgR * 0.10 :  -_rgR * 0.44;
     const _rgU  = (_rgZT - _rgZB) * (_rgVbW / 20);        // x-width matched to text aspect
-    const _rgXF = (S.aircraft?.tailX ?? -0.021) * 0.40;   // front edge, well aft on the fuselage
+    /* Scale the position with the actual fuselage length (tailX lives in geometry)
+       so the registration always sits in the back, just ahead of the tailcone,
+       on any aircraft from the short 737 to the long 777. */
+    const _rgTailX = S.aircraft?.geometry?.tailX ?? S.aircraft?.tailX ?? -0.021;
+    const _rgXF = _rgTailX * 0.55;                        // front edge, well aft on the fuselage
     _drawLiveryDecals(ctx, [{
       surface: 'fuselage',
       viewBox: `0 0 ${_rgVbW} 20`,
@@ -3281,6 +3285,33 @@ ctx.save();
     /* Use per-aircraft fuselage radius so narrow-body windows sit on the body surface */
     const _wbR = _wbGeo?.r ?? _r;
 
+    /* Cheatline — coloured band(s) along the window line that sweep up toward the
+       tail (Singapore Airlines style). Tiled strips on both sides so the band hugs
+       the fuselage; drawn before the windows so the glazing sits on top of it.
+         cheatline.lines[] : { z (band centre), h (half-height), col }
+         fromX→toX along the fuselage; aft of sweepFromX the band rises by sweepRise. */
+    const _chl = S.aircraft?.cheatline;
+    if (_chl?.lines?.length) {
+      const _cF = _chl.fromX, _cT = _chl.toX;
+      const _cSwF = _chl.sweepFromX ?? _cT;
+      const _cSwA = (_chl.sweepAngle ?? 70) * Math.PI / 180;   // angle swept up the side at the tail
+      const _cN  = Math.max(12, Math.round(Math.abs(_cF - _cT) / (_wbR * 0.20)));
+      const _cDx = (_cF - _cT) / _cN;
+      for (const _ln of _chl.lines) {
+        /* Base angle on the cross-section so the straight run sits at the line's z;
+           aft of sweepFromX the band climbs the rounded side (y shrinks as z rises). */
+        const _a0 = Math.asin(Math.max(-0.99, Math.min(0.99, _ln.z / _wbR)));
+        for (let i = 0; i < _cN; i++) {
+          const _cx = _cF - (i + 0.5) * _cDx;
+          const _t  = _cx < _cSwF ? (_cSwF - _cx) / (_cSwF - _cT) : 0;
+          const _a  = _a0 + _cSwA * _t;
+          const _cy = _wbR * Math.cos(_a), _cz = _wbR * Math.sin(_a);
+          _quad3d(_cx,  _cy, _cz, _cDx * 0.55, _ln.h, _ln.col, null, false);
+          _quad3d(_cx, -_cy, _cz, _cDx * 0.55, _ln.h, _ln.col, null, false);
+        }
+      }
+    }
+
     /* Window row — count and range from aircraft JSON when available */
     const hw = _wbR * 0.088;
     const hh = _wbR * 0.128;
@@ -3301,9 +3332,10 @@ ctx.save();
        instead of a guessed aft end. */
     const _winToLip = S.aircraft?.windowsToEngineLip;
     const _engLipX  = S.aircraft?.wing?.rootLE;
+    const _winEndX = S.aircraft?.windowEndX ?? (_nCabW ? -0.025 : -0.008);
     const _wPitch = (_winToLip > 1 && _engLipX != null && _fwdDoorX != null)
       ? (xA - _engLipX) / (_winToLip - 1)
-      : (nW > 1 ? (xA - (_nCabW ? -0.025 : -0.008)) / (nW - 1) : 0);
+      : (nW > 1 ? (xA - _winEndX) / (nW - 1) : 0);
     /* Extra spacing over the wing box: "windowGaps" lists 1-based window numbers
        after which an additional gap (windowGapSize, in pitch units) is inserted,
        shifting every following window aft — this reproduces the 737's uneven

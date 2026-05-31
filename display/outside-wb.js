@@ -117,8 +117,8 @@ export function _buildWB(np) {
 
   /* Winglet geometry — auto-derives X from tipLE/tipTE, height from winglet type */
   const _wlType = np.winglet ?? 'classic';
-  const _wlH  = { classic: 0.0030, sharklet: 0.0065, blended: 0.0055, raked: 0.0015 }[_wlType] ?? 0.0030;
-  const _wlSw = { classic: 0.0012, sharklet: 0.0040, blended: 0.0008, raked: 0.0035 }[_wlType] ?? 0.0012;
+  const _wlH  = { classic: 0.0030, sharklet: 0.0065, blended: 0.0055, raked: 0.0015, none: 0 }[_wlType] ?? 0.0030;
+  const _wlSw = { classic: 0.0012, sharklet: 0.0040, blended: 0.0008, raked: 0.0035, none: 0 }[_wlType] ?? 0.0012;
   const wy   = hs;
   const wz   = dh + _wlH;
   const nTotal = nNose + 5;            // + 5 fixed tail rings
@@ -645,6 +645,16 @@ export function _buildWB(np) {
     /* L engine pylon: fan cowl → pylon top fwd/aft + chord */
     [b+68,b+114],[b+68,b+115],[b+114,b+115],
   );
+
+  /* winglet:"none" — drop the winglet faces/edges entirely (raked tips, e.g. 777).
+     Zeroing height alone leaves a wing-thickness sliver that still reads as a winglet. */
+  if (_wlType === 'none') {
+    const _wlV = new Set([b+100, b+101, b+102, b+103]);
+    for (let i = F_.length - 1; i >= 0; i--)
+      if (F_[i].some(v => _wlV.has(v))) { F_.splice(i, 1); FC_.splice(i, 1); }
+    for (let i = E_.length - 1; i >= 0; i--)
+      if (E_[i].some(v => _wlV.has(v))) E_.splice(i, 1);
+  }
 
   return { V_, F_, FC_, E_, SE_, SL_, b, r, rb,
     winFwdRi: np.winFwdRi, winAftRi: np.winAftRi,

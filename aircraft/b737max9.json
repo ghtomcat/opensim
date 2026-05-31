@@ -6,7 +6,6 @@
   "windowsToEngineLip": 14,
   "windowGaps": [14, 15],
   "windowGapSize": 1,
-  "tailX": -0.026,
   "doors": [
     0.0124,
     -0.013
@@ -278,6 +277,7 @@
     "flapHinge": 0.72
   },
   "geometry": {
+    "tailX": -0.026,
     "engineY": 0.0038,
     "engineZ": -0.0019,
     "engineR": 0.00096,

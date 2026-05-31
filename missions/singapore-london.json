@@ -1,0 +1,84 @@
+{
+  "id": "singapore-london",
+  "phase": "departure",
+  "title": "Singapore → London",
+  "description": "Singapore Airlines 777-300ER on the tarmac at Changi, bound for London Heathrow. Live METAR. Evening departure — start up, taxi, and climb out over the Strait toward the kangaroo route.",
+  "author": "Markus Leutwyler",
+  "aircraft": "b777-300er",
+  "timeOfDay": 18,
+  "departure": {
+    "icao": "WSSS",
+    "name": "Singapore Changi",
+    "elevation": 22
+  },
+  "arrival": {
+    "icao": "EGLL",
+    "name": "London Heathrow",
+    "runway": "27R",
+    "elevation": 83
+  },
+  "initialState": {
+    "lat": 1.3502,
+    "lon": 103.9944,
+    "alt": 22,
+    "spd": 0,
+    "hdg": 200,
+    "pitch": 0,
+    "roll": 0
+  },
+  "weather": {
+    "source": "live",
+    "icao": "WSSS",
+    "fallback": {
+      "wdir": 40,
+      "wspd": 8,
+      "altim": 1010,
+      "temp": 28,
+      "dewp": 25,
+      "visib": "10+",
+      "clouds": [
+        { "cover": "SCT", "base": 1800 },
+        { "cover": "BKN", "base": 16000 }
+      ]
+    }
+  },
+  "com": {
+    "title": "COM 1",
+    "active": "124.300",
+    "standby": "118.600",
+    "freqs": {
+      "124.300": { "label": "WSSS GROUND",
+                   "checkin": "{cs}, Singapore Ground. Taxi to holding point Whiskey one, runway two zero centre." },
+      "121.650": { "label": "WSSS CLEARANCE", "squawk": true,
+                   "checkin": "{cs}, Singapore Delivery. Cleared to London Heathrow via PIBAP one Bravo, climb flight level two eight zero, squawk as assigned." },
+      "128.600": { "label": "WSSS ATIS", "atis": true },
+      "118.600": { "label": "WSSS TOWER",
+                   "checkin": "{cs}, Singapore Tower. Runway two zero centre, cleared for takeoff, wind zero four zero at eight." },
+      "120.300": { "label": "SINGAPORE RADAR",
+                   "checkin": "{cs}, Singapore Radar, radar contact, climb flight level two eight zero." },
+      "121.500": { "label": "GUARD" }
+    }
+  },
+  "atcClearances": [
+    {
+      "alt": 200,
+      "pm": "Singapore Ground, Singapore three two two, request taxi",
+      "atc": "Singapore three two two, taxi to holding point Whiskey one, runway two zero centre"
+    },
+    {
+      "alt": 1500,
+      "pm": "Singapore three two two, airborne runway two zero centre",
+      "atc": "Singapore three two two, radar contact, climb flight level two eight zero, proceed direct PIBAP"
+    },
+    {
+      "alt": 10000,
+      "pm": "Singapore three two two, passing ten thousand",
+      "atc": "Singapore three two two, contact Singapore Radar one two zero decimal three, good evening"
+    },
+    {
+      "alt": 24000,
+      "pm": "Singapore Radar, Singapore three two two, flight level two four zero climbing",
+      "atc": "Singapore three two two, climb flight level three eight zero, cleared on route to London"
+    }
+  ]
+}

@@ -855,5 +855,37 @@
         "label": "Instructor"
       }
     ]
+  },
+  {
+    "id": "singapore-london",
+    "aircraft": "b777-300er",
+    "acName": "Boeing 777-300ER",
+    "engine": "GE90-115B · Twin",
+    "location": "Singapore WSSS",
+    "title": "Singapore → London · Tarmac",
+    "era": "MODERN",
+    "accent": "#F99F1C",
+    "briefing": {
+      "date": "WSSS · Tarmac · Dep RWY 20C",
+      "pilot": "Captain / First Officer",
+      "unit": "Singapore Ground / Tower 118.600",
+      "aircraft": "Boeing 777-300ER · Singapore Airlines",
+      "orders": "On the ramp at Changi. Start the GE90s, taxi to runway two zero centre.\nClimb out over the Strait, direct PIBAP, then the long haul northwest.\n10,800 km to London Heathrow — thirteen hours.",
+      "atmosphere": "Changi at dusk. The equator heat shimmering off the apron.\nThe golden bird on the tail, bound for London through the night.\nThe flagship of Singapore Airlines."
+    },
+    "roles": [
+      {
+        "id": "PF",
+        "label": "Pilot Flying"
+      },
+      {
+        "id": "PM",
+        "label": "Pilot Monitoring"
+      },
+      {
+        "id": "INSTRUCTOR",
+        "label": "Instructor"
+      }
+    ]
   }
 ]
