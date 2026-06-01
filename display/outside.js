@@ -3471,6 +3471,28 @@ ctx.save();
   /* Passenger windows + door outlines — wide-body only, properly perspective-projected */
   if (!isF9 && !isSV && !isSS && !isC172 && !isBf109 && !isF4U && !isMig15) {
     const _fr = _wbGeo?.r ?? _r;
+    /* Wing occlusion (no depth buffer): the windows/doors are a post-painter pass, so
+       the near wing can't hide the fuselage rows behind it. Collect the visible
+       (front-facing) wing-surface polygons (col 1) once; _quad3d then skips any decal
+       whose centre falls behind a closer wing face. */
+    const _ptInPoly = (px, py, ps) => {
+      let inside = false;
+      for (let i = 0, j = ps.length - 1; i < ps.length; j = i++) {
+        const yi = ps[i].y, yj = ps[j].y;
+        if ((yi > py) !== (yj > py) &&
+            px < (ps[j].x - ps[i].x) * (py - yi) / (yj - yi) + ps[i].x) inside = !inside;
+      }
+      return inside;
+    };
+    const _wingOcc = [];
+    for (let i = 0; i < F_.length; i++) {
+      if (FC_[i] !== 1) continue;                       // wing surfaces only
+      const wp = F_[i].map(vi => pts[vi]);
+      if (wp.some(p => !p)) continue;
+      const cr = (wp[1].x - wp[0].x) * (wp[2].y - wp[0].y) - (wp[1].y - wp[0].y) * (wp[2].x - wp[0].x);
+      if (cr < 0) continue;                             // back-facing → not drawn → can't occlude
+      _wingOcc.push({ ps: wp, d: wp.reduce((s, p) => s + p.d, 0) / wp.length });
+    }
     /* Draw a quad from 4 body-space corners. Cull unless the decal's outward
        radial normal faces the camera: push the centre outward along the body
        radius and require it to come closer. This hides the far-side rows AND
@@ -3485,6 +3507,8 @@ ctx.save();
       /* Require the outward point to come meaningfully closer (normal faces the
          camera by a margin); edge-on rows in a head-on view are culled. */
       if (!po || po.d > pw.d - eps * 0.35) return;
+      /* Behind the near wing? A closer wing face covering the centre hides this decal. */
+      for (const wo of _wingOcc) if (wo.d < pw.d - _fr * 0.15 && _ptInPoly(pw.x, pw.y, wo.ps)) return;
       const p0 = project([x + hw, y, z + hh]);
       const p1 = project([x - hw, y, z + hh]);
       const p2 = project([x - hw, y, z - hh]);
