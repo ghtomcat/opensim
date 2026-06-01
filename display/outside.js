@@ -543,6 +543,24 @@ function drawActuatorRod(ctx, pa, pb, dpr) {
   ctx.strokeStyle = 'rgba(185,200,215,0.80)';  ctx.stroke();
 }
 
+function drawActuatorRodCol(ctx, pa, pb, dpr, fill, stroke) {
+  const dx = pb.x - pa.x, dy = pb.y - pa.y;
+  const strutPx = Math.hypot(dx, dy);
+  if (strutPx < 0.5) return;
+  const hw  = Math.max(0.7 * dpr, strutPx * 0.032);
+  const nx  = -dy / strutPx * hw, ny = dx / strutPx * hw;
+  const ang = Math.atan2(ny, nx);
+  ctx.beginPath();
+  ctx.moveTo(pa.x + nx, pa.y + ny);
+  ctx.lineTo(pb.x + nx, pb.y + ny);
+  ctx.arc(pb.x, pb.y, hw, ang, ang + Math.PI);
+  ctx.lineTo(pa.x - nx, pa.y - ny);
+  ctx.arc(pa.x, pa.y, hw, ang + Math.PI, ang + Math.PI * 2);
+  ctx.closePath();
+  ctx.fillStyle = fill; ctx.fill();
+  ctx.strokeStyle = stroke; ctx.stroke();
+}
+
 /* ── Nacelle inlet lip ring — polished metal leading edge at intake face ─────
    Drawn as a thick silver stroke at the outer rim of the fan face projection.
    Uses the same hub/rim as the fan disk so it's always co-centred with the fan. */
@@ -2388,18 +2406,20 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }});
   };
   /* Down (extended) positions; struts retract toward the belly as gearP → 0. */
+  const _mStrZ =  _bodyLowerZ(_gMx,  _gMy);
+  const _mStrZn = _bodyLowerZ(_gMx, -_gMy);
   const _gvDn = [
-    [_gNx, 0,     -_gwR], [_gNx, 0,     -_gwR - _gNl],
-    [_gMx,  _gMy, -_gwR], [_gMx,  _gMy, -_gwR - _gMl],
-    [_gMx, -_gMy, -_gwR], [_gMx, -_gMy, -_gwR - _gMl],
+    [_gNx, 0,     -_gwR],    [_gNx, 0,     -_gwR - _gNl],
+    [_gMx,  _gMy, _mStrZ],   [_gMx,  _gMy, _mStrZ  - _gMl],
+    [_gMx, -_gMy, _mStrZn],  [_gMx, -_gMy, _mStrZn - _gMl],
   ];
   const _animGV = _gearTires ? GV_ : [
     _gvDn[0],
     _lerpV3([_gNx + _gNl * 0.75, 0, -_gwR * 0.5], _gvDn[1], _gearP),
     _gvDn[2],
-    _lerpV3([_gMx,  _gMy*0.4,   -_gwR+0.001], _gvDn[3], _gearP),
+    _lerpV3([_gMx,  _gMy * 0.08, -_gwR * 0.4], _gvDn[3], _gearP),
     _gvDn[4],
-    _lerpV3([_gMx, -_gMy*0.4,   -_gwR+0.001], _gvDn[5], _gearP),
+    _lerpV3([_gMx, -_gMy * 0.08, -_gwR * 0.4], _gvDn[5], _gearP),
   ];
   /* Closed bay-door panel seams — drawn when the gear is retracted so the door
      outlines stay visible on the belly (flush panels + dark border). When the gear
@@ -2515,47 +2535,74 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         ctx.strokeStyle = 'rgba(200,215,228,0.85)'; ctx.lineWidth = dpr*0.8; ctx.stroke();
         ctx.restore();
       }});
-      /* Two side stays per main gear — fore and aft, each articulated with a knee.
-         Lower links from both knees converge at a single strut attachment (~50% depth). */
-      const _sActZ   = -_wbR * 0.55;   // upper attachment on belly structure
-      const _sActFld = 0.0014 * _gearP; // outboard knee travel when fully retracted
+      /* Main gear side stays — fore (blue) and aft (green), straight to strut bracket. */
       for (const [sign, gv2, gv3] of [[+1, 2, 3], [-1, 4, 5]]) {
-        const sY     = sign * 0.0004;   // inboard belly attachment, close to centreline
-        const strAtt = _lerpV3(_animGV[gv2], _animGV[gv3], 0.50);  // single strut attachment at 50%
-        const knee3  = (a, b) => {
-          const m = _lerpV3(a, b, 0.5);
-          return [m[0], m[1] + sign * _sActFld, m[2]];
-        };
-        /* Fore upper stay */
-        const frTop = [_gMx + 0.002, sY, _sActZ];
-        const frKne = knee3(frTop, strAtt);
-        /* Aft upper stay */
-        const arTop = [_gMx - 0.002, sY, _sActZ];
-        const arKne = knee3(arTop, strAtt);
-        /* Projected points */
-        const pFrT = project(frTop), pFrK = project(frKne);
-        const pArT = project(arTop), pArK = project(arKne);
-        const pAtt = project(strAtt);
-        const _spts = [pFrT, pFrK, pArT, pArK, pAtt].filter(Boolean);
+        const strBkt  = _lerpV3(_animGV[gv2], _animGV[gv3], 0.502);
+        const strBkt2 = _lerpV3(_animGV[gv2], _animGV[gv3], 0.192);
+        const frTop = [_gMx + 0.003, sign * 0.0004, -_gwR * 0.88];
+        const arTop = [_gMx - 0.002, sign * 0.0004, -_gwR * 0.88];
+        const frMid   = [(frTop[0]+strBkt[0])/2,  (frTop[1]+strBkt[1])/2,  (frTop[2]+strBkt[2])/2];
+        const arMid   = [(arTop[0]+strBkt[0])/2,  (arTop[1]+strBkt[1])/2,  (arTop[2]+strBkt[2])/2];
+        const redFrMid = [(strBkt2[0]+frMid[0])/2, (strBkt2[1]+frMid[1])/2, (strBkt2[2]+frMid[2])/2];
+        const redArMid = [(strBkt2[0]+arMid[0])/2, (strBkt2[1]+arMid[1])/2, (strBkt2[2]+arMid[2])/2];
+        const pFrT = project(frTop), pArT = project(arTop), pBkt = project(strBkt), pBkt2 = project(strBkt2);
+        const pFrM = project(frMid), pArM = project(arMid);
+        const pRFrM = project(redFrMid), pRArM = project(redArMid);
+        const _spts = [pFrT, pArT, pBkt].filter(Boolean);
         if (!_spts.length) continue;
         const avgD = _spts.reduce((s, p) => s + p.d, 0) / _spts.length;
         faces.push({ avgD, draw: () => {
           ctx.save();
-          /* Upper stays: belly → knee */
-          if (pFrT && pFrK) drawActuatorRod(ctx, pFrT, pFrK, dpr);
-          if (pArT && pArK) drawActuatorRod(ctx, pArT, pArK, dpr);
-          /* Lower stays: knee → strut attachment */
-          if (pFrK && pAtt) drawActuatorRod(ctx, pFrK, pAtt, dpr);
-          if (pArK && pAtt) drawActuatorRod(ctx, pArK, pAtt, dpr);
-          /* Hinge knuckles at each knee + strut convergence point */
-          for (const pk of [pFrK, pArK, pAtt]) {
+          if (pFrT && pBkt) drawActuatorRodCol(ctx, pFrT, pBkt, dpr, 'rgba(50,110,230,0.92)', 'rgba(130,175,255,0.88)');
+          if (pArT && pBkt) drawActuatorRodCol(ctx, pArT, pBkt, dpr, 'rgba(50,185,80,0.92)',  'rgba(130,230,150,0.88)');
+          /* Red struts from upper bracket (19.2%) to midpoint knuckles */
+          if (pBkt2 && pFrM) drawActuatorRodCol(ctx, pBkt2, pFrM, dpr, 'rgba(210,50,50,0.92)', 'rgba(255,140,130,0.88)');
+          if (pBkt2 && pArM) drawActuatorRodCol(ctx, pBkt2, pArM, dpr, 'rgba(210,50,50,0.92)', 'rgba(255,140,130,0.88)');
+          /* Knuckles at red strut midpoints */
+          for (const pk of [pRFrM, pRArM]) {
             if (!pk) continue;
+            const kr = Math.max(3.5 * dpr, 5);
             ctx.beginPath();
-            ctx.arc(pk.x, pk.y, Math.max(2.5 * dpr, 3.5), 0, Math.PI * 2);
-            ctx.fillStyle   = 'rgba(120,135,158,0.92)';  ctx.fill();
-            ctx.strokeStyle = 'rgba(200,215,228,0.85)';
-            ctx.lineWidth   = dpr * 0.8;
-            ctx.stroke();
+            ctx.arc(pk.x, pk.y, kr, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(130,142,160,0.96)'; ctx.fill();
+            ctx.strokeStyle = 'rgba(220,228,238,0.95)'; ctx.lineWidth = Math.max(1.2*dpr, 1.5); ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(pk.x, pk.y, kr * 0.38, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(18,20,26,0.95)'; ctx.fill();
+          }
+          /* Knuckles at stay midpoints */
+          for (const pk of [pFrM, pArM]) {
+            if (!pk) continue;
+            const kr = Math.max(3.5 * dpr, 5);
+            ctx.beginPath();
+            ctx.arc(pk.x, pk.y, kr, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(130,142,160,0.96)'; ctx.fill();
+            ctx.strokeStyle = 'rgba(220,228,238,0.95)'; ctx.lineWidth = Math.max(1.2*dpr, 1.5); ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(pk.x, pk.y, kr * 0.38, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(18,20,26,0.95)'; ctx.fill();
+          }
+          /* Second strut attachment (19.2% from top) */
+          if (pBkt2) {
+            const br = Math.max(5 * dpr, 7);
+            ctx.beginPath();
+            ctx.arc(pBkt2.x, pBkt2.y, br, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(130,142,160,0.96)'; ctx.fill();
+            ctx.strokeStyle = 'rgba(220,228,238,0.95)'; ctx.lineWidth = Math.max(1.5*dpr, 2); ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(pBkt2.x, pBkt2.y, br * 0.38, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(18,20,26,0.95)'; ctx.fill();
+          }
+          /* Strut bracket — thick lug with bolt hole */
+          if (pBkt) {
+            const br = Math.max(5 * dpr, 7);
+            ctx.beginPath();
+            ctx.arc(pBkt.x, pBkt.y, br, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(130,142,160,0.96)'; ctx.fill();
+            ctx.strokeStyle = 'rgba(220,228,238,0.95)'; ctx.lineWidth = Math.max(1.5*dpr, 2); ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(pBkt.x, pBkt.y, br * 0.38, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(18,20,26,0.95)'; ctx.fill();
           }
           ctx.restore();
         }});
