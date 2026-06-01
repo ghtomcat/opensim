@@ -2314,6 +2314,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const _mHR  = _gC.main?.hubR;
   const _bogPitch  = _mTR * 0.85;   // fore/aft axle spacing in the bogie
   const _gAx  = _gC.main?.axles ?? (_gC.main?.type === 'bogie' ? 2 : 1);
+  const _mBay = _gC.main?.bayDoors !== false;   // 737 retracts main wheels exposed → no big bay doors
   /* Lower body-surface z at station x, lateral y — the belly-fairing super-ellipse
      lobe where x falls inside the fairing span, else the bare fuselage circle.
      Mirrors the fairing math in outside-wb.js so the gear bay doors hug the skin. */
@@ -2387,9 +2388,11 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
      is out, the animated bay below (cutout + opening doors) draws instead. */
   if (!isF9 && !isSS && !isSV && !_gearFixed && _gearP <= 0.01) {
     const _dCol = 'rgba(228,230,234,0.96)';
-    const _wL = _mTR * 2.8, _yIn = _gwR * 0.16, _yStr = _gwR * 0.90;
-    _drawBayDoor(_gMx + _wL, _gMx - _wL,  _yIn,  _yStr, _dCol);
-    _drawBayDoor(_gMx + _wL, _gMx - _wL, -_yIn, -_yStr, _dCol);
+    if (_mBay) {
+      const _wL = _mTR * 2.8, _yIn = _gwR * 0.16, _yStr = _gwR * 0.90;
+      _drawBayDoor(_gMx + _wL, _gMx - _wL,  _yIn,  _yStr, _dCol);
+      _drawBayDoor(_gMx + _wL, _gMx - _wL, -_yIn, -_yStr, _dCol);
+    }
     const _rt = (S.aircraft?.registration ?? '').replace(/[^A-Za-z0-9]/g, '').slice(-2).toUpperCase();
     const _nF = _gNx + _nTR * 1.9, _nA = _gNx - _nTR * 1.9;
     _drawBayDoor(_nF, _nA,  0.0003,  _gwR * 0.46, _dCol, _rt);
@@ -2441,8 +2444,9 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
           (x,y) => _nz([x, y, _bodyLowerZ(x,y)], 0.00002),
           'rgba(10,12,16,0.96)', 'rgba(0,0,0,0.80)', 1e-6);
         /* (b) big bay door — curved panel hinged at _yIn; conforms to the fairing
-           when closed (_bθ=0) and rotates rigidly down about the hinge when open */
-        _curvedPanel(_gMx+_wL, _gMx-_wL, _yIn, _yStr, (x,y) => {
+           when closed (_bθ=0) and rotates rigidly down about the hinge when open.
+           Suppressed when gear.main.bayDoors === false (737: exposed main wheels). */
+        if (_mBay) _curvedPanel(_gMx+_wL, _gMx-_wL, _yIn, _yStr, (x,y) => {
           const zH = _bodyLowerZ(x, _yIn), zc = _bodyLowerZ(x, y);
           const ay = Math.abs(y) - _aIn, dz = zc - zH;
           const L = Math.hypot(ay, dz), φ = Math.atan2(dz, ay);
