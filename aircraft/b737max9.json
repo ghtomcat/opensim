@@ -315,11 +315,11 @@
     "radomeSeamCol": "rgba(22,24,30,0.92)"
   },
   "wing": {
-    "span": 0.0178,
+    "span": 0.022304,
     "rootLE": -0.003343,
-    "rootTE": -0.011643,
-    "tipLE": -0.012143,
-    "tipTE": -0.014843,
+    "rootTE": -0.012701,
+    "tipLE": -0.014346,
+    "tipTE": -0.016889,
     "dihedral": 0.0024,
     "rootThick": 0.00065,
     "tipThick": 0.00015,
