@@ -88,12 +88,14 @@ export function _buildWB(np) {
      nozzle]. The nozzle offset (last) sets how far the core sticks out aft: a GE90
      has a long, tapered, visible nozzle; a CFM56 ends bluntly (nozzle near TR-aft). */
   const _nprof = np.nacelleProfile ?? [0.004, 0.006, 0.007, 0.008];
-  const eA = 0.005 + exOff;          // intake ring face (fixed — always at wing rootLE)
+  const eA = np.engineX ?? (0.005 + exOff);   // intake ring face (wing rootLE, or explicit engineX)
   const eB = eA - _nprof[0] * eLen;  // fan cowl ring
   const eC = eA - _nprof[1] * eLen;  // TR forward ring / pylon aft
   const eD = eA - _nprof[2] * eLen;  // TR aft ring
   const eE = eA - _nprof[3] * eLen;  // nozzle ring
   const ePF = eA - 0.002 * eLen;     // pylon fwd attach
+  const _rBody = np.nacelleBody ?? er;                 // body rings eC/eD radius (fat fan cowl on the 737)
+  const _flat  = np.nacelleFlatBottom ?? [0,0,0,0,0];  // per-ring flat-bottom amount [eA..eE], model units
 
   /* Derive all wing constants from the per-aircraft wing spec */
   const w    = np.wing;
@@ -110,12 +112,20 @@ export function _buildWB(np) {
   /* Engine vertical position: if `engineTopGap` (nacelle top below the wing
      underside, model units) is given, derive ez from the wing so the gap stays
      true as the wing moves; otherwise keep the literal engineZ. */
-  if (np.engineTopGap != null) {
+  if (np.engineTopGap != null || np.cowlTopToWingTop != null) {
     const _z0 = -wr + wzShift, _zB = wzh + wzShift, _zT = dh + wzShift;
     const _wczEy = ey <= wh
       ? _z0 + (ey - wr) / Math.max(wh - wr, 1e-9) * (_zB - _z0)
       : _zB + (ey - wh) / Math.max(hs - wh, 1e-9) * (_zT - _zB);
-    ez = _wczEy - np.engineTopGap - er;
+    if (np.cowlTopToWingTop != null) {
+      // 737-style: fan-cowl top sits `gap` below the wing UPPER surface (lower + thickness at ey)
+      const _thEy = ey <= wh
+        ? wtr + (ey - wr) / Math.max(wh - wr, 1e-9) * (wth - wtr)
+        : wth + (ey - wh) / Math.max(hs - wh, 1e-9) * (wtt - wth);
+      ez = (_wczEy + _thEy) - np.cowlTopToWingTop - efr;
+    } else {
+      ez = _wczEy - np.engineTopGap - er;   // nacelle top below the wing underside
+    }
   }
   const wfxR = rLE + fh * (rTE - rLE);          // x at root flap-hinge line
   const wfxH = wxhL + fh * (wxhT - wxhL);       // x at span-break flap-hinge
@@ -152,6 +162,30 @@ export function _buildWB(np) {
   const noseTip = V_.length;  V_.push([np.tipX, 0, np.tipCz ?? 0]);
   const tailTip = V_.length;  V_.push([tailX, 0, r * 0.70]);
 
+  /* Engine nacelle ring — 8 verts in the legacy hand-laid order (top, +y diag, +y,
+     +y-z diag, bottom, -y-z diag, -y, -y+z diag). ys=+1 right engine / -1 left
+     (mirrors the y diagonals so face winding is preserved). flat>0 raises the lower
+     verts onto a horizontal clip line z = zc-rr+flat — the flat-bottom nacelle. */
+  const _engRing = (x, yc, zc, rr, ys = 1, flat = 0) => {
+    const r7 = rr * 0.7071;
+    if (flat > 0) {   // flat bottom: repurpose verts 3 & 5 (lower diagonals) as the flat edges
+      const zMin = zc - rr + flat;
+      const hw = Math.sqrt(Math.max(rr*rr - (rr - flat)*(rr - flat), 0));  // half-width of the flat chord
+      return [
+        [x, yc,         zc + rr], [x, yc + ys*r7, zc + r7],
+        [x, yc + ys*rr, zc     ], [x, yc + ys*hw, zMin   ],
+        [x, yc,         zMin   ], [x, yc - ys*hw, zMin   ],
+        [x, yc - ys*rr, zc     ], [x, yc - ys*r7, zc + r7],
+      ];
+    }
+    return [
+      [x, yc,         zc + rr], [x, yc + ys*r7, zc + r7],
+      [x, yc + ys*rr, zc     ], [x, yc + ys*r7, zc - r7],
+      [x, yc,         zc - rr], [x, yc - ys*r7, zc - r7],
+      [x, yc - ys*rr, zc     ], [x, yc - ys*r7, zc + r7],
+    ];
+  };
+
   V_.push(  /* non-tube vertices — b+0..b+151 */
     WV[0], WV[1], WV[4], WV[5],    // b+0..3:  R root lower LE/TE, R tip lower LE/TE
     WV[22], WV[23], WV[26], WV[27], // b+4..7:  L root lower LE/TE, L tip lower LE/TE
@@ -167,48 +201,14 @@ export function _buildWB(np) {
     [-0.0175*ts,-nr2,      0.0      ],  //  b+17 L h-stab root aft
     [-0.019*ts, -0.008,    0.001    ],  //  b+18 L h-stab tip fwd
     [-0.0175*ts,-0.008,    0.001    ],  //  b+19 L h-stab tip aft
-    /* R engine rings (b+20..59) — eA..eE shift with wing rootLE via exOff */
-    [ eA, ey,      ez+er   ],[ eA, ey+e7,   ez+e7   ],
-    [ eA, ey+er,   ez      ],[ eA, ey+e7,   ez-e7   ],
-    [ eA, ey,      ez-er   ],[ eA, ey-e7,   ez-e7   ],
-    [ eA, ey-er,   ez      ],[ eA, ey-e7,   ez+e7   ],
-    [ eB, ey,      ez+efr  ],[ eB, ey+ef7,  ez+ef7  ],
-    [ eB, ey+efr,  ez      ],[ eB, ey+ef7,  ez-ef7  ],
-    [ eB, ey,      ez-efr  ],[ eB, ey-ef7,  ez-ef7  ],
-    [ eB, ey-efr,  ez      ],[ eB, ey-ef7,  ez+ef7  ],
-    [ eC, ey,      ez+er   ],[ eC, ey+e7,   ez+e7   ],
-    [ eC, ey+er,   ez      ],[ eC, ey+e7,   ez-e7   ],
-    [ eC, ey,      ez-er   ],[ eC, ey-e7,   ez-e7   ],
-    [ eC, ey-er,   ez      ],[ eC, ey-e7,   ez+e7   ],
-    [ eD, ey,      ez+er   ],[ eD, ey+e7,   ez+e7   ],
-    [ eD, ey+er,   ez      ],[ eD, ey+e7,   ez-e7   ],
-    [ eD, ey,      ez-er   ],[ eD, ey-e7,   ez-e7   ],
-    [ eD, ey-er,   ez      ],[ eD, ey-e7,   ez+e7   ],
-    [ eE, ey,      ez+erc  ],[ eE, ey+e7c,  ez+e7c  ],
-    [ eE, ey+erc,  ez      ],[ eE, ey+e7c,  ez-e7c  ],
-    [ eE, ey,      ez-erc  ],[ eE, ey-e7c,  ez-e7c  ],
-    [ eE, ey-erc,  ez      ],[ eE, ey-e7c,  ez+e7c  ],
+    /* R engine rings (b+20..59) — intake er · fan-cowl efr · body _rBody · nozzle erc; flat-bottom per ring */
+    ..._engRing(eA, ey, ez, er,     1, _flat[0]), ..._engRing(eB, ey, ez, efr,    1, _flat[1]),
+    ..._engRing(eC, ey, ez, _rBody, 1, _flat[2]), ..._engRing(eD, ey, ez, _rBody, 1, _flat[3]),
+    ..._engRing(eE, ey, ez, erc,    1, _flat[4]),
     /* L engine rings (b+60..99) */
-    [ eA, -ey,      ez+er   ],[ eA, -ey-e7,   ez+e7   ],
-    [ eA, -ey-er,   ez      ],[ eA, -ey-e7,   ez-e7   ],
-    [ eA, -ey,      ez-er   ],[ eA, -ey+e7,   ez-e7   ],
-    [ eA, -ey+er,   ez      ],[ eA, -ey+e7,   ez+e7   ],
-    [ eB, -ey,      ez+efr  ],[ eB, -ey-ef7,  ez+ef7  ],
-    [ eB, -ey-efr,  ez      ],[ eB, -ey-ef7,  ez-ef7  ],
-    [ eB, -ey,      ez-efr  ],[ eB, -ey+ef7,  ez-ef7  ],
-    [ eB, -ey+efr,  ez      ],[ eB, -ey+ef7,  ez+ef7  ],
-    [ eC, -ey,      ez+er   ],[ eC, -ey-e7,   ez+e7   ],
-    [ eC, -ey-er,   ez      ],[ eC, -ey-e7,   ez-e7   ],
-    [ eC, -ey,      ez-er   ],[ eC, -ey+e7,   ez-e7   ],
-    [ eC, -ey+er,   ez      ],[ eC, -ey+e7,   ez+e7   ],
-    [ eD, -ey,      ez+er   ],[ eD, -ey-e7,   ez+e7   ],
-    [ eD, -ey-er,   ez      ],[ eD, -ey-e7,   ez-e7   ],
-    [ eD, -ey,      ez-er   ],[ eD, -ey+e7,   ez-e7   ],
-    [ eD, -ey+er,   ez      ],[ eD, -ey+e7,   ez+e7   ],
-    [ eE, -ey,      ez+erc  ],[ eE, -ey-e7c,  ez+e7c  ],
-    [ eE, -ey-erc,  ez      ],[ eE, -ey-e7c,  ez-e7c  ],
-    [ eE, -ey,      ez-erc  ],[ eE, -ey+e7c,  ez-e7c  ],
-    [ eE, -ey+erc,  ez      ],[ eE, -ey+e7c,  ez+e7c  ],
+    ..._engRing(eA, -ey, ez, er,     -1, _flat[0]), ..._engRing(eB, -ey, ez, efr,    -1, _flat[1]),
+    ..._engRing(eC, -ey, ez, _rBody, -1, _flat[2]), ..._engRing(eD, -ey, ez, _rBody, -1, _flat[3]),
+    ..._engRing(eE, -ey, ez, erc,    -1, _flat[4]),
     /* Winglets (262-265) */
     [tLE-_wlSw,  wy, wz],[tTE,  wy, wz],   // b+100/101 R winglet outer LE/TE (auto from tipLE/tipTE)
     [tLE-_wlSw, -wy, wz],[tTE, -wy, wz],   // b+102/103 L winglet outer LE/TE
@@ -388,13 +388,7 @@ export function _buildWB(np) {
   /* b = base index of the non-tube vertex block (was hardcoded 162 when nNose=5) */
   const b = nTotal * N + 2;  // nTotal*16 tube verts + noseTip(+0) + tailTip(+1) → non-tube at +2
 
-  /* Engine interior caps: b+20..27=R intake, b+52..59=R nozzle, b+60..67=L intake, b+92..99=L nozzle */
-  F_.push(
-    [b+27,b+26,b+25,b+24,b+23,b+22,b+21,b+20],  // R intake cap — +x normal
-    [b+52,b+53,b+54,b+55,b+56,b+57,b+58,b+59],  // R nozzle exit — -x normal
-    [b+60,b+61,b+62,b+63,b+64,b+65,b+66,b+67],  // L intake cap — +x normal
-    [b+92,b+99,b+98,b+97,b+96,b+95,b+94,b+93],  // L nozzle exit — -x normal
-  );
+  /* Engine interior caps + tube faces are built in the appended 16-vert nacelle skin. */
 
   /* Non-tube faces — indices expressed as b+offset (b=162 for nNose=5, b=194 for nNose=7) */
   F_.push(
@@ -446,44 +440,14 @@ export function _buildWB(np) {
     // L h-stab airfoil (b+184..b+195)
     [b+184,b+186,b+192,b+190],[b+185,b+191,b+193,b+187],  // main body up/dn
     [b+186,b+188,b+194,b+192],[b+187,b+193,b+195,b+189],  // elevator up/dn
-    /* R engine A→B (intake→fan) */
-    [b+20,b+21,b+29,b+28],[b+21,b+22,b+30,b+29],[b+22,b+23,b+31,b+30],[b+23,b+24,b+32,b+31],
-    [b+24,b+25,b+33,b+32],[b+25,b+26,b+34,b+33],[b+26,b+27,b+35,b+34],[b+27,b+20,b+28,b+35],
-    /* R engine B→C (fan→TR_fwd) */
-    [b+28,b+29,b+37,b+36],[b+29,b+30,b+38,b+37],[b+30,b+31,b+39,b+38],[b+31,b+32,b+40,b+39],
-    [b+32,b+33,b+41,b+40],[b+33,b+34,b+42,b+41],[b+34,b+35,b+43,b+42],[b+35,b+28,b+36,b+43],
-    /* R engine C→D (TR zone — col 7, skipped when TR deployed) */
-    [b+36,b+37,b+45,b+44],[b+37,b+38,b+46,b+45],[b+38,b+39,b+47,b+46],[b+39,b+40,b+48,b+47],
-    [b+40,b+41,b+49,b+48],[b+41,b+42,b+50,b+49],[b+42,b+43,b+51,b+50],[b+43,b+36,b+44,b+51],
-    /* R engine D→E (TR_aft→nozzle) */
-    [b+44,b+45,b+53,b+52],[b+45,b+46,b+54,b+53],[b+46,b+47,b+55,b+54],[b+47,b+48,b+56,b+55],
-    [b+48,b+49,b+57,b+56],[b+49,b+50,b+58,b+57],[b+50,b+51,b+59,b+58],[b+51,b+44,b+52,b+59],
-    /* L engine A→B */
-    [b+60,b+68,b+69,b+61],[b+61,b+69,b+70,b+62],[b+62,b+70,b+71,b+63],[b+63,b+71,b+72,b+64],
-    [b+64,b+72,b+73,b+65],[b+65,b+73,b+74,b+66],[b+66,b+74,b+75,b+67],[b+67,b+75,b+68,b+60],
-    /* L engine B→C */
-    [b+68,b+76,b+77,b+69],[b+69,b+77,b+78,b+70],[b+70,b+78,b+79,b+71],[b+71,b+79,b+80,b+72],
-    [b+72,b+80,b+81,b+73],[b+73,b+81,b+82,b+74],[b+74,b+82,b+83,b+75],[b+75,b+83,b+76,b+68],
-    /* L engine C→D (TR zone — col 7) */
-    [b+76,b+84,b+85,b+77],[b+77,b+85,b+86,b+78],[b+78,b+86,b+87,b+79],[b+79,b+87,b+88,b+80],
-    [b+80,b+88,b+89,b+81],[b+81,b+89,b+90,b+82],[b+82,b+90,b+91,b+83],[b+83,b+91,b+84,b+76],
-    /* L engine D→E */
-    [b+84,b+92,b+93,b+85],[b+85,b+93,b+94,b+86],[b+86,b+94,b+95,b+87],[b+87,b+95,b+96,b+88],
-    [b+88,b+96,b+97,b+89],[b+89,b+97,b+98,b+90],[b+90,b+98,b+99,b+91],[b+91,b+99,b+92,b+84],
+    /* engine tube faces moved to the appended 16-vert nacelle skin (above) */
   );
   /* FC_ order must match F_ push order: engine caps, then non-tube faces */
   FC_.push(
-    10,10,10,10,                          // engine interior caps (R intake, R nozzle, L intake, L nozzle)
     1,1,1,1, 1,1,1,1,                          // LE rounds R+L (8)
     1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1, 9,9,9,9,  // R wing (14) + L wing (14) + winglets (4)
     2,2,2,2,2,2,2,2, 3,3,3,3, 3,3,3,3,     // vstab airfoil (8) + R hstab (4) + L hstab (4)
-    4,4,4,4,4,4,4,4, 4,4,4,4,4,4,4,4,   // R engine A→B + B→C (16)
-    7,7,7,7,7,7,7,7,                      // R engine C→D TR zone (8)
-    4,4,4,4,4,4,4,4,                      // R engine D→E (8)
-    4,4,4,4,4,4,4,4, 4,4,4,4,4,4,4,4,   // L engine A→B + B→C (16)
-    7,7,7,7,7,7,7,7,                      // L engine C→D TR zone (8)
-    4,4,4,4,4,4,4,4,                      // L engine D→E (8)
-  );
+  );   // engine tube/cap colours are pushed by the appended 16-vert nacelle skin
   /* Cockpit window faces — only for ring-sampled aircraft (no cockpitPanels).
      cockpitPanels aircraft are rendered by the post-painter pass; no depth-sorted faces needed. */
   if (!np.cockpitPanels) {
@@ -766,6 +730,45 @@ export function _buildWB(np) {
       }
   }
 
+  /* ── High-resolution (16-vert) nacelle skin (appended last, after the belly fairing,
+     so it doesn't disturb any other vertex indices) ────────────────────────────────
+     The 8-vert engine rings (b+20..99) stay as anchors for the 2-D fan-face math and
+     the TR/chevron overlays; this 16-gon skin is the visible cowl (replaces the 8-vert
+     tube faces) for a rounder cross-section. */
+  {
+    const NE = 16;
+    const ringHi = (x, yc, zc, rr, ys, flat) => {
+      const zMin = zc - rr + flat, out = [];
+      for (let k = 0; k < NE; k++) {
+        const th = k / NE * Math.PI * 2;
+        let zz = zc + Math.cos(th) * rr;
+        if (flat > 0 && zz < zMin) zz = zMin;
+        out.push([x, yc + Math.sin(th) * rr * ys, zz]);
+      }
+      return out;
+    };
+    const _xs = [eA, eB, eC, eD, eE], _rs = [er, efr, _rBody, _rBody, erc];
+    const _gapCol = [4, 4, 7, 4];   // A→B, B→C, C→D (TR zone, col 7), D→E
+    for (const [yc, ys] of [[ey, 1], [-ey, -1]]) {
+      const rbHi = [];
+      for (let ri = 0; ri < 5; ri++) {
+        rbHi.push(V_.length);
+        for (const v of ringHi(_xs[ri], yc, ez, _rs[ri], ys, _flat[ri])) V_.push(v);
+      }
+      for (let g = 0; g < 4; g++) {           // tube faces — 4 gaps × NE quads, L winding mirrored
+        const a = rbHi[g], nb = rbHi[g+1];
+        for (let s = 0; s < NE; s++) {
+          const sj = (s + 1) % NE;
+          F_.push(ys > 0 ? [a+s, a+sj, nb+sj, nb+s] : [a+s, nb+s, nb+sj, a+sj]);
+          FC_.push(_gapCol[g]);
+        }
+      }
+      const cap = (rbase, rev) => { const f = []; for (let s = 0; s < NE; s++) f.push(rbase + (rev ? NE-1-s : s)); return f; };
+      F_.push(cap(rbHi[0], ys > 0)); FC_.push(10);   // intake bore  (+x normal, dark)
+      F_.push(cap(rbHi[4], ys < 0)); FC_.push(10);   // nozzle exit  (-x normal, dark)
+    }
+  }
+
   return { V_, F_, FC_, E_, SE_, SL_, b, r, rb, ey: np.ey, ez, wing: np.wing, wzShift,
     winFwdRi: np.winFwdRi, winAftRi: np.winAftRi,
     winSiInner: np.winSiInner, winSiOuter: np.winSiOuter,
@@ -817,6 +820,10 @@ export function _acGeoFromJson(aircraft, baseNp) {
     nacelleProfile: jGeo.nacelleProfile ?? baseNp.nacelleProfile,
     coreNozzle:    jGeo.coreNozzle    ?? baseNp.coreNozzle,
     fanCowlLen:    jGeo.fanCowlLen    ?? baseNp.fanCowlLen,
+    engineX:       jGeo.engineX       ?? baseNp.engineX,
+    nacelleBody:   jGeo.nacelleBody   ?? baseNp.nacelleBody,
+    nacelleFlatBottom: jGeo.nacelleFlatBottom ?? baseNp.nacelleFlatBottom,
+    cowlTopToWingTop:  jGeo.cowlTopToWingTop  ?? baseNp.cowlTopToWingTop,
     bellyFairing:  aircraft.bellyFairing ?? baseNp.bellyFairing,
   };
 }

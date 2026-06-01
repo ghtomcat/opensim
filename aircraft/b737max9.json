@@ -360,11 +360,27 @@
   },
   "geometry": {
     "tailX": -0.026,
-    "engineY": 0.0038,
-    "engineZ": -0.0019,
-    "engineR": 0.00096,
-    "engineRC": 0.00063,
-    "pylonZ": -0.00062
+    "engineX": -0.001724,
+    "engineY": 0.006546,
+    "engineZ": -0.0027,
+    "engineR": 0.001265,
+    "engineRC": 0.00147,
+    "pylonZ": -0.00062,
+    "engineLen": 1.1647,
+    "fanCowlRatio": 1.308,
+    "nacelleBody": 0.001655,
+    "nacelleProfile": [0.0008, 0.0025, 0.0035, 0.004062],
+    "fanCowlLen": 0.004731,
+    "cowlTopToWingTop": 0.001021,
+    "nacelleFlatBottom": [0.000035, 0.000153, 0.000153, 0.000153, 0.000153],
+    "coreNozzle": [
+      [0.004731, 0.000832],
+      [0.005434, 0.000727],
+      [0.005434, 0.000712],
+      [0.005667, 0.000691],
+      [0.005667, 0.000609],
+      [0.006986, 0.000020]
+    ]
   },
   "envelope": {
     "cruiseAlt": 41000,
