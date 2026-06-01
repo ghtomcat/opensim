@@ -397,55 +397,62 @@ function _renderWingView(canvas) {
 
 /* Draw a volumetric tire (far face + tread band + near face + hub).
    wc: world-space axle centre [x,y,z]. tR: tire radius. */
-function drawVolumetricTire(ctx, wc, tR, project) {
-  const M   = 24;
+function drawVolumetricTire(ctx, wc, tR, project, hubR) {
+  const M   = 24, H = M / 2;
   const tW  = tR * 0.40;
+  const tRs = tR * 0.86;   // sidewall (face) radius — inset so the shoulders round into the tread
   const yS  = wc[1] === 0 ? 1 : Math.sign(wc[1]);
   const wO  = [wc[0], wc[1] + yS * tW, wc[2]];  // outboard face
   const wI  = [wc[0], wc[1] - yS * tW, wc[2]];  // inboard face
-  const pCO = project(wO), pCI = project(wI);
-  const pUO = project([wO[0], wO[1], wO[2]+tR]), pFO = project([wO[0]+tR, wO[1], wO[2]]);
-  const pUI = project([wI[0], wI[1], wI[2]+tR]), pFI = project([wI[0]+tR, wI[1], wI[2]]);
-  if (!pCO || !pCI || !pUO || !pFO || !pUI || !pFI) return;
+  /* Ring of M+1 screen points around the tyre at world centre w, radius r; .pC = projected centre */
+  const ringAt = (w, r) => {
+    const pC = project(w), pU = project([w[0], w[1], w[2]+r]), pF = project([w[0]+r, w[1], w[2]]);
+    if (!pC || !pU || !pF) return null;
+    const out = Array.from({length: M+1}, (_, i) => {
+      const t = i / M * Math.PI * 2;
+      return [pC.x + Math.cos(t)*(pU.x-pC.x) + Math.sin(t)*(pF.x-pC.x),
+              pC.y + Math.cos(t)*(pU.y-pC.y) + Math.sin(t)*(pF.y-pC.y)];
+    });
+    out.pC = pC; return out;
+  };
+  const ptO = ringAt(wO, tRs), ptI = ringAt(wI, tRs), ptM = ringAt(wc, tR);
+  if (!ptO || !ptI || !ptM) return;
 
-  const ring = (pC, pU, pF) => Array.from({length: M+1}, (_, i) => {
-    const t = i / M * Math.PI * 2;
-    return [pC.x + Math.cos(t)*(pU.x-pC.x) + Math.sin(t)*(pF.x-pC.x),
-            pC.y + Math.cos(t)*(pU.y-pC.y) + Math.sin(t)*(pF.y-pC.y)];
-  });
   const fill = (pts, col) => {
     ctx.fillStyle = col;
     ctx.beginPath();
     pts.forEach(([x,y],i) => i ? ctx.lineTo(x,y) : ctx.moveTo(x,y));
     ctx.closePath(); ctx.fill();
   };
+  /* Side band between two rings, split top/bottom so it reads as a curved surface */
+  const band = (ptA, ptB, col) => {
+    ctx.fillStyle = col;
+    for (const [s, e] of [[0, H], [H, M]]) {
+      ctx.beginPath();
+      ptA.slice(s, e+1).forEach(([x,y],i) => i ? ctx.lineTo(x,y) : ctx.moveTo(x,y));
+      [...ptB.slice(s, e+1)].reverse().forEach(([x,y]) => ctx.lineTo(x,y));
+      ctx.closePath(); ctx.fill();
+    }
+  };
 
-  const ptO = ring(pCO, pUO, pFO);
-  const ptI = ring(pCI, pUI, pFI);
-
-  /* Near face has smaller depth value (closer to camera) — draw far face first */
-  const outerIsNear = pCO.d <= pCI.d;
+  /* Near face = smaller depth. Profile: far sidewall → bulged tread crown (ptM) → near
+     sidewall, so the shoulders round instead of meeting the tread at a sharp edge. */
+  const outerIsNear = ptO.pC.d <= ptI.pC.d;
   const [ptFar, ptNear, pCNear, wNear] = outerIsNear
-    ? [ptI, ptO, pCO, wO]
-    : [ptO, ptI, pCI, wI];
+    ? [ptI, ptO, ptO.pC, wO]
+    : [ptO, ptI, ptI.pC, wI];
 
-  const H = M / 2;
   fill(ptFar, 'rgba(28,32,40,0.95)');
-  ctx.fillStyle = 'rgba(40,45,55,0.97)';
-  for (const [s, e] of [[0, H], [H, M]]) {
-    ctx.beginPath();
-    ptFar.slice(s, e+1).forEach(([x,y],i) => i ? ctx.lineTo(x,y) : ctx.moveTo(x,y));
-    [...ptNear.slice(s, e+1)].reverse().forEach(([x,y]) => ctx.lineTo(x,y));
-    ctx.closePath(); ctx.fill();
-  }
+  band(ptFar, ptM,    'rgba(34,39,49,0.97)');   // far shoulder → tread crown
+  band(ptM,   ptNear, 'rgba(45,51,62,0.97)');   // tread crown → near shoulder (lighter)
   fill(ptNear, 'rgba(35,40,50,0.96)');
 
-  /* Hub on near face */
-  const hR  = tR * 0.20;
+  /* Hub on near face — silver, sized from the measured hub diameter (fallback 0.20·tR) */
+  const hR  = hubR ?? tR * 0.20;
   const pH1 = project([wNear[0], wNear[1], wNear[2]+hR]);
   const pH2 = project([wNear[0]+hR, wNear[1], wNear[2]]);
   if (pH1 && pH2) {
-    ctx.fillStyle = 'rgba(115,130,150,0.85)';
+    ctx.fillStyle = 'rgba(176,183,196,0.92)';
     ctx.beginPath();
     for (let i = 0; i <= M; i++) {
       const t = i / M * Math.PI * 2;
@@ -465,14 +472,14 @@ function drawVolumetricTire(ctx, wc, tR, project) {
 /* Draw a pair of tires (1 pair = 2 tires) on a short axle centred at wc.
    The axle runs along Y; each tire is offset ±axH from wc.
    An axle tube connects the inner faces of both tires. */
-function drawTirePair(ctx, wc, tR, project, dpr) {
+function drawTirePair(ctx, wc, tR, project, dpr, hubR) {
   const tW  = tR * 0.40;   // half-width of one tire (matches drawVolumetricTire)
   const axH = tR * 0.55;   // half-span: center → each tire center
   const yS  = wc[1] === 0 ? 1 : Math.sign(wc[1]);
   const wcO = [wc[0], wc[1] + yS * axH, wc[2]];  // outboard tire center
   const wcI = [wc[0], wc[1] - yS * axH, wc[2]];  // inboard  tire center
-  drawVolumetricTire(ctx, wcO, tR, project);
-  drawVolumetricTire(ctx, wcI, tR, project);
+  drawVolumetricTire(ctx, wcO, tR, project, hubR);
+  drawVolumetricTire(ctx, wcI, tR, project, hubR);
   // Axle tube between inner faces
   const pO = project([wcO[0], wcO[1] - yS * tW, wcO[2]]);
   const pI = project([wcI[0], wcI[1] + yS * tW, wcI[2]]);
@@ -2303,6 +2310,8 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const _gMl  = _gC.main?.len ?? 0.0032;
   const _nTR  = _gC.nose?.tireR ?? _gwR * 0.12;
   const _mTR  = _gC.main?.tireR ?? _gwR * 0.16;
+  const _nHR  = _gC.nose?.hubR;   // measured hub radius (silver), undefined → 0.20·tireR fallback
+  const _mHR  = _gC.main?.hubR;
   const _bogPitch  = _mTR * 0.85;   // fore/aft axle spacing in the bogie
   const _gAx  = _gC.main?.axles ?? (_gC.main?.type === 'bogie' ? 2 : 1);
   /* Lower body-surface z at station x, lateral y — the belly-fairing super-ellipse
@@ -2373,6 +2382,19 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     _gvDn[4],
     _lerpV3([_gMx, -_gMy*0.4,   -_gwR+0.001], _gvDn[5], _gearP),
   ];
+  /* Closed bay-door panel seams — drawn when the gear is retracted so the door
+     outlines stay visible on the belly (flush panels + dark border). When the gear
+     is out, the animated bay below (cutout + opening doors) draws instead. */
+  if (!isF9 && !isSS && !isSV && !_gearFixed && _gearP <= 0.01) {
+    const _dCol = 'rgba(228,230,234,0.96)';
+    const _wL = _mTR * 2.8, _yIn = _gwR * 0.16, _yStr = _gwR * 0.90;
+    _drawBayDoor(_gMx + _wL, _gMx - _wL,  _yIn,  _yStr, _dCol);
+    _drawBayDoor(_gMx + _wL, _gMx - _wL, -_yIn, -_yStr, _dCol);
+    const _rt = (S.aircraft?.registration ?? '').replace(/[^A-Za-z0-9]/g, '').slice(-2).toUpperCase();
+    const _nF = _gNx + _nTR * 1.9, _nA = _gNx - _nTR * 1.9;
+    _drawBayDoor(_nF, _nA,  0.0003,  _gwR * 0.46, _dCol, _rt);
+    _drawBayDoor(_nF, _nA, -0.0003, -_gwR * 0.46, _dCol);
+  }
   if (!isF9 && !isSS && !isSV && (_gearFixed || _gearP > 0.01)) {
     const _wbR   = _wbGeo?.r ?? _r;
     const _midV3 = (a, b) => [(a[0]+b[0])/2, (a[1]+b[1])/2, (a[2]+b[2])/2];
@@ -2531,7 +2553,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
 
       /* Nose gear */
       { const wc = _animGV[1], pt = project(wc);
-        if (pt) faces.push({ avgD: pt.d, draw: () => { ctx.save(); drawTirePair(ctx, wc, _nTR, project, dpr); ctx.restore(); } }); }
+        if (pt) faces.push({ avgD: pt.d, draw: () => { ctx.save(); drawTirePair(ctx, wc, _nTR, project, dpr, _nHR); ctx.restore(); } }); }
 
       /* Main gear — N-axle bogie (fore/aft) or a single pair (gear.main.axles) */
       for (const vi of [3, 5]) {
@@ -2544,12 +2566,12 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
             for (let k = 0; k < _gAx; k++) {
               const off = (k - (_gAx - 1) / 2) * 2 * _bogPitch;
               const wck = [wc[0] + off, wc[1], wc[2]];
-              drawTirePair(ctx, wck, _mTR, project, dpr);
+              drawTirePair(ctx, wck, _mTR, project, dpr, _mHR);
               const pk = project(wck); if (pk) ends.push(pk);
             }
             if (ends.length >= 2) drawStrutTube(ctx, ends[0], ends[ends.length - 1], dpr);
           } else {
-            drawTirePair(ctx, wc, _mTR, project, dpr);
+            drawTirePair(ctx, wc, _mTR, project, dpr, _mHR);
           }
           ctx.restore();
         }});
@@ -2574,8 +2596,8 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
           faces.push({ avgD: ptC.d, draw: () => {
             ctx.save();
             const wcF = [wcC[0]+_cbp, wcC[1], wcC[2]], wcA = [wcC[0]-_cbp, wcC[1], wcC[2]];
-            drawTirePair(ctx, wcF, _mTR, project, dpr);
-            drawTirePair(ctx, wcA, _mTR, project, dpr);
+            drawTirePair(ctx, wcF, _mTR, project, dpr, _mHR);
+            drawTirePair(ctx, wcA, _mTR, project, dpr, _mHR);
             const pF = project(wcF), pA = project(wcA);
             if (pF && pA) drawStrutTube(ctx, pF, pA, dpr);
             ctx.restore();
