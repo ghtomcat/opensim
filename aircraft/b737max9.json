@@ -326,6 +326,38 @@
     "flapBreak": 0.55,
     "flapHinge": 0.72
   },
+  "dimensions": {
+    "_note": "Boeing 737-9 MAX airport-planning DWG, measured 2026-06-01. drawing × 0.083381 = real-mm; drawing × 1.10878e-7 = model (fuselage ⌀ 3760 mm ↔ model 2r 0.005). Values below in real mm unless noted. Engine: CFM LEAP-1B.",
+    "fuselageDiameter": 3760,
+    "engine": {
+      "_note": "LEAP-1B. Flat-bottomed nacelle (width > height). Narrow inlet bulging to a fat fan cowl; chevroned fan-nozzle TE; stepped core nozzle + long plug. Builder upgrade pending: inlet taper, flat-bottom clip, chevron teeth, engine-X decoupled from wing.rootLE.",
+      "intakeInnerWidth": 1903,
+      "intakeLipHeight": 1877,
+      "intakeFlatten": 26,
+      "fanCowlWidth": 2489,
+      "fanCowlHeight": 2374,
+      "fanCowlFlatten": 115,
+      "fanCowlLength": 3558,
+      "fanCowlLengthWithChevron": 3792,
+      "chevronDepth": 234,
+      "coreNozzle": {
+        "_note": "diameters at section boundaries, measured aft from the chevron-valley line (= fan cowl TE). s1->s2 and s2->s3 are steps. plug tapers to a point.",
+        "s1Length": 528, "s1StartDia": 1251, "s1EndDia": 1093,
+        "s2Length": 176, "s2StartDia": 1071, "s2EndDia": 1040,
+        "s3StartDia": 916, "s3Length": 992, "plugTipDia": 0
+      },
+      "spanwiseHalf": 4923,
+      "noseTipToIntake": 14606,
+      "cowlTopToWingTop": 768
+    },
+    "gear": {
+      "noseTipToNoseGear": 4092,
+      "noseGearToMainGear": 17180,
+      "mainGearHalfTrack": 2863,
+      "mainGearStrut": 1578,
+      "noseGearStrut": 973
+    }
+  },
   "geometry": {
     "tailX": -0.026,
     "engineY": 0.0038,
