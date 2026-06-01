@@ -737,6 +737,7 @@ export function _buildWB(np) {
      tube faces) for a rounder cross-section. */
   {
     const NE = 16;
+    const _chevD = np.chevronDepth ?? 0;   // fan-cowl TE chevron tooth depth (aft), model units
     const ringHi = (x, yc, zc, rr, ys, flat) => {
       const zMin = zc - rr + flat, out = [];
       for (let k = 0; k < NE; k++) {
@@ -766,6 +767,22 @@ export function _buildWB(np) {
       const cap = (rbase, rev) => { const f = []; for (let s = 0; s < NE; s++) f.push(rbase + (rev ? NE-1-s : s)); return f; };
       F_.push(cap(rbHi[0], ys > 0)); FC_.push(10);   // intake bore  (+x normal, dark)
       F_.push(cap(rbHi[4], ys < 0)); FC_.push(10);   // nozzle exit  (-x normal, dark)
+      if (_chevD > 0) {   // fan-cowl TE chevrons — aft-pointing teeth on the eE (nozzle) ring
+        const NC = 16, taperR = (erc - _rBody) / (eE - eD);   // cowl boat-tail dr/dx near the TE
+        const vAt = (xoff, ang) => {
+          const rr = erc - taperR * xoff, zMin = ez - rr + _flat[4];   // radius follows the taper aft
+          let zz = ez + Math.cos(ang) * rr;
+          if (_flat[4] > 0 && zz < zMin) zz = zMin;
+          return [eE - xoff, yc + Math.sin(ang) * rr * ys, zz];
+        };
+        const rb0 = V_.length; for (let k = 0; k < NC; k++) V_.push(vAt(0,      k / NC * 2 * Math.PI));
+        const tb0 = V_.length; for (let k = 0; k < NC; k++) V_.push(vAt(_chevD, (k + 0.5) / NC * 2 * Math.PI));
+        for (let k = 0; k < NC; k++) {   // each tooth: base = root[k]→root[k+1], tip aft between them
+          const kj = (k + 1) % NC;
+          F_.push([rb0+k, rb0+kj, tb0+k]); FC_.push(4);
+          F_.push([rb0+k, tb0+k, rb0+kj]); FC_.push(4);   // double-sided so teeth show from any angle
+        }
+      }
     }
   }
 
@@ -824,6 +841,7 @@ export function _acGeoFromJson(aircraft, baseNp) {
     nacelleBody:   jGeo.nacelleBody   ?? baseNp.nacelleBody,
     nacelleFlatBottom: jGeo.nacelleFlatBottom ?? baseNp.nacelleFlatBottom,
     cowlTopToWingTop:  jGeo.cowlTopToWingTop  ?? baseNp.cowlTopToWingTop,
+    chevronDepth:      jGeo.chevronDepth      ?? baseNp.chevronDepth,
     bellyFairing:  aircraft.bellyFairing ?? baseNp.bellyFairing,
   };
 }

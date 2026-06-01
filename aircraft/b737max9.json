@@ -371,6 +371,7 @@
     "nacelleBody": 0.001655,
     "nacelleProfile": [0.0008, 0.0025, 0.0035, 0.004062],
     "fanCowlLen": 0.004731,
+    "chevronDepth": 0.000311,
     "cowlTopToWingTop": 0.001021,
     "nacelleFlatBottom": [0.000035, 0.000153, 0.000153, 0.000153, 0.000153],
     "coreNozzle": [
