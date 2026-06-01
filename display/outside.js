@@ -506,6 +506,24 @@ function drawStrutTube(ctx, pa, pb, dpr) {
   ctx.strokeStyle = 'rgba(200,210,220,0.90)';  ctx.stroke();
 }
 
+function drawStrutTubeCol(ctx, pa, pb, dpr, fill, stroke) {
+  const dx = pb.x - pa.x, dy = pb.y - pa.y;
+  const strutPx = Math.hypot(dx, dy);
+  if (strutPx < 1) return;
+  const hw  = Math.max(1.5 * dpr, strutPx * 0.06);
+  const nx  = -dy / strutPx * hw, ny = dx / strutPx * hw;
+  const ang = Math.atan2(ny, nx);
+  ctx.beginPath();
+  ctx.moveTo(pa.x + nx, pa.y + ny);
+  ctx.lineTo(pb.x + nx, pb.y + ny);
+  ctx.arc(pb.x, pb.y, hw, ang, ang + Math.PI);
+  ctx.lineTo(pa.x - nx, pa.y - ny);
+  ctx.arc(pa.x, pa.y, hw, ang + Math.PI, ang + Math.PI * 2);
+  ctx.closePath();
+  ctx.fillStyle = fill; ctx.fill();
+  ctx.strokeStyle = stroke; ctx.stroke();
+}
+
 /* Thinner actuator / side-brace rod — same style, ~half the width of drawStrutTube */
 function drawActuatorRod(ctx, pa, pb, dpr) {
   const dx = pb.x - pa.x, dy = pb.y - pa.y;
@@ -2377,7 +2395,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   ];
   const _animGV = _gearTires ? GV_ : [
     _gvDn[0],
-    _lerpV3([_gNx,      0.0005, -_gwR+0.001], _gvDn[1], _gearP),
+    _lerpV3([_gNx + _gNl * 0.75, 0, -_gwR * 0.5], _gvDn[1], _gearP),
     _gvDn[2],
     _lerpV3([_gMx,  _gMy*0.4,   -_gwR+0.001], _gvDn[3], _gearP),
     _gvDn[4],
@@ -2402,6 +2420,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     const _wbR   = _wbGeo?.r ?? _r;
     const _midV3 = (a, b) => [(a[0]+b[0])/2, (a[1]+b[1])/2, (a[2]+b[2])/2];
     for (const [a, b] of _GE) {
+      if (!_gearTires && a === 0) continue;  // nose strut drawn as two-tone below
       const pa = project(_animGV[a]), pb = project(_animGV[b]);
       if (!pa || !pb) continue;
       faces.push({ avgD: (pa.d+pb.d)/2, draw: () => { ctx.save(); drawStrutTube(ctx, pa, pb, dpr); ctx.restore(); } });
@@ -2470,41 +2489,66 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       _drawBayDoor(_nF, _nA, -0.0003, -_gwR * 0.46, _dCol);
     }
     if (!_gearTires) {
-      const nA = project([_gNx - 0.002, 0, -_wbR + 0.0008]);
-      const nM = project(_midV3(_animGV[0], _animGV[1]));
-      if (nA && nM) faces.push({ avgD: (nA.d+nM.d)/2, draw: () => { ctx.save(); drawStrutTube(ctx, nA, nM, dpr); ctx.restore(); } });
-      /* Two side actuator braces per main gear — fore and aft of strut,
-         each with a hinge knuckle that folds outboard as gear retracts */
+      /* Nose strut — upper barrel (dark metal) + lower barrel (bright silver) */
+      const _nTop = _animGV[0], _nBot = _animGV[1];
+      const _nMid = _midV3(_nTop, _nBot);
+      const pNTop = project(_nTop), pNMid = project(_nMid), pNBot = project(_nBot);
+      if (pNTop && pNMid) faces.push({ avgD: (pNTop.d+pNMid.d)/2, draw: () => {
+        ctx.save();
+        drawStrutTubeCol(ctx, pNTop, pNMid, dpr, 'rgba(72,82,98,0.93)', 'rgba(145,158,175,0.90)');
+        ctx.restore();
+      }});
+      if (pNMid && pNBot) faces.push({ avgD: (pNMid.d+pNBot.d)/2, draw: () => {
+        ctx.save();
+        drawStrutTubeCol(ctx, pNMid, pNBot, dpr, 'rgba(195,208,222,0.94)', 'rgba(235,242,248,0.95)');
+        ctx.restore();
+      }});
+      /* Retraction rod — hinge on forward face of upper barrel, rod to forward well structure */
+      const _nFwdAtt = [_gNx + 0.0015, 0, -_wbR + 0.0004];
+      const pNFwd = project(_nFwdAtt);
+      if (pNFwd && pNMid) faces.push({ avgD: (pNFwd.d+pNMid.d)/2, draw: () => {
+        ctx.save();
+        drawActuatorRod(ctx, pNFwd, pNMid, dpr);
+        ctx.beginPath();
+        ctx.arc(pNMid.x, pNMid.y, Math.max(2.5*dpr, 3.5), 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(120,135,158,0.92)'; ctx.fill();
+        ctx.strokeStyle = 'rgba(200,215,228,0.85)'; ctx.lineWidth = dpr*0.8; ctx.stroke();
+        ctx.restore();
+      }});
+      /* Two side stays per main gear — fore and aft, each articulated with a knee.
+         Lower links from both knees converge at a single strut attachment (~50% depth). */
       const _sActZ   = -_wbR * 0.55;   // upper attachment on belly structure
       const _sActFld = 0.0014 * _gearP; // outboard knee travel when fully retracted
       for (const [sign, gv2, gv3] of [[+1, 2, 3], [-1, 4, 5]]) {
-        const sY    = sign * 0.0009;   // inboard (belly-side) y
-        const strPt = _lerpV3(_animGV[gv2], _animGV[gv3], 0.28);  // 28% down animated strut
-        const knee3 = (a, b) => {
+        const sY     = sign * 0.0004;   // inboard belly attachment, close to centreline
+        const strAtt = _lerpV3(_animGV[gv2], _animGV[gv3], 0.50);  // single strut attachment at 50%
+        const knee3  = (a, b) => {
           const m = _lerpV3(a, b, 0.5);
           return [m[0], m[1] + sign * _sActFld, m[2]];
         };
-        /* Fore brace */
+        /* Fore upper stay */
         const frTop = [_gMx + 0.002, sY, _sActZ];
-        const frBot = [strPt[0] + 0.0008, strPt[1], strPt[2]];
-        const frKne = knee3(frTop, frBot);
-        /* Aft brace */
+        const frKne = knee3(frTop, strAtt);
+        /* Aft upper stay */
         const arTop = [_gMx - 0.002, sY, _sActZ];
-        const arBot = [strPt[0] - 0.0008, strPt[1], strPt[2]];
-        const arKne = knee3(arTop, arBot);
-        const pFrT = project(frTop), pFrK = project(frKne), pFrB = project(frBot);
-        const pArT = project(arTop), pArK = project(arKne), pArB = project(arBot);
-        const _spts = [pFrT, pFrK, pFrB, pArT, pArK, pArB].filter(Boolean);
+        const arKne = knee3(arTop, strAtt);
+        /* Projected points */
+        const pFrT = project(frTop), pFrK = project(frKne);
+        const pArT = project(arTop), pArK = project(arKne);
+        const pAtt = project(strAtt);
+        const _spts = [pFrT, pFrK, pArT, pArK, pAtt].filter(Boolean);
         if (!_spts.length) continue;
         const avgD = _spts.reduce((s, p) => s + p.d, 0) / _spts.length;
         faces.push({ avgD, draw: () => {
           ctx.save();
+          /* Upper stays: belly → knee */
           if (pFrT && pFrK) drawActuatorRod(ctx, pFrT, pFrK, dpr);
-          if (pFrK && pFrB) drawActuatorRod(ctx, pFrK, pFrB, dpr);
           if (pArT && pArK) drawActuatorRod(ctx, pArT, pArK, dpr);
-          if (pArK && pArB) drawActuatorRod(ctx, pArK, pArB, dpr);
-          /* Hinge knuckles */
-          for (const pk of [pFrK, pArK]) {
+          /* Lower stays: knee → strut attachment */
+          if (pFrK && pAtt) drawActuatorRod(ctx, pFrK, pAtt, dpr);
+          if (pArK && pAtt) drawActuatorRod(ctx, pArK, pAtt, dpr);
+          /* Hinge knuckles at each knee + strut convergence point */
+          for (const pk of [pFrK, pArK, pAtt]) {
             if (!pk) continue;
             ctx.beginPath();
             ctx.arc(pk.x, pk.y, Math.max(2.5 * dpr, 3.5), 0, Math.PI * 2);
@@ -2674,6 +2718,32 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       ctx.beginPath();
       ctx.moveTo(ps[0].x, ps[0].y);
       for (let k = 1; k < ps.length; k++) ctx.lineTo(ps[k].x, ps[k].y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  /* ── Cockpit bandit mask — solid black surround, drawn before windows ── */
+  if (_wbGeo?.cockpitMask) {
+    const _cm = _wbGeo.cockpitMask;
+    for (const ySign of [+1, -1]) {
+      if (ySign * _cpCamR < -0.15) continue;
+      const [ax, ay, az] = _cm[0];
+      const [bx, by, bz] = _cm[Math.floor(_cm.length / 3)];
+      const [cx, cy, cz] = _cm[Math.floor(_cm.length * 2 / 3)];
+      const nx = (by-ay)*(cz-az) - (bz-az)*(cy-ay);
+      const ny = (bz-az)*(cx-ax) - (bx-ax)*(cz-az);
+      const nz = (bx-ax)*(cy-ay) - (by-ay)*(cx-ax);
+      if (nx * _cpCamF + ny * (ySign * _cpCamR) + nz * _cpCamU <= 0) continue;
+      const order = [_cm[0], ..._cm.slice(1).reverse()];
+      const vs = order.map(([x, y, z]) => project([x, ySign * y, z]));
+      if (vs.some(v => !v)) continue;
+      ctx.save();
+      ctx.fillStyle = 'rgb(8, 10, 12)';
+      ctx.beginPath();
+      ctx.moveTo(vs[0].x, vs[0].y);
+      for (let i = 1; i < vs.length; i++) ctx.lineTo(vs[i].x, vs[i].y);
       ctx.closePath();
       ctx.fill();
       ctx.restore();

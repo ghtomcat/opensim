@@ -1,0 +1,20 @@
+{
+  "id": "dc8",
+  "name": "Douglas DC-8",
+  "_status": "stub — nose profile only; full geometry TBD",
+  "nose": {
+    "tipX": 0.023,
+    "tipCz": -0.001,
+    "noseRings": [
+      { "vF": 0.0228, "rFrac": 0.200, "col": 2,  "cz": -0.00097, "tilt": 0.25 },
+      { "vF": 0.0222, "rFrac": 0.340, "col": 17, "cz": -0.00091, "tilt": 0.50 },
+      { "vF": 0.0214, "rFrac": 0.495, "col": 5,  "cz": -0.00082, "tilt": 0.70 },
+      { "vF": 0.0199, "rFrac": 0.670, "col": 6,  "cz": -0.00055 },
+      { "vF": 0.0184, "rFrac": 0.820, "col": 4,  "cz": -0.00033 },
+      { "vF": 0.0170, "rFrac": 0.930, "col": 9,  "cz": -0.00017 },
+      { "vF": 0.0160, "rFrac": 0.985, "col": 1,  "cz": -0.00006 },
+      { "vF": 0.0155, "rFrac": 1.000, "col": 10, "cz": 0 }
+    ],
+    "radomeRi": 2
+  }
+}
