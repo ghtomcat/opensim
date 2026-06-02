@@ -2433,14 +2433,15 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
     const _rt = (S.aircraft?.registration ?? '').replace(/[^A-Za-z0-9]/g, '').slice(-2).toUpperCase();
     const _nF = _gNx + _nTR * 1.9, _nA = _gNx - _nTR * 1.9;
-    _drawBayDoor(_nF, _nA,  0.0003,  _gwR * 0.46, _dCol, _rt);
-    _drawBayDoor(_nF, _nA, -0.0003, -_gwR * 0.46, _dCol);
+    _drawBayDoor(_nF, _nA,  0,  _gwR * 0.46, _dCol, _rt);
+    _drawBayDoor(_nF, _nA,  0, -_gwR * 0.46, _dCol);
   }
   if (!isF9 && !isSS && !isSV && (_gearFixed || _gearP > 0.01)) {
     const _wbR   = _wbGeo?.r ?? _r;
     const _midV3 = (a, b) => [(a[0]+b[0])/2, (a[1]+b[1])/2, (a[2]+b[2])/2];
     for (const [a, b] of _GE) {
       if (!_gearTires && a === 0) continue;  // nose strut drawn as two-tone below
+      if (!_gearTires && (a === 2 || a === 4)) continue;  // main struts drawn as two-tone below
       const pa = project(_animGV[a]), pb = project(_animGV[b]);
       if (!pa || !pb) continue;
       faces.push({ avgD: (pa.d+pb.d)/2, draw: () => { ctx.save(); drawStrutTube(ctx, pa, pb, dpr); ctx.restore(); } });
@@ -2535,6 +2536,23 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         ctx.strokeStyle = 'rgba(200,215,228,0.85)'; ctx.lineWidth = dpr*0.8; ctx.stroke();
         ctx.restore();
       }});
+      /* Main struts — two-tone: upper fitting (dark metal) + lower cylinder (bright silver) */
+      for (const [gv2, gv3] of [[2, 3], [4, 5]]) {
+        const _mTop = _animGV[gv2], _mBot = _animGV[gv3];
+        const _mMid = _lerpV3(_mTop, _mBot, 0.50);
+        const pMTop = project(_mTop), pMMid = project(_mMid), pMBot = project(_mBot);
+        if (pMTop && pMMid) faces.push({ avgD: (pMTop.d+pMMid.d)/2, draw: () => {
+          ctx.save();
+          drawStrutTubeCol(ctx, pMTop, pMMid, dpr, 'rgba(72,82,98,0.93)', 'rgba(145,158,175,0.90)');
+          ctx.restore();
+        }});
+        if (pMMid && pMBot) faces.push({ avgD: (pMMid.d+pMBot.d)/2, draw: () => {
+          ctx.save();
+          drawStrutTubeCol(ctx, pMMid, pMBot, dpr, 'rgba(195,208,222,0.94)', 'rgba(235,242,248,0.95)');
+          ctx.restore();
+        }});
+      }
+
       /* Main gear side stays — fore (blue) and aft (green), straight to strut bracket. */
       for (const [sign, gv2, gv3] of [[+1, 2, 3], [-1, 4, 5]]) {
         const strBkt  = _lerpV3(_animGV[gv2], _animGV[gv3], 0.502);
@@ -2553,57 +2571,25 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         const avgD = _spts.reduce((s, p) => s + p.d, 0) / _spts.length;
         faces.push({ avgD, draw: () => {
           ctx.save();
-          if (pFrT && pBkt) drawActuatorRodCol(ctx, pFrT, pBkt, dpr, 'rgba(50,110,230,0.92)', 'rgba(130,175,255,0.88)');
-          if (pArT && pBkt) drawActuatorRodCol(ctx, pArT, pBkt, dpr, 'rgba(50,185,80,0.92)',  'rgba(130,230,150,0.88)');
-          /* Red struts from upper bracket (19.2%) to midpoint knuckles */
-          if (pBkt2 && pFrM) drawActuatorRodCol(ctx, pBkt2, pFrM, dpr, 'rgba(210,50,50,0.92)', 'rgba(255,140,130,0.88)');
-          if (pBkt2 && pArM) drawActuatorRodCol(ctx, pBkt2, pArM, dpr, 'rgba(210,50,50,0.92)', 'rgba(255,140,130,0.88)');
-          /* Knuckles at red strut midpoints */
-          for (const pk of [pRFrM, pRArM]) {
-            if (!pk) continue;
-            const kr = Math.max(3.5 * dpr, 5);
-            ctx.beginPath();
-            ctx.arc(pk.x, pk.y, kr, 0, Math.PI * 2);
+          if (pFrT && pBkt) drawActuatorRod(ctx, pFrT, pBkt, dpr);
+          if (pArT && pBkt) drawActuatorRod(ctx, pArT, pBkt, dpr);
+          /* Struts from upper bracket (19.2%) to midpoint knuckles */
+          if (pBkt2 && pFrM) drawActuatorRod(ctx, pBkt2, pFrM, dpr);
+          if (pBkt2 && pArM) drawActuatorRod(ctx, pBkt2, pArM, dpr);
+          /* All knuckles — size derived from stay screen length, vanish naturally when zoomed out */
+          const _stayPx = pFrT && pBkt ? Math.hypot(pBkt.x-pFrT.x, pBkt.y-pFrT.y) : 0;
+          const _drawKnuckle = (pk, r) => {
+            if (!pk || r < 2) return;
+            ctx.beginPath(); ctx.arc(pk.x, pk.y, r, 0, Math.PI*2);
             ctx.fillStyle = 'rgba(130,142,160,0.96)'; ctx.fill();
-            ctx.strokeStyle = 'rgba(220,228,238,0.95)'; ctx.lineWidth = Math.max(1.2*dpr, 1.5); ctx.stroke();
-            ctx.beginPath();
-            ctx.arc(pk.x, pk.y, kr * 0.38, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(220,228,238,0.95)'; ctx.lineWidth = Math.max(1*dpr, 1.2); ctx.stroke();
+            ctx.beginPath(); ctx.arc(pk.x, pk.y, r*0.38, 0, Math.PI*2);
             ctx.fillStyle = 'rgba(18,20,26,0.95)'; ctx.fill();
-          }
-          /* Knuckles at stay midpoints */
-          for (const pk of [pFrM, pArM]) {
-            if (!pk) continue;
-            const kr = Math.max(3.5 * dpr, 5);
-            ctx.beginPath();
-            ctx.arc(pk.x, pk.y, kr, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(130,142,160,0.96)'; ctx.fill();
-            ctx.strokeStyle = 'rgba(220,228,238,0.95)'; ctx.lineWidth = Math.max(1.2*dpr, 1.5); ctx.stroke();
-            ctx.beginPath();
-            ctx.arc(pk.x, pk.y, kr * 0.38, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(18,20,26,0.95)'; ctx.fill();
-          }
-          /* Second strut attachment (19.2% from top) */
-          if (pBkt2) {
-            const br = Math.max(5 * dpr, 7);
-            ctx.beginPath();
-            ctx.arc(pBkt2.x, pBkt2.y, br, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(130,142,160,0.96)'; ctx.fill();
-            ctx.strokeStyle = 'rgba(220,228,238,0.95)'; ctx.lineWidth = Math.max(1.5*dpr, 2); ctx.stroke();
-            ctx.beginPath();
-            ctx.arc(pBkt2.x, pBkt2.y, br * 0.38, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(18,20,26,0.95)'; ctx.fill();
-          }
-          /* Strut bracket — thick lug with bolt hole */
-          if (pBkt) {
-            const br = Math.max(5 * dpr, 7);
-            ctx.beginPath();
-            ctx.arc(pBkt.x, pBkt.y, br, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(130,142,160,0.96)'; ctx.fill();
-            ctx.strokeStyle = 'rgba(220,228,238,0.95)'; ctx.lineWidth = Math.max(1.5*dpr, 2); ctx.stroke();
-            ctx.beginPath();
-            ctx.arc(pBkt.x, pBkt.y, br * 0.38, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(18,20,26,0.95)'; ctx.fill();
-          }
+          };
+          _drawKnuckle(pBkt,  _stayPx * 0.10);
+          _drawKnuckle(pBkt2, _stayPx * 0.10);
+          for (const pk of [pFrM, pArM])   _drawKnuckle(pk, _stayPx * 0.07);
+          for (const pk of [pRFrM, pRArM]) _drawKnuckle(pk, _stayPx * 0.07);
           ctx.restore();
         }});
 
