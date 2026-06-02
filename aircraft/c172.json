@@ -1,7 +1,7 @@
 {
   "id": "c172",
-  "render": "c172",
-  "gear": { "fixed": true, "tires": [[1, 0.001008], [3, 0.001176], [5, 0.001176]] },
+  "render": "propplane",
+  "gear": { "fixed": true, "tires": [[1, 0.000321], [3, 0.000222, 0.000082], [5, 0.000222, 0.000082]] },
   "name": "Cessna 172S Skyhawk",
   "clock": "digital",
   "approachSpeed": 65,
@@ -447,6 +447,104 @@
       "red": false
     }
   ],
+  "propplane": {
+    "fuselage": {
+      "rings": [
+        { "x":  0.003298, "r": 0.000642, "col": 0 },
+        { "x":  0.002794, "r": 0.000795, "col": 0 },
+        { "x":  0.001075, "ry": 0.001070, "rz": 0.001147 },
+        { "x": -0.000131, "r": 0.000949 },
+        { "x": -0.009117, "r": 0.000642 },
+        { "x": -0.010684, "r": 0.000346 }
+      ],
+      "noseTipX":  0.004238,
+      "tailTipX": -0.011680
+    },
+    "wing": {
+      "span":        0.011031,
+      "rootY":       0.001133,
+      "position":    "high",
+      "struts":      true,
+      "tipDihedral": 0,
+      "rootZ":       0.001698,
+      "rootLE":      0.000000,
+      "rootTE":     -0.003588,
+      "tipLE":      -0.000785,
+      "tipTE":      -0.003018,
+      "rootThick":   0.000215,
+      "tipThick":    0.000134,
+      "flapBreak":   0.406,
+      "flapHinge":   0.65,
+      "strutX":           0.001060,
+      "strutY":           0.004803,
+      "strutChord":       0.000330,
+      "strutThick":       0.000116,
+      "strutBotX":        0.001230,
+      "strutAttachChord": 0.000322
+    },
+    "empennage": {
+      "vstab": {
+        "baseFwdX":   -0.009117,
+        "baseAftX":   -0.011317,
+        "topFwdX":    -0.009379,
+        "topAftX":    -0.010779,
+        "topFwdZ":     0.002736,
+        "topAftZ":     0.002636,
+        "rudderHinge": 0.62,
+        "thickness":   0.000220
+      },
+      "hstab": {
+        "span":          0.003386,
+        "rootFwdX":     -0.008948,
+        "rootAftX":     -0.011625,
+        "tipFwdX":      -0.009606,
+        "tipAftX":      -0.011160,
+        "tipZ":          0,
+        "thickness":     0.000250,
+        "elevatorHinge": 0.60
+      }
+    },
+    "spinner": {
+      "radius": 0.000279,
+      "x":      0.003298
+    },
+    "propDiskRadius": 0.002201,
+    "nBlades": 2,
+    "cabin": {
+      "sillZ": 0.000874,
+      "rearWindowX": -0.004662,
+      "rearWindowBotHalfY": 0.000701,
+      "windshield": {
+        "baseX": 0.002015,
+        "topX":  0.000000,
+        "topZ":  0.001698,
+        "halfY": 0.001052
+      },
+      "intake": {
+        "halfY": 0.000595,
+        "halfZ": 0.000293
+      },
+      "doorWindow": {
+        "frontXOffset": 0.000250,
+        "width":        0.001572,
+        "botFrontZ":    0.000761,
+        "botBackZ":     0.000587,
+        "height":       0.000832,
+        "chamfer":      0.000120
+      },
+      "doorBottomZ":   -0.000800,
+      "doorBotChamfer": 0.000060
+    },
+    "gear": {
+      "noseFwdX":      0.002000,
+      "noseWheelDrop": 0.000808,
+      "mainFwdX":     -0.000584,
+      "mainSpan":      0.002565,
+      "mainAttachY":   0.000352,
+      "mainAttachZ":   0.000282,
+      "mainWheelDrop": 0.000748
+    }
+  },
   "pmCallouts": [
     {
       "alt": 5000,

@@ -9,6 +9,7 @@ import { renderTerrain } from './terrain.js';
 import { getMapReservedRight } from './map.js';
 import { moonECI } from '../core/rocket.js';
 import { buildWingSurface, computeFaceNormals, _buildRocket, animHinge } from './outside-shared.js';
+import { _buildPP, _acPropFromJson } from './outside-pp.js';
 import {
   _r, _nr1, _nr2, _nr3, _hs, _ey, _ez, _pz, _er, _e7, _efr, _ef7, _erc, _e7c, _wr, _dh,
   _WB_WING_DEFAULT, _WB_NP, _buildWB, _acGeoFromJson, _wbCache,
@@ -123,6 +124,9 @@ const _GEO_REGISTRY = {
   falcon9:    { V_: _V_f9,    F_: _F_f9,    FC_: _FC_f9,    FN_: _FN_f9,    E_: _E_f9,    COL_: _COLORS_f9,    GV_: _GV       },
   'saturn-v': { V_: _V_sv,    F_: _F_sv,    FC_: _FC_sv,    FN_: _FN_sv,    E_: _E_sv,    COL_: _COLORS_sv,    GV_: _GV       },
 };
+
+/* Cache for prop-plane geometry, keyed by aircraft id (built once per aircraft). */
+const _ppCache = {};
 
 /* Per-aircraft control-surface animators. The C172/warbird family shares the
    command model below; each module owns the hinge geometry. */
@@ -603,7 +607,8 @@ function _drawIntakeBlackStrip(ctx, hubPt, rimPt, dpr, foreshorten = 1, fsAngle 
    rimPt  projected rim vertex (sets disk radius in pixels)
    power  enginePower 0→1 (0=static blades, <0.30=slow, ≥0.30=blur disk)
    nBlades  fan blade count (22 typical CFM56 / LEAP)                        */
-let _fanAngle = 0;
+let _fanAngle  = 0;
+let _propAngle = Math.PI * 0.5;
 /* Stage separation state — reassigned from _drawWireframe; kept here (not in outside-space.js)
    because ES module exports cannot be reassigned by importers. */
 let _svSepLastAcId = null;
@@ -723,7 +728,12 @@ function _fanEllipse(ringPts) {
 /* ── Core wireframe + shading renderer ───────────────────────── */
 function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, wingView = false, orbitAzDeg = 0, orbitElDeg = 0, panX = 0) {
   /* Advance fan rotation angle — capped so it doesn't spin during static frames */
-  _fanAngle = (_fanAngle + Math.min(0.06, (S.enginePower ?? 0) * 0.35)) % (Math.PI * 2);
+  _fanAngle  = (_fanAngle  + Math.min(0.06, (S.enginePower ?? 0) * 0.35)) % (Math.PI * 2);
+  if (S.engineState === 'running' || S.engineState === 'starting') {
+    const _cruiseSpd = S.aircraft?.envelope?.cruiseSpd ?? 122;
+    const _throttle  = Math.min(1, Math.max(0, (S.spdT ?? 0) / _cruiseSpd));
+    _propAngle = (_propAngle + (0.25 + 0.75 * _throttle) * 0.08) % (Math.PI * 2);
+  }
 
   /* Single-valued render profile (from aircraft JSON "render" field, with
      id/panel fallback). The is* flags are mutually exclusive by construction. */
@@ -735,6 +745,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const isBf109 = profile === 'bf109';
   const isF4U   = profile === 'f4u';
   const isMig15 = profile === 'mig15';
+  const isPP    = profile === 'propplane';
 
   /* Starship / Super Heavy — build from aircraft.rocketGeometry on first use */
   const _ssRocketCache = _ssRocketCache_mut;
@@ -744,6 +755,13 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   }
   const _ssGeo = isSS ? (_ssRocketCache_mut[S.aircraft?.id] ?? null) : null;
 
+  /* Prop-plane geometry — build once per aircraft id, cache permanently */
+  if (isPP && S.aircraft?.propplane) {
+    const _id = S.aircraft.id;
+    if (!_ppCache[_id]) _ppCache[_id] = _buildPP(_acPropFromJson(S.aircraft));
+  }
+  const _ppGeo = isPP ? (_ppCache[S.aircraft?.id] ?? null) : null;
+
   /* Rebuild geometry every frame (no cache) — re-enable cache when geometry is final */
   if (S.aircraft?.nose) {
     const _acId   = S.aircraft.id;
@@ -751,17 +769,17 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     _geo2.FN_ = computeFaceNormals(_geo2.V_, _geo2.F_);
     _wbCache[_acId] = _geo2;
   }
-  const _wbGeo = (!isC172 && !isF9 && !isBf109 && !isF4U && !isMig15 && !isSV && !isSS)
+  const _wbGeo = (!isC172 && !isF9 && !isBf109 && !isF4U && !isMig15 && !isSV && !isSS && !isPP)
     ? (_wbCache[S.aircraft?.id] ?? _wbCache.default) : null;
   const _b   = _wbGeo?.b ?? 162;  // base index of non-tube vertices; 162 for nNose=5, 194 for nNose=7
-  /* Static geometry comes from the registry; Starship (_ssGeo) and the
-     default body (_wbGeo) are built per-frame and resolved here. */
+  /* Static geometry comes from the registry; Starship (_ssGeo), prop-plane (_ppGeo),
+     and the default body (_wbGeo) are built per-frame / on-demand and resolved here. */
   const _reg = _GEO_REGISTRY[profile];
-  const V_   = _reg ? _reg.V_  : isSS ? (_ssGeo?.V_  ?? []) : _wbGeo.V_;
-  const F_   = _reg ? _reg.F_  : isSS ? (_ssGeo?.F_  ?? []) : _wbGeo.F_;
-  const FC_  = _reg ? _reg.FC_ : isSS ? (_ssGeo?.FC_ ?? []) : _wbGeo.FC_;
-  const FN_  = _reg ? _reg.FN_ : isSS ? (_ssGeo?.FN_ ?? []) : _wbGeo.FN_;
-  const E_   = _reg ? _reg.E_  : isSS ? (_ssGeo?.E_  ?? []) : _wbGeo.E_;
+  const V_   = _reg ? _reg.V_  : isPP ? (_ppGeo?.V_  ?? []) : isSS ? (_ssGeo?.V_  ?? []) : _wbGeo.V_;
+  const F_   = _reg ? _reg.F_  : isPP ? (_ppGeo?.F_  ?? []) : isSS ? (_ssGeo?.F_  ?? []) : _wbGeo.F_;
+  const FC_  = _reg ? _reg.FC_ : isPP ? (_ppGeo?.FC_ ?? []) : isSS ? (_ssGeo?.FC_ ?? []) : _wbGeo.FC_;
+  const FN_  = _reg ? _reg.FN_ : isPP ? (_ppGeo?.FN_ ?? []) : isSS ? (_ssGeo?.FN_ ?? []) : _wbGeo.FN_;
+  const E_   = _reg ? _reg.E_  : isPP ? (_ppGeo?.E_  ?? []) : isSS ? (_ssGeo?.E_  ?? []) : _wbGeo.E_;
   const SE_  = _wbGeo?.SE_ ?? [];
   const SL_  = _wbGeo?.SL_ ?? [];
   const _livCol    = S.aircraft?.livery?.colors;
@@ -771,12 +789,13 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
      slots 4 (engine body) and 7 (TR zone). Always a new array so downstream
      callers can't mutate _COLORS. */
   const COL_ = _reg ? _reg.COL_
-             : isSS ? (_ssGeo?.COLORS_ ?? [])
+             : isPP  ? (_ppGeo?.COL_ ?? [])
+             : isSS  ? (_ssGeo?.COLORS_ ?? [])
              : _COLORS.map((c, i) => {
                  if (_nacPaint  && (i === 4 || i === 7)) return _nacPaint;
                  return _livCol?.[i] ?? c;
                });
-  const GV_  = _reg ? _reg.GV_ : _GV;
+  const GV_  = _reg ? _reg.GV_ : isPP ? (_ppGeo?.GV_ ?? _GV) : _GV;
 
   const P = acPitchDeg * DEG, R = acRollDeg * DEG;
   const cosP = Math.cos(P), sinP = Math.sin(P);
@@ -1002,6 +1021,9 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   if (_ctrlAnim) {
     const cmd = _warbirdCtrlCmd(S.aircraft?.handling?.maxBank ?? 60);
     if (cmd.active) verts = _ctrlAnim(cmd);
+  } else if (isPP && _ppGeo) {
+    const cmd = _warbirdCtrlCmd(S.aircraft?.handling?.maxBank ?? 60);
+    verts = _ppGeo.animSurfaces({ ...cmd, propAngle: _propAngle });
   } else if (profile === 'wb') {
     const flap   = S.flaps ?? 0;
     const sb     = S.speedBrake ?? 0;
@@ -1166,8 +1188,8 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const alt_nm   = (S.alt ?? 0) * FT_NM;
   const _svRise  = Math.max(0, alt_nm - (S.mission?.departure?.elevation ?? 0) * FT_NM);
   if (alt_nm < 0.082) {
-    const silVI  = isC172
-      ? [80, 84, 85, 81, 89, 88]                   // C172: nose(80), R tip, tail(81), L tip
+    const silVI  = (isC172 || isPP)
+      ? [80, 84, 85, 81, 89, 88]                   // C172/PP: nose(80), R tip, tail(81), L tip
       : isF9
       ? [96, 100, 0, 8, 108]                       // F9: nose, fin dorsal, aft top/bot, fin ventral
       : isBf109
@@ -1361,7 +1383,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const _DBG_CULL   = false;  // ← set true to paint front=blue, back=red
   const _DBG_PANELS = false;  // ← set true to label cockpitPanel corners with coords
 
-  const _trActive = !isF9 && !isSS && !isSV && !isC172 && !isBf109 && !isF4U && !isMig15 && !!(S.thrustReverser);
+  const _trActive = !isF9 && !isSS && !isSV && !isC172 && !isPP && !isBf109 && !isF4U && !isMig15 && !!(S.thrustReverser);
 
   /* Build shaded face list with average depth */
   const faces = F_.map((fi, i) => {
@@ -2015,7 +2037,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   }
 
   /* Engine overlays: thrust-reverser cascade + chevrons */
-  if (!isF9 && !isSS && !isSV && !isC172 && !isBf109 && !isF4U && !isMig15) _engineOverlays(pts, faces, S.aircraft?.engine, _b);
+  if (!isF9 && !isSS && !isSV && !isC172 && !isPP && !isBf109 && !isF4U && !isMig15) _engineOverlays(pts, faces, S.aircraft?.engine, _b);
 
   /* Outer engine nacelles — 4-engine WB aircraft (A340 etc.) with ey2 defined */
   const _oey2 = _wbGeo?.ey2;
@@ -2440,17 +2462,15 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     const _wbR   = _wbGeo?.r ?? _r;
     const _midV3 = (a, b) => [(a[0]+b[0])/2, (a[1]+b[1])/2, (a[2]+b[2])/2];
     for (const [a, b] of _GE) {
+      if (isPP && _ppGeo?.gearTubes) continue;  // drawn as 3D faces in F_
       if (!_gearTires && a === 0) continue;  // nose strut drawn as two-tone below
       if (!_gearTires && (a === 2 || a === 4)) continue;  // main struts drawn as two-tone below
       const pa = project(_animGV[a]), pb = project(_animGV[b]);
       if (!pa || !pb) continue;
       faces.push({ avgD: (pa.d+pb.d)/2, draw: () => { ctx.save(); drawStrutTube(ctx, pa, pb, dpr); ctx.restore(); } });
     }
-    /* Landing-gear bay doors — flush curved panels that conform to the lower skin.
-       Main bay sits in the fairing near the keel (the wing gear retracts inboard,
-       so these stay closed with the leg outboard when the gear is down); nose bay
-       on the lower fuselage, split either side of the nose leg. */
-    {
+    /* Landing-gear bay doors — retractable-gear aircraft only. */
+    if (!_gearFixed) {
       const _dCol = 'rgba(228,230,234,0.96)';
       const _nz   = (v, e) => { const y=v[1], z=v[2], rho=Math.hypot(y,z)||1; return [v[0], y+(y/rho)*e, z+(z/rho)*e]; };
       /* Curved door panel: sampled M×2 along (x, param s) so it follows the fairing
@@ -2625,9 +2645,9 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       }
     }
     if (_gearTires) {
-      for (const [vi, tR] of _gearTires) {
+      for (const [vi, tR, hubR] of _gearTires) {
         const wc = GV_[vi], pt = project(wc);
-        if (pt) faces.push({ avgD: pt.d, draw: () => { ctx.save(); drawVolumetricTire(ctx, wc, tR, project); ctx.restore(); } });
+        if (pt) faces.push({ avgD: pt.d, draw: () => { ctx.save(); drawVolumetricTire(ctx, wc, tR, project, hubR); ctx.restore(); } });
       }
     } else {
       const _gearCfg   = S.aircraft?.gear ?? {};
@@ -3147,27 +3167,167 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
   }
 
-  /* Prop disk — propeller aircraft, only while engine running. Hub/tip anchor
-     vertices come from the aircraft's geometry module via the registry. */
-  if (_reg?.prop && S.engineState === 'running') {
-    const p0    = pts[_reg.prop.hub];
-    const pProp = pts[_reg.prop.tip];
-    if (p0 && pProp) {
-      const r = Math.hypot(pProp.x - p0.x, pProp.y - p0.y);
+  /* Cowl air intake — black oval at the spinner face plane */
+  if (isPP && _ppGeo?.cabinVerts?.intakeCtr != null) {
+    const cv = _ppGeo.cabinVerts;
+    const pCtr = pts[cv.intakeCtr], pPY = pts[cv.intakeCtr + 1], pPZ = pts[cv.intakeCtr + 2];
+    if (pCtr && pPY && pPZ) {
+      faces.push({ avgD: pCtr.d, draw: () => {
+        const dyx = pPY.x - pCtr.x, dyy = pPY.y - pCtr.y;
+        const dzx = pPZ.x - pCtr.x, dzy = pPZ.y - pCtr.y;
+        ctx.save(); ctx.beginPath();
+        for (let i = 0; i <= 32; i++) {
+          const θ = i * Math.PI * 2 / 32;
+          const px = pCtr.x + dyx * Math.cos(θ) + dzx * Math.sin(θ);
+          const py = pCtr.y + dyy * Math.cos(θ) + dzy * Math.sin(θ);
+          i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(10,12,16,0.97)'; ctx.fill();
+        ctx.restore();
+      }});
+    }
+  }
+
+  /* Prop — static blades (engine off) or blur disk (engine running).
+     Hub/tip/ztip anchors come from the geometry module. */
+  const _propAnchors = _reg?.prop ?? _ppGeo?.prop ?? null;
+  if (_propAnchors) {
+    const p0    = pts[_propAnchors.hub];
+    const pTip  = pts[_propAnchors.tip];
+    const pZtip = _propAnchors.ztip != null ? pts[_propAnchors.ztip] : null;
+    if (p0 && pTip) {
+      const r = Math.hypot(pTip.x - p0.x, pTip.y - p0.y);
       if (r > 2) {
+        const ePow    = S.enginePower ?? 0;
+        const running = S.engineState === 'running' || S.engineState === 'starting';
+        const blur    = running && ePow >= 0.3;
+
+        // Y and Z axes of the prop disk in screen space, scaled by r
+        const dyx = pTip.x - p0.x, dyy = pTip.y - p0.y;
+        const dzx = pZtip ? pZtip.x - p0.x : -dyy;
+        const dzy = pZtip ? pZtip.y - p0.y :  dyx;
+
         ctx.save();
-        ctx.fillStyle = 'rgba(200,210,220,0.22)';
-        ctx.beginPath(); ctx.arc(p0.x, p0.y, r, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = 'rgba(200,215,225,0.70)';
-        ctx.lineWidth = Math.max(1, devicePixelRatio);
-        ctx.beginPath(); ctx.arc(p0.x, p0.y, r, 0, Math.PI * 2); ctx.stroke();
+        if (blur) {
+          ctx.fillStyle   = 'rgba(200,210,220,0.22)';
+          ctx.beginPath(); ctx.arc(p0.x, p0.y, r, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = 'rgba(200,215,225,0.70)';
+          ctx.lineWidth   = Math.max(1, devicePixelRatio);
+          ctx.beginPath(); ctx.arc(p0.x, p0.y, r, 0, Math.PI * 2); ctx.stroke();
+        } else if (!isPP) {
+          // PP blades are 3D geometry in V_/F_ — skip canvas drawing; only non-PP gets 2D blades + cap
+          const nBlades  = S.aircraft?.propplane?.nBlades ?? 2;
+          const _ppSpec  = S.aircraft?.propplane;
+          const hubFrac  = (_ppSpec?.spinner?.radius && _ppSpec?.propDiskRadius)
+            ? _ppSpec.spinner.radius / _ppSpec.propDiskRadius : 0.13;
+          const inset    = hubFrac * 0.8;
+          ctx.fillStyle   = 'rgba(45,47,52,0.95)';
+          ctx.strokeStyle = 'rgba(25,27,30,0.85)';
+          ctx.lineWidth   = Math.max(0.8, devicePixelRatio * 0.7);
+          for (let i = 0; i < nBlades; i++) {
+            const θ    = _propAngle + i * Math.PI * 2 / nBlades;
+            const cosθ = Math.cos(θ), sinθ = Math.sin(θ);
+            const tx   = p0.x + dyx * cosθ + dzx * sinθ;
+            const ty   = p0.y + dyy * cosθ + dzy * sinθ;
+            const ix   = p0.x - (dyx * cosθ + dzx * sinθ) * inset;
+            const iy   = p0.y - (dyy * cosθ + dzy * sinθ) * inset;
+            const cpx  = -dyx * sinθ + dzx * cosθ;
+            const cpy  = -dyy * sinθ + dzy * cosθ;
+            const cl   = Math.hypot(cpx, cpy) || 1;
+            const cux  = cpx / cl, cuy = cpy / cl;
+            const rw   = r * 0.09, tw = r * 0.04;
+            ctx.beginPath();
+            ctx.moveTo(ix + cux * rw, iy + cuy * rw);
+            ctx.lineTo(tx + cux * tw, ty + cuy * tw);
+            ctx.lineTo(tx - cux * tw, ty - cuy * tw);
+            ctx.lineTo(ix - cux * rw, iy - cuy * rw);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+          }
+          const hubPx = r * hubFrac;
+          ctx.beginPath(); ctx.arc(p0.x, p0.y, hubPx, 0, Math.PI * 2);
+          ctx.fillStyle   = 'rgba(215,218,222,0.97)';
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(130,138,150,0.85)';
+          ctx.lineWidth   = Math.max(0.8, devicePixelRatio * 0.6);
+          ctx.stroke();
+        }
         ctx.restore();
       }
     }
   }
 
+  /* Rear window vertex debug labels */
+  if (isPP && _ppGeo?.cabinVerts?.rwR != null) {
+    const rw = _ppGeo.cabinVerts.rwR;
+    const _rwLabels = [[rw,'r0TL'],[rw+1,'r1TR'],[rw+2,'r2BL'],[rw+3,'r3BR'],[rw+4,'r4TC'],[rw+5,'r5BC']];
+    const lfs2 = Math.round(8 * devicePixelRatio);
+    ctx.save();
+    ctx.font = `bold ${lfs2}px monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const [vi, label] of _rwLabels) {
+      const p = pts[vi]; if (!p) continue;
+      const tw = label.length * lfs2 * 0.62;
+      ctx.fillStyle = 'rgba(0,0,0,0.80)';
+      ctx.fillRect(p.x - tw*0.5, p.y - lfs2*0.7, tw, lfs2*1.4);
+      ctx.fillStyle = 'rgba(255,220,80,1)';
+      ctx.fillText(label, p.x, p.y);
+      ctx.beginPath(); ctx.arc(p.x, p.y, 2.5*devicePixelRatio, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(255,80,40,1)'; ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /* Windshield vertex debug labels */
+  if (isPP && _ppGeo?.cabinVerts?.wsBL != null) {
+    const bL = _ppGeo.cabinVerts.wsBL;
+    const _wsLabels = [[bL,'BL'],[bL+1,'BR'],[bL+2,'TR'],[bL+3,'TL'],[bL+4,'IBL'],[bL+5,'IBR']];
+    const lfs = Math.round(8 * devicePixelRatio);
+    ctx.save();
+    ctx.font = `bold ${lfs}px monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const [vi, label] of _wsLabels) {
+      const p = pts[vi]; if (!p) continue;
+      const tw = label.length * lfs * 0.62;
+      ctx.fillStyle = 'rgba(0,0,0,0.80)';
+      ctx.fillRect(p.x - tw*0.5, p.y - lfs*0.7, tw, lfs*1.4);
+      ctx.fillStyle = 'rgba(80,220,255,1)';
+      ctx.fillText(label, p.x, p.y);
+      ctx.beginPath(); ctx.arc(p.x, p.y, 2.5*devicePixelRatio, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(255,80,40,1)'; ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /* PP aircraft: cabin structural edges — windshield, pillars, roofline, windows, door detail */
+  if (isPP && _ppGeo) {
+    const cv = _ppGeo.cabinVerts;
+    const firstCabin = cv?.wsBL;
+    if (firstCabin != null) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(0,0,0,0.90)';
+      ctx.lineWidth = Math.max(1.4, devicePixelRatio * 1.2);
+      ctx.beginPath();
+      const V0 = _ppGeo.V_;
+      for (const [ea, eb] of _ppGeo.E_) {
+        if (ea < firstCabin && eb < firstCabin) continue;
+        const pa = pts[ea], pb = pts[eb];
+        if (!pa || !pb) continue;
+        // Back-face cull: skip edges on the side facing away from camera
+        const avgY = (V0[ea][1] + V0[eb][1]) * 0.5;
+        if (avgY < -0.000001 && camSide > 0) continue;
+        if (avgY >  0.000001 && camSide < 0) continue;
+        ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
   /* Turbofan fan face — wide-body (WB) aircraft only */
-  if (!isC172 && !isF9 && !isSS && !isBf109 && !isF4U && !isMig15 && !isSV) {
+  if (!isC172 && !isPP && !isF9 && !isSS && !isBf109 && !isF4U && !isMig15 && !isSV) {
     const ePow = S.enginePower ?? 0;
     if (ePow > 0 || S.engineState === 'running') {
       /* Draw one engine inlet: dark bore + black strip + recessed fan (fitted to
@@ -3598,7 +3758,7 @@ ctx.save();
 
 
   /* Passenger windows + door outlines — wide-body only, properly perspective-projected */
-  if (!isF9 && !isSV && !isSS && !isC172 && !isBf109 && !isF4U && !isMig15) {
+  if (!isF9 && !isSV && !isSS && !isC172 && !isPP && !isBf109 && !isF4U && !isMig15) {
     const _fr = _wbGeo?.r ?? _r;
     /* Wing occlusion (no depth buffer): the windows/doors are a post-painter pass, so
        the near wing can't hide the fuselage rows behind it. Collect the visible
@@ -3797,6 +3957,7 @@ ctx.save();
 
   /* Aircraft lights — WB tip positions derived from wing geometry */
   const _lightList = isC172 ? (S.masterBat ? _LIGHTS_c172 : null)
+    : isPP ? (S.masterBat ? (_ppGeo?.LIGHTS_ ?? null) : null)
     : (!isF9 && !isSS && !isBf109 && !isF4U && !isMig15 && !isSV) ? (() => {
         if (!_wbGeo) return _LIGHTS_wb;
         const _lwg = S.aircraft?.wing ?? _WB_WING_DEFAULT;
