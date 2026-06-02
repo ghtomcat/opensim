@@ -3195,7 +3195,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         _drawIntakeBlackStrip(ctx, lipHub, rim, dpr, fs, ang);
         /* Fan blades only when looking into the intake — hidden edge-on/side-on
            (you can't see down a turbofan inlet from abeam). */
-        if (e && fs >= 0.45) {
+        if (e && fs >= 0.25) {
           const maj = e.majorR * fanScale;
           if (maj > 3) _drawTurbofanFace(ctx, { x: e.cx, y: e.cy },
             { x: e.cx + maj, y: e.cy }, ePow, dpr, 22, fs, ang);
@@ -3225,10 +3225,10 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
          Fan ring is the fan cowl (≈1.2× bore), so scale 0.83 → bore-sized fan. */
       const _rHub = pts[_b+158], _rFan = pts[_b+28];
       const _lHub = pts[_b+159], _lFan = pts[_b+68];
-      if (_rHub && _rFan && _rHub.d < _rFan.d && _rHub.d < _fusCullD && _cpCamF > 0.35)
+      if (_rHub && _rFan && _rHub.d < _rFan.d && _rHub.d < _fusCullD && _cpCamF > 0.10)
         _drawEngineInlet(_rHub, _ringRad(_rHub, [20,21,22,23,24,25,26,27]),
           [28,29,30,31,32,33,34,35].map(i=>pts[_b+i]).filter(Boolean), 0.83);
-      if (_lHub && _lFan && _lHub.d < _lFan.d && _lHub.d < _fusCullD && _cpCamF > 0.35)
+      if (_lHub && _lFan && _lHub.d < _lFan.d && _lHub.d < _fusCullD && _cpCamF > 0.10)
         _drawEngineInlet(_lHub, _ringRad(_lHub, [60,61,62,63,64,65,66,67]),
           [68,69,70,71,72,73,74,75].map(i=>pts[_b+i]).filter(Boolean), 0.83);
 
@@ -3242,7 +3242,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
           const lipRim = project([0.005 + _ex2, ySign * _ey2, _ez2 + _er2]);
           const fanHub = project([0.001 + _ex2, ySign * _ey2, _ez2]);
           if (!lipHub || !lipRim || !fanHub) return;
-          if (!(lipHub.d < fanHub.d && lipHub.d < _fusCullD && _cpCamF > 0.35)) return;
+          if (!(lipHub.d < fanHub.d && lipHub.d < _fusCullD && _cpCamF > 0.10)) return;
           _drawEngineInlet(lipHub, Math.hypot(lipRim.x - lipHub.x, lipRim.y - lipHub.y),
             _projRing(0.001 + _ex2, ySign * _ey2, _ez2, _er2), 0.82);
         };

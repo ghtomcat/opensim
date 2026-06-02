@@ -88,6 +88,8 @@
   },
   "geometry": {
     "tailX": -0.0388,
+    "vstabZ": 0.00960,
+    "hstabY": 0.00833,
     "engineR": 0.00156,
     "engineRC": 0.001384,
     "engineLen": 0.9766,
@@ -105,7 +107,17 @@
   },
   "gear": {
     "nose": { "x": 0.01925, "len": 0.001983, "tireR": 0.000494, "hubR": 0.000231 },
-    "main": { "tireR": 0.000607, "len": 0.003197 }
+    "main": { "tireR": 0.000607, "len": 0.003197, "axles": 2 }
+  },
+  "bellyFairing": {
+    "fromX": 0.005782,
+    "toX": -0.013893,
+    "maxWidth": 0.002535,
+    "maxDepth": 0.000471
+  },
+  "doors": [0.016450, 0.006790],
+  "dimensions": {
+    "windowsBetweenDoor1and2": 14
   },
   "envelope": {
     "cruiseAlt": 35000,

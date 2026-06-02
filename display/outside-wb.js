@@ -62,7 +62,8 @@ export function _buildWB(np) {
   /* Per-aircraft overrides fall back to module globals so existing profiles are unchanged */
   const tailX  = np.tailX ?? -0.021;
   const ts     = tailX / -0.021;
-  const vstabZ = np.vstabZ ?? 0.008;  // V-stab tip height (z, above fuselage centre)
+  const vstabZ  = np.vstabZ  ?? 0.008;  // V-stab tip height (z, above fuselage centre)
+  const hstabY  = np.hstabY  ?? 0.008;  // H-stab tip half-span (y, from fuselage centre)
   const r   = np.r   ?? _r;
   const nr2 = r * 0.7071;
   const nr3 = r * 0.9239;
@@ -195,12 +196,12 @@ export function _buildWB(np) {
     [-0.021*ts,  0,        vstabZ-0.001],//b+11 V-stab top aft
     [-0.017*ts,  nr3,      0.0      ],  //  b+12 R h-stab root fwd
     [-0.0175*ts, nr2,      0.0      ],  //  b+13 R h-stab root aft
-    [-0.019*ts,  0.008,    0.001    ],  //  b+14 R h-stab tip fwd  (30° LE sweep)
-    [-0.0175*ts, 0.008,    0.001    ],  //  b+15 R h-stab tip aft
-    [-0.017*ts, -nr3,      0.0      ],  //  b+16 L h-stab root fwd
-    [-0.0175*ts,-nr2,      0.0      ],  //  b+17 L h-stab root aft
-    [-0.019*ts, -0.008,    0.001    ],  //  b+18 L h-stab tip fwd
-    [-0.0175*ts,-0.008,    0.001    ],  //  b+19 L h-stab tip aft
+    [-0.019*ts,  hstabY,    0.001    ],  //  b+14 R h-stab tip fwd  (30° LE sweep)
+    [-0.0175*ts, hstabY,    0.001    ],  //  b+15 R h-stab tip aft
+    [-0.017*ts, -nr3,       0.0      ],  //  b+16 L h-stab root fwd
+    [-0.0175*ts,-nr2,       0.0      ],  //  b+17 L h-stab root aft
+    [-0.019*ts, -hstabY,    0.001    ],  //  b+18 L h-stab tip fwd
+    [-0.0175*ts,-hstabY,    0.001    ],  //  b+19 L h-stab tip aft
     /* R engine rings (b+20..59) — intake er · fan-cowl efr · body _rBody · nozzle erc; flat-bottom per ring */
     ..._engRing(eA, ey, ez, er,     1, _flat[0]), ..._engRing(eB, ey, ez, efr,    1, _flat[1]),
     ..._engRing(eC, ey, ez, _rBody, 1, _flat[2]), ..._engRing(eD, ey, ez, _rBody, 1, _flat[3]),
@@ -310,16 +311,16 @@ export function _buildWB(np) {
     [_hsRL,  _hsRY,  _hsRZ+_hTr], [_hsRL,  _hsRY,  _hsRZ-_hTr],  // b+172/173 R root LE up/dn
     [_hsRH,  _hsHY,  _hsHZ+_hTr*0.5], [_hsRH, _hsHY, _hsHZ-_hTr*0.5],  // b+174/175 R root hinge up/dn
     [_hsRT,  _hsHY,  _hsHZ+_hTE], [_hsRT,  _hsHY,  _hsHZ-_hTE],  // b+176/177 R root TE up/dn
-    [_hsTL,  0.008, 0.001+_hTt], [_hsTL, 0.008, 0.001-_hTt], // b+178/179 R tip LE up/dn
-    [_hsTH,  0.008, 0.001+_hTt*0.5],[_hsTH,0.008,0.001-_hTt*0.5],// b+180/181 R tip hinge up/dn
-    [_hsTT,  0.008, 0.001+_hTE], [_hsTT, 0.008, 0.001-_hTE],  // b+182/183 R tip TE up/dn
+    [_hsTL,  hstabY, 0.001+_hTt], [_hsTL, hstabY, 0.001-_hTt], // b+178/179 R tip LE up/dn
+    [_hsTH,  hstabY, 0.001+_hTt*0.5],[_hsTH,hstabY,0.001-_hTt*0.5],// b+180/181 R tip hinge up/dn
+    [_hsTT,  hstabY, 0.001+_hTE], [_hsTT, hstabY, 0.001-_hTE],  // b+182/183 R tip TE up/dn
     // L side (b+184..b+195)
     [_hsRL, -_hsRY,  _hsRZ+_hTr], [_hsRL, -_hsRY,  _hsRZ-_hTr],  // b+184/185 L root LE up/dn
     [_hsRH, -_hsHY,  _hsHZ+_hTr*0.5],[_hsRH,-_hsHY, _hsHZ-_hTr*0.5],  // b+186/187 L root hinge up/dn
     [_hsRT, -_hsHY,  _hsHZ+_hTE], [_hsRT, -_hsHY,  _hsHZ-_hTE],  // b+188/189 L root TE up/dn
-    [_hsTL, -0.008, 0.001+_hTt],[_hsTL,-0.008,0.001-_hTt],  // b+190/191 L tip LE up/dn
-    [_hsTH, -0.008, 0.001+_hTt*0.5],[_hsTH,-0.008,0.001-_hTt*0.5],// b+192/193 L tip hinge up/dn
-    [_hsTT, -0.008, 0.001+_hTE],[_hsTT,-0.008,0.001-_hTE],  // b+194/195 L tip TE up/dn
+    [_hsTL, -hstabY, 0.001+_hTt],[_hsTL,-hstabY,0.001-_hTt],  // b+190/191 L tip LE up/dn
+    [_hsTH, -hstabY, 0.001+_hTt*0.5],[_hsTH,-hstabY,0.001-_hTt*0.5],// b+192/193 L tip hinge up/dn
+    [_hsTT, -hstabY, 0.001+_hTE],[_hsTT,-hstabY,0.001-_hTE],  // b+194/195 L tip TE up/dn
   );
 
   /* ── Decoupled flap geometry (b+196..b+211) ─────────────────────────────────
@@ -823,6 +824,7 @@ export function _acGeoFromJson(aircraft, baseNp) {
     windows:       nose.windows       ?? baseNp.windows,
     tailX:         jGeo.tailX         ?? baseNp.tailX,
     vstabZ:        jGeo.vstabZ        ?? baseNp.vstabZ,
+    hstabY:        jGeo.hstabY        ?? baseNp.hstabY,
     vstabTipLE:    jGeo.vstabTipLE    ?? baseNp.vstabTipLE,
     ey:            jGeo.engineY       ?? baseNp.ey,
     ey2:           jGeo.engineY2      ?? baseNp.ey2,
