@@ -490,6 +490,85 @@ function drawTirePair(ctx, wc, tR, project, dpr, hubR) {
   if (pO && pI) drawStrutTube(ctx, pO, pI, dpr);
 }
 
+/* Orthonormal frame around an axle direction: returns [axle, u, v] with u,v ⊥ axle
+   spanning the wheel-disc plane. Default Y axle reproduces the old X-Z disc. */
+function _tireFrame(axis) {
+  const crs = (p, q) => [p[1]*q[2]-p[2]*q[1], p[2]*q[0]-p[0]*q[2], p[0]*q[1]-p[1]*q[0]];
+  const na = Math.hypot(axis[0], axis[1], axis[2]) || 1;
+  const a = [axis[0]/na, axis[1]/na, axis[2]/na];
+  const ref = Math.abs(a[1]) < 0.99 ? [0, 1, 0] : [1, 0, 0];
+  let u = crs(ref, a); const mu = Math.hypot(u[0], u[1], u[2]) || 1; u = [u[0]/mu, u[1]/mu, u[2]/mu];
+  const v = crs(a, u);
+  return [a, u, v];
+}
+
+/* Real-3-D tyre — revolves the rounded cross-section (sidewall tRs → bulged tread tR
+   → sidewall tRs, plus a silver hub disc) around the axle into actual lit faces, so
+   it holds up from any angle / in WebXR. `axis` is the axle direction (default Y); the
+   main gear passes a tilted axle so the wheel swings with the retracting leg. Pushes
+   faces into the painter's `faces` list rather than painting ellipses on the canvas. */
+function pushTire(faces, wc, tR, hubR, tW, project, rotateNormal, litBr, axis) {
+  const N = 14, tRs = tR * 0.86, hR = hubR ?? tR * 0.20;
+  const [a, u, v] = _tireFrame(axis || [0, 1, 0]);
+  const off  = (d) => [wc[0]+a[0]*d, wc[1]+a[1]*d, wc[2]+a[2]*d];
+  const ring = (d, r) => { const c = off(d); return Array.from({ length: N }, (_, k) => {
+    const t = k / N * Math.PI * 2, cu = Math.cos(t) * r, sv = Math.sin(t) * r;
+    return [c[0]+u[0]*cu+v[0]*sv, c[1]+u[1]*cu+v[1]*sv, c[2]+u[2]*cu+v[2]*sv];
+  }); };
+  const rO = ring(tW, tRs), rI = ring(-tW, tRs), rM = ring(0, tR);
+  const hO = ring(tW, hR),  hI = ring(-tW, hR);
+  const cO = off(tW), cI = off(-tW);
+  const sub = (a, b) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
+  const dot = (a, b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+  const crs = (a, b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+  const TYRE = [40, 45, 55], HUB = [176, 183, 196];
+  const face = (v3, col, amb) => {
+    const ps = v3.map(project);
+    if (ps.some(p => !p)) return;
+    const c = v3.reduce((a, p) => [a[0]+p[0], a[1]+p[1], a[2]+p[2]], [0,0,0]).map(x => x / v3.length);
+    let n = crs(sub(v3[1], v3[0]), sub(v3[2], v3[0]));
+    const m = Math.hypot(n[0], n[1], n[2]) || 1; n = [n[0]/m, n[1]/m, n[2]/m];
+    if (dot(n, sub(c, wc)) < 0) n = [-n[0], -n[1], -n[2]];   // outward normal for lighting
+    const [nF, nR, nU] = rotateNormal(n);
+    faces.push({ ps, br: litBr(nF, nR, nU, amb), avgD: ps.reduce((s, p) => s + p.d, 0) / ps.length, col });
+  };
+  for (let k = 0; k < N; k++) {
+    const j = (k + 1) % N;
+    face([rO[k], rO[j], rM[j], rM[k]], TYRE, 0.16);   // tread: outer shoulder → crown
+    face([rM[k], rM[j], rI[j], rI[k]], TYRE, 0.16);   // tread: crown → inner shoulder
+    face([hO[k], hO[j], rO[j], rO[k]], TYRE, 0.20);   // outer sidewall annulus
+    face([hI[k], hI[j], rI[j], rI[k]], TYRE, 0.20);   // inner sidewall annulus
+    face([cO, hO[k], hO[j]], HUB, 0.30);              // outer hub disc (silver)
+    face([cI, hI[k], hI[j]], HUB, 0.30);              // inner hub disc
+  }
+}
+
+/* A pair of tyres on a short axle, centred at wc (real-3-D). `axis` is the axle
+   direction (default Y); both tyres + the axle stub follow it, so the pair tilts
+   together when the leg swings. */
+function pushTirePair(faces, wc, tR, hubR, project, rotateNormal, litBr, axis) {
+  const tW = tR * 0.40, axH = tR * 0.55;
+  const [a, u, v] = _tireFrame(axis || [0, 1, 0]);
+  const off = (d) => [wc[0]+a[0]*d, wc[1]+a[1]*d, wc[2]+a[2]*d];
+  pushTire(faces, off( axH), tR, hubR, tW, project, rotateNormal, litBr, a);
+  pushTire(faces, off(-axH), tR, hubR, tW, project, rotateNormal, litBr, a);
+  /* axle stub between the inner faces */
+  const N = 8, axR = tR * 0.16;
+  const sub = (p,q) => [p[0]-q[0],p[1]-q[1],p[2]-q[2]], dot = (p,q) => p[0]*q[0]+p[1]*q[1]+p[2]*q[2],
+        crs = (p,q) => [p[1]*q[2]-p[2]*q[1],p[2]*q[0]-p[0]*q[2],p[0]*q[1]-p[1]*q[0]];
+  const stub = (d) => { const c = off(d); return Array.from({ length: N }, (_, k) => {
+    const t = k/N*Math.PI*2, cu = Math.cos(t)*axR, sv = Math.sin(t)*axR;
+    return [c[0]+u[0]*cu+v[0]*sv, c[1]+u[1]*cu+v[1]*sv, c[2]+u[2]*cu+v[2]*sv]; }); };
+  const r1 = stub(axH - tW), r2 = stub(-(axH - tW));
+  for (let k = 0; k < N; k++) { const j = (k+1)%N, v3 = [r1[k], r1[j], r2[j], r2[k]];
+    const ps = v3.map(project); if (ps.some(p => !p)) continue;
+    const cc = v3.reduce((a,p)=>[a[0]+p[0],a[1]+p[1],a[2]+p[2]],[0,0,0]).map(x=>x/4);
+    let n = crs(sub(v3[1],v3[0]), sub(v3[2],v3[0])); const m = Math.hypot(n[0],n[1],n[2])||1; n=[n[0]/m,n[1]/m,n[2]/m];
+    if (dot(n, sub(cc, wc)) < 0) n = [-n[0],-n[1],-n[2]];
+    const [nF, nR, nU] = rotateNormal(n);
+    faces.push({ ps, br: litBr(nF,nR,nU,0.20), avgD: ps.reduce((s,p)=>s+p.d,0)/4, col: [92, 98, 110] }); }
+}
+
 /* Draw a cylindrical gear strut between two projected screen points. */
 function drawStrutTube(ctx, pa, pb, dpr) {
   const dx = pb.x - pa.x, dy = pb.y - pa.y;
@@ -2654,28 +2733,29 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
 
       /* Nose gear */
       { const wc = _animGV[1], pt = project(wc);
-        if (pt) faces.push({ avgD: pt.d, draw: () => { ctx.save(); drawTirePair(ctx, wc, _nTR, project, dpr, _nHR); ctx.restore(); } }); }
+        if (pt) pushTirePair(faces, wc, _nTR, _nHR, project, rotateNormal, litBr); }
 
-      /* Main gear — N-axle bogie (fore/aft) or a single pair (gear.main.axles) */
+      /* Main gear — N-axle bogie (fore/aft) or a single pair (gear.main.axles).
+         The leg swings inboard about the fore-aft (X) axis, so the wheel axle tilts
+         with it: axle = X × legDir = [0, -legZ, legY]. Extended → [0,1,0] (lateral). */
       for (const vi of [3, 5]) {
-        const wc = _animGV[vi], pt = project(wc);
+        const wc = _animGV[vi], top = _animGV[vi - 1], pt = project(wc);
         if (!pt) continue;
-        faces.push({ avgD: pt.d, draw: () => {
-          ctx.save();
-          if (_gAx >= 2) {
-            const ends = [];
-            for (let k = 0; k < _gAx; k++) {
-              const off = (k - (_gAx - 1) / 2) * 2 * _bogPitch;
-              const wck = [wc[0] + off, wc[1], wc[2]];
-              drawTirePair(ctx, wck, _mTR, project, dpr, _mHR);
-              const pk = project(wck); if (pk) ends.push(pk);
-            }
-            if (ends.length >= 2) drawStrutTube(ctx, ends[0], ends[ends.length - 1], dpr);
-          } else {
-            drawTirePair(ctx, wc, _mTR, project, dpr, _mHR);
+        let _ax = [0, -(wc[2] - top[2]), wc[1] - top[1]];
+        const _am = Math.hypot(_ax[1], _ax[2]) || 1; _ax = [0, _ax[1]/_am, _ax[2]/_am];
+        if (_gAx >= 2) {
+          const ends = [];
+          for (let k = 0; k < _gAx; k++) {
+            const off = (k - (_gAx - 1) / 2) * 2 * _bogPitch;
+            const wck = [wc[0] + off, wc[1], wc[2]];
+            pushTirePair(faces, wck, _mTR, _mHR, project, rotateNormal, litBr, _ax);
+            const pk = project(wck); if (pk) ends.push(pk);
           }
-          ctx.restore();
-        }});
+          if (ends.length >= 2) { const e0 = ends[0], e1 = ends[ends.length - 1];
+            faces.push({ avgD: (e0.d + e1.d) / 2, draw: () => { ctx.save(); drawStrutTube(ctx, e0, e1, dpr); ctx.restore(); } }); }
+        } else {
+          pushTirePair(faces, wc, _mTR, _mHR, project, rotateNormal, litBr, _ax);
+        }
       }
 
       /* Center gear — bogie on centerline (A340 etc.) */
@@ -2694,15 +2774,11 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         const wcC = _cgWhl, ptC = project(wcC);
         if (ptC) {
           const _cbp = _bogPitch;
-          faces.push({ avgD: ptC.d, draw: () => {
-            ctx.save();
-            const wcF = [wcC[0]+_cbp, wcC[1], wcC[2]], wcA = [wcC[0]-_cbp, wcC[1], wcC[2]];
-            drawTirePair(ctx, wcF, _mTR, project, dpr, _mHR);
-            drawTirePair(ctx, wcA, _mTR, project, dpr, _mHR);
-            const pF = project(wcF), pA = project(wcA);
-            if (pF && pA) drawStrutTube(ctx, pF, pA, dpr);
-            ctx.restore();
-          }});
+          const wcF = [wcC[0]+_cbp, wcC[1], wcC[2]], wcA = [wcC[0]-_cbp, wcC[1], wcC[2]];
+          pushTirePair(faces, wcF, _mTR, _mHR, project, rotateNormal, litBr);
+          pushTirePair(faces, wcA, _mTR, _mHR, project, rotateNormal, litBr);
+          const pF = project(wcF), pA = project(wcA);
+          if (pF && pA) faces.push({ avgD: (pF.d+pA.d)/2, draw: () => { ctx.save(); drawStrutTube(ctx, pF, pA, dpr); ctx.restore(); } });
         }
       }
     }
