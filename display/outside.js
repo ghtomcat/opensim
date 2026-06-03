@@ -2672,10 +2672,15 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         pushTube3D(faces, _mTop,  _mMid, _mrU, _mrU, [70, 80, 96],    project, rotateNormal, litBr, 10, 0.16);
         pushTube3D(faces, _mMid,  _mBot, _mrL, _mrL, [200, 212, 226], project, rotateNormal, litBr, 10, 0.20);
         pushTube3D(faces, _mColT, _mMid, _mrC, _mrC, [50, 58, 72],    project, rotateNormal, litBr, 10, 0.14, true);  // gland-nut collar
-        /* Side-stay attachment bosses — prominent lateral pivot lugs */
+        /* Side-stay attachment bosses — prominent pivot lugs. Pin axis follows the
+           leg as it swings inboard (axle = X × legDir), same as the wheel axle, so the
+           lugs rotate with the strut instead of staying lateral. */
+        let _bax = [0, -(_mBot[2] - _mTop[2]), _mBot[1] - _mTop[1]];
+        const _bm = Math.hypot(_bax[1], _bax[2]) || 1; _bax = [0, _bax[1]/_bm, _bax[2]/_bm];
         for (const f of [0.502, 0.192]) { const c = _lerpV3(_mTop, _mBot, f);
-          pushTube3D(faces, [c[0], c[1]+_bossH, c[2]], [c[0], c[1]-_bossH, c[2]], _bossR, _bossR,
-                     [120, 132, 150], project, rotateNormal, litBr, 8, 0.24, true); }
+          pushTube3D(faces, [c[0]+_bax[0]*_bossH, c[1]+_bax[1]*_bossH, c[2]+_bax[2]*_bossH],
+                            [c[0]-_bax[0]*_bossH, c[1]-_bax[1]*_bossH, c[2]-_bax[2]*_bossH],
+                     _bossR, _bossR, [120, 132, 150], project, rotateNormal, litBr, 8, 0.24, true); }
       }
 
       /* Main gear side stays — fore (blue) and aft (green), straight to strut bracket. */
