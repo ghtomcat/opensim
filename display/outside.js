@@ -222,13 +222,31 @@ function _groundOffsetFt() {
   if (id === 'c172')          return (_xr + 0.0020 + _xr * 0.56) / FT_NM;  // ~32 ft
   if (id.startsWith('bf109')) return 0.0032 / FT_NM;  // ~19 ft
   if (id.startsWith('f4u'))   return 0.0038 / FT_NM;  // ~23 ft
-  /* WB / airliners — body-centre to wheel-bottom = belly + main strut + tire,
-     derived from the same per-aircraft gear geometry the renderer uses. */
-  const _g = S.aircraft?.gear ?? {};
-  const _r2 = S.aircraft?.nose?.r ?? S.aircraft?.geometry?.r ?? _r;
+  /* WB / airliners — body-centre to wheel-bottom = |belly z at the main-gear station|
+     + main strut + tyre. The main gear sits outboard on the wing-body fairing, where
+     the belly is far shallower than the bare fuselage radius, so sample the actual
+     lower surface (mirrors _bodyLowerZ in the renderer) — using the radius alone over-
+     lifts and the gear floats. */
+  const _g  = S.aircraft?.gear ?? {};
+  const rr  = S.aircraft?.nose?.r ?? S.aircraft?.geometry?.r ?? _r;
+  const gMx = _g.main?.x ?? -0.001, gMy = _g.main?.y ?? 0.0020;
   const _ml = _g.main?.len ?? 0.0032;
-  const _mt = _g.main?.tireR ?? _r2 * 0.16;
-  return (_r2 + _ml + _mt) / FT_NM;
+  const _mt = _g.main?.tireR ?? rr * 0.16;
+  let bz = -Math.sqrt(Math.max(0, rr*rr - gMy*gMy));   // bare fuselage circle at the gear y
+  const bf = S.aircraft?.bellyFairing;
+  if (bf && bf.fromX != null && gMx <= bf.fromX && gMx >= bf.toX) {
+    const prog = (bf.fromX - gMx) / (bf.fromX - bf.toX), ramp = 0.26;
+    let t = prog < ramp ? prog/ramp : prog > 1-ramp ? (1-prog)/ramp : 1;
+    t = t < 1 ? t*t*(3-2*t) : 1;
+    const maxHW = bf.maxWidth ?? rr, depth = bf.maxDepth ?? 0;
+    const halfW = rr + t*(maxHW - rr);
+    const ztop = rr*(1 - 0.78*t), zbot = -(rr + t*depth);
+    const Vz = (ztop-zbot)*0.5, czf = (ztop+zbot)*0.5, nExp = 2 + t*1.1;
+    const yn = Math.min(1, Math.abs(gMy)/halfW);
+    const zf = czf - Vz * Math.pow(Math.max(0, 1 - Math.pow(yn, nExp)), 1/nExp);
+    if (zf < bz) bz = zf;
+  }
+  return (Math.abs(bz) + _ml + _mt) / FT_NM;
 }
 
 export function tickOutside() {
@@ -1327,9 +1345,14 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       return { fR, rR, uR };
     });
 
-    /* Ground level: for rockets use lowest vertex (vertical body), for aircraft use AGL */
+    /* Ground level: rockets use the lowest vertex (vertical body); a parked aircraft
+       sits at its wheel-contact level (ride height), not its MSL altitude — using
+       alt_nm here drops the shadow to sea level and the aircraft looks like it floats.
+       Airborne, fall back to MSL (terrain ≈ sea level for the shadow fade). */
     const groundUR = (isSV || isF9)
       ? Math.min(...rotated.map(v => v.uR))
+      : S.wow
+      ? -_groundOffsetFt() * FT_NM
       : -alt_nm;
 
     /* Project each vertex along light direction to ground plane, then to screen */

@@ -313,13 +313,15 @@ export function tickPhysics(dt) {
     vs += (Math.random() - 0.5) * turb * 300;
   }
 
-  /* ── Dead reckoning — ground velocity = TAS vector + wind ── */
+  /* ── Dead reckoning — ground velocity = TAS vector + wind. On the ground the wheels
+     hold the aircraft, so no wind drift — it only tracks along its heading (a parked
+     aircraft doesn't get blown across the apron). ── */
   const hdgRad = newHdg * DEG;
   const cosLat = Math.cos(S.lat * DEG);
   const acN_ms = newSpd * 0.5144 * Math.cos(hdgRad);
   const acE_ms = newSpd * 0.5144 * Math.sin(hdgRad);
-  const gndN_ms = acN_ms + windN_ms;
-  const gndE_ms = acE_ms + windE_ms;
+  const gndN_ms = acN_ms + (newWow ? 0 : windN_ms);
+  const gndE_ms = acE_ms + (newWow ? 0 : windE_ms);
   const newLat  = S.lat + gndN_ms / 1852 / 60 * dt;
   const newLon  = S.lon + gndE_ms / 1852 / 60 / cosLat * dt;
 
