@@ -569,6 +569,33 @@ function pushTirePair(faces, wc, tR, hubR, project, rotateNormal, litBr, axis) {
     faces.push({ ps, br: litBr(nF,nR,nU,0.20), avgD: ps.reduce((s,p)=>s+p.d,0)/4, col: [92, 98, 110] }); }
 }
 
+/* Real-3-D tube between two model points pa→pb (radii rA→rB), N sides, lit per face.
+   `col` is [r,g,b]; `amb` the shadow floor; `cap` closes both ends with a fan (for
+   bosses / oleo collars). The whole gear leg is built from these instead of 2-D lines,
+   so it holds up close-in and in WebXR. */
+function pushTube3D(faces, pa, pb, rA, rB, col, project, rotateNormal, litBr, N, amb, cap) {
+  N = N || 8; amb = amb ?? 0.18;
+  const sub = (p,q) => [p[0]-q[0],p[1]-q[1],p[2]-q[2]], dot = (p,q) => p[0]*q[0]+p[1]*q[1]+p[2]*q[2],
+        crs = (p,q) => [p[1]*q[2]-p[2]*q[1],p[2]*q[0]-p[0]*q[2],p[0]*q[1]-p[1]*q[0]];
+  const [a, u, v] = _tireFrame(sub(pb, pa));
+  const mid = [(pa[0]+pb[0])/2, (pa[1]+pb[1])/2, (pa[2]+pb[2])/2];
+  const ring = (c, r) => Array.from({ length: N }, (_, k) => {
+    const t = k/N*Math.PI*2, cu = Math.cos(t)*r, sv = Math.sin(t)*r;
+    return [c[0]+u[0]*cu+v[0]*sv, c[1]+u[1]*cu+v[1]*sv, c[2]+u[2]*cu+v[2]*sv]; });
+  const RA = ring(pa, rA), RB = ring(pb, rB);
+  const face = (v3, am) => {
+    const ps = v3.map(project); if (ps.some(p => !p)) return;
+    const c = v3.reduce((s,p)=>[s[0]+p[0],s[1]+p[1],s[2]+p[2]],[0,0,0]).map(x=>x/v3.length);
+    let n = crs(sub(v3[1],v3[0]), sub(v3[2],v3[0])); const m = Math.hypot(n[0],n[1],n[2])||1; n=[n[0]/m,n[1]/m,n[2]/m];
+    if (dot(n, sub(c, mid)) < 0) n = [-n[0],-n[1],-n[2]];
+    const [nF, nR, nU] = rotateNormal(n);
+    faces.push({ ps, br: litBr(nF,nR,nU,am), avgD: ps.reduce((s,p)=>s+p.d,0)/ps.length, col });
+  };
+  for (let k = 0; k < N; k++) { const j = (k+1)%N; face([RA[k],RA[j],RB[j],RB[k]], amb); }
+  if (cap) for (let k = 0; k < N; k++) { const j = (k+1)%N;
+    face([pa, RA[j], RA[k]], amb*1.3); face([pb, RB[k], RB[j]], amb*1.3); }
+}
+
 /* Draw a cylindrical gear strut between two projected screen points. */
 function drawStrutTube(ctx, pa, pb, dpr) {
   const dx = pb.x - pa.x, dy = pb.y - pa.y;
@@ -2609,47 +2636,45 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       _drawBayDoor(_nF, _nA, -0.0003, -_gwR * 0.46, _dCol);
     }
     if (!_gearTires) {
-      /* Nose strut — upper barrel (dark metal) + lower barrel (bright silver) */
+      /* Nose strut — upper barrel (dark metal) + lower polished piston, real 3-D */
       const _nTop = _animGV[0], _nBot = _animGV[1];
       const _nMid = _midV3(_nTop, _nBot);
-      const pNTop = project(_nTop), pNMid = project(_nMid), pNBot = project(_nBot);
-      if (pNTop && pNMid) faces.push({ avgD: (pNTop.d+pNMid.d)/2, draw: () => {
-        ctx.save();
-        drawStrutTubeCol(ctx, pNTop, pNMid, dpr, 'rgba(72,82,98,0.93)', 'rgba(145,158,175,0.90)');
-        ctx.restore();
-      }});
-      if (pNMid && pNBot) faces.push({ avgD: (pNMid.d+pNBot.d)/2, draw: () => {
-        ctx.save();
-        drawStrutTubeCol(ctx, pNMid, pNBot, dpr, 'rgba(195,208,222,0.94)', 'rgba(235,242,248,0.95)');
-        ctx.restore();
-      }});
+      const pNMid = project(_nMid);
+      const _nrU = _gC.nose?.strutR ?? _nTR * 0.18;   // measured (A350 nose 216 mm ⌀) or ratio
+      const _nrL = _nrU * 0.667;                        // polished lower piston
+      pushTube3D(faces, _nTop, _nMid, _nrU, _nrU, [70, 80, 96],    project, rotateNormal, litBr, 8, 0.16);
+      pushTube3D(faces, _nMid, _nBot, _nrL, _nrL, [200, 212, 226], project, rotateNormal, litBr, 8, 0.20);
       /* Retraction rod — hinge on forward face of upper barrel, rod to forward well structure */
       const _nFwdAtt = [_gNx + 0.0015, 0, -_wbR + 0.0004];
       const pNFwd = project(_nFwdAtt);
       if (pNFwd && pNMid) faces.push({ avgD: (pNFwd.d+pNMid.d)/2, draw: () => {
-        ctx.save();
-        drawActuatorRod(ctx, pNFwd, pNMid, dpr);
-        ctx.beginPath();
-        ctx.arc(pNMid.x, pNMid.y, Math.max(2.5*dpr, 3.5), 0, Math.PI*2);
-        ctx.fillStyle = 'rgba(120,135,158,0.92)'; ctx.fill();
-        ctx.strokeStyle = 'rgba(200,215,228,0.85)'; ctx.lineWidth = dpr*0.8; ctx.stroke();
-        ctx.restore();
+        ctx.save(); drawActuatorRod(ctx, pNFwd, pNMid, dpr); ctx.restore();
       }});
-      /* Main struts — two-tone: upper fitting (dark metal) + lower cylinder (bright silver) */
+      /* Nose-strut attachment boss — real 3-D lateral pivot lug at the rod hinge
+         (lighter than the main-gear lugs, same treatment). */
+      pushTube3D(faces, [_nMid[0], _nMid[1]+_nrU*1.15, _nMid[2]], [_nMid[0], _nMid[1]-_nrU*1.15, _nMid[2]],
+                 _nrU*1.5, _nrU*1.5, [120, 132, 150], project, rotateNormal, litBr, 8, 0.24, true);
+      /* Main struts — real 3-D oleo shock: dark upper cylinder, gland-nut collar at
+         its base where the polished silver lower piston slides out, plus the two
+         load-bearing side-stay attachment bosses (big lateral pivot lugs). */
+      /* Upper-cylinder radius: measured strutR if supplied, else ≈0.266·tyreR
+         (A350 main strut is a substantial 388 mm ⌀). Collar / piston / pivot bosses
+         all scale off it so they stay in proportion to the leg. */
+      const _mrU   = _gC.main?.strutR ?? _mTR * 0.266;
+      const _mrL   = _mrU * 0.676;   // polished lower piston (slides inside the cylinder)
+      const _mrC   = _mrU * 1.41;    // gland-nut collar (fatter band)
+      const _bossR = _mrU * 1.765, _bossH = _mrU * 1.294;   // side-stay pivot lugs
       for (const [gv2, gv3] of [[2, 3], [4, 5]]) {
         const _mTop = _animGV[gv2], _mBot = _animGV[gv3];
-        const _mMid = _lerpV3(_mTop, _mBot, 0.50);
-        const pMTop = project(_mTop), pMMid = project(_mMid), pMBot = project(_mBot);
-        if (pMTop && pMMid) faces.push({ avgD: (pMTop.d+pMMid.d)/2, draw: () => {
-          ctx.save();
-          drawStrutTubeCol(ctx, pMTop, pMMid, dpr, 'rgba(72,82,98,0.93)', 'rgba(145,158,175,0.90)');
-          ctx.restore();
-        }});
-        if (pMMid && pMBot) faces.push({ avgD: (pMMid.d+pMBot.d)/2, draw: () => {
-          ctx.save();
-          drawStrutTubeCol(ctx, pMMid, pMBot, dpr, 'rgba(195,208,222,0.94)', 'rgba(235,242,248,0.95)');
-          ctx.restore();
-        }});
+        const _mMid  = _lerpV3(_mTop, _mBot, 0.50);
+        const _mColT = _lerpV3(_mTop, _mBot, 0.42);
+        pushTube3D(faces, _mTop,  _mMid, _mrU, _mrU, [70, 80, 96],    project, rotateNormal, litBr, 10, 0.16);
+        pushTube3D(faces, _mMid,  _mBot, _mrL, _mrL, [200, 212, 226], project, rotateNormal, litBr, 10, 0.20);
+        pushTube3D(faces, _mColT, _mMid, _mrC, _mrC, [50, 58, 72],    project, rotateNormal, litBr, 10, 0.14, true);  // gland-nut collar
+        /* Side-stay attachment bosses — prominent lateral pivot lugs */
+        for (const f of [0.502, 0.192]) { const c = _lerpV3(_mTop, _mBot, f);
+          pushTube3D(faces, [c[0], c[1]+_bossH, c[2]], [c[0], c[1]-_bossH, c[2]], _bossR, _bossR,
+                     [120, 132, 150], project, rotateNormal, litBr, 8, 0.24, true); }
       }
 
       /* Main gear side stays — fore (blue) and aft (green), straight to strut bracket. */
@@ -2685,8 +2710,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
             ctx.beginPath(); ctx.arc(pk.x, pk.y, r*0.38, 0, Math.PI*2);
             ctx.fillStyle = 'rgba(18,20,26,0.95)'; ctx.fill();
           };
-          _drawKnuckle(pBkt,  _stayPx * 0.10);
-          _drawKnuckle(pBkt2, _stayPx * 0.10);
+          /* pBkt / pBkt2 are now real 3-D attachment bosses (built with the strut) */
           for (const pk of [pFrM, pArM])   _drawKnuckle(pk, _stayPx * 0.07);
           for (const pk of [pRFrM, pRArM]) _drawKnuckle(pk, _stayPx * 0.07);
           ctx.restore();
