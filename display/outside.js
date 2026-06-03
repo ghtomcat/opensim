@@ -2479,6 +2479,13 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const _bogPitch  = _mTR * 0.85;   // fore/aft axle spacing in the bogie
   const _gAx  = _gC.main?.axles ?? (_gC.main?.type === 'bogie' ? 2 : 1);
   const _mBay = _gC.main?.bayDoors !== false;   // 737 retracts main wheels exposed → no big bay doors
+  /* Oleo-strut radii (shared by the left/right main legs and the centre leg):
+     upper-cylinder radius from measured strutR else ≈0.266·tyreR (A350 main is a
+     substantial 388 mm ⌀); collar / piston / pivot bosses all scale off it. */
+  const _mrU   = _gC.main?.strutR ?? _mTR * 0.266;
+  const _mrL   = _mrU * 0.676;   // polished lower piston (slides inside the cylinder)
+  const _mrC   = _mrU * 1.41;    // gland-nut collar (fatter band)
+  const _bossR = _mrU * 1.765, _bossH = _mrU * 1.294;   // side-stay pivot lugs
   /* Lower body-surface z at station x, lateral y — the belly-fairing super-ellipse
      lobe where x falls inside the fairing span, else the bare fuselage circle.
      Mirrors the fairing math in outside-wb.js so the gear bay doors hug the skin. */
@@ -2638,12 +2645,13 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     if (!_gearTires) {
       /* Nose strut — upper barrel (dark metal) + lower polished piston, real 3-D */
       const _nTop = _animGV[0], _nBot = _animGV[1];
-      const _nMid = _midV3(_nTop, _nBot);
-      const pNMid = project(_nMid);
+      const _nJunc  = _lerpV3(_nTop, _nBot, 0.75);   // cylinder 75% / piston 25%
+      const _nHinge = _lerpV3(_nTop, _nBot, 0.50);   // retraction-rod hinge (mid cylinder)
+      const pNMid = project(_nHinge);
       const _nrU = _gC.nose?.strutR ?? _nTR * 0.18;   // measured (A350 nose 216 mm ⌀) or ratio
       const _nrL = _nrU * 0.667;                        // polished lower piston
-      pushTube3D(faces, _nTop, _nMid, _nrU, _nrU, [70, 80, 96],    project, rotateNormal, litBr, 8, 0.16);
-      pushTube3D(faces, _nMid, _nBot, _nrL, _nrL, [200, 212, 226], project, rotateNormal, litBr, 8, 0.20);
+      pushTube3D(faces, _nTop,  _nJunc, _nrU, _nrU, [70, 80, 96],    project, rotateNormal, litBr, 8, 0.16);
+      pushTube3D(faces, _nJunc, _nBot,  _nrL, _nrL, [200, 212, 226], project, rotateNormal, litBr, 8, 0.20);
       /* Retraction rod — hinge on forward face of upper barrel, rod to forward well structure */
       const _nFwdAtt = [_gNx + 0.0015, 0, -_wbR + 0.0004];
       const pNFwd = project(_nFwdAtt);
@@ -2652,22 +2660,15 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       }});
       /* Nose-strut attachment boss — real 3-D lateral pivot lug at the rod hinge
          (lighter than the main-gear lugs, same treatment). */
-      pushTube3D(faces, [_nMid[0], _nMid[1]+_nrU*1.15, _nMid[2]], [_nMid[0], _nMid[1]-_nrU*1.15, _nMid[2]],
+      pushTube3D(faces, [_nHinge[0], _nHinge[1]+_nrU*1.15, _nHinge[2]], [_nHinge[0], _nHinge[1]-_nrU*1.15, _nHinge[2]],
                  _nrU*1.5, _nrU*1.5, [120, 132, 150], project, rotateNormal, litBr, 8, 0.24, true);
       /* Main struts — real 3-D oleo shock: dark upper cylinder, gland-nut collar at
          its base where the polished silver lower piston slides out, plus the two
          load-bearing side-stay attachment bosses (big lateral pivot lugs). */
-      /* Upper-cylinder radius: measured strutR if supplied, else ≈0.266·tyreR
-         (A350 main strut is a substantial 388 mm ⌀). Collar / piston / pivot bosses
-         all scale off it so they stay in proportion to the leg. */
-      const _mrU   = _gC.main?.strutR ?? _mTR * 0.266;
-      const _mrL   = _mrU * 0.676;   // polished lower piston (slides inside the cylinder)
-      const _mrC   = _mrU * 1.41;    // gland-nut collar (fatter band)
-      const _bossR = _mrU * 1.765, _bossH = _mrU * 1.294;   // side-stay pivot lugs
       for (const [gv2, gv3] of [[2, 3], [4, 5]]) {
         const _mTop = _animGV[gv2], _mBot = _animGV[gv3];
-        const _mMid  = _lerpV3(_mTop, _mBot, 0.50);
-        const _mColT = _lerpV3(_mTop, _mBot, 0.42);
+        const _mMid  = _lerpV3(_mTop, _mBot, 0.75);   // cylinder 75% / piston 25%
+        const _mColT = _lerpV3(_mTop, _mBot, 0.67);   // gland collar at the cylinder base
         pushTube3D(faces, _mTop,  _mMid, _mrU, _mrU, [70, 80, 96],    project, rotateNormal, litBr, 10, 0.16);
         pushTube3D(faces, _mMid,  _mBot, _mrL, _mrL, [200, 212, 226], project, rotateNormal, litBr, 10, 0.20);
         pushTube3D(faces, _mColT, _mMid, _mrC, _mrC, [50, 58, 72],    project, rotateNormal, litBr, 10, 0.14, true);  // gland-nut collar
@@ -2782,28 +2783,32 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         }
       }
 
-      /* Center gear — bogie on centerline (A340 etc.) */
+      /* Center gear — bogie on centerline (A340 etc.); same 3-D oleo as the main legs:
+         dark cylinder (75%) + gland collar + silver piston (25%), down the centerline. */
       if (_gearCfg.center && _gearP > 0.01) {
-        const _cgX   = _gMx;                                      // same X as main gear
-        const _cgWhl = _lerpV3([_cgX, 0, -_wbR + 0.001], [_cgX, 0, -_wbR - 0.0032], _gearP);
-        /* center strut from belly attachment to bogie pivot */
+        const _cgX   = _gearCfg.center?.x ?? (_gMx - _mTR * 4);  // a bit aft of the mains (or measured)
+        const _cgTop = [_cgX, 0, -_wbR];                          // belly attachment (pivot hinge)
+        /* Retracts forward + up like the nose leg: the wheel swings forward about the
+           belly hinge (forward throw ≈ leg length, so the leg length stays ~constant). */
+        const _cgFwd = 0.003;
+        const _cgWhl = _lerpV3([_cgX + _cgFwd, 0, -_wbR + 0.001], [_cgX, 0, -_wbR - 0.0032], _gearP);
+        const _cgMid  = _lerpV3(_cgTop, _cgWhl, 0.75);
+        const _cgColT = _lerpV3(_cgTop, _cgWhl, 0.67);
+        pushTube3D(faces, _cgTop,  _cgMid, _mrU, _mrU, [70, 80, 96],    project, rotateNormal, litBr, 10, 0.16);
+        pushTube3D(faces, _cgMid,  _cgWhl, _mrL, _mrL, [200, 212, 226], project, rotateNormal, litBr, 10, 0.20);
+        pushTube3D(faces, _cgColT, _cgMid, _mrC, _mrC, [50, 58, 72],    project, rotateNormal, litBr, 10, 0.14, true);
+        /* diagonal drag brace — kept 2-D for now, like the main side-stays */
         const cgPivotA = project([_cgX, 0, -_wbR * 0.50]);
-        const cgPivotM = project(_midV3([_cgX, 0, -_wbR], _cgWhl));
+        const cgPivotM = project(_midV3(_cgTop, _cgWhl));
         if (cgPivotA && cgPivotM)
           faces.push({ avgD: (cgPivotA.d+cgPivotM.d)/2, draw: () => { ctx.save(); drawStrutTube(ctx, cgPivotA, cgPivotM, dpr); ctx.restore(); } });
-        const cgTop = project([_cgX, 0, -_wbR]), cgBot = project(_cgWhl);
-        if (cgTop && cgBot)
-          faces.push({ avgD: (cgTop.d+cgBot.d)/2, draw: () => { ctx.save(); drawStrutTube(ctx, cgTop, cgBot, dpr); ctx.restore(); } });
-        /* center bogie tires */
-        const wcC = _cgWhl, ptC = project(wcC);
-        if (ptC) {
-          const _cbp = _bogPitch;
-          const wcF = [wcC[0]+_cbp, wcC[1], wcC[2]], wcA = [wcC[0]-_cbp, wcC[1], wcC[2]];
-          pushTirePair(faces, wcF, _mTR, _mHR, project, rotateNormal, litBr);
-          pushTirePair(faces, wcA, _mTR, _mHR, project, rotateNormal, litBr);
-          const pF = project(wcF), pA = project(wcA);
-          if (pF && pA) faces.push({ avgD: (pF.d+pA.d)/2, draw: () => { ctx.save(); drawStrutTube(ctx, pF, pA, dpr); ctx.restore(); } });
-        }
+        /* center bogie tires + axle-beam cross tube */
+        const _cbp = _bogPitch;
+        const wcF = [_cgWhl[0]+_cbp, _cgWhl[1], _cgWhl[2]], wcA = [_cgWhl[0]-_cbp, _cgWhl[1], _cgWhl[2]];
+        pushTirePair(faces, wcF, _mTR, _mHR, project, rotateNormal, litBr);
+        pushTirePair(faces, wcA, _mTR, _mHR, project, rotateNormal, litBr);
+        const pF = project(wcF), pA = project(wcA);
+        if (pF && pA) faces.push({ avgD: (pF.d+pA.d)/2, draw: () => { ctx.save(); drawStrutTube(ctx, pF, pA, dpr); ctx.restore(); } });
       }
     }
   }
