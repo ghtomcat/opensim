@@ -75,18 +75,33 @@ export function tickControls(dt) {
   const aileronIn  = (_held.has('ArrowRight') ? 1 : 0) - (_held.has('ArrowLeft')  ? 1 : 0);
   const elevatorIn = (_held.has('ArrowUp')    ? 1 : 0) - (_held.has('ArrowDown')  ? 1 : 0);
 
-  /* On ground: ailerons have no meaningful effect — snap rollT to 0 to avoid
-     post-takeoff spiral from accumulated ground-roll inputs */
+  /* On ground the same left/right keys drive nose-wheel steering (the tiller), not
+     ailerons — ramp `steer` toward ±1 while held, self-centre when released. Roll is
+     snapped to 0 so accumulated ground inputs don't cause a post-takeoff spiral. */
   const patch = {};
   if (S.wow) {
     if (S.rollT !== 0) patch.rollT = 0;
-  } else if (aileronIn !== 0) {
-    patch.rollT = Math.max(-maxBank, Math.min(maxBank, S.rollT + aileronIn * rollRate));
-  } else if (S.rollT !== 0) {
-    /* No input in flight: spring back toward wings level */
-    const step = Math.min(Math.abs(S.rollT), rollRelax);
-    const next = S.rollT - Math.sign(S.rollT) * step;
-    patch.rollT = Math.abs(next) < 0.1 ? 0 : next;
+    const steerRate  = (h.steerRate  ?? 1.6) * dt;   // deflect to full in ~0.6 s
+    const steerRelax = (h.steerRelax ?? 2.2) * dt;   // self-centre when released
+    let steer = S.steer ?? 0;
+    if (aileronIn !== 0) {
+      steer = Math.max(-1, Math.min(1, steer + aileronIn * steerRate));
+    } else if (steer !== 0) {
+      const step = Math.min(Math.abs(steer), steerRelax);
+      const next = steer - Math.sign(steer) * step;
+      steer = Math.abs(next) < 0.02 ? 0 : next;
+    }
+    if (steer !== (S.steer ?? 0)) patch.steer = steer;
+  } else {
+    if (aileronIn !== 0) {
+      patch.rollT = Math.max(-maxBank, Math.min(maxBank, S.rollT + aileronIn * rollRate));
+    } else if (S.rollT !== 0) {
+      /* No input in flight: spring back toward wings level */
+      const step = Math.min(Math.abs(S.rollT), rollRelax);
+      const next = S.rollT - Math.sign(S.rollT) * step;
+      patch.rollT = Math.abs(next) < 0.1 ? 0 : next;
+    }
+    if ((S.steer ?? 0) !== 0) patch.steer = 0;   // centre the nose wheel once airborne
   }
   if (elevatorIn !== 0) {
     patch.pitchT = Math.max(-maxPitch, Math.min(maxPitch, S.pitchT + elevatorIn * pitchRate));

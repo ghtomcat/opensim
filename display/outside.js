@@ -834,7 +834,8 @@ function _fanEllipse(ringPts) {
 /* ── Core wireframe + shading renderer ───────────────────────── */
 function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, wingView = false, orbitAzDeg = 0, orbitElDeg = 0, panX = 0) {
   /* Advance fan rotation angle — capped so it doesn't spin during static frames */
-  _fanAngle  = (_fanAngle  + Math.min(0.06, (S.enginePower ?? 0) * 0.35)) % (Math.PI * 2);
+  _fanAngle  = (_fanAngle  + ((S.engineState === 'off' || S.engineState === 'shutdown')
+                 ? 0 : Math.min(0.06, (S.enginePower ?? 0) * 0.35))) % (Math.PI * 2);
   if (S.engineState === 'running' || S.engineState === 'starting') {
     const _cruiseSpd = S.aircraft?.envelope?.cruiseSpd ?? 122;
     const _throttle  = Math.min(1, Math.max(0, (S.spdT ?? 0) / _cruiseSpd));
@@ -2750,9 +2751,22 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     } else {
       const _gearCfg   = S.aircraft?.gear ?? {};
 
-      /* Nose gear */
+      /* Nose gear — steerable: deflect the wheel with the ground steering command
+         (heading error hdgT−hdg) while on the ground, centred in the air. The strut is
+         a symmetric cylinder so only the wheel turns, about the vertical (Z) axis. */
       { const wc = _animGV[1], pt = project(wc);
-        if (pt) pushTirePair(faces, wc, _nTR, _nHR, project, rotateNormal, litBr); }
+        let _steerAx;
+        if (S.wow) {
+          let _sa;
+          if (S.aircraft?.manualControl) {
+            _sa = (S.steer ?? 0) * 70 * Math.PI / 180;                    // tiller, up to ±70°
+          } else {
+            const _he = (((S.hdgT ?? S.hdg) - S.hdg + 540) % 360) - 180;  // AP: signed heading error
+            _sa = Math.max(-45, Math.min(45, _he * 4)) * Math.PI / 180;
+          }
+          _steerAx = [-Math.sin(_sa), Math.cos(_sa), 0];
+        }
+        if (pt) pushTirePair(faces, wc, _nTR, _nHR, project, rotateNormal, litBr, _steerAx); }
 
       /* Main gear — N-axle bogie (fore/aft) or a single pair (gear.main.axles).
          The leg swings inboard about the fore-aft (X) axis, so the wheel axle tilts
@@ -3428,8 +3442,8 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
 
   /* Turbofan fan face — wide-body (WB) aircraft only */
   if (!isC172 && !isPP && !isF9 && !isSS && !isBf109 && !isF4U && !isMig15 && !isSV) {
-    const ePow = S.enginePower ?? 0;
-    if (ePow > 0 || S.engineState === 'running') {
+    const ePow = (S.engineState === 'off' || S.engineState === 'shutdown') ? 0 : (S.enginePower ?? 0);
+    {   // always draw the inlet — static blades when off (ePow 0), spinning when running
       /* Draw one engine inlet: dark bore + black strip + recessed fan (fitted to
          the fan-plane ring's projected ellipse, so it sets back into the inlet and
          foreshortens off-axis) + front lip ring. Shared by the inner pair and the

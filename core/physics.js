@@ -165,7 +165,14 @@ export function tickPhysics(dt) {
       newSpd = newSpd_ms / 0.5144;
       newAlt = groundFt;
       vs     = 0;
-      newHdg = convergeHdg(S.hdg, S.hdgT, 30 * dt);  // nose wheel steering
+      if (S.aircraft?.manualControl) {
+        /* Nose-wheel steering: yaw rate ∝ steer angle × ground speed, so it only
+           turns while rolling (can't pivot a stationary aircraft). Capped at 30°/s. */
+        const yawRate = Math.max(-30, Math.min(30, (S.steer ?? 0) * newSpd * 1.1));  // °/s
+        newHdg = (((S.hdg + yawRate * dt) % 360) + 360) % 360;
+      } else {
+        newHdg = convergeHdg(S.hdg, S.hdgT, 30 * dt);  // AP heading-bug steering
+      }
 
     } else {
       /* ── Flight model ──

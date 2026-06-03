@@ -23,6 +23,7 @@ export const S = {
   gear:     false, prevGear: false,
   gearAnim: 0,    // 0 = fully retracted, 1 = fully extended
   braking:  false,                   // ground brakes held
+  steer:    0,                       // nose-wheel steering, -1 (full left) … +1 (full right)
   enginePower: 1.0,               // 0 = dead engine, 1 = full power
   engineState: 'off',             // 'off' | 'starting' | 'running' | 'shutdown'
   engineTemp:  0.0,               // 0=cold, 1=warm — increases after each start
