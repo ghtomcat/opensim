@@ -319,7 +319,8 @@
     "nose": {
       "type": "twin",
       "axles": 1,
-      "x": 0.01085
+      "x": 0.01085,
+      "len": 0.001399
     },
     "main": {
       "type": "bogie",
@@ -332,7 +333,8 @@
     "center": {
       "type": "bogie",
       "axles": 2,
-      "count": 1
+      "count": 1,
+      "len": 0.001399
     }
   },
   "handling": {

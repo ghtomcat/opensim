@@ -2683,44 +2683,33 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
                      _bossR, _bossR, [120, 132, 150], project, rotateNormal, litBr, 8, 0.24, true); }
       }
 
-      /* Main gear side stays — fore (blue) and aft (green), straight to strut bracket. */
+      /* Main gear side stays — fore + aft folding braces, real 3-D tubes. The mid
+         knuckles get small pivot-joint bosses (the real brace folds there on a pin;
+         the actual rack-and-pinion is sub-visible at this scale, so we read it as a
+         pin joint). pushTube3D builds from the live points, so the braces flex as the
+         leg swings inboard. */
+      const _srR = _mrU * 0.42;                     // brace rod radius
+      const _jR  = _mrU * 0.72, _jH = _mrU * 0.50;  // pivot-joint boss
+      const _ROD = [120, 132, 150], _JNT = [142, 152, 168];
       for (const [sign, gv2, gv3] of [[+1, 2, 3], [-1, 4, 5]]) {
         const strBkt  = _lerpV3(_animGV[gv2], _animGV[gv3], 0.502);
         const strBkt2 = _lerpV3(_animGV[gv2], _animGV[gv3], 0.192);
         const frTop = [_gMx + 0.003, sign * 0.0004, -_gwR * 0.88];
         const arTop = [_gMx - 0.002, sign * 0.0004, -_gwR * 0.88];
-        const frMid   = [(frTop[0]+strBkt[0])/2,  (frTop[1]+strBkt[1])/2,  (frTop[2]+strBkt[2])/2];
-        const arMid   = [(arTop[0]+strBkt[0])/2,  (arTop[1]+strBkt[1])/2,  (arTop[2]+strBkt[2])/2];
-        const redFrMid = [(strBkt2[0]+frMid[0])/2, (strBkt2[1]+frMid[1])/2, (strBkt2[2]+frMid[2])/2];
-        const redArMid = [(strBkt2[0]+arMid[0])/2, (strBkt2[1]+arMid[1])/2, (strBkt2[2]+arMid[2])/2];
-        const pFrT = project(frTop), pArT = project(arTop), pBkt = project(strBkt), pBkt2 = project(strBkt2);
-        const pFrM = project(frMid), pArM = project(arMid);
-        const pRFrM = project(redFrMid), pRArM = project(redArMid);
-        const _spts = [pFrT, pArT, pBkt].filter(Boolean);
-        if (!_spts.length) continue;
-        const avgD = _spts.reduce((s, p) => s + p.d, 0) / _spts.length;
-        faces.push({ avgD, draw: () => {
-          ctx.save();
-          if (pFrT && pBkt) drawActuatorRod(ctx, pFrT, pBkt, dpr);
-          if (pArT && pBkt) drawActuatorRod(ctx, pArT, pBkt, dpr);
-          /* Struts from upper bracket (19.2%) to midpoint knuckles */
-          if (pBkt2 && pFrM) drawActuatorRod(ctx, pBkt2, pFrM, dpr);
-          if (pBkt2 && pArM) drawActuatorRod(ctx, pBkt2, pArM, dpr);
-          /* All knuckles — size derived from stay screen length, vanish naturally when zoomed out */
-          const _stayPx = pFrT && pBkt ? Math.hypot(pBkt.x-pFrT.x, pBkt.y-pFrT.y) : 0;
-          const _drawKnuckle = (pk, r) => {
-            if (!pk || r < 2) return;
-            ctx.beginPath(); ctx.arc(pk.x, pk.y, r, 0, Math.PI*2);
-            ctx.fillStyle = 'rgba(130,142,160,0.96)'; ctx.fill();
-            ctx.strokeStyle = 'rgba(220,228,238,0.95)'; ctx.lineWidth = Math.max(1*dpr, 1.2); ctx.stroke();
-            ctx.beginPath(); ctx.arc(pk.x, pk.y, r*0.38, 0, Math.PI*2);
-            ctx.fillStyle = 'rgba(18,20,26,0.95)'; ctx.fill();
-          };
-          /* pBkt / pBkt2 are now real 3-D attachment bosses (built with the strut) */
-          for (const pk of [pFrM, pArM])   _drawKnuckle(pk, _stayPx * 0.07);
-          for (const pk of [pRFrM, pRArM]) _drawKnuckle(pk, _stayPx * 0.07);
-          ctx.restore();
-        }});
+        const frMid    = _midV3(frTop, strBkt);
+        const arMid    = _midV3(arTop, strBkt);
+        const redFrMid = _midV3(strBkt2, frMid);
+        const redArMid = _midV3(strBkt2, arMid);
+        /* fore + aft braces: belly attachment → lower strut bracket */
+        pushTube3D(faces, frTop, strBkt, _srR, _srR, _ROD, project, rotateNormal, litBr, 7, 0.20);
+        pushTube3D(faces, arTop, strBkt, _srR, _srR, _ROD, project, rotateNormal, litBr, 7, 0.20);
+        /* secondary lock links: upper bracket → mid knuckle */
+        pushTube3D(faces, strBkt2, frMid, _srR*0.85, _srR*0.85, _ROD, project, rotateNormal, litBr, 7, 0.20);
+        pushTube3D(faces, strBkt2, arMid, _srR*0.85, _srR*0.85, _ROD, project, rotateNormal, litBr, 7, 0.20);
+        /* pivot-joint bosses at the folding knuckles (short fore-aft pin) */
+        for (const c of [frMid, arMid, redFrMid, redArMid])
+          pushTube3D(faces, [c[0]+_jH, c[1], c[2]], [c[0]-_jH, c[1], c[2]], _jR, _jR, _JNT,
+                     project, rotateNormal, litBr, 8, 0.26, true);
 
         /* Outboard gear-leg door (gear.main.door) — the side-stays fold the leg
            inboard, and this door closes the wheel well; when extended it hangs on
@@ -2792,11 +2781,12 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
          dark cylinder (75%) + gland collar + silver piston (25%), down the centerline. */
       if (_gearCfg.center && _gearP > 0.01) {
         const _cgX   = _gearCfg.center?.x ?? (_gMx - _mTR * 4);  // a bit aft of the mains (or measured)
+        const _cgLen = _gearCfg.center?.len ?? 0.0032;           // fuselage→axle (measured or default)
         const _cgTop = [_cgX, 0, -_wbR];                          // belly attachment (pivot hinge)
         /* Retracts forward + up like the nose leg: the wheel swings forward about the
            belly hinge (forward throw ≈ leg length, so the leg length stays ~constant). */
-        const _cgFwd = 0.003;
-        const _cgWhl = _lerpV3([_cgX + _cgFwd, 0, -_wbR + 0.001], [_cgX, 0, -_wbR - 0.0032], _gearP);
+        const _cgFwd = _cgLen * 0.94, _cgUp = _cgLen * 0.31;
+        const _cgWhl = _lerpV3([_cgX + _cgFwd, 0, -_wbR + _cgUp], [_cgX, 0, -_wbR - _cgLen], _gearP);
         const _cgMid  = _lerpV3(_cgTop, _cgWhl, 0.75);
         const _cgColT = _lerpV3(_cgTop, _cgWhl, 0.67);
         pushTube3D(faces, _cgTop,  _cgMid, _mrU, _mrU, [70, 80, 96],    project, rotateNormal, litBr, 10, 0.16);
