@@ -249,8 +249,19 @@ function _groundOffsetFt() {
   return (Math.abs(bz) + _ml + _mt) / FT_NM;
 }
 
+/* Lightweight render profiler — toggle with the 'y' key. Splits the frame into the
+   aircraft geometry build, painter sort, painter fill, and terrain+rest, and tracks
+   the peak of each (peaks reset when you toggle it on, to catch transient spikes). */
+const _prof = { on: false, _inst: false, fps: 60, frameMs: 0, buildT0: 0,
+                buildMs: 0, sortMs: 0, fillMs: 0, restMs: 0, faces: 0, drawFaces: 0, lastT: 0,
+                max: { render: 0, build: 0, rest: 0, faces: 0 } };
+
 export function tickOutside() {
   if (!_canvas || !_canvas.offsetWidth || !_canvas.offsetHeight) return;
+  if (!_prof._inst) { _prof._inst = true;
+    addEventListener('keydown', e => { if (e.key === 'y' || e.key === 'Y') {
+      _prof.on = !_prof.on; if (_prof.on) _prof.max = { render: 0, build: 0, rest: 0, faces: 0 }; } }); }
+  const _t0 = performance.now();
   if      (_camMode === 1) _renderChaseCam(_canvas);
   else if (_camMode === 2) _renderSideCam(_canvas);
   else if (_camMode === 3) _renderWingView(_canvas);
@@ -261,6 +272,38 @@ export function tickOutside() {
   }
   else if (_camMode === 6) _renderShipCam(_canvas);
   else                     renderTerrain(_canvas);
+  const _now = performance.now();
+  if (_prof.lastT) _prof.fps = 0.85 * _prof.fps + 0.15 * (1000 / Math.max(1, _now - _prof.lastT));
+  _prof.lastT   = _now;
+  _prof.frameMs = _now - _t0;
+  if (_prof.on) {
+    _prof.restMs = Math.max(0, _prof.frameMs - _prof.buildMs - _prof.sortMs - _prof.fillMs);
+    const m = _prof.max;
+    m.render = Math.max(m.render, _prof.frameMs);
+    m.build  = Math.max(m.build,  _prof.buildMs);
+    m.rest   = Math.max(m.rest,   _prof.restMs);
+    m.faces  = Math.max(m.faces,  _prof.faces);
+    _profDraw(_canvas);
+  }
+}
+
+function _profDraw(canvas) {
+  const ctx = canvas.getContext('2d'), dpr = devicePixelRatio || 1, m = _prof.max;
+  const lines = [
+    `FPS ${_prof.fps.toFixed(0)}    render ${_prof.frameMs.toFixed(1)} / ${m.render.toFixed(1)} ms`,
+    `faces ${_prof.faces} / ${m.faces}    2D-draw ${_prof.drawFaces}`,
+    `build ${_prof.buildMs.toFixed(1)} / ${m.build.toFixed(1)}   sort ${_prof.sortMs.toFixed(1)}  fill ${_prof.fillMs.toFixed(1)}`,
+    `terrain+rest ${_prof.restMs.toFixed(1)} / ${m.rest.toFixed(1)} ms`,
+    `(current / max — max resets on toggle)`,
+  ];
+  ctx.save();
+  ctx.font = `${Math.round(11 * dpr)}px monospace`; ctx.textBaseline = 'top';
+  const oy = 140;   // push below the MET clock
+  ctx.fillStyle = 'rgba(0,0,0,0.72)';
+  ctx.fillRect(8 * dpr, oy * dpr, 300 * dpr, (lines.length * 16 + 8) * dpr);
+  ctx.fillStyle = '#3cff8c';
+  lines.forEach((t, i) => ctx.fillText(t, 14 * dpr, (oy + 5 + i * 16) * dpr));
+  ctx.restore();
 }
 
 
@@ -525,8 +568,8 @@ function _tireFrame(axis) {
    it holds up from any angle / in WebXR. `axis` is the axle direction (default Y); the
    main gear passes a tilted axle so the wheel swings with the retracting leg. Pushes
    faces into the painter's `faces` list rather than painting ellipses on the canvas. */
-function pushTire(faces, wc, tR, hubR, tW, project, rotateNormal, litBr, axis) {
-  const N = 14, tRs = tR * 0.86, hR = hubR ?? tR * 0.20;
+function pushTire(faces, wc, tR, hubR, tW, project, rotateNormal, litBr, axis, N) {
+  N = N || 14; const tRs = tR * 0.86, hR = hubR ?? tR * 0.20;
   const [a, u, v] = _tireFrame(axis || [0, 1, 0]);
   const off  = (d) => [wc[0]+a[0]*d, wc[1]+a[1]*d, wc[2]+a[2]*d];
   const ring = (d, r) => { const c = off(d); return Array.from({ length: N }, (_, k) => {
@@ -566,19 +609,25 @@ function pushTire(faces, wc, tR, hubR, tW, project, rotateNormal, litBr, axis) {
    together when the leg swings. */
 function pushTirePair(faces, wc, tR, hubR, project, rotateNormal, litBr, axis) {
   const tW = tR * 0.40, axH = tR * 0.55;
+  /* LOD: tyre segment count from the wheel's projected size — full 14 up close,
+     down to a hexagon when small (the chase/side-cam framing, where a widebody has
+     a dozen+ wheels). Cuts face count + per-frame allocations where it isn't seen. */
+  const _pc = project(wc), _pe = project([wc[0], wc[1], wc[2] - tR]);
+  let N = 14;
+  if (_pc && _pe) N = Math.max(6, Math.min(14, Math.round(Math.hypot(_pe.x - _pc.x, _pe.y - _pc.y) / 7)));
   const [a, u, v] = _tireFrame(axis || [0, 1, 0]);
   const off = (d) => [wc[0]+a[0]*d, wc[1]+a[1]*d, wc[2]+a[2]*d];
-  pushTire(faces, off( axH), tR, hubR, tW, project, rotateNormal, litBr, a);
-  pushTire(faces, off(-axH), tR, hubR, tW, project, rotateNormal, litBr, a);
+  pushTire(faces, off( axH), tR, hubR, tW, project, rotateNormal, litBr, a, N);
+  pushTire(faces, off(-axH), tR, hubR, tW, project, rotateNormal, litBr, a, N);
   /* axle stub between the inner faces */
-  const N = 8, axR = tR * 0.16;
+  const aN = 8, axR = tR * 0.16;
   const sub = (p,q) => [p[0]-q[0],p[1]-q[1],p[2]-q[2]], dot = (p,q) => p[0]*q[0]+p[1]*q[1]+p[2]*q[2],
         crs = (p,q) => [p[1]*q[2]-p[2]*q[1],p[2]*q[0]-p[0]*q[2],p[0]*q[1]-p[1]*q[0]];
-  const stub = (d) => { const c = off(d); return Array.from({ length: N }, (_, k) => {
-    const t = k/N*Math.PI*2, cu = Math.cos(t)*axR, sv = Math.sin(t)*axR;
+  const stub = (d) => { const c = off(d); return Array.from({ length: aN }, (_, k) => {
+    const t = k/aN*Math.PI*2, cu = Math.cos(t)*axR, sv = Math.sin(t)*axR;
     return [c[0]+u[0]*cu+v[0]*sv, c[1]+u[1]*cu+v[1]*sv, c[2]+u[2]*cu+v[2]*sv]; }); };
   const r1 = stub(axH - tW), r2 = stub(-(axH - tW));
-  for (let k = 0; k < N; k++) { const j = (k+1)%N, v3 = [r1[k], r1[j], r2[j], r2[k]];
+  for (let k = 0; k < aN; k++) { const j = (k+1)%aN, v3 = [r1[k], r1[j], r2[j], r2[k]];
     const ps = v3.map(project); if (ps.some(p => !p)) continue;
     const cc = v3.reduce((a,p)=>[a[0]+p[0],a[1]+p[1],a[2]+p[2]],[0,0,0]).map(x=>x/4);
     let n = crs(sub(v3[1],v3[0]), sub(v3[2],v3[0])); const m = Math.hypot(n[0],n[1],n[2])||1; n=[n[0]/m,n[1]/m,n[2]/m];
@@ -1516,6 +1565,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const _trActive = !isF9 && !isSS && !isSV && !isC172 && !isPP && !isBf109 && !isF4U && !isMig15 && !!(S.thrustReverser);
 
   /* Build shaded face list with average depth */
+  _prof.buildT0 = performance.now();   // profiler: aircraft geometry build starts here
   const faces = F_.map((fi, i) => {
     /* F9 stage sep: main vehicle = S2 + Dragon + MVac nozzle (faces 48-95 + 96-103) */
     if (isF9 && rStage >= 2 && (i < 48 || (i > 95 && i < 104))) return null;
@@ -2860,8 +2910,47 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     else             _drawSSReentryPlasma(canvas, _pCx, _pCy, camBack, false);
   }
 
+  /* ── Cockpit glass + bandit mask as real depth-sorted faces (WebXR) ──────────
+     cockpitPanels / cockpitMask are already model-space corners. Push the dark glass
+     and the black surround as real faces, nudged proud of the skin so they sort in
+     front of the fuselage; the silver frame stays a 2-D stroke (drawn after). */
+  if (_wbGeo?.cockpitMask || _wbGeo?.cockpitPanels) {
+    const _sub = (a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+    const _crs = (a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+    const _dot = (a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+    const _cd  = [_cpCamF, _cpCamR, _cpCamU];
+    /* Proud, depth-sorted face from model-space corners (ySign already applied).
+       brFixed overrides lighting (used for the flat black mask). */
+    const _pushCockpitFace = (corners3d, eps, col, amb, brFixed) => {
+      const i1 = Math.floor(corners3d.length/3), i2 = Math.floor(corners3d.length*2/3);
+      let n = _crs(_sub(corners3d[i1], corners3d[0]), _sub(corners3d[i2], corners3d[0]));
+      const m = Math.hypot(n[0],n[1],n[2]) || 1; n = [n[0]/m, n[1]/m, n[2]/m];
+      if (_dot(n, _cd) < 0) n = [-n[0],-n[1],-n[2]];   // orient toward camera
+      if (_dot(n, _cd) <= 0.02) return;                // backface / edge-on
+      const v3 = corners3d.map(c => [c[0]+n[0]*eps, c[1]+n[1]*eps, c[2]+n[2]*eps]);
+      const ps = v3.map(project);
+      if (ps.some(p => !p)) return;
+      let br = brFixed;
+      if (br == null) { const [nF,nR,nU] = rotateNormal(n); br = litBr(nF,nR,nU,amb); }
+      faces.push({ ps, br, avgD: ps.reduce((s,p)=>s+p.d,0)/ps.length, col });
+    };
+    const _EPS_MASK = 0.00005, _EPS_GLASS = 0.00009;
+    for (const ySign of [+1, -1]) {
+      if (ySign * _cpCamR < -0.15) continue;           // camera on the far side
+      if (_wbGeo.cockpitMask)
+        _pushCockpitFace(_wbGeo.cockpitMask.map(([x,y,z]) => [x, ySign*y, z]),
+                         _EPS_MASK, [8,10,12], 0, 1.0);          // black bandit surround
+      if (_wbGeo.cockpitPanels)
+        for (const panel of _wbGeo.cockpitPanels)
+          _pushCockpitFace(panel.map(([x,y,z]) => [x, ySign*y, z]),
+                           _EPS_GLASS, [10,20,38], 0.30);        // dark glass
+    }
+  }
+
   /* Painter's algorithm: farthest first */
+  const _pfSort0 = performance.now();
   faces.sort((a, b) => b.avgD - a.avgD);
+  const _pfFill0 = performance.now();
 
   /* ── Golden-hour skin sheen ──────────────────────────────────────────────────
      When the sun is near the horizon the key light is warm orange rather than
@@ -2913,34 +3002,19 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       ctx.restore();
     }
   }
-
-  /* ── Cockpit bandit mask — solid black surround, drawn before windows ── */
-  if (_wbGeo?.cockpitMask) {
-    const _cm = _wbGeo.cockpitMask;
-    for (const ySign of [+1, -1]) {
-      if (ySign * _cpCamR < -0.15) continue;
-      const [ax, ay, az] = _cm[0];
-      const [bx, by, bz] = _cm[Math.floor(_cm.length / 3)];
-      const [cx, cy, cz] = _cm[Math.floor(_cm.length * 2 / 3)];
-      const nx = (by-ay)*(cz-az) - (bz-az)*(cy-ay);
-      const ny = (bz-az)*(cx-ax) - (bx-ax)*(cz-az);
-      const nz = (bx-ax)*(cy-ay) - (by-ay)*(cx-ax);
-      if (nx * _cpCamF + ny * (ySign * _cpCamR) + nz * _cpCamU <= 0) continue;
-      const order = [_cm[0], ..._cm.slice(1).reverse()];
-      const vs = order.map(([x, y, z]) => project([x, ySign * y, z]));
-      if (vs.some(v => !v)) continue;
-      ctx.save();
-      ctx.fillStyle = 'rgb(8, 10, 12)';
-      ctx.beginPath();
-      ctx.moveTo(vs[0].x, vs[0].y);
-      for (let i = 1; i < vs.length; i++) ctx.lineTo(vs[i].x, vs[i].y);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    }
+  if (_prof.on) {
+    _prof.buildMs = _pfSort0 - _prof.buildT0;
+    _prof.sortMs  = _pfFill0 - _pfSort0;
+    _prof.fillMs  = performance.now() - _pfFill0;
+    _prof.faces   = faces.length;
+    let d = 0; for (const f of faces) if (f.draw) d++; _prof.drawFaces = d;
   }
 
-  /* ── Cockpit window panels (cockpitPanels) — post-painter pass, bypasses depth sort ──
+  /* (Cockpit bandit mask is now a real depth-sorted face — see the pre-sort block.) */
+
+  /* ── Cockpit window frames — silver stroke + rounded corners, drawn on top of the
+        glass faces (the dark glass itself is now a real depth-sorted face). ──────
+     Post-painter pass, bypasses depth sort ──
      Painter's algorithm can't reliably order window faces against the tube faces they
      sit on (the outermost tube sectors sort closer than the window centroid).
      Project and fill each panel directly here, after all fuselage faces are done.
@@ -3002,13 +3076,11 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         return { vs, rs };
       });
       ctx.save();
-      ctx.fillStyle   = 'rgba(8,18,35,0.62)';
-      ctx.strokeStyle = 'rgb(168,173,180)';   // silver window frame
+      ctx.strokeStyle = 'rgb(168,173,180)';   // silver window frame (glass is a real face)
       ctx.lineWidth   = 2.5 * dpr;
       for (const pp of projPanels) {
         if (!pp) continue;
         ctx.beginPath(); _rPoly(pp.vs, pp.rs); ctx.closePath();
-        ctx.fill();
         ctx.stroke();
       }
       ctx.restore();
