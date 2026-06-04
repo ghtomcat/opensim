@@ -249,18 +249,30 @@ function _groundOffsetFt() {
   return (Math.abs(bz) + _ml + _mt) / FT_NM;
 }
 
-/* Lightweight render profiler — toggle with the 'y' key. Splits the frame into the
-   aircraft geometry build, painter sort, painter fill, and terrain+rest, and tracks
-   the peak of each (peaks reset when you toggle it on, to catch transient spikes). */
-const _prof = { on: false, _inst: false, fps: 60, frameMs: 0, buildT0: 0,
+/* Lightweight render profiler. Splits the frame into aircraft geometry build, painter
+   sort, painter fill, and terrain+rest, and tracks each phase's peak (peaks reset on
+   toggle, to catch transient spikes).
+   Configurable at runtime via window.OPENSIM_PROFILER — change the toggle key or the
+   overlay position, e.g. OPENSIM_PROFILER.key = 'p'. The on/off state and any config
+   changes persist across reloads in localStorage. */
+const _profCfg = { key: 'y', x: 8, y: 140, on: false };
+try { Object.assign(_profCfg, JSON.parse(localStorage.getItem('opensim.profiler') || '{}')); } catch {}
+if (typeof window !== 'undefined') window.OPENSIM_PROFILER = _profCfg;
+const _saveProfCfg = () => { try { localStorage.setItem('opensim.profiler', JSON.stringify(_profCfg)); } catch {} };
+
+const _prof = { on: !!_profCfg.on, _inst: false, fps: 60, frameMs: 0, buildT0: 0,
                 buildMs: 0, sortMs: 0, fillMs: 0, restMs: 0, faces: 0, drawFaces: 0, lastT: 0,
                 max: { render: 0, build: 0, rest: 0, faces: 0 } };
 
 export function tickOutside() {
   if (!_canvas || !_canvas.offsetWidth || !_canvas.offsetHeight) return;
   if (!_prof._inst) { _prof._inst = true;
-    addEventListener('keydown', e => { if (e.key === 'y' || e.key === 'Y') {
-      _prof.on = !_prof.on; if (_prof.on) _prof.max = { render: 0, build: 0, rest: 0, faces: 0 }; } }); }
+    addEventListener('keydown', e => {
+      if (e.key && e.key.toLowerCase() === (_profCfg.key || 'y').toLowerCase()) {
+        _prof.on = !_prof.on;
+        if (_prof.on) _prof.max = { render: 0, build: 0, rest: 0, faces: 0 };
+        _profCfg.on = _prof.on; _saveProfCfg();
+      } }); }
   const _t0 = performance.now();
   if      (_camMode === 1) _renderChaseCam(_canvas);
   else if (_camMode === 2) _renderSideCam(_canvas);
@@ -298,11 +310,11 @@ function _profDraw(canvas) {
   ];
   ctx.save();
   ctx.font = `${Math.round(11 * dpr)}px monospace`; ctx.textBaseline = 'top';
-  const oy = 140;   // push below the MET clock
+  const ox = _profCfg.x ?? 8, oy = _profCfg.y ?? 140;   // configurable (default below the MET clock)
   ctx.fillStyle = 'rgba(0,0,0,0.72)';
-  ctx.fillRect(8 * dpr, oy * dpr, 300 * dpr, (lines.length * 16 + 8) * dpr);
+  ctx.fillRect(ox * dpr, oy * dpr, 300 * dpr, (lines.length * 16 + 8) * dpr);
   ctx.fillStyle = '#3cff8c';
-  lines.forEach((t, i) => ctx.fillText(t, 14 * dpr, (oy + 5 + i * 16) * dpr));
+  lines.forEach((t, i) => ctx.fillText(t, (ox + 6) * dpr, (oy + 5 + i * 16) * dpr));
   ctx.restore();
 }
 
