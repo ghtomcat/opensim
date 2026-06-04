@@ -874,6 +874,10 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
             const rlat = latN + dLat * fy0, rlon = lonW + dLon * fx0;
             const rdN  = (rlat - acLat) * 60, rdE = (rlon - acLon) * 60 * cosAcLat;
             if (rdN * rdN + rdE * rdE > 22 * 22) continue;
+            /* Cull rings well behind the view direction before projecting their points
+               (proj() would reject each one anyway, but per-point). 5 NM margin keeps
+               rings that straddle the camera plane. */
+            if (rdN * cosH + rdE * sinH < -5) continue;
 
             const eNm = ((_sampleElev(rlat, rlon) ?? refM) - refM) * M_NM;
 
