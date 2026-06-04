@@ -179,7 +179,7 @@ export function initOutside() {
   window.addEventListener('mousemove', e => {
     if (_orbitDragX !== null) {
       _orbitAz = ((_orbitAz + (e.clientX - _orbitDragX) * 0.4) % 360 + 360) % 360;
-      _orbitEl = ((_orbitEl - (e.clientY - _orbitDragY) * 0.3) % 360 + 360) % 360;
+      _orbitEl = Math.max(-85, Math.min(85, _orbitEl - (e.clientY - _orbitDragY) * 0.3));  // clamp: tilt elevation, never flip over the top
       _orbitDragX = e.clientX; _orbitDragY = e.clientY;
     }
     if (_panDragX !== null) {
@@ -343,8 +343,11 @@ function _renderChaseCam(canvas) {
   const camBack = CHASE_BACK;
   const camUp   = CHASE_UP;
 
-  /* Orbit azimuth: heading-relative in flight; absolute when on ground */
-  const orbitRad = S.wow ? _orbitAz * DEG : hdgRad - Math.PI + _orbitAz * DEG;
+  /* Orbit azimuth: heading-relative (camera behind the nose) so taxiing tracks the
+     aircraft and the view stays consistent through takeoff; rockets on the pad keep
+     the old absolute azimuth. */
+  const isRocket = S.aircraft?.vehicleType === 'rocket';
+  const orbitRad = (S.wow && isRocket) ? _orbitAz * DEG : hdgRad - Math.PI + _orbitAz * DEG;
   const camBackZ = camBack * _orbitZoom;
   const camUpZ   = camUp   * _orbitZoom;
   const dN = Math.cos(orbitRad) * camBackZ;
@@ -405,12 +408,15 @@ function _renderSideCam(canvas) {
       else          sideOrbitAz += shotAz;
     }
   }
-  // Aircraft in-flight: swing terrain camera with user orbit (opposite sign: +az → toward nose)
-  if (!isRocket && !S.wow) terrainOrbit -= _orbitAz;
+  // Aircraft: swing terrain camera with user orbit (opposite sign: +az → toward nose)
+  if (!isRocket) terrainOrbit -= _orbitAz;
 
-  /* Terrain camera: fixed default elevation (12°), user orbit swings position only. */
-  const tElRad    = 12 * DEG;
-  const tOrbitRad = S.wow ? terrainOrbit * DEG : rightRad + terrainOrbit * DEG;
+  /* Terrain camera: elevation follows the orbit drag for aircraft (tilt up/down to view
+     from above/below); rockets keep the fixed 12°. Heading-relative for aircraft (so
+     taxiing tracks the nose); rockets on the pad keep the old absolute framing. */
+  const _absGround = S.wow && isRocket;
+  const tElRad    = (isRocket ? 12 : _orbitEl) * DEG;
+  const tOrbitRad = _absGround ? terrainOrbit * DEG : rightRad + terrainOrbit * DEG;
   const hDist     = sideDist * Math.cos(tElRad);
   const vElev     = sideDist * Math.sin(tElRad);
   const dN = Math.cos(tOrbitRad) * hDist;
@@ -424,8 +430,8 @@ function _renderSideCam(canvas) {
   S.lat   = (S.lat??47)   + dN / 60;
   S.lon   = (S.lon??8)    + dE / (60 * cosLat);
   S.alt   = (S.alt??3000) + _groundOffsetFt() + (sideUp + vElev) / FT_NM;
-  S.hdg   = S.wow ? ((terrainOrbit + 180) % 360 + 360) % 360
-                  : ((S.hdg??0) - 90 - terrainOrbit + 360) % 360;
+  S.hdg   = _absGround ? ((terrainOrbit + 180) % 360 + 360) % 360
+                       : ((S.hdg??0) - 90 + terrainOrbit + 360) % 360;   // face the aircraft (camPos+180): anchors it so zoom/orbit don't slide
   const _sidePitch = Math.atan2(-(sideUp + vElev), hDist) / DEG;
   S.pitch = _sidePitch;
   S.roll  = 0;
@@ -439,7 +445,7 @@ function _renderSideCam(canvas) {
   /* Wireframe: rockets: _orbitAz rolls body; aircraft: _orbitAz orbits camera via sideOrbitAz.
      El: aircraft with chaseCamOrbit use fixed 12° so chase-calibrated El doesn't bleed here. */
   const _useWowPitch = S.wow && S.aircraft?.vehicleType !== 'rocket';
-  const _scEl = S.aircraft?.chaseCamOrbit ? 12 : _orbitEl;
+  const _scEl = (isRocket && S.aircraft?.chaseCamOrbit) ? 12 : _orbitEl;   // wireframe El tracks the terrain El
   _drawWireframe(canvas, _useWowPitch ? 0 : acP, (_useWowPitch ? 0 : acR) + renderOrbit, 0, sideUp, sideDist, false, sideOrbitAz, _scEl);
   _drawLabel(canvas, 'SIDE CAM');
   if (S.paused) _drawPauseOverlay(canvas);
