@@ -114,6 +114,33 @@ function _fetchOSMAero(lat, lon) {
     .catch(() => { _osmAero.set(key, []); _osmPending.delete(key); });
 }
 
+/* Runway centerline (threshold a→b), width (m) and designator from an OSM runway way.
+   Handles line-mapped runways (centerline) and area-mapped runways (polygon → long axis
+   via 2-D covariance). ICAO-standard lighting is then derived from this geometry. */
+function _runwayGeom(way) {
+  const g = way.geometry; if (!g || g.length < 2) return null;
+  const ref  = way.tags?.ref ?? '';
+  const wTag = parseFloat(way.tags?.width);
+  const closed = g.length > 3 &&
+    Math.abs(g[0].lat - g[g.length-1].lat) < 1e-9 && Math.abs(g[0].lon - g[g.length-1].lon) < 1e-9;
+  if (!closed) return { a: g[0], b: g[g.length-1], widthM: wTag || 45, ref };
+  /* area → principal (long) axis in local metres */
+  const pts  = g.slice(0, -1);
+  const lat0 = pts.reduce((s,p)=>s+p.lat,0)/pts.length;
+  const lon0 = pts.reduce((s,p)=>s+p.lon,0)/pts.length;
+  const cl   = Math.cos(lat0 * Math.PI/180);
+  const xy   = pts.map(p => [ (p.lon-lon0)*60*cl, (p.lat-lat0)*60 ]);  // [E,N] nm
+  let sxx=0,sxy=0,syy=0; for (const [x,y] of xy){ sxx+=x*x; sxy+=x*y; syy+=y*y; }
+  const th = 0.5*Math.atan2(2*sxy, sxx-syy);
+  const ax = [Math.cos(th), Math.sin(th)], pp = [-Math.sin(th), Math.cos(th)];
+  let pmin=1e9,pmax=-1e9,qmin=1e9,qmax=-1e9;
+  for (const [x,y] of xy){ const p=x*ax[0]+y*ax[1], q=x*pp[0]+y*pp[1];
+    if(p<pmin)pmin=p; if(p>pmax)pmax=p; if(q<qmin)qmin=q; if(q>qmax)qmax=q; }
+  const midq=(qmin+qmax)/2;
+  const toLL=(p)=>({ lat: lat0 + (ax[1]*p+pp[1]*midq)/60, lon: lon0 + (ax[0]*p+pp[0]*midq)/(60*cl) });
+  return { a: toLL(pmin), b: toLL(pmax), widthM: wTag || (qmax-qmin)*1852, ref };
+}
+
 /* ── Water polygon tiles — Mapbox Streets v8, zoom 11 ── */
 const _WZ    = 11;
 const _wcache = new Map();
@@ -934,6 +961,37 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         if (_go) { ctx.closePath(); ctx.fill(); }
       }
       ctx.restore();
+
+      /* ── Runway lighting (dusk/night) — white edge lights + green threshold bars,
+         derived from the runway centerline. ICAO-standard layout, so every runway with
+         OSM geometry lights itself; brightness rises into the night. */
+      const _night = 1 - dayFrac;
+      if (_night > 0.12) {
+        const _DPR = devicePixelRatio || 1;
+        const _alpha = (0.35 + 0.55 * _night).toFixed(2);
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (const way of _osmWays) {
+          if (way.tags?.aeroway !== 'runway' || !way.geometry?.length) continue;
+          const rg = _runwayGeom(way); if (!rg) continue;
+          const _eM  = _sampleElev(rg.a.lat, rg.a.lon);
+          const _eNm = _eM !== null ? (_eM - refM) * M_NM : 0;
+          const aN=(rg.a.lat-acLat)*60, aE=(rg.a.lon-acLon)*60*cosAcLat;
+          const bN=(rg.b.lat-acLat)*60, bE=(rg.b.lon-acLon)*60*cosAcLat;
+          const dN=bN-aN, dE=bE-aE, L=Math.hypot(dN,dE) || 1e-6;
+          const uN=dN/L, uE=dE/L, pN=-uE, pE=uN, half=(rg.widthM/1852)/2;
+          const _dot=(N,E,col,sz)=>{ const f=N*cosH+E*sinH, r=E*cosH-N*sinH;
+            const sp=proj(f,r,_eNm); if(!sp)return;
+            ctx.fillStyle=col; ctx.beginPath(); ctx.arc(sp[0],sp[1],sz,0,Math.PI*2); ctx.fill(); };
+          for (let t=0; t<=L; t+=0.0324) {            // edge lights ~60 m both sides
+            _dot(aN+uN*t+pN*half, aE+uE*t+pE*half, `rgba(255,248,228,${_alpha})`, 1.5*_DPR);
+            _dot(aN+uN*t-pN*half, aE+uE*t-pE*half, `rgba(255,248,228,${_alpha})`, 1.5*_DPR);
+          }
+          for (const e of [0, L]) for (let s=-half; s<=half+1e-9; s+=half/3)   // green threshold bars
+            _dot(aN+uN*e+pN*s, aE+uE*e+pE*s, `rgba(70,255,110,${_alpha})`, 1.8*_DPR);
+        }
+        ctx.restore();
+      }
     }
   }
 
