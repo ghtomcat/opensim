@@ -14,6 +14,7 @@
 
 import { S } from '../core/state.js';
 import { RUNWAYS } from './runways-data.js';
+import { TOWERS } from './towers-data.js';
 
 const DEG   = Math.PI / 180;
 const FT_NM = 1 / 6076.12;
@@ -1364,6 +1365,106 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         }
         ctx.restore();
       }
+    }
+  }
+
+  /* ── Control tower — bundled OSM position + height, hand-curated silhouette.
+     Built as a stack of polygonal rings (real depth-sorted faces): tapered shaft,
+     flared cab with outward-canted glass, roof, beacon. Style picks the proportions. */
+  if (!isWater && !isRocket) {
+    const TAU = Math.PI * 2, M = M_NM, _DPR = devicePixelRatio || 1;
+    const LN = 0.45, LE = 0.62;                       // fixed key-light azimuth (world N/E)
+    const _gBr = 0.42 + 0.58 * dayFrac;               // overall day↔night brightness
+    const _nightF = 1 - dayFrac;
+
+    const _drawTower = (cN, cE, e0, style, heightM) => {
+      let H, sides, base, neck, cabBot, cabTop, shaftTop, cabH, capR, mast, baseBldg;
+      if (style === 'modern') {
+        H = heightM || 60; sides = 14;
+        base = Math.min(5, H * 0.05); neck = H * 0.032; cabBot = H * 0.05; cabTop = H * 0.062;
+        shaftTop = H * 0.80; cabH = H * 0.12; capR = cabTop * 0.85; mast = H * 0.14; baseBldg = 0;
+      } else if (style === 'regional') {
+        H = heightM || 16; sides = 6;
+        base = H * 0.14; neck = H * 0.10; cabBot = H * 0.17; cabTop = H * 0.20;
+        shaftTop = H * 0.60; cabH = H * 0.27; capR = cabTop * 0.9; mast = 0; baseBldg = H * 0.27;
+      } else {                                          // classic (mushroom)
+        H = heightM || 34; sides = 8;
+        base = Math.min(7, H * 0.11); neck = H * 0.05; cabBot = H * 0.085; cabTop = H * 0.115;
+        shaftTop = H * 0.76; cabH = H * 0.17; capR = cabTop * 0.92; mast = 0; baseBldg = 0;
+      }
+      const roofY = shaftTop + cabH;
+      /* profile rings bottom→top; glassIdx = the cab-wall strip (canted glass) */
+      const rings = [];
+      if (baseBldg > 0) rings.push({ y: 0, r: base * 1.6 }, { y: baseBldg, r: base * 1.6 }, { y: baseBldg, r: base });
+      else rings.push({ y: 0, r: base });
+      rings.push({ y: shaftTop, r: neck });
+      const glassIdx = rings.length;                    // strip cabBot→cabTop
+      rings.push({ y: shaftTop, r: cabBot }, { y: roofY, r: cabTop }, { y: roofY, r: capR });
+
+      const P = (a, r, y) => [cN + Math.cos(a) * r * M, cE + Math.sin(a) * r * M, e0 + y * M];
+      const faces = [];
+      for (let i = 0; i < rings.length - 1; i++) {
+        const r0 = rings[i], r1 = rings[i + 1];
+        for (let k = 0; k < sides; k++) {
+          const a0 = k / sides * TAU, a1 = (k + 1) / sides * TAU, mid = (a0 + a1) / 2;
+          faces.push({ p: [P(a0, r0.r, r0.y), P(a1, r0.r, r0.y), P(a1, r1.r, r1.y), P(a0, r1.r, r1.y)],
+                       glass: i === glassIdx, nr: Math.cos(mid) * LN + Math.sin(mid) * LE });
+        }
+      }
+      const top = rings[rings.length - 1], cap = [];     // roof cap polygon
+      for (let k = 0; k < sides; k++) { const a = k / sides * TAU; cap.push(P(a, top.r, top.y)); }
+      faces.push({ p: cap, cap: true, nr: 1 });
+
+      for (const f of faces) { let s = 0; for (const v of f.p) s += v[0] * cosH + v[1] * sinH; f.fwd = s; }
+      faces.sort((a, b) => b.fwd - a.fwd);               // painter: far → near
+
+      for (const f of faces) {
+        const sp = []; let ok = true;
+        for (const v of f.p) { const q = proj(v[0] * cosH + v[1] * sinH, v[1] * cosH - v[0] * sinH, v[2]); if (!q) { ok = false; break; } sp.push(q); }
+        if (!ok) continue;
+        const sh = 0.55 + 0.45 * Math.max(0, f.nr);
+        if (f.glass) {
+          const r = 66 + (150 - 66) * _nightF, g = 86 + (205 - 86) * _nightF, b = 116 + (235 - 116) * _nightF;
+          ctx.fillStyle = `rgb(${r * (_nightF ? 1 : _gBr) | 0},${g * (_nightF ? 1 : _gBr) | 0},${b * (_nightF ? 1 : _gBr) | 0})`;
+        } else if (f.cap) {
+          const b = 0.72 * _gBr; ctx.fillStyle = `rgb(${70 * b | 0},${74 * b | 0},${80 * b | 0})`;
+        } else {
+          const b = sh * _gBr; ctx.fillStyle = `rgb(${172 * b | 0},${174 * b | 0},${180 * b | 0})`;
+        }
+        ctx.beginPath(); ctx.moveTo(sp[0][0], sp[0][1]);
+        for (let i = 1; i < sp.length; i++) ctx.lineTo(sp[i][0], sp[i][1]);
+        ctx.closePath(); ctx.fill();
+      }
+
+      /* mast (modern) + flashing red obstruction beacon at the very top */
+      const beaconY = roofY + mast;
+      if (mast > 0) {
+        const a = proj(cN * cosH + cE * sinH, cE * cosH - cN * sinH, e0 + roofY * M);
+        const b = proj(cN * cosH + cE * sinH, cE * cosH - cN * sinH, e0 + beaconY * M);
+        if (a && b) { ctx.strokeStyle = `rgb(${150 * _gBr | 0},${152 * _gBr | 0},${158 * _gBr | 0})`;
+          ctx.lineWidth = 1.6 * _DPR;
+          ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+      }
+      const bp = proj(cN * cosH + cE * sinH, cE * cosH - cN * sinH, e0 + (beaconY + 0.6) * M);
+      if (bp) {
+        const on = performance.now() % 1800 < 160;
+        ctx.save();
+        if (on) { ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,40,30,0.95)';
+          ctx.beginPath(); ctx.arc(bp[0], bp[1], 3.2 * _DPR, 0, TAU); ctx.fill(); }
+        ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = on ? 'rgba(255,90,80,1)' : 'rgba(120,20,16,0.9)';
+        ctx.beginPath(); ctx.arc(bp[0], bp[1], 1.6 * _DPR, 0, TAU); ctx.fill();
+        ctx.restore();
+      }
+    };
+
+    for (const ic of [S.mission?.departure?.icao, S.mission?.arrival?.icao]) {
+      const tw = ic && TOWERS[ic];
+      if (!tw) continue;
+      const tN = (tw.lat - acLat) * 60, tE = (tw.lon - acLon) * 60 * cosAcLat;
+      if (tN * tN + tE * tE > 144) continue;            // >12 nm: skip
+      const _eM = _sampleElev(tw.lat, tw.lon);
+      const e0 = _eM !== null ? (_eM - refM) * M_NM : 0;
+      _drawTower(tN, tE, e0, tw.style || 'classic', tw.heightM);
     }
   }
 
