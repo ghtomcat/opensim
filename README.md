@@ -600,6 +600,16 @@ Because somewhere in the permafrost near Titovka, a man is still waiting to be f
 
 ---
 
+## Data sources
+
+Geographic data, fetched live or bundled from open datasets:
+
+- **[OurAirports](https://ourairports.com)** — runway thresholds, dimensions and designations (public domain). Bundled for mission airports in `display/runways-data.js`; regenerate with `scripts/build-runways.py`.
+- **[OpenStreetMap](https://www.openstreetmap.org)** — runways, taxiways, aprons and holding positions via the Overpass API (© OpenStreetMap contributors, ODbL).
+- **[Mapbox](https://www.mapbox.com)** — terrain elevation (Terrain-RGB / Copernicus DEM) and water polygons.
+
+---
+
 ## License
 
 MIT © 2026 Markus Leutwyler
