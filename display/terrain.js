@@ -1766,6 +1766,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         ctx.strokeStyle = 'rgba(230,196,40,0.9)'; ctx.lineCap = 'butt';
         for (const el of _osmWays) {
           if (el.type !== 'node' || el.tags?.aeroway !== 'holding_position') continue;
+          { const _ht = el.tags?.['holding_position:type']; if (_ht && _ht !== 'runway' && _ht !== 'ILS') continue; }   // runway holds only (skip intermediate/movement)
           const nN=(el.lat-acLat)*60, nE=(el.lon-acLon)*60*cosAcLat;
           if (nN*nN+nE*nE > 9) continue;
           const hi=_holdInfo(el,_osmWays,_runways); if(!hi) continue;
@@ -1794,6 +1795,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         ctx.globalCompositeOperation = 'lighter';
         for (const el of _osmWays) {
           if (el.type !== 'node' || el.tags?.aeroway !== 'holding_position') continue;
+          { const _ht = el.tags?.['holding_position:type']; if (_ht && _ht !== 'runway' && _ht !== 'ILS') continue; }   // runway holds only (skip intermediate/movement)
           const nN=(el.lat-acLat)*60, nE=(el.lon-acLon)*60*cosAcLat;
           if (nN*nN+nE*nE > 9) continue;            // >3 nm
           const _eM=_sampleElev(el.lat,el.lon), _eNm=_eM!==null?(_eM-refM)*M_NM:0;
@@ -1821,6 +1823,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         ctx.lineJoin = 'round'; ctx.lineCap = 'round';
         for (const el of _osmWays) {
           if (el.type !== 'node' || el.tags?.aeroway !== 'holding_position') continue;
+          { const _ht = el.tags?.['holding_position:type']; if (_ht && _ht !== 'runway' && _ht !== 'ILS') continue; }   // runway holds only (skip intermediate/movement)
           const nN=(el.lat-acLat)*60, nE=(el.lon-acLon)*60*cosAcLat;
           if (nN*nN+nE*nE > 6.25) continue;          // >2.5 nm (signs only read close)
           const hi=_holdInfo(el,_osmWays,_runways); if (!hi || !hi.des) continue;
