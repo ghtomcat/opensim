@@ -1836,7 +1836,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           if (nN*nN+nE*nE > 6.25) continue;          // >2.5 nm (signs only read close)
           const hi=_holdInfo(el,_osmWays,_runways); if (!hi) continue;
           const _un=hi.uLat*60, _ue=hi.uLon*60*cosAcLat, ul=Math.hypot(_un,_ue)||1;
-          const uN=_un/ul, uE=_ue/ul;                    // taxiway dir, toward the runway
+          const uN=-_un/ul, uE=-_ue/ul;                  // face back down the taxiway, toward the approaching aircraft (away from the runway)
           const txt = el.tags?.['holding_position:type'] === 'ILS' ? 'ILS' : hi.des;
           if (!txt) continue;
           const aN=uE, aE=-uN;                           // across = front-viewer's right
