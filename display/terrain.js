@@ -176,7 +176,27 @@ const _RW_FONT = {
   'L': [[[0,1],[0,0],[1,0]]],
   'C': [[[1,1],[0,1],[0,0],[1,0]]],
   'R': [[[0,0],[0,1],[1,1],[1,0.5],[0,0.5]],[[0.45,0.5],[1,0]]],
+  '-': [[[0.1,0.5],[0.9,0.5]]],
 };
+
+/* Designation a holding sign protects: the node's own ref, else the nearest runway's
+   two ends as "XX-YY" (derived from the runway bearing). */
+function _nearestRwyDes(node, els) {
+  let best = null, bestD = Infinity;
+  for (const w of els) {
+    if (w.type === 'node' || w.tags?.aeroway !== 'runway' || !w.geometry) continue;
+    const rg = _runwayGeom(w); if (!rg) continue;
+    const mLat=(rg.a.lat+rg.b.lat)/2, mLon=(rg.a.lon+rg.b.lon)/2;
+    const d=(mLat-node.lat)**2 + (mLon-node.lon)**2;
+    if (d < bestD) { bestD = d; best = rg; }
+  }
+  if (!best) return null;
+  if (best.ref) return best.ref.replace(/\//g, '-');
+  const brg=(Math.atan2(best.b.lon-best.a.lon, best.b.lat-best.a.lat)*180/Math.PI+360)%360;
+  const num=(b)=>{const n=Math.round((((b%360)+360)%360)/10);return n===0?36:n;};
+  const f=(b)=>('0'+num(b)).slice(-2);
+  return f(brg)+'-'+f(brg+180);
+}
 
 /* ── Water polygon tiles — Mapbox Streets v8, zoom 11 ── */
 const _WZ    = 11;
@@ -1167,6 +1187,69 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
             ctx.beginPath(); ctx.arc(sp[0],sp[1],2.0*_DPR,0,7); ctx.fill(); };
           _gl(nN+pN*half, nE+pE*half, _on);
           _gl(nN-pN*half, nE-pE*half, !_on);
+        }
+        ctx.restore();
+      }
+
+      /* ── Red runway-holding sign at each holding position — white runway designation
+         on red, on a post beside the taxiway, facing the taxiing aircraft. The text is
+         the stroke font projected onto the (vertical) sign face. */
+      {
+        const _DPR = devicePixelRatio || 1, _M = 1/1852;
+        const h0 = 1.0*_M, h1 = 2.7*_M;             // board bottom / top elevation (nm)
+        const _cW = 1.3*_M, _gp = 0.5*_M, _side = 0.009;   // char width, gap, side offset (~17 m)
+        ctx.save();
+        ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+        for (const el of _osmWays) {
+          if (el.type !== 'node' || el.tags?.aeroway !== 'holding_position') continue;
+          const nN=(el.lat-acLat)*60, nE=(el.lon-acLon)*60*cosAcLat;
+          if (nN*nN+nE*nE > 6.25) continue;          // >2.5 nm (signs only read close)
+          const dir=_holdDir(el,_osmWays); if (!dir) continue;
+          const tN=dir.dLat*60, tE=dir.dLon*60*cosAcLat, tl=Math.hypot(tN,tE)||1;
+          let uN=tN/tl, uE=tE/tl;
+          const txt = el.tags?.ref ? el.tags.ref.replace(/\//g,'-') : _nearestRwyDes(el, _osmWays);
+          if (!txt) continue;
+          /* orient the taxiway dir toward the nearest runway, so the sign front faces
+             the taxiing pilot (away from the runway) and the text never mirrors. */
+          let rwN=0,rwE=0,bd=Infinity;
+          for (const w of _osmWays){ if(w.type==='node'||w.tags?.aeroway!=='runway'||!w.geometry)continue;
+            const rg=_runwayGeom(w); if(!rg)continue;
+            const mN=((rg.a.lat+rg.b.lat)/2-el.lat)*60, mE=((rg.a.lon+rg.b.lon)/2-el.lon)*60*cosAcLat, d=mN*mN+mE*mE;
+            if(d<bd){bd=d; const l=Math.hypot(mN,mE)||1; rwN=mN/l; rwE=mE/l;} }
+          if (uN*rwN+uE*rwE < 0){ uN=-uN; uE=-uE; }     // uHat → toward the runway
+          const aN=uE, aE=-uN;                           // across = front-viewer's right
+          const _eM=_sampleElev(el.lat,el.lon), _e0=(_eM!==null?(_eM-refM)*_M:0);
+          const sN=nN+aN*_side, sE=nE+aE*_side;          // sign centre, beside the taxiway
+          const inFront = ((-uN)*(-sN) + (-uE)*(-sE)) > 0;   // camera on the front (pilot) side
+          const _bp=(across,up)=>{ const N=sN+aN*across, E=sE+aE*across;
+            return proj(N*cosH+E*sinH, E*cosH-N*sinH, _e0+up); };
+          const chars=[...txt];
+          const totalW=chars.length*_cW+(chars.length-1)*_gp;
+          const q0=_bp(0,h0), q1=_bp(0,h1); if(!q0||!q1) continue;
+          const hpx=Math.hypot(q1[0]-q0[0],q1[1]-q0[1]); if(hpx<5) continue;
+          /* red board (solid both sides — text only on the front, so the back stays red) */
+          const mW=totalW/2+_cW*0.4;
+          const c0=_bp(-mW,h0), c1=_bp(mW,h0), c2=_bp(mW,h1), c3=_bp(-mW,h1);
+          if (c0&&c1&&c2&&c3){
+            ctx.fillStyle='rgba(176,28,28,0.96)';
+            ctx.beginPath(); ctx.moveTo(c0[0],c0[1]); ctx.lineTo(c1[0],c1[1]);
+            ctx.lineTo(c2[0],c2[1]); ctx.lineTo(c3[0],c3[1]); ctx.closePath(); ctx.fill();
+            const pb=_bp(0,0), pt=_bp(0,h0);
+            if(pb&&pt){ ctx.strokeStyle='rgba(70,74,80,0.9)'; ctx.lineWidth=Math.max(1,hpx*0.08);
+              ctx.beginPath(); ctx.moveTo(pb[0],pb[1]); ctx.lineTo(pt[0],pt[1]); ctx.stroke(); }
+          }
+          if (inFront){
+            ctx.strokeStyle='rgba(245,247,250,0.95)'; ctx.lineWidth=Math.max(1,hpx*0.07);
+            const _cH=(h1-h0)*0.6, _cY=h0+(h1-h0)*0.2;
+            for (let ci=0;ci<chars.length;ci++){
+              const gl=_RW_FONT[chars[ci]]; if(!gl) continue;
+              const cx=-totalW/2+ci*(_cW+_gp)+_cW/2;
+              for (const st of gl){ ctx.beginPath(); let go=false;
+                for (const [gx,gy] of st){ const sp=_bp(cx+(gx-0.5)*_cW, _cY+gy*_cH);
+                  if(!sp){go=false;continue;} if(!go){ctx.moveTo(sp[0],sp[1]);go=true;}else ctx.lineTo(sp[0],sp[1]); }
+                ctx.stroke(); }
+            }
+          }
         }
         ctx.restore();
       }
