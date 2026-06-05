@@ -17,6 +17,7 @@ import { RUNWAYS } from './runways-data.js';
 import { TOWERS } from './towers-data.js';
 import { nightDensity } from './night-lights.js';
 import { landColor }    from './terrain-color.js';
+import { WINDSOCKS }    from './windsocks-data.js';
 
 /* Soft radial-gradient sprite, reused (additively) for the night city-light glow. */
 let _glowSprite = null, _coreSprite = null;
@@ -1733,9 +1734,9 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         ctx.restore();
       }
 
-      /* ── Windsock (OSM aeroway=windsock) — points downwind from the live METAR wind
-         and inflates with wind speed. The iconic small-field marker, and a real
-         airmanship cue (read the sock for wind) — high ROI for training. */
+      /* ── Windsock (OSM aeroway=windsock, plus hand-added WINDSOCKS for fields OSM hasn't
+         mapped) — points downwind from the live METAR wind and inflates with wind speed.
+         The iconic small-field marker and a real airmanship cue — high ROI for training. */
       {
         const _wind = _windNow();
         const _tInf = Math.max(0, Math.min(1, _wind.spd / 14));   // 0 calm … 1 fully streamed
@@ -1745,8 +1746,12 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         const _wBr = 0.4 + 0.6 * dayFrac;                         // day↔night dim
         const _BAND = [[232, 116, 24], [238, 238, 238]];          // orange / white
         const M = M_NM, poleH = 6, sockLen = 4.2, mouthR = 0.55, tailR = 0.22, NS = 6;
-        for (const el of _osmWays) {
-          if (el.type !== 'node' || el.tags?.aeroway !== 'windsock') continue;
+        const _socks = [];
+        for (const el of _osmWays)
+          if (el.type === 'node' && el.tags?.aeroway === 'windsock') _socks.push(el);
+        for (const _ic of [S.mission?.departure?.icao, S.mission?.arrival?.icao])
+          if (_ic && WINDSOCKS[_ic]) for (const w of WINDSOCKS[_ic]) _socks.push(w);
+        for (const el of _socks) {
           const nN = (el.lat - acLat) * 60, nE = (el.lon - acLon) * 60 * cosAcLat;
           if (nN * nN + nE * nE > 9) continue;                    // > 3 nm
           const _eM = _sampleElev(el.lat, el.lon), e0 = _eM !== null ? (_eM - refM) * M_NM : 0;
