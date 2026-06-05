@@ -557,6 +557,37 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
     ctx.restore();
   }
 
+  /* ── Twilight afterglow — a warm directional bloom on the horizon toward the sun's
+     azimuth during civil/nautical twilight (sun just below the horizon, where the disc
+     itself is gone). Same soft additive-glow primitive as the city lights, generalised
+     to the sky: bright orange where the sun set, fading to blue away from it. */
+  if (!isRocket && !isArctic && globeAlpha === 0) {
+    const belowGlow = Math.max(0, Math.min(1, (sunAlt + 0.30) / 0.30));   // rises toward the horizon
+    const aboveFade = Math.max(0, Math.min(1, (0.15 - sunAlt) / 0.15));   // gone in full daylight
+    const twi = belowGlow * aboveFade;                                    // peaks at/just below set
+    const fwd0 = Math.cos(sunRelAzRad), rgt0 = Math.sin(sunRelAzRad);     // sun dir at the horizon
+    const scf  = fwd0 * cosP, scu = -fwd0 * sinP;
+    if (twi > 0.01 && scf > 0.01) {                                       // skip if sun set behind us
+      const scr2 = rgt0 * cosR + scu * sinR, scu2 = scu * cosR - rgt0 * sinR;
+      const gx = cx + scr2 / scf * focal;
+      const gy = cy - scu2 / scf * focal;        // horizon point at the sun's azimuth
+      const rad = Math.max(W, H) * 0.75;
+      const wr = Math.round(_lerp(150, 255, belowGlow));   // deeper = pinker, shallower = orange
+      const wg = Math.round(_lerp(58, 148, belowGlow));
+      const wb = Math.round(_lerp(98, 66, belowGlow));
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.translate(gx, gy); ctx.scale(1, 0.42);           // hug the horizon (wide, short)
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rad);
+      g.addColorStop(0,    `rgba(${wr},${wg},${wb},${(0.55 * twi).toFixed(3)})`);
+      g.addColorStop(0.35, `rgba(${wr},${Math.round(wg * 0.78)},${wb},${(0.22 * twi).toFixed(3)})`);
+      g.addColorStop(1,    `rgba(${wr},${wg},${wb},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(0, 0, rad, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+  }
+
   /* ── Sun disc ── */
   if (sunAlt > -0.05) {
     const sunFwd    = Math.cos(sunAltRad) * Math.cos(sunRelAzRad);
