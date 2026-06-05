@@ -331,13 +331,22 @@ function _holdInfo(el, els, runways) {
   const dir = _holdDir(el, els);
   if (!dir) return (el._hold = null);
   let uLat = dir.dLat, uLon = dir.dLon;
-  let rwLat = 0, rwLon = 0, bd = Infinity, best = null;
   const cl = Math.cos(el.lat * DEG);
+  /* Pick the runway whose CENTERLINE is nearest the hold (perpendicular distance to the
+     segment), not whose midpoint is nearest — long runways (e.g. KBZN 12/30 at 2.7 km)
+     have a distant midpoint, so a hold near their threshold would otherwise snap to a
+     shorter neighbouring runway. */
+  let bd = Infinity, best = null, cLat = el.lat, cLon = el.lon;
+  const px = el.lon*cl, py = el.lat;
   for (const rg of runways) {
-    const dLa = (rg.a.lat+rg.b.lat)/2 - el.lat, dLo = (rg.a.lon+rg.b.lon)/2 - el.lon;
-    const d = dLa*dLa + dLo*dLo;
-    if (d < bd) { bd = d; rwLat = dLa; rwLon = dLo; best = rg; }
+    const ax = rg.a.lon*cl, ay = rg.a.lat, bx = rg.b.lon*cl, by = rg.b.lat;
+    const vx = bx-ax, vy = by-ay, L2 = vx*vx + vy*vy || 1e-12;
+    let t = ((px-ax)*vx + (py-ay)*vy) / L2; t = Math.max(0, Math.min(1, t));
+    const qx = ax + t*vx, qy = ay + t*vy;
+    const d = (px-qx)*(px-qx) + (py-qy)*(py-qy);
+    if (d < bd) { bd = d; best = rg; cLat = qy; cLon = qx/cl; }
   }
+  const rwLat = cLat - el.lat, rwLon = cLon - el.lon;   // toward the nearest point on the runway
   if (uLat*rwLat + (uLon*cl)*(rwLon*cl) < 0) { uLat = -uLat; uLon = -uLon; }  // toward runway
   const des = el.tags?.ref ? el.tags.ref.replace(/\//g, '-') : (best ? _rwDes(best) : null);
   return (el._hold = { uLat, uLon, width: dir.width, des });
@@ -1836,7 +1845,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           if (nN*nN+nE*nE > 6.25) continue;          // >2.5 nm (signs only read close)
           const hi=_holdInfo(el,_osmWays,_runways); if (!hi) continue;
           const _un=hi.uLat*60, _ue=hi.uLon*60*cosAcLat, ul=Math.hypot(_un,_ue)||1;
-          const uN=-_un/ul, uE=-_ue/ul;                  // face back down the taxiway, toward the approaching aircraft (away from the runway)
+          const uN=_un/ul, uE=_ue/ul;                    // taxiway dir, toward the runway
           const txt = el.tags?.['holding_position:type'] === 'ILS' ? 'ILS' : hi.des;
           if (!txt) continue;
           const aN=uE, aE=-uN;                           // across = front-viewer's right
@@ -1867,7 +1876,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
               const gl=_RW_FONT[chars[ci]]; if(!gl) continue;
               const cx=-totalW/2+ci*(_cW+_gp)+_cW/2;
               for (const st of gl){ ctx.beginPath(); let go=false;
-                for (const [gx,gy] of st){ const sp=_bp(cx+(gx-0.5)*_cW, _cY+gy*_cH);
+                for (const [gx,gy] of st){ const sp=_bp(-(cx+(gx-0.5)*_cW), _cY+gy*_cH);   // mirror across so it reads from the taxiway-approach side
                   if(!sp){go=false;continue;} if(!go){ctx.moveTo(sp[0],sp[1]);go=true;}else ctx.lineTo(sp[0],sp[1]); }
                 ctx.stroke(); }
             }
