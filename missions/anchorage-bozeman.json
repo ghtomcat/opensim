@@ -1,86 +1,82 @@
 {
   "id": "anchorage-bozeman",
   "phase": "departure",
-  "title": "Anchorage → Bozeman",
-  "description": "Alaska 737 MAX 9 on the tarmac at Ted Stevens Anchorage, bound for Bozeman Yellowstone. Live METAR. Start up, taxi, and depart south over Cook Inlet.",
+  "title": "Bozeman → Anchorage",
+  "description": "Alaska 737 MAX 9 lined up on runway 30 at Bozeman Yellowstone, bound for Ted Stevens Anchorage. Live METAR. Depart northwest over the Bridgers and climb out across the Rockies.",
   "author": "Markus Leutwyler",
   "aircraft": "b737max9",
   "timeOfDay": 14,
   "departure": {
-    "icao": "PANC",
-    "name": "Ted Stevens Anchorage Intl",
-    "elevation": 152
-  },
-  "arrival": {
     "icao": "KBZN",
     "name": "Bozeman Yellowstone Intl",
-    "runway": "12",
     "elevation": 4473
   },
+  "arrival": {
+    "icao": "PANC",
+    "name": "Ted Stevens Anchorage Intl",
+    "runway": "15",
+    "elevation": 152
+  },
   "initialState": {
-    "lat": 61.1744,
-    "lon": -149.9961,
-    "alt": 152,
+    "alt": 4473,
     "spd": 0,
-    "hdg": 150,
     "pitch": 0,
     "roll": 0
   },
+  "start": { "runway": "30", "at": "lineup" },
   "weather": {
     "source": "live",
-    "icao": "PANC",
+    "icao": "KBZN",
     "fallback": {
-      "wdir": 0,
-      "wspd": 6,
-      "altim": 1015,
-      "temp": 9,
-      "dewp": 2,
+      "wdir": 300,
+      "wspd": 8,
+      "altim": 1013,
+      "temp": 12,
+      "dewp": 1,
       "visib": "10+",
       "clouds": [
         {
           "cover": "FEW",
-          "base": 7000
+          "base": 8000
         }
       ]
     }
   },
   "com": {
     "title": "COM 1",
-    "active": "121.900",
-    "standby": "118.300",
+    "active": "121.800",
+    "standby": "118.200",
     "freqs": {
-      "121.900": { "label": "PANC GROUND",
-                   "checkin": "{cs}, Anchorage Ground. Taxi to runway one five via Kilo, hold short." },
-      "118.400": { "label": "PANC CLEARANCE DELIVERY", "squawk": true,
-                   "checkin": "{cs}, Anchorage Clearance. Cleared to Bozeman as filed, climb maintain one zero thousand, departure one one nine decimal one." },
-      "124.600": { "label": "PANC ATIS", "atis": true },
-      "118.300": { "label": "PANC TOWER",
-                   "checkin": "{cs}, Anchorage Tower. Runway one five, cleared for takeoff." },
-      "119.100": { "label": "PANC DEPARTURE",
-                   "checkin": "{cs}, Anchorage Departure. Radar contact, climb and maintain one zero thousand." },
+      "121.800": { "label": "BOZEMAN GROUND",
+                   "checkin": "{cs}, Bozeman Ground. Taxi to runway three zero via Alpha, hold short." },
+      "132.400": { "label": "SALT LAKE CENTER", "squawk": true,
+                   "checkin": "{cs}, Salt Lake Center. Cleared to Anchorage as filed, climb maintain one seven thousand, squawk assigned." },
+      "135.425": { "label": "BOZEMAN ATIS", "atis": true },
+      "118.200": { "label": "BOZEMAN TOWER",
+                   "checkin": "{cs}, Bozeman Tower. Runway three zero, cleared for takeoff." },
       "121.500": { "label": "GUARD" }
     }
   },
   "atcClearances": [
     {
-      "alt": 200,
-      "pm": "anchorage ground, Alaska nine three two, ready to taxi runway one five",
-      "atc": "Alaska nine three two, taxi to runway one five via taxiway kilo, hold short"
+      "alt": 4600,
+      "pm": "bozeman ground, Alaska nine three two, ready to taxi runway three zero",
+      "atc": "Alaska nine three two, taxi to runway three zero via Alpha, hold short"
     },
     {
-      "alt": 1500,
-      "pm": "Alaska nine three two, airborne runway one five",
-      "atc": "Alaska nine three two, radar contact, climb and maintain one zero thousand, fly heading one eight zero"
+      "alt": 6000,
+      "pm": "Alaska nine three two, airborne runway three zero",
+      "atc": "Alaska nine three two, contact Salt Lake Center one three two decimal four"
     },
     {
-      "alt": 10000,
-      "pm": "Alaska nine three two, leaving ten thousand",
-      "atc": "Alaska nine three two, contact anchorage center one two five decimal three, direct Bozeman, good day"
+      "alt": 12000,
+      "pm": "salt lake center, Alaska nine three two, climbing through one two thousand",
+      "atc": "Alaska nine three two, radar contact, climb and maintain one seven thousand"
     },
     {
       "alt": 24000,
-      "pm": "anchorage center, Alaska nine three two, flight level two four zero",
-      "atc": "Alaska nine three two, roger, maintain flight level three six zero, Bozeman altimeter coming"
+      "pm": "salt lake center, Alaska nine three two, flight level two four zero",
+      "atc": "Alaska nine three two, roger, climb and maintain flight level three six zero, direct Anchorage when able"
     }
   ]
 }
