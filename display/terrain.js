@@ -168,7 +168,7 @@ function _fetchOSMAero(lat, lon) {
   const b0o = (Math.floor(lon * 10) / 10 - 0.02).toFixed(4);
   const b1o = (Math.floor(lon * 10) / 10 + 0.12).toFixed(4);
   const _bb = `${b0l},${b0o},${b1l},${b1o}`;
-  const q = `[out:json][timeout:25];(way["aeroway"~"runway|taxiway|apron|helipad"](${_bb});node["aeroway"="holding_position"](${_bb});node["aeroway"="windsock"](${_bb}););out geom;`;
+  const q = `[out:json][timeout:25];(way["aeroway"~"runway|taxiway|apron|helipad|parking_position"](${_bb});node["aeroway"="holding_position"](${_bb});node["aeroway"="windsock"](${_bb}););out geom;`;
   fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`)
     .then(r => { if (!r.ok) throw 0; return r.json(); })
     .then(d => { _osmAero.set(key, d.elements ?? []); _osmPending.delete(key); })
@@ -1482,10 +1482,65 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           const t0 = _wp(-totalH/2, 0), t1 = _wp(-totalH/2 + digH, 0);
           if (!t0 || !t1) continue;
           const hpx = Math.hypot(t1[0]-t0[0], t1[1]-t0[1]); if (hpx < 4) continue;
-          ctx.lineWidth = Math.max(1, hpx*0.14);
+          /* black background box (ICAO taxiway location sign — yellow letter on black) */
+          const _bw = digW*0.9, _bo = digH*0.35;
+          const _bc = [_wp(-totalH/2-_bo,-_bw), _wp(totalH/2+_bo,-_bw), _wp(totalH/2+_bo,_bw), _wp(-totalH/2-_bo,_bw)];
+          if (_bc.every(Boolean)) { ctx.fillStyle = 'rgba(12,12,12,0.82)';
+            ctx.beginPath(); ctx.moveTo(_bc[0][0],_bc[0][1]);
+            for (let i=1;i<4;i++) ctx.lineTo(_bc[i][0],_bc[i][1]); ctx.closePath(); ctx.fill(); }
+          ctx.lineWidth = Math.max(1.4, hpx*0.18);
           for (let ci=0; ci<chars.length; ci++) {
             const glyph = _RW_FONT[chars[ci]]; if (!glyph) continue;
             const base = -totalH/2 + ci*(digH+gap);
+            for (const st of glyph) { ctx.beginPath(); let go=false;
+              for (const [gx,gy] of st) { const sp = _wp(base + gy*digH, (gx-0.5)*digW);
+                if(!sp){go=false;continue;} if(!go){ctx.moveTo(sp[0],sp[1]);go=true;} else ctx.lineTo(sp[0],sp[1]); }
+              ctx.stroke(); }
+          }
+        }
+        ctx.restore();
+      }
+
+      /* ── Apron stand lead-in lines + stand numbers (OSM aeroway=parking_position) — the
+         yellow guidance line into each parking stand, with its number painted on it. */
+      {
+        const _M = 1/1852, _DPRp = devicePixelRatio || 1;
+        const _leadCol = `rgba(224,204,72,${(0.5 + 0.32 * dayFrac).toFixed(2)})`;
+        ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        for (const way of _osmWays) {
+          if (way.tags?.aeroway !== 'parking_position' || !way.geometry || way.geometry.length < 2) continue;
+          const g = way.geometry;
+          const _0n = (g[0].lat-acLat)*60, _0e = (g[0].lon-acLon)*60*cosAcLat;
+          if (_0n*_0n + _0e*_0e > 9) continue;                   // > 3 nm
+          const _eM = _sampleElev(g[0].lat, g[0].lon), _eNm = _eM!==null?(_eM-refM)*_M:0;
+          ctx.strokeStyle = _leadCol; ctx.lineWidth = Math.max(1, 1.3*_DPRp);
+          ctx.beginPath(); let pen = false;
+          for (const nd of g) {
+            const dN = (nd.lat-acLat)*60, dE = (nd.lon-acLon)*60*cosAcLat;
+            if (Math.hypot(dN,dE) > 3 || dN*cosH+dE*sinH < -0.3) { pen = false; continue; }
+            const sp = proj(dN*cosH+dE*sinH, dE*cosH-dN*sinH, _eNm);
+            if (!sp) { pen = false; continue; }
+            if (!pen) { ctx.moveTo(sp[0],sp[1]); pen = true; } else ctx.lineTo(sp[0],sp[1]);
+          }
+          ctx.stroke();
+          const ref = (way.tags?.ref || '').trim().toUpperCase();
+          if (!ref || ref.length > 4) continue;
+          const e0 = g[g.length-1], e1 = g[g.length-2];
+          const sN = (e0.lat-acLat)*60, sE = (e0.lon-acLon)*60*cosAcLat;
+          if (sN*sN + sE*sE > 2.25) continue;                    // > 1.5 nm: numbers read close
+          const dN = (e1.lat-e0.lat)*60, dE = (e1.lon-e0.lon)*60*cosAcLat;   // inward along the line
+          const L = Math.hypot(dN,dE)||1, uN = dN/L, uE = dE/L, pN = -uE, pE = uN;
+          const chars = [...ref];
+          const digH = 3.2*_M, digW = 1.9*_M, gap = 0.9*_M, totalH = chars.length*digH + (chars.length-1)*gap;
+          const _wp = (al, ac) => { const N = sN+uN*al+pN*ac, E = sE+uE*al+pE*ac;
+            return proj(N*cosH+E*sinH, E*cosH-N*sinH, _eNm); };
+          const q0 = _wp(digH*0.6, 0), q1 = _wp(digH*1.6, 0);
+          if (!q0 || !q1) continue;
+          const hpx = Math.hypot(q1[0]-q0[0], q1[1]-q0[1]); if (hpx < 3) continue;
+          ctx.strokeStyle = _leadCol; ctx.lineWidth = Math.max(1.2, hpx*0.16);
+          for (let ci=0; ci<chars.length; ci++) {
+            const glyph = _RW_FONT[chars[ci]]; if (!glyph) continue;
+            const base = digH*0.6 + ci*(digH+gap);
             for (const st of glyph) { ctx.beginPath(); let go=false;
               for (const [gx,gy] of st) { const sp = _wp(base + gy*digH, (gx-0.5)*digW);
                 if(!sp){go=false;continue;} if(!go){ctx.moveTo(sp[0],sp[1]);go=true;} else ctx.lineTo(sp[0],sp[1]); }
