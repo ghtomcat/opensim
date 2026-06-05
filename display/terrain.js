@@ -1435,6 +1435,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         ctx.save();
         ctx.strokeStyle = `rgba(214,196,72,${(0.45 + 0.35 * dayFrac).toFixed(2)})`;
         ctx.lineWidth = 1.5 * _DPRt; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.beginPath();                                        // batch all centrelines → one stroke
         for (const way of _osmWays) {
           if (way.tags?.aeroway !== 'taxiway' || !way.geometry || way.geometry.length < 2) continue;
           if (_isGrass(way.tags?.surface)) continue;            // grass taxiways aren't painted
@@ -1442,7 +1443,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           const _0n = (g[0].lat-acLat)*60, _0e = (g[0].lon-acLon)*60*cosAcLat;
           if (_0n*_0n + _0e*_0e > 16) continue;                 // > 4 nm
           const _yM = _sampleElev(g[0].lat, g[0].lon), _yNm = _yM !== null ? (_yM-refM)*M_NM : 0;
-          ctx.beginPath(); let pen = false;
+          let pen = false;
           for (const nd of g) {
             const dN = (nd.lat-acLat)*60, dE = (nd.lon-acLon)*60*cosAcLat;
             if (Math.hypot(dN, dE) > 4 || dN*cosH+dE*sinH < -0.3) { pen = false; continue; }
@@ -1450,8 +1451,8 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
             if (!sp) { pen = false; continue; }
             if (!pen) { ctx.moveTo(sp[0], sp[1]); pen = true; } else ctx.lineTo(sp[0], sp[1]);
           }
-          ctx.stroke();
         }
+        ctx.stroke();
         ctx.restore();
       }
 
@@ -1502,50 +1503,60 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
       }
 
       /* ── Apron stand lead-in lines + stand numbers (OSM aeroway=parking_position) — the
-         yellow guidance line into each parking stand, with its number painted on it. */
+         yellow guidance line into each stand, with its number. Lead-in lines are batched
+         into a single stroke (Changi has ~300); the stroke-font numbers only draw very
+         close in (you only read the number of the stand you're at). */
       {
         const _M = 1/1852, _DPRp = devicePixelRatio || 1;
         const _leadCol = `rgba(224,204,72,${(0.5 + 0.32 * dayFrac).toFixed(2)})`;
         ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        /* pass 1 — all lead-in lines, one batched stroke */
+        ctx.strokeStyle = _leadCol; ctx.lineWidth = Math.max(1, 1.3*_DPRp);
+        ctx.beginPath();
         for (const way of _osmWays) {
           if (way.tags?.aeroway !== 'parking_position' || !way.geometry || way.geometry.length < 2) continue;
           const g = way.geometry;
           const _0n = (g[0].lat-acLat)*60, _0e = (g[0].lon-acLon)*60*cosAcLat;
-          if (_0n*_0n + _0e*_0e > 9) continue;                   // > 3 nm
+          if (_0n*_0n + _0e*_0e > 6.25) continue;                // > 2.5 nm
           const _eM = _sampleElev(g[0].lat, g[0].lon), _eNm = _eM!==null?(_eM-refM)*_M:0;
-          ctx.strokeStyle = _leadCol; ctx.lineWidth = Math.max(1, 1.3*_DPRp);
-          ctx.beginPath(); let pen = false;
+          let pen = false;
           for (const nd of g) {
             const dN = (nd.lat-acLat)*60, dE = (nd.lon-acLon)*60*cosAcLat;
-            if (Math.hypot(dN,dE) > 3 || dN*cosH+dE*sinH < -0.3) { pen = false; continue; }
+            if (Math.hypot(dN,dE) > 2.5 || dN*cosH+dE*sinH < -0.3) { pen = false; continue; }
             const sp = proj(dN*cosH+dE*sinH, dE*cosH-dN*sinH, _eNm);
             if (!sp) { pen = false; continue; }
             if (!pen) { ctx.moveTo(sp[0],sp[1]); pen = true; } else ctx.lineTo(sp[0],sp[1]);
           }
-          ctx.stroke();
+        }
+        ctx.stroke();
+        /* pass 2 — stand numbers, only the handful within ~0.6 nm */
+        for (const way of _osmWays) {
+          if (way.tags?.aeroway !== 'parking_position' || !way.geometry || way.geometry.length < 2) continue;
           const ref = (way.tags?.ref || '').trim().toUpperCase();
           if (!ref || ref.length > 4) continue;
-          const e0 = g[g.length-1], e1 = g[g.length-2];
+          const g = way.geometry, e0 = g[g.length-1], e1 = g[g.length-2];
           const sN = (e0.lat-acLat)*60, sE = (e0.lon-acLon)*60*cosAcLat;
-          if (sN*sN + sE*sE > 2.25) continue;                    // > 1.5 nm: numbers read close
+          if (sN*sN + sE*sE > 0.36) continue;                    // > 0.6 nm: skip numbers
+          const _eM = _sampleElev(e0.lat, e0.lon), _eNm = _eM!==null?(_eM-refM)*_M:0;
           const dN = (e1.lat-e0.lat)*60, dE = (e1.lon-e0.lon)*60*cosAcLat;   // inward along the line
           const L = Math.hypot(dN,dE)||1, uN = dN/L, uE = dE/L, pN = -uE, pE = uN;
           const chars = [...ref];
-          const digH = 3.2*_M, digW = 1.9*_M, gap = 0.9*_M, totalH = chars.length*digH + (chars.length-1)*gap;
+          const digH = 3.2*_M, digW = 1.9*_M, gap = 0.9*_M;
           const _wp = (al, ac) => { const N = sN+uN*al+pN*ac, E = sE+uE*al+pE*ac;
             return proj(N*cosH+E*sinH, E*cosH-N*sinH, _eNm); };
           const q0 = _wp(digH*0.6, 0), q1 = _wp(digH*1.6, 0);
           if (!q0 || !q1) continue;
           const hpx = Math.hypot(q1[0]-q0[0], q1[1]-q0[1]); if (hpx < 3) continue;
-          ctx.strokeStyle = _leadCol; ctx.lineWidth = Math.max(1.2, hpx*0.16);
+          ctx.lineWidth = Math.max(1.2, hpx*0.16);
+          ctx.beginPath();                                       // one stroke for this stand's glyphs
           for (let ci=0; ci<chars.length; ci++) {
             const glyph = _RW_FONT[chars[ci]]; if (!glyph) continue;
             const base = digH*0.6 + ci*(digH+gap);
-            for (const st of glyph) { ctx.beginPath(); let go=false;
+            for (const st of glyph) { let go=false;
               for (const [gx,gy] of st) { const sp = _wp(base + gy*digH, (gx-0.5)*digW);
-                if(!sp){go=false;continue;} if(!go){ctx.moveTo(sp[0],sp[1]);go=true;} else ctx.lineTo(sp[0],sp[1]); }
-              ctx.stroke(); }
+                if(!sp){go=false;continue;} if(!go){ctx.moveTo(sp[0],sp[1]);go=true;} else ctx.lineTo(sp[0],sp[1]); } }
           }
+          ctx.stroke();
         }
         ctx.restore();
       }
