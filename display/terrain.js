@@ -1009,6 +1009,31 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           for (const e of [0, L]) for (let s=-half; s<=half+1e-9; s+=half/3)   // green threshold bars
             _dot(aN+uN*e+pN*s, aE+uE*e+pE*s, `rgba(70,255,110,${_alpha})`, 1.8*_DPR);
         }
+        /* Taxiway edge lights (blue) — both sides of each taxiway centerline. Batched:
+           one fillStyle, all dots as rects in a single path, one fill() (Changi's taxi
+           network is enormous). Tight distance + behind culls. */
+        ctx.fillStyle = `rgba(70,130,255,${_alpha})`;
+        ctx.beginPath();
+        const _tw = 1.3*_DPR;
+        for (const way of _osmWays) {
+          if (way.tags?.aeroway !== 'taxiway' || !way.geometry || way.geometry.length < 2) continue;
+          const _hw = ((parseFloat(way.tags?.width)||15)/1852)/2, g = way.geometry;
+          const _txM = _sampleElev(g[0].lat, g[0].lon), _txNm = _txM!==null?(_txM-refM)*M_NM:0;
+          const _tx=(N,E)=>{ const f=N*cosH+E*sinH, r=E*cosH-N*sinH; const sp=proj(f,r,_txNm);
+            if(sp) ctx.rect(sp[0]-_tw, sp[1]-_tw, 2*_tw, 2*_tw); };
+          for (let s=0;s<g.length-1;s++){
+            const n0=(g[s].lat-acLat)*60, e0=(g[s].lon-acLon)*60*cosAcLat;
+            const n1=(g[s+1].lat-acLat)*60, e1=(g[s+1].lon-acLon)*60*cosAcLat;
+            const mN=(n0+n1)/2, mE=(e0+e1)/2;
+            if (mN*mN+mE*mE > 9) continue;           // >3 nm away
+            if (mN*cosH+mE*sinH < -0.4) continue;     // behind the camera
+            const dN=n1-n0, dE=e1-e0, segL=Math.hypot(dN,dE)||1e-6;
+            const uN=dN/segL, uE=dE/segL, pN=-uE, pE=uN;
+            for (let t=0;t<segL;t+=0.022){ const cN=n0+uN*t, cE=e0+uE*t;
+              _tx(cN+pN*_hw, cE+pE*_hw); _tx(cN-pN*_hw, cE-pE*_hw); }
+          }
+        }
+        ctx.fill();
         ctx.restore();
       }
 
