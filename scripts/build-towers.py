@@ -58,7 +58,8 @@ def overpass(centres):
     for i in range(0, len(items), CHUNK):
         parts = []
         for la, lo in items[i:i + CHUNK]:
-            for sel in ('["tower:type"="aircraft_control"]', '["aeroway"="tower"]'):
+            for sel in ('["tower:type"="aircraft_control"]', '["aeroway"="tower"]',
+                    '["service"="aircraft_control"]'):
                 parts.append(f'node(around:{RADIUS_M},{la:.5f},{lo:.5f}){sel};')
                 parts.append(f'way(around:{RADIUS_M},{la:.5f},{lo:.5f}){sel};')
         q = f"[out:json][timeout:90];({''.join(parts)});out center tags;"
@@ -108,7 +109,8 @@ def main():
             if dist > KEEP_M:
                 continue
             t = e.get("tags", {})
-            ctrl = t.get("tower:type") == "aircraft_control" or t.get("aeroway") == "tower"
+            ctrl = (t.get("tower:type") == "aircraft_control" or t.get("aeroway") == "tower"
+                    or t.get("service") == "aircraft_control")
             score = (1 if ctrl else 0, 1 if height_m(t) else 0)
             cand = (score, -dist, la, lo, height_m(t))
             if best is None or cand[:2] > best[:2]:
