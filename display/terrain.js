@@ -2022,9 +2022,11 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
     ctx.restore();
   }
 
-  /* ── Runway ── */
+  /* ── Runway (legacy hand-authored quad) — suppressed when OurAirports runways are
+     bundled; they're drawn accurately on the terrain mesh, whereas this draws a flat grey
+     quad with a centreline at the declared elevation (wrong heading + floating in Z). ── */
   const arr = S.mission?.arrival;
-  if (arr?.rwyLat != null) {
+  if (arr?.rwyLat != null && _missionRunways().length === 0) {
     const dN = (arr.rwyLat - (S.lat ?? 0)) * 60;
     const dE = (arr.rwyLon - (S.lon ?? 0)) * 60 * Math.cos((S.lat ?? 0) * DEG);
 
