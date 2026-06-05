@@ -153,10 +153,13 @@ function _rwyColor(surface, shade, dayFrac) {
 /* Cache key: "floor(lat*10)_floor(lon*10)" → array of OSM way objects with inline geometry */
 const _osmAero    = new Map();
 const _osmPending = new Set();
+const _aeroRetry  = new Map();   // key → earliest retry time after a failed fetch (no poisoning)
 
 function _fetchOSMAero(lat, lon) {
   const key = `${Math.floor(lat * 10)}_${Math.floor(lon * 10)}`;
   if (_osmAero.has(key) || _osmPending.has(key)) return;
+  const _ra = _aeroRetry.get(key);
+  if (_ra && performance.now() < _ra) return;          // back off after a transient failure
   _osmPending.add(key);
   /* Bounding box: 0.14° × 0.14° (~9 nm) centred on the 0.1° grid cell */
   const b0l = (Math.floor(lat * 10) / 10 - 0.02).toFixed(4);
@@ -164,11 +167,11 @@ function _fetchOSMAero(lat, lon) {
   const b0o = (Math.floor(lon * 10) / 10 - 0.02).toFixed(4);
   const b1o = (Math.floor(lon * 10) / 10 + 0.12).toFixed(4);
   const _bb = `${b0l},${b0o},${b1l},${b1o}`;
-  const q = `[out:json][timeout:25];(way["aeroway"~"runway|taxiway|apron|helipad"](${_bb});node["aeroway"="holding_position"](${_bb}););out geom;`;
+  const q = `[out:json][timeout:25];(way["aeroway"~"runway|taxiway|apron|helipad"](${_bb});node["aeroway"="holding_position"](${_bb});node["aeroway"="windsock"](${_bb}););out geom;`;
   fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`)
-    .then(r => r.ok ? r.json() : { elements: [] })
+    .then(r => { if (!r.ok) throw 0; return r.json(); })
     .then(d => { _osmAero.set(key, d.elements ?? []); _osmPending.delete(key); })
-    .catch(() => { _osmAero.set(key, []); _osmPending.delete(key); });
+    .catch(() => { _osmPending.delete(key); _aeroRetry.set(key, performance.now() + 6000); });
 }
 
 /* ── OSM major-road overlay — the bright night-time arteries (motorway/trunk/primary).
@@ -1644,6 +1647,55 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           }
         }
         ctx.restore();
+      }
+
+      /* ── Windsock (OSM aeroway=windsock) — points downwind from the live METAR wind
+         and inflates with wind speed. The iconic small-field marker, and a real
+         airmanship cue (read the sock for wind) — high ROI for training. */
+      {
+        const _wind = _windNow();
+        const _tInf = Math.max(0, Math.min(1, _wind.spd / 14));   // 0 calm … 1 fully streamed
+        const _toBrg = (_wind.dir + 180) * DEG;                   // bearing the sock points to
+        const hN = Math.cos(_toBrg), hE = Math.sin(_toBrg);       // downwind horizontal unit (N,E)
+        const aN = hE, aE = -hN;                                  // across-wind (cone width axis)
+        const _wBr = 0.4 + 0.6 * dayFrac;                         // day↔night dim
+        const _BAND = [[232, 116, 24], [238, 238, 238]];          // orange / white
+        const M = M_NM, poleH = 6, sockLen = 4.2, mouthR = 0.55, tailR = 0.22, NS = 6;
+        for (const el of _osmWays) {
+          if (el.type !== 'node' || el.tags?.aeroway !== 'windsock') continue;
+          const nN = (el.lat - acLat) * 60, nE = (el.lon - acLon) * 60 * cosAcLat;
+          if (nN * nN + nE * nE > 9) continue;                    // > 3 nm
+          const _eM = _sampleElev(el.lat, el.lon), e0 = _eM !== null ? (_eM - refM) * M_NM : 0;
+          const _P = (dn, de, up) => proj((nN + dn) * cosH + (nE + de) * sinH,
+                                          (nE + de) * cosH - (nN + dn) * sinH, e0 + up);
+          const pb = _P(0, 0, 0), pt = _P(0, 0, poleH * M);
+          if (!pb || !pt) continue;
+          ctx.strokeStyle = `rgb(${120 * _wBr | 0},${122 * _wBr | 0},${128 * _wBr | 0})`;
+          ctx.lineWidth = Math.max(1, Math.hypot(pt[0] - pb[0], pt[1] - pb[1]) * 0.06);
+          ctx.beginPath(); ctx.moveTo(pb[0], pb[1]); ctx.lineTo(pt[0], pt[1]); ctx.stroke();
+          /* sock axis: from pole top, downwind reach + droop both driven by wind speed */
+          const reach = sockLen * (0.28 + 0.72 * _tInf);
+          const tipUp = poleH - sockLen * (0.85 - 0.78 * _tInf);
+          const cen = [], edg = [];
+          for (let i = 0; i < NS; i++) {
+            const s = i / (NS - 1), r = mouthR + (tailR - mouthR) * s;
+            const dn = hN * reach * s * M, de = hE * reach * s * M, up = (poleH + (tipUp - poleH) * s) * M;
+            cen.push(_P(dn, de, up));
+            edg.push(_P(dn + aN * r * M, de + aE * r * M, up));   // r in metres → × M (nm)
+          }
+          for (let i = 0; i < NS - 1; i++) {
+            const c0 = cen[i], c1 = cen[i + 1], o0 = edg[i], o1 = edg[i + 1];
+            if (!c0 || !c1 || !o0 || !o1) continue;
+            const c = _BAND[i % 2];
+            ctx.fillStyle = `rgb(${c[0] * _wBr | 0},${c[1] * _wBr | 0},${c[2] * _wBr | 0})`;
+            ctx.beginPath();
+            ctx.moveTo(2 * c0[0] - o0[0], 2 * c0[1] - o0[1]);     // c0 - (edge-c0) = mirror
+            ctx.lineTo(o0[0], o0[1]);
+            ctx.lineTo(o1[0], o1[1]);
+            ctx.lineTo(2 * c1[0] - o1[0], 2 * c1[1] - o1[1]);
+            ctx.closePath(); ctx.fill();
+          }
+        }
       }
     }
   }
