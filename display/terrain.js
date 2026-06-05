@@ -13,6 +13,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from '../core/state.js';
+import { RUNWAYS } from './runways-data.js';
 
 const DEG   = Math.PI / 180;
 const FT_NM = 1 / 6076.12;
@@ -142,6 +143,23 @@ function _runwayGeom(way) {
   return { a: toLL(pmin), b: toLL(pmax), widthM: wTag || (qmax-qmin)*1852, ref };
 }
 
+/* Bundled OurAirports runways for the current mission's airports, in the same
+   {a:{lat,lon}, b:{lat,lon}, widthM, ref} shape _runwayGeom returns (+ bundled flag so
+   the surface draws a rectangle rather than an OSM polygon). [] if none bundled. */
+function _missionRunways() {
+  const m = S.mission; if (!m) return [];
+  const out = [];
+  for (const k of ['departure', 'arrival']) {
+    const ic = m[k]?.icao, rws = ic && RUNWAYS[ic];
+    if (!rws) continue;
+    for (const r of rws) out.push({
+      a: { lat: r.a[0], lon: r.a[1] }, b: { lat: r.b[0], lon: r.b[1] },
+      widthM: r.widthM, ref: r.ref, bundled: true,
+    });
+  }
+  return out;
+}
+
 /* Memoised _runwayGeom — cached on the OSM way object (static geometry, computed once
    instead of every frame by every runway-feature pass). */
 function _rwGeomC(w) {
@@ -186,20 +204,10 @@ const _RW_FONT = {
   '-': [[[0.1,0.5],[0.9,0.5]]],
 };
 
-/* Designation a holding sign protects: the node's own ref, else the nearest runway's
-   two ends as "XX-YY" (derived from the runway bearing). */
-function _nearestRwyDes(node, els) {
-  let best = null, bestD = Infinity;
-  for (const w of els) {
-    if (w.type === 'node' || w.tags?.aeroway !== 'runway' || !w.geometry) continue;
-    const rg = _rwGeomC(w); if (!rg) continue;
-    const mLat=(rg.a.lat+rg.b.lat)/2, mLon=(rg.a.lon+rg.b.lon)/2;
-    const d=(mLat-node.lat)**2 + (mLon-node.lon)**2;
-    if (d < bestD) { bestD = d; best = rg; }
-  }
-  if (!best) return null;
-  if (best.ref) return best.ref.replace(/\//g, '-');
-  const brg=(Math.atan2(best.b.lon-best.a.lon, best.b.lat-best.a.lat)*180/Math.PI+360)%360;
+/* Designation of a runway (rg): its ref, else derived "XX-YY" from the bearing. */
+function _rwDes(rg) {
+  if (rg.ref) return rg.ref.replace(/\//g, '-');
+  const brg=(Math.atan2(rg.b.lon-rg.a.lon, rg.b.lat-rg.a.lat)*180/Math.PI+360)%360;
   const num=(b)=>{const n=Math.round((((b%360)+360)%360)/10);return n===0?36:n;};
   const f=(b)=>('0'+num(b)).slice(-2);
   return f(brg)+'-'+f(brg+180);
@@ -207,23 +215,22 @@ function _nearestRwyDes(node, els) {
 
 /* Per holding-position node: taxiway direction oriented toward the nearest runway, the
    taxiway width, and the protected designation — computed once and cached on the node,
-   so the per-frame ladder/sign/guard-light passes are just project + draw. */
-function _holdInfo(el, els) {
+   so the per-frame ladder/sign/guard-light passes are just project + draw. `runways` is
+   the unified runway list (OurAirports bundle or OSM). */
+function _holdInfo(el, els, runways) {
   if (el._hold !== undefined) return el._hold;
   const dir = _holdDir(el, els);
   if (!dir) return (el._hold = null);
   let uLat = dir.dLat, uLon = dir.dLon;
-  let rwLat = 0, rwLon = 0, bd = Infinity;
+  let rwLat = 0, rwLon = 0, bd = Infinity, best = null;
   const cl = Math.cos(el.lat * DEG);
-  for (const w of els) {
-    if (w.type === 'node' || w.tags?.aeroway !== 'runway' || !w.geometry) continue;
-    const rg = _rwGeomC(w); if (!rg) continue;
+  for (const rg of runways) {
     const dLa = (rg.a.lat+rg.b.lat)/2 - el.lat, dLo = (rg.a.lon+rg.b.lon)/2 - el.lon;
     const d = dLa*dLa + dLo*dLo;
-    if (d < bd) { bd = d; rwLat = dLa; rwLon = dLo; }
+    if (d < bd) { bd = d; rwLat = dLa; rwLon = dLo; best = rg; }
   }
   if (uLat*rwLat + (uLon*cl)*(rwLon*cl) < 0) { uLat = -uLat; uLon = -uLon; }  // toward runway
-  const des = el.tags?.ref ? el.tags.ref.replace(/\//g, '-') : _nearestRwyDes(el, els);
+  const des = el.tags?.ref ? el.tags.ref.replace(/\//g, '-') : (best ? _rwDes(best) : null);
   return (el._hold = { uLat, uLon, width: dir.width, des });
 }
 
@@ -1015,10 +1022,19 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
   if (!isWater) {
     _fetchOSMAero(acLat, acLon);
     const _osmKey  = `${Math.floor(acLat * 10)}_${Math.floor(acLon * 10)}`;
-    const _osmWays = _osmAero.get(_osmKey);
-    if (_osmWays?.length) {
-      /* Brightness scales with day/night (same formula as _rwyColor) */
-      const _f   = dayFrac * 0.78 + 0.22;
+    const _osmWays = _osmAero.get(_osmKey) || [];
+    /* Runways: OurAirports bundle (primary) at mission airports, else OSM geometry —
+       so the runway draws even where OSM has nothing mapped. */
+    const _bundledRw = _missionRunways();
+    const _runways = _bundledRw.length
+      ? _bundledRw
+      : _osmWays.filter(w => w.tags?.aeroway === 'runway').map(_rwGeomC).filter(Boolean);
+    if (_osmWays.length || _runways.length) {
+      /* Brighter + faintly cool at night: the apron/taxiway surface is lit by all the
+         surface lights, so it reads as a lit apron, not flat-dim grey. */
+      const _f   = dayFrac * 0.64 + 0.36;
+      const _nf  = 1 - dayFrac;                      // 0 day → 1 night
+      const _ngl = _nf * 3 | 0, _nbl = _nf * 9 | 0;  // night green / blue lift
       const _rB  = 62  * _f | 0;   // runway  (asphalt ~62)
       const _tB  = 52  * _f | 0;   // taxiway (slightly darker)
       const _aB  = 72  * _f | 0;   // apron   (concrete ~72)
@@ -1026,14 +1042,16 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
       for (const way of _osmWays) {
         if (!way.geometry?.length) continue;
         const _at = way.tags?.aeroway;
-        const _bv = _at === 'runway' ? _rB : _at === 'taxiway' ? _tB : _at === 'apron' ? _aB : null;
+        /* Skip OSM runway polygons when OurAirports runways are bundled (drawn below). */
+        const _bv = _at === 'runway' ? (_bundledRw.length ? null : _rB)
+                  : _at === 'taxiway' ? _tB : _at === 'apron' ? _aB : null;
         if (_bv === null) continue;
         /* Sample terrain elevation at the first node so the overlay sits on the actual
            terrain mesh rather than floating at the declared mission field elevation.     */
         const _n0  = way.geometry[0];
         const _eM  = _sampleElev(_n0.lat, _n0.lon);
         const _eNm = _eM !== null ? (_eM - refM) * M_NM : 0;
-        ctx.fillStyle = `rgb(${_bv},${_bv},${_bv})`;
+        ctx.fillStyle = `rgb(${_bv},${_bv+_ngl},${_bv+_nbl})`;
         ctx.beginPath();
         let _go = false;
         for (const { lat: _nL, lon: _nO } of way.geometry) {
@@ -1046,6 +1064,21 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         }
         if (_go) { ctx.closePath(); ctx.fill(); }
       }
+      /* Bundled (OurAirports) runway surfaces — rectangles from the thresholds + width. */
+      if (_bundledRw.length) {
+        ctx.fillStyle = `rgb(${_rB},${_rB+_ngl},${_rB+_nbl})`;
+        for (const rg of _bundledRw) {
+          const aN=(rg.a.lat-acLat)*60, aE=(rg.a.lon-acLon)*60*cosAcLat;
+          const bN=(rg.b.lat-acLat)*60, bE=(rg.b.lon-acLon)*60*cosAcLat;
+          const dN=bN-aN, dE=bE-aE, L=Math.hypot(dN,dE)||1e-6, pN=-dE/L, pE=dN/L, hw=(rg.widthM/1852)/2;
+          const _eM=_sampleElev(rg.a.lat,rg.a.lon), _eNm=_eM!==null?(_eM-refM)*M_NM:0;
+          const c=[[aN+pN*hw,aE+pE*hw],[aN-pN*hw,aE-pE*hw],[bN-pN*hw,bE-pE*hw],[bN+pN*hw,bE+pE*hw]];
+          const sps=c.map(([N,E])=>proj(N*cosH+E*sinH,E*cosH-N*sinH,_eNm));
+          if(sps.some(s=>!s))continue;
+          ctx.beginPath(); ctx.moveTo(sps[0][0],sps[0][1]);
+          for(let i=1;i<4;i++)ctx.lineTo(sps[i][0],sps[i][1]); ctx.closePath(); ctx.fill();
+        }
+      }
       ctx.restore();
 
       /* ── Runway lighting (dusk/night) — white edge lights + green threshold bars,
@@ -1057,9 +1090,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         const _alpha = (0.35 + 0.55 * _night).toFixed(2);
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
-        for (const way of _osmWays) {
-          if (way.tags?.aeroway !== 'runway' || !way.geometry?.length) continue;
-          const rg = _rwGeomC(way); if (!rg) continue;
+        for (const rg of _runways) {
           const _eM  = _sampleElev(rg.a.lat, rg.a.lon);
           const _eNm = _eM !== null ? (_eM - refM) * M_NM : 0;
           const aN=(rg.a.lat-acLat)*60, aE=(rg.a.lon-acLon)*60*cosAcLat;
@@ -1112,9 +1143,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         ctx.save();
         ctx.strokeStyle = 'rgba(236,239,243,0.85)';   // off-white paint
         ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-        for (const way of _osmWays) {
-          if (way.tags?.aeroway !== 'runway' || !way.geometry?.length) continue;
-          const rg = _rwGeomC(way); if (!rg) continue;
+        for (const rg of _runways) {
           const parts = (rg.ref || '').split('/').map(s => s.trim()).filter(Boolean);
           const _eM = _sampleElev(rg.a.lat, rg.a.lon);
           const _eNm = _eM !== null ? (_eM - refM) * M_NM : 0;
@@ -1171,9 +1200,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         const _vAGLnm = ((S.alt ?? 0) - elevFt) / 6076.12;   // viewer height above the field
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
-        for (const way of _osmWays) {
-          if (way.tags?.aeroway !== 'runway' || !way.geometry?.length) continue;
-          const rg = _rwGeomC(way); if (!rg) continue;
+        for (const rg of _runways) {
           const _eM = _sampleElev(rg.a.lat, rg.a.lon);
           const _eNm = _eM !== null ? (_eM - refM) * M_NM : 0;
           const aN=(rg.a.lat-acLat)*60, aE=(rg.a.lon-acLon)*60*cosAcLat;
@@ -1206,7 +1233,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           if (el.type !== 'node' || el.tags?.aeroway !== 'holding_position') continue;
           const nN=(el.lat-acLat)*60, nE=(el.lon-acLon)*60*cosAcLat;
           if (nN*nN+nE*nE > 9) continue;
-          const hi=_holdInfo(el,_osmWays); if(!hi) continue;
+          const hi=_holdInfo(el,_osmWays,_runways); if(!hi) continue;
           const _un=hi.uLat*60, _ue=hi.uLon*60*cosAcLat, ul=Math.hypot(_un,_ue)||1;
           const uN=_un/ul, uE=_ue/ul, pN=-uE, pE=uN, hw=(hi.width/1852)/2;
           const _eM=_sampleElev(el.lat,el.lon), _e0=(_eM!==null?(_eM-refM)*_M:0);
@@ -1235,7 +1262,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           const nN=(el.lat-acLat)*60, nE=(el.lon-acLon)*60*cosAcLat;
           if (nN*nN+nE*nE > 9) continue;            // >3 nm
           const _eM=_sampleElev(el.lat,el.lon), _eNm=_eM!==null?(_eM-refM)*M_NM:0;
-          const hi=_holdInfo(el,_osmWays);
+          const hi=_holdInfo(el,_osmWays,_runways);
           let pN=0,pE=1;
           if (hi){ const dN=hi.uLat*60, dE=hi.uLon*60*cosAcLat, dl=Math.hypot(dN,dE)||1; pN=-dE/dl; pE=dN/dl; }
           const half=0.0095;                         // ~17 m to each side
@@ -1261,7 +1288,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           if (el.type !== 'node' || el.tags?.aeroway !== 'holding_position') continue;
           const nN=(el.lat-acLat)*60, nE=(el.lon-acLon)*60*cosAcLat;
           if (nN*nN+nE*nE > 6.25) continue;          // >2.5 nm (signs only read close)
-          const hi=_holdInfo(el,_osmWays); if (!hi || !hi.des) continue;
+          const hi=_holdInfo(el,_osmWays,_runways); if (!hi || !hi.des) continue;
           const _un=hi.uLat*60, _ue=hi.uLon*60*cosAcLat, ul=Math.hypot(_un,_ue)||1;
           const uN=_un/ul, uE=_ue/ul;                    // taxiway dir, toward the runway
           const txt = hi.des;
