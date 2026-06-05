@@ -9,6 +9,8 @@
 import { S }     from '../core/state.js';
 import { COAST, SPACE_SITES } from './coastlines.js';
 import { NAVAIDS } from './navdata.js';
+import { RUNWAYS } from './runways-data.js';
+import { getTaxiGraph, routeTaxi, nearestStand } from '../core/taxi-graph.js';
 
 const DEG = Math.PI / 180;
 
@@ -33,6 +35,49 @@ let _ltrkLine   = null;   /* track vector polyline */
 let _lwptLayer  = null;   /* L.layerGroup for waypoints */
 let _lnavLayer  = null;   /* L.layerGroup for navaids (VOR/NDB/DME) */
 let _lrouteLine = null;   /* route polyline connecting waypoints */
+let _ltaxiLine  = null;   /* taxi route polyline (gate ↔ runway, from the taxiway graph) */
+
+/* ── Taxi route over the OSM taxiway graph — drawn when on the ground at a mission
+   airport: departure → route to the runway, arrival → route to the nearest gate. ── */
+let _taxiFrom = null, _taxiKey = null, _taxiRoute = null;
+const _nmd = (la1, lo1, la2, lo2) => {
+  const dN = (la1 - la2) * 60, dE = (lo1 - lo2) * 60 * Math.cos(la1 * Math.PI / 180);
+  return Math.hypot(dN, dE);
+};
+function _updateTaxiRoute(lat, lon) {
+  if (!_ltaxiLine) return;
+  const m = S.mission;
+  let icao = null, ctr = null, bd = 1e9;
+  for (const ic of [m?.departure?.icao, m?.arrival?.icao]) {
+    const rw = ic && RUNWAYS[ic]; if (!rw) continue;
+    const pts = rw.flatMap(r => [r.a, r.b]);
+    const c = [pts.reduce((s, p) => s + p[0], 0) / pts.length, pts.reduce((s, p) => s + p[1], 0) / pts.length];
+    const d = _nmd(lat, lon, c[0], c[1]); if (d < bd) { bd = d; icao = ic; ctr = c; }
+  }
+  if (!icao || bd > 6) { _ltaxiLine.setLatLngs([]); _taxiRoute = null; _taxiKey = null; return; }
+  const graph = getTaxiGraph(icao, ctr[0], ctr[1]);
+  if (!graph) return;                                  // still loading
+
+  const isArr = m?.arrival?.icao === icao && m?.departure?.icao !== icao;
+  let goal = null;
+  if (isArr) { const st = nearestStand(graph, lat, lon); if (st) goal = { lat: st.lat, lon: st.lon }; }
+  if (!goal) {                                         // departure (or no stand): nearest runway threshold
+    let best = null, bdd = 1e9;
+    for (const r of RUNWAYS[icao]) for (const e of [r.a, r.b]) {
+      const d = _nmd(lat, lon, e[0], e[1]); if (d < bdd) { bdd = d; best = { lat: e[0], lon: e[1] }; }
+    }
+    goal = best;
+  }
+  if (!goal) { _ltaxiLine.setLatLngs([]); return; }
+
+  const moved = !_taxiFrom || _nmd(lat, lon, _taxiFrom[0], _taxiFrom[1]) * 1852 > 80;
+  if (moved || _taxiKey !== icao) {
+    _taxiRoute = routeTaxi(graph, { lat, lon }, goal);
+    _taxiFrom = [lat, lon]; _taxiKey = icao;
+    if (_taxiRoute?.seq?.length) S.taxiClearance = { icao, via: _taxiRoute.seq, distM: _taxiRoute.distM, arr: isArr };
+  }
+  _ltaxiLine.setLatLngs(_taxiRoute?.pts ?? []);
+}
 
 /* Aviation-chart navaid symbol (VOR hexagon / NDB dotted circle / DME square) + label. */
 function _navMarker(n) {
@@ -146,6 +191,9 @@ export function initMap() {
   /* Navaid layer — static VOR/NDB/DME symbols from the bundled OurAirports data */
   _lnavLayer  = L.layerGroup().addTo(_lmap);
   for (const n of NAVAIDS) _lnavLayer.addLayer(_navMarker(n));
+
+  /* Taxi route — bright green line over the taxiway graph (gate ↔ runway) */
+  _ltaxiLine  = L.polyline([], { color: '#39ff7e', weight: 3.5, opacity: 0.9 }).addTo(_lmap);
 
   _lmap.setView([47, 8], 14);
 
@@ -509,6 +557,8 @@ function _renderLeafletLocal() {
     _lLastMission = missionId;
     _updateWaypoints();
   }
+
+  _updateTaxiRoute(lat, lon);   // taxi route over the OSM taxiway graph
 }
 
 /* ── Draw mission waypoints on Leaflet map ── */
