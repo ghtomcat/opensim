@@ -1583,6 +1583,15 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const _trActive = !isF9 && !isSS && !isSV && !isC172 && !isPP && !isBf109 && !isF4U && !isMig15 && !!(S.thrustReverser);
 
   /* Build shaded face list with average depth */
+  /* Night apron uplight — when parked/taxiing at night the airport surface lights the
+     airframe from below, so downward-facing faces get a bluish lift. 0 in daylight or
+     airborne. (timeOfDay → sun height, same curve as the golden-hour tint.) */
+  const _todUp = S.mission?.timeOfDay ?? 12;
+  const _hUp   = _todUp < 1 ? _todUp * 24 : _todUp;
+  const _sunUp = Math.sin((_hUp - 6) / 12 * Math.PI);
+  const _upStr = (S.wow ? 1 : 0) * Math.max(0, Math.min(1, (0.1 - _sunUp) / 0.35)) * 0.95;
+  const _UPCOL = [90, 140, 210];   // apron/taxiway-light blue
+
   _prof.buildT0 = performance.now();   // profiler: aircraft geometry build starts here
   const faces = F_.map((fi, i) => {
     /* F9 stage sep: main vehicle = S2 + Dragon + MVac nozzle (faces 48-95 + 96-103) */
@@ -1673,7 +1682,14 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
 
     const [nF, nR, nU] = rotateNormal(FN_[i]);
     const amb  = (isF9 && FC_[i] === 4) ? 0.55 : 0.18;
-    const br   = litBr(nF, nR, nU, amb);
+    let   br   = litBr(nF, nR, nU, amb);
+    let   col  = COL_[FC_[i]];
+    /* Night apron uplight: lift + tint downward (belly/underside) faces toward blue */
+    if (_upStr > 0 && nU < 0) {
+      const up = _upStr * (-nU), t = Math.min(0.7, up);
+      br  = Math.min(1, br + 0.8 * up);
+      col = [ col[0]+(_UPCOL[0]-col[0])*t, col[1]+(_UPCOL[1]-col[1])*t, col[2]+(_UPCOL[2]-col[2])*t ];
+    }
     const spec = Math.pow(Math.max(0, nF*_Hac[0] + nR*_Hac[1] + nU*_Hac[2]), 28);
     const avgD = ps.reduce((s, p) => s + p.d, 0) / ps.length;
 
@@ -1682,8 +1698,12 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     if (fi.length === 4) {
       const rnL = rotateNormal(VN_[fi[0]]);
       const rnR = rotateNormal(VN_[fi[1]]);
-      const brL = litBr(rnL[0], rnL[1], rnL[2], amb);
-      const brR = litBr(rnR[0], rnR[1], rnR[2], amb);
+      let brL = litBr(rnL[0], rnL[1], rnL[2], amb);
+      let brR = litBr(rnR[0], rnR[1], rnR[2], amb);
+      if (_upStr > 0) {
+        if (rnL[2] < 0) brL = Math.min(1, brL + 0.8 * _upStr * (-rnL[2]));
+        if (rnR[2] < 0) brR = Math.min(1, brR + 0.8 * _upStr * (-rnR[2]));
+      }
       if (Math.abs(brL - brR) > 0.015) {
         const pL = { x: (ps[0].x + ps[3].x) * 0.5, y: (ps[0].y + ps[3].y) * 0.5 };
         const pR = { x: (ps[1].x + ps[2].x) * 0.5, y: (ps[1].y + ps[2].y) * 0.5 };
@@ -1691,7 +1711,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       }
     }
 
-    return { ps, br, spec, avgD, col: COL_[FC_[i]], grad, fc: FC_[i] };
+    return { ps, br, spec, avgD, col, grad, fc: FC_[i] };
   }).filter(Boolean);
 
   /* Starship stage sep: fill open bottom ring of Ship with a disc cap */
