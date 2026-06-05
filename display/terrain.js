@@ -1403,6 +1403,33 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         ctx.restore();
       }
 
+      /* ── Taxiway centrelines (yellow paint) — the defining taxiway marking, on paved
+         taxiways. The OSM taxiway way IS the centreline, so we just stroke it. */
+      {
+        const _DPRt = devicePixelRatio || 1;
+        ctx.save();
+        ctx.strokeStyle = `rgba(214,196,72,${(0.45 + 0.35 * dayFrac).toFixed(2)})`;
+        ctx.lineWidth = 1.5 * _DPRt; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        for (const way of _osmWays) {
+          if (way.tags?.aeroway !== 'taxiway' || !way.geometry || way.geometry.length < 2) continue;
+          if (_isGrass(way.tags?.surface)) continue;            // grass taxiways aren't painted
+          const g = way.geometry;
+          const _0n = (g[0].lat-acLat)*60, _0e = (g[0].lon-acLon)*60*cosAcLat;
+          if (_0n*_0n + _0e*_0e > 16) continue;                 // > 4 nm
+          const _yM = _sampleElev(g[0].lat, g[0].lon), _yNm = _yM !== null ? (_yM-refM)*M_NM : 0;
+          ctx.beginPath(); let pen = false;
+          for (const nd of g) {
+            const dN = (nd.lat-acLat)*60, dE = (nd.lon-acLon)*60*cosAcLat;
+            if (Math.hypot(dN, dE) > 4 || dN*cosH+dE*sinH < -0.3) { pen = false; continue; }
+            const sp = proj(dN*cosH+dE*sinH, dE*cosH-dN*sinH, _yNm);
+            if (!sp) { pen = false; continue; }
+            if (!pen) { ctx.moveTo(sp[0], sp[1]); pen = true; } else ctx.lineTo(sp[0], sp[1]);
+          }
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
       /* ── Grass-runway edge markers — a grass strip can't be painted, so its boundary is
          marked with low white boards/cones along both edges. Day-visible (not lights). */
       {
@@ -1475,6 +1502,26 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
             const uN=dN/segL, uE=dE/segL, pN=-uE, pE=uN;
             for (let t=0;t<segL;t+=0.022){ const cN=n0+uN*t, cE=e0+uE*t;
               _tx(cN+pN*_hw, cE+pE*_hw); _tx(cN-pN*_hw, cE-pE*_hw); }
+          }
+        }
+        ctx.fill();
+        /* Green taxiway centreline lights (paved taxiways) — additive dots along the centreline */
+        ctx.fillStyle = `rgba(60,235,95,${_alpha})`;
+        ctx.beginPath();
+        for (const way of _osmWays) {
+          if (way.tags?.aeroway !== 'taxiway' || !way.geometry || way.geometry.length < 2) continue;
+          if (_isGrass(way.tags?.surface)) continue;
+          const g = way.geometry;
+          const _cM = _sampleElev(g[0].lat, g[0].lon), _cNm = _cM !== null ? (_cM - refM) * M_NM : 0;
+          for (let s = 0; s < g.length - 1; s++) {
+            const n0 = (g[s].lat-acLat)*60,   e0 = (g[s].lon-acLon)*60*cosAcLat;
+            const n1 = (g[s+1].lat-acLat)*60, e1 = (g[s+1].lon-acLon)*60*cosAcLat;
+            const mN = (n0+n1)/2, mE = (e0+e1)/2;
+            if (mN*mN+mE*mE > 9 || mN*cosH+mE*sinH < -0.4) continue;
+            const dN = n1-n0, dE = e1-e0, segL = Math.hypot(dN,dE)||1e-6, uN = dN/segL, uE = dE/segL;
+            for (let t = 0; t < segL; t += 0.016) { const cN = n0+uN*t, cE = e0+uE*t;
+              const sp = proj(cN*cosH+cE*sinH, cE*cosH-cN*sinH, _cNm);
+              if (sp) { ctx.moveTo(sp[0]+_tw, sp[1]); ctx.arc(sp[0], sp[1], _tw, 0, 7); } }
           }
         }
         ctx.fill();
