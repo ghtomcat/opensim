@@ -1081,6 +1081,42 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
       }
       ctx.restore();
 
+      /* ── Runway markings (paint, day + night) — centreline dashes, threshold "piano
+         keys", and aiming-point blocks, derived from each runway's geometry. */
+      {
+        const _M = 1/1852;
+        ctx.save();
+        ctx.fillStyle = 'rgba(226,229,234,0.82)';
+        for (const rg of _runways) {
+          const aN=(rg.a.lat-acLat)*60, aE=(rg.a.lon-acLon)*60*cosAcLat;
+          const bN=(rg.b.lat-acLat)*60, bE=(rg.b.lon-acLon)*60*cosAcLat;
+          const dN=bN-aN, dE=bE-aE, L=Math.hypot(dN,dE)||1e-6;
+          if (((aN+bN)/2)**2 + ((aE+bE)/2)**2 > 25) continue;     // >5 nm
+          const uN=dN/L, uE=dE/L, pN=-uE, pE=uN, hw=(rg.widthM/1852)/2;
+          const _eM=_sampleElev(rg.a.lat,rg.a.lon), _eNm=_eM!==null?(_eM-refM)*M_NM:0;
+          const _quad=(al0,al1,ac0,ac1)=>{
+            const q=[[al0,ac0],[al1,ac0],[al1,ac1],[al0,ac1]].map(([al,ac])=>{
+              const N=aN+uN*al+pN*ac, E=aE+uE*al+pE*ac;
+              return proj(N*cosH+E*sinH,E*cosH-N*sinH,_eNm); });
+            if(q.some(p=>!p))return;
+            ctx.beginPath();ctx.moveTo(q[0][0],q[0][1]);
+            for(let i=1;i<4;i++)ctx.lineTo(q[i][0],q[i][1]);ctx.closePath();ctx.fill(); };
+          const clw=0.45*_M;
+          for (let al=60*_M; al<L-60*_M; al+=50*_M)                // centreline: 30 m / 20 m
+            _quad(al, Math.min(L-60*_M, al+30*_M), -clw, clw);
+          const sw=1.25*_M, pitch=3.6*_M, n=Math.floor(hw/pitch);
+          for (const end of [{o:0,s:1},{o:L,s:-1}]) {
+            const _al=(d)=>end.o+end.s*d;
+            for (let i=-n;i<=n;i++){ if(i===0)continue; const ac=i*pitch;
+              if (Math.abs(ac)+sw>hw) continue;
+              _quad(_al(6*_M), _al(36*_M), ac-sw, ac+sw); }          // piano keys
+            _quad(_al(300*_M), _al(345*_M),  7*_M, 13*_M);           // aiming point (two blocks)
+            _quad(_al(300*_M), _al(345*_M), -13*_M, -7*_M);
+          }
+        }
+        ctx.restore();
+      }
+
       /* ── Runway lighting (dusk/night) — white edge lights + green threshold bars,
          derived from the runway centerline. ICAO-standard layout, so every runway with
          OSM geometry lights itself; brightness rises into the night. */
