@@ -5,11 +5,12 @@
 
      "start": { "runway": "24", "at": "lineup" }      // at | lineup | backtrack | threshold
      "start": { "runway": "12" }                       // default at = lineup
+     "start": { "stand": "B7" }                        // park nose-in at a gate (bundled STANDS)
 
-   (stand / holdShort would need OSM and are not resolved here yet.) Returns
-   { lat, lon, hdg } or null — the caller falls back to initialState. */
+   Returns { lat, lon, hdg } or null — the caller falls back to initialState. */
 
 import { RUNWAYS } from '../display/runways-data.js';
+import { STANDS }  from '../display/stands-data.js';
 
 const _bearing = (a, b) =>
   ((Math.atan2((b[1] - a[1]) * Math.cos(a[0] * Math.PI / 180), b[0] - a[0]) * 180 / Math.PI) + 360) % 360;
@@ -20,7 +21,15 @@ export function resolveStart(mission) {
   const s = mission?.start;
   if (!s) return null;
   const icao = s.icao || mission.departure?.icao || mission.arrival?.icao;
-  const rws  = icao && RUNWAYS[icao];
+  if (!icao) return null;
+
+  if (s.stand != null) {
+    const want = String(s.stand).toUpperCase();
+    const st = (STANDS[icao] || []).find(x => String(x.ref).toUpperCase() === want);
+    return st ? { lat: st.lat, lon: st.lon, hdg: st.hdg } : null;
+  }
+
+  const rws = RUNWAYS[icao];
   if (!rws) return null;
 
   if (s.runway != null) {
