@@ -1781,7 +1781,15 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
             if(!dash){ const a=_pt(al,-hw), b=_pt(al,hw); if(a&&b){ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();} }
             else { const s=0.9*_M, g=0.9*_M; for(let c=-hw;c<hw-1e-9;c+=s+g){ const a=_pt(al,c), b=_pt(al,Math.min(hw,c+s)); if(a&&b){ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();} } }
           };
-          _line(-0.6*_M,false); _line(-0.2*_M,false); _line(0.2*_M,true); _line(0.6*_M,true);
+          if (el.tags?.['holding_position:type'] === 'ILS') {
+            /* ILS / CAT II-III critical-area hold: the "ladder" marking — two solid rails
+               across the taxiway joined by perpendicular rungs (distinct from pattern A). */
+            _line(-0.5*_M,false); _line(0.5*_M,false);
+            for(let c=-hw;c<=hw+1e-9;c+=1.1*_M){ const a=_pt(-0.5*_M,c), b=_pt(0.5*_M,c);
+              if(a&&b){ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();} }
+          } else {
+            _line(-0.6*_M,false); _line(-0.2*_M,false); _line(0.2*_M,true); _line(0.6*_M,true);
+          }
         }
         ctx.restore();
       }
@@ -1826,10 +1834,11 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           { const _ht = el.tags?.['holding_position:type']; if (_ht && _ht !== 'runway' && _ht !== 'ILS') continue; }   // runway holds only (skip intermediate/movement)
           const nN=(el.lat-acLat)*60, nE=(el.lon-acLon)*60*cosAcLat;
           if (nN*nN+nE*nE > 6.25) continue;          // >2.5 nm (signs only read close)
-          const hi=_holdInfo(el,_osmWays,_runways); if (!hi || !hi.des) continue;
+          const hi=_holdInfo(el,_osmWays,_runways); if (!hi) continue;
           const _un=hi.uLat*60, _ue=hi.uLon*60*cosAcLat, ul=Math.hypot(_un,_ue)||1;
           const uN=_un/ul, uE=_ue/ul;                    // taxiway dir, toward the runway
-          const txt = hi.des;
+          const txt = el.tags?.['holding_position:type'] === 'ILS' ? 'ILS' : hi.des;
+          if (!txt) continue;
           const aN=uE, aE=-uN;                           // across = front-viewer's right
           const _eM=_sampleElev(el.lat,el.lon), _e0=(_eM!==null?(_eM-refM)*_M:0);
           const sN=nN+aN*_side, sE=nE+aE*_side;          // sign centre, beside the taxiway
