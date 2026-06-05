@@ -287,6 +287,30 @@ const _RW_FONT = {
   'C': [[[1,1],[0,1],[0,0],[1,0]]],
   'R': [[[0,0],[0,1],[1,1],[1,0.5],[0,0.5]],[[0.45,0.5],[1,0]]],
   '-': [[[0.1,0.5],[0.9,0.5]]],
+  /* full A–Z for taxiway designators (Y4, A, B…) — simple block strokes */
+  'A': [[[0,0],[0.5,1],[1,0]],[[0.2,0.4],[0.8,0.4]]],
+  'B': [[[0,0],[0,1],[0.7,1],[0.7,0.5],[0,0.5]],[[0,0.5],[0.8,0.5],[0.8,0],[0,0]]],
+  'D': [[[0,0],[0,1],[0.6,1],[1,0.65],[1,0.35],[0.6,0],[0,0]]],
+  'E': [[[1,1],[0,1],[0,0],[1,0]],[[0,0.5],[0.7,0.5]]],
+  'F': [[[1,1],[0,1],[0,0]],[[0,0.5],[0.7,0.5]]],
+  'G': [[[1,1],[0,1],[0,0],[1,0],[1,0.45],[0.55,0.45]]],
+  'H': [[[0,0],[0,1]],[[1,0],[1,1]],[[0,0.5],[1,0.5]]],
+  'I': [[[0.5,0],[0.5,1]],[[0.2,1],[0.8,1]],[[0.2,0],[0.8,0]]],
+  'J': [[[1,1],[1,0.25],[0.7,0],[0.3,0],[0,0.25]]],
+  'K': [[[0,0],[0,1]],[[1,1],[0,0.5],[1,0]]],
+  'M': [[[0,0],[0,1],[0.5,0.45],[1,1],[1,0]]],
+  'N': [[[0,0],[0,1],[1,0],[1,1]]],
+  'O': [[[0,0],[1,0],[1,1],[0,1],[0,0]]],
+  'P': [[[0,0],[0,1],[0.75,1],[0.75,0.5],[0,0.5]]],
+  'Q': [[[0,0],[1,0],[1,1],[0,1],[0,0]],[[0.6,0.35],[1,0]]],
+  'S': [[[1,1],[0,1],[0,0.5],[1,0.5],[1,0],[0,0]]],
+  'T': [[[0,1],[1,1]],[[0.5,1],[0.5,0]]],
+  'U': [[[0,1],[0,0.25],[0.3,0],[0.7,0],[1,0.25],[1,1]]],
+  'V': [[[0,1],[0.5,0],[1,1]]],
+  'W': [[[0,1],[0.25,0],[0.5,0.5],[0.75,0],[1,1]]],
+  'X': [[[0,0],[1,1]],[[0,1],[1,0]]],
+  'Y': [[[0,1],[0.5,0.5],[1,1]],[[0.5,0.5],[0.5,0]]],
+  'Z': [[[0,1],[1,1],[0,0],[1,0]]],
 };
 
 /* Designation of a runway (rg): its ref, else derived "XX-YY" from the bearing. */
@@ -1427,6 +1451,46 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
             if (!pen) { ctx.moveTo(sp[0], sp[1]); pen = true; } else ctx.lineTo(sp[0], sp[1]);
           }
           ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      /* ── Taxiway designators (yellow ref painted along the centreline, e.g. "A", "Y4") —
+         the apron/taxiway "street signs"; OSM gives the taxiway ref. */
+      {
+        const _M = 1/1852;
+        ctx.save();
+        ctx.strokeStyle = `rgba(224,204,72,${(0.55 + 0.3 * dayFrac).toFixed(2)})`;
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        for (const way of _osmWays) {
+          if (way.tags?.aeroway !== 'taxiway' || !way.geometry || way.geometry.length < 2) continue;
+          if (_isGrass(way.tags?.surface)) continue;
+          const ref = (way.tags?.ref || '').trim().toUpperCase();
+          if (!ref || ref.length > 3) continue;                  // short designators only
+          const g = way.geometry, mi = Math.max(1, Math.floor(g.length / 2));
+          const m0 = g[mi-1], m1 = g[mi];
+          const cLat = (m0.lat+m1.lat)/2, cLon = (m0.lon+m1.lon)/2;
+          const nN = (cLat-acLat)*60, nE = (cLon-acLon)*60*cosAcLat;
+          if (nN*nN + nE*nE > 6.25) continue;                    // > 2.5 nm
+          const dN = (m1.lat-m0.lat)*60, dE = (m1.lon-m0.lon)*60*cosAcLat;
+          const L = Math.hypot(dN,dE)||1, uN = dN/L, uE = dE/L, pN = -uE, pE = uN;
+          const _eM = _sampleElev(cLat,cLon), _eNm = _eM!==null?(_eM-refM)*_M:0;
+          const chars = [...ref];
+          const digH = 4.5*_M, digW = 2.6*_M, gap = 1.2*_M, totalH = chars.length*digH + (chars.length-1)*gap;
+          const _wp = (al, ac) => { const N = nN+uN*al+pN*ac, E = nE+uE*al+pE*ac;
+            return proj(N*cosH+E*sinH, E*cosH-N*sinH, _eNm); };
+          const t0 = _wp(-totalH/2, 0), t1 = _wp(-totalH/2 + digH, 0);
+          if (!t0 || !t1) continue;
+          const hpx = Math.hypot(t1[0]-t0[0], t1[1]-t0[1]); if (hpx < 4) continue;
+          ctx.lineWidth = Math.max(1, hpx*0.14);
+          for (let ci=0; ci<chars.length; ci++) {
+            const glyph = _RW_FONT[chars[ci]]; if (!glyph) continue;
+            const base = -totalH/2 + ci*(digH+gap);
+            for (const st of glyph) { ctx.beginPath(); let go=false;
+              for (const [gx,gy] of st) { const sp = _wp(base + gy*digH, (gx-0.5)*digW);
+                if(!sp){go=false;continue;} if(!go){ctx.moveTo(sp[0],sp[1]);go=true;} else ctx.lineTo(sp[0],sp[1]); }
+              ctx.stroke(); }
+          }
         }
         ctx.restore();
       }
