@@ -237,7 +237,8 @@ function _missionRunways() {
     if (!rws) continue;
     for (const r of rws) out.push({
       a: { lat: r.a[0], lon: r.a[1] }, b: { lat: r.b[0], lon: r.b[1] },
-      widthM: r.widthM, ref: r.ref, surface: r.surface, bundled: true,
+      widthM: r.widthM, ref: r.ref, surface: r.surface,
+      leId: r.leId, heId: r.heId, lit: r.lit, bundled: true,
     });
   }
   return out;
@@ -1434,7 +1435,8 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
         for (const rg of _runways) {
-          if (_isGrass(rg.surface)) continue;                    // grass strips are unlit
+          const _lit = rg.bundled ? !!rg.lit : !_isGrass(rg.surface);
+          if (!_lit) continue;                                   // only light runways that are lit
           const _eM  = _sampleElev(rg.a.lat, rg.a.lon);
           const _eNm = _eM !== null ? (_eM - refM) * M_NM : 0;
           const aN=(rg.a.lat-acLat)*60, aE=(rg.a.lon-acLon)*60*cosAcLat;
@@ -1498,11 +1500,20 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           const uN=dN/L, uE=dE/L;
           const brgAB = (Math.atan2(dE, dN) * 180/Math.PI + 360) % 360;
           const numAt = (b) => { const n = Math.round((((b%360)+360)%360)/10); return n===0?36:n; };
-          const pick  = (n) => parts.find(p => parseInt(p,10) === n) ?? null;
-          const _fb  = (b) => ('0'+numAt(b)).slice(-2);   // derive "02" from bearing if no ref match
+          const _fb  = (b) => ('0'+numAt(b)).slice(-2);   // bearing-derived "07" when no ref
+          /* Prefer the official ref (e.g. "06/24"): runways are named by MAGNETIC heading, so
+             the true bearing can round one off (65.6° → 07 vs the correct 06). Assign each ref
+             part to the end whose bearing is closest to it (circular distance over 36). */
+          const _desAt = (b) => {
+            if (!parts.length) return _fb(b);
+            const t = numAt(b); let best = parts[0], bd = 99;
+            for (const p of parts) { const n = parseInt(p,10); let d = Math.abs(n-t); d = Math.min(d, 36-d); if (d < bd) { bd = d; best = p; } }
+            return best;
+          };
+          /* official per-end designator (le at threshold a, he at b); fall back to ref/bearing */
           const ends = [
-            { T:[aN,aE], iN: uN, iE: uE,  des: pick(numAt(brgAB))     ?? _fb(brgAB)     },
-            { T:[bN,bE], iN:-uN, iE:-uE,  des: pick(numAt(brgAB+180)) ?? _fb(brgAB+180) },
+            { T:[aN,aE], iN: uN, iE: uE,  des: rg.leId || _desAt(brgAB)     },
+            { T:[bN,bE], iN:-uN, iE:-uE,  des: rg.heId || _desAt(brgAB+180) },
           ];
           for (const e of ends) {
             if (!e.des) continue;
@@ -1546,7 +1557,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
         for (const rg of _runways) {
-          if (_isGrass(rg.surface)) continue;                    // grass fields have no PAPI
+          if (!(rg.bundled ? !!rg.lit : !_isGrass(rg.surface))) continue;   // PAPI only where lit
           const _eM = _sampleElev(rg.a.lat, rg.a.lon);
           const _eNm = _eM !== null ? (_eM - refM) * M_NM : 0;
           const aN=(rg.a.lat-acLat)*60, aE=(rg.a.lon-acLon)*60*cosAcLat;
