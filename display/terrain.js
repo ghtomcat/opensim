@@ -1869,14 +1869,18 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
             if(pb&&pt){ ctx.strokeStyle='rgba(70,74,80,0.9)'; ctx.lineWidth=Math.max(1,hpx*0.08);
               ctx.beginPath(); ctx.moveTo(pb[0],pb[1]); ctx.lineTo(pt[0],pt[1]); ctx.stroke(); }
           }
-          if (inFront){
+          {
+            /* Readable from whichever side the camera is on — mirror the glyphs for the
+               far side so the text never reads backwards (you view it from the runway when
+               lined up, from the taxiway when taxiing in). */
+            const _mir = inFront ? -1 : 1;
             ctx.strokeStyle='rgba(245,247,250,0.95)'; ctx.lineWidth=Math.max(1,hpx*0.07);
             const _cH=(h1-h0)*0.6, _cY=h0+(h1-h0)*0.2;
             for (let ci=0;ci<chars.length;ci++){
               const gl=_RW_FONT[chars[ci]]; if(!gl) continue;
               const cx=-totalW/2+ci*(_cW+_gp)+_cW/2;
               for (const st of gl){ ctx.beginPath(); let go=false;
-                for (const [gx,gy] of st){ const sp=_bp(-(cx+(gx-0.5)*_cW), _cY+gy*_cH);   // mirror across so it reads from the taxiway-approach side
+                for (const [gx,gy] of st){ const sp=_bp(_mir*(cx+(gx-0.5)*_cW), _cY+gy*_cH);
                   if(!sp){go=false;continue;} if(!go){ctx.moveTo(sp[0],sp[1]);go=true;}else ctx.lineTo(sp[0],sp[1]); }
                 ctx.stroke(); }
             }
