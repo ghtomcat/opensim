@@ -16,6 +16,7 @@ import { S } from '../core/state.js';
 import { RUNWAYS } from './runways-data.js';
 import { TOWERS } from './towers-data.js';
 import { nightDensity } from './night-lights.js';
+import { landColor }    from './terrain-color.js';
 
 /* Soft radial-gradient sprite, reused (additively) for the night city-light glow. */
 let _glowSprite = null, _coreSprite = null;
@@ -94,6 +95,37 @@ function _terrainColor(elevM, dayFrac, depth, shade) {
   else if (elevM < 3000) { r = 136; g = 132; b = 118 }
   else                   { r = 208; g = 206; b = 198 }
   const f = (dayFrac * 0.82 + 0.18) * (1 - depth * 0.32) * (shade ?? 1);
+  return `rgb(${r * f | 0},${g * f | 0},${b * f | 0})`;
+}
+
+/* Value noise (2-octave, world-anchored) for terrain shade variation. */
+function _tnoise(x, y) {
+  const h = (a, b) => { let n = (a | 0) * 374761393 + (b | 0) * 668265263;
+    n = (n ^ (n >> 13)); n = Math.imul(n, 1274126177); return ((n ^ (n >> 16)) >>> 0) / 4294967296; };
+  const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  return (h(xi, yi) * (1 - u) + h(xi + 1, yi) * u) * (1 - v)
+       + (h(xi, yi + 1) * (1 - u) + h(xi + 1, yi + 1) * u) * v;
+}
+
+/* Ground colour from the real Blue Marble sample at (lat,lon) + procedural shade
+   variation; falls back to the hypsometric tint until the map loads or over water. */
+function _terrainColorAt(lat, lon, elevM, dayFrac, depth, shade) {
+  const c = elevM >= 0 ? landColor(lat, lon) : null;
+  /* small islands wash into ocean at 19 km/pixel — if a "land" sample is blue-dominant,
+     trust the elevation data and fall back to the hypsometric green instead. */
+  const oceanish = c && c[2] > c[0] + 8 && c[2] > c[1] + 8;
+  let r, g, b;
+  if (c && !oceanish) { r = c[0]; g = c[1]; b = c[2]; }
+  else if (elevM <  500) { r = 38;  g = 82;  b = 24;  }
+  else if (elevM < 1000) { r = 52;  g = 100; b = 32;  }
+  else if (elevM < 1600) { r = 70;  g = 98;  b = 54;  }
+  else if (elevM < 2200) { r = 108; g = 106; b = 82;  }
+  else if (elevM < 3000) { r = 136; g = 132; b = 118; }
+  else                   { r = 208; g = 206; b = 198; }
+  const n  = 0.6 * _tnoise(lat * 55, lon * 55) + 0.4 * _tnoise(lat * 13, lon * 13);
+  const vm = 0.84 + 0.32 * n;                              // 0.84–1.16 mottle (different shades)
+  const f  = (dayFrac * 0.82 + 0.18) * (1 - depth * 0.32) * (shade ?? 1) * vm;
   return `rgb(${r * f | 0},${g * f | 0},${b * f | 0})`;
 }
 
@@ -901,7 +933,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
     /* Base fill — covers below-horizon area so no sky shows through gaps */
     const horizonY = cy + Math.tan(pitch) * focal;
     if (horizonY < H) {
-      ctx.fillStyle = _terrainColor(refM, dayFrac, 0, 1);
+      ctx.fillStyle = _terrainColorAt(acLat, acLon, refM, dayFrac, 0, 1);
       ctx.fillRect(0, horizonY, W, H - horizonY);
     }
 
@@ -929,14 +961,14 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         const dot  = Math.max(0, (nx * sunFwd + ny * sunRgt + sunUp) / nmag);
         const shade = 0.55 + 0.65 * dot;
 
+        /* quad-centre lat/lon — used for both the land-cover sample and the runway test */
+        const d_c     = (ROW_DIST[r] + ROW_DIST[r + 1]) * 0.5;
+        const right_c = ((c + 0.5) / COLS - 0.5) * 2 * d_c * 1.5;
+        const lat_c   = acLat + (d_c * cosH - right_c * sinH) / 60;
+        const lon_c   = acLon + (d_c * sinH + right_c * cosH) / (60 * cosAcLat);
+
         let quadColor = null;
         if (_rwyDefs.length) {
-          const d_c     = (ROW_DIST[r] + ROW_DIST[r + 1]) * 0.5;
-          const right_c = ((c + 0.5) / COLS - 0.5) * 2 * d_c * 1.5;
-          const dN_c = d_c * cosH - right_c * sinH;
-          const dE_c = d_c * sinH + right_c * cosH;
-          const lat_c = acLat + dN_c / 60;
-          const lon_c = acLon + dE_c / (60 * cosAcLat);
           for (const rw of _rwyDefs) {
             const dnT = (lat_c - rw.lat) * 60;
             const deT = (lon_c - rw.lon) * 60 * cosAcLat;
@@ -948,7 +980,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
             }
           }
         }
-        ctx.fillStyle = quadColor ?? _terrainColor(avgElev, dayFrac, depth, shade);
+        ctx.fillStyle = quadColor ?? _terrainColorAt(lat_c, lon_c, avgElev, dayFrac, depth, shade);
         ctx.beginPath();
         ctx.moveTo(tl[0], tl[1]);
         ctx.lineTo(tr[0], tr[1]);
