@@ -2071,10 +2071,16 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         const cLat = grp.reduce((s,g)=>s+g.lat,0)/grp.length;
         const cLon = grp.reduce((s,g)=>s+g.lon,0)/grp.length;
         const cosC = Math.cos(cLat*DEG);
-        let nE=0,nN=0;                                  // avg nose-in unit (toward building)
-        for (const g of grp){ nE+=Math.sin(g.hdg*DEG); nN+=Math.cos(g.hdg*DEG); }
-        const nl=Math.hypot(nE,nN)||1; nE/=nl; nN/=nl;
-        const e1E=nN, e1N=-nE;                          // frontage axis ⟂ nose-in
+        /* Frontage axis from the gate POSITIONS (PCA) — robust to angled/fanned stands,
+           where the nose-in headings splay and their average misleads. The headings are
+           used only to choose which side (landside) the building sits on. */
+        let Sxx=0,Syy=0,Sxy=0, hE=0,hN=0;
+        for (const g of grp){ const x=(g.lon-cLon)*111320*cosC, y=(g.lat-cLat)*111320;
+          Sxx+=x*x; Syy+=y*y; Sxy+=x*y; hE+=Math.sin(g.hdg*DEG); hN+=Math.cos(g.hdg*DEG); }
+        const th=0.5*Math.atan2(2*Sxy, Sxx-Syy);        // principal axis of the gate line
+        const e1E=Math.cos(th), e1N=Math.sin(th);       // frontage direction (East,North)
+        let nE=-e1N, nN=e1E;                            // ⟂ frontage
+        if (nE*hE+nN*hN < 0){ nE=-nE; nN=-nN; }         // point toward the building (landside)
         let amin=1e9, amax=-1e9;
         for (const g of grp){ const dE=(g.lon-cLon)*111320*cosC, dN=(g.lat-cLat)*111320;
           const a=dE*e1E+dN*e1N; if(a<amin)amin=a; if(a>amax)amax=a; }
