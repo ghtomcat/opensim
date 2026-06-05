@@ -20,14 +20,12 @@
     "surface": "grass"
   },
   "initialState": {
-    "lat": 47.385,
-    "lon": 8.782,
     "alt": 1788,
     "spd": 0,
-    "hdg": 260,
     "pitch": 0,
     "roll": 0
   },
+  "start": { "runway": "30", "at": "lineup" },
   "weather": {
     "source": "live",
     "icao": "LSZH",

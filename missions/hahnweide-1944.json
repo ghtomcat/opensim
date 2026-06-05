@@ -14,14 +14,12 @@
     "elevation": 1312
   },
   "initialState": {
-    "lat": 48.6336,
-    "lon": 9.4216,
     "alt": 1312,
     "spd": 0,
-    "hdg": 260,
     "pitch": 0,
     "roll": 0
   },
+  "start": { "runway": "24", "at": "lineup" },
   "weather": {
     "source": "live",
     "icao": "EDDS",

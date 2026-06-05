@@ -18,14 +18,12 @@
     }
   },
   "initialState": {
-    "lat": 51.389,
-    "lon": 21.213,
     "alt": 610,
     "spd": 0,
-    "hdg": 270,
     "pitch": 0,
     "roll": 0
   },
+  "start": { "runway": "25", "at": "lineup" },
   "departure": {
     "icao": "EPRA",
     "name": "Radom-Piastów",

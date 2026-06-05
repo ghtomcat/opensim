@@ -13,14 +13,12 @@
   },
   "arrival": null,
   "initialState": {
-    "lat": 46.2452,
-    "lon": 6.1238,
     "alt": 1411,
     "spd": 0,
-    "hdg": 228,
     "pitch": 0,
     "roll": 0
   },
+  "start": { "runway": "22", "at": "lineup" },
   "weather": {
     "source": "live",
     "icao": "LSGG",

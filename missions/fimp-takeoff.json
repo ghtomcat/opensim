@@ -22,14 +22,12 @@
     "elevation": 1416
   },
   "initialState": {
-    "lat":  -20.432,
-    "lon":   57.681,
-    "alt":   186,
-    "spd":   0,
-    "hdg":   143,
+    "alt": 186,
+    "spd": 0,
     "pitch": 0,
-    "roll":  0
+    "roll": 0
   },
+  "start": { "runway": "14", "at": "lineup" },
   "weather": {
     "source": "live",
     "icao": "FIMP",

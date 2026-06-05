@@ -23,14 +23,12 @@
     }
   },
   "initialState": {
-    "lat": 51.551,
-    "lon": 21.893,
     "alt": 361,
     "spd": 0,
-    "hdg": 250,
     "pitch": 0,
     "roll": 0
   },
+  "start": { "runway": "30", "at": "lineup" },
   "departure": {
     "icao": "EPDE",
     "name": "Lotnisko Wojskowe Dęblin",

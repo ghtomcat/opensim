@@ -27,14 +27,12 @@
     }
   },
   "initialState": {
-    "lat": 50.615,
-    "lon": 30.219,
     "alt": 394,
     "spd": 0,
-    "hdg": 183,
     "pitch": 0,
     "roll": 0
   },
+  "start": { "runway": "15", "at": "lineup" },
   "departure": {
     "icao": "UKKM",
     "name": "Hostomel (Antonov Airport)",

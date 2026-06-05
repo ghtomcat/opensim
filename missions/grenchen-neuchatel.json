@@ -25,14 +25,12 @@
   },
 
   "initialState": {
-    "lat":   47.1815,
-    "lon":   7.4172,
-    "alt":   1411,
-    "spd":   0,
-    "hdg":   260,
+    "alt": 1411,
+    "spd": 0,
     "pitch": 0,
-    "roll":  0
+    "roll": 0
   },
+  "start": { "runway": "24", "at": "lineup" },
 
   "departure": {
     "name":      "Grenchen LSZG",

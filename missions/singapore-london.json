@@ -18,14 +18,12 @@
     "elevation": 83
   },
   "initialState": {
-    "lat": 1.3502,
-    "lon": 103.9944,
     "alt": 22,
     "spd": 0,
-    "hdg": 200,
     "pitch": 0,
     "roll": 0
   },
+  "start": { "runway": "20C", "at": "lineup" },
   "weather": {
     "source": "live",
     "icao": "WSSS",
