@@ -141,6 +141,25 @@ function _runwayGeom(way) {
   return { a: toLL(pmin), b: toLL(pmax), widthM: wTag || (qmax-qmin)*1852, ref };
 }
 
+/* Stroke font for painted runway designators. Each glyph = polylines on a unit cell,
+   x 0..1 across the runway, y 0..1 along it (y=0 = base near the threshold, y=1 = top
+   farther down the runway, so it reads upright on approach). */
+const _RW_FONT = {
+  '0': [[[0,0],[1,0],[1,1],[0,1],[0,0]]],
+  '1': [[[0.5,0],[0.5,1]]],
+  '2': [[[0,1],[1,1],[1,0.5],[0,0.5],[0,0],[1,0]]],
+  '3': [[[0,1],[1,1],[1,0],[0,0]],[[0,0.5],[1,0.5]]],
+  '4': [[[0,1],[0,0.5],[1,0.5]],[[1,1],[1,0]]],
+  '5': [[[1,1],[0,1],[0,0.5],[1,0.5],[1,0],[0,0]]],
+  '6': [[[1,1],[0,1],[0,0],[1,0],[1,0.5],[0,0.5]]],
+  '7': [[[0,1],[1,1],[1,0]]],
+  '8': [[[0,0],[1,0],[1,1],[0,1],[0,0]],[[0,0.5],[1,0.5]]],
+  '9': [[[1,0],[1,1],[0,1],[0,0.5],[1,0.5]]],
+  'L': [[[0,1],[0,0],[1,0]]],
+  'C': [[[1,1],[0,1],[0,0],[1,0]]],
+  'R': [[[0,0],[0,1],[1,1],[1,0.5],[0,0.5]],[[0.45,0.5],[1,0]]],
+};
+
 /* ── Water polygon tiles — Mapbox Streets v8, zoom 11 ── */
 const _WZ    = 11;
 const _wcache = new Map();
@@ -989,6 +1008,62 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           }
           for (const e of [0, L]) for (let s=-half; s<=half+1e-9; s+=half/3)   // green threshold bars
             _dot(aN+uN*e+pN*s, aE+uE*e+pE*s, `rgba(70,255,110,${_alpha})`, 1.8*_DPR);
+        }
+        ctx.restore();
+      }
+
+      /* ── Painted runway designators (day + night) — the number on each threshold,
+         projected onto the surface so it foreshortens and reads on approach. The digit
+         for an end is the one whose outbound bearing matches (round(bearing/10)). */
+      {
+        const _digH = 0.0108, _digW = 0.0049, _gap = 0.0022, _uStart = 0.022;   // nm (~20/9/4/40 m)
+        ctx.save();
+        ctx.strokeStyle = 'rgba(236,239,243,0.85)';   // off-white paint
+        ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+        for (const way of _osmWays) {
+          if (way.tags?.aeroway !== 'runway' || !way.geometry?.length) continue;
+          const rg = _runwayGeom(way); if (!rg) continue;
+          const parts = (rg.ref || '').split('/').map(s => s.trim()).filter(Boolean);
+          const _eM = _sampleElev(rg.a.lat, rg.a.lon);
+          const _eNm = _eM !== null ? (_eM - refM) * M_NM : 0;
+          const aN=(rg.a.lat-acLat)*60, aE=(rg.a.lon-acLon)*60*cosAcLat;
+          const bN=(rg.b.lat-acLat)*60, bE=(rg.b.lon-acLon)*60*cosAcLat;
+          const dN=bN-aN, dE=bE-aE, L=Math.hypot(dN,dE) || 1e-6;
+          const uN=dN/L, uE=dE/L;
+          const brgAB = (Math.atan2(dE, dN) * 180/Math.PI + 360) % 360;
+          const numAt = (b) => { const n = Math.round((((b%360)+360)%360)/10); return n===0?36:n; };
+          const pick  = (n) => parts.find(p => parseInt(p,10) === n) ?? null;
+          const _fb  = (b) => ('0'+numAt(b)).slice(-2);   // derive "02" from bearing if no ref match
+          const ends = [
+            { T:[aN,aE], iN: uN, iE: uE,  des: pick(numAt(brgAB))     ?? _fb(brgAB)     },
+            { T:[bN,bE], iN:-uN, iE:-uE,  des: pick(numAt(brgAB+180)) ?? _fb(brgAB+180) },
+          ];
+          for (const e of ends) {
+            if (!e.des) continue;
+            const chars = e.des.split('');
+            const perpN = -e.iE, perpE = e.iN;
+            const totalW = chars.length*_digW + (chars.length-1)*_gap;
+            const _wp = (al, ac) => { const N=e.T[0]+e.iN*al+perpN*ac, E=e.T[1]+e.iE*al+perpE*ac;
+              return proj(N*cosH+E*sinH, E*cosH-N*sinH, _eNm); };
+            const p0 = _wp(_uStart, 0), p1 = _wp(_uStart+_digH, 0);
+            if (!p0 || !p1) continue;
+            const hpx = Math.hypot(p1[0]-p0[0], p1[1]-p0[1]);
+            if (hpx < 3) continue;            // too small/distant to read
+            ctx.lineWidth = Math.max(1, hpx*0.13);
+            for (let ci=0; ci<chars.length; ci++) {
+              const glyph = _RW_FONT[chars[ci]]; if (!glyph) continue;
+              const cV = -totalW/2 + ci*(_digW+_gap) + _digW/2;
+              for (const stroke of glyph) {
+                ctx.beginPath(); let go=false;
+                for (const [gx,gy] of stroke) {
+                  const sp = _wp(_uStart + gy*_digH, cV + (gx-0.5)*_digW);
+                  if (!sp) { go=false; continue; }
+                  if (!go) { ctx.moveTo(sp[0],sp[1]); go=true; } else ctx.lineTo(sp[0],sp[1]);
+                }
+                ctx.stroke();
+              }
+            }
+          }
         }
         ctx.restore();
       }
