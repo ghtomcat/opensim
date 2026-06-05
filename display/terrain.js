@@ -15,6 +15,18 @@
 import { S } from '../core/state.js';
 import { RUNWAYS } from './runways-data.js';
 import { TOWERS } from './towers-data.js';
+import { nightDensity } from './night-lights.js';
+
+/* Soft radial-gradient sprite, reused (additively) for the night city-light glow. */
+let _glowSprite = null, _coreSprite = null;
+function _makeGlowSprite(c0, c1, c2) {
+  const s = document.createElement('canvas'); s.width = s.height = 64;
+  const g = s.getContext('2d');
+  const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grd.addColorStop(0, c0); grd.addColorStop(0.45, c1); grd.addColorStop(1, c2);
+  g.fillStyle = grd; g.fillRect(0, 0, 64, 64);
+  return s;
+}
 
 const DEG   = Math.PI / 180;
 const FT_NM = 1 / 6076.12;
@@ -115,6 +127,31 @@ function _fetchOSMAero(lat, lon) {
     .then(r => r.ok ? r.json() : { elements: [] })
     .then(d => { _osmAero.set(key, d.elements ?? []); _osmPending.delete(key); })
     .catch(() => { _osmAero.set(key, []); _osmPending.delete(key); });
+}
+
+/* ── OSM major-road overlay — the bright night-time arteries (motorway/trunk/primary).
+   Fetched over a much larger box than the aeroway tile (~55 nm) on a coarse 0.3° grid,
+   so the road network around a city is available well before you reach it. */
+const _osmRoads    = new Map();
+const _roadsPending = new Set();
+const _roadsRetry   = new Map();   // key → earliest retry time after a failed fetch
+
+function _fetchOSMRoads(lat, lon) {
+  const key = `${Math.floor(lat / 0.3)}_${Math.floor(lon / 0.3)}`;
+  if (_osmRoads.has(key) || _roadsPending.has(key)) return;
+  const _ra = _roadsRetry.get(key);
+  if (_ra && performance.now() < _ra) return;          // back off after a transient failure
+  _roadsPending.add(key);
+  /* keep the box small enough that Overpass reliably serves it (a big SE-England box of
+     major roads errors out); ~24 nm still covers an approach and recenters as we descend */
+  const latM = 24 / 60;
+  const lonM = 24 / (60 * Math.max(0.05, Math.cos(lat * Math.PI / 180)));
+  const _bb = `${(lat - latM).toFixed(3)},${(lon - lonM).toFixed(3)},${(lat + latM).toFixed(3)},${(lon + lonM).toFixed(3)}`;
+  const q = `[out:json][timeout:30];(way["highway"~"^(motorway|trunk|primary)$"](${_bb}););out geom;`;
+  fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`)
+    .then(r => { if (!r.ok) throw 0; return r.json(); })
+    .then(d => { _osmRoads.set(key, d.elements ?? []); _roadsPending.delete(key); })
+    .catch(() => { _roadsPending.delete(key); _roadsRetry.set(key, performance.now() + 6000); });
 }
 
 /* Runway centerline (threshold a→b), width (m) and designator from an OSM runway way.
@@ -1048,6 +1085,148 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
       }
     }
     ctx.fill();
+  }
+
+  /* ── City lights at night — the VIIRS radiance field itself, projected onto the ground
+     as a soft additive glow (NOT random points). Each lit world cell becomes a glow sprite
+     sized by perspective and brightened by its real density, so cities show their true
+     shape: bright core → fading suburbs → dark countryside and water. */
+  if (!isWater && !isRocket) {
+    const _carpetA = Math.min(1, Math.max(0, (1 - dayFrac - 0.18) / 0.5));  // fade in at dusk
+    if (_carpetA > 0.01) {
+      if (!_glowSprite) {
+        _glowSprite = _makeGlowSprite('rgba(255,210,150,0.95)', 'rgba(255,168,92,0.40)', 'rgba(255,150,80,0)');
+        _coreSprite = _makeGlowSprite('rgba(255,246,228,0.95)', 'rgba(255,222,176,0.40)', 'rgba(255,210,150,0)');
+      }
+      const _DPR  = devicePixelRatio || 1;
+      const altFt = Math.max(0, altNm * 6076.12);
+      const maxR  = Math.min(160, Math.max(6, 2 + 1.17 * Math.sqrt(altFt)));   // ~horizon (nm)
+      const clat  = cosAcLat || 1e-3;
+      const _hash = (x, y) => { let n = (x | 0) * 374761393 + (y | 0) * 668265263;
+        n = (n ^ (n >> 13)); n = Math.imul(n, 1274126177); return ((n ^ (n >> 16)) >>> 0) / 4294967296; };
+      /* coarser cells farther out — perspective merges the glows anyway */
+      const bands = [
+        { r0: 0.0, r1: Math.min(maxR, 14), cell: 0.5 },
+        { r0: 14,  r1: Math.min(maxR, 45), cell: 1.4 },
+        { r0: 45,  r1: maxR,               cell: 4.0 },
+      ];
+      let budget = 3000;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (const b of bands) {
+        if (b.r0 >= b.r1 || budget <= 0) continue;
+        const dLat = b.cell / 60, dLon = b.cell / (60 * clat);
+        const iy0 = Math.floor((acLat - b.r1 / 60) / dLat),          iy1 = Math.ceil((acLat + b.r1 / 60) / dLat);
+        const ix0 = Math.floor((acLon - b.r1 / (60 * clat)) / dLon), ix1 = Math.ceil((acLon + b.r1 / (60 * clat)) / dLon);
+        for (let iy = iy0; iy <= iy1 && budget > 0; iy++) {
+          const cLat = iy * dLat, dN = (cLat - acLat) * 60;
+          for (let ix = ix0; ix <= ix1; ix++) {
+            const cLon = ix * dLon, dE = (cLon - acLon) * 60 * clat;
+            const dist = Math.hypot(dN, dE);
+            if (dist < b.r0 || dist >= b.r1) continue;
+            const fwd = dN * cosH + dE * sinH;
+            if (fwd < -1) continue;                          // behind camera
+            if (Math.abs(dE * cosH - dN * sinH) > fwd * 1.6 + 6) continue;   // outside view fan
+            const d = nightDensity(cLat, cLon);
+            if (d < 0.05) continue;
+            /* jitter the glow off the regular lat/lon lattice (hash = stable per world cell) */
+            const jN = dN + (_hash(ix, iy) - 0.5) * b.cell;
+            const jE = dE + (_hash(iy * 3 + 7, ix * 5 + 1) - 0.5) * b.cell;
+            const q = proj(jN * cosH + jE * sinH, jE * cosH - jN * sinH, 0);
+            if (!q) continue;
+            const dist3D = Math.hypot(dist, altNm);
+            let r = focal * (b.cell * 0.85) / (dist3D > 0.05 ? dist3D : 0.05);
+            if (r < 1.2) r = 1.2; else if (r > 200) r = 200;
+            if (q[0] < -r || q[0] > W + r || q[1] < -r || q[1] > H + r) continue;
+            ctx.globalAlpha = Math.min(0.20, d * 0.28) * _carpetA;   // faint underglow, not cloud
+            ctx.drawImage(_glowSprite, q[0] - r, q[1] - r, 2 * r, 2 * r);
+            if (d > 0.4) {                                    // white-hot city cores
+              const rc = r * 0.5;
+              ctx.globalAlpha = Math.min(0.48, (d - 0.4) * 1.3) * _carpetA;
+              ctx.drawImage(_coreSprite, q[0] - rc, q[1] - rc, 2 * rc, 2 * rc);
+            }
+            if (--budget <= 0) break;
+          }
+          if (budget <= 0) break;
+        }
+      }
+      ctx.globalAlpha = 1;
+
+      /* ── Major roads as bright sodium arteries (real OSM geometry). This is the sharp
+         structure that reads as a city rather than as fog — motorways the brightest and
+         longest-range, primary roads only close in. */
+      _fetchOSMRoads(acLat, acLon);
+      const _roads = _osmRoads.get(`${Math.floor(acLat / 0.3)}_${Math.floor(acLon / 0.3)}`) || [];
+      if (_roads.length) {
+        const _classes = [
+          { hw: 'primary',  col: '255,172,98',  w: 1.4, a: 0.42, max: Math.min(maxR, 30) },
+          { hw: 'trunk',    col: '255,184,110', w: 2.0, a: 0.60, max: Math.min(maxR, 50) },
+          { hw: 'motorway', col: '255,202,128', w: 2.8, a: 0.82, max: maxR },
+        ];
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        for (const cl of _classes) {
+          ctx.strokeStyle = `rgb(${cl.col})`;
+          ctx.lineWidth = cl.w * _DPR;
+          for (const w of _roads) {                       // per-road stroke so we can fade by distance
+            if (w.tags?.highway !== cl.hw || !w.geometry) continue;
+            let near = Infinity;
+            for (const nd of w.geometry) {
+              const dd = Math.hypot((nd.lat - acLat) * 60, (nd.lon - acLon) * 60 * clat);
+              if (dd < near) near = dd;
+            }
+            if (near > cl.max) continue;
+            ctx.globalAlpha = cl.a * _carpetA * Math.max(0.16, 1 - near / cl.max);   // distance fade
+            ctx.beginPath();
+            let pen = false;
+            for (const nd of w.geometry) {
+              const dN = (nd.lat - acLat) * 60, dE = (nd.lon - acLon) * 60 * clat;
+              const fwd = dN * cosH + dE * sinH;
+              if (Math.hypot(dN, dE) > cl.max || fwd < -1) { pen = false; continue; }
+              const sp = proj(dN * cosH + dE * sinH, dE * cosH - dN * sinH, 0);
+              if (!sp) { pen = false; continue; }
+              if (!pen) { ctx.moveTo(sp[0], sp[1]); pen = true; } else ctx.lineTo(sp[0], sp[1]);
+            }
+            ctx.stroke();
+          }
+        }
+        /* ── Streetlight sparkle — dots stepped along the big roads (motorway/trunk),
+           close in only, fading with distance, for texture on the foreground arteries. */
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = `rgba(255,226,172,${(0.5 * _carpetA).toFixed(3)})`;
+        const _spMax = Math.min(maxR, 14);
+        let _spB = 1500;
+        ctx.beginPath();
+        for (const w of _roads) {
+          const hw = w.tags?.highway;
+          if ((hw !== 'motorway' && hw !== 'trunk') || !w.geometry || _spB <= 0) continue;
+          const g = w.geometry; let carry = 0;
+          for (let i = 0; i < g.length - 1 && _spB > 0; i++) {
+            const aN = (g[i].lat - acLat) * 60,     aE = (g[i].lon - acLon) * 60 * clat;
+            const bN = (g[i + 1].lat - acLat) * 60, bE = (g[i + 1].lon - acLon) * 60 * clat;
+            const sN = bN - aN, sE = bE - aE, L = Math.hypot(sN, sE);
+            if (L < 1e-6) continue;
+            let t = carry;
+            while (t < L && _spB > 0) {
+              const f = t / L, pN = aN + sN * f, pE = aE + sE * f;
+              const dist = Math.hypot(pN, pE), fwd = pN * cosH + pE * sinH;
+              if (dist <= _spMax && fwd > -0.5) {
+                const sp = proj(pN * cosH + pE * sinH, pE * cosH - pN * sinH, 0);
+                if (sp) {
+                  const rr = Math.max(0.5, (1 - dist / _spMax) * 1.5) * _DPR;
+                  ctx.moveTo(sp[0] + rr, sp[1]); ctx.arc(sp[0], sp[1], rr, 0, Math.PI * 2);
+                  _spB--;
+                }
+              }
+              t += 0.1;                                   // ~185 m between lights
+            }
+            carry = t - L;
+          }
+        }
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+    }
   }
 
   /* ── OSM aeroway overlay — runways, taxiways, aprons (all mission types) ── */
