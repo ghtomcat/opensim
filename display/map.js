@@ -8,6 +8,7 @@
 
 import { S }     from '../core/state.js';
 import { COAST, SPACE_SITES } from './coastlines.js';
+import { NAVAIDS } from './navdata.js';
 
 const DEG = Math.PI / 180;
 
@@ -30,7 +31,30 @@ let _lconePoly  = null;   /* FOV cone polygon */
 let _lhdgLine   = null;   /* heading vector polyline */
 let _ltrkLine   = null;   /* track vector polyline */
 let _lwptLayer  = null;   /* L.layerGroup for waypoints */
+let _lnavLayer  = null;   /* L.layerGroup for navaids (VOR/NDB/DME) */
 let _lrouteLine = null;   /* route polyline connecting waypoints */
+
+/* Aviation-chart navaid symbol (VOR hexagon / NDB dotted circle / DME square) + label. */
+function _navMarker(n) {
+  const isVOR = n.type.startsWith('VOR') || n.type === 'VORTAC' || n.type === 'TACAN';
+  const isNDB = n.type.startsWith('NDB');
+  const col   = isVOR ? '#3fd2e4' : isNDB ? '#d784e0' : '#9aa6b0';
+  const freq  = isNDB ? `${n.khz}` : (n.khz / 1000).toFixed(2);
+  const sym = isVOR
+    ? `<svg width="15" height="15" viewBox="0 0 15 15"><polygon points="7.5,1 13,4.2 13,10.8 7.5,14 2,10.8 2,4.2" fill="none" stroke="${col}" stroke-width="1.2"/><circle cx="7.5" cy="7.5" r="1.1" fill="${col}"/></svg>`
+    : isNDB
+    ? `<svg width="15" height="15" viewBox="0 0 15 15"><circle cx="7.5" cy="7.5" r="5.5" fill="none" stroke="${col}" stroke-width="1" stroke-dasharray="1.6 1.6"/><circle cx="7.5" cy="7.5" r="1.1" fill="${col}"/></svg>`
+    : `<svg width="15" height="15" viewBox="0 0 15 15"><rect x="2.5" y="2.5" width="10" height="10" fill="none" stroke="${col}" stroke-width="1.2"/><circle cx="7.5" cy="7.5" r="1" fill="${col}"/></svg>`;
+  const html = `<div style="position:relative">`
+    + `<div style="position:absolute;left:-7.5px;top:-7.5px">${sym}</div>`
+    + `<div style="position:absolute;left:9px;top:-7px;font:bold 8px ui-monospace,monospace;line-height:1.05;`
+    + `color:${col};text-shadow:0 0 2px #000,0 0 2px #000;white-space:nowrap">${n.ident}`
+    + `<br><span style="font-weight:normal;color:#cdd8e0">${freq}</span></div></div>`;
+  return L.marker([n.lat, n.lon], {
+    icon: L.divIcon({ html, className: 'navaid-icon', iconSize: [0, 0] }),
+    interactive: false, keyboard: false,
+  });
+}
 let _lLastMission = null; /* detect mission change for waypoint refresh */
 
 /* ── Vehicle silhouette panels (rocket mode, left of map) ── */
@@ -118,6 +142,10 @@ export function initMap() {
   /* Waypoint layer */
   _lwptLayer  = L.layerGroup().addTo(_lmap);
   _lrouteLine = L.polyline([], { color: '#00c8e0', weight: 1.5, opacity: 0.6, dashArray: '6 4' }).addTo(_lmap);
+
+  /* Navaid layer — static VOR/NDB/DME symbols from the bundled OurAirports data */
+  _lnavLayer  = L.layerGroup().addTo(_lmap);
+  for (const n of NAVAIDS) _lnavLayer.addLayer(_navMarker(n));
 
   _lmap.setView([47, 8], 14);
 
