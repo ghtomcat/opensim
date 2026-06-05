@@ -142,6 +142,13 @@ function _runwayGeom(way) {
   return { a: toLL(pmin), b: toLL(pmax), widthM: wTag || (qmax-qmin)*1852, ref };
 }
 
+/* Memoised _runwayGeom — cached on the OSM way object (static geometry, computed once
+   instead of every frame by every runway-feature pass). */
+function _rwGeomC(w) {
+  if (w._rg === undefined) w._rg = _runwayGeom(w) || null;
+  return w._rg;
+}
+
 /* Taxiway heading at a holding-position node, so guard lights / hold markings sit
    across the taxiway. Finds a taxiway passing through the node, returns its local dir. */
 function _holdDir(node, els) {
@@ -152,7 +159,7 @@ function _holdDir(node, els) {
       if (Math.abs(g[i].lat - node.lat) < 1e-7 && Math.abs(g[i].lon - node.lon) < 1e-7) {
         const j = i > 0 ? i - 1 : i + 1;
         if (!g[j]) return null;
-        return { dLat: g[i].lat - g[j].lat, dLon: g[i].lon - g[j].lon };
+        return { dLat: g[i].lat - g[j].lat, dLon: g[i].lon - g[j].lon, width: parseFloat(w.tags?.width) || 23 };
       }
     }
   }
@@ -185,7 +192,7 @@ function _nearestRwyDes(node, els) {
   let best = null, bestD = Infinity;
   for (const w of els) {
     if (w.type === 'node' || w.tags?.aeroway !== 'runway' || !w.geometry) continue;
-    const rg = _runwayGeom(w); if (!rg) continue;
+    const rg = _rwGeomC(w); if (!rg) continue;
     const mLat=(rg.a.lat+rg.b.lat)/2, mLon=(rg.a.lon+rg.b.lon)/2;
     const d=(mLat-node.lat)**2 + (mLon-node.lon)**2;
     if (d < bestD) { bestD = d; best = rg; }
@@ -196,6 +203,28 @@ function _nearestRwyDes(node, els) {
   const num=(b)=>{const n=Math.round((((b%360)+360)%360)/10);return n===0?36:n;};
   const f=(b)=>('0'+num(b)).slice(-2);
   return f(brg)+'-'+f(brg+180);
+}
+
+/* Per holding-position node: taxiway direction oriented toward the nearest runway, the
+   taxiway width, and the protected designation — computed once and cached on the node,
+   so the per-frame ladder/sign/guard-light passes are just project + draw. */
+function _holdInfo(el, els) {
+  if (el._hold !== undefined) return el._hold;
+  const dir = _holdDir(el, els);
+  if (!dir) return (el._hold = null);
+  let uLat = dir.dLat, uLon = dir.dLon;
+  let rwLat = 0, rwLon = 0, bd = Infinity;
+  const cl = Math.cos(el.lat * DEG);
+  for (const w of els) {
+    if (w.type === 'node' || w.tags?.aeroway !== 'runway' || !w.geometry) continue;
+    const rg = _rwGeomC(w); if (!rg) continue;
+    const dLa = (rg.a.lat+rg.b.lat)/2 - el.lat, dLo = (rg.a.lon+rg.b.lon)/2 - el.lon;
+    const d = dLa*dLa + dLo*dLo;
+    if (d < bd) { bd = d; rwLat = dLa; rwLon = dLo; }
+  }
+  if (uLat*rwLat + (uLon*cl)*(rwLon*cl) < 0) { uLat = -uLat; uLon = -uLon; }  // toward runway
+  const des = el.tags?.ref ? el.tags.ref.replace(/\//g, '-') : _nearestRwyDes(el, els);
+  return (el._hold = { uLat, uLon, width: dir.width, des });
 }
 
 /* ── Water polygon tiles — Mapbox Streets v8, zoom 11 ── */
@@ -1030,7 +1059,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         ctx.globalCompositeOperation = 'lighter';
         for (const way of _osmWays) {
           if (way.tags?.aeroway !== 'runway' || !way.geometry?.length) continue;
-          const rg = _runwayGeom(way); if (!rg) continue;
+          const rg = _rwGeomC(way); if (!rg) continue;
           const _eM  = _sampleElev(rg.a.lat, rg.a.lon);
           const _eNm = _eM !== null ? (_eM - refM) * M_NM : 0;
           const aN=(rg.a.lat-acLat)*60, aE=(rg.a.lon-acLon)*60*cosAcLat;
@@ -1085,7 +1114,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         ctx.lineJoin = 'round'; ctx.lineCap = 'round';
         for (const way of _osmWays) {
           if (way.tags?.aeroway !== 'runway' || !way.geometry?.length) continue;
-          const rg = _runwayGeom(way); if (!rg) continue;
+          const rg = _rwGeomC(way); if (!rg) continue;
           const parts = (rg.ref || '').split('/').map(s => s.trim()).filter(Boolean);
           const _eM = _sampleElev(rg.a.lat, rg.a.lon);
           const _eNm = _eM !== null ? (_eM - refM) * M_NM : 0;
@@ -1144,7 +1173,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         ctx.globalCompositeOperation = 'lighter';
         for (const way of _osmWays) {
           if (way.tags?.aeroway !== 'runway' || !way.geometry?.length) continue;
-          const rg = _runwayGeom(way); if (!rg) continue;
+          const rg = _rwGeomC(way); if (!rg) continue;
           const _eM = _sampleElev(rg.a.lat, rg.a.lon);
           const _eNm = _eM !== null ? (_eM - refM) * M_NM : 0;
           const aN=(rg.a.lat-acLat)*60, aE=(rg.a.lon-acLon)*60*cosAcLat;
@@ -1166,6 +1195,34 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         ctx.restore();
       }
 
+      /* ── Hold-short markings (ICAO pattern A) — two solid + two dashed yellow lines
+         across the taxiway at each holding position; solid on the holding side, dashed
+         toward the runway. Painted, so day + night. */
+      {
+        const _M = 1/1852;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(230,196,40,0.9)'; ctx.lineCap = 'butt';
+        for (const el of _osmWays) {
+          if (el.type !== 'node' || el.tags?.aeroway !== 'holding_position') continue;
+          const nN=(el.lat-acLat)*60, nE=(el.lon-acLon)*60*cosAcLat;
+          if (nN*nN+nE*nE > 9) continue;
+          const hi=_holdInfo(el,_osmWays); if(!hi) continue;
+          const _un=hi.uLat*60, _ue=hi.uLon*60*cosAcLat, ul=Math.hypot(_un,_ue)||1;
+          const uN=_un/ul, uE=_ue/ul, pN=-uE, pE=uN, hw=(hi.width/1852)/2;
+          const _eM=_sampleElev(el.lat,el.lon), _e0=(_eM!==null?(_eM-refM)*_M:0);
+          const _pt=(al,ac)=>{ const N=nN+uN*al+pN*ac, E=nE+uE*al+pE*ac;
+            return proj(N*cosH+E*sinH,E*cosH-N*sinH,_e0); };
+          const _q0=_pt(0,0), _q1=_pt(0.3*_M,0); if(!_q0||!_q1) continue;
+          ctx.lineWidth = Math.max(1.5, Math.hypot(_q1[0]-_q0[0],_q1[1]-_q0[1]));
+          const _line=(al,dash)=>{
+            if(!dash){ const a=_pt(al,-hw), b=_pt(al,hw); if(a&&b){ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();} }
+            else { const s=0.9*_M, g=0.9*_M; for(let c=-hw;c<hw-1e-9;c+=s+g){ const a=_pt(al,c), b=_pt(al,Math.min(hw,c+s)); if(a&&b){ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();} } }
+          };
+          _line(-0.6*_M,false); _line(-0.2*_M,false); _line(0.2*_M,true); _line(0.6*_M,true);
+        }
+        ctx.restore();
+      }
+
       /* ── Runway guard lights (wig-wag) at holding positions — a flashing yellow pair,
          one each side of the taxiway hold-short, alternating ~0.9 s. Day + night. */
       {
@@ -1178,9 +1235,9 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           const nN=(el.lat-acLat)*60, nE=(el.lon-acLon)*60*cosAcLat;
           if (nN*nN+nE*nE > 9) continue;            // >3 nm
           const _eM=_sampleElev(el.lat,el.lon), _eNm=_eM!==null?(_eM-refM)*M_NM:0;
-          const dir=_holdDir(el,_osmWays);
+          const hi=_holdInfo(el,_osmWays);
           let pN=0,pE=1;
-          if (dir){ const dN=dir.dLat*60, dE=dir.dLon*60*cosAcLat, dl=Math.hypot(dN,dE)||1; pN=-dE/dl; pE=dN/dl; }
+          if (hi){ const dN=hi.uLat*60, dE=hi.uLon*60*cosAcLat, dl=Math.hypot(dN,dE)||1; pN=-dE/dl; pE=dN/dl; }
           const half=0.0095;                         // ~17 m to each side
           const _gl=(N,E,lit)=>{ const f=N*cosH+E*sinH, r=E*cosH-N*sinH; const sp=proj(f,r,_eNm); if(!sp)return;
             ctx.fillStyle = lit ? 'rgba(255,205,30,0.98)' : 'rgba(90,65,8,0.6)';
@@ -1204,19 +1261,10 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           if (el.type !== 'node' || el.tags?.aeroway !== 'holding_position') continue;
           const nN=(el.lat-acLat)*60, nE=(el.lon-acLon)*60*cosAcLat;
           if (nN*nN+nE*nE > 6.25) continue;          // >2.5 nm (signs only read close)
-          const dir=_holdDir(el,_osmWays); if (!dir) continue;
-          const tN=dir.dLat*60, tE=dir.dLon*60*cosAcLat, tl=Math.hypot(tN,tE)||1;
-          let uN=tN/tl, uE=tE/tl;
-          const txt = el.tags?.ref ? el.tags.ref.replace(/\//g,'-') : _nearestRwyDes(el, _osmWays);
-          if (!txt) continue;
-          /* orient the taxiway dir toward the nearest runway, so the sign front faces
-             the taxiing pilot (away from the runway) and the text never mirrors. */
-          let rwN=0,rwE=0,bd=Infinity;
-          for (const w of _osmWays){ if(w.type==='node'||w.tags?.aeroway!=='runway'||!w.geometry)continue;
-            const rg=_runwayGeom(w); if(!rg)continue;
-            const mN=((rg.a.lat+rg.b.lat)/2-el.lat)*60, mE=((rg.a.lon+rg.b.lon)/2-el.lon)*60*cosAcLat, d=mN*mN+mE*mE;
-            if(d<bd){bd=d; const l=Math.hypot(mN,mE)||1; rwN=mN/l; rwE=mE/l;} }
-          if (uN*rwN+uE*rwE < 0){ uN=-uN; uE=-uE; }     // uHat → toward the runway
+          const hi=_holdInfo(el,_osmWays); if (!hi || !hi.des) continue;
+          const _un=hi.uLat*60, _ue=hi.uLon*60*cosAcLat, ul=Math.hypot(_un,_ue)||1;
+          const uN=_un/ul, uE=_ue/ul;                    // taxiway dir, toward the runway
+          const txt = hi.des;
           const aN=uE, aE=-uN;                           // across = front-viewer's right
           const _eM=_sampleElev(el.lat,el.lon), _e0=(_eM!==null?(_eM-refM)*_M:0);
           const sN=nN+aN*_side, sE=nE+aE*_side;          // sign centre, beside the taxiway
