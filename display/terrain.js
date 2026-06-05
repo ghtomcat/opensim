@@ -1087,7 +1087,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           const _hw = ((parseFloat(way.tags?.width)||15)/1852)/2, g = way.geometry;
           const _txM = _sampleElev(g[0].lat, g[0].lon), _txNm = _txM!==null?(_txM-refM)*M_NM:0;
           const _tx=(N,E)=>{ const f=N*cosH+E*sinH, r=E*cosH-N*sinH; const sp=proj(f,r,_txNm);
-            if(sp) ctx.rect(sp[0]-_tw, sp[1]-_tw, 2*_tw, 2*_tw); };
+            if(sp){ ctx.moveTo(sp[0]+_tw, sp[1]); ctx.arc(sp[0], sp[1], _tw, 0, 7); } };
           for (let s=0;s<g.length-1;s++){
             const n0=(g[s].lat-acLat)*60, e0=(g[s].lon-acLon)*60*cosAcLat;
             const n1=(g[s+1].lat-acLat)*60, e1=(g[s+1].lon-acLon)*60*cosAcLat;
