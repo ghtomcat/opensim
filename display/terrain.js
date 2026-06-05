@@ -129,6 +129,16 @@ function _terrainColorAt(lat, lon, elevM, dayFrac, depth, shade) {
   return `rgb(${r * f | 0},${g * f | 0},${b * f | 0})`;
 }
 
+/* Unpaved (grass/turf) runway — rendered as a mowed strip, no paint / numbers / lights. */
+const _isGrass = (s) => /gras|turf|sod|soil|earth|dirt/i.test(s || '');
+
+/* Current wind {dir (met, FROM), spd (kt)} — mirrors physics._getWind for the windsock. */
+function _windNow() {
+  const w = S.mission?.weather;
+  const src = !w ? null : w.source === 'manual' ? w.manual : w.source === 'live' ? S.metar : w.fallback;
+  return src ? { dir: src.wdir ?? src.wind ?? 0, spd: src.wspd ?? 0 } : { dir: 0, spd: 0 };
+}
+
 function _rwyColor(surface, shade, dayFrac) {
   const f = (dayFrac * 0.78 + 0.22) * (shade ?? 1);
   if (surface === 'grass') {
@@ -195,7 +205,7 @@ function _runwayGeom(way) {
   const wTag = parseFloat(way.tags?.width);
   const closed = g.length > 3 &&
     Math.abs(g[0].lat - g[g.length-1].lat) < 1e-9 && Math.abs(g[0].lon - g[g.length-1].lon) < 1e-9;
-  if (!closed) return { a: g[0], b: g[g.length-1], widthM: wTag || 45, ref };
+  if (!closed) return { a: g[0], b: g[g.length-1], widthM: wTag || 45, ref, surface: way.tags?.surface };
   /* area → principal (long) axis in local metres */
   const pts  = g.slice(0, -1);
   const lat0 = pts.reduce((s,p)=>s+p.lat,0)/pts.length;
@@ -210,7 +220,7 @@ function _runwayGeom(way) {
     if(p<pmin)pmin=p; if(p>pmax)pmax=p; if(q<qmin)qmin=q; if(q>qmax)qmax=q; }
   const midq=(qmin+qmax)/2;
   const toLL=(p)=>({ lat: lat0 + (ax[1]*p+pp[1]*midq)/60, lon: lon0 + (ax[0]*p+pp[0]*midq)/(60*cl) });
-  return { a: toLL(pmin), b: toLL(pmax), widthM: wTag || (qmax-qmin)*1852, ref };
+  return { a: toLL(pmin), b: toLL(pmax), widthM: wTag || (qmax-qmin)*1852, ref, surface: way.tags?.surface };
 }
 
 /* Bundled OurAirports runways for the current mission's airports, in the same
@@ -224,7 +234,7 @@ function _missionRunways() {
     if (!rws) continue;
     for (const r of rws) out.push({
       a: { lat: r.a[0], lon: r.a[1] }, b: { lat: r.b[0], lon: r.b[1] },
-      widthM: r.widthM, ref: r.ref, bundled: true,
+      widthM: r.widthM, ref: r.ref, surface: r.surface, bundled: true,
     });
   }
   return out;
@@ -1309,8 +1319,10 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
       }
       /* Bundled (OurAirports) runway surfaces — rectangles from the thresholds + width. */
       if (_bundledRw.length) {
-        ctx.fillStyle = `rgb(${_rB},${_rB+_ngl},${_rB+_nbl})`;
         for (const rg of _bundledRw) {
+          ctx.fillStyle = _isGrass(rg.surface)
+            ? `rgb(${72*_f|0},${92*_f|0},${44*_f|0})`            // mowed-grass strip
+            : `rgb(${_rB},${_rB+_ngl},${_rB+_nbl})`;             // paved
           const aN=(rg.a.lat-acLat)*60, aE=(rg.a.lon-acLon)*60*cosAcLat;
           const bN=(rg.b.lat-acLat)*60, bE=(rg.b.lon-acLon)*60*cosAcLat;
           const dN=bN-aN, dE=bE-aE, L=Math.hypot(dN,dE)||1e-6, pN=-dE/L, pE=dN/L, hw=(rg.widthM/1852)/2;
@@ -1331,6 +1343,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         ctx.save();
         ctx.fillStyle = 'rgba(226,229,234,0.82)';
         for (const rg of _runways) {
+          if (_isGrass(rg.surface)) continue;                    // grass strips have no paint
           const aN=(rg.a.lat-acLat)*60, aE=(rg.a.lon-acLon)*60*cosAcLat;
           const bN=(rg.b.lat-acLat)*60, bE=(rg.b.lon-acLon)*60*cosAcLat;
           const dN=bN-aN, dE=bE-aE, L=Math.hypot(dN,dE)||1e-6;
@@ -1360,6 +1373,28 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         ctx.restore();
       }
 
+      /* ── Grass-runway edge markers — a grass strip can't be painted, so its boundary is
+         marked with low white boards/cones along both edges. Day-visible (not lights). */
+      {
+        const _DPRg = devicePixelRatio || 1;
+        ctx.fillStyle = `rgb(${228 * _f | 0},${230 * _f | 0},${222 * _f | 0})`;
+        for (const rg of _runways) {
+          if (!_isGrass(rg.surface)) continue;
+          const aN=(rg.a.lat-acLat)*60, aE=(rg.a.lon-acLon)*60*cosAcLat;
+          const bN=(rg.b.lat-acLat)*60, bE=(rg.b.lon-acLon)*60*cosAcLat;
+          const dN=bN-aN, dE=bE-aE, L=Math.hypot(dN,dE)||1e-6;
+          if (((aN+bN)/2)**2 + ((aE+bE)/2)**2 > 16) continue;     // >4 nm
+          const uN=dN/L, uE=dE/L, pN=-uE, pE=uN, hw=(rg.widthM/1852)/2;
+          const _eM=_sampleElev(rg.a.lat,rg.a.lon), _eNm=_eM!==null?(_eM-refM)*M_NM:0;
+          const _mk=(N,E)=>{ const sp=proj(N*cosH+E*sinH,E*cosH-N*sinH,_eNm);
+            if(sp){ ctx.beginPath(); ctx.arc(sp[0],sp[1],1.4*_DPRg,0,7); ctx.fill(); } };
+          for (let t=0.019; t<L; t+=0.0378) {                     // ~70 m spacing, both edges
+            _mk(aN+uN*t+pN*hw, aE+uE*t+pE*hw);
+            _mk(aN+uN*t-pN*hw, aE+uE*t-pE*hw);
+          }
+        }
+      }
+
       /* ── Runway lighting (dusk/night) — white edge lights + green threshold bars,
          derived from the runway centerline. ICAO-standard layout, so every runway with
          OSM geometry lights itself; brightness rises into the night. */
@@ -1370,6 +1405,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
         for (const rg of _runways) {
+          if (_isGrass(rg.surface)) continue;                    // grass strips are unlit
           const _eM  = _sampleElev(rg.a.lat, rg.a.lon);
           const _eNm = _eM !== null ? (_eM - refM) * M_NM : 0;
           const aN=(rg.a.lat-acLat)*60, aE=(rg.a.lon-acLon)*60*cosAcLat;
@@ -1423,6 +1459,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         ctx.strokeStyle = 'rgba(236,239,243,0.85)';   // off-white paint
         ctx.lineJoin = 'round'; ctx.lineCap = 'round';
         for (const rg of _runways) {
+          if (_isGrass(rg.surface)) continue;                   // grass strips aren't numbered
           const parts = (rg.ref || '').split('/').map(s => s.trim()).filter(Boolean);
           const _eM = _sampleElev(rg.a.lat, rg.a.lon);
           const _eNm = _eM !== null ? (_eM - refM) * M_NM : 0;
@@ -1480,6 +1517,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
         for (const rg of _runways) {
+          if (_isGrass(rg.surface)) continue;                    // grass fields have no PAPI
           const _eM = _sampleElev(rg.a.lat, rg.a.lon);
           const _eNm = _eM !== null ? (_eM - refM) * M_NM : 0;
           const aN=(rg.a.lat-acLat)*60, aE=(rg.a.lon-acLon)*60*cosAcLat;
