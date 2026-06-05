@@ -27,13 +27,13 @@
   "departure": {
     "icao": "EPRA",
     "name": "Radom-Piastów",
-    "runway": "27",
+    "runway": "25",
     "elevation": 610
   },
   "arrival": {
     "icao": "EPRA",
     "name": "Radom-Piastów",
-    "runway": "27",
+    "runway": "25",
     "elevation": 610
   },
   "narrative": [

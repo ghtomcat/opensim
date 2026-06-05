@@ -2,13 +2,13 @@
   "id": "lsgg-takeoff",
   "phase": "ground",
   "title": "Takeoff — Genève LSGG",
-  "description": "Helvetic Airways E190 ready for departure from runway 23. Live METAR. Cleared for immediate takeoff. Mountains ahead.",
+  "description": "Helvetic Airways E190 ready for departure from runway 22. Live METAR. Cleared for immediate takeoff. Mountains ahead.",
   "author": "Markus Leutwyler",
   "aircraft": "e190",
   "departure": {
     "icao": "LSGG",
     "name": "Genève",
-    "runway": "23",
+    "runway": "22",
     "elevation": 1411
   },
   "arrival": null,
@@ -40,20 +40,20 @@
       "atc": "Helvetic, startup approved, clearance to Zürich LSZH, flight level two four zero, departure heading two one zero, squawk four seven one two"
     },
     {
-      "pm": "request taxi, runway two three",
-      "atc": "Helvetic, taxi to holding point runway two three via Foxtrot and November"
+      "pm": "request taxi, runway two two",
+      "atc": "Helvetic, taxi to holding point runway two two via Foxtrot and November"
     },
     {
-      "pm": "Holding point runway two three, ready",
-      "atc": "Helvetic, line up and wait runway two three, one departure ahead"
+      "pm": "Holding point runway two two, ready",
+      "atc": "Helvetic, line up and wait runway two two, one departure ahead"
     },
     {
-      "pm": "Lining up two three, Helvetic",
-      "atc": "Helvetic, wind two three zero at ten, runway two three, cleared for takeoff"
+      "pm": "Lining up two two, Helvetic",
+      "atc": "Helvetic, wind two three zero at ten, runway two two, cleared for takeoff"
     }
   ],
   "debrief": [
-    "Was the takeoff roll smooth on runway 23?",
+    "Was the takeoff roll smooth on runway 22?",
     "Did you maintain runway heading until 1000ft AGL?",
     "Lake Geneva appeared off the right — did you see it?",
     "Mont Blanc is visible at 12 o'clock — how clear was it?"
