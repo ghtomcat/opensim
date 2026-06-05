@@ -68,17 +68,18 @@ def overpass(centres):
     return els
 
 
-def existing_styles():
-    """Preserve any hand-set 'style' flag from the current towers-data.js."""
+def existing_records():
+    """Parse the current towers-data.js -> {ICAO: record}, so we can preserve hand-curated
+    data across regeneration: the 'style' flag for every airport, and the FULL record for
+    'manual': true entries (towers OSM doesn't tag properly, e.g. FIMP)."""
     path = os.path.join(ROOT, "display", "towers-data.js")
     if not os.path.exists(path):
         return {}
     src = open(path).read()
     try:
-        data = json.loads(src[src.index("{"): src.rindex("}") + 1])
+        return json.loads(src[src.index("{"): src.rindex("}") + 1])
     except ValueError:
         return {}
-    return {ic: r["style"] for ic, r in data.items() if isinstance(r, dict) and "style" in r}
 
 
 def height_m(tags):
@@ -118,9 +119,13 @@ def main():
                 rec["heightM"] = best[4]
             out[ic] = rec
 
-    styles = existing_styles()
-    for ic, st in styles.items():
-        out.setdefault(ic, {})["style"] = st   # keep hand-set style even if OSM lacks a tower
+    prev = existing_records()
+    for ic, rec in prev.items():
+        if rec.get("manual"):
+            out[ic] = dict(rec)                # hand-added towers persist in full
+    for ic, rec in prev.items():
+        if isinstance(rec, dict) and "style" in rec:
+            out.setdefault(ic, {})["style"] = rec["style"]   # keep hand-set style everywhere
     out = {k: out[k] for k in sorted(out)}
     js = ("/* Bundled control-tower positions from OpenStreetMap (ODbL,\n"
           "   openstreetmap.org/copyright) for the airports referenced in missions/.\n"

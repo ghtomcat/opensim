@@ -1378,28 +1378,38 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
     const _nightF = 1 - dayFrac;
 
     const _drawTower = (cN, cE, e0, style, heightM) => {
-      let H, sides, base, neck, cabBot, cabTop, shaftTop, cabH, capR, mast, baseBldg;
+      let H, sides, base, neck, cabBot, cabTop, shaftTop, cabH, mast, baseBldg;
       if (style === 'modern') {
         H = heightM || 60; sides = 14;
-        base = Math.min(5, H * 0.05); neck = H * 0.032; cabBot = H * 0.05; cabTop = H * 0.062;
-        shaftTop = H * 0.80; cabH = H * 0.12; capR = cabTop * 0.85; mast = H * 0.14; baseBldg = 0;
+        base = Math.min(5, H * 0.05); neck = H * 0.034; cabBot = H * 0.05; cabTop = H * 0.064;
+        shaftTop = H * 0.80; cabH = H * 0.12; mast = H * 0.14; baseBldg = 0;
       } else if (style === 'regional') {
-        H = heightM || 16; sides = 6;
-        base = H * 0.14; neck = H * 0.10; cabBot = H * 0.17; cabTop = H * 0.20;
-        shaftTop = H * 0.60; cabH = H * 0.27; capR = cabTop * 0.9; mast = 0; baseBldg = H * 0.27;
-      } else {                                          // classic (mushroom)
-        H = heightM || 34; sides = 8;
-        base = Math.min(7, H * 0.11); neck = H * 0.05; cabBot = H * 0.085; cabTop = H * 0.115;
-        shaftTop = H * 0.76; cabH = H * 0.17; capR = cabTop * 0.92; mast = 0; baseBldg = 0;
+        H = heightM || 18; sides = 8;
+        base = H * 0.12; neck = H * 0.095; cabBot = H * 0.15; cabTop = H * 0.185;
+        shaftTop = H * 0.62; cabH = H * 0.24; mast = H * 0.06; baseBldg = H * 0.24;
+      } else {                                          // classic — tall slender shaft + flared cab
+        H = heightM || 38; sides = 8;
+        base = Math.min(6, H * 0.085); neck = H * 0.072; cabBot = H * 0.088; cabTop = H * 0.125;
+        shaftTop = H * 0.74; cabH = H * 0.15; mast = H * 0.08; baseBldg = 0;
       }
-      const roofY = shaftTop + cabH;
-      /* profile rings bottom→top; glassIdx = the cab-wall strip (canted glass) */
-      const rings = [];
+      const galH = H * 0.022, galR = cabTop * 1.14;     // catwalk gallery — overhangs the shaft
+      const roofH = H * 0.03,  roofR = cabTop * 1.2;    // roof — overhangs the cab
+      const cabBaseY = shaftTop + galH;
+      const roofY    = cabBaseY + cabH + roofH;
+      /* profile rings bottom→top; glassIdx = cab-wall (canted glass) strip, dark = the
+         catwalk + roof overhang strips (charcoal metal — the control-tower signature). */
+      const rings = []; const dark = new Set();
       if (baseBldg > 0) rings.push({ y: 0, r: base * 1.6 }, { y: baseBldg, r: base * 1.6 }, { y: baseBldg, r: base });
       else rings.push({ y: 0, r: base });
       rings.push({ y: shaftTop, r: neck });
-      const glassIdx = rings.length;                    // strip cabBot→cabTop
-      rings.push({ y: shaftTop, r: cabBot }, { y: roofY, r: cabTop }, { y: roofY, r: capR });
+      dark.add(rings.length - 1); rings.push({ y: shaftTop, r: galR });   // catwalk underside (overhang)
+      dark.add(rings.length - 1); rings.push({ y: cabBaseY, r: galR });   // catwalk outer edge
+      rings.push({ y: cabBaseY, r: cabBot });                             // catwalk top → cab base
+      const glassIdx = rings.length - 1;
+      rings.push({ y: cabBaseY + cabH, r: cabTop });                      // flared canted glass
+      dark.add(rings.length - 1); rings.push({ y: cabBaseY + cabH, r: roofR }); // roof underside (overhang)
+      dark.add(rings.length - 1); rings.push({ y: roofY, r: roofR });     // roof outer edge
+      dark.add(rings.length - 1); rings.push({ y: roofY, r: roofR * 0.5 }); // roof slope → cap
 
       const P = (a, r, y) => [cN + Math.cos(a) * r * M, cE + Math.sin(a) * r * M, e0 + y * M];
       const faces = [];
@@ -1408,7 +1418,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         for (let k = 0; k < sides; k++) {
           const a0 = k / sides * TAU, a1 = (k + 1) / sides * TAU, mid = (a0 + a1) / 2;
           faces.push({ p: [P(a0, r0.r, r0.y), P(a1, r0.r, r0.y), P(a1, r1.r, r1.y), P(a0, r1.r, r1.y)],
-                       glass: i === glassIdx, nr: Math.cos(mid) * LN + Math.sin(mid) * LE });
+                       glass: i === glassIdx, dark: dark.has(i), nr: Math.cos(mid) * LN + Math.sin(mid) * LE });
         }
       }
       const top = rings[rings.length - 1], cap = [];     // roof cap polygon
@@ -1428,6 +1438,8 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           ctx.fillStyle = `rgb(${r * (_nightF ? 1 : _gBr) | 0},${g * (_nightF ? 1 : _gBr) | 0},${b * (_nightF ? 1 : _gBr) | 0})`;
         } else if (f.cap) {
           const b = 0.72 * _gBr; ctx.fillStyle = `rgb(${70 * b | 0},${74 * b | 0},${80 * b | 0})`;
+        } else if (f.dark) {                              // catwalk + roof overhang (charcoal metal)
+          const b = (0.5 + 0.4 * Math.max(0, f.nr)) * _gBr; ctx.fillStyle = `rgb(${56 * b | 0},${58 * b | 0},${66 * b | 0})`;
         } else {
           const b = sh * _gBr; ctx.fillStyle = `rgb(${172 * b | 0},${174 * b | 0},${180 * b | 0})`;
         }
