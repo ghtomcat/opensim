@@ -130,7 +130,7 @@ function _terrainColorAt(lat, lon, elevM, dayFrac, depth, shade) {
 }
 
 /* Unpaved (grass/turf) runway — rendered as a mowed strip, no paint / numbers / lights. */
-const _isGrass = (s) => /gras|turf|sod|soil|earth|dirt/i.test(s || '');
+const _isGrass = (s) => /gras|grs|turf|sod|soil|earth|dirt/i.test(s || '');
 
 /* Current wind {dir (met, FROM), spd (kt)} — mirrors physics._getWind for the windsock. */
 function _windNow() {
@@ -926,10 +926,15 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
     elevs.push(erow);
   }
 
-  /* ── Runway geometry for quad-loop override ── */
+  /* ── Runway geometry for quad-loop override ──
+     Skipped entirely when OurAirports runways are bundled for this mission: the bundled
+     geometry is accurate and drawn separately, so the hand-authored rwyLat/rwyHdg (which
+     can be a wrong heading/designation, e.g. Grenchen "26"@260° vs the real 06/24) must
+     NOT also paint a crossing runway into the terrain mesh. */
   const _rwyDefs = [];
+  const _meshRwyOK = _missionRunways().length === 0;
   for (const src of [S.mission?.arrival, S.mission?.departure]) {
-    if (!src?.rwyLat || !hasTerrain) continue;
+    if (!src?.rwyLat || !hasTerrain || !_meshRwyOK) continue;
     const hRad = (src.rwyHdg ?? 0) * DEG;
     const aN = Math.cos(hRad), aE = Math.sin(hRad);
     _rwyDefs.push({
@@ -1298,22 +1303,43 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
       for (const way of _osmWays) {
         if (!way.geometry?.length) continue;
         const _at = way.tags?.aeroway;
-        /* Skip OSM runway polygons when OurAirports runways are bundled (drawn below). */
-        const _bv = _at === 'runway' ? (_bundledRw.length ? null : _rB)
-                  : _at === 'taxiway' ? _tB : _at === 'apron' ? _aB : null;
-        if (_bv === null) continue;
+        if (_at !== 'runway' && _at !== 'taxiway' && _at !== 'apron') continue;
+        if (_at === 'runway' && _bundledRw.length) continue;   // bundled runways drawn below
+        /* Surface-aware: grass/unpaved taxiways & aprons render green, not grey concrete. */
+        const _sfc = way.tags?.surface;
+        const _ovGrass = _isGrass(_sfc) || _sfc === 'unpaved' || _sfc === 'ground';
+        const _bv = _at === 'taxiway' ? _tB : _at === 'apron' ? _aB : _rB;
         /* Sample terrain elevation at the first node so the overlay sits on the actual
            terrain mesh rather than floating at the declared mission field elevation.     */
         const _n0  = way.geometry[0];
         const _eM  = _sampleElev(_n0.lat, _n0.lon);
         const _eNm = _eM !== null ? (_eM - refM) * M_NM : 0;
-        ctx.fillStyle = `rgb(${_bv},${_bv+_ngl},${_bv+_nbl})`;
+        ctx.fillStyle = _ovGrass ? `rgb(${96*_f|0},${134*_f|0},${56*_f|0})`
+                                 : `rgb(${_bv},${_bv+_ngl},${_bv+_nbl})`;
+        /* Areas (aprons) fill their polygon as-is; lines (taxiways/runways) are centerlines,
+           so buffer them to a width strip — filling an open line makes a spurious polygon. */
+        const _g = way.geometry;
+        const _area = _g.length > 3 && Math.abs(_g[0].lat - _g[_g.length-1].lat) < 1e-9
+                                    && Math.abs(_g[0].lon - _g[_g.length-1].lon) < 1e-9;
+        const _ne = _g.map(p => [(p.lat - acLat) * 60, (p.lon - acLon) * 60 * cosAcLat]);
+        let _ring;
+        if (_area) {
+          _ring = _ne;
+        } else {
+          const _hw = ((parseFloat(way.tags?.width) || (_at === 'taxiway' ? 15 : _at === 'runway' ? 30 : 23)) / 1852) / 2;
+          const _Ls = [], _Rs = [];
+          for (let i = 0; i < _ne.length; i++) {
+            const a = _ne[Math.max(0, i-1)], b = _ne[Math.min(_ne.length-1, i+1)];
+            let dN = b[0]-a[0], dE = b[1]-a[1]; const l = Math.hypot(dN, dE) || 1e-9; dN /= l; dE /= l;
+            _Ls.push([_ne[i][0] - dE*_hw, _ne[i][1] + dN*_hw]);
+            _Rs.push([_ne[i][0] + dE*_hw, _ne[i][1] - dN*_hw]);
+          }
+          _ring = _Ls.concat(_Rs.reverse());
+        }
         ctx.beginPath();
         let _go = false;
-        for (const { lat: _nL, lon: _nO } of way.geometry) {
-          const _dN = (_nL - acLat) * 60;
-          const _dE = (_nO - acLon) * 60 * cosAcLat;
-          const _sp = proj(_dN * cosH + _dE * sinH, _dE * cosH - _dN * sinH, _eNm);
+        for (const [_N, _E] of _ring) {
+          const _sp = proj(_N * cosH + _E * sinH, _E * cosH - _N * sinH, _eNm);
           if (!_sp) continue;
           if (!_go) { ctx.moveTo(_sp[0], _sp[1]); _go = true; }
           else         ctx.lineTo(_sp[0], _sp[1]);
@@ -1324,7 +1350,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
       if (_bundledRw.length) {
         for (const rg of _bundledRw) {
           ctx.fillStyle = _isGrass(rg.surface)
-            ? `rgb(${72*_f|0},${92*_f|0},${44*_f|0})`            // mowed-grass strip
+            ? `rgb(${96*_f|0},${134*_f|0},${56*_f|0})`           // mowed-grass strip (clearly green)
             : `rgb(${_rB},${_rB+_ngl},${_rB+_nbl})`;             // paved
           const aN=(rg.a.lat-acLat)*60, aE=(rg.a.lon-acLon)*60*cosAcLat;
           const bN=(rg.b.lat-acLat)*60, bE=(rg.b.lon-acLon)*60*cosAcLat;
