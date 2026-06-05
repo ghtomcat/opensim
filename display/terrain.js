@@ -107,7 +107,8 @@ function _fetchOSMAero(lat, lon) {
   const b1l = (Math.floor(lat * 10) / 10 + 0.12).toFixed(4);
   const b0o = (Math.floor(lon * 10) / 10 - 0.02).toFixed(4);
   const b1o = (Math.floor(lon * 10) / 10 + 0.12).toFixed(4);
-  const q = `[out:json][timeout:25];(way["aeroway"~"runway|taxiway|apron|helipad"](${b0l},${b0o},${b1l},${b1o}););out geom;`;
+  const _bb = `${b0l},${b0o},${b1l},${b1o}`;
+  const q = `[out:json][timeout:25];(way["aeroway"~"runway|taxiway|apron|helipad"](${_bb});node["aeroway"="holding_position"](${_bb}););out geom;`;
   fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`)
     .then(r => r.ok ? r.json() : { elements: [] })
     .then(d => { _osmAero.set(key, d.elements ?? []); _osmPending.delete(key); })
@@ -139,6 +140,23 @@ function _runwayGeom(way) {
   const midq=(qmin+qmax)/2;
   const toLL=(p)=>({ lat: lat0 + (ax[1]*p+pp[1]*midq)/60, lon: lon0 + (ax[0]*p+pp[0]*midq)/(60*cl) });
   return { a: toLL(pmin), b: toLL(pmax), widthM: wTag || (qmax-qmin)*1852, ref };
+}
+
+/* Taxiway heading at a holding-position node, so guard lights / hold markings sit
+   across the taxiway. Finds a taxiway passing through the node, returns its local dir. */
+function _holdDir(node, els) {
+  for (const w of els) {
+    if (w.type === 'node' || w.tags?.aeroway !== 'taxiway' || !w.geometry) continue;
+    const g = w.geometry;
+    for (let i = 0; i < g.length; i++) {
+      if (Math.abs(g[i].lat - node.lat) < 1e-7 && Math.abs(g[i].lon - node.lon) < 1e-7) {
+        const j = i > 0 ? i - 1 : i + 1;
+        if (!g[j]) return null;
+        return { dLat: g[i].lat - g[j].lat, dLon: g[i].lon - g[j].lon };
+      }
+    }
+  }
+  return null;
 }
 
 /* Stroke font for painted runway designators. Each glyph = polylines on a unit cell,
@@ -1124,6 +1142,31 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
               ctx.beginPath(); ctx.arc(sp[0], sp[1], 1.9*_DPR, 0, 7); ctx.fill();
             }
           }
+        }
+        ctx.restore();
+      }
+
+      /* ── Runway guard lights (wig-wag) at holding positions — a flashing yellow pair,
+         one each side of the taxiway hold-short, alternating ~0.9 s. Day + night. */
+      {
+        const _DPR = devicePixelRatio || 1;
+        const _on = (performance.now() % 900) < 450;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (const el of _osmWays) {
+          if (el.type !== 'node' || el.tags?.aeroway !== 'holding_position') continue;
+          const nN=(el.lat-acLat)*60, nE=(el.lon-acLon)*60*cosAcLat;
+          if (nN*nN+nE*nE > 9) continue;            // >3 nm
+          const _eM=_sampleElev(el.lat,el.lon), _eNm=_eM!==null?(_eM-refM)*M_NM:0;
+          const dir=_holdDir(el,_osmWays);
+          let pN=0,pE=1;
+          if (dir){ const dN=dir.dLat*60, dE=dir.dLon*60*cosAcLat, dl=Math.hypot(dN,dE)||1; pN=-dE/dl; pE=dN/dl; }
+          const half=0.0095;                         // ~17 m to each side
+          const _gl=(N,E,lit)=>{ const f=N*cosH+E*sinH, r=E*cosH-N*sinH; const sp=proj(f,r,_eNm); if(!sp)return;
+            ctx.fillStyle = lit ? 'rgba(255,205,30,0.98)' : 'rgba(90,65,8,0.6)';
+            ctx.beginPath(); ctx.arc(sp[0],sp[1],2.0*_DPR,0,7); ctx.fill(); };
+          _gl(nN+pN*half, nE+pE*half, _on);
+          _gl(nN-pN*half, nE-pE*half, !_on);
         }
         ctx.restore();
       }
