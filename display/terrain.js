@@ -18,6 +18,7 @@ import { TOWERS } from './towers-data.js';
 import { nightDensity } from './night-lights.js';
 import { landColor }    from './terrain-color.js';
 import { WINDSOCKS }    from './windsocks-data.js';
+import { STANDS }       from './stands-data.js';
 
 /* Soft radial-gradient sprite, reused (additively) for the night city-light glow. */
 let _glowSprite = null, _coreSprite = null;
@@ -2053,6 +2054,54 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
       const _eM = _sampleElev(tw.lat, tw.lon);
       const e0 = _eM !== null ? (_eM - refM) * M_NM : 0;
       _drawTower(tN, tE, e0, tw.style || 'classic', tw.heightM);
+    }
+
+    /* ── Terminal massing — derived, not modelled. Cluster the bundled gates by their
+       ref-prefix (each letter = a concourse) and draw a low wireframe block landside of
+       the gate line. The gates nose IN toward the building, so the frontage runs ⟂ to
+       the nose-in heading and the mass sits just past where the noses stop. */
+    for (const ic of [S.mission?.departure?.icao, S.mission?.arrival?.icao]) {
+      const gates = ic && STANDS[ic];
+      if (!gates || gates.length < 2) continue;
+      const groups = {};
+      for (const g of gates) { const k = (g.ref.match(/^[A-Za-z]+/) || ['?'])[0].toUpperCase();
+        (groups[k] = groups[k] || []).push(g); }
+      for (const grp of Object.values(groups)) {
+        if (grp.length < 2) continue;
+        const cLat = grp.reduce((s,g)=>s+g.lat,0)/grp.length;
+        const cLon = grp.reduce((s,g)=>s+g.lon,0)/grp.length;
+        const cosC = Math.cos(cLat*DEG);
+        let nE=0,nN=0;                                  // avg nose-in unit (toward building)
+        for (const g of grp){ nE+=Math.sin(g.hdg*DEG); nN+=Math.cos(g.hdg*DEG); }
+        const nl=Math.hypot(nE,nN)||1; nE/=nl; nN/=nl;
+        const e1E=nN, e1N=-nE;                          // frontage axis ⟂ nose-in
+        let amin=1e9, amax=-1e9;
+        for (const g of grp){ const dE=(g.lon-cLon)*111320*cosC, dN=(g.lat-cLat)*111320;
+          const a=dE*e1E+dN*e1N; if(a<amin)amin=a; if(a>amax)amax=a; }
+        if ((amax-amin) > 1200) continue;               // sanity: not one giant block
+        const FRONT=12, DEPTH=42, MARGIN=14, H=11;      // metres
+        const corner=(a,b)=>{ const dE=a*e1E+b*nE, dN=a*e1N+b*nN;
+          return [cLat+dN/111320, cLon+dE/(111320*cosC)]; };
+        const foot=[corner(amin-MARGIN,FRONT), corner(amax+MARGIN,FRONT),
+                    corner(amax+MARGIN,FRONT+DEPTH), corner(amin-MARGIN,FRONT+DEPTH)];
+        const f0N=(foot[0][0]-acLat)*60, f0E=(foot[0][1]-acLon)*60*cosAcLat;
+        if (f0N*f0N+f0E*f0E > 25) continue;             // >5 nm: skip
+        const _emT=_sampleElev(cLat,cLon), e0=_emT!==null?(_emT-refM)*M_NM:0, up=e0+H*M_NM;
+        const P=(ll,u)=>{ const N=(ll[0]-acLat)*60, E=(ll[1]-acLon)*60*cosAcLat;
+          return proj(N*cosH+E*sinH, E*cosH-N*sinH, u); };
+        const bot=foot.map(ll=>P(ll,e0)), top=foot.map(ll=>P(ll,up));
+        if (top.every(p=>p)){ ctx.fillStyle='rgba(70,82,96,0.22)'; ctx.beginPath();
+          ctx.moveTo(top[0][0],top[0][1]); for(let i=1;i<4;i++)ctx.lineTo(top[i][0],top[i][1]);
+          ctx.closePath(); ctx.fill(); }
+        ctx.strokeStyle='rgba(150,170,190,0.7)'; ctx.lineWidth=1.2*(devicePixelRatio||1);
+        ctx.beginPath();
+        for(let i=0;i<4;i++){ const a=bot[i],b=bot[(i+1)%4],c=top[i],d=top[(i+1)%4];
+          if(a&&b){ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}
+          if(c&&d){ctx.moveTo(c[0],c[1]);ctx.lineTo(d[0],d[1]);}
+          if(a&&c){ctx.moveTo(a[0],a[1]);ctx.lineTo(c[0],c[1]);}
+        }
+        ctx.stroke();
+      }
     }
   }
 
