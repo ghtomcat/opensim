@@ -1462,11 +1462,13 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     return [fP, rW, uW];
   }
 
-  /* Two-light brightness: key + fill + ambient. Result in [0,1]. */
+  /* Two-light brightness: key + fill + ambient, scaled by the day/night dim (_acDim,
+     set below once the sun height is known). Result in [0,1]. */
+  let _acDim = 1;
   function litBr(nF, nR, nU, amb) {
     const d1 = Math.max(0, nF*_LD[0]  + nR*_LD[1]  + nU*_LD[2]);
     const d2 = Math.max(0, nF*_LD2[0] + nR*_LD2[1] + nU*_LD2[2]);
-    return Math.min(1, amb + (1 - amb) * (d1 + _LD2S * d2));
+    return _acDim * Math.min(1, amb + (1 - amb) * (d1 + _LD2S * d2));
   }
 
   /* Per-vertex smooth (radial) normals for cylindrical interpolation */
@@ -1591,6 +1593,12 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const _sunUp = Math.sin((_hUp - 6) / 12 * Math.PI);
   const _upStr = (S.wow ? 1 : 0) * Math.max(0, Math.min(1, (0.1 - _sunUp) / 0.35)) * 0.95;
   const _UPCOL = [90, 140, 210];   // apron/taxiway-light blue
+  /* Day/night dim — the airframe should go dark at night (lit mainly by the apron
+     uplight + its own nav/strobe lights), not stay noon-bright. 1 in daylight, floor
+     at night; held at 1 for rockets/space where timeOfDay isn't a ground sun height. */
+  const _acDay = (isF9 || isSS || isSV || S.rocketOrbit) ? 1
+               : Math.max(0, Math.min(1, (_sunUp + 0.15) / 0.25));
+  _acDim = 0.25 + 0.75 * _acDay;
 
   _prof.buildT0 = performance.now();   // profiler: aircraft geometry build starts here
   const faces = F_.map((fi, i) => {
