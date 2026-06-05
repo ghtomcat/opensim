@@ -1067,6 +1067,41 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         }
         ctx.restore();
       }
+
+      /* ── PAPI (day + night) — 4-light glideslope bar to the left of each runway,
+         abeam the aiming point. Each unit shows white if the viewer's elevation angle
+         is above its set angle, red if below (2.5/2.83/3.17/3.5° from the runway out),
+         so a 3° approach reads two-white-two-red. Derived from threshold + viewer. */
+      {
+        const _DPR = devicePixelRatio || 1;
+        const _SET = [2.5, 2.83, 3.17, 3.5];   // unit angles, nearest runway → farthest
+        const _aim = 0.162, _sp = 0.0049;      // ~300 m along to the bar, ~9 m unit spacing (nm)
+        const _vAGLnm = ((S.alt ?? 0) - elevFt) / 6076.12;   // viewer height above the field
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (const way of _osmWays) {
+          if (way.tags?.aeroway !== 'runway' || !way.geometry?.length) continue;
+          const rg = _runwayGeom(way); if (!rg) continue;
+          const _eM = _sampleElev(rg.a.lat, rg.a.lon);
+          const _eNm = _eM !== null ? (_eM - refM) * M_NM : 0;
+          const aN=(rg.a.lat-acLat)*60, aE=(rg.a.lon-acLon)*60*cosAcLat;
+          const bN=(rg.b.lat-acLat)*60, bE=(rg.b.lon-acLon)*60*cosAcLat;
+          const dN=bN-aN, dE=bE-aE, L=Math.hypot(dN,dE) || 1e-6;
+          const uN=dN/L, uE=dE/L, edge=(rg.widthM/1852)/2 + 0.008;   // half-width + ~15 m left
+          for (const e of [ {iN:uN,iE:uE,T:[aN,aE]}, {iN:-uN,iE:-uE,T:[bN,bE]} ]) {
+            const lN=e.iE, lE=-e.iN;   // approach pilot's left
+            for (let i=0;i<4;i++){
+              const ac = edge + i*_sp;
+              const N = e.T[0] + e.iN*_aim + lN*ac, E = e.T[1] + e.iE*_aim + lE*ac;
+              const ang = Math.atan2(_vAGLnm, Math.hypot(N,E)||1e-6) * 180/Math.PI;
+              const sp = proj(N*cosH+E*sinH, E*cosH-N*sinH, _eNm); if (!sp) continue;
+              ctx.fillStyle = ang >= _SET[i] ? 'rgba(255,255,255,0.95)' : 'rgba(255,45,45,0.95)';
+              ctx.beginPath(); ctx.arc(sp[0], sp[1], 1.9*_DPR, 0, 7); ctx.fill();
+            }
+          }
+        }
+        ctx.restore();
+      }
     }
   }
 
