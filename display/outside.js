@@ -179,9 +179,10 @@ export function initOutside() {
   window.addEventListener('mousemove', e => {
     if (_orbitDragX !== null) {
       _orbitAz = ((_orbitAz + (e.clientX - _orbitDragX) * 0.4) % 360 + 360) % 360;
-      /* On the ground, don't let the orbit drop below the horizon — you can't get under
-         the aircraft/runway, and viewing the flat markings from below reads as floating. */
-      const _elMin = (S.wow && S.aircraft?.vehicleType !== 'rocket') ? 1 : -85;
+      /* On the ground, allow tilting down to inspect the belly (the belly is only a few
+         metres up, so this dips a bit under the runway) but stop short of a fully-inverted
+         under-the-aircraft view. */
+      const _elMin = (S.wow && S.aircraft?.vehicleType !== 'rocket') ? -10 : -85;
       _orbitEl = Math.max(_elMin, Math.min(85, _orbitEl - (e.clientY - _orbitDragY) * 0.3));  // clamp: tilt elevation, never flip over the top
       _orbitDragX = e.clientX; _orbitDragY = e.clientY;
     }
