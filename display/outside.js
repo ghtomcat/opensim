@@ -390,7 +390,14 @@ function _renderSideCam(canvas) {
      in frame — at 175 km orbit this gives ~24 nm side / ~5 nm up.     */
   const isRocket = S.aircraft?.vehicleType === 'rocket';
   const altNm    = (S.alt ?? 0) * FT_NM;
-  const sideDist = (isRocket ? Math.max(SIDE_SIDE, altNm * 0.25) : SIDE_SIDE) * _orbitZoom;
+  /* Aircraft: a stable framing distance from the (fixed) model length, shared by the
+     terrain camera AND the wireframe, so the airframe stays planted on the runway and
+     doesn't slide/float under orbit. Rockets keep the altitude-scaled auto-fit distance. */
+  const _acLenNm = (S.aircraft?.nose?.tipX != null && S.aircraft?.geometry?.tailX != null)
+    ? S.aircraft.nose.tipX - S.aircraft.geometry.tailX : null;
+  const _acFixed = !isRocket && _acLenNm != null;
+  const sideDist = (isRocket ? Math.max(SIDE_SIDE, altNm * 0.25)
+                             : _acFixed ? _acLenNm * 2.0 : SIDE_SIDE) * _orbitZoom;
   const sideUp   = (isRocket ? Math.max(SIDE_UP,   altNm * 0.05) : SIDE_UP)   * _orbitZoom;
 
   /* For rockets: _orbitAz rolls the body (longitudinal pre-pitch spin).
@@ -446,7 +453,7 @@ function _renderSideCam(canvas) {
      El: aircraft with chaseCamOrbit use fixed 12° so chase-calibrated El doesn't bleed here. */
   const _useWowPitch = S.wow && S.aircraft?.vehicleType !== 'rocket';
   const _scEl = (isRocket && S.aircraft?.chaseCamOrbit) ? 12 : _orbitEl;   // wireframe El tracks the terrain El
-  _drawWireframe(canvas, _useWowPitch ? 0 : acP, (_useWowPitch ? 0 : acR) + renderOrbit, 0, sideUp, sideDist, false, sideOrbitAz, _scEl);
+  _drawWireframe(canvas, _useWowPitch ? 0 : acP, (_useWowPitch ? 0 : acR) + renderOrbit, 0, sideUp, sideDist, false, sideOrbitAz, _scEl, 0, _acFixed);
   _drawLabel(canvas, 'SIDE CAM');
   if (S.paused) _drawPauseOverlay(canvas);
 }
@@ -917,7 +924,7 @@ function _fanEllipse(ringPts) {
 
 
 /* ── Core wireframe + shading renderer ───────────────────────── */
-function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, wingView = false, orbitAzDeg = 0, orbitElDeg = 0, panX = 0) {
+function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, wingView = false, orbitAzDeg = 0, orbitElDeg = 0, panX = 0, fixedFraming = false) {
   /* Advance fan rotation angle — capped so it doesn't spin during static frames */
   _fanAngle  = (_fanAngle  + ((S.engineState === 'off' || S.engineState === 'shutdown')
                  ? 0 : Math.min(0.06, (S.enginePower ?? 0) * 0.35))) % (Math.PI * 2);
@@ -1082,12 +1089,17 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     const d = Math.max(halfCR * PAD / Math.tan(hfH), halfCU * PAD / Math.tan(hfV));
     if (camSide > 0) {
       const _origCamSide = camSide;
-      camSide = d * _orbitZoom;
-      /* Keep elevation angle constant through auto-fit: if camUp >> camSide (e.g.
-         rocket at high altitude), the camera pitch goes nearly vertical and the
-         body cross-section compresses to sub-pixel height.  Scale camUp with the
-         same factor so the wireframe elevation stays at the intended angle. */
-      camUp = camUp * (camSide / _origCamSide);
+      /* Auto-fit (rockets): re-frame each frame since the model shrinks as stages drop.
+         fixedFraming (aircraft) skips it — the caller already sized camSide/camUp to a
+         stable framing shared with the terrain camera, so the airframe stays planted. */
+      if (!fixedFraming) {
+        camSide = d * _orbitZoom;
+        /* Keep elevation angle constant through auto-fit: if camUp >> camSide (e.g.
+           rocket at high altitude), the camera pitch goes nearly vertical and the
+           body cross-section compresses to sub-pixel height.  Scale camUp with the
+           same factor so the wireframe elevation stays at the intended angle. */
+        camUp = camUp * (camSide / _origCamSide);
+      }
       /* Perspective-correct centering: at high altitude camUp >> camSide so the
          camera pitch is nearly vertical.  The naive pivotCU/camSide approximation
          breaks and the rocket drifts off-centre as _orbitZoom changes.  Project
