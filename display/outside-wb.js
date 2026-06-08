@@ -62,12 +62,22 @@ export function _buildWB(np) {
   /* Per-aircraft overrides fall back to module globals so existing profiles are unchanged */
   const tailX  = np.tailX ?? -0.021;
   const ts     = tailX / -0.021;
-  const vstabZ  = np.vstabZ  ?? 0.008;  // V-stab tip height (z, above fuselage centre)
+  const vstabZ  = np.vstab?.tipZ ?? np.vstabZ  ?? 0.008;  // V-stab tip height (z, above fuselage centre)
   const hstabY  = np.hstabY  ?? 0.008;  // H-stab tip half-span (y, from fuselage centre)
   const r   = np.r   ?? _r;
   const nr2 = r * 0.7071;
   const nr3 = r * 0.9239;
   const wr  = r * 0.7071;
+  /* V-stab chord stations (x), root/tip × LE/hinge/TE. Absolute from np.vstab (data-
+     driven from the DWG), else the legacy tail-relative defaults so other aircraft are
+     unchanged. Used by the base quad, the airfoil surface, and the LE nose alike. */
+  const _vs   = np.vstab;
+  const _vsRL = _vs?.rootLE    ?? -0.013*ts;
+  const _vsRH = _vs?.rootHinge ?? -0.017*ts;
+  const _vsRT = _vs?.rootTE    ?? -0.019*ts;
+  const _vsTL = _vs?.tipLE     ?? (np.vstabTipLE ?? -0.016)*ts;
+  const _vsTH = _vs?.tipHinge  ?? -0.019*ts;
+  const _vsTT = _vs?.tipTE     ?? tailX;
   /* Wing vertical position: by default the root lower surface sits on the 45°
      lower-diagonal (z = -wr). `wing.rootZ` overrides it (lower-surface z, from the
      DWG); the whole wing — break, tip, spoilers (via WV), pylons — shifts with it. */
@@ -190,10 +200,10 @@ export function _buildWB(np) {
   V_.push(  /* non-tube vertices — b+0..b+151 */
     WV[0], WV[1], WV[4], WV[5],    // b+0..3:  R root lower LE/TE, R tip lower LE/TE
     WV[22], WV[23], WV[26], WV[27], // b+4..7:  L root lower LE/TE, L tip lower LE/TE
-    [-0.013*ts,  0,        r        ],  //  b+8  V-stab base fwd
-    [-0.019*ts,  0,        r        ],  //  b+9  V-stab base aft
-    [(np.vstabTipLE??-0.016)*ts, 0, vstabZ],  //  b+10 V-stab top fwd
-    [-0.021*ts,  0,        vstabZ-0.001],//b+11 V-stab top aft
+    [_vsRL, 0, r      ],  //  b+8  V-stab root LE
+    [_vsRT, 0, r      ],  //  b+9  V-stab root TE
+    [_vsTL, 0, vstabZ ],  //  b+10 V-stab tip LE
+    [_vsTT, 0, vstabZ ],  //  b+11 V-stab tip TE
     [-0.017*ts,  nr3,      0.0      ],  //  b+12 R h-stab root fwd
     [-0.0175*ts, nr2,      0.0      ],  //  b+13 R h-stab root aft
     [-0.019*ts,  hstabY,    0.001    ],  //  b+14 R h-stab tip fwd  (30° LE sweep)
@@ -275,8 +285,6 @@ export function _buildWB(np) {
   const _vTr = 0.00070;                        // root half-thickness (≈12% t/c)
   const _vTt = 0.00040;                        // tip half-thickness (≈9% t/c)
   const _vTE = 0.00008;                        // closed TE half-gap
-  const _vsRL = -0.013*ts, _vsRH = -0.017*ts, _vsRT = -0.019*ts;  // root LE/hinge/TE
-  const _vsTL = (np.vstabTipLE ?? -0.016)*ts, _vsTH = -0.019*ts, _vsTT = tailX; // tip LE/hinge/TE
   V_.push(
     [_vsRL, +_vTr,       r        ], // b+160  root LE  +Y
     [_vsRL, -_vTr,       r        ], // b+161  root LE  -Y
@@ -834,6 +842,7 @@ export function _acGeoFromJson(aircraft, baseNp) {
     engineTopGap:  jGeo.engineTopGap  ?? baseNp.engineTopGap,
     pz:            jGeo.pylonZ        ?? baseNp.pz,
     wing:          aircraft.wing      ?? baseNp.wing,
+    vstab:         aircraft.vstab     ?? baseNp.vstab,
     winglet:       aircraft.winglet   ?? baseNp.winglet,
     eLen:          jGeo.engineLen     ?? baseNp.eLen ?? 1.0,
     fanCowlRatio:  jGeo.fanCowlRatio  ?? baseNp.fanCowlRatio,

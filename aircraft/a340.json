@@ -785,12 +785,30 @@
     "mainGearStrutLength": 2810,
     "midWingRootToTop": 3785,
     "engineTopBelowWing": 802,
-    "engineLength": 5623.747
+    "engineLength": 5623.747,
+    "vstabHeight": 8325.552,
+    "vstabRootChord": 6566,
+    "vstabTipChordDerived": 1850.9,
+    "vstabLESweepDeg": 44.475,
+    "vstabTESweepDeg": 22.5,
+    "vstabRudderRootChord": 2100,
+    "vstabRudderTipChord": 832,
+    "noseTipToVstabTip": 50140,
+    "vstabDorsalFilletRootChord": 10284
   },
   "bellyFairing": {
     "fromX": -0.000362345150319009,
     "toX": -0.011819039994041856,
     "maxDepth": 0.00034290712742980563,
     "maxWidth": 0.0017102721382289418
+  },
+  "vstab": {
+    "rootLE": -0.011598737,
+    "rootHinge": -0.014010227,
+    "rootTE": -0.015144137,
+    "tipLE": -0.016006837,
+    "tipHinge": -0.016556837,
+    "tipTE": -0.017006087,
+    "tipZ": 0.00601811
   }
 }
