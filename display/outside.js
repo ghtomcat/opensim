@@ -179,7 +179,10 @@ export function initOutside() {
   window.addEventListener('mousemove', e => {
     if (_orbitDragX !== null) {
       _orbitAz = ((_orbitAz + (e.clientX - _orbitDragX) * 0.4) % 360 + 360) % 360;
-      _orbitEl = Math.max(-85, Math.min(85, _orbitEl - (e.clientY - _orbitDragY) * 0.3));  // clamp: tilt elevation, never flip over the top
+      /* On the ground, don't let the orbit drop below the horizon — you can't get under
+         the aircraft/runway, and viewing the flat markings from below reads as floating. */
+      const _elMin = (S.wow && S.aircraft?.vehicleType !== 'rocket') ? 1 : -85;
+      _orbitEl = Math.max(_elMin, Math.min(85, _orbitEl - (e.clientY - _orbitDragY) * 0.3));  // clamp: tilt elevation, never flip over the top
       _orbitDragX = e.clientX; _orbitDragY = e.clientY;
     }
     if (_panDragX !== null) {
