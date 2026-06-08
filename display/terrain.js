@@ -2141,6 +2141,95 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         ctx.stroke();
       }
     }
+
+    /* ── Jet bridges + apron flood lamps — derived per gate (not modelled). Each bridge
+       follows its OWN gate's nose-in heading (robust where stands fan out, like BZN),
+       running a short elevated tube from the terminal frontage out toward the aircraft's
+       forward-left door. One flood-lamp pole stands beside each bridge — faint by day,
+       glowing at dusk/night to add apron detail. */
+    for (const ic of [S.mission?.departure?.icao, S.mission?.arrival?.icao]) {
+      const gates = ic && STANDS[ic];
+      if (!gates) continue;
+      const _nightF = 1 - dayFrac, _dpr = devicePixelRatio || 1;
+      for (const g of gates) {
+        const gN = (g.lat - acLat) * 60, gE = (g.lon - acLon) * 60 * cosAcLat;
+        if (gN * gN + gE * gE > 25) continue;             // >5 nm: skip
+        const gCos = Math.cos(g.lat * DEG);
+        const hE = Math.sin(g.hdg * DEG), hN = Math.cos(g.hdg * DEG); // nose-in (toward terminal)
+        const lE = -hN, lN = hE;                          // aircraft-left
+        const _emG = _sampleElev(g.lat, g.lon);
+        const e0 = _emG !== null ? (_emG - refM) * M_NM : 0;
+        /* (fwd along nose, side to left) metres + height(m) → projected screen point */
+        const GP = (fwd, side, hM) => {
+          const dE = fwd * hE + side * lE, dN = fwd * hN + side * lN;
+          const la = g.lat + dN / 111320, lo = g.lon + dE / (111320 * gCos);
+          const N = (la - acLat) * 60, E = (lo - acLon) * 60 * cosAcLat;
+          return proj(N * cosH + E * sinH, E * cosH - N * sinH, e0 + hM * M_NM);
+        };
+
+        /* Articulated bridge: two elevated tunnels joined by a round rotunda, with a
+           wheeled drive bogie under the aircraft (cab) tunnel. */
+        const FWD0 = 1, BR_LEN = 12, BR_W = 3, LEFT = 4, FLOOR = 3.6, ROOF = 6.0;
+        const aL = LEFT - BR_W / 2, aR = LEFT + BR_W / 2;
+        const fD = FWD0, fT = FWD0 + BR_LEN, fM = (fD + fT) / 2;   // door, terminal, joint
+        const _tube = (f0, f1) => {
+          const bt = [GP(f0, aL, FLOOR), GP(f0, aR, FLOOR), GP(f1, aR, FLOOR), GP(f1, aL, FLOOR)];
+          const tp = [GP(f0, aL, ROOF),  GP(f0, aR, ROOF),  GP(f1, aR, ROOF),  GP(f1, aL, ROOF)];
+          if (tp.every(p => p)) { ctx.fillStyle = 'rgba(120,134,150,0.30)'; ctx.beginPath();
+            ctx.moveTo(tp[0][0], tp[0][1]); for (let i = 1; i < 4; i++) ctx.lineTo(tp[i][0], tp[i][1]);
+            ctx.closePath(); ctx.fill(); }
+          ctx.strokeStyle = 'rgba(170,186,202,0.78)'; ctx.lineWidth = 1.1 * _dpr; ctx.beginPath();
+          for (let i = 0; i < 4; i++) { const a = bt[i], b = bt[(i+1)%4], c = tp[i], d = tp[(i+1)%4];
+            if (a && b) { ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); }
+            if (c && d) { ctx.moveTo(c[0],c[1]); ctx.lineTo(d[0],d[1]); }
+            if (a && c) { ctx.moveTo(a[0],a[1]); ctx.lineTo(c[0],c[1]); } }
+          ctx.stroke();
+        };
+        _tube(fM, fT);                                    // terminal tunnel
+        _tube(fD, fM);                                    // aircraft tunnel
+
+        /* Round rotunda at the joint — the swivel that lets the bridge articulate. */
+        const RR = 1.7, RN = 8, rB = [], rT = [];
+        for (let k = 0; k < RN; k++) { const a = k / RN * Math.PI * 2, cx = Math.cos(a) * RR, sy = Math.sin(a) * RR;
+          rB.push(GP(fM + cx, LEFT + sy, FLOOR - 0.3)); rT.push(GP(fM + cx, LEFT + sy, ROOF + 0.3)); }
+        ctx.strokeStyle = 'rgba(182,198,212,0.82)'; ctx.lineWidth = 1.1 * _dpr; ctx.beginPath();
+        for (let k = 0; k < RN; k++) { const a = rB[k], b = rB[(k+1)%RN], c = rT[k], d = rT[(k+1)%RN];
+          if (a && b) { ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); }
+          if (c && d) { ctx.moveTo(c[0],c[1]); ctx.lineTo(d[0],d[1]); }
+          if (a && c) { ctx.moveTo(a[0],a[1]); ctx.lineTo(c[0],c[1]); } }
+        ctx.stroke();
+
+        /* Wheeled drive bogie under the middle of the aircraft tunnel — two vertical
+           struts, each riding a fore/aft pair of wheels on the apron. */
+        const fW = (fD + fM) / 2, WB = 0.7, WR = 0.55;
+        ctx.strokeStyle = 'rgba(150,160,170,0.82)'; ctx.lineWidth = 1.4 * _dpr;
+        for (const sd of [aL, aR]) { const t = GP(fW, sd, FLOOR), b = GP(fW, sd, 0);
+          if (t && b) { ctx.beginPath(); ctx.moveTo(t[0],t[1]); ctx.lineTo(b[0],b[1]); ctx.stroke(); } }
+        ctx.fillStyle = 'rgba(40,44,50,0.90)';
+        for (const sd of [aL, aR]) for (const df of [-WB, WB]) {
+          const c0 = GP(fW + df, sd, 0), c1 = GP(fW + df, sd, 2 * WR);
+          if (c0 && c1) { const r = Math.max(1.2 * _dpr, Math.hypot(c1[0]-c0[0], c1[1]-c0[1]) / 2);
+            ctx.beginPath(); ctx.arc((c0[0]+c1[0])/2, (c0[1]+c1[1])/2, r, 0, Math.PI * 2); ctx.fill(); } }
+
+        /* Flood-lamp pole beside the bridge on the apron side. */
+        const LH = 11, base = GP(FWD0 + 3, aR + 3, 0), head = GP(FWD0 + 3, aR + 3, LH);
+        if (base && head) {
+          ctx.strokeStyle = 'rgba(150,160,170,0.70)'; ctx.lineWidth = 1.2 * _dpr;
+          ctx.beginPath(); ctx.moveTo(base[0], base[1]); ctx.lineTo(head[0], head[1]); ctx.stroke();
+          if (_nightF > 0.03) {                            // warm glow grows toward night
+            const glowR = (9 + 26 * _nightF) * _dpr;
+            const grd = ctx.createRadialGradient(head[0], head[1], 0, head[0], head[1], glowR);
+            grd.addColorStop(0,   `rgba(255,244,214,${(0.55 * _nightF).toFixed(3)})`);
+            grd.addColorStop(0.5, `rgba(255,236,190,${(0.22 * _nightF).toFixed(3)})`);
+            grd.addColorStop(1,   'rgba(255,230,180,0)');
+            ctx.fillStyle = grd;
+            ctx.beginPath(); ctx.arc(head[0], head[1], glowR, 0, Math.PI * 2); ctx.fill();
+          }
+          ctx.fillStyle = _nightF > 0.3 ? 'rgba(255,248,224,0.95)' : 'rgba(210,220,230,0.85)';
+          ctx.beginPath(); ctx.arc(head[0], head[1], 1.7 * _dpr, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+    }
   }
 
   /* ── World-fixed ground grid (flat missions only, not rockets) ── */
