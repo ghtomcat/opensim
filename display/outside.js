@@ -1404,78 +1404,67 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   /* Rise from pad — used to gate pad-structure geometry and nozzle visibility */
   const alt_nm   = (S.alt ?? 0) * FT_NM;
   const _svRise  = Math.max(0, alt_nm - (S.mission?.departure?.elevation ?? 0) * FT_NM);
-  if (alt_nm < 0.082) {
-    const silVI  = (isC172 || isPP)
-      ? [80, 84, 85, 81, 89, 88]                   // C172/PP: nose(80), R tip, tail(81), L tip
-      : isF9
-      ? [96, 100, 0, 8, 108]                       // F9: nose, fin dorsal, aft top/bot, fin ventral
-      : isBf109
-      ? [96, 100, 101, 97, 105, 104]               // Bf109: spinner(96), R tip LE/TE, tail(97), L tip
-      : isF4U
-      ? [96, 104, 105, 97, 112, 113]               // F4U: noseTip(96), R tip LE/TE, tailTip(97), L tip LE/TE
-      : isMig15
-      ? [96, 108, 109, 97, 130, 131]               // MiG-15: noseTip(96), R tip upper LE/TE(108/109), tailTip(97), L tip upper LE/TE(130/131)
-      : isSV
-      ? [160, 0, 4, 8, 12]                         // Saturn V: tip, aft base cardinal points
-      : isSS
-      ? [_ssGeo?.tipVIdx ?? 0, 0, 4, 8, 12]        // Starship: noseTip, aft base cardinal points
-      : [_b-2, _b+118, _b+147, _b-1, _b+122, _b+151];  // WB: noseTip, R tip upper LE/ail-hinge, tailTip, L tip upper LE/ail-hinge
-
-    /* Rotate each silhouette vertex into world-aligned frame (same as project()) */
-    const rotated = silVI.map(vi => {
-      const [vF, vR, vU] = verts[vi];
+  if (alt_nm < 0.082 && F_.length) {
+    /* Silhouette shadow — project every vertex along the light direction onto the ground,
+       then fill ALL geometry faces as one union path (uniform opacity, no per-face
+       darkening). Reads the true planform: fuselage, swept wings, engines, tail.
+       Rotate each vertex into the world-aligned frame first (same transform as project()). */
+    const rot = verts.map(([vF, vR, vU]) => {
       let fR, rR, uR;
       if (isBodyRoll) {
-        const vR2 =  vR * cosR - vU * sinR;
-        const vU2 =  vR * sinR + vU * cosR;
+        const vR2 = vR * cosR - vU * sinR, vU2 = vR * sinR + vU * cosR;
         fR = vF * cosP - vU2 * sinP; rR = vR2; uR = vF * sinP + vU2 * cosP;
       } else {
-        const fP =  vF * cosP - vU * sinP;
-        const uP =  vF * sinP + vU * cosP;
-        fR = fP; rR = vR * cosR + uP * sinR; uR = -vR * sinR + uP * cosR;
+        const uP = vF * sinP + vU * cosP;
+        fR = vF * cosP - vU * sinP; rR = vR * cosR + uP * sinR; uR = -vR * sinR + uP * cosR;
       }
       return { fR, rR, uR };
     });
-
-    /* Ground level: rockets use the lowest vertex (vertical body); a parked aircraft
-       sits at its wheel-contact level (ride height), not its MSL altitude — using
-       alt_nm here drops the shadow to sea level and the aircraft looks like it floats.
-       Airborne, fall back to MSL (terrain ≈ sea level for the shadow fade). */
-    const groundUR = (isSV || isF9)
-      ? Math.min(...rotated.map(v => v.uR))
-      : S.wow
-      ? -_groundOffsetFt() * FT_NM
-      : -alt_nm;
-
-    /* Project each vertex along light direction to ground plane, then to screen */
-    const shadowPts = rotated.map(({ fR, rR, uR }) => {
-      const t   = _LD[2] > 0 ? (uR - groundUR) / _LD[2] : 0;
-      const sfR = fR - t * _LD[0];
-      const srR = rR - t * _LD[1];
-      const suR = groundUR;
-      const cfW = camSide > 0 ? camSide - srR : camBack + sfR;
-      const crW = camSide > 0 ? sfR           : srR;
-      const cuW = suR - camUp;
+    /* Ground level: rockets (vertical body) sit on their lowest vertex; a parked aircraft
+       at its wheel-contact ride height (not MSL, or it would float); airborne, MSL. */
+    const groundUR = (isSV || isF9 || isSS)
+      ? Math.min(...rot.map(v => v.uR))
+      : S.wow ? -_groundOffsetFt() * FT_NM : -alt_nm;
+    /* Each vertex → ground along the light dir → orbit → screen. The orbit rotation must
+       match project() exactly (chase cam: el then az; side cam: az then el), or the ground
+       shadow won't track the airframe as the side cam swings around. */
+    const shP = rot.map(({ fR, rR, uR }) => {
+      const t  = _LD[2] > 0 ? (uR - groundUR) / _LD[2] : 0;
+      let fP = fR - t * _LD[0], rW = rR - t * _LD[1], uW = groundUR;
+      if (orbitElDeg !== 0 && camSide === 0) { const a = fP*cosEl + uW*sinEl; uW = -fP*sinEl + uW*cosEl; fP = a; }
+      if (orbitAzDeg !== 0 && camSide === 0) { const a = rW*cosAz - uW*sinAz; uW = rW*sinAz + uW*cosAz; rW = a; }
+      if (orbitAzDeg !== 0 && camSide  >  0) { const a = fP*cosAz - rW*sinAz; rW = fP*sinAz + rW*cosAz; fP = a; }
+      if (orbitElDeg !== 0 && camSide  >  0) { const a = rW*cosEl + uW*sinEl; uW = -rW*sinEl + uW*cosEl; rW = a; }
+      const cfW = camSide > 0 ? camSide - rW : camBack + fP;
+      const crW = camSide > 0 ? fP : rW;
+      const cuW = uW - camUp;
       const cf  = cfW * cosCP + cuW * sinCP;
-      const cu  = cuW * cosCP - cfW * sinCP;
       if (cf < 0.002) return null;
-      return { x: cx + crW / cf * focal, y: cy - cu / cf * focal };
-    }).filter(Boolean);
+      return { x: cx + crW / cf * focal, y: cy - (cuW * cosCP - cfW * sinCP) / cf * focal };
+    });
 
-    if (shadowPts.length >= 3) {
-      const t       = alt_nm / 0.082;
-      const opacity = (1 - t) * 0.38;
-      const blur    = Math.round(2 + t * 8);
-      ctx.save();
-      ctx.filter    = `blur(${blur}px)`;
-      ctx.fillStyle = `rgba(0,0,0,${opacity.toFixed(3)})`;
-      ctx.beginPath();
-      ctx.moveTo(shadowPts[0].x, shadowPts[0].y);
-      for (let k = 1; k < shadowPts.length; k++) ctx.lineTo(shadowPts[k].x, shadowPts[k].y);
+    const _ft     = alt_nm / 0.082;
+    const opacity = (1 - _ft) * 0.38;
+    const blur    = Math.round(2 + _ft * 8);
+    ctx.save();
+    ctx.filter    = `blur(${blur}px)`;
+    ctx.fillStyle = `rgba(0,0,0,${opacity.toFixed(3)})`;
+    ctx.beginPath();
+    for (const f of F_) {
+      const fp = f.map(vi => shP[vi]);
+      if (fp.some(p => !p)) continue;
+      /* Normalise winding to CCW so the nonzero fill is the UNION of all faces — top and
+         bottom surfaces project onto the same footprint with opposite winding and would
+         otherwise cancel to a hole. */
+      let a2 = 0;
+      for (let k = 0; k < fp.length; k++) { const p = fp[k], q = fp[(k + 1) % fp.length]; a2 += p.x * q.y - q.x * p.y; }
+      const seq = a2 < 0 ? fp.slice().reverse() : fp;
+      ctx.moveTo(seq[0].x, seq[0].y);
+      for (let k = 1; k < seq.length; k++) ctx.lineTo(seq[k].x, seq[k].y);
       ctx.closePath();
-      ctx.fill();
-      ctx.restore();
     }
+    ctx.fill();
+    ctx.restore();
   }
 
   /* Rotate body-frame normal by aircraft pitch + roll → world frame */
