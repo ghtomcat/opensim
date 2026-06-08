@@ -3034,6 +3034,15 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
      Project and fill each panel directly here, after all fuselage faces are done.
      Shared edges between adjacent panels are detected and suppressed so they don't
      draw a silver divider line through what should look like a single window.         */
+  /* Cylindrical livery base (e.g. the red nose) is drawn here — after the fuselage faces
+     but BEFORE the cockpit panels/windows — so the glazing sits on top of the paint. */
+  /* Per-face brightness for decals — same lighting as the fuselage skin (litBr on the
+     rotated face normal), so painted livery shades instead of reading flat. */
+  const _decalBr = (fi) => { const [nF, nR, nU] = rotateNormal(FN_[fi]); return litBr(nF, nR, nU, 0.18); };
+  {
+    const _bandDecals = (S.aircraft?.livery?.decals ?? []).filter(d => d.cylindrical);
+    if (_bandDecals.length) _drawLiveryDecals(ctx, _bandDecals, pts, verts, FC_, F_, project, camSide, _decalBr, _wCol);
+  }
   if (_wbGeo?.cockpitPanels) {
     /* Rounded-corner path for a projected polygon — arcTo rounds each corner by its
        own radius rs[i] (0 = sharp). */
@@ -3326,9 +3335,10 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
   }
 
-  /* Livery decals — SVG paths mapped onto named surfaces */
-  const _livDecals = S.aircraft?.livery?.decals;
-  if (_livDecals?.length) _drawLiveryDecals(ctx, _livDecals, pts, verts, FC_, F_, project, camSide);
+  /* Livery decals — SVG paths mapped onto named surfaces. Cylindrical bases (red nose)
+     were already drawn earlier, under the cockpit windows. */
+  const _livDecals = (S.aircraft?.livery?.decals ?? []).filter(d => !d.cylindrical);
+  if (_livDecals.length) _drawLiveryDecals(ctx, _livDecals, pts, verts, FC_, F_, project, camSide, _decalBr, _wCol);
 
   /* Rudder gap line — thin black outline around the rudder (hinge line · tip · TE · root)
      on whichever side of the fin faces the camera. Drawn after the livery so the gap
@@ -3376,7 +3386,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       placement: [[_rgXF, _rgR, _rgZT], [_rgXF - _rgU, _rgR, _rgZT],
                   [_rgXF - _rgU, _rgR, _rgZB], [_rgXF, _rgR, _rgZB]],
       elements: [{ text: _rgReg, fill: 'rgb(45,48,56)', x: _rgVbW / 2, y: 11, size: 15 }],
-    }], pts, verts, FC_, F_, project, camSide);
+    }], pts, verts, FC_, F_, project, camSide, _decalBr, _wCol);
   }
 
   /* Re-stamp near-side wing + winglet faces after livery to prevent livery bleeding over them.
@@ -5063,9 +5073,19 @@ function _engineOverlays(pts, faces, acEng, _b = 162) {
    Per-face affine mapping: each visible face gets its own SVG→screen
    transform derived from UV coordinates, eliminating cylinder distortion.
    Fallback to bounding-box for decals without placement.               */
-function _drawLiveryDecals(ctx, decals, pts, verts, FC_, F_, project, camSide = 0) {
+function _drawLiveryDecals(ctx, decals, pts, verts, FC_, F_, project, camSide = 0, faceBr = null, wCol = null) {
+  /* Shade a CSS hex fill by a face brightness (warm sun tint), so painted decals pick up
+     the same per-face lighting as the fuselage instead of reading as flat colour. */
+  let _shadeBr = 1;
+  const _shadeCol = (c) => {
+    if (!faceBr || !wCol || _shadeBr >= 0.999 || typeof c !== 'string') return c;
+    const m = /^#([0-9a-fA-F]{6})$/.exec(c);
+    if (!m) return c;
+    const n = parseInt(m[1], 16);
+    return wCol([(n >> 16) & 255, (n >> 8) & 255, n & 255], _shadeBr);
+  };
   /* engine maps to both regular nacelle (4) and TR zone (7) so the logo is uninterrupted */
-  const SURF = { vtail: 2, nose: 6, fuselage: 0, engine: [4, 7], winglet: 9 };
+  const SURF = { vtail: 2, nose: 6, fuselage: 0, engine: [4, 7], winglet: 9, noseband: [6, 0] };
   for (const decal of decals) {
     const cIdxVal = SURF[decal.surface];
     if (cIdxVal === undefined) continue;
@@ -5102,7 +5122,7 @@ function _drawLiveryDecals(ctx, decals, pts, verts, FC_, F_, project, camSide = 
           ctx.rotate(el.rotate * Math.PI / 180);
           ctx.translate(-rcx, -rcy);
         }
-        ctx.fillStyle = el.fill ?? '#ffffff';
+        ctx.fillStyle = _shadeCol(el.fill ?? '#ffffff');
         ctx.globalAlpha = el.opacity ?? 1;
         if (el.text != null) {
           /* Text element (registrations, simple titles) — drawn in the same
@@ -5115,7 +5135,7 @@ function _drawLiveryDecals(ctx, decals, pts, verts, FC_, F_, project, camSide = 
           const _path = new Path2D(el.d);
           if (el.fill !== 'none') ctx.fill(_path);
           if (el.stroke) {                         // optional outline (e.g. logo blue edging)
-            ctx.strokeStyle = el.stroke;
+            ctx.strokeStyle = _shadeCol(el.stroke);
             ctx.lineWidth   = el.strokeWidth ?? 1;
             ctx.lineJoin    = 'round';
             ctx.stroke(_path);
@@ -5125,7 +5145,24 @@ function _drawLiveryDecals(ctx, decals, pts, verts, FC_, F_, project, camSide = 
       }
     }
 
-    if (_pl && verts) {
+    if ((_pl || decal.cylindrical) && verts) {
+      const _cyl = decal.cylindrical;   // { x0, x1, a0, a1 } unrolled fuselage: u=station, v=angle°
+      let _faceUV;
+      if (_cyl) {
+        /* Cylindrical (unrolled-fuselage) mapping: u = fuselage station (x0→x1), v =
+           circumferential angle θ = atan2(z, y) in degrees (right 0°, crown +90°, belly
+           −90°, left ±180°). Per-face the angles are unwrapped relative to the first vertex,
+           so a triangle straddling the ±180° seam doesn't smear the whole artwork. */
+        const _xr = (_cyl.x1 - _cyl.x0) || 1e-9, _ar = (_cyl.a1 - _cyl.a0) || 1e-9;
+        _faceUV = (fv) => {
+          const raw = fv.map(vi => { const W = verts[vi];
+            return { u: (W[0] - _cyl.x0) / _xr, ang: Math.atan2(W[2], W[1]) * 180 / Math.PI }; });
+          const a0r = raw[0].ang;
+          return raw.map(r => { let ang = r.ang;
+            if (ang - a0r > 180) ang -= 360; else if (ang - a0r < -180) ang += 360;
+            return { u: r.u, v: (ang - _cyl.a0) / _ar }; });
+        };
+      } else {
       /* Per-face affine: placement[0..3] defines a UV quad in 3D world space.
          U = placement[0]→placement[1], V = placement[0]→placement[3].        */
       const pl = _pl;
@@ -5166,6 +5203,8 @@ function _drawLiveryDecals(ctx, decals, pts, verts, FC_, F_, project, camSide = 
         const u = Math.abs(dnx) > Math.abs(dny) ? (hx-_fx*v)/(dnx||1e-20) : (hy-_fy*v)/(dny||1e-20);
         return { u, v };
       };
+      _faceUV = (fv) => fv.map(vi => _invBilin(verts[vi]));
+      }
 
       for (let fi = 0; fi < F_.length; fi++) {
         if (!cIdxList.includes(FC_[fi])) continue;
@@ -5190,8 +5229,9 @@ function _drawLiveryDecals(ctx, decals, pts, verts, FC_, F_, project, camSide = 
            the threshold must stay below them (a thin fin can put a TE vert at ~1e-5). */
         if (FC_[fi] === 2 && verts && fv.some(vi => Math.abs(verts[vi][1]) < 1e-6)) continue;
 
-        /* Project each vertex onto the placement quad → UV ∈ [0,1]×[0,1] */
-        const uvs = fv.map(vi => _invBilin(verts[vi]));
+        /* Vertex → UV ∈ [0,1]×[0,1] (placement quad, or unrolled-fuselage cylinder) */
+        _shadeBr = faceBr ? faceBr(fi) : 1;   // per-face lighting → shade the decal like the skin
+        const uvs = _faceUV(fv);
 
         /* Skip faces entirely outside the placement quad */
         if (uvs.every(uv => uv.u < -0.05) || uvs.every(uv => uv.u > 1.05) ||
@@ -5246,7 +5286,8 @@ function _drawLiveryDecals(ctx, decals, pts, verts, FC_, F_, project, camSide = 
       }
 
       /* Debug: project placement quad to screen and draw colored outline */
-      if (decal.debug) {
+      if (decal.debug && _pl) {
+        const pl = _pl, P0 = pl[0], P1 = pl[1], P3 = pl[3];
         const sp = [pl[0], pl[1], pl[2] ?? [P1[0]+P3[0]-P0[0], P1[1]+P3[1]-P0[1], P1[2]+P3[2]-P0[2]], pl[3]].map(c => project(c));
         if (sp.every(p => p)) {
           ctx.save();

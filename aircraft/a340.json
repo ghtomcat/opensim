@@ -42,6 +42,14 @@
     ],
     "decals": [
       {
+        "surface": "noseband",
+        "cylindrical": { "x0": 0.011068, "x1": 0.001, "a0": -180, "a1": 180 },
+        "viewBox": "0 0 100 360",
+        "elements": [
+          { "fill": "#dc0a1e", "d": "M0,-40 L48,-40 L48,0 L38,90 L48,180 L62,270 L48,360 L48,400 L0,400 Z" }
+        ]
+      },
+      {
         "surface": "fuselage",
         "viewBox": "47 0 213 47.16",
         "placement": [
