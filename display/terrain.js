@@ -2151,6 +2151,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
       const gates = ic && STANDS[ic];
       if (!gates) continue;
       const _nightF = 1 - dayFrac, _dpr = devicePixelRatio || 1;
+      let _gi = 0;
       for (const g of gates) {
         const gN = (g.lat - acLat) * 60, gE = (g.lon - acLon) * 60 * cosAcLat;
         if (gN * gN + gE * gE > 25) continue;             // >5 nm: skip
@@ -2167,52 +2168,117 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           return proj(N * cosH + E * sinH, E * cosH - N * sinH, e0 + hM * M_NM);
         };
 
-        /* Articulated bridge: two elevated tunnels joined by a round rotunda, with a
-           wheeled drive bogie under the aircraft (cab) tunnel. */
-        const FWD0 = 1, BR_LEN = 12, BR_W = 3, LEFT = 4, FLOOR = 3.6, ROOF = 6.0;
-        const aL = LEFT - BR_W / 2, aR = LEFT + BR_W / 2;
-        const fD = FWD0, fT = FWD0 + BR_LEN, fM = (fD + fT) / 2;   // door, terminal, joint
-        const _tube = (f0, f1) => {
-          const bt = [GP(f0, aL, FLOOR), GP(f0, aR, FLOOR), GP(f1, aR, FLOOR), GP(f1, aL, FLOOR)];
-          const tp = [GP(f0, aL, ROOF),  GP(f0, aR, ROOF),  GP(f1, aR, ROOF),  GP(f1, aL, ROOF)];
+        /* Articulated bridge: a round rotunda fixed at the terminal (the swivel pivot)
+           with a long two-section telescoping arm reaching out to the aircraft door. The
+           whole arm pivots slowly about the rotunda; its wheeled drive bogie traces the
+           arc on the apron. */
+        const BR_W = 3, LEFT = 4, FLOOR = 3.6, THK = 2.4, ROOF = FLOOR + THK;
+        const fT = 13, fDoor = -8, LEN = fT - fDoor;      // rotunda(terminal) → door reach (~21 m / 69 ft)
+        const _ph = _gi++, _now = performance.now() / 1000;
+        const _phi  = 0.06 + 0.09 * Math.sin(_now * 0.22 + _ph * 1.7);   // swivel about rotunda
+        const _lift = 3.4 + 0.85 * Math.sin(_now * 0.16 + _ph * 2.3);    // cab height on the lift
+        const R = [fT, LEFT];                             // rotunda / pivot
+        const dx = -Math.cos(_phi), dy = Math.sin(_phi);  // arm dir in (fwd,side): door at phi=0
+        const armPt = (t) => [R[0] + LEN * t * dx, R[1] + LEN * t * dy]; // t:0=rotunda 1=cab
+
+        /* Box along centreline p0→p1 ([fwd,side]); floor h0 at p0, h1 at p1 (the arm
+           slopes — level at the rotunda, raised/lowered at the cab). */
+        const _segBox = (p0, p1, w, h0, h1) => {
+          const aF = p1[0]-p0[0], aS = p1[1]-p0[1], L = Math.hypot(aF,aS) || 1;
+          const px = -aS/L * (w/2), py = aF/L * (w/2);
+          const cn = (p, s, h) => GP(p[0] + s*px, p[1] + s*py, h);
+          const bt = [cn(p0,1,h0), cn(p0,-1,h0), cn(p1,-1,h1), cn(p1,1,h1)];
+          const tp = [cn(p0,1,h0+THK), cn(p0,-1,h0+THK), cn(p1,-1,h1+THK), cn(p1,1,h1+THK)];
           if (tp.every(p => p)) { ctx.fillStyle = 'rgba(120,134,150,0.30)'; ctx.beginPath();
-            ctx.moveTo(tp[0][0], tp[0][1]); for (let i = 1; i < 4; i++) ctx.lineTo(tp[i][0], tp[i][1]);
+            ctx.moveTo(tp[0][0],tp[0][1]); for (let i=1;i<4;i++) ctx.lineTo(tp[i][0],tp[i][1]);
             ctx.closePath(); ctx.fill(); }
           ctx.strokeStyle = 'rgba(170,186,202,0.78)'; ctx.lineWidth = 1.1 * _dpr; ctx.beginPath();
-          for (let i = 0; i < 4; i++) { const a = bt[i], b = bt[(i+1)%4], c = tp[i], d = tp[(i+1)%4];
-            if (a && b) { ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); }
-            if (c && d) { ctx.moveTo(c[0],c[1]); ctx.lineTo(d[0],d[1]); }
-            if (a && c) { ctx.moveTo(a[0],a[1]); ctx.lineTo(c[0],c[1]); } }
+          for (let i=0;i<4;i++){ const a=bt[i],b=bt[(i+1)%4],c=tp[i],d=tp[(i+1)%4];
+            if(a&&b){ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}
+            if(c&&d){ctx.moveTo(c[0],c[1]);ctx.lineTo(d[0],d[1]);}
+            if(a&&c){ctx.moveTo(a[0],a[1]);ctx.lineTo(c[0],c[1]);} }
           ctx.stroke();
         };
-        _tube(fM, fT);                                    // terminal tunnel
-        _tube(fD, fM);                                    // aircraft tunnel
+        _segBox(armPt(0), armPt(1), BR_W, FLOOR, _lift);  // single arm: level → lifted at cab
 
-        /* Round rotunda at the joint — the swivel that lets the bridge articulate. */
-        const RR = 1.7, RN = 8, rB = [], rT = [];
-        for (let k = 0; k < RN; k++) { const a = k / RN * Math.PI * 2, cx = Math.cos(a) * RR, sy = Math.sin(a) * RR;
-          rB.push(GP(fM + cx, LEFT + sy, FLOOR - 0.3)); rT.push(GP(fM + cx, LEFT + sy, ROOF + 0.3)); }
-        ctx.strokeStyle = 'rgba(182,198,212,0.82)'; ctx.lineWidth = 1.1 * _dpr; ctx.beginPath();
-        for (let k = 0; k < RN; k++) { const a = rB[k], b = rB[(k+1)%RN], c = rT[k], d = rT[(k+1)%RN];
-          if (a && b) { ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); }
-          if (c && d) { ctx.moveTo(c[0],c[1]); ctx.lineTo(d[0],d[1]); }
-          if (a && c) { ctx.moveTo(a[0],a[1]); ctx.lineTo(c[0],c[1]); } }
-        ctx.stroke();
+        /* Round rotunda drum at the terminal (bridge level), sitting on a slimmer round
+           support column down to the ground. */
+        const RR = 1.9, RN = 8;
+        const _cyl = (rad, h0, h1) => {
+          const b=[], t=[];
+          for (let k=0;k<RN;k++){ const a=k/RN*Math.PI*2, cx=Math.cos(a)*rad, sy=Math.sin(a)*rad;
+            b.push(GP(fT+cx, LEFT+sy, h0)); t.push(GP(fT+cx, LEFT+sy, h1)); }
+          ctx.beginPath();
+          for (let k=0;k<RN;k++){ const p=b[k],q=b[(k+1)%RN],c=t[k],d=t[(k+1)%RN];
+            if(p&&q){ctx.moveTo(p[0],p[1]);ctx.lineTo(q[0],q[1]);}
+            if(c&&d){ctx.moveTo(c[0],c[1]);ctx.lineTo(d[0],d[1]);}
+            if(p&&c){ctx.moveTo(p[0],p[1]);ctx.lineTo(c[0],c[1]);} }
+          ctx.stroke();
+        };
+        ctx.strokeStyle = 'rgba(182,198,212,0.82)'; ctx.lineWidth = 1.1 * _dpr;
+        _cyl(0.9, 0, FLOOR + 0.3);          // support column (ground → bridge floor)
+        _cyl(RR, FLOOR - 0.3, ROOF + 0.5);  // rotunda drum at bridge level
 
-        /* Wheeled drive bogie under the middle of the aircraft tunnel — two vertical
-           struts, each riding a fore/aft pair of wheels on the apron. */
-        const fW = (fD + fM) / 2, WB = 0.7, WR = 0.55;
+        /* Lift column + wheeled drive bogie under the cab: two vertical struts (the arm
+           rides up/down them) joined by a horizontal beam at the top, each on a fore/aft
+           wheel pair on the apron. */
+        const Bp = armPt(0.88), qx = -dy, qy = dx, WB = 0.7, WR = 0.55, STR_TOP = 8;
         ctx.strokeStyle = 'rgba(150,160,170,0.82)'; ctx.lineWidth = 1.4 * _dpr;
-        for (const sd of [aL, aR]) { const t = GP(fW, sd, FLOOR), b = GP(fW, sd, 0);
-          if (t && b) { ctx.beginPath(); ctx.moveTo(t[0],t[1]); ctx.lineTo(b[0],b[1]); ctx.stroke(); } }
+        const sTop = []; ctx.beginPath();
+        for (const s of [-1, 1]) { const sx = Bp[0] + qx*(BR_W/2)*s, sy = Bp[1] + qy*(BR_W/2)*s;
+          const t = GP(sx, sy, STR_TOP), b = GP(sx, sy, 0); sTop.push(t);
+          if (t && b) { ctx.moveTo(t[0],t[1]); ctx.lineTo(b[0],b[1]); } }                 // verticals
+        if (sTop[0] && sTop[1]) { ctx.moveTo(sTop[0][0],sTop[0][1]); ctx.lineTo(sTop[1][0],sTop[1][1]); } // top beam
+        ctx.stroke();
         ctx.fillStyle = 'rgba(40,44,50,0.90)';
-        for (const sd of [aL, aR]) for (const df of [-WB, WB]) {
-          const c0 = GP(fW + df, sd, 0), c1 = GP(fW + df, sd, 2 * WR);
-          if (c0 && c1) { const r = Math.max(1.2 * _dpr, Math.hypot(c1[0]-c0[0], c1[1]-c0[1]) / 2);
-            ctx.beginPath(); ctx.arc((c0[0]+c1[0])/2, (c0[1]+c1[1])/2, r, 0, Math.PI * 2); ctx.fill(); } }
+        for (const s of [-1, 1]) for (const df of [-WB, WB]) {
+          const sx = Bp[0] + qx*(BR_W/2)*s + dx*df, sy = Bp[1] + qy*(BR_W/2)*s + dy*df;
+          const c0 = GP(sx, sy, 0), c1 = GP(sx, sy, 2*WR);
+          if (c0 && c1) { const r = Math.max(1.2*_dpr, Math.hypot(c1[0]-c0[0], c1[1]-c0[1])/2);
+            ctx.beginPath(); ctx.arc((c0[0]+c1[0])/2, (c0[1]+c1[1])/2, r, 0, Math.PI*2); ctx.fill(); } }
 
-        /* Flood-lamp pole beside the bridge on the apron side. */
-        const LH = 11, base = GP(FWD0 + 3, aR + 3, 0), head = GP(FWD0 + 3, aR + 3, LH);
+        /* Cab at the aircraft end: a full-circle rotunda (the cab swivels here) ending in
+           a small cab box that carries a side service door, with the bellows seal on the
+           cab's end face against the fuselage. */
+        const CC = armPt(1), CR = 1.3, CABL = 2.2, CABW = 2.6, _lo = _lift, _hi = _lift + THK;
+        ctx.strokeStyle = 'rgba(182,198,212,0.82)'; ctx.lineWidth = 1.1 * _dpr;
+        { const b=[], t=[];                                       // (a) full rotunda cylinder
+          for (let k=0;k<8;k++){ const a=k/8*Math.PI*2, cx=Math.cos(a)*CR, sy=Math.sin(a)*CR;
+            b.push(GP(CC[0]+cx, CC[1]+sy, _lo)); t.push(GP(CC[0]+cx, CC[1]+sy, _hi)); }
+          ctx.beginPath();
+          for (let k=0;k<8;k++){ const p=b[k],q=b[(k+1)%8],c=t[k],d=t[(k+1)%8];
+            if(p&&q){ctx.moveTo(p[0],p[1]);ctx.lineTo(q[0],q[1]);}
+            if(c&&d){ctx.moveTo(c[0],c[1]);ctx.lineTo(d[0],d[1]);}
+            if(p&&c){ctx.moveTo(p[0],p[1]);ctx.lineTo(c[0],c[1]);} }
+          ctx.stroke(); }
+        /* (b) small cab box reaching from the rotunda toward the fuselage (-side). */
+        const csN = CC[1] - CR*0.5, csF = CC[1] - CR*0.5 - CABL, cf0 = CC[0]-CABW/2, cf1 = CC[0]+CABW/2;
+        const _box = (h) => [GP(cf0,csN,h), GP(cf1,csN,h), GP(cf1,csF,h), GP(cf0,csF,h)];
+        const cbot = _box(_lo), ctop = _box(_hi);
+        if (ctop.every(p=>p)) { ctx.fillStyle = 'rgba(120,134,150,0.30)'; ctx.beginPath();
+          ctx.moveTo(ctop[0][0],ctop[0][1]); for(let i=1;i<4;i++)ctx.lineTo(ctop[i][0],ctop[i][1]);
+          ctx.closePath(); ctx.fill(); }
+        ctx.strokeStyle = 'rgba(170,186,202,0.78)'; ctx.lineWidth = 1.1 * _dpr; ctx.beginPath();
+        for (let i=0;i<4;i++){ const a=cbot[i],b=cbot[(i+1)%4],c=ctop[i],d=ctop[(i+1)%4];
+          if(a&&b){ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}
+          if(c&&d){ctx.moveTo(c[0],c[1]);ctx.lineTo(d[0],d[1]);}
+          if(a&&c){ctx.moveTo(a[0],a[1]);ctx.lineTo(c[0],c[1]);} }
+        ctx.stroke();
+        /* (c) side service door on the cab's +fwd wall. */
+        const dm = (csN + csF) / 2, dd = [GP(cf1, dm+0.45, _lo), GP(cf1, dm-0.45, _lo),
+              GP(cf1, dm-0.45, _lo+2.0), GP(cf1, dm+0.45, _lo+2.0)];
+        if (dd.every(p=>p)) { ctx.strokeStyle = 'rgba(95,105,116,0.85)'; ctx.lineWidth = 1 * _dpr;
+          ctx.beginPath(); ctx.moveTo(dd[0][0],dd[0][1]); for(let i=1;i<4;i++)ctx.lineTo(dd[i][0],dd[i][1]);
+          ctx.closePath(); ctx.stroke(); }
+        /* (d) bellows seal on the cab end face, against the fuselage. */
+        const be = [GP(cf0,csF,_lo), GP(cf1,csF,_lo), GP(cf1,csF,_hi), GP(cf0,csF,_hi)];
+        if (be.every(p=>p)) { ctx.beginPath(); ctx.moveTo(be[0][0],be[0][1]);
+          for(let i=1;i<4;i++)ctx.lineTo(be[i][0],be[i][1]); ctx.closePath();
+          ctx.fillStyle='rgba(18,20,24,0.55)'; ctx.fill();
+          ctx.strokeStyle='rgba(8,8,10,0.94)'; ctx.lineWidth=3.4*_dpr; ctx.stroke(); }
+
+        /* Flood-lamp pole on the apron, near the rotunda, clear of the swing arc. */
+        const LH = 11, base = GP(fT - 2, LEFT + 5, 0), head = GP(fT - 2, LEFT + 5, LH);
         if (base && head) {
           ctx.strokeStyle = 'rgba(150,160,170,0.70)'; ctx.lineWidth = 1.2 * _dpr;
           ctx.beginPath(); ctx.moveTo(base[0], base[1]); ctx.lineTo(head[0], head[1]); ctx.stroke();
