@@ -5064,6 +5064,20 @@ function _drawLiveryDecals(ctx, decals, pts, verts, FC_, F_, project, camSide = 
     const elems = decal.elements ?? [];
     if (!elems.length) continue;
 
+    /* Vtail decals: synthesize a placement quad from the fin corners (vstab block), so
+       the logo maps onto the real fin surface and follows any fin change. finFill 1 =
+       fills the whole fin (Edelweiss flower); other liveries use a smaller fraction. */
+    let _pl = decal.placement;
+    if (!_pl && decal.surface === 'vtail' && S.aircraft?.vstab) {
+      const _vs = S.aircraft.vstab;
+      const _fr = S.aircraft.geometry?.r ?? S.aircraft.nose?.r ?? _r;
+      const _ff = decal.finFill ?? 1;
+      const _cnr = [[_vs.rootLE,0,_fr],[_vs.rootTE,0,_fr],[_vs.tipTE,0,_vs.tipZ],[_vs.tipLE,0,_vs.tipZ]];
+      const _cx = (_cnr[0][0]+_cnr[1][0]+_cnr[2][0]+_cnr[3][0])/4;
+      const _cz = (_cnr[0][2]+_cnr[1][2]+_cnr[2][2]+_cnr[3][2])/4;
+      _pl = _cnr.map(p => [_cx+(p[0]-_cx)*_ff, 0, _cz+(p[2]-_cz)*_ff]);
+    }
+
     function drawElems() {
       for (const el of elems) {
         ctx.save();
@@ -5097,10 +5111,10 @@ function _drawLiveryDecals(ctx, decals, pts, verts, FC_, F_, project, camSide = 
       }
     }
 
-    if (decal.placement && verts) {
+    if (_pl && verts) {
       /* Per-face affine: placement[0..3] defines a UV quad in 3D world space.
          U = placement[0]→placement[1], V = placement[0]→placement[3].        */
-      const pl = decal.placement;
+      const pl = _pl;
       const P0 = pl[0], P1 = pl[1], P3 = pl[3];
       const Ux = P1[0]-P0[0], Uy = P1[1]-P0[1], Uz = P1[2]-P0[2];
       const Vx = P3[0]-P0[0], Vy = P3[1]-P0[1], Vz = P3[2]-P0[2];
