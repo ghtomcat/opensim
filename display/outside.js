@@ -1175,13 +1175,10 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
 
     /* Elevation orbit: tilt the scene up/down around the camera horizontal axis.
-       Side cam (camSide>0): camera is right of ship → rotate in rR-uR plane.
-       Chase cam (camSide=0): camera is behind ship → rotate in fP-uR plane. */
-    if (orbitElDeg !== 0 && camSide > 0) {
-      const rR2 = rR * cosEl + uR * sinEl;
-      uR = -rR * sinEl + uR * cosEl;
-      rR = rR2;
-    } else if (orbitElDeg !== 0) {
+       Chase cam (camSide=0): camera is behind ship → rotate in fP-uR plane.
+       Side cam (camSide>0): applied AFTER azimuth below, so the tilt axis follows the
+       camera; doing it here (aircraft frame) turned into roll once az swung behind. */
+    if (orbitElDeg !== 0 && camSide === 0) {
       const fP2 = fP * cosEl + uR * sinEl;
       uR = -fP * sinEl + uR * cosEl;
       fP = fP2;
@@ -1200,6 +1197,14 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       const fP2 = fP * cosAz - rR * sinAz;
       rR        = fP * sinAz + rR * cosAz;
       fP = fP2;
+    }
+    /* Side cam elevation: AFTER azimuth, so the tilt is about the camera-right axis
+       (the post-az forward) rather than the aircraft's forward — otherwise it reads as
+       roll as the view swings behind the nose. Rotate in the rR-uR plane. */
+    if (orbitElDeg !== 0 && camSide > 0) {
+      const rR2 = rR * cosEl + uR * sinEl;
+      uR = -rR * sinEl + uR * cosEl;
+      rR = rR2;
     }
 
     let cfW, crW, cuW;
