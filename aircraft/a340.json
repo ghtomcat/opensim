@@ -795,7 +795,8 @@
     "vstabRudderTipChord": 832,
     "vstabDorsalFilletRootChord": 10284,
     "noseTipToVstabTipTE": 63547,
-    "noseTipToDorsalFilletLE": 50140
+    "noseTipToDorsalFilletLE": 50140,
+    "dorsalFilletBlendHeight": 2208
   },
   "bellyFairing": {
     "fromX": 0.0005021225888135836,
@@ -811,5 +812,9 @@
     "tipHinge": -0.022795394,
     "tipTE": -0.023244638,
     "tipZ": 0.006018117
+  },
+  "dorsalFillet": {
+    "leX": -0.016005437,
+    "blendZ": 0.002714903
   }
 }

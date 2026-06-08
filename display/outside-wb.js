@@ -795,6 +795,22 @@ export function _buildWB(np) {
     }
   }
 
+  /* ── Dorsal fin fairing — the prominent triangular blend that extends the fin LE
+     forward down onto the fuselage spine (data-driven via np.dorsalFillet + np.vstab):
+     A = fillet LE on the spine, B = structural fin root LE on the spine, C = apex where
+     the fillet LE merges into the fin LE at blendZ. Flat centreplane triangle, body-
+     coloured, double-sided so it reads from either side. */
+  if (np.dorsalFillet && _vs) {
+    const _df = np.dorsalFillet;
+    const _dfFrac  = Math.max(0, Math.min(1, (_df.blendZ - r) / (vstabZ - r)));
+    const _dfApexX = _vsRL + (_vsTL - _vsRL) * _dfFrac;
+    const _dfB = V_.length;
+    V_.push([_df.leX, 0, r], [_vsRL, 0, r], [_dfApexX, 0, _df.blendZ]);
+    F_.push([_dfB, _dfB + 1, _dfB + 2]); FC_.push(0);
+    F_.push([_dfB, _dfB + 2, _dfB + 1]); FC_.push(0);
+    E_.push([_dfB, _dfB + 2], [_dfB + 1, _dfB + 2]);   // LE ridge + aft edge as wireframe
+  }
+
   return { V_, F_, FC_, E_, SE_, SL_, b, r, rb, ey: np.ey, ez, wing: np.wing, wzShift,
     winFwdRi: np.winFwdRi, winAftRi: np.winAftRi,
     winSiInner: np.winSiInner, winSiOuter: np.winSiOuter,
@@ -843,6 +859,7 @@ export function _acGeoFromJson(aircraft, baseNp) {
     pz:            jGeo.pylonZ        ?? baseNp.pz,
     wing:          aircraft.wing      ?? baseNp.wing,
     vstab:         aircraft.vstab     ?? baseNp.vstab,
+    dorsalFillet:  aircraft.dorsalFillet ?? baseNp.dorsalFillet,
     winglet:       aircraft.winglet   ?? baseNp.winglet,
     eLen:          jGeo.engineLen     ?? baseNp.eLen ?? 1.0,
     fanCowlRatio:  jGeo.fanCowlRatio  ?? baseNp.fanCowlRatio,
