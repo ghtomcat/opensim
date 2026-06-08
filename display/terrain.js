@@ -1401,11 +1401,19 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           const bN=(rg.b.lat-acLat)*60, bE=(rg.b.lon-acLon)*60*cosAcLat;
           const dN=bN-aN, dE=bE-aE, L=Math.hypot(dN,dE)||1e-6, pN=-dE/L, pE=dN/L, hw=(rg.widthM/1852)/2;
           const _eM=_sampleElev(rg.a.lat,rg.a.lon), _eNm=_eM!==null?(_eM-refM)*M_NM:0;
-          const c=[[aN+pN*hw,aE+pE*hw],[aN-pN*hw,aE-pE*hw],[bN-pN*hw,bE-pE*hw],[bN+pN*hw,bE+pE*hw]];
-          const sps=c.map(([N,E])=>proj(N*cosH+E*sinH,E*cosH-N*sinH,_eNm));
-          if(sps.some(s=>!s))continue;
-          ctx.beginPath(); ctx.moveTo(sps[0][0],sps[0][1]);
-          for(let i=1;i<4;i++)ctx.lineTo(sps[i][0],sps[i][1]); ctx.closePath(); ctx.fill();
+          /* Draw the long runway as segments along its length: a single behind-camera
+             corner then only drops one short segment instead of the whole runway (which
+             made the grey vanish on orbit). */
+          const _SEG = 40;
+          for (let s=0; s<_SEG; s++) {
+            const _t0=s/_SEG, _t1=(s+1)/_SEG;
+            const _q0N=aN+dN*_t0, _q0E=aE+dE*_t0, _q1N=aN+dN*_t1, _q1E=aE+dE*_t1;
+            const c=[[_q0N+pN*hw,_q0E+pE*hw],[_q0N-pN*hw,_q0E-pE*hw],[_q1N-pN*hw,_q1E-pE*hw],[_q1N+pN*hw,_q1E+pE*hw]];
+            const sps=c.map(([N,E])=>proj(N*cosH+E*sinH,E*cosH-N*sinH,_eNm));
+            if(sps.some(s=>!s))continue;
+            ctx.beginPath(); ctx.moveTo(sps[0][0],sps[0][1]);
+            for(let i=1;i<4;i++)ctx.lineTo(sps[i][0],sps[i][1]); ctx.closePath(); ctx.fill();
+          }
         }
       }
       ctx.restore();
