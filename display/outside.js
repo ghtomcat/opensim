@@ -2706,12 +2706,14 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
           const L = Math.hypot(ay, dz), φ = Math.atan2(dz, ay);
           return _nz([x, sign*(_aIn + L*Math.cos(φ-_bθ)), zH + L*Math.sin(φ-_bθ)], 0.00006);
         }, _dCol, 'rgba(10,12,16,0.92)');
-        /* (c) strut leg door — pinned to the OUTBOARD edge of the leg, hanging from the
-           well opening down past the axle; follows the strut centreline as it folds in. */
-        const _hl=_mTR*1.3, _stT=_animGV[top], _stA=_animGV[axle];
+        /* (c) strut leg door — pinned to the OUTBOARD edge of the leg, covering the upper
+           part of the leg (the bit inside the well opening); the wheels retract into the
+           fairing, so the door stops well short of the axle. Follows the strut as it folds. */
+        const _hl=_mTR*1.3, _stT=_animGV[top], _stA=_animGV[axle], _dEnd=0.45;
         _curvedPanel(_gMx+_hl, _gMx-_hl, 0, 1, (x,u) => {
-          const legY = _stT[1] + (_stA[1] - _stT[1]) * u;   // leg centreline y at this height
-          const z    = _stT[2] + (_stA[2] + _mTR*0.8 - _stT[2]) * u;
+          const t    = u * _dEnd;                            // 0 = well opening → _dEnd down the leg
+          const legY = _stT[1] + (_stA[1] - _stT[1]) * t;    // leg centreline y at this height
+          const z    = _stT[2] + (_stA[2] - _stT[2]) * t;
           return _nz([x, legY + sign*_mrU, z], 0.00006);     // outboard edge of the strut
         }, _dCol, 'rgba(10,12,16,0.92)');
       }
@@ -3646,17 +3648,28 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       };
 
       const _eXpos  = _wbGeo?.eApos ?? (0.005 + (_wbGeo?.exOff ?? 0));
-      const _fusCtr = project([_eXpos, 0, 0]);
-      const _fusCullD = _fusCtr ? _fusCtr.d + 0.0005 : Infinity;
+      /* Cull a fan only when it's genuinely occluded by the fuselage: its screen position
+         falls inside the body silhouette (at its own x-station, so aft-swept outboard
+         engines are handled) AND it sits behind the body centre. The outboard engine reads
+         deeper head-on from its sweep + lateral offset, but it's clearly beside the body,
+         so it isn't occluded — the old depth-threshold cull wrongly hid it. */
+      const _fusR = _wbGeo?.r ?? _r;
+      const _fusOccluded = (p, ex) => {
+        if (!p) return true;
+        const c = project([ex, 0, 0]), e = project([ex, _fusR, 0]);
+        if (!c || !e) return false;
+        const rS = Math.hypot(e.x - c.x, e.y - c.y) * 1.12;
+        return p.d > c.d && Math.hypot(p.x - c.x, p.y - c.y) < rS;
+      };
 
       /* Inner engines — geometry carries explicit intake (eA) + fan (eB) rings.
          Fan ring is the fan cowl (≈1.2× bore), so scale 0.83 → bore-sized fan. */
       const _rHub = pts[_b+158], _rFan = pts[_b+28];
       const _lHub = pts[_b+159], _lFan = pts[_b+68];
-      if (_rHub && _rFan && _rHub.d < _rFan.d && _rHub.d < _fusCullD && _cpCamF > 0.10)
+      if (_rHub && _rFan && _rHub.d < _rFan.d && !_fusOccluded(_rHub, _eXpos) && _cpCamF > 0.10)
         _drawEngineInlet(_rHub, _ringRad(_rHub, [20,21,22,23,24,25,26,27]),
           [28,29,30,31,32,33,34,35].map(i=>pts[_b+i]).filter(Boolean), 0.83);
-      if (_lHub && _lFan && _lHub.d < _lFan.d && _lHub.d < _fusCullD && _cpCamF > 0.10)
+      if (_lHub && _lFan && _lHub.d < _lFan.d && !_fusOccluded(_lHub, _eXpos) && _cpCamF > 0.10)
         _drawEngineInlet(_lHub, _ringRad(_lHub, [60,61,62,63,64,65,66,67]),
           [68,69,70,71,72,73,74,75].map(i=>pts[_b+i]).filter(Boolean), 0.83);
 
@@ -3673,7 +3686,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
           const lipRim = project([_lipX, ySign * _ey2, _ez2 + _er2]);
           const fanHub = project([_fanX, ySign * _ey2, _ez2]);
           if (!lipHub || !lipRim || !fanHub) return;
-          if (!(lipHub.d < fanHub.d && lipHub.d < _fusCullD && _cpCamF > 0.10)) return;
+          if (!(lipHub.d < fanHub.d && !_fusOccluded(lipHub, _lipX) && _cpCamF > 0.10)) return;
           _drawEngineInlet(lipHub, Math.hypot(lipRim.x - lipHub.x, lipRim.y - lipHub.y),
             _projRing(_fanX, ySign * _ey2, _ez2, _efr2), 0.83);
         };

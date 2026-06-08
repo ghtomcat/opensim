@@ -150,6 +150,32 @@ const _CSS = `
     box-shadow: inset 0 -2px 0 #b06030;
   }
 
+  /* ── Parking brake ── */
+  .ped-park-block { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .ped-park-label { font: 600 9px/1 monospace; letter-spacing: 0.10em; color: #50607c; }
+  .ped-park-gate { display: flex; gap: 0; border: 1px solid #252c3c; border-radius: 3px; overflow: hidden; }
+  .ped-park-pos {
+    padding: 7px 16px; background: #141820;
+    font: 700 9px/1 monospace; letter-spacing: 0.05em;
+    color: #3a4860; cursor: pointer; border-right: 1px solid #252c3c;
+    transition: background 0.08s, color 0.08s; user-select: none;
+  }
+  .ped-park-pos:last-child { border-right: none; }
+  .ped-park-pos:hover { background: #1e2534; color: #6080a8; }
+  .ped-park-pos.ped-park-sel-on  { background: #3a1414; color: #ff5a4a; box-shadow: inset 0 -2px 0 #c02020; }
+  .ped-park-pos.ped-park-sel-off { background: #14241a; color: #5ad08a; box-shadow: inset 0 -2px 0 #2a8050; }
+
+  /* ── Parking-brake annunciator (visible in any view when set) ── */
+  #parkbrk-ind {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+    z-index: 170; display: none;
+    padding: 4px 12px; border-radius: 4px;
+    background: rgba(58,10,10,0.86); border: 1px solid #c02020;
+    font: 700 12px/1 monospace; letter-spacing: 0.14em; color: #ff5a4a;
+    box-shadow: 0 0 10px rgba(192,32,32,0.4);
+  }
+  #parkbrk-ind.pb-on { display: block; }
+
   /* ── Close hint ── */
   .ped-hint {
     font: 500 9px/1 monospace; letter-spacing: 0.08em;
@@ -365,6 +391,13 @@ function _buildHTML() {
         <div class="ped-spdbk-label">SPD BRK</div>
         <div class="ped-spdbk-gate">${sbBtns}</div>
       </div>
+      <div class="ped-park-block">
+        <div class="ped-park-label">PARK BRK</div>
+        <div class="ped-park-gate">
+          <div class="ped-park-pos" data-pb="1">ON</div>
+          <div class="ped-park-pos" data-pb="0">OFF</div>
+        </div>
+      </div>
     </div>
 
     ${engStartSection}
@@ -444,6 +477,11 @@ function _attachHandlers() {
       setState({ speedBrake: +btn.dataset.sb });
     });
   });
+
+  /* Parking brake — ON / OFF */
+  _el.querySelectorAll('.ped-park-pos').forEach(btn => {
+    btn.addEventListener('click', () => setState({ parkBrake: btn.dataset.pb === '1' }));
+  });
 }
 
 /* ── Live update ───────────────────────────────────────────────── */
@@ -486,6 +524,14 @@ function _update() {
     btn.classList.toggle('ped-spdbk-sel', +btn.dataset.sb === curSB);
   });
 
+  /* Parking brake — ON red (warning), OFF green */
+  const pbOn = !!S.parkBrake;
+  _el.querySelectorAll('.ped-park-pos').forEach(btn => {
+    const isOn = btn.dataset.pb === '1';
+    btn.classList.toggle('ped-park-sel-on',  isOn && pbOn);
+    btn.classList.toggle('ped-park-sel-off', !isOn && !pbOn);
+  });
+
   /* Engine master flip switches */
   const masters  = S.engMasters ?? Array(engCount).fill(false);
   const running  = S.engineState === 'running';
@@ -514,6 +560,14 @@ export function initPedestal() {
   document.body.appendChild(_el);
   _el.innerHTML = _buildHTML();
   _attachHandlers();
+
+  /* Parking-brake annunciator — persists across all views while the brake is set */
+  if (!document.getElementById('parkbrk-ind')) {
+    const pb = document.createElement('div');
+    pb.id = 'parkbrk-ind';
+    pb.textContent = 'PARK BRK';
+    document.body.appendChild(pb);
+  }
 }
 
 export function togglePedestal() {
@@ -531,4 +585,6 @@ export function renderPedestal() {
     _attachHandlers();
   }
   if (visible) _update();
+  /* Persistent parking-brake annunciator (any view) */
+  document.getElementById('parkbrk-ind')?.classList.toggle('pb-on', !!S.parkBrake);
 }

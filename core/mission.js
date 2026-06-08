@@ -74,6 +74,7 @@ export async function loadMission(missionPath, aircraftPath) {
     ap:    !aircraft.manualControl,
     athr:  !aircraft.manualControl,
     wow:   startOnGround,
+    parkBrake: startOnGround,   // parked on the ground → brake set; airborne → released
     trim:  0,
     enginePower: startEngineState === 'off' ? 0 : 1.0,
     engineState: startEngineState,

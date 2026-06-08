@@ -157,7 +157,9 @@ export function tickPhysics(dt) {
       /* Use actual (unclamped) speed for ground dynamics — spd_ms is clamped to 1 kt
          for the flight model only (prevents division-by-zero in gamma calculation). */
       const spd_ms_gnd = S.spd * 0.5144;
-      const braking = ((S.spdT === 0 || engineDead || S.braking) && spd_ms_gnd > 0.5) ? 1 : 0;
+      /* Parking brake latches full braking (holds against thrust even at a standstill);
+         momentary brakes / idle-stop only bite once actually rolling. */
+      const braking = (S.parkBrake || ((S.spdT === 0 || engineDead || S.braking) && spd_ms_gnd > 0.5)) ? 1 : 0;
 
       const F_net     = T - D - (muRoll + braking * muBrake) * W;
       const newSpd_ms = Math.max(0, spd_ms_gnd + F_net / mass * dt);

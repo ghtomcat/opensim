@@ -152,11 +152,13 @@ export function tickGamepad() {
     bbEvent({ type: 'flaps', flaps: next });
   }
 
-  /* Gear — button 2 */
+  /* Gear — button 2.  Weight-on-wheels squat lock: can't raise the gear on the ground. */
   if (_btnPressed(btn, GP.BTN_GEAR) && !S.aircraft?.fixedGear) {
     const next = !S.gear;
-    setState({ prevGear: S.gear, gear: next });
-    bbEvent({ type: 'gear', gear: next ? 'down' : 'up' });
+    if (next || !S.wow) {
+      setState({ prevGear: S.gear, gear: next });
+      bbEvent({ type: 'gear', gear: next ? 'down' : 'up' });
+    }
   }
 
   _gpPrevButtons = btn.map(b => b.pressed);
@@ -281,7 +283,7 @@ function _onKeyDown(e) {
   /* Flaps — f extend, F retract */
   if (e.key === 'f') { const next = Math.min(3, S.flaps + 1); setState({ prevFlaps: S.flaps, flaps: next }); bbEvent({ type: 'flaps', flaps: next }); }
   if (e.key === 'F') { const next = Math.max(0, S.flaps - 1); setState({ prevFlaps: S.flaps, flaps: next }); bbEvent({ type: 'flaps', flaps: next }); }
-  if (e.key === 'g' && !S.aircraft?.fixedGear) { const next = !S.gear; setState({ prevGear: S.gear, gear: next }); bbEvent({ type: 'gear', gear: next ? 'down' : 'up' }); }
+  if (e.key === 'g' && !S.aircraft?.fixedGear) { const next = !S.gear; if (next || !S.wow) { setState({ prevGear: S.gear, gear: next }); bbEvent({ type: 'gear', gear: next ? 'down' : 'up' }); } }   // squat lock: no gear-up on the ground
 
   /* Speed brake / spoilers — s cycles RET → ARM → FULL → RET */
   if (e.key === 's' || e.key === 'S') {

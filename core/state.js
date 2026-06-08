@@ -22,7 +22,8 @@ export const S = {
   trim:     0,                    // pitch trim (-10 nose down … +10 nose up)
   gear:     false, prevGear: false,
   gearAnim: 0,    // 0 = fully retracted, 1 = fully extended
-  braking:  false,                   // ground brakes held
+  braking:  false,                   // ground brakes held (momentary, B key)
+  parkBrake: false,                  // parking brake (latched, pedestal switch)
   steer:    0,                       // nose-wheel steering, -1 (full left) … +1 (full right)
   enginePower: 1.0,               // 0 = dead engine, 1 = full power
   engineState: 'off',             // 'off' | 'starting' | 'running' | 'shutdown'
