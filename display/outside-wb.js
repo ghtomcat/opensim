@@ -168,6 +168,19 @@ export function _buildWB(np) {
   const wz    = dh + ((_wlL != null) ? _wlL * Math.cos(_wlCt) : _wlH);
   const _wlSw = (_wlL != null && _wg.tipChordMM != null) ? (tLE - tTE) - _wg.tipChordMM / 1852000 : _wlSwP;
   const _wgSb = (_wg?.rootSetbackMM ?? 0) / 1852000;   // winglet root LE set back aft of the wing-tip LE (nav-light notch)
+  /* Winglet planform, anchored on its LEADING edge so its trailing edge floats forward of
+     the wing TE (after-gap) instead of being pinned to it. Root LE = wing-tip LE + setback;
+     root/tip chords laid aft from there; the tip rakes aft by continuing the wing's outboard
+     LE sweep up over the winglet's outboard (y) extent (override with wingletGeom.rakeMM). */
+  const _wgRC   = (_wg?.rootChordMM != null) ? _wg.rootChordMM / 1852000 : (tLE - tTE);
+  const _wgWtc  = (_wg?.tipChordMM  != null) ? _wg.tipChordMM  / 1852000 : (tLE - tTE) * 0.3;
+  const _wgOy   = (_wlL != null) ? _wlL * Math.sin(_wlCt) : 0;
+  const _wgRake = (_wg?.rakeMM != null) ? _wg.rakeMM / 1852000
+                : ((wxhL - tLE) / Math.max(hs - wh, 1e-9)) * _wgOy;   // +ve → tip rakes AFT
+  /* Winglet tip LE x: explicit DWG measurement (tipOffsetMM = wing-tip LE → start of the
+     top winglet chord, aft) when given; else the derived rake from the root LE. */
+  const _wgTipLEx = (_wg?.tipOffsetMM != null) ? tLE - _wg.tipOffsetMM / 1852000
+                  : (tLE - _wgSb) - _wgRake;
   const nTotal = nNose + 5;            // + 5 fixed tail rings
   const { V_, F_, FC_, E_, rb } = buildTube(N, [
     ...np.noseRings,                                    // rings 0…nNose-1: aircraft-specific nose
@@ -229,8 +242,8 @@ export function _buildWB(np) {
     ..._engRing(eC, -ey, ez, _rBody, -1, _flat[2]), ..._engRing(eD, -ey, ez, _rBody, -1, _flat[3]),
     ..._engRing(eE, -ey, ez, erc,    -1, _flat[4]),
     /* Winglets (262-265) */
-    [tLE-_wlSw,  wy, wz],[tTE,  wy, wz],   // b+100/101 R winglet outer LE/TE (auto from tipLE/tipTE)
-    [tLE-_wlSw, -wy, wz],[tTE, -wy, wz],   // b+102/103 L winglet outer LE/TE
+    [_wgTipLEx,  wy, wz],[_wgTipLEx-_wgWtc,  wy, wz],   // b+100/101 R winglet tip LE/TE (raked, TE decoupled from wing TE)
+    [_wgTipLEx, -wy, wz],[_wgTipLEx-_wgWtc, -wy, wz],   // b+102/103 L winglet tip LE/TE
     /* Cockpit windows (b+104..b+111) — explicit panels, manual coords, or ring-sampled */
     ...(() => {
       if (np.cockpitPanels) {
@@ -398,13 +411,22 @@ export function _buildWB(np) {
       V_.push(...p, ...p.map(v => [v[0], -v[1], v[2]]));
     }
 
-  /* Winglet root LE — set back aft of the wing-tip LE by np.wingletGeom.rootSetbackMM, so
-     the winglet's leading edge starts behind the tip and leaves a notch for the nav light.
+  /* Winglet root — set back aft of the wing-tip LE by np.wingletGeom.rootSetbackMM (nav-light
+     notch). Each root vert is seated on the wing-tip UPPER surface at its own chordwise x
+     (z interpolated LE→TE), so the root stays flush instead of floating up at the aft end.
      Dedicated verts (the wing keeps its own tip LE at b+118/b+122). R then L. */
+  const _wtZ = (x, vLE, vTE) => {
+    const f = Math.max(0, Math.min(1, (vLE[0] - x) / Math.max(vLE[0] - vTE[0], 1e-9)));
+    return vLE[2] + f * (vTE[2] - vLE[2]);
+  };
+  const _wgRLEx = WV[10][0] - _wgSb,         _wgLLEx = WV[32][0] - _wgSb;
+  const _wgRTEx = WV[10][0] - _wgSb - _wgRC, _wgLTEx = WV[32][0] - _wgSb - _wgRC;
   const _wgRLE = V_.length;
   V_.push(
-    [WV[10][0] - _wgSb, WV[10][1], WV[10][2]],   // R winglet root LE (tip upper LE, set back)
-    [WV[32][0] - _wgSb, WV[32][1], WV[32][2]],   // L winglet root LE
+    [_wgRLEx, WV[10][1], _wtZ(_wgRLEx, WV[10], WV[11])],   // _wgRLE+0  R winglet root LE
+    [_wgLLEx, WV[32][1], _wtZ(_wgLLEx, WV[32], WV[33])],   // _wgRLE+1  L winglet root LE
+    [_wgRTEx, WV[10][1], _wtZ(_wgRTEx, WV[10], WV[11])],   // _wgRLE+2  R winglet root TE
+    [_wgLTEx, WV[32][1], _wtZ(_wgLTEx, WV[32], WV[33])],   // _wgRLE+3  L winglet root TE
   );
 
   /* Nose tris: noseTip → ring0 (outward normals) */
@@ -453,8 +475,8 @@ export function _buildWB(np) {
     [b+124,b+2,b+154,b+153],[b+153,b+154,b+118,b+126],    // R outer lower + upper
     [b+4,b+155,b+156,b+128],[b+155,b+120,b+130,b+156],    // L inner lower + upper
     [b+128,b+156,b+157,b+6],[b+156,b+130,b+122,b+157],    // L outer lower + upper
-    [_wgRLE,b+147,b+101,b+100],[_wgRLE,b+100,b+101,b+147],  // R winglet (set-back root LE → ailHinge, swept tip)
-    [_wgRLE+1,b+151,b+103,b+102],[_wgRLE+1,b+102,b+103,b+151],  // L winglet
+    [_wgRLE,_wgRLE+2,b+101,b+100],[_wgRLE,b+100,b+101,_wgRLE+2],  // R winglet (set-back root LE/TE, raked tip)
+    [_wgRLE+1,_wgRLE+3,b+103,b+102],[_wgRLE+1,b+102,b+103,_wgRLE+3],  // L winglet
     // V-stab airfoil (b+160..b+171)
     [b+166,b+233,b+232,b+160],[b+161,b+232,b+233,b+167],  // LE rounds +Y / -Y
     [b+160,b+162,b+168,b+166],[b+161,b+167,b+169,b+163],  // main body +Y/-Y
@@ -622,8 +644,8 @@ export function _buildWB(np) {
     [b+184,b+190],[b+185,b+191],                     // L LE spanwise
     [b+186,b+192],[b+187,b+193],                     // L hinge spanwise
     [b+188,b+194],[b+189,b+195],                     // L TE spanwise
-    [_wgRLE,b+100],[b+147,b+101],[b+100,b+101],        // R winglet (set-back root LE)
-    [_wgRLE+1,b+102],[b+151,b+103],[b+102,b+103],      // L winglet
+    [_wgRLE,b+100],[_wgRLE+2,b+101],[b+100,b+101],[_wgRLE,_wgRLE+2],   // R winglet (LE, TE, tip chord, root chord)
+    [_wgRLE+1,b+102],[_wgRLE+3,b+103],[b+102,b+103],[_wgRLE+1,_wgRLE+3], // L winglet
     /* R engine rings A-E */
     [b+20,b+21],[b+21,b+22],[b+22,b+23],[b+23,b+24],[b+24,b+25],[b+25,b+26],[b+26,b+27],[b+27,b+20],
     [b+28,b+29],[b+29,b+30],[b+30,b+31],[b+31,b+32],[b+32,b+33],[b+33,b+34],[b+34,b+35],[b+35,b+28],
