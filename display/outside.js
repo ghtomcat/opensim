@@ -2311,9 +2311,15 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     const _oTRCol  = COL_[7];
     const _oIntCol = COL_[10];
     const _oXOff = _oXOffForOuter;
-    const _oeA = 0.005 + _oXOff, _oeB = 0.001 + _oXOff;
-    const _oeC = -0.001 + _oXOff, _oeD = -0.002 + _oXOff, _oeE = -0.003 + _oXOff;
-    const _oePF = 0.003 + _oXOff;
+    /* Outer nacelle = same powerplant as the inner engines, so reuse the inner ring
+       offsets (which already carry eLen + the rescale) instead of the old hardcoded
+       lengths that left the outboard nacelles oversize. Anchor at the outer intake. */
+    const _oeA = 0.005 + _oXOff;
+    const _oeB = _oeA - (_wbGeo.eApos - _wbGeo.eBpos);
+    const _oeC = _oeA - (_wbGeo.eApos - _wbGeo.eCpos);
+    const _oeD = _oeA - (_wbGeo.eApos - _wbGeo.eDpos);
+    const _oeE = _oeA - (_wbGeo.eApos - _wbGeo.eEpos);
+    const _oePF = _oeA - (_wbGeo.eApos - _wbGeo.eBpos) * 0.5;
 
     const _oez   = _oEzForOuter;
     const _oEzI  = _wbGeo?.ez ?? _ez;
