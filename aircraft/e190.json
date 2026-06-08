@@ -8,8 +8,16 @@
   "livery": {
     "swissCross": true,
     "swissCrossV": 0.38,
-    "colors": [null, null, null, null, [255, 255, 255], [210, 215, 220], null, null, null, [200, 16, 46]],
+    "colors": [null, null, [200, 16, 46], null, [255, 255, 255], [210, 215, 220], null, null, null, [200, 16, 46]],
     "decals": [
+      {
+        "surface": "fuselage",
+        "cylindrical": { "x0": 0.003, "x1": -0.0235, "a0": -90, "a1": 270 },
+        "viewBox": "0 0 100 240",
+        "elements": [
+          { "fill": "#c8102e", "d": "M100,0 L30,0 L50,120 L30,240 L100,240 Z" }
+        ]
+      },
       {
         "surface": "fuselage",
         "viewBox": "0 0 210 60",
