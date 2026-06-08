@@ -1461,7 +1461,8 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           const g = way.geometry;
           const _0n = (g[0].lat-acLat)*60, _0e = (g[0].lon-acLon)*60*cosAcLat;
           if (_0n*_0n + _0e*_0e > 16) continue;                 // > 4 nm
-          const _yM = _sampleElev(g[0].lat, g[0].lon), _yNm = _yM !== null ? (_yM-refM)*M_NM : 0;
+          const _yM = _apElevNm !== null ? null : _sampleElev(g[0].lat, g[0].lon);
+          const _yNm = _apElevNm !== null ? _apElevNm : (_yM !== null ? (_yM-refM)*M_NM : 0);
           let pen = false;
           for (const nd of g) {
             const dN = (nd.lat-acLat)*60, dE = (nd.lon-acLon)*60*cosAcLat;
@@ -1494,7 +1495,8 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           if (nN*nN + nE*nE > 6.25) continue;                    // > 2.5 nm
           const dN = (m1.lat-m0.lat)*60, dE = (m1.lon-m0.lon)*60*cosAcLat;
           const L = Math.hypot(dN,dE)||1, uN = dN/L, uE = dE/L, pN = -uE, pE = uN;
-          const _eM = _sampleElev(cLat,cLon), _eNm = _eM!==null?(_eM-refM)*_M:0;
+          const _eM = _apElevNm !== null ? null : _sampleElev(cLat,cLon);
+          const _eNm = _apElevNm !== null ? _apElevNm : (_eM!==null?(_eM-refM)*_M:0);
           const chars = [...ref];
           const digH = 4.5*_M, digW = 2.6*_M, gap = 1.2*_M, totalH = chars.length*digH + (chars.length-1)*gap;
           const _wp = (al, ac) => { const N = nN+uN*al+pN*ac, E = nE+uE*al+pE*ac;
@@ -1537,7 +1539,8 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           const g = way.geometry;
           const _0n = (g[0].lat-acLat)*60, _0e = (g[0].lon-acLon)*60*cosAcLat;
           if (_0n*_0n + _0e*_0e > 6.25) continue;                // > 2.5 nm
-          const _eM = _sampleElev(g[0].lat, g[0].lon), _eNm = _eM!==null?(_eM-refM)*_M:0;
+          const _eM = _apElevNm !== null ? null : _sampleElev(g[0].lat, g[0].lon);
+          const _eNm = _apElevNm !== null ? _apElevNm : (_eM!==null?(_eM-refM)*_M:0);
           let pen = false;
           for (const nd of g) {
             const dN = (nd.lat-acLat)*60, dE = (nd.lon-acLon)*60*cosAcLat;
@@ -1556,7 +1559,8 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           const g = way.geometry, e0 = g[g.length-1], e1 = g[g.length-2];
           const sN = (e0.lat-acLat)*60, sE = (e0.lon-acLon)*60*cosAcLat;
           if (sN*sN + sE*sE > 0.36) continue;                    // > 0.6 nm: skip numbers
-          const _eM = _sampleElev(e0.lat, e0.lon), _eNm = _eM!==null?(_eM-refM)*_M:0;
+          const _eM = _apElevNm !== null ? null : _sampleElev(e0.lat, e0.lon);
+          const _eNm = _apElevNm !== null ? _apElevNm : (_eM!==null?(_eM-refM)*_M:0);
           const dN = (e1.lat-e0.lat)*60, dE = (e1.lon-e0.lon)*60*cosAcLat;   // inward along the line
           const L = Math.hypot(dN,dE)||1, uN = dN/L, uE = dE/L, pN = -uE, pE = uN;
           const chars = [...ref];
