@@ -793,8 +793,9 @@
     "vstabTESweepDeg": 22.5,
     "vstabRudderRootChord": 2100,
     "vstabRudderTipChord": 832,
-    "noseTipToVstabTip": 50140,
-    "vstabDorsalFilletRootChord": 10284
+    "vstabDorsalFilletRootChord": 10284,
+    "noseTipToVstabTipTE": 63547,
+    "noseTipToDorsalFilletLE": 50140
   },
   "bellyFairing": {
     "fromX": 0.0005021225888135836,
@@ -803,12 +804,12 @@
     "maxWidth": 0.0017102721382289418
   },
   "vstab": {
-    "rootLE": -0.011598737,
-    "rootHinge": -0.014010227,
-    "rootTE": -0.015144137,
-    "tipLE": -0.016006837,
-    "tipHinge": -0.016556837,
-    "tipTE": -0.017006087,
-    "tipZ": 0.00601811
+    "rootLE": -0.017831431,
+    "rootHinge": -0.020242878,
+    "rootTE": -0.021376787,
+    "tipLE": -0.022245232,
+    "tipHinge": -0.022795394,
+    "tipTE": -0.023244638,
+    "tipZ": 0.006018117
   }
 }
