@@ -326,6 +326,15 @@
     "flapBreak": 0.55,
     "flapHinge": 0.72
   },
+  "vstab": {
+    "rootLE": -0.023749142857142858,
+    "rootHinge": -0.031056571428571433,
+    "rootTE": -0.034710285714285714,
+    "tipLE": -0.02922971428571429,
+    "tipHinge": -0.034710285714285714,
+    "tipTE": -0.038364,
+    "tipZ": 0.008
+  },
   "dimensions": {
     "_note": "Boeing 737-9 MAX airport-planning DWG, measured 2026-06-01. drawing × 0.083381 = real-mm; drawing × 1.10878e-7 = model (fuselage ⌀ 3760 mm ↔ model 2r 0.005). Values below in real mm unless noted. Engine: CFM LEAP-1B.",
     "fuselageDiameter": 3760,

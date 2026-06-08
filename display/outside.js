@@ -5099,7 +5099,9 @@ function _drawLiveryDecals(ctx, decals, pts, verts, FC_, F_, project, camSide = 
        the logo maps onto the real fin surface and follows any fin change. finFill 1 =
        fills the whole fin (Edelweiss flower); other liveries use a smaller fraction. */
     let _pl = decal.placement;
+    let _flipV = false;   // synthesized fin placement maps v=0 at the root; flip so SVG-top → fin-tip
     if (!_pl && decal.surface === 'vtail' && S.aircraft?.vstab) {
+      _flipV = true;
       const _vs = S.aircraft.vstab;
       const _fr = S.aircraft.geometry?.r ?? S.aircraft.nose?.r ?? _r;
       const _ff = decal.finFill ?? 1;
@@ -5232,6 +5234,7 @@ function _drawLiveryDecals(ctx, decals, pts, verts, FC_, F_, project, camSide = 
         /* Vertex → UV ∈ [0,1]×[0,1] (placement quad, or unrolled-fuselage cylinder) */
         _shadeBr = faceBr ? faceBr(fi) : 1;   // per-face lighting → shade the decal like the skin
         const uvs = _faceUV(fv);
+        if (_flipV) for (const uv of uvs) uv.v = 1 - uv.v;
 
         /* Skip faces entirely outside the placement quad */
         if (uvs.every(uv => uv.u < -0.05) || uvs.every(uv => uv.u > 1.05) ||
