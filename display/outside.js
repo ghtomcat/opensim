@@ -2706,14 +2706,13 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
           const L = Math.hypot(ay, dz), φ = Math.atan2(dz, ay);
           return _nz([x, sign*(_aIn + L*Math.cos(φ-_bθ)), zH + L*Math.sin(φ-_bθ)], 0.00006);
         }, _dCol, 'rgba(10,12,16,0.92)');
-        /* (c) strut leg door — inboard edge rides the fairing curve, outboard edge is
-           pinned to the leg (follows the strut, stays open when the gear is down) */
+        /* (c) strut leg door — pinned to the OUTBOARD edge of the leg, hanging from the
+           well opening down past the axle; follows the strut centreline as it folds in. */
         const _hl=_mTR*1.3, _stT=_animGV[top], _stA=_animGV[axle];
-        const _fZ=_stT[2]+(_stA[2]-_stT[2])*0.42;
         _curvedPanel(_gMx+_hl, _gMx-_hl, 0, 1, (x,u) => {
-          const y = _yStr + (_yLeg - _yStr)*u;
-          const z = _bodyLowerZ(x, y)*(1-u) + _fZ*u;     // fairing curve → leg
-          return _nz([x, y, z], 0.00006);
+          const legY = _stT[1] + (_stA[1] - _stT[1]) * u;   // leg centreline y at this height
+          const z    = _stT[2] + (_stA[2] + _mTR*0.8 - _stT[2]) * u;
+          return _nz([x, legY + sign*_mrU, z], 0.00006);     // outboard edge of the strut
         }, _dCol, 'rgba(10,12,16,0.92)');
       }
       /* Nose bay — the starboard leaf carries the reg tag (last two chars), as on
@@ -2772,11 +2771,28 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       const _srR = _mrU * 0.42;                     // brace rod radius
       const _jR  = _mrU * 0.72, _jH = _mrU * 0.50;  // pivot-joint boss
       const _ROD = [120, 132, 150], _JNT = [142, 152, 168];
+      /* Side-stay upper ends attach to the WING gear well, not the belly. Seat them on the
+         wing lower surface (same root→break→tip interpolation the flap-track fairings use)
+         at the edge where the wing meets the belly fairing — the fairing's outboard edge
+         (maxWidth), where the gear flap covering the wing part of the well begins. */
+      const _ssWg  = S.aircraft?.wing ?? _wbGeo?.wing ?? _WB_WING_DEFAULT;
+      const _ssWR  = _gwR * 0.7071;
+      const _ssSh  = (_ssWg.rootZ ?? -_ssWR) + _ssWR;
+      const _ssBrk = (_ssWg.span ?? 0.0267) * (_ssWg.flapBreak ?? 0.58);
+      const _ssZR  = -_ssWR + _ssSh;
+      const _ssZB  = -_ssWR + (_ssWg.flapBreak ?? 0.58) * ((_ssWg.dihedral ?? 0) + _ssWR) + _ssSh;
+      const _ssZT  = (_ssWg.dihedral ?? 0) + _ssSh;
+      const _ssWingZ = (ya) => ya <= _ssBrk
+        ? _ssZR + (ya - _ssWR) / Math.max(_ssBrk - _ssWR, 1e-9) * (_ssZB - _ssZR)
+        : _ssZB + (ya - _ssBrk) / Math.max((_ssWg.span ?? 0.0267) - _ssBrk, 1e-9) * (_ssZT - _ssZB);
+      const _ssTopY = S.aircraft?.bellyFairing?.maxWidth ?? _gwR;   // wing ↔ fairing meeting edge
+      const _ssTopZ = _ssWingZ(_ssTopY);
+      const _ssHalfW = _mTR * 2.8;                  // fore/aft span = the gear-flap half-width (= bay-door _wL)
       for (const [sign, gv2, gv3] of [[+1, 2, 3], [-1, 4, 5]]) {
         const strBkt  = _lerpV3(_animGV[gv2], _animGV[gv3], 0.502);
         const strBkt2 = _lerpV3(_animGV[gv2], _animGV[gv3], 0.192);
-        const frTop = [_gMx + 0.003, sign * 0.0004, -_gwR * 0.88];
-        const arTop = [_gMx - 0.002, sign * 0.0004, -_gwR * 0.88];
+        const frTop = [_gMx + _ssHalfW, sign * _ssTopY, _ssTopZ];   // fore brace at the flap leading edge
+        const arTop = [_gMx - _ssHalfW, sign * _ssTopY, _ssTopZ];   // aft brace at the flap trailing edge
         const frMid    = _midV3(frTop, strBkt);
         const arMid    = _midV3(arTop, strBkt);
         const redFrMid = _midV3(strBkt2, frMid);
