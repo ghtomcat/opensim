@@ -2151,7 +2151,6 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
       const gates = ic && STANDS[ic];
       if (!gates) continue;
       const _nightF = 1 - dayFrac, _dpr = devicePixelRatio || 1;
-      let _gi = 0;
       for (const g of gates) {
         const gN = (g.lat - acLat) * 60, gE = (g.lon - acLon) * 60 * cosAcLat;
         if (gN * gN + gE * gE > 25) continue;             // >5 nm: skip
@@ -2174,9 +2173,9 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
            arc on the apron. */
         const BR_W = 3, LEFT = 4, FLOOR = 3.6, THK = 2.4, ROOF = FLOOR + THK;
         const fT = 13, fDoor = -8, LEN = fT - fDoor;      // rotunda(terminal) → door reach (~21 m / 69 ft)
-        const _ph = _gi++, _now = performance.now() / 1000;
-        const _phi  = 0.06 + 0.09 * Math.sin(_now * 0.22 + _ph * 1.7);   // swivel about rotunda
-        const _lift = 3.4 + 0.85 * Math.sin(_now * 0.16 + _ph * 2.3);    // cab height on the lift
+        /* Swivel + lift animation off — bridges rest docked; the slow sweeps will be
+           driven on demand (docking sequence) later. */
+        const _phi = 0, _lift = 3.4;                      // _phi: arm angle · _lift: cab height
         const R = [fT, LEFT];                             // rotunda / pivot
         const dx = -Math.cos(_phi), dy = Math.sin(_phi);  // arm dir in (fwd,side): door at phi=0
         const armPt = (t) => [R[0] + LEN * t * dx, R[1] + LEN * t * dy]; // t:0=rotunda 1=cab
