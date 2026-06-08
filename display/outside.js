@@ -1061,8 +1061,12 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       }
     }
     /* Snapshot rocket-only centre before tower inflates the bounds */
-    const pivotCR = isFinite(minCR) ? (minCR + maxCR) / 2 : 0;
-    const pivotCU = isFinite(minCU) ? (minCU + maxCU) / 2 : 0;
+    /* Fixed-framing aircraft: centre on the model ORIGIN (0,0,0), not the bounding-box
+       centroid — the terrain camera looks at the origin (where the airframe sits on the
+       runway), so centring the wireframe on the centroid instead would offset the two by
+       a few metres and parallax-shift the aircraft as you orbit. */
+    const pivotCR = fixedFraming ? 0 : (isFinite(minCR) ? (minCR + maxCR) / 2 : 0);
+    const pivotCU = fixedFraming ? 0 : (isFinite(minCU) ? (minCU + maxCU) / 2 : 0);
     /* Include launch tower in auto-fit only while still near the pad */
     if ((isSV || isF9 || isSS) && camSide > 0) {
       const _padNm = (S.mission?.departure?.elevation ?? 0) * FT_NM;
