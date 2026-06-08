@@ -5158,7 +5158,11 @@ function _drawLiveryDecals(ctx, decals, pts, verts, FC_, F_, project, camSide = 
         const _xr = (_cyl.x1 - _cyl.x0) || 1e-9, _ar = (_cyl.a1 - _cyl.a0) || 1e-9;
         _faceUV = (fv) => {
           const raw = fv.map(vi => { const W = verts[vi];
-            return { u: (W[0] - _cyl.x0) / _xr, ang: Math.atan2(W[2], W[1]) * 180 / Math.PI }; });
+            /* normalise into [a0, a0+360) so a PARTIAL wrap (crown+sides, no belly) picks
+               the right branch for every face, not just seam-straddling ones */
+            let ang = Math.atan2(W[2], W[1]) * 180 / Math.PI;
+            ang = ((ang - _cyl.a0) % 360 + 360) % 360 + _cyl.a0;
+            return { u: (W[0] - _cyl.x0) / _xr, ang }; });
           const a0r = raw[0].ang;
           return raw.map(r => { let ang = r.ang;
             if (ang - a0r > 180) ang -= 360; else if (ang - a0r < -180) ang += 360;
