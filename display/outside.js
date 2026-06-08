@@ -4248,10 +4248,9 @@ ctx.save();
         if (!_wbGeo) return _LIGHTS_wb;
         const _lwg = S.aircraft?.wing ?? _WB_WING_DEFAULT;
         const _ltY = _lwg.span;
-        /* tip-light height tracks the winglet type (0 for raked/none, so the lights
-           sit on the bare wingtip instead of floating where a winglet would be) */
-        const _wlHt = ({ classic: 0.0030, sharklet: 0.0065, blended: 0.0055, raked: 0.0015, none: 0 })[S.aircraft?.winglet ?? 'classic'] ?? 0.0030;
-        const _ltZ = _lwg.dihedral + _wlHt;
+        /* Nav lights sit at the wing tip (the winglet root), not up at the winglet tip:
+           the old preset winglet height floated them above the now data-driven winglet. */
+        const _ltZ = _lwg.dihedral;
         const _ltX = (_lwg.tipLE + _lwg.tipTE) / 2;
         /* Wingtip lights: the forward colour (R green / L red) with the white rear
            position light just AFT of it — so you can read approach vs. departure. */

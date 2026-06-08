@@ -289,9 +289,9 @@ export function _buildWB(np) {
      Span direction: Z (up).  Thickness direction: Y (lateral).
      6 span-line positions × 2 Y-sides = 12 vertices.
      Three chord stations per station: LE, hinge (65% chord), TE.              */
-  const _vTr = 0.00070;                        // root half-thickness (≈12% t/c)
-  const _vTt = 0.00040;                        // tip half-thickness (≈9% t/c)
-  const _vTE = 0.00008;                        // closed TE half-gap
+  const _vTr = (_vsRL - _vsRT) * 0.06;         // root half-thickness = 12% t/c of the root chord
+  const _vTt = (_vsTL - _vsTT) * 0.045;        // tip  half-thickness = 9%  t/c of the tip  chord
+  const _vTE = _vTt * 0.18;                    // closed TE half-gap (small, scales with the fin)
   V_.push(
     [_vsRL, +_vTr,       r        ], // b+160  root LE  +Y
     [_vsRL, -_vTr,       r        ], // b+161  root LE  -Y
