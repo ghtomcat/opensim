@@ -2325,80 +2325,10 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     return wCz(_oey2) + (_oEzI - wCz(_oEyI));
   })();
 
-  if (_oey2) {
-    const _oer  = _wbGeo?.er  ?? _er;
-    const _oerc = _wbGeo?.erc ?? _erc;
-    const _oe7  = _oer  * 0.7071;
-    const _oefr = _oer  * 1.20;
-    const _oef7 = _oefr * 0.7071;
-    const _oe7c = _oerc * 0.7071;
-    const _oEngCol = COL_[4];
-    const _oTRCol  = COL_[7];
-    const _oIntCol = COL_[10];
-    const _oXOff = _oXOffForOuter;
-    /* Outer nacelle = same powerplant as the inner engines, so reuse the inner ring
-       offsets (which already carry eLen + the rescale) instead of the old hardcoded
-       lengths that left the outboard nacelles oversize. Anchor at the outer intake. */
-    const _oeA = 0.005 + _oXOff;
-    const _oeB = _oeA - (_wbGeo.eApos - _wbGeo.eBpos);
-    const _oeC = _oeA - (_wbGeo.eApos - _wbGeo.eCpos);
-    const _oeD = _oeA - (_wbGeo.eApos - _wbGeo.eDpos);
-    const _oeE = _oeA - (_wbGeo.eApos - _wbGeo.eEpos);
-    const _oePF = _oeA - (_wbGeo.eApos - _wbGeo.eBpos) * 0.5;
-
-    const _oez   = _oEzForOuter;
-    const _oEzI  = _wbGeo?.ez ?? _ez;
-    const _oer_  = _oer;
-    const _oPylH = (_wbGeo?.pz ?? _pz) - (_oEzI + _oer_);
-    const _opz2  = _oez + _oer_ + _oPylH;
-
-    /* Build 8-point ring at given forward position, lateral centre yo, radius r, diagonal r7 */
-    const _oe8 = (vf, yo, r, r7) => [
-      project([vf, yo,    _oez+r ]),
-      project([vf, yo+r7, _oez+r7]),
-      project([vf, yo+r,  _oez   ]),
-      project([vf, yo+r7, _oez-r7]),
-      project([vf, yo,    _oez-r ]),
-      project([vf, yo-r7, _oez-r7]),
-      project([vf, yo-r,  _oez   ]),
-      project([vf, yo-r7, _oez+r7]),
-    ];
-
-    const _oRing = (rF, rA, col) => {
-      for (let i = 0; i < 8; i++) {
-        const j = (i + 1) % 8;
-        for (const ps of [
-          [rF[i], rF[j], rA[j], rA[i]].filter(Boolean),
-          [rF[i], rA[i], rA[j], rF[j]].filter(Boolean),
-        ]) {
-          if (ps.length < 3) continue;
-          const cr = (ps[1].x-ps[0].x)*(ps[2].y-ps[0].y)-(ps[1].y-ps[0].y)*(ps[2].x-ps[0].x);
-          if (cr < 0) continue;
-          faces.push({ ps, br: 0.82, avgD: ps.reduce((s,p)=>s+p.d,0)/ps.length, col });
-        }
-      }
-    };
-
-    for (const yo of [_oey2, -_oey2]) {
-      const rA = _oe8(_oeA, yo, _oer,  _oe7 );
-      const rB = _oe8(_oeB, yo, _oefr, _oef7);
-      const rC = _oe8(_oeC, yo, _oer,  _oe7 );
-      const rD = _oe8(_oeD, yo, _oer,  _oe7 );
-      const rE = _oe8(_oeE, yo, _oerc, _oe7c);
-      _oRing(rA, rB, _oEngCol);
-      _oRing(rB, rC, _oEngCol);
-      _oRing(rC, rD, _oTRCol);
-      _oRing(rD, rE, _oEngCol);
-      for (const cap of [rA, [...rA].reverse()]) {
-        const f = cap.filter(Boolean);
-        if (f.length < 3) continue;
-        const cr = (f[1].x-f[0].x)*(f[2].y-f[0].y)-(f[1].y-f[0].y)*(f[2].x-f[0].x);
-        if (cr < 0) continue;
-        faces.push({ ps: f, br: 0.22, avgD: f.reduce((s,p)=>s+p.d,0)/f.length - 0.0002, col: _oIntCol });
-      }
-      /* (pylon drawn parametrically below, unified for inner + outer engines) */
-    }
-  }
+  /* Outer-engine cowls are now built into the wireframe geometry (the 16-vert nacelle
+     skin in outside-wb.js loops over all four engines), so they render identically to the
+     inboard pair via the main painter. The station math above (_oXOffForOuter /
+     _oEzForOuter) is kept — the pylons + outer fan-face still reference it. */
 
   /* ── Engine pylons — parametric streamlined struts (all 4 engines) ───────────
      Bottom edge saddles onto the nacelle top (ez + nacelle radius along the chord),
@@ -3393,6 +3323,31 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const _livDecals = S.aircraft?.livery?.decals;
   if (_livDecals?.length) _drawLiveryDecals(ctx, _livDecals, pts, verts, FC_, F_, project, camSide);
 
+  /* Rudder gap line — thin black outline around the rudder (hinge line · tip · TE · root)
+     on whichever side of the fin faces the camera. Drawn after the livery so the gap
+     reads on top of any tail decal. Rudder quad = hinge→TE corners of the v-stab airfoil
+     (+Y: b+162,164,170,168 / -Y: b+163,169,171,165). */
+  if (_wbGeo) {
+    const _ruOutline = (a, b, c, d) => {
+      const P = [pts[a], pts[b], pts[c], pts[d]];
+      if (P.some(p => !p)) return false;
+      const cr = (P[1].x-P[0].x)*(P[2].y-P[0].y) - (P[1].y-P[0].y)*(P[2].x-P[0].x);
+      if (cr <= 0) return false;   // back-facing side
+      ctx.save();
+      ctx.strokeStyle = 'rgba(22,24,30,0.40)';   // subtle panel-gap, not a bold divider through the flower
+      ctx.lineWidth   = Math.max(0.6, dpr * 0.45);
+      ctx.lineJoin    = 'round';
+      ctx.beginPath();
+      ctx.moveTo(P[0].x, P[0].y);
+      for (let i = 1; i < 4; i++) ctx.lineTo(P[i].x, P[i].y);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.restore();
+      return true;
+    };
+    if (!_ruOutline(_b+162, _b+164, _b+170, _b+168)) _ruOutline(_b+163, _b+169, _b+171, _b+165);
+  }
+
   /* Aircraft registration — small text on the aft fuselage, placed from the
      fuselage geometry so it works for any WB/NB. European-style registrations
      ride below the window line; US (N-prefix) registrations sit above it. */
@@ -3620,8 +3575,8 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
          the fan-plane ring's projected ellipse, so it sets back into the inlet and
          foreshortens off-axis) + front lip ring. Shared by the inner pair and the
          A340 outer pair. Gating per engine: hub.d < fan.d → intake faces us;
-         hub.d < fusCenter → not behind the body; _cpCamF > 0.35 → camera has a
-         forward component (not a pure side view). */
+         hub.d < fusCenter → not behind the body; _cpCamF > 0.10 → camera has a small
+         forward component (the mouth clip below then reveals the fan progressively). */
       const _drawEngineInlet = (lipHub, lipR, fanRing, fanScale) => {
         if (!lipHub || lipR < 3) return;
         /* One foreshorten ellipse for the whole inlet, taken from the fan-plane
@@ -3632,6 +3587,18 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         const fs  = e ? Math.max(0.04, e.minorR / e.majorR) : 1;
         const ang = e ? e.angle : 0;
         const rim = { x: lipHub.x, y: lipHub.y - lipR };
+        /* Clip the recessed interior (bore · black strip · fan) to the intake MOUTH (the
+           lip ellipse). The fan sits set back from the lip, so as the view angles the near
+           nacelle wall hides part of it — clipping to the mouth cuts the fan at the lip seam
+           (parallax occlusion) and reveals it progressively instead of a hard pop. The mouth
+           foreshortens to a sliver edge-on, so nothing shows from abeam. The path is baked
+           under the rotate/scale transform, then the transform is reset before clip(). */
+        ctx.save();
+        ctx.save();
+        ctx.translate(lipHub.x, lipHub.y); ctx.rotate(ang); ctx.scale(1, fs);
+        ctx.beginPath(); ctx.arc(0, 0, lipR, 0, Math.PI * 2);
+        ctx.restore();
+        ctx.clip();
         /* dark inlet bore — foreshortened disc at the lip */
         ctx.save();
         ctx.translate(lipHub.x, lipHub.y); ctx.rotate(ang); ctx.scale(1, fs);
@@ -3639,14 +3606,13 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         ctx.beginPath(); ctx.arc(0, 0, lipR * 0.82, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
         _drawIntakeBlackStrip(ctx, lipHub, rim, dpr, fs, ang);
-        /* Fan blades only when looking into the intake — hidden edge-on/side-on
-           (you can't see down a turbofan inlet from abeam). */
-        if (e && fs >= 0.25) {
+        if (e) {
           const maj = e.majorR * fanScale;
           if (maj > 3) _drawTurbofanFace(ctx, { x: e.cx, y: e.cy },
             { x: e.cx + maj, y: e.cy }, ePow, dpr, 22, fs, ang);
         }
-        _drawIntakeLip(ctx, lipHub, rim, dpr, fs, ang);
+        ctx.restore();   // drop the mouth clip
+        _drawIntakeLip(ctx, lipHub, rim, dpr, fs, ang);   // lip rim on top, unclipped
       };
       /* Mean screen radius from a hub to ring vertices (all same x → same depth). */
       const _ringRad = (hub, idxs) => {
@@ -3683,14 +3649,17 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       const _ey2 = _wbGeo?.ey2;
       if (_ey2) {
         const _ez2 = _oEzForOuter, _er2 = _wbGeo.er ?? _er, _ex2 = _oXOffForOuter;
+        const _efr2 = _wbGeo.efr ?? (_er2 * 1.20);          // fan-cowl radius (matches inner efr)
+        const _lipX = 0.005 + _ex2;                         // intake lip plane (= inner eApos + sweep)
+        const _fanX = _lipX - ((_wbGeo.eApos ?? _lipX) - (_wbGeo.eBpos ?? _lipX));  // fan-cowl plane: same setback as inner (eApos→eBpos), so blades sit at the same depth
         const _outerInlet = (ySign) => {
-          const lipHub = project([0.005 + _ex2, ySign * _ey2, _ez2]);
-          const lipRim = project([0.005 + _ex2, ySign * _ey2, _ez2 + _er2]);
-          const fanHub = project([0.001 + _ex2, ySign * _ey2, _ez2]);
+          const lipHub = project([_lipX, ySign * _ey2, _ez2]);
+          const lipRim = project([_lipX, ySign * _ey2, _ez2 + _er2]);
+          const fanHub = project([_fanX, ySign * _ey2, _ez2]);
           if (!lipHub || !lipRim || !fanHub) return;
           if (!(lipHub.d < fanHub.d && lipHub.d < _fusCullD && _cpCamF > 0.10)) return;
           _drawEngineInlet(lipHub, Math.hypot(lipRim.x - lipHub.x, lipRim.y - lipHub.y),
-            _projRing(0.001 + _ex2, ySign * _ey2, _ez2, _er2), 0.82);
+            _projRing(_fanX, ySign * _ey2, _ez2, _efr2), 0.83);
         };
         _outerInlet(+1); _outerInlet(-1);
       }
@@ -5096,6 +5065,9 @@ function _drawLiveryDecals(ctx, decals, pts, verts, FC_, F_, project, camSide = 
       const _vs = S.aircraft.vstab;
       const _fr = S.aircraft.geometry?.r ?? S.aircraft.nose?.r ?? _r;
       const _ff = decal.finFill ?? 1;
+      /* finFill 1 = the placement hugs the full fin outline (the Edelweiss flower is
+         drawn to fill the whole swept tail); smaller liveries use a fraction. The
+         inverse-bilinear UV map below follows the swept/tapered quad exactly. */
       const _cnr = [[_vs.rootLE,0,_fr],[_vs.rootTE,0,_fr],[_vs.tipTE,0,_vs.tipZ],[_vs.tipLE,0,_vs.tipZ]];
       const _cx = (_cnr[0][0]+_cnr[1][0]+_cnr[2][0]+_cnr[3][0])/4;
       const _cz = (_cnr[0][2]+_cnr[1][2]+_cnr[2][2]+_cnr[3][2])/4;
@@ -5140,11 +5112,42 @@ function _drawLiveryDecals(ctx, decals, pts, verts, FC_, F_, project, camSide = 
          U = placement[0]→placement[1], V = placement[0]→placement[3].        */
       const pl = _pl;
       const P0 = pl[0], P1 = pl[1], P3 = pl[3];
+      const P2 = pl[2] ?? [P1[0]+P3[0]-P0[0], P1[1]+P3[1]-P0[1], P1[2]+P3[2]-P0[2]];
       const Ux = P1[0]-P0[0], Uy = P1[1]-P0[1], Uz = P1[2]-P0[2];
       const Vx = P3[0]-P0[0], Vy = P3[1]-P0[1], Vz = P3[2]-P0[2];
       const lenU2 = Ux*Ux + Uy*Uy + Uz*Uz;
       const lenV2 = Vx*Vx + Vy*Vy + Vz*Vz;
       if (lenU2 < 1e-20 || lenV2 < 1e-20) continue;
+      /* Inverse-bilinear UV over the full quad P0,P1,P2,P3 (not just the P0/U/V
+         parallelogram). For a swept/tapered placement (the v-stab) the 4th corner P2
+         (tip TE) sits well inside the parallelogram, so the linear map shears the decal
+         off the surface; the bilinear solve follows the real quad. Reduces exactly to the
+         linear map when P2 = P1+P3-P0 (flat panels: fuselage, engine, nose). The quad is
+         planar, so we solve in a 2-D in-plane basis (a1 along U, a2 = (U×V)×U ⟂ U). */
+      const _nx = Uy*Vz-Uz*Vy, _ny = Uz*Vx-Ux*Vz, _nz = Ux*Vy-Uy*Vx;   // plane normal U×V
+      const _a2x = _ny*Uz-_nz*Uy, _a2y = _nz*Ux-_nx*Uz, _a2z = _nx*Uy-_ny*Ux; // n×U (in-plane ⟂ U)
+      const _uLen = Math.sqrt(lenU2) || 1, _a2L = Math.hypot(_a2x,_a2y,_a2z) || 1;
+      const _to2D = (px,py,pz) => { const dx=px-P0[0], dy=py-P0[1], dz=pz-P0[2];
+        return [ (dx*Ux+dy*Uy+dz*Uz)/_uLen, (dx*_a2x+dy*_a2y+dz*_a2z)/_a2L ]; };
+      const _q1 = _to2D(P1[0],P1[1],P1[2]), _q2 = _to2D(P2[0],P2[1],P2[2]), _q3 = _to2D(P3[0],P3[1],P3[2]);
+      const _crz = (ax,ay,bx,by) => ax*by - ay*bx;
+      const _ex=_q1[0], _ey=_q1[1], _fx=_q3[0], _fy=_q3[1];              // q0 is the origin (0,0)
+      const _gx=_q2[0]-_q1[0]-_q3[0], _gy=_q2[1]-_q1[1]-_q3[1];          // q0-q1+q2-q3 (q0=0)
+      const _invBilin = (W) => {
+        const p = _to2D(W[0],W[1],W[2]);
+        const hx=p[0], hy=p[1];
+        const k2=_crz(_gx,_gy,_fx,_fy);
+        const k1=_crz(_ex,_ey,_fx,_fy)+_crz(hx,hy,_gx,_gy);
+        const k0=_crz(hx,hy,_ex,_ey);
+        let v;
+        if (Math.abs(k2) < 1e-12*(Math.abs(k1)||1)) { v = -k0/(k1||1e-20); }
+        else { const disc=Math.max(0,k1*k1-4*k2*k0), sq=Math.sqrt(disc);
+          const v1=(-k1+sq)/(2*k2), v2=(-k1-sq)/(2*k2);
+          v = (v1>=-0.02 && v1<=1.02) ? v1 : v2; }
+        const dnx=_ex+_gx*v, dny=_ey+_gy*v;
+        const u = Math.abs(dnx) > Math.abs(dny) ? (hx-_fx*v)/(dnx||1e-20) : (hy-_fy*v)/(dny||1e-20);
+        return { u, v };
+      };
 
       for (let fi = 0; fi < F_.length; fi++) {
         if (!cIdxList.includes(FC_[fi])) continue;
@@ -5163,63 +5166,65 @@ function _drawLiveryDecals(ctx, decals, pts, verts, FC_, F_, project, camSide = 
           if (camSide < 0 && avgY > 0) continue;
         }
 
-        /* Vtail LE-nose round faces have mixed UV chirality — skip them.
-           Identified by having a vertex on the y=0 centreline. */
-        if (FC_[fi] === 2 && verts && fv.some(vi => Math.abs(verts[vi][1]) < 0.00005)) continue;
+        /* Vtail LE-nose round faces (+ the dorsal-fin centreplane triangle) have mixed
+           UV chirality — skip them. They're the only col-2 faces with a vertex *exactly*
+           on the y=0 centreline; the airfoil's own LE/TE verts are thin but non-zero, so
+           the threshold must stay below them (a thin fin can put a TE vert at ~1e-5). */
+        if (FC_[fi] === 2 && verts && fv.some(vi => Math.abs(verts[vi][1]) < 1e-6)) continue;
 
-        /* Project each vertex onto placement plane → UV ∈ [0,1]×[0,1] */
-        const uvs = fv.map(vi => {
-          const W = verts[vi];
-          const dx = W[0]-P0[0], dy = W[1]-P0[1], dz = W[2]-P0[2];
-          return { u: (dx*Ux+dy*Uy+dz*Uz)/lenU2,
-                   v: (dx*Vx+dy*Vy+dz*Vz)/lenV2 };
-        });
+        /* Project each vertex onto the placement quad → UV ∈ [0,1]×[0,1] */
+        const uvs = fv.map(vi => _invBilin(verts[vi]));
 
         /* Skip faces entirely outside the placement quad */
         if (uvs.every(uv => uv.u < -0.05) || uvs.every(uv => uv.u > 1.05) ||
             uvs.every(uv => uv.v < -0.05) || uvs.every(uv => uv.v > 1.05)) continue;
 
-        /* Map UV → SVG coordinate space with automatic chirality detection.
-           The screen triangle (d0,d1,d2) is always CCW (passed cull test).
-           If the UV triangle in SVG space is CW (detUV < 0), flip u so the
-           affine is orientation-preserving rather than mirroring the decal.
-           Different surface types (tube vs flat panel) have opposite winding,
-           so the flip must be detected per-face rather than hardcoded.           */
-        const li = fv.length - 1;
-        const svgsRaw = uvs.map(uv => ({ x: vbX + uv.u*vbW, y: vbY + uv.v*vbH }));
-        const detUV = (svgsRaw[1].x-svgsRaw[0].x)*(svgsRaw[li].y-svgsRaw[0].y)
-                    - (svgsRaw[1].y-svgsRaw[0].y)*(svgsRaw[li].x-svgsRaw[0].x);
-        const autoFlip = detUV < 0;
-        const doFlip = decal.flipU ? !autoFlip : autoFlip;
-        const svgs = doFlip
-          ? uvs.map(uv => ({ x: vbX + (1 - uv.u)*vbW, y: vbY + uv.v*vbH }))
-          : svgsRaw;
-
-        /* Solve affine SVG→screen from 3 vertices (0, 1, last) */
-        const s0=svgs[0], s1=svgs[1], s2=svgs[li];
-        const d0=fp[0],   d1=fp[1],   d2=fp[li];
-        const ds1x=s1.x-s0.x, ds1y=s1.y-s0.y;
-        const ds3x=s2.x-s0.x, ds3y=s2.y-s0.y;
-        const dd1x=d1.x-d0.x, dd1y=d1.y-d0.y;
-        const dd3x=d2.x-d0.x, dd3y=d2.y-d0.y;
-        const det = ds1x*ds3y - ds1y*ds3x;
-        if (Math.abs(det) < 0.01) continue;
-        const ma = (dd1x*ds3y - dd3x*ds1y) / det;
-        const mc = (ds1x*dd3x - ds3x*dd1x) / det;
-        const mb = (dd1y*ds3y - dd3y*ds1y) / det;
-        const md = (ds1x*dd3y - ds3x*dd1y) / det;
-        const me = d0.x - ma*s0.x - mc*s0.y;
-        const mf = d0.y - mb*s0.x - md*s0.y;
-
-        ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(fp[0].x, fp[0].y);
-        for (let i = 1; i < fp.length; i++) ctx.lineTo(fp[i].x, fp[i].y);
-        ctx.closePath();
-        ctx.clip();
-        ctx.transform(ma, mb, mc, md, me, mf);
-        drawElems();
-        ctx.restore();
+        /* Draw per TRIANGLE (fan from vert 0). A quad's per-face affine can be exact for
+           only 3 of its 4 corners, so on a non-parallelogram surface (the swept v-stab)
+           the 4th corner is mis-mapped and neighbouring faces tear at their shared edge.
+           Splitting into triangles gives each an exact affine, so shared edges register.
+           Chirality (autoFlip) is detected per-triangle: if the UV triangle is CW, flip u
+           so the affine stays orientation-preserving (tube vs flat panels wind oppositely). */
+        for (let _t = 1; _t + 1 < fv.length; _t++) {
+          const _ix = [0, _t, _t + 1];
+          const _tuv = _ix.map(i => uvs[i]);
+          const _tfp = _ix.map(i => fp[i]);
+          const svgR = _tuv.map(uv => ({ x: vbX + uv.u*vbW, y: vbY + uv.v*vbH }));
+          const detUV = (svgR[1].x-svgR[0].x)*(svgR[2].y-svgR[0].y)
+                      - (svgR[1].y-svgR[0].y)*(svgR[2].x-svgR[0].x);
+          const doFlip = decal.flipU ? !(detUV < 0) : (detUV < 0);
+          const svgs = doFlip
+            ? _tuv.map(uv => ({ x: vbX + (1 - uv.u)*vbW, y: vbY + uv.v*vbH }))
+            : svgR;
+          const s0=svgs[0], s1=svgs[1], s2=svgs[2];
+          const d0=_tfp[0], d1=_tfp[1], d2=_tfp[2];
+          const ds1x=s1.x-s0.x, ds1y=s1.y-s0.y;
+          const ds3x=s2.x-s0.x, ds3y=s2.y-s0.y;
+          const dd1x=d1.x-d0.x, dd1y=d1.y-d0.y;
+          const dd3x=d2.x-d0.x, dd3y=d2.y-d0.y;
+          const det = ds1x*ds3y - ds1y*ds3x;
+          if (Math.abs(det) < 0.01) continue;
+          const ma = (dd1x*ds3y - dd3x*ds1y) / det;
+          const mc = (ds1x*dd3x - ds3x*dd1x) / det;
+          const mb = (dd1y*ds3y - dd3y*ds1y) / det;
+          const md = (ds1x*dd3y - ds3x*dd1y) / det;
+          const me = d0.x - ma*s0.x - mc*s0.y;
+          const mf = d0.y - mb*s0.x - md*s0.y;
+          /* Inflate the clip triangle ~0.5px outward from its centroid so adjacent
+             triangles overlap a hair — hides the anti-alias hairline along shared edges. */
+          const _gx=(d0.x+d1.x+d2.x)/3, _gy=(d0.y+d1.y+d2.y)/3;
+          const _infl = (p) => { const vx=p.x-_gx, vy=p.y-_gy, l=Math.hypot(vx,vy)||1;
+            return { x: p.x + vx/l*0.6, y: p.y + vy/l*0.6 }; };
+          const c0=_infl(d0), c1=_infl(d1), c2=_infl(d2);
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(c0.x, c0.y); ctx.lineTo(c1.x, c1.y); ctx.lineTo(c2.x, c2.y);
+          ctx.closePath();
+          ctx.clip();
+          ctx.transform(ma, mb, mc, md, me, mf);
+          drawElems();
+          ctx.restore();
+        }
       }
 
       /* Debug: project placement quad to screen and draw colored outline */

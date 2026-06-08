@@ -167,6 +167,7 @@ export function _buildWB(np) {
   const wy    = (_wlL != null) ? hs + _wlL * Math.sin(_wlCt) : hs;
   const wz    = dh + ((_wlL != null) ? _wlL * Math.cos(_wlCt) : _wlH);
   const _wlSw = (_wlL != null && _wg.tipChordMM != null) ? (tLE - tTE) - _wg.tipChordMM / 1852000 : _wlSwP;
+  const _wgSb = (_wg?.rootSetbackMM ?? 0) / 1852000;   // winglet root LE set back aft of the wing-tip LE (nav-light notch)
   const nTotal = nNose + 5;            // + 5 fixed tail rings
   const { V_, F_, FC_, E_, rb } = buildTube(N, [
     ...np.noseRings,                                    // rings 0…nNose-1: aircraft-specific nose
@@ -397,6 +398,15 @@ export function _buildWB(np) {
       V_.push(...p, ...p.map(v => [v[0], -v[1], v[2]]));
     }
 
+  /* Winglet root LE — set back aft of the wing-tip LE by np.wingletGeom.rootSetbackMM, so
+     the winglet's leading edge starts behind the tip and leaves a notch for the nav light.
+     Dedicated verts (the wing keeps its own tip LE at b+118/b+122). R then L. */
+  const _wgRLE = V_.length;
+  V_.push(
+    [WV[10][0] - _wgSb, WV[10][1], WV[10][2]],   // R winglet root LE (tip upper LE, set back)
+    [WV[32][0] - _wgSb, WV[32][1], WV[32][2]],   // L winglet root LE
+  );
+
   /* Nose tris: noseTip → ring0 (outward normals) */
   for (let si = 0; si < N; si++) { F_.push([noseTip, rb[0]+(si+1)%N, rb[0]+si]); FC_.push(6); }
   /* Tail tris: last ring → tailTip (outward normals) */
@@ -443,8 +453,8 @@ export function _buildWB(np) {
     [b+124,b+2,b+154,b+153],[b+153,b+154,b+118,b+126],    // R outer lower + upper
     [b+4,b+155,b+156,b+128],[b+155,b+120,b+130,b+156],    // L inner lower + upper
     [b+128,b+156,b+157,b+6],[b+156,b+130,b+122,b+157],    // L outer lower + upper
-    [b+118,b+147,b+101,b+100],[b+118,b+100,b+101,b+147],  // R winglet (LE→ailHinge root, swept tip)
-    [b+122,b+151,b+103,b+102],[b+122,b+102,b+103,b+151],  // L winglet
+    [_wgRLE,b+147,b+101,b+100],[_wgRLE,b+100,b+101,b+147],  // R winglet (set-back root LE → ailHinge, swept tip)
+    [_wgRLE+1,b+151,b+103,b+102],[_wgRLE+1,b+102,b+103,b+151],  // L winglet
     // V-stab airfoil (b+160..b+171)
     [b+166,b+233,b+232,b+160],[b+161,b+232,b+233,b+167],  // LE rounds +Y / -Y
     [b+160,b+162,b+168,b+166],[b+161,b+167,b+169,b+163],  // main body +Y/-Y
@@ -612,8 +622,8 @@ export function _buildWB(np) {
     [b+184,b+190],[b+185,b+191],                     // L LE spanwise
     [b+186,b+192],[b+187,b+193],                     // L hinge spanwise
     [b+188,b+194],[b+189,b+195],                     // L TE spanwise
-    [b+118,b+100],[b+147,b+101],[b+100,b+101],        // R winglet
-    [b+122,b+102],[b+151,b+103],[b+102,b+103],        // L winglet
+    [_wgRLE,b+100],[b+147,b+101],[b+100,b+101],        // R winglet (set-back root LE)
+    [_wgRLE+1,b+102],[b+151,b+103],[b+102,b+103],      // L winglet
     /* R engine rings A-E */
     [b+20,b+21],[b+21,b+22],[b+22,b+23],[b+23,b+24],[b+24,b+25],[b+25,b+26],[b+26,b+27],[b+27,b+20],
     [b+28,b+29],[b+29,b+30],[b+30,b+31],[b+31,b+32],[b+32,b+33],[b+33,b+34],[b+34,b+35],[b+35,b+28],
@@ -764,13 +774,34 @@ export function _buildWB(np) {
       }
       return out;
     };
-    const _xs = [eA, eB, eC, eD, eE], _rs = [er, efr, _rBody, _rBody, erc];
+    const _rs = [er, efr, _rBody, _rBody, erc];
     const _gapCol = [4, 4, 7, 4];   // A→B, B→C, C→D (TR zone, col 7), D→E
-    for (const [yc, ys] of [[ey, 1], [-ey, -1]]) {
+    /* Engine span stations. Inboard pair at (ey, ez); the optional outboard pair (ey2)
+       rides the wing higher (dihedral) and offset along x (LE sweep) — same wing-camber
+       math the pylon + fan-face code in outside.js uses, so all four nacelles register. */
+    const _xsIn  = [eA, eB, eC, eD, eE];
+    const _engCfg = [
+      { yc:  ey, ys:  1, ez, xs: _xsIn },
+      { yc: -ey, ys: -1, ez, xs: _xsIn },
+    ];
+    if (np.ey2) {
+      const ey2 = np.ey2;
+      const _z0 = -wr + wzShift, _zB = wzh + wzShift, _zT = dh + wzShift;
+      const _wCz = (y) => y <= wh
+        ? _z0 + (y - wr) / Math.max(wh - wr, 1e-9) * (_zB - _z0)
+        : _zB + (y - wh) / Math.max(hs - wh, 1e-9) * (_zT - _zB);
+      const ez2     = _wCz(ey2) + (ez - _wCz(ey));
+      const _exOff2 = (ey2 - ey) / Math.max(hs - wr, 1e-9) * (tLE - rLE);
+      const _xsOut  = _xsIn.map(x => x + _exOff2);
+      _engCfg.push({ yc:  ey2, ys:  1, ez: ez2, xs: _xsOut });
+      _engCfg.push({ yc: -ey2, ys: -1, ez: ez2, xs: _xsOut });
+    }
+    for (const _ec of _engCfg) {
+      const { yc, ys, xs: _xs } = _ec, _ecz = _ec.ez;
       const rbHi = [];
       for (let ri = 0; ri < 5; ri++) {
         rbHi.push(V_.length);
-        for (const v of ringHi(_xs[ri], yc, ez, _rs[ri], ys, _flat[ri])) V_.push(v);
+        for (const v of ringHi(_xs[ri], yc, _ecz, _rs[ri], ys, _flat[ri])) V_.push(v);
       }
       for (let g = 0; g < 4; g++) {           // tube faces — 4 gaps × NE quads, L winding mirrored
         const a = rbHi[g], nb = rbHi[g+1];
@@ -784,12 +815,13 @@ export function _buildWB(np) {
       F_.push(cap(rbHi[0], ys > 0)); FC_.push(10);   // intake bore  (+x normal, dark)
       F_.push(cap(rbHi[4], ys < 0)); FC_.push(10);   // nozzle exit  (-x normal, dark)
       if (_chevD > 0) {   // fan-cowl TE chevrons — aft-pointing teeth on the eE (nozzle) ring
-        const NC = 16, taperR = (erc - _rBody) / (eE - eD);   // cowl boat-tail dr/dx near the TE
+        const _eE = _xs[4], _eD = _xs[3];
+        const NC = 16, taperR = (erc - _rBody) / (_eE - _eD);   // cowl boat-tail dr/dx near the TE
         const vAt = (xoff, ang) => {
-          const rr = erc - taperR * xoff, zMin = ez - rr + _flat[4];   // radius follows the taper aft
-          let zz = ez + Math.cos(ang) * rr;
+          const rr = erc - taperR * xoff, zMin = _ecz - rr + _flat[4];   // radius follows the taper aft
+          let zz = _ecz + Math.cos(ang) * rr;
           if (_flat[4] > 0 && zz < zMin) zz = zMin;
-          return [eE - xoff, yc + Math.sin(ang) * rr * ys, zz];
+          return [_eE - xoff, yc + Math.sin(ang) * rr * ys, zz];
         };
         const rb0 = V_.length; for (let k = 0; k < NC; k++) V_.push(vAt(0,      k / NC * 2 * Math.PI));
         const tb0 = V_.length; for (let k = 0; k < NC; k++) V_.push(vAt(_chevD, (k + 0.5) / NC * 2 * Math.PI));
