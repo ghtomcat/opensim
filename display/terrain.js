@@ -1326,6 +1326,15 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
     const _runways = _bundledRw.length
       ? _bundledRw
       : _osmWays.filter(w => w.tags?.aeroway === 'runway').map(_rwGeomC).filter(Boolean);
+    /* One flat airport ground plane: where bundled runways exist, sample elevation once at
+       the runway threshold and co-plane the taxiways/aprons to it — a real airport is
+       graded flat, so they should sit at the runway's height rather than each following the
+       terrain mesh (which floats them where the field slopes). null = per-node fallback. */
+    let _apElevNm = null;
+    if (_bundledRw.length) {
+      const _aeM = _sampleElev(_bundledRw[0].a.lat, _bundledRw[0].a.lon);
+      if (_aeM !== null) _apElevNm = (_aeM - refM) * M_NM;
+    }
     if (_osmWays.length || _runways.length) {
       /* Brighter + faintly cool at night: the apron/taxiway surface is lit by all the
          surface lights, so it reads as a lit apron, not flat-dim grey. */
@@ -1345,11 +1354,11 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         const _sfc = way.tags?.surface;
         const _ovGrass = _isGrass(_sfc) || _sfc === 'unpaved' || _sfc === 'ground';
         const _bv = _at === 'taxiway' ? _tB : _at === 'apron' ? _aB : _rB;
-        /* Sample terrain elevation at the first node so the overlay sits on the actual
-           terrain mesh rather than floating at the declared mission field elevation.     */
+        /* Co-plane with the runway (flat airport) where bundled; else sample at the first
+           node so the overlay sits on the terrain mesh. */
         const _n0  = way.geometry[0];
-        const _eM  = _sampleElev(_n0.lat, _n0.lon);
-        const _eNm = _eM !== null ? (_eM - refM) * M_NM : 0;
+        const _eM  = _apElevNm !== null ? null : _sampleElev(_n0.lat, _n0.lon);
+        const _eNm = _apElevNm !== null ? _apElevNm : (_eM !== null ? (_eM - refM) * M_NM : 0);
         ctx.fillStyle = _ovGrass ? `rgb(${96*_f|0},${134*_f|0},${56*_f|0})`
                                  : `rgb(${_bv},${_bv+_ngl},${_bv+_nbl})`;
         /* Areas (aprons) fill their polygon as-is; lines (taxiways/runways) are centerlines,
@@ -1630,7 +1639,8 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         for (const way of _osmWays) {
           if (way.tags?.aeroway !== 'taxiway' || !way.geometry || way.geometry.length < 2) continue;
           const _hw = ((parseFloat(way.tags?.width)||15)/1852)/2, g = way.geometry;
-          const _txM = _sampleElev(g[0].lat, g[0].lon), _txNm = _txM!==null?(_txM-refM)*M_NM:0;
+          const _txM = _apElevNm !== null ? null : _sampleElev(g[0].lat, g[0].lon);
+          const _txNm = _apElevNm !== null ? _apElevNm : (_txM!==null?(_txM-refM)*M_NM:0);
           const _tx=(N,E)=>{ const f=N*cosH+E*sinH, r=E*cosH-N*sinH; const sp=proj(f,r,_txNm);
             if(sp){ ctx.moveTo(sp[0]+_tw, sp[1]); ctx.arc(sp[0], sp[1], _tw, 0, 7); } };
           for (let s=0;s<g.length-1;s++){
@@ -1653,7 +1663,8 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           if (way.tags?.aeroway !== 'taxiway' || !way.geometry || way.geometry.length < 2) continue;
           if (_isGrass(way.tags?.surface)) continue;
           const g = way.geometry;
-          const _cM = _sampleElev(g[0].lat, g[0].lon), _cNm = _cM !== null ? (_cM - refM) * M_NM : 0;
+          const _cM = _apElevNm !== null ? null : _sampleElev(g[0].lat, g[0].lon);
+          const _cNm = _apElevNm !== null ? _apElevNm : (_cM !== null ? (_cM - refM) * M_NM : 0);
           for (let s = 0; s < g.length - 1; s++) {
             const n0 = (g[s].lat-acLat)*60,   e0 = (g[s].lon-acLon)*60*cosAcLat;
             const n1 = (g[s+1].lat-acLat)*60, e1 = (g[s+1].lon-acLon)*60*cosAcLat;
