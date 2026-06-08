@@ -1690,8 +1690,8 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
       {
         const _digH = 0.0108, _digW = 0.0049, _gap = 0.0022, _uStart = 0.022;   // nm (~20/9/4/40 m)
         ctx.save();
-        ctx.strokeStyle = 'rgba(236,239,243,0.85)';   // off-white paint
-        ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+        ctx.fillStyle = 'rgba(236,239,243,0.85)';   // off-white paint — FILLED ribbons so the
+        ctx.lineJoin = 'miter';                      // strokes foreshorten with the surface (flat), like the piano keys
         for (const rg of _runways) {
           if (_isGrass(rg.surface)) continue;                   // grass strips aren't numbered
           const parts = (rg.ref || '').split('/').map(s => s.trim()).filter(Boolean);
@@ -1729,18 +1729,27 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
             if (!p0 || !p1) continue;
             const hpx = Math.hypot(p1[0]-p0[0], p1[1]-p0[1]);
             if (hpx < 3) continue;            // too small/distant to read
-            ctx.lineWidth = Math.max(1, hpx*0.13);
+            const _sw = _digW * 0.12;          // stroke half-width in surface NM → foreshortens with the runway
             for (let ci=0; ci<chars.length; ci++) {
               const glyph = _RW_FONT[chars[ci]]; if (!glyph) continue;
               const cV = -totalW/2 + ci*(_digW+_gap) + _digW/2;
               for (const stroke of glyph) {
-                ctx.beginPath(); let go=false;
-                for (const [gx,gy] of stroke) {
-                  const sp = _wp(_uStart + gy*_digH, cV + (gx-0.5)*_digW);
-                  if (!sp) { go=false; continue; }
-                  if (!go) { ctx.moveTo(sp[0],sp[1]); go=true; } else ctx.lineTo(sp[0],sp[1]);
+                /* Buffer the glyph polyline to a filled ribbon in (along, across) surface
+                   coords, then project — so the paint lies flat on the runway like the piano
+                   keys, instead of a constant-screen-width stroke that reads as a tube. */
+                const _pts = stroke.map(([gx,gy]) => [_uStart + gy*_digH, cV + (gx-0.5)*_digW]);
+                const _Ls=[], _Rs=[];
+                for (let i=0;i<_pts.length;i++){
+                  const a=_pts[Math.max(0,i-1)], b=_pts[Math.min(_pts.length-1,i+1)];
+                  let dA=b[0]-a[0], dC=b[1]-a[1]; const ln=Math.hypot(dA,dC)||1e-9; dA/=ln; dC/=ln;
+                  _Ls.push([_pts[i][0]-dC*_sw, _pts[i][1]+dA*_sw]);
+                  _Rs.push([_pts[i][0]+dC*_sw, _pts[i][1]-dA*_sw]);
                 }
-                ctx.stroke();
+                const _ring=_Ls.concat(_Rs.reverse());
+                ctx.beginPath(); let go=false;
+                for (const [al,ac] of _ring){ const sp=_wp(al,ac);
+                  if(!sp){go=false;continue;} if(!go){ctx.moveTo(sp[0],sp[1]);go=true;}else ctx.lineTo(sp[0],sp[1]); }
+                if(go){ctx.closePath(); ctx.fill();}
               }
             }
           }
