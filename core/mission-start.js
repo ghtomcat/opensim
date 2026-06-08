@@ -17,7 +17,7 @@ const _bearing = (a, b) =>
 const _lenM = (a, b) =>
   Math.hypot((b[0] - a[0]) * 111320, (b[1] - a[1]) * 111320 * Math.cos(a[0] * Math.PI / 180));
 
-export function resolveStart(mission) {
+export function resolveStart(mission, aircraft) {
   const s = mission?.start;
   if (!s) return null;
   const icao = s.icao || mission.departure?.icao || mission.arrival?.icao;
@@ -26,7 +26,18 @@ export function resolveStart(mission) {
   if (s.stand != null) {
     const want = String(s.stand).toUpperCase();
     const st = (STANDS[icao] || []).find(x => String(x.ref).toUpperCase() === want);
-    return st ? { lat: st.lat, lon: st.lon, hdg: st.hdg } : null;
+    if (!st) return null;
+    /* The stand's stop point is where the NOSE GEAR parks (the nosewheel follows the
+       lead-in line to its end). Place the model origin back along the heading by the
+       nose-gear station so the front gear lands on the line, not the fuselage middle. */
+    const noseFwd = aircraft?.gear?.nose?.x ?? 0;      // NM forward of the origin
+    const h = st.hdg * Math.PI / 180;
+    const dN = noseFwd * Math.cos(h), dE = noseFwd * Math.sin(h);
+    return {
+      lat: st.lat - dN / 60,
+      lon: st.lon - dE / (60 * Math.cos(st.lat * Math.PI / 180)),
+      hdg: st.hdg,
+    };
   }
 
   const rws = RUNWAYS[icao];

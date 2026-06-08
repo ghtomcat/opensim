@@ -27,7 +27,7 @@ export async function loadMission(missionPath, aircraftPath) {
   /* Apply initial state from mission. A named start ("start":{runway,at}) derives the
      exact lat/lon/hdg from bundled OurAirports data — overriding the hand-typed coords. */
   let { alt, spd, hdg, pitch, roll, lat, lon } = mission.initialState;
-  const _start = resolveStart(mission);
+  const _start = resolveStart(mission, aircraft);
   if (_start) { lat = _start.lat; lon = _start.lon; hdg = _start.hdg; }
 
   /* Weight-on-wheels: true when starting at or below departure/arrival elevation */
