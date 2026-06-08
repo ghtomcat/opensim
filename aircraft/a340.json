@@ -838,5 +838,10 @@
   "dorsalFillet": {
     "leX": -0.016005437,
     "blendZ": 0.002714903
+  },
+  "wingletGeom": {
+    "lengthMM": 1823.772,
+    "cantDeg": 45,
+    "tipChordMM": 709
   }
 }

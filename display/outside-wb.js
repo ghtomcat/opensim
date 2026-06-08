@@ -154,12 +154,19 @@ export function _buildWB(np) {
   const WV = _ws.verts;
   const r_ail = _ws.anim.r_ail;
 
-  /* Winglet geometry — auto-derives X from tipLE/tipTE, height from winglet type */
+  /* Winglet geometry — auto-derives X from tipLE/tipTE, height from winglet type.
+     An explicit wingletGeom {lengthMM, cantDeg (from vertical), tipChordMM} from the DWG
+     overrides the preset: the tip cants out+up by length·sin/cos, and the LE sweep is set
+     so the winglet tip chord matches (TE stays aligned with the wing-tip TE). */
   const _wlType = np.winglet ?? 'classic';
   const _wlH  = { classic: 0.0030, sharklet: 0.0065, blended: 0.0055, raked: 0.0015, none: 0 }[_wlType] ?? 0.0030;
-  const _wlSw = { classic: 0.0012, sharklet: 0.0040, blended: 0.0008, raked: 0.0035, none: 0 }[_wlType] ?? 0.0012;
-  const wy   = hs;
-  const wz   = dh + _wlH;
+  const _wlSwP = { classic: 0.0012, sharklet: 0.0040, blended: 0.0008, raked: 0.0035, none: 0 }[_wlType] ?? 0.0012;
+  const _wg   = np.wingletGeom;
+  const _wlL  = (_wg?.lengthMM != null) ? _wg.lengthMM / 1852000 : null;
+  const _wlCt = (_wg?.cantDeg ?? 0) * Math.PI / 180;
+  const wy    = (_wlL != null) ? hs + _wlL * Math.sin(_wlCt) : hs;
+  const wz    = dh + ((_wlL != null) ? _wlL * Math.cos(_wlCt) : _wlH);
+  const _wlSw = (_wlL != null && _wg.tipChordMM != null) ? (tLE - tTE) - _wg.tipChordMM / 1852000 : _wlSwP;
   const nTotal = nNose + 5;            // + 5 fixed tail rings
   const { V_, F_, FC_, E_, rb } = buildTube(N, [
     ...np.noseRings,                                    // rings 0…nNose-1: aircraft-specific nose
@@ -861,6 +868,7 @@ export function _acGeoFromJson(aircraft, baseNp) {
     vstab:         aircraft.vstab     ?? baseNp.vstab,
     dorsalFillet:  aircraft.dorsalFillet ?? baseNp.dorsalFillet,
     winglet:       aircraft.winglet   ?? baseNp.winglet,
+    wingletGeom:   aircraft.wingletGeom ?? baseNp.wingletGeom,
     eLen:          jGeo.engineLen     ?? baseNp.eLen ?? 1.0,
     fanCowlRatio:  jGeo.fanCowlRatio  ?? baseNp.fanCowlRatio,
     nacelleProfile: jGeo.nacelleProfile ?? baseNp.nacelleProfile,
