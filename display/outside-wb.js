@@ -806,8 +806,8 @@ export function _buildWB(np) {
     const _dfApexX = _vsRL + (_vsTL - _vsRL) * _dfFrac;
     const _dfB = V_.length;
     V_.push([_df.leX, 0, r], [_vsRL, 0, r], [_dfApexX, 0, _df.blendZ]);
-    F_.push([_dfB, _dfB + 1, _dfB + 2]); FC_.push(0);
-    F_.push([_dfB, _dfB + 2, _dfB + 1]); FC_.push(0);
+    F_.push([_dfB, _dfB + 1, _dfB + 2]); FC_.push(2);   // vtail colour (tail livery red)
+    F_.push([_dfB, _dfB + 2, _dfB + 1]); FC_.push(2);
     E_.push([_dfB, _dfB + 2], [_dfB + 1, _dfB + 2]);   // LE ridge + aft edge as wireframe
   }
 
