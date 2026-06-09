@@ -2218,21 +2218,31 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         _cyl(0.9, 0, FLOOR + 0.3);          // support column (ground → bridge floor)
         _cyl(RR, FLOOR - 0.3, ROOF + 0.5);  // rotunda drum at bridge level
 
-        /* Lift column + wheeled drive bogie under the cab: two vertical struts (the arm
-           rides up/down them) joined by a horizontal beam at the top, each on a fore/aft
-           wheel pair on the apron. */
-        const Bp = armPt(0.88), qx = -dy, qy = dx, WB = 0.7, WR = 0.55, STR_TOP = 8;
-        ctx.strokeStyle = 'rgba(150,160,170,0.82)'; ctx.lineWidth = 1.4 * _dpr;
-        const sTop = []; ctx.beginPath();
-        for (const s of [-1, 1]) { const sx = Bp[0] + qx*(BR_W/2)*s, sy = Bp[1] + qy*(BR_W/2)*s;
-          const t = GP(sx, sy, STR_TOP), b = GP(sx, sy, 0); sTop.push(t);
-          if (t && b) { ctx.moveTo(t[0],t[1]); ctx.lineTo(b[0],b[1]); } }                 // verticals
-        if (sTop[0] && sTop[1]) { ctx.moveTo(sTop[0][0],sTop[0][1]); ctx.lineTo(sTop[1][0],sTop[1][1]); } // top beam
+        /* Lift column + steerable drive bogie under the cab: two vertical struts joined
+           by a top beam and a bottom bar; below a central pivot, a lower bar carries the
+           four tyres and pivots to steer the bridge. */
+        const Bp = armPt(0.88), qx = -dy, qy = dx, hw = BR_W/2;
+        const STR_TOP = 8, H_CH = 1.3, WR = 0.55, AX = WR + 0.25, SB = 0.9, WT = 0.45;
+        const sLx = Bp[0]+qx*hw, sLy = Bp[1]+qy*hw, sRx = Bp[0]-qx*hw, sRy = Bp[1]-qy*hw;
+        const tL=GP(sLx,sLy,STR_TOP), tR=GP(sRx,sRy,STR_TOP), bL=GP(sLx,sLy,H_CH), bR=GP(sRx,sRy,H_CH);
+        ctx.strokeStyle = 'rgba(150,160,170,0.82)'; ctx.lineWidth = 1.4 * _dpr; ctx.beginPath();
+        if(tL&&bL){ctx.moveTo(tL[0],tL[1]);ctx.lineTo(bL[0],bL[1]);}          // strut L
+        if(tR&&bR){ctx.moveTo(tR[0],tR[1]);ctx.lineTo(bR[0],bR[1]);}          // strut R
+        if(tL&&tR){ctx.moveTo(tL[0],tL[1]);ctx.lineTo(tR[0],tR[1]);}          // top beam
+        if(bL&&bR){ctx.moveTo(bL[0],bL[1]);ctx.lineTo(bR[0],bR[1]);}          // bottom bar
+        ctx.stroke();
+        /* Central pivot pin + lower steering bar (along arm), carrying the 4 tyres. */
+        const pvT=GP(Bp[0],Bp[1],H_CH), pvB=GP(Bp[0],Bp[1],AX);
+        const eA=[Bp[0]+dx*SB,Bp[1]+dy*SB], eB=[Bp[0]-dx*SB,Bp[1]-dy*SB];
+        const ax0=GP(eA[0],eA[1],AX), ax1=GP(eB[0],eB[1],AX);
+        ctx.lineWidth = 1.6 * _dpr; ctx.beginPath();
+        if(pvT&&pvB){ctx.moveTo(pvT[0],pvT[1]);ctx.lineTo(pvB[0],pvB[1]);}    // pivot pin
+        if(ax0&&ax1){ctx.moveTo(ax0[0],ax0[1]);ctx.lineTo(ax1[0],ax1[1]);}    // steering bar
         ctx.stroke();
         ctx.fillStyle = 'rgba(40,44,50,0.90)';
-        for (const s of [-1, 1]) for (const df of [-WB, WB]) {
-          const sx = Bp[0] + qx*(BR_W/2)*s + dx*df, sy = Bp[1] + qy*(BR_W/2)*s + dy*df;
-          const c0 = GP(sx, sy, 0), c1 = GP(sx, sy, 2*WR);
+        for (const ep of [eA, eB]) for (const s of [-1, 1]) {                 // 2 tyres per bar end
+          const wx = ep[0] + qx*WT*s, wy = ep[1] + qy*WT*s;
+          const c0 = GP(wx, wy, 0), c1 = GP(wx, wy, 2*WR);
           if (c0 && c1) { const r = Math.max(1.2*_dpr, Math.hypot(c1[0]-c0[0], c1[1]-c0[1])/2);
             ctx.beginPath(); ctx.arc((c0[0]+c1[0])/2, (c0[1]+c1[1])/2, r, 0, Math.PI*2); ctx.fill(); } }
 
