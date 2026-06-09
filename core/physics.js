@@ -384,7 +384,7 @@ export function tickPhysics(dt) {
      target = first network node, aligned toward the next node (taxi-out heading).
      Absolute interpolation from the captured stand pose, so no drift. ── */
   let pbLat = newLat, pbLon = newLon, pbHdg = newHdg, pbPatch = {};
-  if (S.pushbackStart) {
+  if (S.pushbackStart && !S.pushbackDone) {               // override the pose only while the push is in progress
     if (!S.pushbackTo) {                                  // capture the two-phase path once, on the first frame
       const _gr = ac?.gear || {}, NM_M = 1852;            // model units: 1 NM = 1852 m
       const _nx = _gr.nose?.x, _mx = _gr.main?.x;         // gear stations fwd of the model origin (NM)
@@ -404,6 +404,7 @@ export function tickPhysics(dt) {
         const pose = pushbackPose(path, p);
         pbLat = pose.lat; pbLon = pose.lon; pbHdg = pose.hdg;
         pbPatch = { hdgT: pose.hdgT };                    // nose-wheel steering: straight on the back leg, into the turn
+        if (p >= 1) pbPatch.pushbackDone = true;          // motion complete → release to normal taxi physics
       }
     }
   }

@@ -2860,7 +2860,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
             const _he = (((S.hdgT ?? S.hdg) - S.hdg + 540) % 360) - 180;  // AP: signed heading error
             _sa = Math.max(-45, Math.min(45, _he * 4)) * Math.PI / 180;
           }
-          if (S.pushbackStart) _sa = -_sa;                               // rolling backwards → wheel steers opposite
+          if (S.pushbackStart && !S.pushbackDone) _sa = -_sa;            // rolling backwards → wheel steers opposite
           _steerAx = [-Math.sin(_sa), Math.cos(_sa), 0];
         }
         if (pt) pushTirePair(faces, wc, _nTR, _nHR, project, rotateNormal, litBr, _steerAx); }

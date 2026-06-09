@@ -91,6 +91,7 @@ export async function loadMission(missionPath, aircraftPath) {
     comPanelVisible: false,
     cockpitView: 'forward',
     pushbackStart: null,        // set (ms) when pushback requested → retracts the gate's bridge
+    pushbackDone: false,        // motion complete → release the pose override so the aircraft can taxi
     pushbackFrom: null,         // captured stand pose at pushback start {lat,lon,hdg}
     pushbackTo:   null,         // target taxiway pose {lat,lon,hdg} from the taxi route
   });
