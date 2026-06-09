@@ -46,6 +46,7 @@ const _nmd = (la1, lo1, la2, lo2) => {
 };
 function _updateTaxiRoute(lat, lon) {
   if (!_ltaxiLine) return;
+  if (!S.wow) { _ltaxiLine.setLatLngs([]); _taxiRoute = null; _taxiKey = null; S.taxiRoute = null; return; }  // airborne → no taxi routing
   const m = S.mission;
   let icao = null, ctr = null, bd = 1e9;
   for (const ic of [m?.departure?.icao, m?.arrival?.icao]) {

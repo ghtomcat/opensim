@@ -376,7 +376,11 @@ function _holdInfo(el, els, runways) {
   }
   const rwLat = cLat - el.lat, rwLon = cLon - el.lon;   // toward the nearest point on the runway
   if (uLat*rwLat + (uLon*cl)*(rwLon*cl) < 0) { uLat = -uLat; uLon = -uLon; }  // toward runway
-  const des = el.tags?.ref ? el.tags.ref.replace(/\//g, '-') : (best ? _rwDes(best) : null);
+  /* The sign shows the RUNWAY it protects (e.g. "16-34"), not the taxiway — use the node's
+     ref only when it's already a runway designation, else the nearest runway. */
+  const _ref = el.tags?.ref;
+  const _refIsRwy = _ref && /^\d{1,2}[LCR]?([-/]\d{1,2}[LCR]?)?$/i.test(_ref);
+  const des = _refIsRwy ? _ref.replace(/\//g, '-') : (best ? _rwDes(best) : null);
   return (el._hold = { uLat, uLon, width: dir.width, des });
 }
 

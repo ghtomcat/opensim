@@ -7,6 +7,19 @@
 import { S } from '../core/state.js';
 import { speakATC, speakPM } from '../core/crew.js';
 import { bbEvent } from '../core/blackbox.js';
+import { RUNWAYS } from './runways-data.js';
+
+/* True when parked near a runway threshold (holding short) — gates the takeoff request. */
+function _nearRunway() {
+  const ic = S.mission?.departure?.icao, rws = ic && RUNWAYS[ic];
+  if (!rws) return false;
+  const cl = Math.cos((S.lat ?? 0) * Math.PI / 180);
+  for (const r of rws) for (const e of [r.a, r.b]) {
+    const dN = ((S.lat ?? 0) - e[0]) * 60, dE = ((S.lon ?? 0) - e[1]) * 60 * cl;
+    if (dN * dN + dE * dE < 0.25 * 0.25) return true;     // within ~0.25 NM
+  }
+  return false;
+}
 
 /* ── Default LSZH frequency card ── */
 const FREQS_DEFAULT = {
@@ -250,6 +263,13 @@ const _REQUESTS = [
                   const rwy = t.rwy ? ` runway ${t.rwy}` : '';
                   const via = t.via?.length ? `, via ${t.via.join(' ')}` : '';
                   return `${cs}, taxi to holding point${rwy}${via}`; },
+    run:  () => {} },
+
+  { id: 'takeoff', label: 'Takeoff',
+    when: () => S.wow && (S.spd ?? 0) < 40 && _nearRunway(),
+    pm:   cs => `${cs}, ready for departure`,
+    atc:  cs => { const rwy = S.mission?.departure?.runway ?? S.taxiClearance?.rwy ?? '';
+                  return `${cs},${rwy ? ` runway ${rwy},` : ''} cleared for takeoff`; },
     run:  () => {} },
 ];
 
