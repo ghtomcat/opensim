@@ -6,6 +6,7 @@
 
 import { S, setState } from './state.js';
 import { bbEvent } from './blackbox.js';
+import { capturePushback, pushbackPose } from './pushback.js';
 
 const DEG = Math.PI / 180;
 
@@ -378,12 +379,41 @@ export function tickPhysics(dt) {
     : Math.max(0, gearCur - gearDelta);
   const _gearPatch = !ac.fixedGear ? { gearAnim: newGearAnim } : {};
 
-  setState({ alt: newAlt, spd: newSpd, hdg: newHdg, pitch: newPitch, roll: newRoll,
+  /* ── Pushback: the tug walks the aircraft from the stand back onto the taxiway.
+     Path reuses the already-computed taxi route (S.taxiRoute — the green map line):
+     target = first network node, aligned toward the next node (taxi-out heading).
+     Absolute interpolation from the captured stand pose, so no drift. ── */
+  let pbLat = newLat, pbLon = newLon, pbHdg = newHdg, pbPatch = {};
+  if (S.pushbackStart) {
+    if (!S.pushbackTo) {                                  // capture the two-phase path once, on the first frame
+      const _gr = ac?.gear || {}, NM_M = 1852;            // model units: 1 NM = 1852 m
+      const _nx = _gr.nose?.x, _mx = _gr.main?.x;         // gear stations fwd of the model origin (NM)
+      const _noseFwdM = (_nx ?? 0) * NM_M;                // origin → nose-gear (matches mission-start parking)
+      const _wbM = _gr.noseGearToMainGear ? _gr.noseGearToMainGear / 1000      // real wheelbase if specified
+                 : (_nx != null && _mx != null) ? (_nx - _mx) * NM_M           // else from gear stations
+                 : 15;
+      setState({ pushbackTo: capturePushback(S.taxiRoute, S.lat, S.lon, S.hdg, _wbM, _noseFwdM) });
+    }
+    const path = S.pushbackTo;
+    if (path) {
+      const PB_DELAY = 6000;                              // wait for the bridge to clear
+      const PB_DUR = Math.max(12000, Math.min(45000, path.len * 250));   // pace by main-gear travel
+      let p = (performance.now() - S.pushbackStart - PB_DELAY) / PB_DUR;
+      p = Math.max(0, Math.min(1, p));
+      if (p > 0) {
+        const pose = pushbackPose(path, p);
+        pbLat = pose.lat; pbLon = pose.lon; pbHdg = pose.hdg;
+        pbPatch = { hdgT: pose.hdgT };                    // nose-wheel steering: straight on the back leg, into the turn
+      }
+    }
+  }
+
+  setState({ alt: newAlt, spd: newSpd, hdg: pbHdg, pitch: newPitch, roll: newRoll,
              rollRate: newRollRate, pitchRate: newPitchRate,
-             vs, ilsLoc, ilsGs, fma, lat: newLat, lon: newLon,
+             vs, ilsLoc, ilsGs, fma, lat: pbLat, lon: pbLon,
              prevAlt: S.alt, time: S.time + dt,
              wow: newWow, touchdownVS: newTouchdownVS,
-             oilTempC: newOilTempC, ..._trPatch, ..._gearPatch, ..._sbPatch });
+             oilTempC: newOilTempC, ..._trPatch, ..._gearPatch, ..._sbPatch, ...pbPatch });
 }
 
 export function resetApproach() {

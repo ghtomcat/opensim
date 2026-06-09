@@ -76,6 +76,7 @@ function _updateTaxiRoute(lat, lon) {
     _taxiFrom = [lat, lon]; _taxiKey = icao;
     if (_taxiRoute?.seq?.length) S.taxiClearance = { icao, via: _taxiRoute.seq, distM: _taxiRoute.distM, arr: isArr };
   }
+  S.taxiRoute = _taxiRoute;                              // expose the green line for pushback routing
   _ltaxiLine.setLatLngs(_taxiRoute?.pts ?? []);
 }
 
