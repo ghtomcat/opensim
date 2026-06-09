@@ -1,85 +1,69 @@
 {
   "id": "fimp-takeoff",
   "phase": "ground",
-  "title": "Takeoff — Mauritius FIMP",
-  "description": "Edelweiss Air A340 ready for engine start on runway 14, Mauritius. Sunrise. Heavy. Long haul to Zürich.",
+  "title": "Dock E — Zürich LSZH",
+  "description": "Edelweiss Air A340 at a Dock E gate, Zürich. Live METAR. Engine start, pushback off the midfield satellite, taxi out.",
   "author": "Markus Leutwyler",
   "aircraft": "a340",
   "departure": {
-    "icao": "FIMP",
-    "name": "Mauritius",
-    "runway": "14",
-    "elevation": 186
-  },
-  "arrival": {
     "icao": "LSZH",
     "name": "Zürich",
-    "runway": "28",
-    "ils": {
-      "freq": "110.300",
-      "course": 280
-    },
+    "runway": "16",
     "elevation": 1416
   },
+  "arrival": null,
   "initialState": {
-    "alt": 186,
+    "alt": 1416,
     "spd": 0,
     "pitch": 0,
     "roll": 0
   },
-  "start": { "runway": "14", "at": "lineup" },
+  "start": { "stand": "E26" },
   "weather": {
     "source": "live",
-    "icao": "FIMP",
+    "icao": "LSZH",
     "fallback": {
-      "wdir": 130,
-      "wspd": 12,
-      "altim": 1013,
-      "temp": 28,
-      "dewp": 22,
+      "wdir": 240,
+      "wspd": 8,
+      "altim": 1018,
+      "temp": 14,
+      "dewp": 8,
       "visib": "6+",
       "clouds": [
-        { "cover": "FEW", "base": 2500 }
+        { "cover": "FEW", "base": 4000 }
       ]
     }
   },
   "com": {
     "title": "COM 1",
-    "active":  "121.700",
+    "active":  "121.875",
     "standby": "118.100",
     "freqs": {
-      "121.700": { "label": "FIMP GROUND",    "audio": null },
-      "118.100": { "label": "FIMP TOWER",     "audio": null },
-      "119.900": { "label": "FIMP APPROACH",  "audio": null },
-      "126.700": { "label": "FIMP ATIS",      "audio": null },
-      "121.500": { "label": "GUARD",          "audio": null }
+      "121.875": { "label": "ZURICH GROUND",   "audio": null },
+      "118.100": { "label": "ZURICH TOWER",    "audio": null },
+      "125.325": { "label": "ZURICH APPROACH", "audio": null },
+      "129.000": { "label": "ZURICH ATIS",     "audio": null },
+      "121.500": { "label": "GUARD",           "audio": null }
     }
   },
   "atcClearances": [
     {
-      "pm": "Edelweiss nine one seven, request IFR clearance to Zürich",
-      "atc": "Edelweiss nine one seven, cleared to Zürich LSZH, flight level three seven zero, runway one four, departure heading one four zero, squawk four seven zero three"
+      "pm": "Zürich Ground, Edelweiss nine one seven, Dock E, request IFR clearance",
+      "atc": "Edelweiss nine one seven, cleared to destination, runway one six, departure as published, squawk four seven zero three"
     },
     {
-      "pm": "Edelweiss nine one seven, ready for pushback and start",
+      "pm": "Edelweiss nine one seven, request pushback and start",
       "atc": "Edelweiss nine one seven, pushback approved, start at your discretion"
     },
     {
       "pm": "Edelweiss nine one seven, request taxi",
-      "atc": "Edelweiss nine one seven, taxi to holding point runway one four via Alpha and Bravo, QNH one zero one three"
-    },
-    {
-      "pm": "Holding point runway one four, Edelweiss nine one seven, ready",
-      "atc": "Edelweiss nine one seven, wind one three zero at twelve, runway one four, cleared for takeoff"
+      "atc": "Edelweiss nine one seven, taxi to holding point runway one six via the outer, QNH one zero one eight"
     }
   ],
-  "approachBriefAlt": 9500,
   "debrief": [
-    "Did all 4 engines start cleanly — any N1 anomalies?",
-    "Was the rolling takeoff smooth on runway 14?",
-    "Did you catch the Indian Ocean off the left after rotation?",
-    "How heavy did the A340 feel on rotation — 10h of fuel aboard"
+    "Did all 4 engines start cleanly?",
+    "How did Dock E and the apron read on pushback?"
   ],
   "failures": [],
-  "timeOfDay": 6.5
+  "timeOfDay": 12
 }

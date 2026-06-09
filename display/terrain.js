@@ -2300,9 +2300,11 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
            arc on the apron. */
         const BR_W = 3, LEFT = leftOff ?? 4, FLOOR = 3.6, THK = 2.4, ROOF = FLOOR + THK;
         const fT = fTReach || 13, fDoor = -8, LEN = fT - fDoor;  // rotunda reach: real wall dist, else ~13 m
-        /* Swivel + lift animation off — bridges rest docked; the slow sweeps will be
-           driven on demand (docking sequence) later. */
-        const _phi = 0, _lift = 3.4;                      // _phi: arm angle · _lift: cab height
+        /* Docked at rest; pushback (retract 0→1) lowers/disconnects the cab, then swings
+           the arm clear about the rotunda. */
+        const _r = Math.max(0, Math.min(1, retract || 0));
+        const _phi  = Math.max(0, (_r - 0.35) / 0.65) * 0.7;   // swing away after disconnect
+        const _lift = 3.4 - Math.min(1, _r / 0.35) * 2.1;      // lower/disconnect first
         const R = [fT, LEFT];                             // rotunda / pivot
         const dx = -Math.cos(_phi), dy = Math.sin(_phi);  // arm dir in (fwd,side): door at phi=0
         const armPt = (t) => [R[0] + LEN * t * dx, R[1] + LEN * t * dy]; // t:0=rotunda 1=cab
@@ -2463,10 +2465,13 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
       const gates = ic && STANDS[ic];
       if (!gates) continue;
       const _covered = BRIDGE_COVERAGE[ic], _terms = TERMINALS[ic];
+      const _ownStand = S.mission?.start?.stand;          // your gate → pushback retracts its bridge
+      const _pbR = S.pushbackStart ? Math.min(1, (performance.now() - S.pushbackStart) / 6000) : 0;
       for (const g of gates) {
         if (_covered ? !g.bridge : !_contactGates.has(g)) continue;  // real OSM flag where mapped, else cluster
         const gN = (g.lat - acLat) * 60, gE = (g.lon - acLon) * 60 * cosAcLat;
         if (gN * gN + gE * gE > 25) continue;             // >5 nm: skip
+        const rr = (g.ref === _ownStand) ? _pbR : 0;      // retract only your own gate's bridge
         let done = false;
         if (g.att && g.cab) {                             // real OSM bridge: rotunda on att (building), cab at the door
           const cCos = Math.cos(g.cab[0]*DEG);
@@ -2474,7 +2479,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           if (D > 10) {
             const bHdg = (Math.atan2(dE, dN)*180/Math.PI + 360) % 360;  // axis: cab → att
             const oLat = g.cab[0] + 8*Math.cos(bHdg*DEG)/111320, oLon = g.cab[1] + 8*Math.sin(bHdg*DEG)/(111320*cCos);
-            _drawBridge(oLat, oLon, bHdg, false, D - 8, 0);  // origin 8 m back of cab; leftOff 0 → centred on the OSM line
+            _drawBridge(oLat, oLon, bHdg, false, D - 8, 0, rr);  // origin 8 m back of cab; leftOff 0 → centred on the OSM line
             done = true;
           }
         }
@@ -2482,7 +2487,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           let reach = null;
           if (_terms) { const wd = _wallDist(g.lat, g.lon, Math.sin(g.hdg*DEG), Math.cos(g.hdg*DEG), _terms);
             if (wd && wd > 6 && wd < 60) reach = wd; }
-          _drawBridge(g.lat, g.lon, g.hdg, false, reach);
+          _drawBridge(g.lat, g.lon, g.hdg, false, reach, undefined, rr);
         }
       }
     }

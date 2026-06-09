@@ -90,6 +90,7 @@ export async function loadMission(missionPath, aircraftPath) {
     crashReason: null,
     comPanelVisible: false,
     cockpitView: 'forward',
+    pushbackStart: null,        // set (ms) when pushback requested → retracts the gate's bridge
   });
 
   /* G1000 (C172) cockpit switches — cold and dark */

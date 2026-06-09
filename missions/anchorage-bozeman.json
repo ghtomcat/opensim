@@ -1,7 +1,7 @@
 {
   "id": "anchorage-bozeman",
   "phase": "departure",
-  "title": "Bozeman → Anchorage",
+  "title": "Bozeman \u2192 Anchorage",
   "description": "Alaska 737 MAX 9 parked at gate B7, Bozeman Yellowstone, bound for Ted Stevens Anchorage. Live METAR. Start up cold, taxi to runway 30, and depart northwest over the Bridgers and climb out across the Rockies.",
   "author": "Markus Leutwyler",
   "aircraft": "b737max9",
@@ -23,7 +23,9 @@
     "pitch": 0,
     "roll": 0
   },
-  "start": { "stand": "B7" },
+  "start": {
+    "stand": "B7"
+  },
   "weather": {
     "source": "live",
     "icao": "KBZN",
@@ -47,14 +49,26 @@
     "active": "121.800",
     "standby": "118.200",
     "freqs": {
-      "121.800": { "label": "BOZEMAN GROUND",
-                   "checkin": "{cs}, Bozeman Ground. Taxi to runway three zero via Alpha, hold short." },
-      "132.400": { "label": "SALT LAKE CENTER", "squawk": true,
-                   "checkin": "{cs}, Salt Lake Center. Cleared to Anchorage as filed, climb maintain one seven thousand, squawk assigned." },
-      "135.425": { "label": "BOZEMAN ATIS", "atis": true },
-      "118.200": { "label": "BOZEMAN TOWER",
-                   "checkin": "{cs}, Bozeman Tower. Runway three zero, cleared for takeoff." },
-      "121.500": { "label": "GUARD" }
+      "121.800": {
+        "label": "BOZEMAN GROUND",
+        "checkin": "{cs}, Bozeman Ground. Taxi to runway three zero via Alpha, hold short."
+      },
+      "132.400": {
+        "label": "SALT LAKE CENTER",
+        "squawk": true,
+        "checkin": "{cs}, Salt Lake Center. Cleared to Anchorage as filed, climb maintain one seven thousand, squawk assigned."
+      },
+      "135.425": {
+        "label": "BOZEMAN ATIS",
+        "atis": true
+      },
+      "118.200": {
+        "label": "BOZEMAN TOWER",
+        "checkin": "{cs}, Bozeman Tower. Runway three zero, cleared for takeoff."
+      },
+      "121.500": {
+        "label": "GUARD"
+      }
     }
   },
   "atcClearances": [

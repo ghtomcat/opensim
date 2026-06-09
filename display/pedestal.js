@@ -585,6 +585,13 @@ export function renderPedestal() {
     _attachHandlers();
   }
   if (visible) _update();
+  /* The radio lives on the pedestal in WB/NB cockpits — show the comm panel only with the
+     pedestal view (the G1000 keeps its own forward-panel radio). */
+  document.body.classList.toggle('pedestal-active', visible);
+  if (S.aircraft?.panel !== 'g1000') {
+    const _com = document.getElementById('com-container');
+    if (_com) _com.style.display = visible ? '' : 'none';
+  }
   /* Persistent parking-brake annunciator (any view) */
   document.getElementById('parkbrk-ind')?.classList.toggle('pb-on', !!S.parkBrake);
 }

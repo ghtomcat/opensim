@@ -850,6 +850,32 @@
       left: auto; right: 20px; bottom: 110px;
     }
     body.panel-dual #com-container { display: none !important; }
+    /* WB/NB radio docks onto the pedestal — bottom-left, clear of the centred thrust levers,
+       lifted above the #ped overlay (z 180), and overriding the panel-dual hide. */
+    body.pedestal-active #com-container {
+      display: block !important; left: 20px; right: auto; bottom: 24px; transform: none; z-index: 185;
+    }
+
+    /* Contextual request menu (REQUEST ▾) */
+    .req-section { position: relative; margin-top: 8px; }
+    .com-req-btn {
+      width: 100%; background: none; border: 1px solid var(--cyan);
+      color: var(--cyan); font-family: "IBM Plex Mono", monospace;
+      font-size: 11px; letter-spacing: 0.08em; padding: 5px 10px; cursor: pointer;
+    }
+    .com-req-btn:hover { background: var(--cyan); color: var(--bg); }
+    .com-req-popup {
+      position: absolute; bottom: 100%; left: 0; right: 0; margin-bottom: 4px;
+      background: rgba(12,16,22,0.97); border: 1px solid rgba(120,200,230,0.4);
+      display: flex; flex-direction: column; z-index: 30;
+    }
+    .com-req-item {
+      background: none; border: none; border-bottom: 1px solid rgba(255,255,255,0.06);
+      color: rgba(232,237,242,0.85); font-family: "IBM Plex Mono", monospace;
+      font-size: 11px; text-align: left; padding: 7px 10px; cursor: pointer;
+    }
+    .com-req-item:hover { background: rgba(120,200,230,0.15); color: var(--cyan); }
+    .com-req-empty { color: var(--dim); font-size: 10px; padding: 7px 10px; }
 
 
     .com-panel {

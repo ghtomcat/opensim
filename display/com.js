@@ -5,7 +5,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from '../core/state.js';
-import { speakATC } from '../core/crew.js';
+import { speakATC, speakPM } from '../core/crew.js';
 import { bbEvent } from '../core/blackbox.js';
 
 /* ── Default LSZH frequency card ── */
@@ -166,6 +166,12 @@ function _html() {
     <div class="xpdr-status" id="xpdr-status"></div>
   </div>
 
+  <!-- Contextual requests (pushback, etc.) -->
+  <div class="req-section">
+    <button class="com-req-btn" id="com-req-btn">REQUEST ▾</button>
+    <div class="com-req-popup" id="com-req-popup" hidden></div>
+  </div>
+
 </div>`;
 }
 
@@ -225,11 +231,50 @@ function _renderXpdrStatus() {
   if (el) el.textContent = XPDR.code.join('');
 }
 
+/* ── Contextual requests (REQUEST ▾ popup) — same shape as the scripted clearances, but
+   pulled by the pilot. when() filters to what's valid now; run() fires the effect. */
+const _REQUESTS = [
+  { id: 'pushback', label: 'Pushback',
+    when: () => S.wow && (S.spd ?? 0) < 1 && !!S.mission?.start?.stand
+             && S.engineState !== 'running' && !S.pushbackStart,
+    pm:   (cs, gate) => `Ground, ${cs}, stand ${gate}, request pushback`,
+    atc:  cs => `${cs}, pushback approved, advise ready to taxi`,
+    run:  () => { S.pushbackStart = performance.now(); } },
+];
+
+function _toggleReqPopup() {
+  const pop = document.getElementById('com-req-popup'); if (!pop) return;
+  if (!pop.hidden) { pop.hidden = true; return; }
+  const avail = _REQUESTS.filter(r => { try { return r.when(); } catch { return false; } });
+  pop.innerHTML = avail.length
+    ? avail.map(r => `<button class="com-req-item" data-req="${r.id}">${r.label}</button>`).join('')
+    : '<div class="com-req-empty">No requests available</div>';
+  pop.hidden = false;
+}
+
+function _runRequest(id) {
+  const r = _REQUESTS.find(x => x.id === id); if (!r) return;
+  const pop = document.getElementById('com-req-popup'); if (pop) pop.hidden = true;
+  const cs = S.aircraft?.callsign ?? S.mission?.callsign ?? 'Aircraft';
+  const gate = S.mission?.start?.stand ?? '';
+  bbEvent?.('atc_request', { id });
+  if (r.pm) speakPM(r.pm(cs, gate));                        // crew makes the radio call
+  setTimeout(() => speakATC(r.atc(cs)), 3000);             // ATC approves
+  if (r.run) setTimeout(r.run, 5800);                      // …only then does the effect (bridge) start
+}
+
 function _bindEvents(container) {
   /* Transfer button */
   container.addEventListener('click', (e) => {
     if (e.target.id === 'com-xfer' || e.target.closest('#com-xfer')) _transfer();
     if (e.target.id === 'xpdr-ident' || e.target.closest('#xpdr-ident')) _ident();
+  });
+
+  /* Contextual requests */
+  container.addEventListener('click', (e) => {
+    if (e.target.closest('#com-req-btn')) { _toggleReqPopup(); return; }
+    const item = e.target.closest('.com-req-item');
+    if (item) _runRequest(item.dataset.req);
   });
 
   /* Tune standby */
