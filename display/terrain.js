@@ -2204,7 +2204,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         ctx.closePath(); ctx.fill();
         /* Lit windows — emissive panes on the wall after dark (bilinear over the quad, a
            deterministic ~58% lit so they don't flicker). Warm interior light. */
-        if (f.wall && _nightW > 0.12) {
+        if (false && f.wall && _nightW > 0.12) {   // experiment: drop exterior window panes, keep interior glow only
           const cols = Math.max(1, Math.round(f.L/4.2)), rows = Math.max(1, Math.round(heightM/3.6));
           const cw = Math.hypot(q[1][0]-q[0][0], q[1][1]-q[0][1]) / cols;
           const ch = Math.hypot(q[3][0]-q[0][0], q[3][1]-q[0][1]) / rows;
@@ -2222,7 +2222,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           }
         }
       }
-      if (_nightW > 0.2) {                                // warm interior light spilling from the structure
+      if (_nightW > 0.2) {                                // warm interior glow, contained within the structure
         const sp = [];
         for (const o of bot) if (o.p) sp.push(o.p);
         for (const o of top) if (o.p) sp.push(o.p);
@@ -2230,12 +2230,18 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           let mx=0,my=0; for (const p of sp){ mx+=p[0]; my+=p[1]; } mx/=sp.length; my/=sp.length;
           let rad=0; for (const p of sp) rad = Math.max(rad, Math.hypot(p[0]-mx, p[1]-my));
           rad = Math.max(rad*1.05, 6*_dprB);
-          const gr = ctx.createRadialGradient(mx,my,0, mx,my,rad), a = _nightW*0.16;
+          const gr = ctx.createRadialGradient(mx,my,0, mx,my,rad), a = _nightW*0.27;
           gr.addColorStop(0,   `rgba(255,226,168,${a.toFixed(3)})`);
           gr.addColorStop(0.6, `rgba(255,220,160,${(a*0.5).toFixed(3)})`);
           gr.addColorStop(1,   'rgba(255,216,150,0)');
-          ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.fillStyle=gr;
-          ctx.beginPath(); ctx.arc(mx,my,rad,0,Math.PI*2); ctx.fill(); ctx.restore();
+          ctx.save();
+          ctx.beginPath();                                // clip to the walls only → roof stays solid, caps the light
+          for (const f of faces){ if (f.roof) continue; const q = f.q; if (q.some(p=>!p)) continue;
+            ctx.moveTo(q[0][0],q[0][1]); for (let i=1;i<q.length;i++) ctx.lineTo(q[i][0],q[i][1]); ctx.closePath(); }
+          ctx.clip();
+          ctx.globalCompositeOperation='lighter'; ctx.fillStyle=gr;
+          ctx.fillRect(mx-rad, my-rad, rad*2, rad*2);
+          ctx.restore();
         }
       }
       if (typeof window !== 'undefined' && window.OPENSIM_MASSEDGES) {   // debug: bright footprint + vertex indices
