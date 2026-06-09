@@ -19,6 +19,7 @@ import { nightDensity } from './night-lights.js';
 import { landColor }    from './terrain-color.js';
 import { WINDSOCKS }    from './windsocks-data.js';
 import { STANDS, BRIDGE_COVERAGE } from './stands-data.js';
+import { SATELLITES }   from './satellites-data.js';
 
 /* Soft radial-gradient sprite, reused (additively) for the night city-light glow. */
 let _glowSprite = null, _coreSprite = null;
@@ -2150,28 +2151,20 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
       }
     }
 
-    /* ── Jet bridges + apron flood lamps — only at contact gates (those that belong to a
-       drawn terminal cluster); remote hardstands have neither a terminal nor a bridge.
-       Each bridge follows its OWN gate's nose-in heading (robust where stands fan out).
-       One flood-lamp pole stands beside each — faint by day, glowing at dusk/night. */
-    for (const ic of [S.mission?.departure?.icao, S.mission?.arrival?.icao]) {
-      const gates = ic && STANDS[ic];
-      if (!gates) continue;
-      const _covered = BRIDGE_COVERAGE[ic];
-      const _nightF = 1 - dayFrac, _dpr = devicePixelRatio || 1;
-      for (const g of gates) {
-        if (_covered ? !g.bridge : !_contactGates.has(g)) continue;  // real OSM flag where mapped, else cluster
-        const gN = (g.lat - acLat) * 60, gE = (g.lon - acLon) * 60 * cosAcLat;
-        if (gN * gN + gE * gE > 25) continue;             // >5 nm: skip
-        const gCos = Math.cos(g.lat * DEG);
-        const hE = Math.sin(g.hdg * DEG), hN = Math.cos(g.hdg * DEG); // nose-in (toward terminal)
+    /* ── Jet bridges + apron flood lamps. _drawBridge renders one full articulated
+       bridge for a stand (lat/lon = nose stop, hdg = nose-in heading toward the
+       terminal). Called per contact gate below, and radially per satellite gate. */
+    const _drawBridge = (gLat, gLon, gHdg) => {
+        const _nightF = 1 - dayFrac, _dpr = devicePixelRatio || 1;
+        const gCos = Math.cos(gLat * DEG);
+        const hE = Math.sin(gHdg * DEG), hN = Math.cos(gHdg * DEG); // nose-in (toward terminal)
         const lE = -hN, lN = hE;                          // aircraft-left
-        const _emG = _sampleElev(g.lat, g.lon);
+        const _emG = _sampleElev(gLat, gLon);
         const e0 = _emG !== null ? (_emG - refM) * M_NM : 0;
         /* (fwd along nose, side to left) metres + height(m) → projected screen point */
         const GP = (fwd, side, hM) => {
           const dE = fwd * hE + side * lE, dN = fwd * hN + side * lN;
-          const la = g.lat + dN / 111320, lo = g.lon + dE / (111320 * gCos);
+          const la = gLat + dN / 111320, lo = gLon + dE / (111320 * gCos);
           const N = (la - acLat) * 60, E = (lo - acLon) * 60 * cosAcLat;
           return proj(N * cosH + E * sinH, E * cosH - N * sinH, e0 + hM * M_NM);
         };
@@ -2311,6 +2304,57 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           }
           ctx.fillStyle = _nightF > 0.3 ? 'rgba(255,248,224,0.95)' : 'rgba(210,220,230,0.85)';
           ctx.beginPath(); ctx.arc(head[0], head[1], 1.7 * _dpr, 0, Math.PI * 2); ctx.fill();
+        }
+    };
+
+    /* Bridges at contact gates — OSM flag where covered, else the cluster. */
+    for (const ic of [S.mission?.departure?.icao, S.mission?.arrival?.icao]) {
+      const gates = ic && STANDS[ic];
+      if (!gates) continue;
+      const _covered = BRIDGE_COVERAGE[ic];
+      for (const g of gates) {
+        if (_covered ? !g.bridge : !_contactGates.has(g)) continue;  // real OSM flag where mapped, else cluster
+        const gN = (g.lat - acLat) * 60, gE = (g.lon - acLon) * 60 * cosAcLat;
+        if (gN * gN + gE * gE > 25) continue;             // >5 nm: skip
+        _drawBridge(g.lat, g.lon, g.hdg);
+      }
+    }
+
+    /* ── Satellite terminals — round buildings ringed by gates (e.g. Genève B3x/B4x).
+       Draw the drum, then a radial jet bridge out to each gate (nose-in heading points
+       back at the centre, so the rotunda lands on the drum edge). */
+    for (const ic of [S.mission?.departure?.icao, S.mission?.arrival?.icao]) {
+      const sats = ic && SATELLITES[ic];
+      if (!sats) continue;
+      const _dpr = devicePixelRatio || 1;
+      for (const sat of sats) {
+        const sN = (sat.lat - acLat) * 60, sE = (sat.lon - acLon) * 60 * cosAcLat;
+        if (sN * sN + sE * sE > 25) continue;             // >5 nm: skip
+        const sCos = Math.cos(sat.lat * DEG);
+        const _emS = _sampleElev(sat.lat, sat.lon);
+        const e0 = _emS !== null ? (_emS - refM) * M_NM : 0;
+        const bR = sat.r * 0.75, BH = 13, SN = 12;        // drum radius (m), height (m), facets
+        const _ring = (radM, hM) => { const pts = [];
+          for (let k = 0; k < SN; k++) { const a = k / SN * Math.PI * 2;
+            const dN = Math.cos(a) * radM, dE = Math.sin(a) * radM;
+            const la = sat.lat + dN / 111320, lo = sat.lon + dE / (111320 * sCos);
+            const N = (la - acLat) * 60, E = (lo - acLon) * 60 * cosAcLat;
+            pts.push(proj(N * cosH + E * sinH, E * cosH - N * sinH, e0 + hM * M_NM)); }
+          return pts; };
+        const bot = _ring(bR, 0), top = _ring(bR, BH);
+        if (top.every(p => p)) { ctx.fillStyle = 'rgba(70,82,96,0.22)'; ctx.beginPath();
+          ctx.moveTo(top[0][0], top[0][1]); for (let i = 1; i < SN; i++) ctx.lineTo(top[i][0], top[i][1]);
+          ctx.closePath(); ctx.fill(); }
+        ctx.strokeStyle = 'rgba(150,170,190,0.7)'; ctx.lineWidth = 1.2 * _dpr; ctx.beginPath();
+        for (let i = 0; i < SN; i++) { const a = bot[i], b = bot[(i+1)%SN], c = top[i], d = top[(i+1)%SN];
+          if (a && b) { ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); }
+          if (c && d) { ctx.moveTo(c[0],c[1]); ctx.lineTo(d[0],d[1]); }
+          if (a && c) { ctx.moveTo(a[0],a[1]); ctx.lineTo(c[0],c[1]); } }
+        ctx.stroke();
+        for (const brg of sat.gates) {                    // a radial jet bridge per gate
+          const stopR = bR + 13;                          // nose stop so the rotunda lands at the drum edge
+          const dN = Math.cos(brg * DEG) * stopR, dE = Math.sin(brg * DEG) * stopR;
+          _drawBridge(sat.lat + dN / 111320, sat.lon + dE / (111320 * sCos), (brg + 180) % 360);
         }
       }
     }
