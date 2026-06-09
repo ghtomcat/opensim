@@ -22,6 +22,7 @@ import { STANDS, BRIDGE_COVERAGE } from './stands-data.js';
 import { SATELLITES }   from './satellites-data.js';
 import { TERMINALS }    from './terminals-data.js';   // aprons already drawn by the live OSM overlay
 import { computeTugPath, tugPose, pushbackDist } from '../core/pushback.js';
+import { getTaxiGraph } from '../core/taxi-graph.js';
 
 /* Soft radial-gradient sprite, reused (additively) for the night city-light glow. */
 let _glowSprite = null, _coreSprite = null;
@@ -318,6 +319,28 @@ const _RW_FONT = {
   'Z': [[[0,1],[1,1],[0,0],[1,0]]],
 };
 
+/* Taxiway signs from the graph: one per node where ≥2 named taxiways meet (an
+   intersection), each carrying the distinct taxiway designations there. Derived once
+   per airport — the topology already encodes every junction, so signs are a byproduct. */
+const _signCache = new Map();
+const _isTwy = r => r && r.length <= 3 && /^[A-Za-z0-9]+$/.test(r);
+function _taxiSigns(icao, graph) {
+  if (_signCache.has(icao)) return _signCache.get(icao);
+  const signs = [];
+  for (const [, n] of graph.nodes) {
+    const refs = new Set(), legs = [];
+    for (const e of n.edges) {
+      if (!_isTwy(e.ref)) continue;
+      const t = graph.nodes.get(e.to);
+      const brg = (Math.atan2((t.lon - n.lon) * Math.cos(n.lat * DEG), t.lat - n.lat) * 180 / Math.PI + 360) % 360;
+      refs.add(e.ref); legs.push({ ref: e.ref, brg });
+    }
+    if (refs.size >= 2) signs.push({ lat: n.lat, lon: n.lon, legs });
+  }
+  _signCache.set(icao, signs);
+  return signs;
+}
+
 /* Designation of a runway (rg): its ref, else derived "XX-YY" from the bearing. */
 function _rwDes(rg) {
   if (rg.ref) return rg.ref.replace(/\//g, '-');
@@ -510,7 +533,7 @@ function _isOcean(lat, lon) {
   return true;
 }
 
-export function renderTerrain(canvas, { outsideView = false, cxOverride = null, focalScale = 1, acPose = null } = {}) {
+export function renderTerrain(canvas, { outsideView = false, cxOverride = null, focalScale = 1, acPose = null, eyeFt = 0 } = {}) {
   const W = canvas.width  = canvas.offsetWidth  * devicePixelRatio;
   const H = canvas.height = canvas.offsetHeight * devicePixelRatio;
   const ctx = canvas.getContext('2d');
@@ -531,7 +554,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
   const _fieldFt  = S.mission?.departure?.elevation ?? S.mission?.arrival?.elevation ?? null;
   const elevFt    = (S.wow && _fieldFt !== null) ? _fieldFt
                   : (_acSampM !== null ? _acSampM / 0.3048 : (_fieldFt ?? 0));
-  const agl    = Math.max(1, (S.alt ?? 1000) - elevFt);
+  const agl    = Math.max(1, (S.alt ?? 1000) - elevFt) + eyeFt;   // forward view sits at cockpit eye height
   const altNm  = agl * FT_NM;
 
   const focal = (W / 2) / Math.tan(FOV_H / 2 * DEG) * focalScale;
@@ -2617,6 +2640,66 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
             ctx.fillStyle = `rgba(255,150,20,${(alpha*0.28).toFixed(2)})`; ctx.beginPath(); ctx.arc(p[0],p[1],6.5*_dpr,0,Math.PI*2); ctx.fill();
             ctx.fillStyle = `rgba(255,184,46,${(alpha*0.98).toFixed(2)})`; ctx.beginPath(); ctx.arc(p[0],p[1],2.7*_dpr,0,Math.PI*2); ctx.fill();
           } else { ctx.fillStyle = `rgba(150,86,28,${(alpha*0.55).toFixed(2)})`; ctx.beginPath(); ctx.arc(p[0],p[1],2.2*_dpr,0,Math.PI*2); ctx.fill(); }
+        }
+      }
+    }
+
+    /* ── Taxiway direction-sign arrays at intersections — derived from the graph:
+       a yellow direction panel (designation + arrow) per taxiway leaving the junction,
+       plus a black location panel for the taxiway you're on. Arrows are relative to the
+       aircraft heading; the sign sits on a post at the junction. */
+    {
+      const href = acPose?.hdg ?? S.hdg ?? 0, _dpr = devicePixelRatio || 1;
+      const _hc = Math.cos(href*DEG), _hs = Math.sin(href*DEG);
+      const SBACK = 13 * M_NM, SLEFT = 18 * M_NM;            // signs sit before the junction, left of travel
+      const YEL = 'rgba(238,200,32,0.96)', BLK = 'rgba(16,16,14,0.96)';
+      for (const ic of [S.mission?.departure?.icao, S.mission?.arrival?.icao]) {
+        if (!ic) continue;
+        const graph = getTaxiGraph(ic, acPose?.lat ?? acLat, acPose?.lon ?? acLon);
+        if (!graph) continue;
+        for (const sg of _taxiSigns(ic, graph)) {
+          const dN0 = (sg.lat - acLat) * 60, dE0 = (sg.lon - acLon) * 60 * cosAcLat;
+          if (dN0*dN0 + dE0*dE0 > 0.32*0.32) continue;        // within ~0.32 NM
+          const dN = dN0 - _hc*SBACK + _hs*SLEFT, dE = dE0 - _hs*SBACK - _hc*SLEFT;   // off the pavement, left + back
+          const base = projNE(dN, dE, 0), top = projNE(dN, dE, 1.9 * M_NM);
+          if (!base || !top) continue;
+          const sc = Math.hypot(top[0]-base[0], top[1]-base[1]);
+          if (sc < 5) continue;                                // too far to read
+
+          const cells = [], seen = new Set();                  // one panel per leg not behind you
+          for (const lg of sg.legs) {
+            const rel = ((lg.brg - href + 540) % 360) - 180;
+            if (Math.abs(rel) > 118) continue;
+            const key = lg.ref + (rel < -12 ? 'L' : rel > 12 ? 'R' : 'A');
+            if (seen.has(key)) continue; seen.add(key);
+            cells.push({ ref: lg.ref, rel });
+          }
+          if (!cells.length) continue;
+          cells.sort((a,b) => a.rel - b.rel);
+          let loc = -1, bestA = 33; for (let i=0;i<cells.length;i++){ const a=Math.abs(cells[i].rel); if(a<bestA){bestA=a;loc=i;} }
+
+          const cw = sc*1.05, ch = sc*0.72, gap = sc*0.06, totW = cells.length*cw + (cells.length-1)*gap;
+          ctx.strokeStyle = 'rgba(150,152,158,0.8)'; ctx.lineWidth = Math.max(1, sc*0.05);   // post
+          ctx.beginPath(); ctx.moveTo(base[0], base[1]); ctx.lineTo(top[0], top[1]); ctx.stroke();
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.font = `bold ${Math.max(7, sc*0.42).toFixed(0)}px "IBM Plex Mono", monospace`;
+          for (let i=0;i<cells.length;i++){
+            const c = cells[i], isLoc = i===loc;
+            const x = top[0] - totW/2 + i*(cw+gap), ccx = x + cw/2, ccy = top[1] - ch*0.65;
+            ctx.fillStyle = isLoc ? YEL : BLK; ctx.fillRect(x-1*_dpr, ccy-ch/2-1*_dpr, cw+2*_dpr, ch+2*_dpr);  // border
+            ctx.fillStyle = isLoc ? BLK : YEL; ctx.fillRect(x, ccy-ch/2, cw, ch);                              // face
+            let tx = ccx;
+            if (!isLoc) {                                       // direction arrow (black, on yellow)
+              const ar = ch*0.3, side = c.rel < 0 ? -1 : 1, ax = ccx + side*cw*0.27, th = c.rel*DEG;
+              ctx.fillStyle = BLK; ctx.beginPath();
+              ctx.moveTo(ax + Math.sin(th)*ar, ccy - Math.cos(th)*ar);
+              ctx.lineTo(ax + Math.sin(th+2.5)*ar*0.7, ccy - Math.cos(th+2.5)*ar*0.7);
+              ctx.lineTo(ax + Math.sin(th-2.5)*ar*0.7, ccy - Math.cos(th-2.5)*ar*0.7);
+              ctx.closePath(); ctx.fill();
+              tx = ccx - side*cw*0.15;
+            }
+            ctx.fillStyle = isLoc ? YEL : BLK; ctx.fillText(c.ref, tx, ccy);
+          }
         }
       }
     }

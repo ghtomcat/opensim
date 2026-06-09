@@ -219,10 +219,8 @@ export function outsideInvalidate()  { /* redraws every frame */ }
 /* Gear-contact to body-center offset in feet — lifts the terrain camera so gear
    appears to touch the ground rather than sinking into or floating above it.
    Returns 0 when not on ground; vehicle-specific values derived from gear geometry. */
-function _groundOffsetFt() {
-  if (!S.wow) return 0;
+function _bodyCentreFt() {                               // fuselage centre above the wheels (ungated)
   const id = S.aircraft?.id ?? '';
-  if (S.aircraft?.vehicleType === 'rocket') return 0;
   if (id === 'c172')          return (_xr + 0.0020 + _xr * 0.56) / FT_NM;  // ~32 ft
   if (id.startsWith('bf109')) return 0.0032 / FT_NM;  // ~19 ft
   if (id.startsWith('f4u'))   return 0.0038 / FT_NM;  // ~23 ft
@@ -251,6 +249,17 @@ function _groundOffsetFt() {
     if (zf < bz) bz = zf;
   }
   return (Math.abs(bz) + _ml + _mt) / FT_NM;
+}
+function _groundOffsetFt() {                             // body centre, gated (0 unless on the wheels)
+  if (!S.wow || S.aircraft?.vehicleType === 'rocket') return 0;
+  return _bodyCentreFt();
+}
+/* Cockpit eye height above the ground: body centre + eye above the centreline. Drives the
+   forward-view camera so the pilot sits at cockpit level, not on the floor. */
+function _cockpitEyeFt() {
+  if (S.aircraft?.vehicleType === 'rocket') return 0;
+  const rr = S.aircraft?.nose?.r ?? S.aircraft?.geometry?.r ?? _r;
+  return _bodyCentreFt() + (rr * 0.55) / FT_NM;
 }
 
 /* Lightweight render profiler. Splits the frame into aircraft geometry build, painter
@@ -287,7 +296,7 @@ export function tickOutside() {
     else _renderBoosterCam(_canvas);
   }
   else if (_camMode === 6) _renderShipCam(_canvas);
-  else                     renderTerrain(_canvas);
+  else                     renderTerrain(_canvas, { eyeFt: _cockpitEyeFt() });
   const _now = performance.now();
   if (_prof.lastT) _prof.fps = 0.85 * _prof.fps + 0.15 * (1000 / Math.max(1, _now - _prof.lastT));
   _prof.lastT   = _now;
