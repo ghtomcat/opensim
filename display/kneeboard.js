@@ -22,12 +22,13 @@ export function initKneeboard() {
 
 export function toggleKneeboard() {
   _visible = !_visible;
+  if (_visible) _render();          // refresh — the taxi clearance may have changed
   _el.style.transform = _visible ? 'translateX(0)' : 'translateX(110%)';
 }
 
 export function isKneeboardVisible() { return _visible; }
 
-let _lastAircraftId = null;
+let _lastAircraftId = null, _lastVia = '';
 export function tickKneeboard() {
   const id = S.aircraft?.id ?? null;
   if (id !== _lastAircraftId) {
@@ -36,13 +37,21 @@ export function tickKneeboard() {
     _checked = {};
     _render();
   }
+  /* live-refresh the scratchpad when the taxi clearance changes and it's on screen */
+  const via = (S.taxiClearance?.via ?? []).join(',') + '|' + (S.taxiClearance?.rwy ?? '');
+  if (via !== _lastVia) {
+    _lastVia = via;
+    if (_visible && _pages()[_page]?.type === 'scratch') _render();
+  }
 }
 
-/* ── Pages: mission first, then aircraft ── */
+/* ── Pages: mission first, then aircraft, then a scratchpad (not for rockets) ── */
 function _pages() {
   const mp = S.mission?.kneeboard  ?? [];
   const ap = S.aircraft?.kneeboard ?? [];
-  return [...mp, ...ap];
+  const base = [...mp, ...ap];
+  if (S.aircraft?.vehicleType === 'rocket') return base;
+  return [...base, { type: 'scratch', title: 'SCRATCHPAD', clearance: S.taxiClearance }];
 }
 
 /* ── Render ── */
@@ -59,6 +68,7 @@ function _render() {
 
   const isBriefing = p.type === 'briefing';
   const isDSKY     = p.type === 'dsky';
+  const isScratch  = p.type === 'scratch';
 
   let html = `
     <div class="kb-header">
@@ -67,8 +77,24 @@ function _render() {
       <button class="kb-nav" id="kb-next" ${_page === pages.length - 1 ? 'disabled' : ''}>▶</button>
     </div>
     <div class="kb-page-indicator">${_page + 1} / ${pages.length}</div>
-    <div class="kb-items ${isDSKY ? 'kb-items-dsky' : ''}">
   `;
+
+  if (isScratch) {
+    const t = p.clearance, rwy = t?.rwy ? `RWY ${t.rwy}` : 'RWY —';
+    const via = t?.via?.length ? t.via.join('   ') : null;
+    html += `
+      <div class="kb-scratch">
+        <div class="kb-scratch-head">TAXI · ${rwy}</div>
+        ${via ? `<div class="kb-scratch-seq">${via}</div>`
+              : `<div class="kb-scratch-empty">— awaiting taxi clearance —</div>`}
+      </div>`;
+    _el.innerHTML = html;
+    _el.querySelector('#kb-prev')?.addEventListener('click', () => { _page--; _render(); });
+    _el.querySelector('#kb-next')?.addEventListener('click', () => { _page++; _render(); });
+    return;
+  }
+
+  html += `<div class="kb-items ${isDSKY ? 'kb-items-dsky' : ''}">`;
 
   p.items.forEach((item, i) => {
     const key = `${_page}-${i}`;
@@ -272,6 +298,29 @@ function _applyStyles() {
       color: #666;
       font-size: 11px;
     }
+
+    /* ── Scratchpad (taxi clearance) ── */
+    .kb-scratch {
+      background: #ffffff;
+      margin: 10px;
+      padding: 12px 14px 22px;
+      border: 1px solid #d8d2c4;
+      border-radius: 2px;
+      min-height: 130px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+      background-image: repeating-linear-gradient(#ffffff 0, #ffffff 27px, #cfe0ee 28px);
+    }
+    .kb-scratch-head {
+      font: bold 12px 'Courier New', monospace;
+      color: #111; letter-spacing: 0.06em;
+      border-bottom: 1.5px solid #222; padding-bottom: 5px; margin-bottom: 10px;
+    }
+    .kb-scratch-seq {
+      font-family: 'Bradley Hand', 'Segoe Print', 'Comic Sans MS', cursive;
+      font-size: 20px; font-weight: 700; color: #14213a;
+      line-height: 1.4; word-spacing: 0.15em;
+    }
+    .kb-scratch-empty { color: #aaa; font-style: italic; font-size: 11px; }
 
     /* ── DSKY procedure items ── */
     .kb-dsky-item {
