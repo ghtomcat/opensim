@@ -2098,6 +2098,8 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
     const _sunH = sunAlt > 0 ? Math.cos(sunAltRad) : 0; // horizontal sun strength → walls (0 below horizon)
     const _sunV = Math.max(0, Math.sin(sunAltRad));     // vertical sun strength → roofs
     const _bGB  = 0.42 + 0.58 * dayFrac;                // overall day↔night brightness
+    const _nightW = 1 - dayFrac;                        // 0 day → 1 night, drives lit windows
+    const _massA = (0.55 + 0.45 * _nightW).toFixed(2);  // walls fully solid at night so windows pop
     const _dprB = devicePixelRatio || 1;
     const _drawMassing = (foot, e0M, heightM) => {
       const n = foot.length; if (n < 3) return;
@@ -2109,25 +2111,64 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
       const ring = area < 0 ? foot.slice().reverse() : foot;
       const upM = e0M + heightM * M_NM;
       const PJ = (lat,lon,u) => { const N=(lat-acLat)*60, E=(lon-acLon)*60*cosAcLat;
-        return { p: proj(N*cosH+E*sinH, E*cosH-N*sinH, u), fwd: N*cosH+E*sinH }; };
+        const fw = N*cosH+E*sinH, up = u - altNm;        // true camera-forward depth (incl. pitch)
+        return { p: proj(fw, E*cosH-N*sinH, u), fwd: fw*cosP + up*sinP }; };
       const bot = ring.map(p=>PJ(p[0],p[1],e0M)), top = ring.map(p=>PJ(p[0],p[1],upM));
       const faces = [];
       for (let i=0;i<n;i++){ const j=(i+1)%n;                         // walls
         const dE=(ring[j][1]-ring[i][1])*111320*cosL, dN=(ring[j][0]-ring[i][0])*111320;
         const L=Math.hypot(dE,dN)||1, onN=-dE/L, onE=dN/L;           // outward normal (CCW)
+        const mLat=(ring[i][0]+ring[j][0])/2, mLon=(ring[i][1]+ring[j][1])/2;
+        if (onN*(mLat-acLat) + onE*(mLon-acLon)*cosAcLat >= 0) continue;  // back-facing → cull (+ its windows)
         const diff = Math.max(0, onN*_sunN + onE*_sunE) * _sunH;
         faces.push({ q:[bot[i].p,bot[j].p,top[j].p,top[i].p], depth:(bot[i].fwd+bot[j].fwd)/2,
-                     sh:(0.42 + 0.58*diff)*_bGB, base:[84,96,112] });
+                     sh:(0.42 + 0.58*diff)*_bGB, base:[84,96,112], wall:true, wi:i, L });
       }
-      faces.push({ q: top.map(t=>t.p), depth: top.reduce((s,t)=>s+t.fwd,0)/n,   // roof
-                   sh:(0.46 + 0.54*_sunV)*_bGB, base:[98,110,126] });
+      faces.push({ q: top.map(t=>t.p), depth: -1e9,   // roof (solid cap) — drawn last, on top
+                   sh:(0.46 + 0.54*_sunV)*_bGB, base:[98,110,126], roof:true });
       faces.sort((a,b)=>b.depth-a.depth);
-      for (const f of faces){ if (f.q.some(p=>!p)) continue;
+      for (const f of faces){ let q=f.q;
+        if (q.some(p=>!p)) { if (!f.roof) continue; q=q.filter(Boolean); if (q.length<3) continue; }  // roof: draw from on-screen verts
         const s=f.sh, [r,g,b]=f.base;
-        ctx.fillStyle = `rgba(${r*s|0},${g*s|0},${b*s|0},0.62)`;
-        ctx.beginPath(); ctx.moveTo(f.q[0][0],f.q[0][1]);
-        for (let i=1;i<f.q.length;i++) ctx.lineTo(f.q[i][0],f.q[i][1]);
+        ctx.fillStyle = `rgba(${r*s|0},${g*s|0},${b*s|0},${f.roof ? 0.96 : _massA})`;
+        ctx.beginPath(); ctx.moveTo(q[0][0],q[0][1]);
+        for (let i=1;i<q.length;i++) ctx.lineTo(q[i][0],q[i][1]);
         ctx.closePath(); ctx.fill();
+        /* Lit windows — emissive panes on the wall after dark (bilinear over the quad, a
+           deterministic ~58% lit so they don't flicker). Warm interior light. */
+        if (f.wall && _nightW > 0.12) {
+          const cols = Math.max(1, Math.round(f.L/4.2)), rows = Math.max(1, Math.round(heightM/3.6));
+          const cw = Math.hypot(q[1][0]-q[0][0], q[1][1]-q[0][1]) / cols;
+          const ch = Math.hypot(q[3][0]-q[0][0], q[3][1]-q[0][1]) / rows;
+          if (cw > 1.3*_dprB && ch > 1.3*_dprB) {
+            const ww = cw*0.45, wh = ch*0.5, seed = cLat*4000 + cLon*4000 + f.wi*17;
+            for (let c=0;c<cols;c++) for (let rr=0;rr<rows;rr++){
+              const hs = Math.sin(seed + c*78.233 + rr*37.719)*43758.5453, lit = hs - Math.floor(hs);
+              if (lit < 0.42) continue;                   // ~58% of panes lit
+              const u=(c+0.5)/cols, v=(rr+0.5)/rows;
+              const bx=q[0][0]+(q[1][0]-q[0][0])*u, by=q[0][1]+(q[1][1]-q[0][1])*u;
+              const tx=q[3][0]+(q[2][0]-q[3][0])*u, ty=q[3][1]+(q[2][1]-q[3][1])*u;
+              ctx.fillStyle = `rgba(255,${214+(lit*40|0)},150,${(_nightW*(0.5+lit*0.45)).toFixed(2)})`;
+              ctx.fillRect(bx+(tx-bx)*v - ww/2, by+(ty-by)*v - wh/2, ww, wh);
+            }
+          }
+        }
+      }
+      if (_nightW > 0.2) {                                // warm interior light spilling from the structure
+        const sp = [];
+        for (const o of bot) if (o.p) sp.push(o.p);
+        for (const o of top) if (o.p) sp.push(o.p);
+        if (sp.length) {
+          let mx=0,my=0; for (const p of sp){ mx+=p[0]; my+=p[1]; } mx/=sp.length; my/=sp.length;
+          let rad=0; for (const p of sp) rad = Math.max(rad, Math.hypot(p[0]-mx, p[1]-my));
+          rad = Math.max(rad*1.05, 6*_dprB);
+          const gr = ctx.createRadialGradient(mx,my,0, mx,my,rad), a = _nightW*0.16;
+          gr.addColorStop(0,   `rgba(255,226,168,${a.toFixed(3)})`);
+          gr.addColorStop(0.6, `rgba(255,220,160,${(a*0.5).toFixed(3)})`);
+          gr.addColorStop(1,   'rgba(255,216,150,0)');
+          ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.fillStyle=gr;
+          ctx.beginPath(); ctx.arc(mx,my,rad,0,Math.PI*2); ctx.fill(); ctx.restore();
+        }
       }
       ctx.strokeStyle = `rgba(150,170,190,${(0.35+0.35*_bGB).toFixed(2)})`; ctx.lineWidth = 1.1*_dprB;
       ctx.beginPath();
@@ -2229,6 +2270,23 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           const N = (la - acLat) * 60, E = (lo - acLon) * 60 * cosAcLat;
           return proj(N * cosH + E * sinH, E * cosH - N * sinH, e0 + hM * M_NM);
         };
+        /* Shaded opaque solids (cab + both rotundas; the glass tunnel stays translucent).
+           World normal from the local (fwd,side) frame · the real sun; depth-sorted. */
+        const _dep = (lf, ls) => (lf*hN + ls*lN)*cosH + (lf*hE + ls*lE)*sinH;
+        const _bShade = (nF, nS) => { const nE=nF*hE+nS*lE, nN=nF*hN+nS*lN;
+          const d = Math.max(0, nN*_sunN + nE*_sunE)*_sunH; return Math.max(0.14 + 0.2*_nightF, (0.42 + 0.58*d)*_bGB); };
+        const _BGc = [120 + (_nightF*55|0), 134 + (_nightF*26|0), 150 - (_nightF*40|0)];  // warms at night (apron/terminal spill)
+        const _fillFaces = (faces) => { faces.sort((a,b)=>b.dep-a.dep);
+          for (const f of faces){ if (f.q.some(p=>!p)) continue;
+            const s = f.up ? Math.max(0.14+0.2*_nightF, (0.46+0.54*_sunV)*_bGB) : _bShade(f.nF, f.nS);
+            ctx.fillStyle = `rgba(${_BGc[0]*s|0},${_BGc[1]*s|0},${_BGc[2]*s|0},0.85)`;
+            ctx.beginPath(); ctx.moveTo(f.q[0][0],f.q[0][1]); for(let i=1;i<f.q.length;i++)ctx.lineTo(f.q[i][0],f.q[i][1]); ctx.closePath(); ctx.fill(); } };
+        const _solidCyl = (cf, cs, rad, h0, h1, NS) => { const faces=[];
+          for (let k=0;k<NS;k++){ const a0=k/NS*Math.PI*2, a1=(k+1)/NS*Math.PI*2, mid=(a0+a1)/2;
+            faces.push({ q:[GP(cf+Math.cos(a0)*rad,cs+Math.sin(a0)*rad,h0), GP(cf+Math.cos(a1)*rad,cs+Math.sin(a1)*rad,h0),
+                            GP(cf+Math.cos(a1)*rad,cs+Math.sin(a1)*rad,h1), GP(cf+Math.cos(a0)*rad,cs+Math.sin(a0)*rad,h1)],
+                         dep:_dep(cf+Math.cos(mid)*rad, cs+Math.sin(mid)*rad), nF:Math.cos(mid), nS:Math.sin(mid) }); }
+          _fillFaces(faces); };
 
         /* Articulated bridge: a round rotunda fixed at the terminal (the swivel pivot)
            with a long two-section telescoping arm reaching out to the aircraft door. The
@@ -2251,8 +2309,9 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           const cn = (p, s, h) => GP(p[0] + s*px, p[1] + s*py, h);
           const bt = [cn(p0,1,h0), cn(p0,-1,h0), cn(p1,-1,h1), cn(p1,1,h1)];
           const tp = [cn(p0,1,h0+THK), cn(p0,-1,h0+THK), cn(p1,-1,h1+THK), cn(p1,1,h1+THK)];
-          if (tp.every(p => p)) { ctx.fillStyle = 'rgba(120,134,150,0.30)'; ctx.beginPath();
-            ctx.moveTo(tp[0][0],tp[0][1]); for (let i=1;i<4;i++) ctx.lineTo(tp[i][0],tp[i][1]);
+          if (tp.every(p => p)) {                          // glass — faint warm lit-walkway glow at night
+            ctx.fillStyle = `rgba(${120+(_nightF*110|0)},${134+(_nightF*74|0)},${150-(_nightF*18|0)},${(0.30+_nightF*0.22).toFixed(2)})`;
+            ctx.beginPath(); ctx.moveTo(tp[0][0],tp[0][1]); for (let i=1;i<4;i++) ctx.lineTo(tp[i][0],tp[i][1]);
             ctx.closePath(); ctx.fill(); }
           ctx.strokeStyle = 'rgba(170,186,202,0.78)'; ctx.lineWidth = 1.1 * _dpr; ctx.beginPath();
           for (let i=0;i<4;i++){ const a=bt[i],b=bt[(i+1)%4],c=tp[i],d=tp[(i+1)%4];
@@ -2277,6 +2336,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
             if(p&&c){ctx.moveTo(p[0],p[1]);ctx.lineTo(c[0],c[1]);} }
           ctx.stroke();
         };
+        _solidCyl(fT, LEFT, RR, FLOOR-0.3, ROOF+0.5, RN);   // shaded rotunda drum
         ctx.strokeStyle = 'rgba(182,198,212,0.82)'; ctx.lineWidth = 1.1 * _dpr;
         _cyl(0.9, 0, FLOOR + 0.3);          // support column (ground → bridge floor)
         _cyl(RR, FLOOR - 0.3, ROOF + 0.5);  // rotunda drum at bridge level
@@ -2313,6 +2373,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
            a small cab box that carries a side service door, with the bellows seal on the
            cab's end face against the fuselage. */
         const CC = armPt(1), CR = 1.3, CABL = 2.2, CABW = 2.6, _lo = _lift, _hi = _lift + THK;
+        _solidCyl(CC[0], CC[1], CR, _lo, _hi, 8);                 // shaded cab rotunda
         ctx.strokeStyle = 'rgba(182,198,212,0.82)'; ctx.lineWidth = 1.1 * _dpr;
         { const b=[], t=[];                                       // (a) full rotunda cylinder
           for (let k=0;k<8;k++){ const a=k/8*Math.PI*2, cx=Math.cos(a)*CR, sy=Math.sin(a)*CR;
@@ -2327,9 +2388,12 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         const csN = CC[1] - CR*0.5, csF = CC[1] - CR*0.5 - CABL, cf0 = CC[0]-CABW/2, cf1 = CC[0]+CABW/2;
         const _box = (h) => [GP(cf0,csN,h), GP(cf1,csN,h), GP(cf1,csF,h), GP(cf0,csF,h)];
         const cbot = _box(_lo), ctop = _box(_hi);
-        if (ctop.every(p=>p)) { ctx.fillStyle = 'rgba(120,134,150,0.30)'; ctx.beginPath();
-          ctx.moveTo(ctop[0][0],ctop[0][1]); for(let i=1;i<4;i++)ctx.lineTo(ctop[i][0],ctop[i][1]);
-          ctx.closePath(); ctx.fill(); }
+        _fillFaces([                                              // shaded cab walls (skip -side: bellows) + roof
+          { q:[GP(cf1,csN,_lo),GP(cf1,csF,_lo),GP(cf1,csF,_hi),GP(cf1,csN,_hi)], dep:_dep(cf1,(csN+csF)/2), nF:1, nS:0 },
+          { q:[GP(cf0,csN,_lo),GP(cf0,csF,_lo),GP(cf0,csF,_hi),GP(cf0,csN,_hi)], dep:_dep(cf0,(csN+csF)/2), nF:-1, nS:0 },
+          { q:[GP(cf0,csN,_lo),GP(cf1,csN,_lo),GP(cf1,csN,_hi),GP(cf0,csN,_hi)], dep:_dep((cf0+cf1)/2,csN), nF:0, nS:1 },
+          { q:ctop, dep:_dep((cf0+cf1)/2,(csN+csF)/2), up:true },
+        ]);
         ctx.strokeStyle = 'rgba(170,186,202,0.78)'; ctx.lineWidth = 1.1 * _dpr; ctx.beginPath();
         for (let i=0;i<4;i++){ const a=cbot[i],b=cbot[(i+1)%4],c=ctop[i],d=ctop[(i+1)%4];
           if(a&&b){ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}

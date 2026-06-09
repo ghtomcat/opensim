@@ -5,7 +5,7 @@
   "description": "Alaska 737 MAX 9 parked at gate B7, Bozeman Yellowstone, bound for Ted Stevens Anchorage. Live METAR. Start up cold, taxi to runway 30, and depart northwest over the Bridgers and climb out across the Rockies.",
   "author": "Markus Leutwyler",
   "aircraft": "b737max9",
-  "timeOfDay": 14,
+  "timeOfDay": 21.5,
   "departure": {
     "icao": "KBZN",
     "name": "Bozeman Yellowstone Intl",
