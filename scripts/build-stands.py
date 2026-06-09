@@ -15,7 +15,7 @@ Runs rarely; re-run when adding mission airports or to refresh:
 
     python3 scripts/build-stands.py
 """
-import json, math, os, time, urllib.parse, urllib.request
+import json, math, os, re, sys, time, urllib.parse, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OVERPASS = ["https://overpass-api.de/api/interpreter",
@@ -82,36 +82,37 @@ def dist_m(a, b):
     return math.hypot(dN, dE)
 
 
-def existing_records():
-    """Parse the current stands-data.js so manual entries persist across regeneration."""
+def _existing(name):
+    """Parse a named export (STANDS / BRIDGE_COVERAGE) from the current stands-data.js."""
     path = os.path.join(ROOT, "display", "stands-data.js")
     if not os.path.exists(path):
         return {}
-    src = open(path).read()
-    try:
-        return json.loads(src[src.index("{"): src.rindex("}") + 1])
-    except ValueError:
-        return {}
+    m = re.search(name + r" = (\{.*?\});", open(path).read())
+    return json.loads(m.group(1)) if m else {}
 
 
 def main():
     centres = airport_centres()
-    print(f"{len(centres)} mission airports; querying Overpass ...")
+    only = [a.upper() for a in sys.argv[1:]]
+    if only:
+        centres = {k: v for k, v in centres.items() if k in only}
+    print(f"{len(centres)} airport(s); querying Overpass ...")
     items = list(centres.items())
-    out = {}
-    coverage = []                        # airports where OSM maps jet bridges (→ flags are authoritative)
+    out = _existing("STANDS")            # start from existing → airports not fetched this run persist
+    coverage = list(_existing("BRIDGE_COVERAGE").keys())
     for i in range(0, len(items), CHUNK):
         for ic, (la, lo) in items[i:i + CHUNK]:
             # one request: parking_position lead-in lines + jet_bridge ways
             q = (f'[out:json][timeout:90];'
                  f'way["aeroway"="parking_position"](around:{RADIUS_M},{la:.5f},{lo:.5f});out geom;'
                  f'way["aeroway"="jet_bridge"](around:{RADIUS_M},{la:.5f},{lo:.5f});out geom;')
-            stands, bridgePts = [], []
+            stands, bridges = [], []     # bridges: [(endA, endB)] = the two endpoints of each jet_bridge
             for w in _run(q):
                 g = w.get("geometry") or []
                 t = w.get("tags", {})
                 if t.get("aeroway") == "jet_bridge":
-                    bridgePts += [(p["lat"], p["lon"]) for p in g]
+                    if len(g) >= 2:
+                        bridges.append(((g[0]["lat"], g[0]["lon"]), (g[-1]["lat"], g[-1]["lon"])))
                     continue
                 ref = t.get("ref") or t.get("name")
                 if not ref or len(g) < 2:
@@ -124,12 +125,20 @@ def main():
                                "lon": round(stop["lon"], 6),
                                "hdg": round(hdg, 1),
                                "_stop": (stop["lat"], stop["lon"])})
-            # flag stands that sit next to a real jet bridge
-            if bridgePts:
+            # match each stand to its nearest jet bridge → bundle both endpoints
+            if bridges:
                 coverage.append(ic)
                 for s in stands:
-                    if min(dist_m(s["_stop"], b) for b in bridgePts) <= BRIDGE_M:
+                    best, bd = None, 1e9
+                    for ep in bridges:
+                        d = min(dist_m(s["_stop"], ep[0]), dist_m(s["_stop"], ep[1]))
+                        if d < bd: bd, best = d, ep
+                    if best and bd <= BRIDGE_M:
                         s["bridge"] = 1
+                        # nearer endpoint = aircraft (cab), farther = building (att)
+                        cab, att = (best[0], best[1]) if dist_m(s["_stop"], best[0]) <= dist_m(s["_stop"], best[1]) else (best[1], best[0])
+                        s["cab"] = [round(cab[0], 6), round(cab[1], 6)]
+                        s["att"] = [round(att[0], 6), round(att[1], 6)]
             for s in stands:
                 s.pop("_stop", None)
             if stands:
@@ -141,14 +150,12 @@ def main():
                     seen.add(s["ref"]); uniq.append(s)
                 out[ic] = uniq
                 nb = sum(1 for s in uniq if s.get("bridge"))
-                print(f"  {ic}: {len(uniq)} named stands"
-                      + (f", {nb} bridged ({len(bridgePts)} bridge pts)" if bridgePts else ""))
+                print(f"  {ic}: {len(uniq)} named stands" + (f", {nb} bridged" if nb else ""))
         time.sleep(GAP_S)
 
-    prev = existing_records()
-    for ic, rec in prev.items():
+    for ic, rec in _existing("STANDS").items():     # hand-added stands persist
         if isinstance(rec, dict) and rec.get("manual"):
-            out[ic] = rec                       # hand-added stands persist
+            out[ic] = rec
 
     out = {k: out[k] for k in sorted(out)}
     cov = {k: 1 for k in sorted(set(coverage))}

@@ -1328,15 +1328,12 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
     const _runways = _bundledRw.length
       ? _bundledRw
       : _osmWays.filter(w => w.tags?.aeroway === 'runway').map(_rwGeomC).filter(Boolean);
-    /* One flat airport ground plane: where bundled runways exist, sample elevation once at
-       the runway threshold and co-plane the taxiways/aprons to it — a real airport is
-       graded flat, so they should sit at the runway's height rather than each following the
-       terrain mesh (which floats them where the field slopes). null = per-node fallback. */
-    let _apElevNm = null;
-    if (_bundledRw.length) {
-      const _aeM = _sampleElev(_bundledRw[0].a.lat, _bundledRw[0].a.lon);
-      if (_aeM !== null) _apElevNm = (_aeM - refM) * M_NM;
-    }
+    /* One flat airport ground plane: a real airport is graded flat, so co-plane the
+       taxiways/aprons/stand-lines to a single height rather than each following the bumpy
+       terrain mesh. Anchor it to the aircraft's OWN sampled ground (refM → up 0) so the
+       surface sits level with where you're parked — sampling an arbitrary/far runway
+       threshold floated the whole apron above the field. null = per-node fallback. */
+    const _apElevNm = (_bundledRw.length && _acSampM !== null) ? 0 : null;
     if (_osmWays.length || _runways.length) {
       /* Brighter + faintly cool at night: the apron/taxiway surface is lit by all the
          surface lights, so it reads as a lit apron, not flat-dim grey. */
@@ -2256,7 +2253,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
     /* ── Jet bridges + apron flood lamps. _drawBridge renders one full articulated
        bridge for a stand (lat/lon = nose stop, hdg = nose-in heading toward the
        terminal). Called per contact gate below, and radially per satellite gate. */
-    const _drawBridge = (gLat, gLon, gHdg, noLamp) => {
+    const _drawBridge = (gLat, gLon, gHdg, noLamp, fTReach, leftOff, retract) => {
         const _nightF = 1 - dayFrac, _dpr = devicePixelRatio || 1;
         const gCos = Math.cos(gLat * DEG);
         const hE = Math.sin(gHdg * DEG), hN = Math.cos(gHdg * DEG); // nose-in (toward terminal)
@@ -2292,8 +2289,8 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
            with a long two-section telescoping arm reaching out to the aircraft door. The
            whole arm pivots slowly about the rotunda; its wheeled drive bogie traces the
            arc on the apron. */
-        const BR_W = 3, LEFT = 4, FLOOR = 3.6, THK = 2.4, ROOF = FLOOR + THK;
-        const fT = 13, fDoor = -8, LEN = fT - fDoor;      // rotunda(terminal) → door reach (~21 m / 69 ft)
+        const BR_W = 3, LEFT = leftOff ?? 4, FLOOR = 3.6, THK = 2.4, ROOF = FLOOR + THK;
+        const fT = fTReach || 13, fDoor = -8, LEN = fT - fDoor;  // rotunda reach: real wall dist, else ~13 m
         /* Swivel + lift animation off — bridges rest docked; the slow sweeps will be
            driven on demand (docking sequence) later. */
         const _phi = 0, _lift = 3.4;                      // _phi: arm angle · _lift: cab height
@@ -2433,16 +2430,51 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         }
     };
 
+    /* Distance (m) from a gate along its nose-in heading to the nearest terminal wall
+       (ray vs each polygon edge, nearest positive hit) — so the rotunda seats on the
+       real building instead of a fixed reach. null if the ray misses every wall. */
+    const _wallDist = (gLat, gLon, hE, hN, terms) => {
+      const gCos = Math.cos(gLat * DEG);
+      let best = Infinity;
+      for (const term of terms) { const poly = term.poly, m = poly.length;
+        for (let i = 0; i < m; i++) { const a = poly[i], b = poly[(i+1)%m];
+          const aE=(a[1]-gLon)*111320*gCos, aN=(a[0]-gLat)*111320;
+          const Ex=(b[1]-gLon)*111320*gCos - aE, Ey=(b[0]-gLat)*111320 - aN;
+          const det = Ex*hN - hE*Ey;
+          if (Math.abs(det) < 1e-9) continue;
+          const tt = (Ex*aN - aE*Ey) / det, s = (hE*aN - hN*aE) / det;
+          if (tt > 0 && s >= 0 && s <= 1 && tt < best) best = tt;
+        }
+      }
+      return best < Infinity ? best : null;
+    };
+
     /* Bridges at contact gates — OSM flag where covered, else the cluster. */
     for (const ic of [S.mission?.departure?.icao, S.mission?.arrival?.icao]) {
       const gates = ic && STANDS[ic];
       if (!gates) continue;
-      const _covered = BRIDGE_COVERAGE[ic];
+      const _covered = BRIDGE_COVERAGE[ic], _terms = TERMINALS[ic];
       for (const g of gates) {
         if (_covered ? !g.bridge : !_contactGates.has(g)) continue;  // real OSM flag where mapped, else cluster
         const gN = (g.lat - acLat) * 60, gE = (g.lon - acLon) * 60 * cosAcLat;
         if (gN * gN + gE * gE > 25) continue;             // >5 nm: skip
-        _drawBridge(g.lat, g.lon, g.hdg);
+        let done = false;
+        if (g.att && g.cab) {                             // real OSM bridge: rotunda on att (building), cab at the door
+          const cCos = Math.cos(g.cab[0]*DEG);
+          const dN = (g.att[0]-g.cab[0])*111320, dE = (g.att[1]-g.cab[1])*111320*cCos, D = Math.hypot(dN, dE);
+          if (D > 10) {
+            const bHdg = (Math.atan2(dE, dN)*180/Math.PI + 360) % 360;  // axis: cab → att
+            const oLat = g.cab[0] + 8*Math.cos(bHdg*DEG)/111320, oLon = g.cab[1] + 8*Math.sin(bHdg*DEG)/(111320*cCos);
+            _drawBridge(oLat, oLon, bHdg, false, D - 8, 0);  // origin 8 m back of cab; leftOff 0 → centred on the OSM line
+            done = true;
+          }
+        }
+        if (!done) {                                      // fallback: ray-cast the gate heading into the terminal
+          let reach = null;
+          if (_terms) { const wd = _wallDist(g.lat, g.lon, Math.sin(g.hdg*DEG), Math.cos(g.hdg*DEG), _terms);
+            if (wd && wd > 6 && wd < 60) reach = wd; }
+          _drawBridge(g.lat, g.lon, g.hdg, false, reach);
+        }
       }
     }
 
