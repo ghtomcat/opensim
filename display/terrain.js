@@ -2090,6 +2090,54 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
       _drawTower(tN, tE, e0, tw.style || 'classic', tw.heightM);
     }
 
+    /* ── Sun-lit wireframe massing — shared by the derived box, real terminal footprints
+       and satellite drums. Each wall/roof face is shaded by its normal · the REAL sun
+       azimuth (so the lit sides agree with the ground shadows), painter-sorted far→near,
+       then the wireframe edges are stroked back on top to keep the look. */
+    const _sunN = Math.cos(sunAzDeg * DEG), _sunE = Math.sin(sunAzDeg * DEG);
+    const _sunH = sunAlt > 0 ? Math.cos(sunAltRad) : 0; // horizontal sun strength → walls (0 below horizon)
+    const _sunV = Math.max(0, Math.sin(sunAltRad));     // vertical sun strength → roofs
+    const _bGB  = 0.42 + 0.58 * dayFrac;                // overall day↔night brightness
+    const _dprB = devicePixelRatio || 1;
+    const _drawMassing = (foot, e0M, heightM) => {
+      const n = foot.length; if (n < 3) return;
+      const cLat = foot.reduce((s,p)=>s+p[0],0)/n, cLon = foot.reduce((s,p)=>s+p[1],0)/n;
+      const cosL = Math.cos(cLat * DEG);
+      let area = 0;                                      // shoelace (local E,N) → fix winding to CCW
+      for (let i=0;i<n;i++){ const a=foot[i], b=foot[(i+1)%n];
+        area += ((a[1]-cLon)*cosL)*(b[0]-cLat) - ((b[1]-cLon)*cosL)*(a[0]-cLat); }
+      const ring = area < 0 ? foot.slice().reverse() : foot;
+      const upM = e0M + heightM * M_NM;
+      const PJ = (lat,lon,u) => { const N=(lat-acLat)*60, E=(lon-acLon)*60*cosAcLat;
+        return { p: proj(N*cosH+E*sinH, E*cosH-N*sinH, u), fwd: N*cosH+E*sinH }; };
+      const bot = ring.map(p=>PJ(p[0],p[1],e0M)), top = ring.map(p=>PJ(p[0],p[1],upM));
+      const faces = [];
+      for (let i=0;i<n;i++){ const j=(i+1)%n;                         // walls
+        const dE=(ring[j][1]-ring[i][1])*111320*cosL, dN=(ring[j][0]-ring[i][0])*111320;
+        const L=Math.hypot(dE,dN)||1, onN=-dE/L, onE=dN/L;           // outward normal (CCW)
+        const diff = Math.max(0, onN*_sunN + onE*_sunE) * _sunH;
+        faces.push({ q:[bot[i].p,bot[j].p,top[j].p,top[i].p], depth:(bot[i].fwd+bot[j].fwd)/2,
+                     sh:(0.42 + 0.58*diff)*_bGB, base:[84,96,112] });
+      }
+      faces.push({ q: top.map(t=>t.p), depth: top.reduce((s,t)=>s+t.fwd,0)/n,   // roof
+                   sh:(0.46 + 0.54*_sunV)*_bGB, base:[98,110,126] });
+      faces.sort((a,b)=>b.depth-a.depth);
+      for (const f of faces){ if (f.q.some(p=>!p)) continue;
+        const s=f.sh, [r,g,b]=f.base;
+        ctx.fillStyle = `rgba(${r*s|0},${g*s|0},${b*s|0},0.62)`;
+        ctx.beginPath(); ctx.moveTo(f.q[0][0],f.q[0][1]);
+        for (let i=1;i<f.q.length;i++) ctx.lineTo(f.q[i][0],f.q[i][1]);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.strokeStyle = `rgba(150,170,190,${(0.35+0.35*_bGB).toFixed(2)})`; ctx.lineWidth = 1.1*_dprB;
+      ctx.beginPath();
+      for (let i=0;i<n;i++){ const j=(i+1)%n, a=bot[i].p,b=bot[j].p,c=top[i].p,d=top[j].p;
+        if(a&&b){ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}
+        if(c&&d){ctx.moveTo(c[0],c[1]);ctx.lineTo(d[0],d[1]);}
+        if(a&&c){ctx.moveTo(a[0],a[1]);ctx.lineTo(c[0],c[1]);} }
+      ctx.stroke();
+    };
+
     /* ── Terminal massing — derived, not modelled. Where OSM maps jet bridges
        (BRIDGE_COVERAGE), the terminal is clustered from the actually-bridged gates; where
        it doesn't, we fall back to clustering by ref-prefix (each letter = a concourse,
@@ -2134,23 +2182,8 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
                     corner(amax+MARGIN,FRONT+DEPTH), corner(amin-MARGIN,FRONT+DEPTH)];
         const f0N=(foot[0][0]-acLat)*60, f0E=(foot[0][1]-acLon)*60*cosAcLat;
         if (f0N*f0N+f0E*f0E > 25) continue;             // >5 nm: skip
-        const _emT=_sampleElev(cLat,cLon), e0=_emT!==null?(_emT-refM)*M_NM:0, up=e0+H*M_NM;
-        const P=(ll,u)=>{ const N=(ll[0]-acLat)*60, E=(ll[1]-acLon)*60*cosAcLat;
-          return proj(N*cosH+E*sinH, E*cosH-N*sinH, u); };
-        if (!_realTerm) {                                 // real footprint present → don't draw derived box
-          const bot=foot.map(ll=>P(ll,e0)), top=foot.map(ll=>P(ll,up));
-          if (top.every(p=>p)){ ctx.fillStyle='rgba(70,82,96,0.22)'; ctx.beginPath();
-            ctx.moveTo(top[0][0],top[0][1]); for(let i=1;i<4;i++)ctx.lineTo(top[i][0],top[i][1]);
-            ctx.closePath(); ctx.fill(); }
-          ctx.strokeStyle='rgba(150,170,190,0.7)'; ctx.lineWidth=1.2*(devicePixelRatio||1);
-          ctx.beginPath();
-          for(let i=0;i<4;i++){ const a=bot[i],b=bot[(i+1)%4],c=top[i],d=top[(i+1)%4];
-            if(a&&b){ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}
-            if(c&&d){ctx.moveTo(c[0],c[1]);ctx.lineTo(d[0],d[1]);}
-            if(a&&c){ctx.moveTo(a[0],a[1]);ctx.lineTo(c[0],c[1]);}
-          }
-          ctx.stroke();
-        }
+        const _emT=_sampleElev(cLat,cLon), e0=_emT!==null?(_emT-refM)*M_NM:0;
+        if (!_realTerm) _drawMassing(foot, e0, H);        // real footprint present → skip derived box
         for (const g of grp) _contactGates.add(g);        // contact gates → eligible for a jet bridge
       }
     }
@@ -2174,19 +2207,8 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         for (const s of sats) { const dN = (cLat - s.lat) * 111320, dE = (cLon - s.lon) * 111320 * Math.cos(s.lat * DEG);
           if (Math.hypot(dN, dE) < s.r * 1.6) { isSat = true; break; } }
         if (isSat) continue;
-        const _emT = _sampleElev(cLat, cLon), e0 = _emT !== null ? (_emT - refM) * M_NM : 0, up = e0 + (t.h || 16) * M_NM;
-        const PP = (ll, u) => { const N = (ll[0] - acLat) * 60, E = (ll[1] - acLon) * 60 * cosAcLat;
-          return proj(N * cosH + E * sinH, E * cosH - N * sinH, u); };
-        const bot = poly.map(ll => PP(ll, e0)), top = poly.map(ll => PP(ll, up));
-        if (top.every(p => p)) { ctx.fillStyle = 'rgba(70,82,96,0.24)'; ctx.beginPath();
-          ctx.moveTo(top[0][0], top[0][1]); for (let i = 1; i < n; i++) ctx.lineTo(top[i][0], top[i][1]);
-          ctx.closePath(); ctx.fill(); }
-        ctx.strokeStyle = 'rgba(150,170,190,0.7)'; ctx.lineWidth = 1.1 * _dpr; ctx.beginPath();
-        for (let i = 0; i < n; i++) { const a = bot[i], b = bot[(i+1)%n], c = top[i], d = top[(i+1)%n];
-          if (a && b) { ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); }
-          if (c && d) { ctx.moveTo(c[0],c[1]); ctx.lineTo(d[0],d[1]); }
-          if (a && c) { ctx.moveTo(a[0],a[1]); ctx.lineTo(c[0],c[1]); } }
-        ctx.stroke();
+        const _emT = _sampleElev(cLat, cLon), e0 = _emT !== null ? (_emT - refM) * M_NM : 0;
+        _drawMassing(poly, e0, t.h || 16);
       }
     }
 
@@ -2374,23 +2396,10 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         const _emS = _sampleElev(sat.lat, sat.lon);
         const e0 = _emS !== null ? (_emS - refM) * M_NM : 0;
         const bR = sat.r * 0.75, BH = 13, SN = 12;        // drum radius (m), height (m), facets
-        const _ring = (radM, hM) => { const pts = [];
-          for (let k = 0; k < SN; k++) { const a = k / SN * Math.PI * 2;
-            const dN = Math.cos(a) * radM, dE = Math.sin(a) * radM;
-            const la = sat.lat + dN / 111320, lo = sat.lon + dE / (111320 * sCos);
-            const N = (la - acLat) * 60, E = (lo - acLon) * 60 * cosAcLat;
-            pts.push(proj(N * cosH + E * sinH, E * cosH - N * sinH, e0 + hM * M_NM)); }
-          return pts; };
-        const bot = _ring(bR, 0), top = _ring(bR, BH);
-        if (top.every(p => p)) { ctx.fillStyle = 'rgba(70,82,96,0.22)'; ctx.beginPath();
-          ctx.moveTo(top[0][0], top[0][1]); for (let i = 1; i < SN; i++) ctx.lineTo(top[i][0], top[i][1]);
-          ctx.closePath(); ctx.fill(); }
-        ctx.strokeStyle = 'rgba(150,170,190,0.7)'; ctx.lineWidth = 1.2 * _dpr; ctx.beginPath();
-        for (let i = 0; i < SN; i++) { const a = bot[i], b = bot[(i+1)%SN], c = top[i], d = top[(i+1)%SN];
-          if (a && b) { ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); }
-          if (c && d) { ctx.moveTo(c[0],c[1]); ctx.lineTo(d[0],d[1]); }
-          if (a && c) { ctx.moveTo(a[0],a[1]); ctx.lineTo(c[0],c[1]); } }
-        ctx.stroke();
+        const drum = [];                                  // 12-facet round footprint → shaded like any building
+        for (let k = 0; k < SN; k++) { const a = k / SN * Math.PI * 2;
+          drum.push([sat.lat + Math.cos(a) * bR / 111320, sat.lon + Math.sin(a) * bR / (111320 * sCos)]); }
+        _drawMassing(drum, e0, BH);
         sat.gates.forEach((brg, gi) => {                  // a radial jet bridge per gate (one lamp/satellite)
           const stopR = bR + 13;                          // nose stop so the rotunda lands at the drum edge
           const dN = Math.cos(brg * DEG) * stopR, dE = Math.sin(brg * DEG) * stopR;
