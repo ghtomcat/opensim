@@ -20,6 +20,7 @@ import { landColor }    from './terrain-color.js';
 import { WINDSOCKS }    from './windsocks-data.js';
 import { STANDS, BRIDGE_COVERAGE } from './stands-data.js';
 import { SATELLITES }   from './satellites-data.js';
+import { TERMINALS }    from './terminals-data.js';   // aprons already drawn by the live OSM overlay
 
 /* Soft radial-gradient sprite, reused (additively) for the night city-light glow. */
 let _glowSprite = null, _coreSprite = null;
@@ -2099,6 +2100,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
       const gates = ic && STANDS[ic];
       if (!gates || gates.length < 2) continue;
       const _covered = BRIDGE_COVERAGE[ic];             // OSM maps real jet bridges at this airport
+      const _realTerm = TERMINALS[ic];                  // OSM maps real terminal footprints → skip the derived block
       const groups = {};
       for (const g of gates) {
         if (_covered) { if (!g.bridge) continue; }      // authoritative: terminals only behind bridged gates
@@ -2135,26 +2137,63 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         const _emT=_sampleElev(cLat,cLon), e0=_emT!==null?(_emT-refM)*M_NM:0, up=e0+H*M_NM;
         const P=(ll,u)=>{ const N=(ll[0]-acLat)*60, E=(ll[1]-acLon)*60*cosAcLat;
           return proj(N*cosH+E*sinH, E*cosH-N*sinH, u); };
-        const bot=foot.map(ll=>P(ll,e0)), top=foot.map(ll=>P(ll,up));
-        if (top.every(p=>p)){ ctx.fillStyle='rgba(70,82,96,0.22)'; ctx.beginPath();
-          ctx.moveTo(top[0][0],top[0][1]); for(let i=1;i<4;i++)ctx.lineTo(top[i][0],top[i][1]);
-          ctx.closePath(); ctx.fill(); }
-        ctx.strokeStyle='rgba(150,170,190,0.7)'; ctx.lineWidth=1.2*(devicePixelRatio||1);
-        ctx.beginPath();
-        for(let i=0;i<4;i++){ const a=bot[i],b=bot[(i+1)%4],c=top[i],d=top[(i+1)%4];
-          if(a&&b){ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}
-          if(c&&d){ctx.moveTo(c[0],c[1]);ctx.lineTo(d[0],d[1]);}
-          if(a&&c){ctx.moveTo(a[0],a[1]);ctx.lineTo(c[0],c[1]);}
+        if (!_realTerm) {                                 // real footprint present → don't draw derived box
+          const bot=foot.map(ll=>P(ll,e0)), top=foot.map(ll=>P(ll,up));
+          if (top.every(p=>p)){ ctx.fillStyle='rgba(70,82,96,0.22)'; ctx.beginPath();
+            ctx.moveTo(top[0][0],top[0][1]); for(let i=1;i<4;i++)ctx.lineTo(top[i][0],top[i][1]);
+            ctx.closePath(); ctx.fill(); }
+          ctx.strokeStyle='rgba(150,170,190,0.7)'; ctx.lineWidth=1.2*(devicePixelRatio||1);
+          ctx.beginPath();
+          for(let i=0;i<4;i++){ const a=bot[i],b=bot[(i+1)%4],c=top[i],d=top[(i+1)%4];
+            if(a&&b){ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}
+            if(c&&d){ctx.moveTo(c[0],c[1]);ctx.lineTo(d[0],d[1]);}
+            if(a&&c){ctx.moveTo(a[0],a[1]);ctx.lineTo(c[0],c[1]);}
+          }
+          ctx.stroke();
         }
-        ctx.stroke();
         for (const g of grp) _contactGates.add(g);        // contact gates → eligible for a jet bridge
+      }
+    }
+
+    /* ── Real terminal footprints (OSM aeroway=terminal) — extruded wireframe massing
+       from the actual polygon, used wherever an airport has them (the derived box above
+       is suppressed). Round satellite buildings are skipped; the satellite pass draws
+       their drums. */
+    for (const ic of [S.mission?.departure?.icao, S.mission?.arrival?.icao]) {
+      const terms = ic && TERMINALS[ic];
+      if (!terms) continue;
+      const sats = SATELLITES[ic] || [];
+      const _dpr = devicePixelRatio || 1;
+      for (const t of terms) {
+        const poly = t.poly, n = poly.length;
+        let cLat = 0, cLon = 0; for (const p of poly) { cLat += p[0]; cLon += p[1]; }
+        cLat /= n; cLon /= n;
+        const cN = (cLat - acLat) * 60, cE = (cLon - acLon) * 60 * cosAcLat;
+        if (cN * cN + cE * cE > 25) continue;             // >5 nm: skip
+        let isSat = false;                                // skip round satellite drums (drawn separately)
+        for (const s of sats) { const dN = (cLat - s.lat) * 111320, dE = (cLon - s.lon) * 111320 * Math.cos(s.lat * DEG);
+          if (Math.hypot(dN, dE) < s.r * 1.6) { isSat = true; break; } }
+        if (isSat) continue;
+        const _emT = _sampleElev(cLat, cLon), e0 = _emT !== null ? (_emT - refM) * M_NM : 0, up = e0 + (t.h || 16) * M_NM;
+        const PP = (ll, u) => { const N = (ll[0] - acLat) * 60, E = (ll[1] - acLon) * 60 * cosAcLat;
+          return proj(N * cosH + E * sinH, E * cosH - N * sinH, u); };
+        const bot = poly.map(ll => PP(ll, e0)), top = poly.map(ll => PP(ll, up));
+        if (top.every(p => p)) { ctx.fillStyle = 'rgba(70,82,96,0.24)'; ctx.beginPath();
+          ctx.moveTo(top[0][0], top[0][1]); for (let i = 1; i < n; i++) ctx.lineTo(top[i][0], top[i][1]);
+          ctx.closePath(); ctx.fill(); }
+        ctx.strokeStyle = 'rgba(150,170,190,0.7)'; ctx.lineWidth = 1.1 * _dpr; ctx.beginPath();
+        for (let i = 0; i < n; i++) { const a = bot[i], b = bot[(i+1)%n], c = top[i], d = top[(i+1)%n];
+          if (a && b) { ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); }
+          if (c && d) { ctx.moveTo(c[0],c[1]); ctx.lineTo(d[0],d[1]); }
+          if (a && c) { ctx.moveTo(a[0],a[1]); ctx.lineTo(c[0],c[1]); } }
+        ctx.stroke();
       }
     }
 
     /* ── Jet bridges + apron flood lamps. _drawBridge renders one full articulated
        bridge for a stand (lat/lon = nose stop, hdg = nose-in heading toward the
        terminal). Called per contact gate below, and radially per satellite gate. */
-    const _drawBridge = (gLat, gLon, gHdg) => {
+    const _drawBridge = (gLat, gLon, gHdg, noLamp) => {
         const _nightF = 1 - dayFrac, _dpr = devicePixelRatio || 1;
         const gCos = Math.cos(gLat * DEG);
         const hE = Math.sin(gHdg * DEG), hN = Math.cos(gHdg * DEG); // nose-in (toward terminal)
@@ -2288,8 +2327,9 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           ctx.fillStyle='rgba(18,20,24,0.55)'; ctx.fill();
           ctx.strokeStyle='rgba(8,8,10,0.94)'; ctx.lineWidth=3.4*_dpr; ctx.stroke(); }
 
-        /* Flood-lamp pole on the apron, near the rotunda, clear of the swing arc. */
-        const LH = 11, base = GP(fT - 2, LEFT + 5, 0), head = GP(fT - 2, LEFT + 5, LH);
+        /* Flood-lamp pole on the apron, near the rotunda (skipped for satellite gates,
+           which would otherwise cluster four lamps round one small drum). */
+        const LH = 11, base = noLamp ? null : GP(fT - 2, LEFT + 5, 0), head = noLamp ? null : GP(fT - 2, LEFT + 5, LH);
         if (base && head) {
           ctx.strokeStyle = 'rgba(150,160,170,0.70)'; ctx.lineWidth = 1.2 * _dpr;
           ctx.beginPath(); ctx.moveTo(base[0], base[1]); ctx.lineTo(head[0], head[1]); ctx.stroke();
@@ -2351,11 +2391,11 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           if (c && d) { ctx.moveTo(c[0],c[1]); ctx.lineTo(d[0],d[1]); }
           if (a && c) { ctx.moveTo(a[0],a[1]); ctx.lineTo(c[0],c[1]); } }
         ctx.stroke();
-        for (const brg of sat.gates) {                    // a radial jet bridge per gate
+        sat.gates.forEach((brg, gi) => {                  // a radial jet bridge per gate (one lamp/satellite)
           const stopR = bR + 13;                          // nose stop so the rotunda lands at the drum edge
           const dN = Math.cos(brg * DEG) * stopR, dE = Math.sin(brg * DEG) * stopR;
-          _drawBridge(sat.lat + dN / 111320, sat.lon + dE / (111320 * sCos), (brg + 180) % 360);
-        }
+          _drawBridge(sat.lat + dN / 111320, sat.lon + dE / (111320 * sCos), (brg + 180) % 360, gi > 0);
+        });
       }
     }
   }
