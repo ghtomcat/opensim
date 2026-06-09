@@ -24,6 +24,7 @@ OVERPASS = ["https://overpass-api.de/api/interpreter",
 RADIUS_M = 5000          # search radius around each airport centre
 CHUNK    = 1             # airports per Overpass request (gentle on rate limits)
 GAP_S    = 4             # pause between requests
+BRIDGE_M = 40            # a stand is "bridged" if its stop point is within this of a jet_bridge
 
 
 def _obj_after(src, name):
@@ -74,6 +75,13 @@ def bearing(a, b):
     return (math.degrees(math.atan2(dE, dN)) + 360) % 360
 
 
+def dist_m(a, b):
+    """Great-circle-ish distance in metres, a/b = (lat, lon) (flat-earth, fine at <1 km)."""
+    dN = (b[0] - a[0]) * 111320
+    dE = (b[1] - a[1]) * 111320 * math.cos(math.radians(a[0]))
+    return math.hypot(dN, dE)
+
+
 def existing_records():
     """Parse the current stands-data.js so manual entries persist across regeneration."""
     path = os.path.join(ROOT, "display", "stands-data.js")
@@ -91,15 +99,20 @@ def main():
     print(f"{len(centres)} mission airports; querying Overpass ...")
     items = list(centres.items())
     out = {}
+    coverage = []                        # airports where OSM maps jet bridges (→ flags are authoritative)
     for i in range(0, len(items), CHUNK):
         for ic, (la, lo) in items[i:i + CHUNK]:
+            # one request: parking_position lead-in lines + jet_bridge ways
             q = (f'[out:json][timeout:90];'
-                 f'way["aeroway"="parking_position"](around:{RADIUS_M},{la:.5f},{lo:.5f});'
-                 f'out geom;')
-            stands = []
+                 f'way["aeroway"="parking_position"](around:{RADIUS_M},{la:.5f},{lo:.5f});out geom;'
+                 f'way["aeroway"="jet_bridge"](around:{RADIUS_M},{la:.5f},{lo:.5f});out geom;')
+            stands, bridgePts = [], []
             for w in _run(q):
                 g = w.get("geometry") or []
                 t = w.get("tags", {})
+                if t.get("aeroway") == "jet_bridge":
+                    bridgePts += [(p["lat"], p["lon"]) for p in g]
+                    continue
                 ref = t.get("ref") or t.get("name")
                 if not ref or len(g) < 2:
                     continue
@@ -109,7 +122,16 @@ def main():
                 stands.append({"ref": str(ref),
                                "lat": round(stop["lat"], 6),
                                "lon": round(stop["lon"], 6),
-                               "hdg": round(hdg, 1)})
+                               "hdg": round(hdg, 1),
+                               "_stop": (stop["lat"], stop["lon"])})
+            # flag stands that sit next to a real jet bridge
+            if bridgePts:
+                coverage.append(ic)
+                for s in stands:
+                    if min(dist_m(s["_stop"], b) for b in bridgePts) <= BRIDGE_M:
+                        s["bridge"] = 1
+            for s in stands:
+                s.pop("_stop", None)
             if stands:
                 # de-dup by ref (keep first), sort by ref
                 seen, uniq = set(), []
@@ -118,7 +140,9 @@ def main():
                         continue
                     seen.add(s["ref"]); uniq.append(s)
                 out[ic] = uniq
-                print(f"  {ic}: {len(uniq)} named stands")
+                nb = sum(1 for s in uniq if s.get("bridge"))
+                print(f"  {ic}: {len(uniq)} named stands"
+                      + (f", {nb} bridged ({len(bridgePts)} bridge pts)" if bridgePts else ""))
         time.sleep(GAP_S)
 
     prev = existing_records()
@@ -127,11 +151,16 @@ def main():
             out[ic] = rec                       # hand-added stands persist
 
     out = {k: out[k] for k in sorted(out)}
+    cov = {k: 1 for k in sorted(set(coverage))}
     js = ("/* Bundled parking stands (gates) from OpenStreetMap (ODbL,\n"
           "   openstreetmap.org/copyright) for the airports referenced in missions/.\n"
           "   Regenerate with scripts/build-stands.py. Each stand: ref (designator),\n"
-          "   lat/lon = the stop point, hdg = nose-in heading (degrees). */\n"
-          "export const STANDS = " + json.dumps(out, separators=(",", ":")) + ";\n")
+          "   lat/lon = the stop point, hdg = nose-in heading (degrees), bridge:1 when a\n"
+          "   real OSM jet_bridge sits next to it. BRIDGE_COVERAGE lists the airports where\n"
+          "   OSM maps jet bridges — there the flags are authoritative; elsewhere the\n"
+          "   renderer falls back to a clustering heuristic. */\n"
+          "export const STANDS = " + json.dumps(out, separators=(",", ":")) + ";\n"
+          "export const BRIDGE_COVERAGE = " + json.dumps(cov, separators=(",", ":")) + ";\n")
     path = os.path.join(ROOT, "display", "stands-data.js")
     open(path, "w").write(js)
     total = sum(len(v) for v in out.values() if isinstance(v, list))

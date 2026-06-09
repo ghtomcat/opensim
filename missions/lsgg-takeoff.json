@@ -2,7 +2,7 @@
   "id": "lsgg-takeoff",
   "phase": "ground",
   "title": "Takeoff — Genève LSGG",
-  "description": "Helvetic Airways E190 ready for departure from runway 22. Live METAR. Cleared for immediate takeoff. Mountains ahead.",
+  "description": "Helvetic Airways E190 parked at gate 10, Genève, bound for Zürich. Live METAR. Cold start, pushback and taxi to runway 22 — mountains ahead.",
   "author": "Markus Leutwyler",
   "aircraft": "e190",
   "departure": {
@@ -18,7 +18,7 @@
     "pitch": 0,
     "roll": 0
   },
-  "start": { "runway": "22", "at": "lineup" },
+  "start": { "stand": "10" },
   "weather": {
     "source": "live",
     "icao": "LSGG",

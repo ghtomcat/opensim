@@ -18,7 +18,7 @@ import { TOWERS } from './towers-data.js';
 import { nightDensity } from './night-lights.js';
 import { landColor }    from './terrain-color.js';
 import { WINDSOCKS }    from './windsocks-data.js';
-import { STANDS }       from './stands-data.js';
+import { STANDS, BRIDGE_COVERAGE } from './stands-data.js';
 
 /* Soft radial-gradient sprite, reused (additively) for the night city-light glow. */
 let _glowSprite = null, _coreSprite = null;
@@ -2088,17 +2088,24 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
       _drawTower(tN, tE, e0, tw.style || 'classic', tw.heightM);
     }
 
-    /* ── Terminal massing — derived, not modelled. Cluster the bundled gates by their
-       ref-prefix (each letter = a concourse) and draw a low wireframe block landside of
-       the gate line. The gates nose IN toward the building, so the frontage runs ⟂ to
-       the nose-in heading and the mass sits just past where the noses stop. */
+    /* ── Terminal massing — derived, not modelled. Where OSM maps jet bridges
+       (BRIDGE_COVERAGE), the terminal is clustered from the actually-bridged gates; where
+       it doesn't, we fall back to clustering by ref-prefix (each letter = a concourse,
+       P* = parking, skipped). Either way a low wireframe block is drawn landside of the
+       gate line — the gates nose IN, so the frontage runs ⟂ to the nose-in heading. */
+    const _contactGates = new Set();   // gates in a drawn terminal cluster → eligible for a jet bridge
     for (const ic of [S.mission?.departure?.icao, S.mission?.arrival?.icao]) {
       const gates = ic && STANDS[ic];
       if (!gates || gates.length < 2) continue;
+      const _covered = BRIDGE_COVERAGE[ic];             // OSM maps real jet bridges at this airport
       const groups = {};
-      for (const g of gates) { const k = (g.ref.match(/^[A-Za-z]+/) || ['?'])[0].toUpperCase();
-        (groups[k] = groups[k] || []).push(g); }
-      for (const grp of Object.values(groups)) {
+      for (const g of gates) {
+        if (_covered) { if (!g.bridge) continue; }      // authoritative: terminals only behind bridged gates
+        else if ((g.ref.match(/^[A-Za-z]+/) || ['?'])[0][0] === 'P') continue;  // heuristic: drop P* parking
+        const k = (g.ref.match(/^[A-Za-z]+/) || ['?'])[0].toUpperCase();
+        (groups[k] = groups[k] || []).push(g);
+      }
+      for (const [k, grp] of Object.entries(groups)) {
         if (grp.length < 2) continue;
         const cLat = grp.reduce((s,g)=>s+g.lat,0)/grp.length;
         const cLon = grp.reduce((s,g)=>s+g.lon,0)/grp.length;
@@ -2139,19 +2146,21 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           if(a&&c){ctx.moveTo(a[0],a[1]);ctx.lineTo(c[0],c[1]);}
         }
         ctx.stroke();
+        for (const g of grp) _contactGates.add(g);        // contact gates → eligible for a jet bridge
       }
     }
 
-    /* ── Jet bridges + apron flood lamps — derived per gate (not modelled). Each bridge
-       follows its OWN gate's nose-in heading (robust where stands fan out, like BZN),
-       running a short elevated tube from the terminal frontage out toward the aircraft's
-       forward-left door. One flood-lamp pole stands beside each bridge — faint by day,
-       glowing at dusk/night to add apron detail. */
+    /* ── Jet bridges + apron flood lamps — only at contact gates (those that belong to a
+       drawn terminal cluster); remote hardstands have neither a terminal nor a bridge.
+       Each bridge follows its OWN gate's nose-in heading (robust where stands fan out).
+       One flood-lamp pole stands beside each — faint by day, glowing at dusk/night. */
     for (const ic of [S.mission?.departure?.icao, S.mission?.arrival?.icao]) {
       const gates = ic && STANDS[ic];
       if (!gates) continue;
+      const _covered = BRIDGE_COVERAGE[ic];
       const _nightF = 1 - dayFrac, _dpr = devicePixelRatio || 1;
       for (const g of gates) {
+        if (_covered ? !g.bridge : !_contactGates.has(g)) continue;  // real OSM flag where mapped, else cluster
         const gN = (g.lat - acLat) * 60, gE = (g.lon - acLon) * 60 * cosAcLat;
         if (gN * gN + gE * gE > 25) continue;             // >5 nm: skip
         const gCos = Math.cos(g.lat * DEG);
