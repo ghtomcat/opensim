@@ -239,7 +239,9 @@ const _REQUESTS = [
              && S.engineState !== 'running' && !S.pushbackStart,
     pm:   (cs, gate) => `Ground, ${cs}, stand ${gate}, request pushback`,
     atc:  cs => `${cs}, pushback approved, advise ready to taxi`,
-    run:  () => { S.pushbackStart = performance.now(); } },
+    run:  () => { S.pushbackStart = performance.now();      // bridge retracts; push motion follows after the 6 s clear delay
+                  setTimeout(() => speakPM('Releasing brakes'), 5000);   // crew callout, then the park brake comes off
+                  setTimeout(() => { S.parkBrake = false; }, 5700); } },
 ];
 
 function _toggleReqPopup() {
