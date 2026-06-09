@@ -21,6 +21,7 @@ import { WINDSOCKS }    from './windsocks-data.js';
 import { STANDS, BRIDGE_COVERAGE } from './stands-data.js';
 import { SATELLITES }   from './satellites-data.js';
 import { TERMINALS }    from './terminals-data.js';   // aprons already drawn by the live OSM overlay
+import { computeTugPath, tugPose, pushbackDist } from '../core/pushback.js';
 
 /* Soft radial-gradient sprite, reused (additively) for the night city-light glow. */
 let _glowSprite = null, _coreSprite = null;
@@ -36,6 +37,7 @@ function _makeGlowSprite(c0, c1, c2) {
 const DEG   = Math.PI / 180;
 const FT_NM = 1 / 6076.12;
 const M_NM  = 1 / 1852;
+let _tugPath = null, _tugKey = null;          // cached two-link tug path, rebuilt per pushback
 const FOV_H = 70;     /* horizontal field of view, degrees */
 
 const ROWS = 30;      /* depth slices */
@@ -508,7 +510,7 @@ function _isOcean(lat, lon) {
   return true;
 }
 
-export function renderTerrain(canvas, { outsideView = false, cxOverride = null, focalScale = 1 } = {}) {
+export function renderTerrain(canvas, { outsideView = false, cxOverride = null, focalScale = 1, acPose = null } = {}) {
   const W = canvas.width  = canvas.offsetWidth  * devicePixelRatio;
   const H = canvas.height = canvas.offsetHeight * devicePixelRatio;
   const ctx = canvas.getContext('2d');
@@ -2515,6 +2517,107 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           const dN = Math.cos(brg * DEG) * stopR, dE = Math.sin(brg * DEG) * stopR;
           _drawBridge(sat.lat + dN / 111320, sat.lon + dE / (111320 * sCos), (brg + 180) % 360, gi > 0);
         });
+      }
+    }
+
+    /* ── Pushback tug + tow bar ── a low vehicle at the nose that pushes with the
+       aircraft, then disconnects and drives away. Drawn in the aircraft's own
+       (fwd=nose, side=left) frame, anchored at the origin and offset to the nose gear. */
+    if (S.pushbackStart && S.pushbackTo) {
+      const PB_DELAY = 6000, PB_DUR = Math.max(12000, Math.min(45000, (S.pushbackTo.len ?? 60) * 250));
+      const tms = performance.now() - S.pushbackStart;
+      const appear = 2200, pushEnd = PB_DELAY + PB_DUR, gone = pushEnd + 5200;
+      if (tms > appear && tms < gone) {
+        const _dpr = devicePixelRatio || 1, _nightF = 1 - dayFrac;
+        const e0t = 0;                                       // aircraft's own ground plane (refM → height 0)
+        const noseFwdM = (S.aircraft?.gear?.nose?.x ?? 0.008) * 1852;
+        const barLen = 6.5, bodyLen = 6.8, bodyW = 2.9, tugTongue = 4.6;
+
+        // two-link trailer tug path (nose gear → bar → tug body), rebuilt once per pushback
+        if (_tugKey !== S.pushbackStart) { _tugPath = computeTugPath(S.pushbackTo, noseFwdM, barLen, tugTongue); _tugKey = S.pushbackStart; }
+        const p = Math.max(0, Math.min(1, (tms - PB_DELAY) / PB_DUR));
+        const pose = tugPose(_tugPath, pushbackDist(S.pushbackTo, p));   // { N: nose gear, H: tug hitch, hdg }
+
+        let extra = 0, sideOff = 0, alpha = 1, bar = true;   // lifecycle: drive-in → push → drive-away
+        if (tms < PB_DELAY) { const u = (tms - appear) / (PB_DELAY - appear); extra = (1 - u) * 9; bar = u > 0.55; }
+        else if (tms > pushEnd) { const u = (tms - pushEnd) / (gone - pushEnd);
+          extra = u * 15; sideOff = u * 7; alpha = Math.max(0, 1 - (u - 0.45) / 0.55); bar = false; }
+
+        // anchor the body at the tug hitch H, pointing hitch→cab (tug heading + 180); add drive offsets
+        const fH = (pose.hdg + 180) % 360, hE = Math.sin(fH*DEG), hN = Math.cos(fH*DEG), lE = -hN, lN = hE;
+        const aLat = pose.H[0] + (extra*hN + sideOff*lN) / 111320;
+        const aLon = pose.H[1] + (extra*hE + sideOff*lE) / (111320 * Math.cos(pose.H[0]*DEG));
+        const aCos = Math.cos(aLat * DEG);
+        const GPt = (fwd, side, hM) => {
+          const dE = fwd * hE + side * lE, dN = fwd * hN + side * lN;
+          const la = aLat + dN / 111320, lo = aLon + dE / (111320 * aCos);
+          const N = (la - acLat) * 60, E = (lo - acLon) * 60 * cosAcLat;
+          return proj(N * cosH + E * sinH, E * cosH - N * sinH, e0t + hM * M_NM);
+        };
+        const _wp = (lat, lon, hM) => { const N = (lat - acLat) * 60, E = (lon - acLon) * 60 * cosAcLat;
+          return proj(N * cosH + E * sinH, E * cosH - N * sinH, e0t + hM * M_NM); };
+        const _sh = (nF, nS) => { const nE = nF*hE+nS*lE, nN = nF*hN+nS*lN;
+          const d = Math.max(0, nN*_sunN + nE*_sunE)*_sunH; return Math.max(0.18 + 0.16*_nightF, (0.46 + 0.54*d)*_bGB); };
+        const _shTop = Math.max(0.22 + 0.16*_nightF, (0.5 + 0.5*_sunV)*_bGB);
+        const _depF = (lf, ls) => (lf*hN + ls*lN)*cosH + (lf*hE + ls*lE)*sinH;
+        const _face = (q, s, col) => { if (q.some(p => !p)) return;
+          ctx.fillStyle = `rgba(${(col[0]*s)|0},${(col[1]*s)|0},${(col[2]*s)|0},${(alpha*0.96).toFixed(2)})`;
+          ctx.beginPath(); ctx.moveTo(q[0][0],q[0][1]); for (let i=1;i<q.length;i++) ctx.lineTo(q[i][0],q[i][1]); ctx.closePath(); ctx.fill();
+          ctx.strokeStyle = `rgba(46,50,54,${(alpha*0.5).toFixed(2)})`; ctx.lineWidth = 1*_dpr; ctx.stroke(); };
+        const _box = (fa, fb, hw, h0, h1, sMid, col) => { const c = (f,s,h) => GPt(f, sMid+s, h);
+          const F = [
+            { q:[c(fb,-hw,h0),c(fb,hw,h0),c(fb,hw,h1),c(fb,-hw,h1)], s:_sh(1,0),  d:_depF(fb,sMid) },
+            { q:[c(fa,-hw,h0),c(fa,hw,h0),c(fa,hw,h1),c(fa,-hw,h1)], s:_sh(-1,0), d:_depF(fa,sMid) },
+            { q:[c(fa,hw,h0),c(fb,hw,h0),c(fb,hw,h1),c(fa,hw,h1)],   s:_sh(0,1),  d:_depF((fa+fb)/2,sMid+hw) },
+            { q:[c(fa,-hw,h0),c(fb,-hw,h0),c(fb,-hw,h1),c(fa,-hw,h1)],s:_sh(0,-1), d:_depF((fa+fb)/2,sMid-hw) },
+            { q:[c(fa,-hw,h1),c(fb,-hw,h1),c(fb,hw,h1),c(fa,hw,h1)], s:_shTop,    d:-1e9 } ];
+          F.sort((a,b) => b.d - a.d); for (const f of F) _face(f.q, f.s, col); };
+
+        // SCHOPF-style low-floor tug, hitch at F0 (= H, nearest the aircraft), cab at F1.
+        const cs = 0, hw = bodyW / 2, F0 = 0, F1 = bodyLen;
+        const FLOOR = 0.8, DECK = 1.5, CABTOP = 2.65;
+        _box(F0, F1, hw, FLOOR, DECK, cs, [208, 212, 208]);                                    // long low body
+        _box(F1 - 2.3, F1 - 0.25, hw*0.9, DECK, CABTOP, cs, [200, 204, 204]);                  // cab (far end)
+        _box(F1 - 2.12, F1 - 0.4, hw*0.82, DECK + 0.4, CABTOP - 0.28, cs, [40, 48, 58]);       // cab glazing (dark)
+        _box(F0 - 0.7, F0, 0.5, 0.32, 0.95, cs, [62, 64, 68]);                                 // anchoring lug (front coupling)
+
+        const _wheel = (wf, ws) => {                                                          // big tyre — vertical disc
+          const R = 0.95, NW = 12, ring = [];
+          for (let k = 0; k < NW; k++) { const a = k/NW*Math.PI*2; ring.push(GPt(wf + Math.cos(a)*R, ws, R + Math.sin(a)*R)); }
+          if (ring.some(p => !p)) return;
+          ctx.fillStyle = `rgba(26,28,32,${(alpha*0.95).toFixed(2)})`;
+          ctx.beginPath(); ctx.moveTo(ring[0][0],ring[0][1]); for (let i=1;i<NW;i++) ctx.lineTo(ring[i][0],ring[i][1]); ctx.closePath(); ctx.fill();
+          const c = GPt(wf, ws, R); if (c) { ctx.fillStyle = `rgba(150,154,160,${(alpha*0.85).toFixed(2)})`; ctx.beginPath(); ctx.arc(c[0],c[1],2.1*_dpr,0,Math.PI*2); ctx.fill(); } };
+        for (const wf of [F0 + 1.5, F1 - 1.7]) { _wheel(wf, cs + hw + 0.05); _wheel(wf, cs - hw - 0.05); }   // two axles
+
+        // 45° yellow/black hazard band on the lower end faces — only the one facing the camera
+        const camN = (acLat - aLat) * 111320, camE = (acLon - aLon) * 111320 * aCos;
+        const camFwd = camN * hN + camE * hE;
+        const _hazard = (fwd) => {
+          const q = [GPt(fwd, cs-hw, FLOOR), GPt(fwd, cs+hw, FLOOR), GPt(fwd, cs+hw, FLOOR+0.62), GPt(fwd, cs-hw, FLOOR+0.62)];
+          if (q.some(p => !p)) return;
+          ctx.save(); ctx.beginPath(); ctx.moveTo(q[0][0],q[0][1]); for (let i=1;i<4;i++) ctx.lineTo(q[i][0],q[i][1]); ctx.closePath(); ctx.clip();
+          let mnX=1e9,mnY=1e9,mxX=-1e9,mxY=-1e9; for (const p of q){ mnX=Math.min(mnX,p[0]); mnY=Math.min(mnY,p[1]); mxX=Math.max(mxX,p[0]); mxY=Math.max(mxY,p[1]); }
+          ctx.fillStyle = `rgba(22,22,24,${(alpha*0.96).toFixed(2)})`; ctx.fillRect(mnX,mnY,mxX-mnX,mxY-mnY);
+          ctx.strokeStyle = `rgba(232,196,40,${(alpha*0.96).toFixed(2)})`; ctx.lineWidth = 3*_dpr;
+          const Hb = mxY-mnY, st = 10*_dpr; ctx.beginPath();
+          for (let o=-Hb; o<(mxX-mnX)+Hb; o+=st*2) { ctx.moveTo(mnX+o, mnY); ctx.lineTo(mnX+o+Hb, mxY); }
+          ctx.stroke(); ctx.restore();
+        };
+        if (camFwd < F0) _hazard(F0); else if (camFwd > F1) _hazard(F1);
+
+        if (bar) { const a = _wp(pose.N[0], pose.N[1], 0.5), b = _wp(pose.H[0], pose.H[1], 0.62);  // tow bar — nose gear → hitch
+          if (a && b) { ctx.strokeStyle = `rgba(232,196,40,${(alpha*0.95).toFixed(2)})`; ctx.lineWidth = 2.6*_dpr; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke(); ctx.lineCap = 'butt'; } }
+
+        const _ph = performance.now() % 900, _onA = _ph < 450;                                // two alternating orange beacons
+        for (const [bs, on] of [[hw*0.5, _onA], [-hw*0.5, !_onA]]) {
+          const p = GPt(F1 - 1.25, cs + bs, CABTOP + 0.2); if (!p) continue;
+          if (on) {
+            ctx.fillStyle = `rgba(255,150,20,${(alpha*0.28).toFixed(2)})`; ctx.beginPath(); ctx.arc(p[0],p[1],6.5*_dpr,0,Math.PI*2); ctx.fill();
+            ctx.fillStyle = `rgba(255,184,46,${(alpha*0.98).toFixed(2)})`; ctx.beginPath(); ctx.arc(p[0],p[1],2.7*_dpr,0,Math.PI*2); ctx.fill();
+          } else { ctx.fillStyle = `rgba(150,86,28,${(alpha*0.55).toFixed(2)})`; ctx.beginPath(); ctx.arc(p[0],p[1],2.2*_dpr,0,Math.PI*2); ctx.fill(); }
+        }
       }
     }
   }

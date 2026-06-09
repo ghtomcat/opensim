@@ -370,7 +370,7 @@ function _renderChaseCam(canvas) {
   S.pitch = _chasePitch;
   S.roll  = 0;
   const _tcCLat = S.lat, _tcCLon = S.lon, _tcCAlt = S.alt, _tcCHdg = S.hdg;
-  renderTerrain(canvas, { outsideView: true, cxOverride: _cxC });
+  renderTerrain(canvas, { outsideView: true, cxOverride: _cxC, acPose: { lat: sL, lon: sLo, hdg: sH } });
   S.lat=sL;S.lon=sLo;S.alt=sA;S.pitch=sP;S.roll=sR;S.hdg=sH;
 
   const W = canvas.width, H = canvas.height;
@@ -447,7 +447,7 @@ function _renderSideCam(canvas) {
   S.pitch = _sidePitch;
   S.roll  = 0;
   const _tcSLat = S.lat, _tcSLon = S.lon, _tcSAlt = S.alt, _tcSHdg = S.hdg;
-  renderTerrain(canvas, { outsideView: true, cxOverride: _cxS });
+  renderTerrain(canvas, { outsideView: true, cxOverride: _cxS, acPose: { lat: sL, lon: sLo, hdg: sH } });
   S.lat=sL;S.lon=sLo;S.alt=sA;S.hdg=sH;S.pitch=sP;S.roll=sR;
 
   const W = canvas.width, H = canvas.height;
@@ -482,7 +482,7 @@ function _renderWingView(canvas) {
   S.hdg   = ((S.hdg??0) - 90 + 360) % 360;
   S.pitch = Math.atan2(-WING_UP, WING_SIDE) / DEG;
   S.roll  = 0;
-  renderTerrain(canvas, { outsideView: true });
+  renderTerrain(canvas, { outsideView: true, acPose: { lat: sL, lon: sLo, hdg: sH } });
   S.lat=sL;S.lon=sLo;S.alt=sA;S.hdg=sH;S.pitch=sP;S.roll=sR;
 
   _drawWireframe(canvas, acP, acR, 0, WING_UP, WING_SIDE, true);

@@ -109,3 +109,43 @@ export function pushbackPose(path, p) {
   return { lat: M[0] + off * Math.cos(hdg * DEG) / 111320,
            lon: M[1] + off * Math.sin(hdg * DEG) / (111320 * cl), hdg, hdgT };
 }
+
+/* ── Tug path ── the tow tug as a two-link trailer towed by the nose gear:
+     link 1 = the tow bar (hinged at the nose gear and at the tug hitch),
+     link 2 = the tug body (rolls on its wheels — no skid).
+   Each link's heading chases the point ahead of it (standard trailer kinematics),
+   so the tug cuts its own arc and the bar articulates at both ends. Returns, per
+   aircraft-path vertex: the nose-gear point N, the tug hitch H, and the tug heading. */
+const _offM = (lat, lon, hdgDeg, dist) => {
+  const c = Math.cos(lat * DEG);
+  return [lat + dist * Math.cos(hdgDeg * DEG) / 111320, lon + dist * Math.sin(hdgDeg * DEG) / (111320 * c)];
+};
+const _chase = (ang, target, lead, ds) => {              // integrate a tongue angle chasing `target`
+  const diff = ((target - ang + 540) % 360) - 180;
+  return ang + (Math.sin(diff * DEG) / lead * ds) * (180 / Math.PI);
+};
+
+export function computeTugPath(path, noseFwdM, barLen, tugTongue) {
+  const { mg, mgh, off, cum } = path;
+  const N = mg.map((m, i) => _offM(m[0], m[1], mgh[i], off + noseFwdM));   // nose-gear path
+  const H = new Array(N.length), TH = new Array(N.length);
+  let psi = (mgh[0] + 180) % 360, th = (mgh[0] + 180) % 360;               // bar / tug tongue angles
+  H[0] = _offM(N[0][0], N[0][1], psi, -barLen); TH[0] = th;
+  for (let i = 1; i < N.length; i++) {
+    const dsN = _m(N[i-1], N[i]); if (dsN > 1e-4) psi = _chase(psi, _brg(N[i-1], N[i]), barLen, dsN);
+    H[i] = _offM(N[i][0], N[i][1], psi, -barLen);
+    const dsH = _m(H[i-1], H[i]); if (dsH > 1e-4) th = _chase(th, _brg(H[i-1], H[i]), tugTongue, dsH);
+    TH[i] = th;
+  }
+  return { N, H, hdg: TH, cum };                          // tug render forward = hdg + 180
+}
+
+export const pushbackDist = (path, p) => path.len * _smooth(p);   // aircraft-arc distance at progress p
+
+export function tugPose(tp, d) {                          // interpolate the tug path at aircraft-arc distance d
+  const { N, H, hdg, cum } = tp;
+  let i = 1; while (i < cum.length - 1 && cum[i] < d) i++;
+  const f = Math.max(0, Math.min(1, (d - cum[i - 1]) / ((cum[i] - cum[i - 1]) || 1)));
+  const lerp = (a, b) => [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+  return { N: lerp(N[i-1], N[i]), H: lerp(H[i-1], H[i]), hdg: _lerpHdg(hdg[i-1], hdg[i], f) };
+}
