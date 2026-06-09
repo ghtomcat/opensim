@@ -521,9 +521,14 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
      (departure or arrival) defines the mission.  Fall back to departure elevation
      before tiles have loaded.                                                      */
   const _acSampM  = _sampleElev(S.lat ?? 47, S.lon ?? 8);
-  const elevFt    = _acSampM !== null
-    ? _acSampM / 0.3048
-    : (S.mission?.departure?.elevation ?? S.mission?.arrival?.elevation ?? 0);
+  /* AGL reference: in flight, height above the Mapbox terrain below (horizon tracks the
+     real ground). On the ground the aircraft sits on the apron, but the published field
+     elevation can differ from the Mapbox sample by tens of feet — referencing the *published*
+     field elevation when parked keeps the visual height a pure camera offset, so the aircraft
+     doesn't float by that gap. (Altimeter still reads S.alt; only the visual ground changes.) */
+  const _fieldFt  = S.mission?.departure?.elevation ?? S.mission?.arrival?.elevation ?? null;
+  const elevFt    = (S.wow && _fieldFt !== null) ? _fieldFt
+                  : (_acSampM !== null ? _acSampM / 0.3048 : (_fieldFt ?? 0));
   const agl    = Math.max(1, (S.alt ?? 1000) - elevFt);
   const altNm  = agl * FT_NM;
 
