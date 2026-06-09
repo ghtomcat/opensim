@@ -18,7 +18,7 @@
     "pitch": 0,
     "roll": 0
   },
-  "start": { "stand": "E26" },
+  "start": { "stand": "A05" },
   "weather": {
     "source": "live",
     "icao": "LSZH",

@@ -1491,11 +1491,10 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
       /* ── Taxiway centrelines (yellow paint) — the defining taxiway marking, on paved
          taxiways. The OSM taxiway way IS the centreline, so we just stroke it. */
       {
-        const _DPRt = devicePixelRatio || 1;
+        const _DPRt = devicePixelRatio || 1, HW_NM = 0.12 / 1852;   // 12 cm half-width (≈24 cm painted line), in NM
         ctx.save();
-        ctx.strokeStyle = `rgba(214,196,72,${(0.45 + 0.35 * dayFrac).toFixed(2)})`;
-        ctx.lineWidth = 1.5 * _DPRt; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        ctx.beginPath();                                        // batch all centrelines → one stroke
+        ctx.fillStyle = `rgba(214,196,72,${(0.45 + 0.35 * dayFrac).toFixed(2)})`;
+        ctx.beginPath();                                        // batch all centreline ribbons → one fill
         for (const way of _osmWays) {
           if (way.tags?.aeroway !== 'taxiway' || !way.geometry || way.geometry.length < 2) continue;
           if (_isGrass(way.tags?.surface)) continue;            // grass taxiways aren't painted
@@ -1504,16 +1503,25 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           if (_0n*_0n + _0e*_0e > 16) continue;                 // > 4 nm
           const _yM = _apElevNm !== null ? null : _sampleElev(g[0].lat, g[0].lon);
           const _yNm = _apElevNm !== null ? _apElevNm : (_yM !== null ? (_yM-refM)*M_NM : 0);
-          let pen = false;
+          let prev = null;                                      // { sp, dN, dE }
           for (const nd of g) {
             const dN = (nd.lat-acLat)*60, dE = (nd.lon-acLon)*60*cosAcLat;
-            if (Math.hypot(dN, dE) > 4 || dN*cosH+dE*sinH < -0.3) { pen = false; continue; }
-            const sp = proj(dN*cosH+dE*sinH, dE*cosH-dN*sinH, _yNm);
-            if (!sp) { pen = false; continue; }
-            if (!pen) { ctx.moveTo(sp[0], sp[1]); pen = true; } else ctx.lineTo(sp[0], sp[1]);
+            const sp = (Math.hypot(dN, dE) > 4 || dN*cosH+dE*sinH < -0.3) ? null
+                     : proj(dN*cosH+dE*sinH, dE*cosH-dN*sinH, _yNm);
+            if (sp && prev) {                                   // ribbon quad — width tapers with distance
+              const sx = sp[0]-prev.sp[0], sy = sp[1]-prev.sp[1], plen = Math.hypot(sx, sy);
+              const wlen = Math.hypot(dN-prev.dN, dE-prev.dE) || 1e-6;
+              if (plen > 0.4) {
+                const hw = Math.max(0.25*_DPRt, Math.min(9*_DPRt, HW_NM * plen / wlen));
+                const px = -sy/plen*hw, py = sx/plen*hw;
+                ctx.moveTo(prev.sp[0]+px, prev.sp[1]+py); ctx.lineTo(sp[0]+px, sp[1]+py);
+                ctx.lineTo(sp[0]-px, sp[1]-py); ctx.lineTo(prev.sp[0]-px, prev.sp[1]-py); ctx.closePath();
+              }
+            }
+            prev = sp ? { sp, dN, dE } : null;
           }
         }
-        ctx.stroke();
+        ctx.fill();
         ctx.restore();
       }
 
@@ -1572,59 +1580,84 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         const _M = 1/1852, _DPRp = devicePixelRatio || 1;
         const _leadCol = `rgba(224,204,72,${(0.5 + 0.32 * dayFrac).toFixed(2)})`;
         ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        /* pass 1 — all lead-in lines, one batched path; stroked black (wide) then yellow
-           (narrow) so each reads black/yellow/black, as painted on light concrete. */
-        ctx.beginPath();
-        for (const way of _osmWays) {
-          if (way.tags?.aeroway !== 'parking_position' || !way.geometry || way.geometry.length < 2) continue;
-          const g = way.geometry;
-          const _0n = (g[0].lat-acLat)*60, _0e = (g[0].lon-acLon)*60*cosAcLat;
-          if (_0n*_0n + _0e*_0e > 6.25) continue;                // > 2.5 nm
-          const _eM = _apElevNm !== null ? null : _sampleElev(g[0].lat, g[0].lon);
-          const _eNm = _apElevNm !== null ? _apElevNm : (_eM!==null?(_eM-refM)*_M:0);
-          let pen = false;
-          for (const nd of g) {
-            const dN = (nd.lat-acLat)*60, dE = (nd.lon-acLon)*60*cosAcLat;
-            if (Math.hypot(dN,dE) > 2.5 || dN*cosH+dE*sinH < -0.3) { pen = false; continue; }
-            const sp = proj(dN*cosH+dE*sinH, dE*cosH-dN*sinH, _eNm);
-            if (!sp) { pen = false; continue; }
-            if (!pen) { ctx.moveTo(sp[0],sp[1]); pen = true; } else ctx.lineTo(sp[0],sp[1]);
+        /* pass 1 — all lead-in lines as world-width ribbons (taper with distance); a wider
+           black ribbon under a narrower yellow one so each reads black/yellow/black. */
+        const _leadRibbon = (hwNm, minPx, maxPx) => {
+          ctx.beginPath();
+          for (const way of _osmWays) {
+            if (way.tags?.aeroway !== 'parking_position' || !way.geometry || way.geometry.length < 2) continue;
+            const g = way.geometry;
+            const _0n = (g[0].lat-acLat)*60, _0e = (g[0].lon-acLon)*60*cosAcLat;
+            if (_0n*_0n + _0e*_0e > 6.25) continue;              // > 2.5 nm
+            const _eM = _apElevNm !== null ? null : _sampleElev(g[0].lat, g[0].lon);
+            const _eNm = _apElevNm !== null ? _apElevNm : (_eM!==null?(_eM-refM)*_M:0);
+            let prev = null;
+            for (const nd of g) {
+              const dN = (nd.lat-acLat)*60, dE = (nd.lon-acLon)*60*cosAcLat;
+              const sp = (Math.hypot(dN,dE) > 2.5 || dN*cosH+dE*sinH < -0.3) ? null
+                       : proj(dN*cosH+dE*sinH, dE*cosH-dN*sinH, _eNm);
+              if (sp && prev) {
+                const sx=sp[0]-prev.sp[0], sy=sp[1]-prev.sp[1], plen=Math.hypot(sx,sy);
+                const wlen=Math.hypot(dN-prev.dN, dE-prev.dE)||1e-6;
+                if (plen > 0.4) {
+                  const hw = Math.max(minPx, Math.min(maxPx, hwNm * plen / wlen));
+                  const px=-sy/plen*hw, py=sx/plen*hw;
+                  ctx.moveTo(prev.sp[0]+px,prev.sp[1]+py); ctx.lineTo(sp[0]+px,sp[1]+py);
+                  ctx.lineTo(sp[0]-px,sp[1]-py); ctx.lineTo(prev.sp[0]-px,prev.sp[1]-py); ctx.closePath();
+                }
+              }
+              prev = sp ? { sp, dN, dE } : null;
+            }
           }
-        }
-        ctx.strokeStyle = `rgba(26,24,14,${(0.42 + 0.30*dayFrac).toFixed(2)})`;   // black border, under
-        ctx.lineWidth = Math.max(2, 2.8*_DPRp); ctx.stroke();
-        ctx.strokeStyle = _leadCol; ctx.lineWidth = Math.max(1, 1.3*_DPRp); ctx.stroke();  // yellow centre, over
-        /* pass 2 — stand numbers, only the handful within ~0.6 nm */
+        };
+        _leadRibbon(0.14/1852, 0.6*_DPRp, 9*_DPRp);              // black border (≈28 cm)
+        ctx.fillStyle = `rgba(26,24,14,${(0.42 + 0.30*dayFrac).toFixed(2)})`; ctx.fill();
+        _leadRibbon(0.075/1852, 0.3*_DPRp, 5*_DPRp);            // yellow centre (≈15 cm)
+        ctx.fillStyle = _leadCol; ctx.fill();
+        /* pass 2 — stand identification box at the lead-in ENTRANCE (off the taxiway): a
+           black-bordered yellow panel with the number in black, digits across reading
+           upright toward the stand. Only the handful within ~0.7 nm. */
         for (const way of _osmWays) {
           if (way.tags?.aeroway !== 'parking_position' || !way.geometry || way.geometry.length < 2) continue;
           const ref = (way.tags?.ref || '').trim().toUpperCase();
           if (!ref || ref.length > 4) continue;
-          const g = way.geometry, e0 = g[g.length-1], e1 = g[g.length-2];
+          const g = way.geometry, e0 = g[0], e1 = g[1];          // entrance (taxiway end) + inward
           const sN = (e0.lat-acLat)*60, sE = (e0.lon-acLon)*60*cosAcLat;
-          if (sN*sN + sE*sE > 0.36) continue;                    // > 0.6 nm: skip numbers
+          if (sN*sN + sE*sE > 0.49) continue;                    // > 0.7 nm: skip
           const _eM = _apElevNm !== null ? null : _sampleElev(e0.lat, e0.lon);
           const _eNm = _apElevNm !== null ? _apElevNm : (_eM!==null?(_eM-refM)*_M:0);
           const dN = (e1.lat-e0.lat)*60, dE = (e1.lon-e0.lon)*60*cosAcLat;   // inward along the line
           const L = Math.hypot(dN,dE)||1, uN = dN/L, uE = dE/L, pN = -uE, pE = uN;
-          const chars = [...ref];
-          const digH = 3.2*_M, digW = 1.9*_M, gap = 0.9*_M;
+          const chars = [...ref], n = chars.length;
+          const digH = 1.5*_M, digW = 0.9*_M, gap = 0.35*_M, aAl0 = 1.3*_M;
           const _wp = (al, ac) => { const N = sN+uN*al+pN*ac, E = sE+uE*al+pE*ac;
             return proj(N*cosH+E*sinH, E*cosH-N*sinH, _eNm); };
-          const q0 = _wp(digH*0.6, 0), q1 = _wp(digH*1.6, 0);
-          if (!q0 || !q1) continue;
-          const hpx = Math.hypot(q1[0]-q0[0], q1[1]-q0[1]); if (hpx < 3) continue;
-          const _ax0 = _wp(digH*0.6, 0), _ax1 = _wp(digH*0.6, digW);   // does +across read left→right on screen?
-          const _sx = (_ax0 && _ax1 && _ax1[0] < _ax0[0]) ? -1 : 1;    // else mirror the glyphs so they read forward
-          ctx.lineWidth = Math.max(1.2, hpx*0.16);
-          ctx.beginPath();                                       // one stroke for this stand's glyphs
-          for (let ci=0; ci<chars.length; ci++) {
+          const q0 = _wp(aAl0, 0), q1 = _wp(aAl0+digH, 0);
+          if (!q0 || !q1 || Math.hypot(q1[0]-q0[0], q1[1]-q0[1]) < 2.5) continue;   // too far to read
+          const _ax0 = _wp(aAl0, 0), _ax1 = _wp(aAl0, digW);     // does +across read left→right on screen?
+          const _sx = (_ax0 && _ax1 && _ax1[0] < _ax0[0]) ? -1 : 1;
+          const twA = n*digW + (n-1)*gap, padA = 0.5*_M, bC = twA/2 + 0.55*_M, bd = 0.16*_M;
+          const _quad = (a0,a1,c0,c1) => { const q=[_wp(a0,c0),_wp(a1,c0),_wp(a1,c1),_wp(a0,c1)];
+            if (q.some(p=>!p)) return; ctx.beginPath(); ctx.moveTo(q[0][0],q[0][1]);
+            for(let i=1;i<4;i++) ctx.lineTo(q[i][0],q[i][1]); ctx.closePath(); ctx.fill(); };
+          ctx.fillStyle = `rgba(22,20,14,${(0.62 + 0.22*dayFrac).toFixed(2)})`;     // black border
+          _quad(aAl0 - padA - bd, aAl0 + digH + padA + bd, -(bC+bd), bC+bd);
+          ctx.fillStyle = `rgba(230,206,70,${(0.82 + 0.12*dayFrac).toFixed(2)})`;    // yellow panel
+          _quad(aAl0 - padA, aAl0 + digH + padA, -bC, bC);
+          const _gHW = 0.095*_M;                                 // black glyph stroke half-width (~19 cm), flat
+          ctx.fillStyle = `rgba(22,20,14,${(0.85 + 0.10*dayFrac).toFixed(2)})`; ctx.beginPath();
+          for (let ci=0; ci<n; ci++) {
             const glyph = _RW_FONT[chars[ci]]; if (!glyph) continue;
-            const base = digH*0.6 + ci*(digH+gap);
-            for (const st of glyph) { let go=false;
-              for (const [gx,gy] of st) { const sp = _wp(base + gy*digH, (gx-0.5)*digW*_sx);
-                if(!sp){go=false;continue;} if(!go){ctx.moveTo(sp[0],sp[1]);go=true;} else ctx.lineTo(sp[0],sp[1]); } }
+            const cc = (ci - (n-1)/2) * (digW + gap);            // char centre across
+            for (const st of glyph) for (let k=0; k<st.length-1; k++) {
+              const aAl=aAl0+st[k][1]*digH,   aAc=_sx*(cc+(st[k][0]-0.5)*digW);
+              const bAl=aAl0+st[k+1][1]*digH, bAc=_sx*(cc+(st[k+1][0]-0.5)*digW);
+              const dAl=bAl-aAl, dAc=bAc-aAc, dl=Math.hypot(dAl,dAc)||1e-9, pAl=-dAc/dl*_gHW, pAc=dAl/dl*_gHW;
+              const c0=_wp(aAl+pAl,aAc+pAc), c1=_wp(bAl+pAl,bAc+pAc), c2=_wp(bAl-pAl,bAc-pAc), c3=_wp(aAl-pAl,aAc-pAc);
+              if (c0&&c1&&c2&&c3){ ctx.moveTo(c0[0],c0[1]); ctx.lineTo(c1[0],c1[1]); ctx.lineTo(c2[0],c2[1]); ctx.lineTo(c3[0],c3[1]); ctx.closePath(); }
+            }
           }
-          ctx.stroke();
+          ctx.fill();
         }
         ctx.restore();
       }
@@ -2205,13 +2238,15 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           ctx.beginPath(); ctx.arc(mx,my,rad,0,Math.PI*2); ctx.fill(); ctx.restore();
         }
       }
-      ctx.strokeStyle = `rgba(150,170,190,${(0.35+0.35*_bGB).toFixed(2)})`; ctx.lineWidth = 1.1*_dprB;
-      ctx.beginPath();
-      for (let i=0;i<n;i++){ const j=(i+1)%n, a=bot[i].p,b=bot[j].p,c=top[i].p,d=top[j].p;
-        if(a&&b){ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}
-        if(c&&d){ctx.moveTo(c[0],c[1]);ctx.lineTo(d[0],d[1]);}
-        if(a&&c){ctx.moveTo(a[0],a[1]);ctx.lineTo(c[0],c[1]);} }
-      ctx.stroke();
+      if (typeof window !== 'undefined' && window.OPENSIM_MASSEDGES) {   // debug: bright footprint + vertex indices
+        ctx.strokeStyle = 'rgba(0,240,255,0.95)'; ctx.lineWidth = 1.8*_dprB; ctx.beginPath();
+        for (let i=0;i<n;i++){ const a=bot[i].p, b=bot[(i+1)%n].p; if(a&&b){ ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); } }
+        ctx.stroke();
+        ctx.font = `${11*_dprB}px monospace`; ctx.textAlign='center'; ctx.textBaseline='middle';
+        for (let i=0;i<n;i++){ const p=bot[i].p; if(!p) continue;
+          ctx.fillStyle='rgba(255,60,60,0.95)'; ctx.beginPath(); ctx.arc(p[0],p[1],2.4*_dprB,0,Math.PI*2); ctx.fill();
+          ctx.fillStyle='rgba(255,255,0,1)'; ctx.fillText(String(i), p[0], p[1]-9*_dprB); }
+      }
     };
 
     /* ── Terminal massing — derived, not modelled. Where OSM maps jet bridges
@@ -2344,64 +2379,89 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           const aF = p1[0]-p0[0], aS = p1[1]-p0[1], L = Math.hypot(aF,aS) || 1;
           const px = -aS/L * (w/2), py = aF/L * (w/2);
           const cn = (p, s, h) => GP(p[0] + s*px, p[1] + s*py, h);
-          const bt = [cn(p0,1,h0), cn(p0,-1,h0), cn(p1,-1,h1), cn(p1,1,h1)];
-          const tp = [cn(p0,1,h0+THK), cn(p0,-1,h0+THK), cn(p1,-1,h1+THK), cn(p1,1,h1+THK)];
-          if (tp.every(p => p)) {                          // glass — faint warm lit-walkway glow at night
-            ctx.fillStyle = `rgba(${120+(_nightF*110|0)},${134+(_nightF*74|0)},${150-(_nightF*18|0)},${(0.30+_nightF*0.22).toFixed(2)})`;
+          const mF=(p0[0]+p1[0])/2, mS=(p0[1]+p1[1])/2, nF=-(p1[1]-p0[1])/L, nS=(p1[0]-p0[0])/L;  // +side normal
+          _fillFaces([                                       // solid shaded side walls
+            { q:[cn(p0,1,h0),cn(p1,1,h1),cn(p1,1,h1+THK),cn(p0,1,h0+THK)], dep:_dep(mF+px,mS+py), nF, nS },
+            { q:[cn(p0,-1,h0),cn(p1,-1,h1),cn(p1,-1,h1+THK),cn(p0,-1,h0+THK)], dep:_dep(mF-px,mS-py), nF:-nF, nS:-nS } ]);
+          const tp = [cn(p0,1,h0+THK), cn(p0,-1,h0+THK), cn(p1,-1,h1+THK), cn(p1,1,h1+THK)];   // translucent glass roof
+          if (tp.every(p => p)) {
+            ctx.fillStyle = `rgba(${150+(_nightF*80|0)},${166+(_nightF*54|0)},${184-(_nightF*8|0)},${(0.5+_nightF*0.18).toFixed(2)})`;
             ctx.beginPath(); ctx.moveTo(tp[0][0],tp[0][1]); for (let i=1;i<4;i++) ctx.lineTo(tp[i][0],tp[i][1]);
             ctx.closePath(); ctx.fill(); }
-          ctx.strokeStyle = 'rgba(170,186,202,0.78)'; ctx.lineWidth = 1.1 * _dpr; ctx.beginPath();
-          for (let i=0;i<4;i++){ const a=bt[i],b=bt[(i+1)%4],c=tp[i],d=tp[(i+1)%4];
-            if(a&&b){ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}
-            if(c&&d){ctx.moveTo(c[0],c[1]);ctx.lineTo(d[0],d[1]);}
-            if(a&&c){ctx.moveTo(a[0],a[1]);ctx.lineTo(c[0],c[1]);} }
-          ctx.stroke();
         };
         _segBox(armPt(0), armPt(1), BR_W, FLOOR, _lift);  // single arm: level → lifted at cab
 
         /* Round rotunda drum at the terminal (bridge level), sitting on a slimmer round
            support column down to the ground. */
         const RR = 1.9, RN = 8;
-        const _cyl = (rad, h0, h1) => {
-          const b=[], t=[];
-          for (let k=0;k<RN;k++){ const a=k/RN*Math.PI*2, cx=Math.cos(a)*rad, sy=Math.sin(a)*rad;
-            b.push(GP(fT+cx, LEFT+sy, h0)); t.push(GP(fT+cx, LEFT+sy, h1)); }
-          ctx.beginPath();
-          for (let k=0;k<RN;k++){ const p=b[k],q=b[(k+1)%RN],c=t[k],d=t[(k+1)%RN];
-            if(p&&q){ctx.moveTo(p[0],p[1]);ctx.lineTo(q[0],q[1]);}
-            if(c&&d){ctx.moveTo(c[0],c[1]);ctx.lineTo(d[0],d[1]);}
-            if(p&&c){ctx.moveTo(p[0],p[1]);ctx.lineTo(c[0],c[1]);} }
-          ctx.stroke();
-        };
         _solidCyl(fT, LEFT, RR, FLOOR-0.3, ROOF+0.5, RN);   // shaded rotunda drum
-        ctx.strokeStyle = 'rgba(182,198,212,0.82)'; ctx.lineWidth = 1.1 * _dpr;
-        _cyl(0.9, 0, FLOOR + 0.3);          // support column (ground → bridge floor)
-        _cyl(RR, FLOOR - 0.3, ROOF + 0.5);  // rotunda drum at bridge level
+        _solidCyl(fT, LEFT, 0.9, 0, FLOOR + 0.3, RN);       // shaded support column (ground → bridge floor)
 
         /* Lift column + steerable drive bogie under the cab: two vertical struts joined
            by a top beam and a bottom bar; below a central pivot, a lower bar carries the
            four tyres and pivots to steer the bridge. */
-        const Bp = armPt(0.88), qx = -dy, qy = dx, hw = BR_W/2;
-        const STR_TOP = 8, H_CH = 1.3, WR = 0.55, AX = WR + 0.25, SB = 0.9, WT = 0.45;
-        const sLx = Bp[0]+qx*hw, sLy = Bp[1]+qy*hw, sRx = Bp[0]-qx*hw, sRy = Bp[1]-qy*hw;
-        const tL=GP(sLx,sLy,STR_TOP), tR=GP(sRx,sRy,STR_TOP), bL=GP(sLx,sLy,H_CH), bR=GP(sRx,sRy,H_CH);
-        ctx.strokeStyle = 'rgba(150,160,170,0.82)'; ctx.lineWidth = 1.4 * _dpr; ctx.beginPath();
-        if(tL&&bL){ctx.moveTo(tL[0],tL[1]);ctx.lineTo(bL[0],bL[1]);}          // strut L
-        if(tR&&bR){ctx.moveTo(tR[0],tR[1]);ctx.lineTo(bR[0],bR[1]);}          // strut R
-        if(tL&&tR){ctx.moveTo(tL[0],tL[1]);ctx.lineTo(tR[0],tR[1]);}          // top beam
-        if(bL&&bR){ctx.moveTo(bL[0],bL[1]);ctx.lineTo(bR[0],bR[1]);}          // bottom bar
-        ctx.stroke();
-        /* Central pivot pin + lower steering bar (along arm), carrying the 4 tyres. */
-        const pvT=GP(Bp[0],Bp[1],H_CH), pvB=GP(Bp[0],Bp[1],AX);
-        const eA=[Bp[0]+dx*SB,Bp[1]+dy*SB], eB=[Bp[0]-dx*SB,Bp[1]-dy*SB];
-        const ax0=GP(eA[0],eA[1],AX), ax1=GP(eB[0],eB[1],AX);
-        ctx.lineWidth = 1.6 * _dpr; ctx.beginPath();
-        if(pvT&&pvB){ctx.moveTo(pvT[0],pvT[1]);ctx.lineTo(pvB[0],pvB[1]);}    // pivot pin
-        if(ax0&&ax1){ctx.moveTo(ax0[0],ax0[1]);ctx.lineTo(ax1[0],ax1[1]);}    // steering bar
+        const Bp = armPt(0.88), qx = -dy, qy = dx;
+        const H_CH = 1.3, WR = 0.55, SB = 0.9, WT = 0.45;
+        /* 3D telescoping lift column: nested rectangular box-sections (~30–40 cm), the inner
+           sliding up out of the outer to set the cab height (driven by _lift). */
+        const _colBox = (cF, cS, hA, hP, h0, h1, col) => {
+          const c = (sa, sp, h) => GP(cF + sa*hA*dx + sp*hP*qx, cS + sa*hA*dy + sp*hP*qy, h);
+          const F = [
+            { q:[c(1,-1,h0),c(1,1,h0),c(1,1,h1),c(1,-1,h1)],     n:[dx,dy],   d:_dep(cF+hA*dx, cS+hA*dy) },
+            { q:[c(-1,-1,h0),c(-1,1,h0),c(-1,1,h1),c(-1,-1,h1)], n:[-dx,-dy], d:_dep(cF-hA*dx, cS-hA*dy) },
+            { q:[c(-1,1,h0),c(1,1,h0),c(1,1,h1),c(-1,1,h1)],     n:[qx,qy],   d:_dep(cF+hP*qx, cS+hP*qy) },
+            { q:[c(-1,-1,h0),c(1,-1,h0),c(1,-1,h1),c(-1,-1,h1)], n:[-qx,-qy], d:_dep(cF-hP*qx, cS-hP*qy) },
+            { q:[c(-1,-1,h1),c(1,-1,h1),c(1,1,h1),c(-1,1,h1)],   up:true,     d:-1e8 } ];
+          F.sort((a,b)=>b.d-a.d);
+          for (const f of F){ if (f.q.some(p=>!p)) continue;
+            const sh = f.up ? Math.max(0.16+0.2*_nightF, (0.46+0.54*_sunV)*_bGB) : _bShade(f.n[0], f.n[1]);
+            ctx.fillStyle = `rgba(${col[0]*sh|0},${col[1]*sh|0},${col[2]*sh|0},0.95)`;
+            ctx.beginPath(); ctx.moveTo(f.q[0][0],f.q[0][1]); for(let i=1;i<4;i++)ctx.lineTo(f.q[i][0],f.q[i][1]); ctx.closePath(); ctx.fill(); }
+        };
+        const _barH = FLOOR + 0.88*(_lift - FLOOR) + THK + 0.7;       // strut tops clear the tunnel roof
+        const _strutHW = BR_W/2 - 0.15;                               // run up the two sides of the tunnel box
+        const _botH = H_CH + 0.3;                                     // bottom cross bar height (above the tyres)
+        for (const sd of [1, -1]) {                                   // two telescoping struts, one each side
+          const cF = Bp[0] + sd*_strutHW*qx, cS = Bp[1] + sd*_strutHW*qy;
+          _colBox(cF, cS, 0.17, 0.15, _botH, _botH + 3.4, [150, 158, 168]);   // thin lower post (fixed to the bogie)
+          _colBox(cF, cS, 0.25, 0.21, _barH - 3.6, _barH, [112, 120, 132]);   // thick upper sleeve — slides over it, thicker on top
+        }
+        /* Rectangular cross bar joining the two strut tops, spanning over the tunnel roof. */
+        const _crossBar = (hC, ea, ev, col) => {
+          const cF = [Bp[0]+_strutHW*qx, Bp[0]-_strutHW*qx], cS = [Bp[1]+_strutHW*qy, Bp[1]-_strutHW*qy];
+          const P = (e, a, v) => GP(cF[e] + a*ea*dx, cS[e] + a*ea*dy, hC + v*ev);
+          const F = [
+            { q:[P(0,-1,1),P(1,-1,1),P(1,1,1),P(0,1,1)],     up:true,     d:-1e8 },
+            { q:[P(0,-1,-1),P(1,-1,-1),P(1,1,-1),P(0,1,-1)], dn:true,     d:_dep(Bp[0],Bp[1]) },
+            { q:[P(0,1,-1),P(1,1,-1),P(1,1,1),P(0,1,1)],     n:[dx,dy],   d:_dep(Bp[0]+ea*dx,Bp[1]+ea*dy) },
+            { q:[P(0,-1,-1),P(1,-1,-1),P(1,-1,1),P(0,-1,1)], n:[-dx,-dy], d:_dep(Bp[0]-ea*dx,Bp[1]-ea*dy) },
+            { q:[P(0,-1,-1),P(0,1,-1),P(0,1,1),P(0,-1,1)],   n:[qx,qy],   d:_dep(cF[0],cS[0]) },
+            { q:[P(1,-1,-1),P(1,1,-1),P(1,1,1),P(1,-1,1)],   n:[-qx,-qy], d:_dep(cF[1],cS[1]) } ];
+          F.sort((a,b)=>b.d-a.d);
+          for (const f of F){ if (f.q.some(p=>!p)) continue;
+            const sh = f.up ? Math.max(0.16+0.2*_nightF, (0.46+0.54*_sunV)*_bGB) : f.dn ? 0.3 : _bShade(f.n[0], f.n[1]);
+            ctx.fillStyle = `rgba(${col[0]*sh|0},${col[1]*sh|0},${col[2]*sh|0},0.95)`;
+            ctx.beginPath(); ctx.moveTo(f.q[0][0],f.q[0][1]); for(let i=1;i<4;i++)ctx.lineTo(f.q[i][0],f.q[i][1]); ctx.closePath(); ctx.fill(); }
+        };
+        _crossBar(_barH - 0.1, 0.17, 0.17, [128, 136, 148]);          // top cross beam over the roof
+        _crossBar(_botH,       0.16, 0.16, [120, 128, 140]);          // bottom cross beam above the tyres
+
+        /* One short central column drops from the bottom beam onto the bogie: a longitudinal
+           beam carrying two axles (front + rear), each axle holding two tyres. */
+        const _axleH = WR;                                            // axles at tyre-centre height
+        _colBox(Bp[0], Bp[1], 0.14, 0.13, _axleH + 0.05, _botH, [96, 104, 116]);   // short pivot column
+        ctx.lineWidth = 2.2 * _dpr; ctx.strokeStyle = 'rgba(66,72,82,0.95)'; ctx.beginPath();
+        const lb0 = GP(Bp[0]+dx*SB, Bp[1]+dy*SB, _axleH), lb1 = GP(Bp[0]-dx*SB, Bp[1]-dy*SB, _axleH);
+        if (lb0 && lb1){ ctx.moveTo(lb0[0],lb0[1]); ctx.lineTo(lb1[0],lb1[1]); }    // longitudinal bogie beam
+        for (const sd of [1, -1]) {                                   // two axles, perpendicular
+          const aF = Bp[0]+sd*SB*dx, aS = Bp[1]+sd*SB*dy;
+          const x0 = GP(aF+qx*WT, aS+qy*WT, _axleH), x1 = GP(aF-qx*WT, aS-qy*WT, _axleH);
+          if (x0 && x1){ ctx.moveTo(x0[0],x0[1]); ctx.lineTo(x1[0],x1[1]); }
+        }
         ctx.stroke();
         ctx.fillStyle = 'rgba(40,44,50,0.90)';
-        for (const ep of [eA, eB]) for (const s of [-1, 1]) {                 // 2 tyres per bar end
-          const wx = ep[0] + qx*WT*s, wy = ep[1] + qy*WT*s;
+        for (const sd of [1, -1]) for (const s of [-1, 1]) {                 // 2 tyres per axle
+          const wx = Bp[0]+sd*SB*dx + qx*WT*s, wy = Bp[1]+sd*SB*dy + qy*WT*s;
           const c0 = GP(wx, wy, 0), c1 = GP(wx, wy, 2*WR);
           if (c0 && c1) { const r = Math.max(1.2*_dpr, Math.hypot(c1[0]-c0[0], c1[1]-c0[1])/2);
             ctx.beginPath(); ctx.arc((c0[0]+c1[0])/2, (c0[1]+c1[1])/2, r, 0, Math.PI*2); ctx.fill(); } }
@@ -2410,33 +2470,17 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
            a small cab box that carries a side service door, with the bellows seal on the
            cab's end face against the fuselage. */
         const CC = armPt(1), CR = 1.3, CABL = 2.2, CABW = 2.6, _lo = _lift, _hi = _lift + THK;
-        _solidCyl(CC[0], CC[1], CR, _lo, _hi, 8);                 // shaded cab rotunda
-        ctx.strokeStyle = 'rgba(182,198,212,0.82)'; ctx.lineWidth = 1.1 * _dpr;
-        { const b=[], t=[];                                       // (a) full rotunda cylinder
-          for (let k=0;k<8;k++){ const a=k/8*Math.PI*2, cx=Math.cos(a)*CR, sy=Math.sin(a)*CR;
-            b.push(GP(CC[0]+cx, CC[1]+sy, _lo)); t.push(GP(CC[0]+cx, CC[1]+sy, _hi)); }
-          ctx.beginPath();
-          for (let k=0;k<8;k++){ const p=b[k],q=b[(k+1)%8],c=t[k],d=t[(k+1)%8];
-            if(p&&q){ctx.moveTo(p[0],p[1]);ctx.lineTo(q[0],q[1]);}
-            if(c&&d){ctx.moveTo(c[0],c[1]);ctx.lineTo(d[0],d[1]);}
-            if(p&&c){ctx.moveTo(p[0],p[1]);ctx.lineTo(c[0],c[1]);} }
-          ctx.stroke(); }
+        _solidCyl(CC[0], CC[1], CR, _lo, _hi, 8);                 // (a) shaded cab rotunda
         /* (b) small cab box reaching from the rotunda toward the fuselage (-side). */
         const csN = CC[1] - CR*0.5, csF = CC[1] - CR*0.5 - CABL, cf0 = CC[0]-CABW/2, cf1 = CC[0]+CABW/2;
         const _box = (h) => [GP(cf0,csN,h), GP(cf1,csN,h), GP(cf1,csF,h), GP(cf0,csF,h)];
-        const cbot = _box(_lo), ctop = _box(_hi);
+        const ctop = _box(_hi);
         _fillFaces([                                              // shaded cab walls (skip -side: bellows) + roof
           { q:[GP(cf1,csN,_lo),GP(cf1,csF,_lo),GP(cf1,csF,_hi),GP(cf1,csN,_hi)], dep:_dep(cf1,(csN+csF)/2), nF:1, nS:0 },
           { q:[GP(cf0,csN,_lo),GP(cf0,csF,_lo),GP(cf0,csF,_hi),GP(cf0,csN,_hi)], dep:_dep(cf0,(csN+csF)/2), nF:-1, nS:0 },
           { q:[GP(cf0,csN,_lo),GP(cf1,csN,_lo),GP(cf1,csN,_hi),GP(cf0,csN,_hi)], dep:_dep((cf0+cf1)/2,csN), nF:0, nS:1 },
           { q:ctop, dep:_dep((cf0+cf1)/2,(csN+csF)/2), up:true },
         ]);
-        ctx.strokeStyle = 'rgba(170,186,202,0.78)'; ctx.lineWidth = 1.1 * _dpr; ctx.beginPath();
-        for (let i=0;i<4;i++){ const a=cbot[i],b=cbot[(i+1)%4],c=ctop[i],d=ctop[(i+1)%4];
-          if(a&&b){ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}
-          if(c&&d){ctx.moveTo(c[0],c[1]);ctx.lineTo(d[0],d[1]);}
-          if(a&&c){ctx.moveTo(a[0],a[1]);ctx.lineTo(c[0],c[1]);} }
-        ctx.stroke();
         /* (c) side service door on the cab's +fwd wall. */
         const dm = (csN + csF) / 2, dd = [GP(cf1, dm+0.45, _lo), GP(cf1, dm-0.45, _lo),
               GP(cf1, dm-0.45, _lo+2.0), GP(cf1, dm+0.45, _lo+2.0)];
@@ -2512,10 +2556,11 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
             done = true;
           }
         }
-        if (!done) {                                      // fallback: ray-cast the gate heading into the terminal
+        if (!done) {                                      // derived: ray-cast the gate heading into the terminal
           let reach = null;
           if (_terms) { const wd = _wallDist(g.lat, g.lon, Math.sin(g.hdg*DEG), Math.cos(g.hdg*DEG), _terms);
             if (wd && wd > 6 && wd < 60) reach = wd; }
+          if (reach === null) continue;                   // no terminal wall in front → remote stand, no bridge
           _drawBridge(g.lat, g.lon, g.hdg, false, reach, undefined, rr);
         }
       }
@@ -2668,7 +2713,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           const base = projNE(dN, dE, 0), top = projNE(dN, dE, 1.9 * M_NM);
           if (!base || !top) continue;
           const sc = Math.hypot(top[0]-base[0], top[1]-base[1]);
-          if (sc < 5) continue;                                // too far to read
+          if (sc < 5 || sc > 200) continue;                    // too far to read, or so close it grazes the camera (would balloon)
 
           const cells = [], seen = new Set();                  // one panel per leg not behind you
           for (const lg of sg.legs) {

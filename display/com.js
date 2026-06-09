@@ -9,14 +9,18 @@ import { speakATC, speakPM } from '../core/crew.js';
 import { bbEvent } from '../core/blackbox.js';
 import { RUNWAYS } from './runways-data.js';
 
-/* True when parked near a runway threshold (holding short) — gates the takeoff request. */
+/* True when on/near a runway (lined up anywhere along it, or holding short) — gates the
+   takeoff request. Perpendicular distance to the runway centreline, clamped to the ends. */
 function _nearRunway() {
   const ic = S.mission?.departure?.icao, rws = ic && RUNWAYS[ic];
   if (!rws) return false;
-  const cl = Math.cos((S.lat ?? 0) * Math.PI / 180);
-  for (const r of rws) for (const e of [r.a, r.b]) {
-    const dN = ((S.lat ?? 0) - e[0]) * 60, dE = ((S.lon ?? 0) - e[1]) * 60 * cl;
-    if (dN * dN + dE * dE < 0.25 * 0.25) return true;     // within ~0.25 NM
+  const cl = Math.cos((S.lat ?? 0) * Math.PI / 180), px = (S.lon ?? 0) * cl, py = S.lat ?? 0;
+  for (const r of rws) {
+    const ax = r.a[1]*cl, ay = r.a[0], bx = r.b[1]*cl, by = r.b[0];
+    const vx = bx-ax, vy = by-ay, L2 = vx*vx + vy*vy || 1e-12;
+    let t = ((px-ax)*vx + (py-ay)*vy) / L2; t = Math.max(0, Math.min(1, t));
+    const dNm = Math.hypot(px-(ax+t*vx), py-(ay+t*vy)) * 60;   // deg → NM
+    if (dNm < 0.12) return true;                                // on the runway or just short of it
   }
   return false;
 }

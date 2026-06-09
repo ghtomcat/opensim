@@ -153,6 +153,7 @@ export function tickPhysics(dt) {
          Forces: thrust, aerodynamic drag, rolling friction, brakes.
          Heading via nose wheel steering.                              */
       const muRoll  = perf.muRoll  ?? 0.05;   // grass ≈ 0.05, tarmac ≈ 0.02
+      const muStatic = perf.muStatic ?? muRoll * 1.8;   // breakaway: idle won't roll a parked jet
       const muBrake = perf.muBrake ?? 0.35;
       const engineDead = (S.enginePower ?? 1.0) < 0.05;
       /* Use actual (unclamped) speed for ground dynamics — spd_ms is clamped to 1 kt
@@ -162,7 +163,11 @@ export function tickPhysics(dt) {
          momentary brakes / idle-stop only bite once actually rolling. */
       const braking = (S.parkBrake || ((S.spdT === 0 || engineDead || S.braking) && spd_ms_gnd > 0.5)) ? 1 : 0;
 
-      const F_net     = T - D - (muRoll + braking * muBrake) * W;
+      /* Static (breakaway) friction below taxi speed for jets, so idle thrust alone can't
+         start a parked aircraft rolling — it takes a touch above idle to break away, then
+         idle sustains the taxi once moving. */
+      const muGround  = (isTurbofan && spd_ms_gnd < 1.0) ? muStatic : muRoll;
+      const F_net     = T - D - (muGround + braking * muBrake) * W;
       const newSpd_ms = Math.max(0, spd_ms_gnd + F_net / mass * dt);
 
       newSpd = newSpd_ms / 0.5144;
@@ -250,7 +255,10 @@ export function tickPhysics(dt) {
     /* Don't climb while on the ground — altitude target is a preselect only.
        Aircraft leaves the ground only when it's already airborne (alt > apGround). */
     newAlt   = apOnGnd ? apGround : Math.max(apGround, converge(S.alt, S.altT, altRate));
-    newSpd   = converge(S.spd,   spdTarget, spdRate);
+    /* On the ground, a near-idle command rolls to a stop (static friction) rather than
+       holding a 1-kt creep — the converge-model analog of taxi breakaway. */
+    const _spdTgt = (apOnGnd && spdTarget < 4) ? 0 : spdTarget;
+    newSpd   = converge(S.spd,   _spdTgt,   spdRate);
     newHdg   = convergeHdg(S.hdg, S.hdgT,  hdgRate);
     newPitch = converge(S.pitch, S.pitchT,  pitchRate);
     newRoll  = converge(S.roll,  S.rollT,   rollRate);

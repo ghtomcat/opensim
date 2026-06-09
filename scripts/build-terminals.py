@@ -21,7 +21,7 @@ OVERPASS = ["https://overpass.kumi.systems/api/interpreter",
             "https://maps.mail.ru/osm/tools/overpass/api/interpreter"]
 RADIUS_M = 4000
 GAP_S    = 4
-DP_EPS_M = 3.0      # Douglas-Peucker tolerance (m)
+DP_EPS_M = 6.0       # Douglas-Peucker tolerance (m); elongated/self-intersecting footprints → OBB
 MAX_PTS  = 40       # cap vertices per polygon (decimate if still over)
 
 
@@ -92,8 +92,40 @@ def dp(poly, eps):
     return [a, b]
 
 
+def _selfint(ring):
+    """True if the closed lat/lon ring has crossing edges (broken topology → can't fill)."""
+    cl = math.cos(ring[0][0] * math.pi / 180)
+    P = [(p[1] * cl, p[0]) for p in ring]; n = len(P)
+    ccw = lambda p, q, r: (r[1] - p[1]) * (q[0] - p[0]) > (q[1] - p[1]) * (r[0] - p[0])
+    for i in range(n):
+        for j in range(i + 1, n):
+            if abs(i - j) <= 1 or (i == 0 and j == n - 1):
+                continue
+            a, b, c, d = P[i], P[(i + 1) % n], P[j], P[(j + 1) % n]
+            if ccw(a, c, d) != ccw(b, c, d) and ccw(a, b, c) != ccw(a, b, d):
+                return True
+    return False
+
+
+def _obb(ring):
+    """Oriented bounding rectangle (PCA long axis) + aspect ratio — a clean block for piers."""
+    n = len(ring); cla = sum(p[0] for p in ring) / n; clo = sum(p[1] for p in ring) / n
+    cl = math.cos(cla * math.pi / 180)
+    pts = [((p[1] - clo) * 111320 * cl, (p[0] - cla) * 111320) for p in ring]
+    sxx = sum(x * x for x, y in pts) / n; syy = sum(y * y for x, y in pts) / n; sxy = sum(x * y for x, y in pts) / n
+    th = 0.5 * math.atan2(2 * sxy, sxx - syy); c, s = math.cos(th), math.sin(th)
+    us = [x * c + y * s for x, y in pts]; vs = [-x * s + y * c for x, y in pts]
+    umin, umax, vmin, vmax = min(us), max(us), min(vs), max(vs)
+    asp = max(umax - umin, vmax - vmin) / max(1e-6, min(umax - umin, vmax - vmin))
+    out = []
+    for u, v in [(umin, vmin), (umax, vmin), (umax, vmax), (umin, vmax)]:
+        x = u * c - v * s; y = u * s + v * c
+        out.append([round(cla + y / 111320, 6), round(clo + x / (111320 * cl), 6)])
+    return out, asp
+
+
 def simplify(ring):
-    """Close → DP-simplify → cap vertices. ring is a list of [lat,lon]."""
+    """Close → DP-simplify → cap vertices; elongated or self-intersecting → OBB rectangle."""
     if len(ring) > 1 and ring[0] == ring[-1]:
         ring = ring[:-1]
     if len(ring) < 3:
@@ -102,7 +134,13 @@ def simplify(ring):
     if len(s) > MAX_PTS:                    # decimate evenly if still huge
         step = len(s) / MAX_PTS
         s = [s[int(i * step)] for i in range(MAX_PTS)]
-    return [[round(p[0], 6), round(p[1], 6)] for p in s] if len(s) >= 3 else None
+    if len(s) >= 3:
+        s = [[round(p[0], 6), round(p[1], 6)] for p in s]
+        rect, asp = _obb(s)
+        if asp > 2.5 or _selfint(s):       # pier or broken outline → clean rectangle
+            return rect
+        return s
+    return None
 
 
 def height_of(tags):
