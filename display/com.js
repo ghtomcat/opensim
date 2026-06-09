@@ -242,6 +242,15 @@ const _REQUESTS = [
     run:  () => { S.pushbackStart = performance.now();      // bridge retracts; push motion follows after the 6 s clear delay
                   setTimeout(() => speakPM('Releasing brakes'), 5000);   // crew callout, then the park brake comes off
                   setTimeout(() => { S.parkBrake = false; }, 5700); } },
+
+  { id: 'taxi', label: 'Taxi',
+    when: () => S.wow && (S.spd ?? 0) < 5 && !!S.pushbackStart && !!S.taxiClearance && !S.taxiClearance.arr,
+    pm:   cs => `${cs}, ready to taxi`,
+    atc:  cs => { const t = S.taxiClearance || {};
+                  const rwy = t.rwy ? ` runway ${t.rwy}` : '';
+                  const via = t.via?.length ? `, via ${t.via.join(' ')}` : '';
+                  return `${cs}, taxi to holding point${rwy}${via}`; },
+    run:  () => {} },
 ];
 
 function _toggleReqPopup() {

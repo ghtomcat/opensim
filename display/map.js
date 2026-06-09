@@ -59,14 +59,21 @@ function _updateTaxiRoute(lat, lon) {
   if (!graph) return;                                  // still loading
 
   const isArr = m?.arrival?.icao === icao && m?.departure?.icao !== icao;
-  let goal = null;
+  let goal = null, depRwy = null;
   if (isArr) { const st = nearestStand(graph, lat, lon); if (st) goal = { lat: st.lat, lon: st.lon }; }
-  if (!goal) {                                         // departure (or no stand): nearest runway threshold
-    let best = null, bdd = 1e9;
-    for (const r of RUNWAYS[icao]) for (const e of [r.a, r.b]) {
-      const d = _nmd(lat, lon, e[0], e[1]); if (d < bdd) { bdd = d; best = { lat: e[0], lon: e[1] }; }
+  if (!goal) {                                         // departure: the mission's runway, else nearest threshold
+    const want = String(m?.departure?.runway || '').toUpperCase();
+    if (want) for (const r of RUNWAYS[icao]) {
+      if ((r.leId || '').toUpperCase() === want) { goal = { lat: r.a[0], lon: r.a[1] }; depRwy = r.leId; break; }
+      if ((r.heId || '').toUpperCase() === want) { goal = { lat: r.b[0], lon: r.b[1] }; depRwy = r.heId; break; }
     }
-    goal = best;
+    if (!goal) {                                       // fallback: nearest runway threshold
+      let best = null, bdd = 1e9;
+      for (const r of RUNWAYS[icao]) for (const [e, id] of [[r.a, r.leId], [r.b, r.heId]]) {
+        const d = _nmd(lat, lon, e[0], e[1]); if (d < bdd) { bdd = d; best = { lat: e[0], lon: e[1] }; depRwy = id; }
+      }
+      goal = best;
+    }
   }
   if (!goal) { _ltaxiLine.setLatLngs([]); return; }
 
@@ -74,7 +81,7 @@ function _updateTaxiRoute(lat, lon) {
   if (moved || _taxiKey !== icao) {
     _taxiRoute = routeTaxi(graph, { lat, lon }, goal);
     _taxiFrom = [lat, lon]; _taxiKey = icao;
-    if (_taxiRoute?.seq?.length) S.taxiClearance = { icao, via: _taxiRoute.seq, distM: _taxiRoute.distM, arr: isArr };
+    if (_taxiRoute?.seq?.length) S.taxiClearance = { icao, via: _taxiRoute.seq, distM: _taxiRoute.distM, arr: isArr, rwy: isArr ? null : depRwy };
   }
   S.taxiRoute = _taxiRoute;                              // expose the green line for pushback routing
   _ltaxiLine.setLatLngs(_taxiRoute?.pts ?? []);
