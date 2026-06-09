@@ -1543,8 +1543,8 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         const _M = 1/1852, _DPRp = devicePixelRatio || 1;
         const _leadCol = `rgba(224,204,72,${(0.5 + 0.32 * dayFrac).toFixed(2)})`;
         ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        /* pass 1 — all lead-in lines, one batched stroke */
-        ctx.strokeStyle = _leadCol; ctx.lineWidth = Math.max(1, 1.3*_DPRp);
+        /* pass 1 — all lead-in lines, one batched path; stroked black (wide) then yellow
+           (narrow) so each reads black/yellow/black, as painted on light concrete. */
         ctx.beginPath();
         for (const way of _osmWays) {
           if (way.tags?.aeroway !== 'parking_position' || !way.geometry || way.geometry.length < 2) continue;
@@ -1562,7 +1562,9 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
             if (!pen) { ctx.moveTo(sp[0],sp[1]); pen = true; } else ctx.lineTo(sp[0],sp[1]);
           }
         }
-        ctx.stroke();
+        ctx.strokeStyle = `rgba(26,24,14,${(0.42 + 0.30*dayFrac).toFixed(2)})`;   // black border, under
+        ctx.lineWidth = Math.max(2, 2.8*_DPRp); ctx.stroke();
+        ctx.strokeStyle = _leadCol; ctx.lineWidth = Math.max(1, 1.3*_DPRp); ctx.stroke();  // yellow centre, over
         /* pass 2 — stand numbers, only the handful within ~0.6 nm */
         for (const way of _osmWays) {
           if (way.tags?.aeroway !== 'parking_position' || !way.geometry || way.geometry.length < 2) continue;
@@ -1582,13 +1584,15 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           const q0 = _wp(digH*0.6, 0), q1 = _wp(digH*1.6, 0);
           if (!q0 || !q1) continue;
           const hpx = Math.hypot(q1[0]-q0[0], q1[1]-q0[1]); if (hpx < 3) continue;
+          const _ax0 = _wp(digH*0.6, 0), _ax1 = _wp(digH*0.6, digW);   // does +across read left→right on screen?
+          const _sx = (_ax0 && _ax1 && _ax1[0] < _ax0[0]) ? -1 : 1;    // else mirror the glyphs so they read forward
           ctx.lineWidth = Math.max(1.2, hpx*0.16);
           ctx.beginPath();                                       // one stroke for this stand's glyphs
           for (let ci=0; ci<chars.length; ci++) {
             const glyph = _RW_FONT[chars[ci]]; if (!glyph) continue;
             const base = digH*0.6 + ci*(digH+gap);
             for (const st of glyph) { let go=false;
-              for (const [gx,gy] of st) { const sp = _wp(base + gy*digH, (gx-0.5)*digW);
+              for (const [gx,gy] of st) { const sp = _wp(base + gy*digH, (gx-0.5)*digW*_sx);
                 if(!sp){go=false;continue;} if(!go){ctx.moveTo(sp[0],sp[1]);go=true;} else ctx.lineTo(sp[0],sp[1]); } }
           }
           ctx.stroke();
