@@ -190,6 +190,12 @@
     }
   ],
   "approachSpeed": 138,
+  "manualControl": true,
+  "performance": {
+    "mass": 66000, "wingArea": 127, "thrustMax": 240000,
+    "CL_0": 0.2, "CL_alpha": 4.5, "CL_max": 2.1, "CD_0": 0.020, "inducedK": 0.045,
+    "Vr": 145, "muRoll": 0.02, "muBrake": 0.4, "gearDrag": 0.012
+  },
   "callsign": "Alaska",
   "icaoType": "B39M",
   "nose": {

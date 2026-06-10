@@ -81,6 +81,12 @@
     { "id": "nd",  "spec": "airbus-nd",  "screen": 1, "pages": ["airbus-nd",  "airbus-ecam"] }
   ],
   "approachSpeed": 140,
+  "manualControl": true,
+  "performance": {
+    "mass": 230000, "wingArea": 443, "thrustMax": 750000,
+    "CL_0": 0.2, "CL_alpha": 4.5, "CL_max": 2.0, "CD_0": 0.018, "inducedK": 0.034,
+    "Vr": 165, "muRoll": 0.02, "muBrake": 0.4, "gearDrag": 0.012
+  },
   "callsign": "VisionPilot",
   "icaoType": "A359",
   "nose": {

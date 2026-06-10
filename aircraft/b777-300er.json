@@ -350,6 +350,12 @@
     }
   ],
   "approachSpeed": 149,
+  "manualControl": true,
+  "performance": {
+    "mass": 220000, "wingArea": 436.8, "thrustMax": 760000,
+    "CL_0": 0.2, "CL_alpha": 4.5, "CL_max": 2.0, "CD_0": 0.018, "inducedK": 0.034,
+    "Vr": 165, "muRoll": 0.02, "muBrake": 0.4, "gearDrag": 0.012
+  },
   "nose": {
     "tipX": 0.025,
     "tipCz": -0.00055,

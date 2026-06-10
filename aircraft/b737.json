@@ -186,6 +186,12 @@
     }
   ],
   "approachSpeed": 138,
+  "manualControl": true,
+  "performance": {
+    "mass": 65000, "wingArea": 125, "thrustMax": 234000,
+    "CL_0": 0.2, "CL_alpha": 4.5, "CL_max": 2.1, "CD_0": 0.020, "inducedK": 0.045,
+    "Vr": 145, "muRoll": 0.02, "muBrake": 0.4, "gearDrag": 0.012
+  },
   "callsign": "Speedbird",
   "icaoType": "B738",
   "nose": {

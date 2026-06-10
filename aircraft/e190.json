@@ -55,6 +55,12 @@
     { "id": "nd",  "spec": "e190-nd",  "screen": 1, "pages": ["e190-nd", "airbus-ecam"] }
   ],
   "approachSpeed": 135,
+  "manualControl": true,
+  "performance": {
+    "mass": 48000, "wingArea": 103, "thrustMax": 206000,
+    "CL_0": 0.2, "CL_alpha": 4.6, "CL_max": 2.0, "CD_0": 0.020, "inducedK": 0.045,
+    "Vr": 140, "muRoll": 0.02, "muBrake": 0.4, "gearDrag": 0.012
+  },
   "callsign": "Helvetic",
   "icaoType": "E290",
   "nose": {

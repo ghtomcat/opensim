@@ -98,6 +98,12 @@
     { "id": "nd",  "spec": "airbus-nd",  "screen": 1, "pages": ["airbus-nd",  "airbus-ecam"] }
   ],
   "approachSpeed": 130,
+  "manualControl": true,
+  "performance": {
+    "mass": 60000, "wingArea": 112, "thrustMax": 210000,
+    "CL_0": 0.2, "CL_alpha": 4.6, "CL_max": 2.1, "CD_0": 0.020, "inducedK": 0.045,
+    "Vr": 135, "muRoll": 0.02, "muBrake": 0.4, "gearDrag": 0.012
+  },
   "callsign": "Airbaltic",
   "icaoType": "BCS3",
   "nose": {
