@@ -69,8 +69,10 @@ export function routeAirway(depLat, depLon, arrLat, arrLon) {
   }
   if (s.key !== t.key && !prev.has(t.key)) return null;
 
-  const pts = [], seq = []; let k = t.key;
-  while (k) { const n = nodes.get(k); pts.unshift([n.lat, n.lon]); if (n.id) seq.unshift(n.id);
+  const wpts = []; let k = t.key;
+  while (k) { const n = nodes.get(k); wpts.unshift({ lat: n.lat, lon: n.lon, id: n.id || null });
     if (k === s.key) break; k = prev.get(k); }
-  return { pts, seq, distNm: dist.get(t.key) ?? 0, entry: s.id, exit: t.id };
+  const pts = wpts.map(w => [w.lat, w.lon]);
+  const seq = wpts.filter(w => w.id).map(w => w.id);
+  return { pts, seq, wpts, distNm: dist.get(t.key) ?? 0, entry: s.id, exit: t.id };
 }

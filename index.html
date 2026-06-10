@@ -1617,11 +1617,34 @@
     .fb-row .k { color: rgba(216,224,234,0.55); }
     .fb-row .v { color: #eef2f7; text-align: right; }
     .fb-chart-wrap { flex: 1; position: relative; }
-    #fb-chart { position: absolute; inset: 0; width: 100%; height: 100%; }
-    .fb-chart-title {
-      position: absolute; top: 20px; left: 24px; z-index: 2;
-      font-size: 11px; letter-spacing: 0.16em; color: rgba(216,224,234,0.5);
+    /* Canvas needs an explicit CSS size: as a replaced element, left/right alone would let
+       it take its (buffer) intrinsic width, which then feeds back into offsetWidth. */
+    #fb-chart { position: absolute; left: 0; top: 46px; width: 100%; height: calc(100% - 46px); display: block; }
+    .fb-text  { position: absolute; left: 0; right: 0; top: 46px; bottom: 0;
+                display: none; overflow-y: auto; padding: 22px 30px; box-sizing: border-box;
+                background: #070b11; font-family: "IBM Plex Mono", monospace; }
+    .fb-tabs {
+      position: absolute; top: 0; left: 0; right: 0; height: 46px; z-index: 2;
+      display: flex; align-items: stretch; padding: 0 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.25);
     }
+    .fb-tab {
+      background: none; border: none; color: rgba(216,224,234,0.5); cursor: pointer;
+      padding: 0 18px; font: 600 12px "IBM Plex Mono", monospace; letter-spacing: 0.08em;
+      border-bottom: 2px solid transparent;
+    }
+    .fb-tab:hover { color: #d8e0ea; }
+    .fb-tab.active { color: #eef2f7; border-bottom-color: #d96ec8; }
+    .fb-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .fb-tbl th {
+      text-align: left; color: rgba(216,224,234,0.42); font-weight: 600; letter-spacing: 0.1em;
+      padding: 5px 10px; border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .fb-tbl td { padding: 4px 10px; border-bottom: 1px solid rgba(255,255,255,0.05); color: #cfd8e4; }
+    .fb-tbl td.id { color: #9fc8e8; }
+    .fb-tbl td.v  { color: #eef2f7; text-align: right; }
+    .fb-metar { font-size: 13px; color: #9fc8e8; word-break: break-word; line-height: 1.6; margin-bottom: 6px; }
+    .fb-empty { color: rgba(216,224,234,0.4); font-size: 13px; padding: 8px 0; }
     .fb-fly-btn {
       position: absolute; bottom: 30px; right: 34px; z-index: 2;
       padding: 13px 30px; background: rgba(255,255,255,0.04); color: #eef2f7;
@@ -1841,8 +1864,15 @@
   <div class="fb-inner">
     <div class="fb-params" id="fb-params"></div>
     <div class="fb-chart-wrap">
-      <div class="fb-chart-title">ROUTE OVERVIEW</div>
+      <div class="fb-tabs" id="fb-tabs">
+        <button class="fb-tab active" data-tab="route">Route</button>
+        <button class="fb-tab" data-tab="airport">Airport</button>
+        <button class="fb-tab" data-tab="navlog">Nav Log</button>
+        <button class="fb-tab" data-tab="weather">Weather</button>
+        <button class="fb-tab" data-tab="freqs">Freqs</button>
+      </div>
       <canvas id="fb-chart"></canvas>
+      <div class="fb-text" id="fb-text"></div>
       <button class="fb-fly-btn" id="fb-fly-btn">Fly &rarr;</button>
     </div>
   </div>
@@ -2174,6 +2204,10 @@
   import { loadMission }  from './core/mission.js';
   import { COAST }        from './display/coastlines.js';
   import { RUNWAYS }      from './display/runways-data.js';
+  import { AIRPORT_FREQS } from './display/navdata.js';
+  import { TAXI_WAYS }    from './display/taxi-data.js';
+  import { STANDS }       from './display/stands-data.js';
+  import { TERMINALS, APRONS } from './display/terminals-data.js';
   import { routeAirway }  from './core/airway-graph.js';
   import { tickPhysics }     from './core/physics.js';
   import { tickHovercraft }  from './core/hovercraft_physics.js';
@@ -3277,8 +3311,8 @@
     const cv = document.getElementById('fb-chart');
     if (!cv) return;
     const dpr = window.devicePixelRatio || 1;
-    const W = cv.width = Math.max(1, cv.offsetWidth) * dpr;
-    const H = cv.height = Math.max(1, cv.offsetHeight) * dpr;
+    const W = cv.width = Math.min(6000, Math.max(1, cv.clientWidth)) * dpr;
+    const H = cv.height = Math.min(4000, Math.max(1, cv.clientHeight)) * dpr;
     const ctx = cv.getContext('2d');
     ctx.fillStyle = '#070b11'; ctx.fillRect(0, 0, W, H);
 
@@ -3344,6 +3378,148 @@
     }
   }
 
+  /* Airport diagram: top-down departure airport from the bundled ground data —
+     aprons, terminals, taxiways, runways (+ designators) and stands (start gate marked). */
+  function _renderAirportChart(dep, md) {
+    const cv = document.getElementById('fb-chart'); if (!cv) return;
+    const dpr = window.devicePixelRatio || 1;
+    const W = cv.width = Math.min(6000, Math.max(1, cv.clientWidth)) * dpr;
+    const H = cv.height = Math.min(4000, Math.max(1, cv.clientHeight)) * dpr;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#070b11'; ctx.fillRect(0, 0, W, H);
+
+    const ic = dep?.icao;
+    const rws = (ic && RUNWAYS[ic]) || [], tws = (ic && TAXI_WAYS[ic]) || [];
+    const stands = (ic && STANDS[ic]) || [], terms = (ic && TERMINALS[ic]) || [], aprons = (ic && APRONS[ic]) || [];
+    if (!rws.length && !tws.length) {
+      ctx.fillStyle = 'rgba(216,224,234,0.4)'; ctx.font = `${13 * dpr}px "IBM Plex Mono",monospace`;
+      ctx.textAlign = 'center'; ctx.fillText('No ground data for ' + (ic || 'this airport'), W / 2, H / 2); return;
+    }
+
+    let latMin = 90, latMax = -90, lonMin = 180, lonMax = -180;
+    const ext = (la, lo) => { latMin = Math.min(latMin, la); latMax = Math.max(latMax, la); lonMin = Math.min(lonMin, lo); lonMax = Math.max(lonMax, lo); };
+    for (const r of rws) { ext(r.a[0], r.a[1]); ext(r.b[0], r.b[1]); }
+    for (const w of tws) { if (w.k !== 't') continue; for (const p of w.g) ext(p[0], p[1]); }
+    for (const s of stands) { if (s.lat != null) ext(s.lat, s.lon); }
+    const padLat = (latMax - latMin) * 0.06 + 0.002, padLon = (lonMax - lonMin) * 0.06 + 0.002;
+    latMin -= padLat; latMax += padLat; lonMin -= padLon; lonMax += padLon;
+    const cosMid = Math.cos((latMin + latMax) / 2 * Math.PI / 180);
+    const gw = (lonMax - lonMin) * cosMid, gh = (latMax - latMin), pad = 40 * dpr;
+    const sc = Math.min((W - 2 * pad) / gw, (H - 2 * pad) / gh), ox = (W - gw * sc) / 2, oy = (H - gh * sc) / 2;
+    const proj = (la, lo) => [ox + (lo - lonMin) * cosMid * sc, oy + (latMax - la) * sc];
+    const fillPoly = (poly) => { if (!poly || poly.length < 3) return; ctx.beginPath();
+      poly.forEach((p, i) => { const [x, y] = proj(p[0], p[1]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.closePath(); ctx.fill(); };
+
+    ctx.fillStyle = 'rgba(70,82,98,0.22)';  for (const ring of aprons) fillPoly(ring);            // aprons
+    ctx.fillStyle = 'rgba(120,134,150,0.40)'; for (const t of terms) fillPoly(t.poly);            // terminals
+
+    ctx.strokeStyle = 'rgba(150,170,190,0.55)'; ctx.lineWidth = Math.max(1, 1.2 * dpr); ctx.lineJoin = 'round';  // taxiways
+    for (const w of tws) { if (w.k !== 't' || w.g.length < 2) continue; ctx.beginPath();
+      w.g.forEach((p, i) => { const [x, y] = proj(p[0], p[1]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke(); }
+
+    for (const r of rws) {                                                                         // runways
+      const a = proj(r.a[0], r.a[1]), b = proj(r.b[0], r.b[1]);
+      const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+      const wpx = Math.max(3 * dpr, (r.widthM || 45) / 1852 * cosMid * sc);
+      const nx = -dy / L * wpx / 2, ny = dx / L * wpx / 2;
+      ctx.fillStyle = 'rgba(225,230,238,0.85)';
+      ctx.beginPath(); ctx.moveTo(a[0]+nx, a[1]+ny); ctx.lineTo(b[0]+nx, b[1]+ny); ctx.lineTo(b[0]-nx, b[1]-ny); ctx.lineTo(a[0]-nx, a[1]-ny); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#0a0e14'; ctx.font = `bold ${9.5 * dpr}px "IBM Plex Mono",monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if (r.leId) ctx.fillText(r.leId, a[0] + dx * 0.07, a[1] + dy * 0.07);
+      if (r.heId) ctx.fillText(r.heId, b[0] - dx * 0.07, b[1] - dy * 0.07);
+    }
+
+    const startRef = md?.start?.stand;                                                            // stands
+    for (const s of stands) {
+      if (s.lat == null) continue; const [x, y] = proj(s.lat, s.lon);
+      const isStart = startRef && s.ref === startRef;
+      ctx.fillStyle = isStart ? '#d96ec8' : 'rgba(110,200,235,0.5)';
+      ctx.beginPath(); ctx.arc(x, y, (isStart ? 4 : 1.8) * dpr, 0, 7); ctx.fill();
+      if (isStart) { ctx.fillStyle = '#eef2f7'; ctx.font = `bold ${11 * dpr}px "IBM Plex Mono",monospace`;
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(' ' + s.ref, x + 5 * dpr, y); }
+    }
+
+    ctx.fillStyle = 'rgba(216,224,234,0.6)'; ctx.font = `${12 * dpr}px "IBM Plex Mono",monospace`;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillText(ic || '', 22 * dpr, 14 * dpr);
+  }
+
+  const _gcNm = (aLat, aLon, bLat, bLon) => {
+    const R = 3440.065, d = Math.PI / 180;
+    const p1 = aLat*d, p2 = bLat*d, dp = (bLat-aLat)*d, dl = (bLon-aLon)*d;
+    const h = Math.sin(dp/2)**2 + Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
+    return 2*R*Math.asin(Math.min(1, Math.sqrt(h)));
+  };
+  const _bearing = (aLat, aLon, bLat, bLon) => {
+    const d = Math.PI/180, p1 = aLat*d, p2 = bLat*d, dl = (bLon-aLon)*d;
+    const y = Math.sin(dl)*Math.cos(p2), x = Math.cos(p1)*Math.sin(p2) - Math.sin(p1)*Math.cos(p2)*Math.cos(dl);
+    return (Math.atan2(y, x)/d + 360) % 360;
+  };
+
+  /* Nav log — the route as a table: fix · leg distance · track · cumulative. */
+  function _navLogHtml(dep, arr) {
+    const depLL = _airportCentre(dep?.icao), arrLL = _airportCentre(arr?.icao);
+    let r = null; try { if (depLL && arrLL) r = routeAirway(depLL[0], depLL[1], arrLL[0], arrLL[1]); } catch {}
+    if (!r?.wpts?.length) return `<div class="fb-empty">No en-route plan (local departure).</div>`;
+    const wp = [];
+    if (depLL) wp.push({ lat: depLL[0], lon: depLL[1], id: dep?.icao });
+    for (const w of r.wpts) wp.push(w);
+    if (arrLL) wp.push({ lat: arrLL[0], lon: arrLL[1], id: arr?.icao });
+    let cum = 0, rows = '';
+    wp.forEach((w, i) => {
+      let leg = '', trk = '';
+      if (i > 0) { const p = wp[i-1], lg = _gcNm(p.lat, p.lon, w.lat, w.lon); cum += lg;
+        leg = Math.round(lg) + ' nm'; trk = String(Math.round(_bearing(p.lat, p.lon, w.lat, w.lon))).padStart(3, '0') + '°'; }
+      rows += `<tr><td>${i+1}</td><td class="id">${w.id || '—'}</td><td>${leg}</td><td>${trk}</td><td class="v">${Math.round(cum)} nm</td></tr>`;
+    });
+    return `<table class="fb-tbl"><thead><tr><th>#</th><th>FIX</th><th>LEG</th><th>TRK</th><th>DIST</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  /* Frequencies — the bundled comm frequencies for departure + arrival. */
+  function _freqsHtml(dep, arr) {
+    const blk = (icao, label) => {
+      const fr = icao && AIRPORT_FREQS[icao];
+      if (!fr || !fr.length) return `<div class="fb-h">${label}${icao ? ' · ' + icao : ''}</div><div class="fb-empty">No frequencies.</div>`;
+      const rows = fr.map(f => `<tr><td class="id">${f.type}</td><td>${f.desc || ''}</td><td class="v">${typeof f.mhz === 'number' ? f.mhz.toFixed(3) : f.mhz}</td></tr>`).join('');
+      return `<div class="fb-h">${label} · ${icao}</div><table class="fb-tbl"><tbody>${rows}</tbody></table>`;
+    };
+    return blk(dep?.icao, 'DEPARTURE') + `<div style="height:18px"></div>` + blk(arr?.icao, 'ARRIVAL');
+  }
+
+  /* Weather — live METAR for departure + arrival (briefing-local fetch, no global state). */
+  async function _briefMetar(icao) {
+    if (!icao) return null;
+    const direct = `https://aviationweather.gov/api/data/metar?ids=${icao}&format=json`;
+    for (const url of [direct, `https://corsproxy.io/?${encodeURIComponent(direct)}`]) {
+      try { const d = await (await fetch(url)).json(); if (d && d[0]) return d[0].rawOb || d[0].rawText || null; } catch {}
+    }
+    return null;
+  }
+  function _weatherLoadingHtml(dep, arr) {
+    return `<div class="fb-h">DEPARTURE${dep?.icao ? ' · ' + dep.icao : ''}</div><div class="fb-metar" id="wx-dep">fetching…</div>` +
+           `<div style="height:16px"></div>` +
+           `<div class="fb-h">ARRIVAL${arr?.icao ? ' · ' + arr.icao : ''}</div><div class="fb-metar" id="wx-arr">fetching…</div>`;
+  }
+  async function _fillWeather(dep, arr) {
+    const [wd, wa] = await Promise.all([_briefMetar(dep?.icao), _briefMetar(arr?.icao)]);
+    const de = document.getElementById('wx-dep'), ae = document.getElementById('wx-arr');
+    if (de) de.textContent = wd || 'unavailable';
+    if (ae) ae.textContent = wa || 'unavailable';
+  }
+
+  /* Switch briefing tab: the chart canvas for Route, the text pane otherwise. */
+  function _briefingTab(name, dep, arr, md) {
+    document.querySelectorAll('#fb-tabs .fb-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    const tx = document.getElementById('fb-text');
+    const isChart = name === 'route' || name === 'airport';
+    /* Canvas stays laid out (stable offsetWidth); the opaque text pane just covers it. */
+    tx.style.display = isChart ? 'none' : 'block';
+    if      (name === 'route')   requestAnimationFrame(() => _renderRouteChart(dep, arr));
+    else if (name === 'airport') requestAnimationFrame(() => _renderAirportChart(dep, md));
+    else if (name === 'navlog')  tx.innerHTML = _navLogHtml(dep, arr);
+    else if (name === 'freqs')   tx.innerHTML = _freqsHtml(dep, arr);
+    else if (name === 'weather') { tx.innerHTML = _weatherLoadingHtml(dep, arr); _fillWeather(dep, arr); }
+  }
+
   /* ── Flight briefing (WB/NB jets): mission parameters + a route overview, shown after
      the scenario setup and before launch. Props/VFR and non-flight missions skip straight
      through to init (transparent). ── */
@@ -3379,9 +3555,10 @@
       el.classList.remove('visible');
       setTimeout(() => init(m.id, m.aircraft), 300);
     };
+    document.querySelectorAll('#fb-tabs .fb-tab').forEach(btn => { btn.onclick = () => _briefingTab(btn.dataset.tab, dep, arr, md); });
     requestAnimationFrame(() => {
       el.classList.add('visible');
-      requestAnimationFrame(() => _renderRouteChart(dep, arr));   // render once the canvas has layout
+      requestAnimationFrame(() => _briefingTab('route', dep, arr, md));   // default tab → render the route
     });
   }
 
