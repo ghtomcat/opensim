@@ -849,6 +849,73 @@ export function drawFCU(ctx, W, H, style) {
 /* ════════════════════════════════════════════════════════════
    ECAM EWD — Engine / Warning Display
    ════════════════════════════════════════════════════════════ */
+/* Per-engine signature so the displays never read identical (the biggest "fake" tell):
+   a persistent seeded offset + a slow two-sine wander. Cosmetic — the commanded N1 stays
+   single; each gauge just reads slightly off it. */
+function _ewdOffset(eng, amp) {
+  const hh = Math.sin(eng * 12.9898) * 43758.5453;
+  return ((hh - Math.floor(hh)) - 0.5) * 2 * amp;        // ∈ [-amp, +amp]
+}
+function _ewdScatter(eng, t, amp) {
+  const ph = eng * 1.7;
+  const wander = (Math.sin(t * 0.00023 + ph) * 0.55 + Math.sin(t * 0.00009 + ph * 2.3) * 0.45) * amp * 0.7;
+  return _ewdOffset(eng, amp) + wander;
+}
+
+/* Airbus EWD round engine gauge: a 270° scale arc with graduation ticks, amber/red
+   radial limit ticks, a red band past the redline, a green needle, and the digital value
+   in a box inside the dial. opts: { max, amber, red, ticks:[…], dec }. Line widths scale
+   with r so it reads at any gauge size. */
+function _ewdGauge(ctx, cx, cy, r, val, opts, grn, amb, red, f) {
+  const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25, sweep = a1 - a0;
+  const ang = v => a0 + Math.max(0, Math.min(1, v / opts.max)) * sweep;
+  const P = (a, rr) => [cx + Math.cos(a) * rr, cy + Math.sin(a) * rr];
+
+  ctx.lineCap = 'butt';
+  ctx.strokeStyle = 'rgba(232,237,242,0.26)'; ctx.lineWidth = Math.max(1, r * 0.05);   // scale arc
+  ctx.beginPath(); ctx.arc(cx, cy, r, a0, a1); ctx.stroke();
+
+  if (opts.red != null) {                                                              // red band past redline
+    ctx.strokeStyle = red; ctx.lineWidth = Math.max(1.2, r * 0.06);
+    ctx.beginPath(); ctx.arc(cx, cy, r, ang(opts.red), a1); ctx.stroke();
+  }
+
+  ctx.strokeStyle = 'rgba(232,237,242,0.5)'; ctx.lineWidth = Math.max(1, r * 0.035);   // graduation ticks
+  for (const g of (opts.ticks ?? [0, opts.max / 2, opts.max])) {
+    const a = ang(g), p0 = P(a, r - r * 0.18), p1 = P(a, r);
+    ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
+  }
+
+  for (const [thr, col] of [[opts.amber, amb], [opts.red, red]]) {                     // amber/red limit ticks
+    if (thr == null) continue;
+    const a = ang(thr), p0 = P(a, r - r * 0.22), p1 = P(a, r + r * 0.16);
+    ctx.strokeStyle = col; ctx.lineWidth = Math.max(1.4, r * 0.06);
+    ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
+  }
+
+  const over = opts.red != null && val >= opts.red, col = over ? red : grn;            // green needle + hub
+  const na = ang(val), tip = P(na, r - r * 0.08);
+  ctx.strokeStyle = col; ctx.lineWidth = Math.max(1.4, r * 0.055); ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(tip[0], tip[1]); ctx.stroke();
+  ctx.fillStyle = col; ctx.beginPath(); ctx.arc(cx, cy, Math.max(1.4, r * 0.07), 0, Math.PI * 2); ctx.fill();
+  ctx.lineCap = 'butt';
+
+  const bw = r * 1.18, bh = r * 0.46, bx = cx - bw / 2, by = cy + r * 0.22;            // boxed digital value
+  ctx.strokeStyle = col; ctx.lineWidth = Math.max(1, r * 0.03); ctx.strokeRect(bx, by, bw, bh);
+  ctx.fillStyle = col; ctx.textBaseline = 'middle';
+  const v = Math.max(0, val);
+  if ((opts.dec ?? 0) > 0) {
+    const iv = Math.floor(v), dv = Math.round((v - iv) * 10);
+    ctx.textAlign = 'right'; ctx.font = `bold ${(bh * 0.82).toFixed(1)}px ${f}`;
+    ctx.fillText(String(iv), cx + bw * 0.06, by + bh / 2);
+    ctx.textAlign = 'left';  ctx.font = `bold ${(bh * 0.55).toFixed(1)}px ${f}`;
+    ctx.fillText('.' + dv, cx + bw * 0.08, by + bh * 0.58);
+  } else {
+    ctx.textAlign = 'center'; ctx.font = `bold ${(bh * 0.72).toFixed(1)}px ${f}`;
+    ctx.fillText(String(Math.round(v)), cx, by + bh / 2);
+  }
+}
+
 export function drawECAM(ctx, box, style) {
   const { x, y, w, h } = box;
   const f   = _MONO;
@@ -893,41 +960,35 @@ export function drawECAM(ctx, box, style) {
   ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(x, engY); ctx.lineTo(x + w, engY); ctx.stroke();
 
-  /* Engine zone — n columns */
-  const n     = S.aircraft?.engine?.count ?? 2;
-  const n1val = +(S.n1 ?? S.enginePower * 80).toFixed(1);
-  const egt   = Math.round(350 + Math.pow(n1val / 100, 1.5) * 500);
-  const n2val = +Math.min(99.9, n1val * 1.02 + 2).toFixed(1);
-  const ff    = Math.round(200 + Math.pow(n1val / 100, 2) * 3000);
-  const engW  = w / n;
+  /* Engine zone — n columns, Airbus EWD round gauges (N1 hero + EGT) with per-engine
+     scatter; N2 + FF digital below. */
+  const n    = S.aircraft?.engine?.count ?? 2;
+  const engW = w / n;
+  const cmd  = +(S.n1 ?? S.enginePower * 80);          // single commanded N1 for all engines
+  const tNow = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const r1   = Math.min(0.42 * engW, 0.17 * engH);     // N1 hero gauge
+  const r2   = r1 * 0.64;                              // EGT, smaller, below
 
   for (let i = 0; i < n; i++) {
-    const ex = x + engW * i;
-    const cx = ex + engW / 2;
-    ctx.font = `${h * 0.036}px ${f}`; ctx.fillStyle = dim; ctx.textAlign = 'center';
-    ctx.fillText(`ENG ${i + 1}`, cx, engY + h * 0.052);
+    const ex = x + engW * i, cx = ex + engW / 2, eng = i + 1;
+    const live = cmd > 1;                               // only scatter a running engine
+    const n1   = live ? Math.max(0, cmd + _ewdScatter(eng, tNow, 0.35)) : cmd;
+    const n2   = live ? Math.max(0, 48 + 0.55 * n1 + _ewdScatter(eng, tNow, 0.5)) : 0;  // CFM56: ~60% N2 idle
+    const egt  = Math.round(350 + Math.pow(Math.max(0, n1) / 100, 1.5) * 500 + _ewdOffset(eng, 6));
+    const ff   = Math.round(200 + Math.pow(Math.max(0, n1) / 100, 2) * 3000);
 
-    ctx.font = `bold ${h * 0.095}px ${f}`; ctx.fillStyle = n1val > 93 ? amb : grn;
-    ctx.textAlign = 'right';
-    ctx.fillText(n1val.toFixed(1), ex + engW * 0.78, engY + h * 0.185);
-    ctx.font = `${h * 0.032}px ${f}`; ctx.fillStyle = dim;
-    ctx.fillText('%N1', ex + engW * 0.98, engY + h * 0.185);
+    ctx.font = `${h * 0.034}px ${f}`; ctx.fillStyle = dim; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(`ENG ${eng}`, cx, engY + engH * 0.06);
 
-    ctx.font = `bold ${h * 0.058}px ${f}`; ctx.fillStyle = egt > 800 ? amb : grn;
-    ctx.textAlign = 'right';
-    ctx.fillText(egt, ex + engW * 0.78, engY + h * 0.295);
-    ctx.font = `${h * 0.028}px ${f}`; ctx.fillStyle = dim;
-    ctx.fillText('EGT °C', ex + engW * 0.98, engY + h * 0.295);
+    _ewdGauge(ctx, cx, engY + engH * 0.30, r1, n1,
+              { max: 110,  red: 104,             ticks: [0, 55, 110],   dec: 1 }, grn, amb, red, f);
+    _ewdGauge(ctx, cx, engY + engH * 0.66, r2, egt,
+              { max: 1000, amber: 850, red: 950, ticks: [0, 500, 1000], dec: 0 }, grn, amb, red, f);
 
-    ctx.font = `bold ${h * 0.046}px ${f}`; ctx.fillStyle = grn; ctx.textAlign = 'right';
-    ctx.fillText(n2val.toFixed(1), ex + engW * 0.78, engY + h * 0.375);
-    ctx.font = `${h * 0.026}px ${f}`; ctx.fillStyle = dim;
-    ctx.fillText('%N2', ex + engW * 0.98, engY + h * 0.375);
-
-    ctx.font = `bold ${h * 0.046}px ${f}`; ctx.fillStyle = grn; ctx.textAlign = 'right';
-    ctx.fillText(ff, ex + engW * 0.78, engY + h * 0.440);
-    ctx.font = `${h * 0.026}px ${f}`; ctx.fillStyle = dim;
-    ctx.fillText('FF KG/H', ex + engW * 0.98, engY + h * 0.440);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = grn;
+    ctx.font = `bold ${h * 0.038}px ${f}`;
+    ctx.fillText('N2 ' + n2.toFixed(1), cx, engY + engH * 0.86);
+    ctx.fillText('FF ' + ff,            cx, engY + engH * 0.95);
 
     if (i < n - 1) {
       ctx.strokeStyle = 'rgba(255,255,255,0.05)';
