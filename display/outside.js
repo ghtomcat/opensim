@@ -7,51 +7,34 @@
 import { S } from '../core/state.js';
 import { renderTerrain } from './terrain.js';
 import { getMapReservedRight } from './map.js';
-import { moonECI } from '../core/rocket.js';
-import { buildWingSurface, computeFaceNormals, _buildRocket, animHinge } from './outside-shared.js';
+
+import { computeFaceNormals, _buildRocket, animHinge } from './outside-shared.js';
 import { _buildPP, _acPropFromJson } from './outside-pp.js';
 import {
-  _r, _nr1, _nr2, _nr3, _hs, _ey, _ez, _pz, _er, _e7, _efr, _ef7, _erc, _e7c, _wr, _dh,
-  _WB_WING_DEFAULT, _WB_NP, _buildWB, _acGeoFromJson, _wbCache,
-  _V, _F, _FC, _E, _FN, _GV, _GE, _LIGHTS_wb, _DOOR
+  _r, _WB_WING_DEFAULT, _WB_NP, _buildWB, _acGeoFromJson, _wbCache, _GV, _LIGHTS_wb
 } from './outside-wb.js';
 import {
-  _cr, _xr, _abr, _tr, _hs172, _dh172, _hst172, _hst_th, _vst_th, _pr172, _sp172,
-  _C172_WING, _COLORS_c172,
-  _V_c172, _F_c172, _FC_c172, _E_c172, _anim_c172, _FN_c172, _LIGHTS_c172, _GV_c172,
-  animSurfaces_c172, _PROP_c172
+  _xr, _COLORS_c172, _V_c172, _F_c172, _FC_c172, _E_c172, _FN_c172, _LIGHTS_c172,
+  _GV_c172, animSurfaces_c172, _PROP_c172
 } from './outside-c172.js';
 import {
-  _spb,
-  _bcR, _bfRy, _bfRz, _baRy, _baRz, _btRy, _btRz,
-  _b9hs, _b9dh, _b9vH, _b9hw, _b9pr, _bCzH, _bCyW,
-  _COLORS_b109, _V_b109, _F_b109, _FC_b109, _E_b109, _anim_b109, _FN_b109, _GV_b109,
+  _bcR, _COLORS_b109, _V_b109, _F_b109, _FC_b109, _E_b109, _FN_b109, _GV_b109,
   animSurfaces_b109, _PROP_b109
 } from './outside-b109.js';
 import {
-  _f4uCowlR, _f4uFRy, _f4uFRz, _f4uARy, _f4uARz, _f4uTRy, _f4uTRz,
-  _f4uHS, _f4uVH, _f4uHW, _f4uPropR, _f4uSpb, _f4uCzH, _f4uCyW,
-  _COLORS_f4u, _V_f4u, _F_f4u, _FC_f4u, _E_f4u, _anim_f4u, _FN_f4u, _GV_f4u,
-  animSurfaces_f4u, _PROP_f4u
+  _COLORS_f4u, _V_f4u, _F_f4u, _FC_f4u, _E_f4u, _FN_f4u, _GV_f4u, animSurfaces_f4u,
+  _PROP_f4u
 } from './outside-f4u.js';
 import {
-  _m15r, _m15ir,
-  _COLORS_mig15, _V_mig15, _F_mig15, _FC_mig15, _E_mig15, _anim_mig15, _FN_mig15, _GV_mig15,
+  _COLORS_mig15, _V_mig15, _F_mig15, _FC_mig15, _E_mig15, _FN_mig15, _GV_mig15,
   animSurfaces_mig15
 } from './outside-mig15.js';
 import {
-  _sv1r, _sv3r, _svcr, _svFS, _svLT,
-  _COLORS_sv, _V_sv, _F_sv, _FC_sv, _E_sv, _FN_sv,
-  _lmO, _lmAR, _lmAH, _lmDR, _lmDH, _lmLR, _lmNR, _lmNH,
-  _COLORS_lm, _V_lm, _F_lm, _FC_lm, _E_lm, _FN_lm,
-  _svSepAnims, _dir, _DIR_SHOTS, _dirBlend,
-  _rf9, _gfS, _nzO, _nzO7, _nzVac, _nzVac7, _nzSk, _nzSk7,
-  _COLORS_f9, _V_f9, _F_f9, _FC_f9, _E_f9, _FN_f9
+  _COLORS_sv, _V_sv, _F_sv, _FC_sv, _E_sv, _FN_sv, _COLORS_lm, _V_lm, _F_lm, _FC_lm,
+  _E_lm, _svSepAnims, _dir, _DIR_SHOTS, _dirBlend, _rf9, _gfS, _nzO, _COLORS_f9,
+  _V_f9, _F_f9, _FC_f9, _E_f9, _FN_f9
 } from './outside-space.js';
-import {
-  _ssRocketCache_mut,
-  _drawSSReentryPlasma, _drawCSMOrbitDetail, _drawOrbitalClouds, _drawSSBodyHull
-} from './outside-rocket.js';
+import { _ssRocketCache_mut, _drawCSMOrbitDetail, _drawOrbitalClouds } from './outside-rocket.js';
 import { drawLandingGear } from './outside-gear-draw.js';
 import { drawBoosterFaces, drawRocketPlumesAndNozzles, drawSVStageSepTumble,
          drawF9Nozzles, drawBoosterEdges, drawLaunchPads } from './outside-rocket-draw.js';
@@ -337,7 +320,6 @@ function _profDraw(canvas) {
   lines.forEach((t, i) => ctx.fillText(t, (ox + 6) * dpr, (oy + 5 + i * 16) * dpr));
   ctx.restore();
 }
-
 
 /* ── Chase cam ────────────────────────────────────────────────── */
 function _renderChaseCam(canvas) {
@@ -1382,7 +1364,6 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
      (outside-gear-draw.js); pushes depth-sorted faces into rc.faces. */
   drawLandingGear(rc);
 
-
   /* ── Cockpit glass + bandit mask as real depth-sorted faces (WebXR) ──────────
      cockpitPanels / cockpitMask are already model-space corners. Push the dark glass
      and the black surround as real faces, nudged proud of the skin so they sort in
@@ -1542,7 +1523,6 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     return camSide > 0 ? -rW : fP;
   }
 
-
   /* Radome seam edges — accent line (per-aircraft colour; default bright red) */
   if (SE_.length > 0) {
     ctx.save();
@@ -1686,7 +1666,6 @@ ctx.save();
 
   /* F9 booster edges, plume, nozzles, landing legs (outside-rocket-draw.js) */
   drawBoosterEdges(rc);
-
 
   /* Passenger windows + doors + cheatline (outside-livery.js) */
   drawPassengerWindows(rc);
@@ -1906,8 +1885,6 @@ function _renderPlumeCam(canvas) {
 /* ── Booster cam — close side view of the returning Stage 1 ───── */
 const BCAM_SIDE = 0.13;   // NM lateral separation from booster body
 const BCAM_UP   = 50 * FT_NM;  // slight elevation above booster mid-body
-
-
 
 /* ── Starship body cam — leeward fore body flap, looking sideways ──
    Terrain rendered looking starboard (+90°) with slight downward pitch.
