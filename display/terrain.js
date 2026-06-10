@@ -20,7 +20,7 @@ import { landColor }    from './terrain-color.js';
 import { WINDSOCKS }    from './windsocks-data.js';
 import { STANDS, BRIDGE_COVERAGE } from './stands-data.js';
 import { SATELLITES }   from './satellites-data.js';
-import { TERMINALS }    from './terminals-data.js';   // aprons already drawn by the live OSM overlay
+import { TERMINALS, APRONS } from './terminals-data.js';   // APRONS → derived apron flood masts
 import { computeTugPath, tugPose, pushbackDist } from '../core/pushback.js';
 import { getTaxiGraph } from '../core/taxi-graph.js';
 
@@ -39,6 +39,49 @@ const DEG   = Math.PI / 180;
 const FT_NM = 1 / 6076.12;
 const M_NM  = 1 / 1852;
 let _tugPath = null, _tugKey = null;          // cached two-link tug path, rebuilt per pushback
+const _floodCache = { key: null, list: [] };  // derived apron flood-mast positions, per airport
+
+/* Point-in-polygon (ray cast) on a [lat,lon] ring. */
+function _pipLL(lat, lon, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const yi = ring[i][0], xi = ring[i][1], yj = ring[j][0], xj = ring[j][1];
+    if (((yi > lat) !== (yj > lat)) && (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi)) inside = !inside;
+  }
+  return inside;
+}
+
+/* Heuristic apron flood masts — high-masts along the apron perimeter (inset toward the
+   interior), where OSM doesn't map them. Plausible, not real: apron lighting isn't
+   ICAO-standardised. Returns [[lat,lon]…]; skips points under a terminal footprint. */
+function _deriveApronMasts(icaos) {
+  const SP = 140, INSET = 10, CAP = 200, out = [];   // generous — the render pass distance-culls
+  for (const ic of icaos) {
+    const aprons = ic && APRONS[ic]; if (!aprons) continue;
+    const terms = (ic && TERMINALS[ic]) || [];
+    for (const ring of aprons) {
+      if (ring.length < 3 || out.length >= CAP) continue;
+      let cLat = 0, cLon = 0; for (const p of ring) { cLat += p[0]; cLon += p[1]; }
+      cLat /= ring.length; cLon /= ring.length;
+      const cos = Math.cos(cLat * Math.PI / 180);
+      let dist = 0, next = SP * 0.5;
+      for (let i = 0; i < ring.length && out.length < CAP; i++) {
+        const a = ring[i], b = ring[(i + 1) % ring.length];
+        const segLen = Math.hypot((b[1]-a[1])*111320*cos, (b[0]-a[0])*111320);
+        while (next <= dist + segLen && out.length < CAP) {
+          const f = (next - dist) / (segLen || 1);
+          let lat = a[0] + (b[0]-a[0])*f, lon = a[1] + (b[1]-a[1])*f;
+          const dN = (cLat-lat)*111320, dE = (cLon-lon)*111320*cos, L = Math.hypot(dN, dE) || 1;
+          lat += (dN/L) * INSET / 111320; lon += (dE/L) * INSET / (111320*cos);   // inset onto the apron
+          if (!terms.some(t => _pipLL(lat, lon, t.poly))) out.push([lat, lon]);
+          next += SP;
+        }
+        dist += segLen;
+      }
+    }
+  }
+  return out;
+}
 const FOV_H = 70;     /* horizontal field of view, degrees */
 
 const ROWS = 30;      /* depth slices */
@@ -2263,6 +2306,10 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
        P* = parking, skipped). Either way a low wireframe block is drawn landside of the
        gate line — the gates nose IN, so the frontage runs ⟂ to the nose-in heading. */
     const _contactGates = new Set();   // gates in a drawn terminal cluster → eligible for a jet bridge
+    /* Terminals, bridges and masts are collected as deferred jobs and drawn far→near, so a
+       building occludes a bridge or mast standing behind it (painter's order by depth). */
+    const _zJobs = [];
+    const _zDepth = (lat, lon) => ((lat - acLat) * 60) * cosH + ((lon - acLon) * 60 * cosAcLat) * sinH;
     for (const ic of [S.mission?.departure?.icao, S.mission?.arrival?.icao]) {
       const gates = ic && STANDS[ic];
       if (!gates || gates.length < 2) continue;
@@ -2302,7 +2349,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         const f0N=(foot[0][0]-acLat)*60, f0E=(foot[0][1]-acLon)*60*cosAcLat;
         if (f0N*f0N+f0E*f0E > 25) continue;             // >5 nm: skip
         const _emT=_sampleElev(cLat,cLon), e0=_emT!==null?(_emT-refM)*M_NM:0;
-        if (!_realTerm) _drawMassing(foot, e0, H);        // real footprint present → skip derived box
+        if (!_realTerm) _zJobs.push({ d: _zDepth(cLat, cLon), fn: () => _drawMassing(foot, e0, H) });  // real footprint present → skip derived box
         for (const g of grp) _contactGates.add(g);        // contact gates → eligible for a jet bridge
       }
     }
@@ -2327,13 +2374,55 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           if (Math.hypot(dN, dE) < s.r * 1.6) { isSat = true; break; } }
         if (isSat) continue;
         const _emT = _sampleElev(cLat, cLon), e0 = _emT !== null ? (_emT - refM) * M_NM : 0;
-        _drawMassing(poly, e0, t.h || 16);
+        _zJobs.push({ d: _zDepth(cLat, cLon), fn: () => _drawMassing(poly, e0, t.h || 16) });
       }
     }
 
     /* ── Jet bridges + apron flood lamps. _drawBridge renders one full articulated
        bridge for a stand (lat/lon = nose stop, hdg = nose-in heading toward the
        terminal). Called per contact gate below, and radially per satellite gate. */
+    /* One apron flood-mast at a world position: pole + head glow + a soft elliptical light
+       pool splashed on the pavement (additive — brightens the ground beneath, doesn't just
+       float). The jet-bridge lamp and the derived apron masts both call this. */
+    const _drawFloodMast = (lat, lon, hM = 11) => {
+      const _nightF = 1 - dayFrac, _dpr = devicePixelRatio || 1;
+      const N = (lat - acLat) * 60, E = (lon - acLon) * 60 * cosAcLat;
+      if (N * N + E * E > 6.25) return;                 // >2.5 nm: skip (tiny / perf)
+      const em = _sampleElev(lat, lon), e0 = em !== null ? (em - refM) * M_NM : 0;
+      const base = projNE(N, E, e0), head = projNE(N, E, e0 + hM * M_NM);
+      if (!base || !head) return;
+      if (_nightF > 0.03) {                             // ground light pool — additive ground ellipse
+        const dNm = 16 * M_NM;                          // 16 m pool radius on the pavement
+        const Pe = projNE(N, E + dNm, e0), Pn = projNE(N + dNm, E, e0);
+        if (Pe && Pn) {
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.transform(Pe[0]-base[0], Pe[1]-base[1], Pn[0]-base[0], Pn[1]-base[1], base[0], base[1]);
+          const pool = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);   // unit circle → projected ground ellipse
+          const a = 0.30 * _nightF;
+          pool.addColorStop(0,    `rgba(255,240,205,${a.toFixed(3)})`);
+          pool.addColorStop(0.55, `rgba(255,232,188,${(a * 0.4).toFixed(3)})`);
+          pool.addColorStop(1,    'rgba(255,228,180,0)');
+          ctx.fillStyle = pool;
+          ctx.beginPath(); ctx.arc(0, 0, 1, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+        }
+      }
+      ctx.strokeStyle = 'rgba(150,160,170,0.70)'; ctx.lineWidth = 1.2 * _dpr;
+      ctx.beginPath(); ctx.moveTo(base[0], base[1]); ctx.lineTo(head[0], head[1]); ctx.stroke();
+      if (_nightF > 0.03) {                             // warm head glow
+        const glowR = (9 + 26 * _nightF) * _dpr;
+        const grd = ctx.createRadialGradient(head[0], head[1], 0, head[0], head[1], glowR);
+        grd.addColorStop(0,   `rgba(255,244,214,${(0.55 * _nightF).toFixed(3)})`);
+        grd.addColorStop(0.5, `rgba(255,236,190,${(0.22 * _nightF).toFixed(3)})`);
+        grd.addColorStop(1,   'rgba(255,230,180,0)');
+        ctx.fillStyle = grd;
+        ctx.beginPath(); ctx.arc(head[0], head[1], glowR, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.fillStyle = _nightF > 0.3 ? 'rgba(255,248,224,0.95)' : 'rgba(210,220,230,0.85)';
+      ctx.beginPath(); ctx.arc(head[0], head[1], 1.7 * _dpr, 0, Math.PI * 2); ctx.fill();
+    };
+
     const _drawBridge = (gLat, gLon, gHdg, noLamp, fTReach, leftOff, retract) => {
         const _nightF = 1 - dayFrac, _dpr = devicePixelRatio || 1;
         const gCos = Math.cos(gLat * DEG);
@@ -2502,23 +2591,12 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           ctx.fillStyle='rgba(18,20,24,0.55)'; ctx.fill();
           ctx.strokeStyle='rgba(8,8,10,0.94)'; ctx.lineWidth=3.4*_dpr; ctx.stroke(); }
 
-        /* Flood-lamp pole on the apron, near the rotunda (skipped for satellite gates,
-           which would otherwise cluster four lamps round one small drum). */
-        const LH = 11, base = noLamp ? null : GP(fT - 2, LEFT + 5, 0), head = noLamp ? null : GP(fT - 2, LEFT + 5, LH);
-        if (base && head) {
-          ctx.strokeStyle = 'rgba(150,160,170,0.70)'; ctx.lineWidth = 1.2 * _dpr;
-          ctx.beginPath(); ctx.moveTo(base[0], base[1]); ctx.lineTo(head[0], head[1]); ctx.stroke();
-          if (_nightF > 0.03) {                            // warm glow grows toward night
-            const glowR = (9 + 26 * _nightF) * _dpr;
-            const grd = ctx.createRadialGradient(head[0], head[1], 0, head[0], head[1], glowR);
-            grd.addColorStop(0,   `rgba(255,244,214,${(0.55 * _nightF).toFixed(3)})`);
-            grd.addColorStop(0.5, `rgba(255,236,190,${(0.22 * _nightF).toFixed(3)})`);
-            grd.addColorStop(1,   'rgba(255,230,180,0)');
-            ctx.fillStyle = grd;
-            ctx.beginPath(); ctx.arc(head[0], head[1], glowR, 0, Math.PI * 2); ctx.fill();
-          }
-          ctx.fillStyle = _nightF > 0.3 ? 'rgba(255,248,224,0.95)' : 'rgba(210,220,230,0.85)';
-          ctx.beginPath(); ctx.arc(head[0], head[1], 1.7 * _dpr, 0, Math.PI * 2); ctx.fill();
+        /* Flood-lamp near the rotunda — convert the gate-frame position to world lat/lon and
+           hand it to the shared mast renderer (skipped for satellite gates). */
+        if (!noLamp) {
+          const lf = fT - 2, ls = LEFT + 5;             // lamp position in the (fwd, side) gate frame
+          const dE = lf*hE + ls*lE, dN = lf*hN + ls*lN;
+          _drawFloodMast(gLat + dN/111320, gLon + dE/(111320*gCos), 11);
         }
     };
 
@@ -2560,7 +2638,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           if (D > 10) {
             const bHdg = (Math.atan2(dE, dN)*180/Math.PI + 360) % 360;  // axis: cab → att
             const oLat = g.cab[0] + 8*Math.cos(bHdg*DEG)/111320, oLon = g.cab[1] + 8*Math.sin(bHdg*DEG)/(111320*cCos);
-            _drawBridge(oLat, oLon, bHdg, false, D - 8, 0, rr);  // origin 8 m back of cab; leftOff 0 → centred on the OSM line
+            _zJobs.push({ d: _zDepth(oLat, oLon), fn: () => _drawBridge(oLat, oLon, bHdg, false, D - 8, 0, rr) });  // origin 8 m back of cab; centred on the OSM line
             done = true;
           }
         }
@@ -2569,7 +2647,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           if (_terms) { const wd = _wallDist(g.lat, g.lon, Math.sin(g.hdg*DEG), Math.cos(g.hdg*DEG), _terms);
             if (wd && wd > 6 && wd < 60) reach = wd; }
           if (reach === null) continue;                   // no terminal wall in front → remote stand, no bridge
-          _drawBridge(g.lat, g.lon, g.hdg, false, reach, undefined, rr);
+          _zJobs.push({ d: _zDepth(g.lat, g.lon), fn: () => _drawBridge(g.lat, g.lon, g.hdg, false, reach, undefined, rr) });
         }
       }
     }
@@ -2591,14 +2669,32 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         const drum = [];                                  // 12-facet round footprint → shaded like any building
         for (let k = 0; k < SN; k++) { const a = k / SN * Math.PI * 2;
           drum.push([sat.lat + Math.cos(a) * bR / 111320, sat.lon + Math.sin(a) * bR / (111320 * sCos)]); }
-        _drawMassing(drum, e0, BH);
+        _zJobs.push({ d: _zDepth(sat.lat, sat.lon), fn: () => _drawMassing(drum, e0, BH) });
         sat.gates.forEach((brg, gi) => {                  // a radial jet bridge per gate (one lamp/satellite)
           const stopR = bR + 13;                          // nose stop so the rotunda lands at the drum edge
           const dN = Math.cos(brg * DEG) * stopR, dE = Math.sin(brg * DEG) * stopR;
-          _drawBridge(sat.lat + dN / 111320, sat.lon + dE / (111320 * sCos), (brg + 180) % 360, gi > 0);
+          const bLat = sat.lat + dN / 111320, bLon = sat.lon + dE / (111320 * sCos);
+          _zJobs.push({ d: _zDepth(bLat, bLon), fn: () => _drawBridge(bLat, bLon, (brg + 180) % 360, gi > 0) });
         });
       }
     }
+
+    /* ── Derived apron flood masts — heuristic high-masts along the apron perimeter,
+       lighting the gate area where OSM doesn't map the real masts. Positions cached per
+       airport; each rendered (and distance-culled) by the shared mast renderer. ── */
+    {
+      const _key = `${S.mission?.departure?.icao}|${S.mission?.arrival?.icao}`;
+      if (_floodCache.key !== _key) {
+        _floodCache.key  = _key;
+        _floodCache.list = _deriveApronMasts([S.mission?.departure?.icao, S.mission?.arrival?.icao]);
+      }
+      for (const m of _floodCache.list) _zJobs.push({ d: _zDepth(m[0], m[1]), fn: () => _drawFloodMast(m[0], m[1], 12) });
+    }
+
+    /* Draw every apron structure far→near, so buildings occlude the bridges and masts
+       standing behind them. */
+    _zJobs.sort((a, b) => b.d - a.d);
+    for (const j of _zJobs) j.fn();
 
     /* ── Pushback tug + tow bar ── a low vehicle at the nose that pushes with the
        aircraft, then disconnects and drives away. Drawn in the aircraft's own
