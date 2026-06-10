@@ -6,3 +6,5 @@ audio/
 *.wav
 radio_analysis.png
 startup_spectrogram.png
+scripts/xplane-nav/
+__pycache__/

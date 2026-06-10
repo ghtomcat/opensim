@@ -11,6 +11,7 @@ import { COAST, SPACE_SITES } from './coastlines.js';
 import { NAVAIDS } from './navdata.js';
 import { RUNWAYS } from './runways-data.js';
 import { getTaxiGraph, routeTaxi, nearestStand } from '../core/taxi-graph.js';
+import { routeAirway } from '../core/airway-graph.js';
 
 const DEG = Math.PI / 180;
 
@@ -35,6 +36,7 @@ let _ltrkLine   = null;   /* track vector polyline */
 let _lwptLayer  = null;   /* L.layerGroup for waypoints */
 let _lnavLayer  = null;   /* L.layerGroup for navaids (VOR/NDB/DME) */
 let _lrouteLine = null;   /* route polyline connecting waypoints */
+let _lairwayLine = null;  /* en-route airway flight plan (departure → destination) */
 let _ltaxiLine  = null;   /* taxi route polyline (gate ↔ runway, from the taxiway graph) */
 
 /* ── Taxi route over the OSM taxiway graph — drawn when on the ground at a mission
@@ -196,6 +198,7 @@ export function initMap() {
   /* Waypoint layer */
   _lwptLayer  = L.layerGroup().addTo(_lmap);
   _lrouteLine = L.polyline([], { color: '#00c8e0', weight: 1.5, opacity: 0.6, dashArray: '6 4' }).addTo(_lmap);
+  _lairwayLine = L.polyline([], { color: '#d96ec8', weight: 2, opacity: 0.85 }).addTo(_lmap);   // FMS-magenta en-route plan
 
   /* Navaid layer — static VOR/NDB/DME symbols from the bundled OurAirports data */
   _lnavLayer  = L.layerGroup().addTo(_lmap);
@@ -570,10 +573,32 @@ function _renderLeafletLocal() {
   _updateTaxiRoute(lat, lon);   // taxi route over the OSM taxiway graph
 }
 
+/* Airport centre = mean of its runway thresholds (route endpoints). */
+function _airportLL(icao) {
+  const rws = icao && RUNWAYS[icao];
+  if (!rws || !rws.length) return null;
+  const pts = rws.flatMap(r => [r.a, r.b]);
+  return [pts.reduce((s, p) => s + p[0], 0) / pts.length,
+          pts.reduce((s, p) => s + p[1], 0) / pts.length];
+}
+
 /* ── Draw mission waypoints on Leaflet map ── */
 function _updateWaypoints() {
   if (!_lwptLayer || !_lrouteLine) return;
   _lwptLayer.clearLayers();
+
+  /* En-route airway flight plan (departure → destination) over the real airway graph —
+     the air analogue of the taxi route. Drawn magenta like an FMS plan. */
+  const dep = _airportLL(S.mission?.departure?.icao);
+  const arr = _airportLL(S.mission?.arrival?.icao);
+  if (_lairwayLine) {
+    let r = null;
+    if (dep && arr && S.mission?.departure?.icao !== S.mission?.arrival?.icao) {
+      try { r = routeAirway(dep[0], dep[1], arr[0], arr[1]); } catch { r = null; }
+    }
+    _lairwayLine.setLatLngs(r?.pts?.length ? [dep, ...r.pts, arr] : []);
+    S.airwayRoute = r;
+  }
 
   const waypoints = S.mission?.waypoints ?? [];
   if (!waypoints.length) { _lrouteLine.setLatLngs([]); return; }
