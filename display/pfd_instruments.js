@@ -916,73 +916,105 @@ function _ewdGauge(ctx, cx, cy, r, val, opts, grn, amb, red, f) {
   }
 }
 
-/* Boeing EICAS engine display. Step 1 of the family seam: delegates to the Airbus EWD
-   renderer so the wiring is proven with zero behaviour change; the Boeing-specific
-   layout (round dual N1 gauges, message column) follows in the next step. */
-export function drawEICAS(ctx, box, style) {
-  return drawECAM(ctx, box, style);
-}
-
-export function drawECAM(ctx, box, style) {
+/* Engine/Warning Display page. The warning + memo zones are shared; the engine zone is
+   family-specific — Airbus EWD (drawECAM) vs Boeing EICAS (drawEICAS). */
+function _ewdPage(ctx, box, style, engineZone) {
   const { x, y, w, h } = box;
   const f   = _MONO;
-  const grn = _c(style, 'engaged');
-  const amb = _c(style, 'managed');
-  const red = '#ff3b3b';
-  const wht = _c(style, 'white');
-  const dim = 'rgba(200,215,225,0.35)';
-  const cyn = '#4dc5dc';
+  const col = {
+    grn: _c(style, 'engaged'), amb: _c(style, 'managed'), red: '#ff3b3b',
+    wht: _c(style, 'white'),   dim: 'rgba(200,215,225,0.35)', cyn: '#4dc5dc',
+  };
 
   ctx.fillStyle = '#030609';
   ctx.fillRect(x, y, w, h);
 
   const page = S.ecamPage ?? 'status';
-  if (page === 'elec') { _ecamElec(ctx, x, y, w, h, f, grn, amb, dim, cyn); return; }
-  if (page === 'hyd')  { _ecamHyd (ctx, x, y, w, h, f, grn, amb, dim, cyn); return; }
+  if (page === 'elec') { _ecamElec(ctx, x, y, w, h, f, col.grn, col.amb, col.dim, col.cyn); return; }
+  if (page === 'hyd')  { _ecamHyd (ctx, x, y, w, h, f, col.grn, col.amb, col.dim, col.cyn); return; }
 
   /* ── STATUS / ENGINE page ─────────────────────────────────── */
-  const warnH = h * 0.28;
-  const engH  = h * 0.48;
-  const warnY = y;
-  const engY  = warnY + warnH;
-  const memoY = engY + engH;
+  const warnH = h * 0.28, engH = h * 0.48;
+  const warnY = y, engY = warnY + warnH, memoY = engY + engH;
 
-  /* Warning zone */
+  _ecamWarnZone(ctx, x, w, h, warnY, warnH, engY, f, col);
+  engineZone   (ctx, x, w, h, engY, engH, col, f);
+  _ecamMemoZone(ctx, x, w, h, memoY, f, col);
+}
+
+export function drawECAM (ctx, box, style) { _ewdPage(ctx, box, style, _engineZoneAirbus); }
+export function drawEICAS(ctx, box, style) { _ewdPage(ctx, box, style, _engineZoneBoeing); }
+
+/* Shared warning zone + the divider above the engines. */
+function _ecamWarnZone(ctx, x, w, h, warnY, warnH, engY, f, col) {
+  ctx.textBaseline = 'alphabetic';
   const hasWarn = Object.values(S.warnings ?? {}).some(Boolean);
   if (hasWarn) {
     let wy = warnY + h * 0.06;
     for (const [key, active] of Object.entries(S.warnings ?? {})) {
       if (!active) continue;
       ctx.font      = `bold ${h * 0.055}px ${f}`;
-      ctx.fillStyle = key.startsWith('LOW') || key.startsWith('FUEL') ? amb : red;
+      ctx.fillStyle = key.startsWith('LOW') || key.startsWith('FUEL') ? col.amb : col.red;
       ctx.textAlign = 'left';
       ctx.fillText(key.replace(/_/g, ' '), x + w * 0.04, wy);
       wy += h * 0.065;
     }
   } else {
-    ctx.font = `${h * 0.042}px ${f}`; ctx.fillStyle = dim; ctx.textAlign = 'center';
+    ctx.font = `${h * 0.042}px ${f}`; ctx.fillStyle = col.dim; ctx.textAlign = 'center';
     ctx.fillText('NORMAL', x + w * 0.5, warnY + warnH * 0.52);
   }
-
   ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(x, engY); ctx.lineTo(x + w, engY); ctx.stroke();
+}
 
-  /* Engine zone — n columns, Airbus EWD round gauges (N1 hero + EGT) with per-engine
-     scatter; N2 + FF digital below. */
+/* Shared memo zone — gear / flaps / belts / lights. */
+function _ecamMemoZone(ctx, x, w, h, memoY, f, col) {
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.beginPath(); ctx.moveTo(x, memoY); ctx.lineTo(x + w, memoY); ctx.stroke();
+
+  const flapsLabel = ['CLEAN', 'CONF 1', 'CONF 2', 'CONF 3'][Math.min(S.flaps ?? 0, 3)];
+  const gearLabel  = S.gear ? 'DN' : 'UP';
+  const memos = [
+    { lbl: 'GEAR',       val: gearLabel,  col: S.gear ? col.grn : col.wht },
+    { lbl: 'FLAPS',      val: flapsLabel, col: S.flaps > 0 ? col.amb : col.grn },
+    { lbl: 'SEAT BELTS', val: 'ON',       col: col.wht },
+    { lbl: 'LDG LTS',    val: 'ON',       col: col.wht },
+  ];
+  const memoFs = h * 0.038, mCols = 2, memoW = w / mCols;
+  ctx.textBaseline = 'alphabetic';
+  memos.forEach((m, i) => {
+    const mx = x + (i % mCols) * memoW + memoW * 0.04;
+    const my = memoY + h * 0.060 + Math.floor(i / mCols) * h * 0.068;
+    ctx.font = `${memoFs}px ${f}`; ctx.fillStyle = col.dim; ctx.textAlign = 'left';
+    ctx.fillText(m.lbl, mx, my);
+    ctx.font = `bold ${memoFs}px ${f}`; ctx.fillStyle = m.col;
+    ctx.fillText(m.val, mx + memoW * 0.42, my);
+  });
+}
+
+/* Per-engine running values (shared scatter), given the single commanded N1. */
+function _ewdEngineVals(eng, cmd, tNow) {
+  const live = cmd > 1;
+  const n1   = live ? Math.max(0, cmd + _ewdScatter(eng, tNow, 0.35)) : cmd;
+  const n2   = live ? Math.max(0, 48 + 0.55 * n1 + _ewdScatter(eng, tNow, 0.5)) : 0;  // CFM56: ~60% N2 idle
+  const egt  = Math.round(350 + Math.pow(Math.max(0, n1) / 100, 1.5) * 500 + _ewdOffset(eng, 6));
+  const ff   = Math.round(200 + Math.pow(Math.max(0, n1) / 100, 2) * 3000);
+  return { live, n1, n2, egt, ff };
+}
+
+/* Airbus EWD engine zone — N1 hero gauge + EGT below, digital N2/FF, value boxed low. */
+function _engineZoneAirbus(ctx, x, w, h, engY, engH, col, f) {
+  const { grn, amb, red, dim } = col;
   const n    = S.aircraft?.engine?.count ?? 2;
   const engW = w / n;
-  const cmd  = +(S.n1 ?? S.enginePower * 80);          // single commanded N1 for all engines
+  const cmd  = +(S.n1 ?? S.enginePower * 80);
   const tNow = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-  const r1   = Math.min(0.42 * engW, 0.17 * engH);     // N1 hero gauge
-  const r2   = r1 * 0.64;                              // EGT, smaller, below
+  const r1   = Math.min(0.42 * engW, 0.17 * engH);
+  const r2   = r1 * 0.64;
 
   for (let i = 0; i < n; i++) {
     const ex = x + engW * i, cx = ex + engW / 2, eng = i + 1;
-    const live = cmd > 1;                               // only scatter a running engine
-    const n1   = live ? Math.max(0, cmd + _ewdScatter(eng, tNow, 0.35)) : cmd;
-    const n2   = live ? Math.max(0, 48 + 0.55 * n1 + _ewdScatter(eng, tNow, 0.5)) : 0;  // CFM56: ~60% N2 idle
-    const egt  = Math.round(350 + Math.pow(Math.max(0, n1) / 100, 1.5) * 500 + _ewdOffset(eng, 6));
-    const ff   = Math.round(200 + Math.pow(Math.max(0, n1) / 100, 2) * 3000);
+    const { n1, n2, egt, ff } = _ewdEngineVals(eng, cmd, tNow);
 
     ctx.font = `${h * 0.034}px ${f}`; ctx.fillStyle = dim; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
     ctx.fillText(`ENG ${eng}`, cx, engY + engH * 0.06);
@@ -1005,32 +1037,93 @@ export function drawECAM(ctx, box, style) {
       ctx.stroke();
     }
   }
+}
 
-  /* Memo zone */
-  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-  ctx.beginPath(); ctx.moveTo(x, memoY); ctx.lineTo(x + w, memoY); ctx.stroke();
+/* Boeing EICAS engine zone — round gauges with the digital value in the CENTRE of the
+   dial, a white pointer, and a green commanded-N1 bug on the rim (the Boeing tell). */
+function _engineZoneBoeing(ctx, x, w, h, engY, engH, col, f) {
+  const { wht, grn, amb, red, dim } = col;
+  const n    = S.aircraft?.engine?.count ?? 2;
+  const engW = w / n;
+  const cmd  = +(S.n1 ?? S.enginePower * 80);
+  const tNow = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const r1   = Math.min(0.44 * engW, 0.19 * engH);
+  const r2   = r1 * 0.62;
 
-  const flapsLabel = ['CLEAN', 'CONF 1', 'CONF 2', 'CONF 3'][Math.min(S.flaps ?? 0, 3)];
-  const gearLabel  = S.gear ? 'DN' : 'UP';
+  for (let i = 0; i < n; i++) {
+    const ex = x + engW * i, cx = ex + engW / 2, eng = i + 1;
+    const { live, n1, n2, egt, ff } = _ewdEngineVals(eng, cmd, tNow);
 
-  const memos = [
-    { lbl: 'GEAR',       val: gearLabel,  col: S.gear ? grn : wht },
-    { lbl: 'FLAPS',      val: flapsLabel, col: S.flaps > 0 ? amb : grn },
-    { lbl: 'SEAT BELTS', val: 'ON',       col: wht },
-    { lbl: 'LDG LTS',    val: 'ON',       col: wht },
-  ];
+    _eicasGauge(ctx, cx, engY + engH * 0.30, r1, n1, live ? cmd : null,
+                { max: 110,  amber: 100, red: 104, ticks: [0, 20, 40, 60, 80, 100], dec: 1, lbl: 'N1' },  wht, grn, amb, red, f);
+    _eicasGauge(ctx, cx, engY + engH * 0.70, r2, egt, null,
+                { max: 1000, amber: 850, red: 950, ticks: [0, 500, 1000],           dec: 0, lbl: 'EGT' }, wht, grn, amb, red, f);
 
-  const memoFs = h * 0.038;
-  const mCols  = 2;
-  const memoW  = w / mCols;
-  memos.forEach((m, i) => {
-    const mx = x + (i % mCols) * memoW + memoW * 0.04;
-    const my = memoY + h * 0.060 + Math.floor(i / mCols) * h * 0.068;
-    ctx.font = `${memoFs}px ${f}`; ctx.fillStyle = dim; ctx.textAlign = 'left';
-    ctx.fillText(m.lbl, mx, my);
-    ctx.font = `bold ${memoFs}px ${f}`; ctx.fillStyle = m.col;
-    ctx.fillText(m.val, mx + memoW * 0.42, my);
-  });
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = wht;
+    ctx.font = `bold ${h * 0.036}px ${f}`;
+    ctx.fillText('N2 ' + n2.toFixed(1), cx, engY + engH * 0.90);
+    ctx.fillText('FF ' + ff,            cx, engY + engH * 0.985);
+
+    if (i < n - 1) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+      ctx.beginPath();
+      ctx.moveTo(ex + engW, engY + h * 0.02);
+      ctx.lineTo(ex + engW, engY + engH - h * 0.02);
+      ctx.stroke();
+    }
+  }
+}
+
+/* Boeing round engine gauge: white scale arc + ticks, amber/red bands near the top, a
+   green commanded-value bug on the rim (if cmd given), a white pointer, and the digital
+   value boxed in the CENTRE of the dial. opts: { max, amber, red, ticks, dec, lbl }. */
+function _eicasGauge(ctx, cx, cy, r, val, cmd, opts, wht, grn, amb, red, f) {
+  const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25, sweep = a1 - a0;
+  const ang = v => a0 + Math.max(0, Math.min(1, v / opts.max)) * sweep;
+  const P = (a, rr) => [cx + Math.cos(a) * rr, cy + Math.sin(a) * rr];
+
+  ctx.lineCap = 'butt';
+  ctx.strokeStyle = 'rgba(232,237,242,0.5)'; ctx.lineWidth = Math.max(1.2, r * 0.055);   // scale arc
+  ctx.beginPath(); ctx.arc(cx, cy, r, a0, a1); ctx.stroke();
+
+  if (opts.amber != null) {                                                              // amber caution band
+    ctx.strokeStyle = amb; ctx.lineWidth = Math.max(1.2, r * 0.055);
+    ctx.beginPath(); ctx.arc(cx, cy, r, ang(opts.amber), ang(opts.red ?? opts.max)); ctx.stroke();
+  }
+  if (opts.red != null) {                                                                // red band past redline
+    ctx.strokeStyle = red; ctx.lineWidth = Math.max(1.2, r * 0.055);
+    ctx.beginPath(); ctx.arc(cx, cy, r, ang(opts.red), a1); ctx.stroke();
+  }
+
+  ctx.strokeStyle = 'rgba(232,237,242,0.6)'; ctx.lineWidth = Math.max(1, r * 0.03);      // ticks
+  for (const g of (opts.ticks ?? [0, opts.max / 2, opts.max])) {
+    const a = ang(g), p0 = P(a, r - r * 0.15), p1 = P(a, r);
+    ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
+  }
+
+  if (cmd != null) {                                                                     // commanded-N1 bug
+    const a = ang(cmd), tip = P(a, r), o1 = P(a + 0.05, r + r * 0.17), o2 = P(a - 0.05, r + r * 0.17);
+    ctx.fillStyle = grn;
+    ctx.beginPath(); ctx.moveTo(tip[0], tip[1]); ctx.lineTo(o1[0], o1[1]); ctx.lineTo(o2[0], o2[1]); ctx.closePath(); ctx.fill();
+  }
+
+  const over = opts.red != null && val >= opts.red;                                      // white pointer
+  const na = ang(val), pt0 = P(na, r * 0.30), pt1 = P(na, r - r * 0.06);
+  ctx.strokeStyle = over ? red : wht; ctx.lineWidth = Math.max(1.4, r * 0.05); ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(pt0[0], pt0[1]); ctx.lineTo(pt1[0], pt1[1]); ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  const bw = r * 1.3, bh = r * 0.52, bx = cx - bw / 2, by = cy - bh * 0.2;               // centred digital box
+  ctx.strokeStyle = 'rgba(232,237,242,0.7)'; ctx.lineWidth = Math.max(1, r * 0.035);
+  ctx.fillStyle = '#030609'; ctx.fillRect(bx, by, bw, bh); ctx.strokeRect(bx, by, bw, bh);
+  ctx.fillStyle = over ? red : wht; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = `bold ${(bh * 0.74).toFixed(1)}px ${f}`;
+  ctx.fillText((opts.dec ?? 0) > 0 ? Math.max(0, val).toFixed(1) : String(Math.round(Math.max(0, val))), cx, by + bh / 2);
+
+  if (opts.lbl) {                                                                        // label above the dial
+    ctx.fillStyle = 'rgba(200,215,225,0.5)'; ctx.font = `${(r * 0.32).toFixed(1)}px ${f}`;
+    ctx.fillText(opts.lbl, cx, cy - r - r * 0.20);
+  }
 }
 
 /* ── ECAM ELEC synoptic ─────────────────────────────────────── */
