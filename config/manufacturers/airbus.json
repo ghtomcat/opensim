@@ -1,0 +1,7 @@
+{
+  "_doc": "Airbus — the comm/RMP lives on the pedestal, bottom-left of the centre console.",
+  "comPanel": {
+    "zone": "pedestal",
+    "offset": [20, 24]
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "_doc": "Boeing — comm radios on the pedestal, bottom-left, clear of the centred thrust levers.",
+  "comPanel": {
+    "zone": "pedestal",
+    "offset": [20, 24]
+  }
+}

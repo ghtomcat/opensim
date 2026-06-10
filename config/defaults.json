@@ -1,0 +1,9 @@
+{
+  "_doc": "Base cockpit config — the bottom layer of the manufacturer/family/model cascade. Every aircraft inherits this; manufacturer/family/model layers and the aircraft's own `cockpit` block override only what differs.",
+  "comPanel": {
+    "zone": "forward",
+    "anchor": "bottom-left",
+    "offset": [20, 90],
+    "width": 320
+  }
+}

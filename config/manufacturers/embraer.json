@@ -1,0 +1,7 @@
+{
+  "_doc": "Embraer — comm on the pedestal, bottom-left.",
+  "comPanel": {
+    "zone": "pedestal",
+    "offset": [20, 24]
+  }
+}

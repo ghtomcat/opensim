@@ -850,10 +850,10 @@
       left: auto; right: 20px; bottom: 110px;
     }
     body.panel-dual #com-container { display: none !important; }
-    /* WB/NB radio docks onto the pedestal — bottom-left, clear of the centred thrust levers,
-       lifted above the #ped overlay (z 180), and overriding the panel-dual hide. */
+    /* WB/NB radio docks onto the pedestal — lifted above the #ped overlay (z 180), overriding
+       the panel-dual hide. Position (left/bottom) comes from cockpitCfg.comPanel, set inline. */
     body.pedestal-active #com-container {
-      display: block !important; left: 20px; right: auto; bottom: 24px; transform: none; z-index: 185;
+      display: block !important; right: auto; transform: none; z-index: 185;
     }
 
     /* Contextual request menu (REQUEST ▾) */
@@ -3698,6 +3698,13 @@
         document.getElementById('hc-panel').style.display      = isHover ? 'flex' : 'none';
         document.getElementById('com-container').style.display  =
           (isHover || isVelis || isArm || isPanel || isDR400) ? 'none' : (isG1000 ? (S.comPanelVisible ? '' : 'none') : '');
+        /* Comm-panel placement from the resolved cockpit config (manufacturer/family/model
+           cascade) — the pedestal offset now comes from data, not the CSS hack. */
+        const _com = S.aircraft?.cockpitCfg?.comPanel;
+        if (isPanel && _com?.zone === 'pedestal' && _com.offset) {
+          const _ce = document.getElementById('com-container').style;
+          _ce.left = _com.offset[0] + 'px'; _ce.bottom = _com.offset[1] + 'px'; _ce.right = 'auto';
+        }
         document.getElementById('panel').style.display          = (isRocket || hasOwnUI || isArm) ? 'none' : '';
         document.getElementById('keys').style.display           = (isRocket || isArm || isPanel) ? 'none' : '';
         document.getElementById('fma').style.display            = (isRocket || hasOwnUI || isArm || isPanel) ? 'none' : '';

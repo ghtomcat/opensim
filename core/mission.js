@@ -13,6 +13,7 @@ import { resetHydraulics } from './hydraulics.js';
 import { setCrewLang }    from './crew.js';
 import { resolveStart }   from './mission-start.js';
 import { resetSmooth }    from '../display/smooth.js';
+import { resolveAircraftConfig } from './aircraft-config.js';
 
 /**
  * loadMission(missionPath, aircraftPath)
@@ -24,6 +25,8 @@ export async function loadMission(missionPath, aircraftPath) {
     typeof missionPath  === 'object' ? missionPath  : _fetch(missionPath),
     typeof aircraftPath === 'object' ? aircraftPath : _fetch(aircraftPath),
   ]);
+
+  aircraft.cockpitCfg = await resolveAircraftConfig(aircraft);   // deep-merged lineage config (comm placement, …)
 
   /* Apply initial state from mission. A named start ("start":{runway,at}) derives the
      exact lat/lon/hdg from bundled OurAirports data — overriding the hand-typed coords. */
