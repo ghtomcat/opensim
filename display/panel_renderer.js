@@ -11,7 +11,7 @@
 import { S, setState } from '../core/state.js';
 import {
   drawFMA, drawAI, drawSpeedTape, drawAltTape,
-  drawVSI, drawHdgTape, drawNDMap, drawFCU, drawECAM,
+  drawVSI, drawHdgTape, drawNDMap, drawFCU, drawECAM, drawEICAS,
 } from './pfd_instruments.js';
 import { drawG1000PFD, drawG1000MFD, drawG1000Bezel, drawMagRotary, drawFuelSel } from './g1000.js';
 import { hideG1000Map } from './map.js';
@@ -638,7 +638,8 @@ const _WIDGETS = {
   vsi:        (ctx, box, style, cfg) => drawVSI(ctx, box, style),
   hdg_tape:   (ctx, box, style, cfg) => drawHdgTape(ctx, box, style),
   nd_map:     (ctx, box, style, cfg) => drawNDMap(ctx, box, style, cfg),
-  ecam_ewd:   (ctx, box, style, cfg) => drawECAM(ctx, box, style),
+  ecam_ewd:   (ctx, box, style, cfg) =>            // family seam: Boeing → EICAS, else Airbus ECAM
+    (S.aircraft?.family === 'boeing' ? drawEICAS : drawECAM)(ctx, box, style),
   spacer:     () => {},
 
   /* GA cockpit widgets */

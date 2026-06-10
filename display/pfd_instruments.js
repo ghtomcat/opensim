@@ -916,6 +916,13 @@ function _ewdGauge(ctx, cx, cy, r, val, opts, grn, amb, red, f) {
   }
 }
 
+/* Boeing EICAS engine display. Step 1 of the family seam: delegates to the Airbus EWD
+   renderer so the wiring is proven with zero behaviour change; the Boeing-specific
+   layout (round dual N1 gauges, message column) follows in the next step. */
+export function drawEICAS(ctx, box, style) {
+  return drawECAM(ctx, box, style);
+}
+
 export function drawECAM(ctx, box, style) {
   const { x, y, w, h } = box;
   const f   = _MONO;

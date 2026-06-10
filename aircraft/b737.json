@@ -20,6 +20,7 @@
   "flapTracks": 4,
   "clock": "digital",
   "panel": "airbus",
+  "family": "boeing",
   "livery": {
     "colors": [
       [
