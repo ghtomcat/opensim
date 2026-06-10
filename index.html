@@ -1867,6 +1867,7 @@
       <div class="fb-tabs" id="fb-tabs">
         <button class="fb-tab active" data-tab="route">Route</button>
         <button class="fb-tab" data-tab="airport">Airport</button>
+        <button class="fb-tab" data-tab="departure">Departure</button>
         <button class="fb-tab" data-tab="navlog">Nav Log</button>
         <button class="fb-tab" data-tab="weather">Weather</button>
         <button class="fb-tab" data-tab="freqs">Freqs</button>
@@ -3296,6 +3297,11 @@
     requestAnimationFrame(() => el.classList.add('visible'));
   }
 
+  /* SID/STAR/approach procedures — loaded from the (gitignored, local) X-Plane build if
+     present; absent on the public site, where the Departure tab just says so. */
+  let _PROCEDURES = {};
+  import('./display/procedures-data-xp.js').then(m => { _PROCEDURES = m.PROCEDURES || {}; }).catch(() => {});
+
   /* Airport centre = mean of its runway thresholds. */
   function _airportCentre(icao) {
     const rws = icao && RUNWAYS[icao];
@@ -3378,21 +3384,20 @@
     }
   }
 
-  /* Airport diagram: top-down departure airport from the bundled ground data —
-     aprons, terminals, taxiways, runways (+ designators) and stands (start gate marked). */
+  /* Airport diagram: a clean monochrome layout — thick white runways, thin taxiways,
+     bold designators, the start gate marked. White on black, structure large. */
   function _renderAirportChart(dep, md) {
     const cv = document.getElementById('fb-chart'); if (!cv) return;
     const dpr = window.devicePixelRatio || 1;
     const W = cv.width = Math.min(6000, Math.max(1, cv.clientWidth)) * dpr;
     const H = cv.height = Math.min(4000, Math.max(1, cv.clientHeight)) * dpr;
     const ctx = cv.getContext('2d');
-    ctx.fillStyle = '#070b11'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, W, H);
 
     const ic = dep?.icao;
-    const rws = (ic && RUNWAYS[ic]) || [], tws = (ic && TAXI_WAYS[ic]) || [];
-    const stands = (ic && STANDS[ic]) || [], terms = (ic && TERMINALS[ic]) || [], aprons = (ic && APRONS[ic]) || [];
+    const rws = (ic && RUNWAYS[ic]) || [], tws = (ic && TAXI_WAYS[ic]) || [], stands = (ic && STANDS[ic]) || [];
     if (!rws.length && !tws.length) {
-      ctx.fillStyle = 'rgba(216,224,234,0.4)'; ctx.font = `${13 * dpr}px "IBM Plex Mono",monospace`;
+      ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.font = `${13 * dpr}px "IBM Plex Mono",monospace`;
       ctx.textAlign = 'center'; ctx.fillText('No ground data for ' + (ic || 'this airport'), W / 2, H / 2); return;
     }
 
@@ -3400,47 +3405,155 @@
     const ext = (la, lo) => { latMin = Math.min(latMin, la); latMax = Math.max(latMax, la); lonMin = Math.min(lonMin, lo); lonMax = Math.max(lonMax, lo); };
     for (const r of rws) { ext(r.a[0], r.a[1]); ext(r.b[0], r.b[1]); }
     for (const w of tws) { if (w.k !== 't') continue; for (const p of w.g) ext(p[0], p[1]); }
-    for (const s of stands) { if (s.lat != null) ext(s.lat, s.lon); }
-    const padLat = (latMax - latMin) * 0.06 + 0.002, padLon = (lonMax - lonMin) * 0.06 + 0.002;
+    const padLat = (latMax - latMin) * 0.05 + 0.002, padLon = (lonMax - lonMin) * 0.05 + 0.002;
     latMin -= padLat; latMax += padLat; lonMin -= padLon; lonMax += padLon;
     const cosMid = Math.cos((latMin + latMax) / 2 * Math.PI / 180);
-    const gw = (lonMax - lonMin) * cosMid, gh = (latMax - latMin), pad = 40 * dpr;
+    const gw = (lonMax - lonMin) * cosMid, gh = (latMax - latMin), pad = 48 * dpr;
     const sc = Math.min((W - 2 * pad) / gw, (H - 2 * pad) / gh), ox = (W - gw * sc) / 2, oy = (H - gh * sc) / 2;
     const proj = (la, lo) => [ox + (lo - lonMin) * cosMid * sc, oy + (latMax - la) * sc];
-    const fillPoly = (poly) => { if (!poly || poly.length < 3) return; ctx.beginPath();
-      poly.forEach((p, i) => { const [x, y] = proj(p[0], p[1]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.closePath(); ctx.fill(); };
 
-    ctx.fillStyle = 'rgba(70,82,98,0.22)';  for (const ring of aprons) fillPoly(ring);            // aprons
-    ctx.fillStyle = 'rgba(120,134,150,0.40)'; for (const t of terms) fillPoly(t.poly);            // terminals
-
-    ctx.strokeStyle = 'rgba(150,170,190,0.55)'; ctx.lineWidth = Math.max(1, 1.2 * dpr); ctx.lineJoin = 'round';  // taxiways
+    /* taxiways — thin white */
+    ctx.strokeStyle = 'rgba(255,255,255,0.30)'; ctx.lineWidth = Math.max(1, 1.3 * dpr); ctx.lineJoin = 'round';
     for (const w of tws) { if (w.k !== 't' || w.g.length < 2) continue; ctx.beginPath();
       w.g.forEach((p, i) => { const [x, y] = proj(p[0], p[1]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke(); }
 
-    for (const r of rws) {                                                                         // runways
+    /* runways — thick white strips (width: real, but with a bold floor) + designators */
+    ctx.lineCap = 'butt'; ctx.fillStyle = '#ffffff';
+    for (const r of rws) {
       const a = proj(r.a[0], r.a[1]), b = proj(r.b[0], r.b[1]);
       const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
-      const wpx = Math.max(3 * dpr, (r.widthM || 45) / 1852 * cosMid * sc);
+      const wpx = Math.max(9 * dpr, (r.widthM || 45) / 111320 * cosMid * sc);   // m → degrees, bold minimum
       const nx = -dy / L * wpx / 2, ny = dx / L * wpx / 2;
-      ctx.fillStyle = 'rgba(225,230,238,0.85)';
       ctx.beginPath(); ctx.moveTo(a[0]+nx, a[1]+ny); ctx.lineTo(b[0]+nx, b[1]+ny); ctx.lineTo(b[0]-nx, b[1]-ny); ctx.lineTo(a[0]-nx, a[1]-ny); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#0a0e14'; ctx.font = `bold ${9.5 * dpr}px "IBM Plex Mono",monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      if (r.leId) ctx.fillText(r.leId, a[0] + dx * 0.07, a[1] + dy * 0.07);
-      if (r.heId) ctx.fillText(r.heId, b[0] - dx * 0.07, b[1] - dy * 0.07);
+      ctx.fillStyle = '#ffffff'; ctx.font = `bold ${12 * dpr}px "IBM Plex Mono",monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if (r.leId) ctx.fillText(r.leId, a[0] - dx / L * 16 * dpr, a[1] - dy / L * 16 * dpr);   // just beyond each threshold
+      if (r.heId) ctx.fillText(r.heId, b[0] + dx / L * 16 * dpr, b[1] + dy / L * 16 * dpr);
     }
 
-    const startRef = md?.start?.stand;                                                            // stands
-    for (const s of stands) {
-      if (s.lat == null) continue; const [x, y] = proj(s.lat, s.lon);
-      const isStart = startRef && s.ref === startRef;
-      ctx.fillStyle = isStart ? '#d96ec8' : 'rgba(110,200,235,0.5)';
-      ctx.beginPath(); ctx.arc(x, y, (isStart ? 4 : 1.8) * dpr, 0, 7); ctx.fill();
-      if (isStart) { ctx.fillStyle = '#eef2f7'; ctx.font = `bold ${11 * dpr}px "IBM Plex Mono",monospace`;
-        ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(' ' + s.ref, x + 5 * dpr, y); }
-    }
+    /* start gate — small white marker + label */
+    const startRef = md?.start?.stand;
+    if (startRef) { const s = stands.find(s => s.ref === startRef && s.lat != null);
+      if (s) { const [x, y] = proj(s.lat, s.lon);
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2 * dpr; ctx.beginPath(); ctx.arc(x, y, 4 * dpr, 0, 7); ctx.stroke();
+        ctx.fillStyle = '#ffffff'; ctx.font = `bold ${11 * dpr}px "IBM Plex Mono",monospace`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.fillText('  ' + s.ref, x + 5 * dpr, y); } }
 
-    ctx.fillStyle = 'rgba(216,224,234,0.6)'; ctx.font = `${12 * dpr}px "IBM Plex Mono",monospace`;
+    ctx.fillStyle = 'rgba(255,255,255,0.65)'; ctx.font = `${12 * dpr}px "IBM Plex Mono",monospace`;
     ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillText(ic || '', 22 * dpr, 14 * dpr);
+  }
+
+  /* "+03500" / "-FL080" / "FL080" → { ft, kind } (above/below/at). */
+  function _altParse(s) {
+    if (!s) return null;
+    let kind = 'at', t = s;
+    if (t[0] === '+') { kind = 'above'; t = t.slice(1); }
+    else if (t[0] === '-') { kind = 'below'; t = t.slice(1); }
+    else if (t[0] === '@') { t = t.slice(1); }
+    const ft = t.startsWith('FL') ? parseInt(t.slice(2)) * 100 : parseInt(t);
+    return Number.isFinite(ft) ? { ft, kind } : null;
+  }
+
+  /* Departure chart: ONE SID at a time (click to cycle) — a top-down plan and, below it, a
+     vertical profile of the altitude constraints along the procedure. */
+  let _fbDepIdx = 0;
+  function _renderDepartureChart(dep, md) {
+    const cv = document.getElementById('fb-chart'); if (!cv) return;
+    const dpr = window.devicePixelRatio || 1;
+    const W = cv.width = Math.min(6000, Math.max(1, cv.clientWidth)) * dpr;
+    const H = cv.height = Math.min(4000, Math.max(1, cv.clientHeight)) * dpr;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#070b11'; ctx.fillRect(0, 0, W, H);
+    const center = (txt) => { ctx.fillStyle = 'rgba(216,224,234,0.45)'; ctx.font = `${13 * dpr}px "IBM Plex Mono",monospace`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, W / 2, H / 2); };
+
+    const ic = dep?.icao, proc = _PROCEDURES[ic];
+    if (!proc) { center('Procedures not loaded — run scripts/build-cifp.py (local, X-Plane).'); cv.onclick = null; return; }
+    const rwy = md?.departure?.runway ? ('RW' + md.departure.runway) : null;
+    let sids = proc.sids.filter(s => !rwy || s.trans === rwy);
+    if (!sids.length) sids = proc.sids.filter(s => s.trans === 'ALL');
+    if (!sids.length) { center('No SIDs for ' + (ic || '') + (rwy ? ' ' + rwy : '')); cv.onclick = null; return; }
+
+    const idx = ((_fbDepIdx % sids.length) + sids.length) % sids.length, sel = sids[idx];
+    cv.onclick = () => { _fbDepIdx++; _renderDepartureChart(dep, md); };          // click → next SID
+
+    const path = sel.legs.filter(l => l.lat != null);
+    if (!path.length) { center('No fix coordinates for ' + sel.name); return; }
+    const rwLL = rwy && proc.rwys[rwy];
+    const pts = rwLL ? [{ lat: rwLL[0], lon: rwLL[1] }, ...path] : path;
+    const fieldFt = md?.departure?.elevation ?? 0;
+
+    /* title */
+    ctx.fillStyle = '#eef2f7'; ctx.font = `bold ${13 * dpr}px "IBM Plex Mono",monospace`; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText(`${ic || ''} ${rwy || ''} · ${sel.name}`, 22 * dpr, 12 * dpr);
+    ctx.fillStyle = 'rgba(216,224,234,0.45)'; ctx.font = `${11 * dpr}px "IBM Plex Mono",monospace`;
+    ctx.fillText(`SID ${idx + 1}/${sids.length} — click to cycle`, 22 * dpr, 30 * dpr);
+
+    /* ── PLAN (top) ── */
+    let latMin = 90, latMax = -90, lonMin = 180, lonMax = -180;
+    const ext = (la, lo) => { latMin = Math.min(latMin, la); latMax = Math.max(latMax, la); lonMin = Math.min(lonMin, lo); lonMax = Math.max(lonMax, lo); };
+    for (const p of pts) ext(p.lat, p.lon);
+    const padLat = (latMax - latMin) * 0.16 + 0.03, padLon = (lonMax - lonMin) * 0.16 + 0.03;
+    latMin -= padLat; latMax += padLat; lonMin -= padLon; lonMax += padLon;
+    const cosMid = Math.cos((latMin + latMax) / 2 * Math.PI / 180);
+    const gw = (lonMax - lonMin) * cosMid, gh = (latMax - latMin);
+    const planT = 48 * dpr, planB = H * 0.55, mx = 50 * dpr;
+    const psc = Math.min((W - 2 * mx) / gw, (planB - planT) / gh);
+    const pox = (W - gw * psc) / 2, poy = planT + ((planB - planT) - gh * psc) / 2;
+    const proj = (la, lo) => [pox + (lo - lonMin) * cosMid * psc, poy + (latMax - la) * psc];
+
+    ctx.strokeStyle = 'rgba(120,150,180,0.18)'; ctx.lineWidth = 1 * dpr; ctx.beginPath();
+    for (const poly of COAST) { let st = false; for (const [lo, la] of poly) {
+      if (lo < lonMin - 3 || lo > lonMax + 3 || la < latMin - 3 || la > latMax + 3) { st = false; continue; }
+      const [x, y] = proj(la, lo); if (st) ctx.lineTo(x, y); else { ctx.moveTo(x, y); st = true; } } }
+    ctx.stroke();
+    ctx.strokeStyle = '#d96ec8'; ctx.lineWidth = 2 * dpr; ctx.lineJoin = 'round'; ctx.beginPath();
+    pts.forEach((p, i) => { const [x, y] = proj(p.lat, p.lon); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke();
+    for (const l of path) {
+      const [x, y] = proj(l.lat, l.lon);
+      ctx.fillStyle = 'rgba(110,200,235,0.9)'; ctx.beginPath(); ctx.arc(x, y, 2.4 * dpr, 0, 7); ctx.fill();
+      ctx.fillStyle = '#cfe6f5'; ctx.font = `bold ${10 * dpr}px "IBM Plex Mono",monospace`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(' ' + l.fix, x + 5 * dpr, y - 5 * dpr);
+    }
+    if (rwLL) { const [x, y] = proj(rwLL[0], rwLL[1]); ctx.fillStyle = '#5dd47e'; ctx.beginPath(); ctx.arc(x, y, 4.5 * dpr, 0, 7); ctx.fill(); }
+
+    /* ── PROFILE (bottom): cumulative distance × altitude, with constraints ── */
+    const cum = [0];
+    for (let i = 1; i < pts.length; i++) cum[i] = cum[i - 1] + _gcNm(pts[i - 1].lat, pts[i - 1].lon, pts[i].lat, pts[i].lon);
+    const totalNm = cum[cum.length - 1] || 1, off = rwLL ? 1 : 0;
+    const cons = path.map((l, j) => ({ d: cum[j + off], a: _altParse(l.alt), fix: l.fix }));
+    const maxAlt = Math.max(fieldFt + 6000, ...cons.filter(c => c.a).map(c => c.a.ft)) * 1.12;
+    const prT = H * 0.63, prB = H - 34 * dpr, prL = 56 * dpr, prR = W - 26 * dpr;
+    const PX = d => prL + d / totalNm * (prR - prL);
+    const PY = a => prB - Math.max(0, a) / maxAlt * (prB - prT);
+
+    ctx.fillStyle = 'rgba(216,224,234,0.4)'; ctx.font = `${10 * dpr}px "IBM Plex Mono",monospace`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('PROFILE', prL, prT - 14 * dpr);
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1; ctx.textAlign = 'right';     // altitude gridlines
+    for (let a = 0; a <= maxAlt; a += 2000) {
+      const y = PY(a); ctx.beginPath(); ctx.moveTo(prL, y); ctx.lineTo(prR, y); ctx.stroke();
+      ctx.fillStyle = 'rgba(216,224,234,0.4)'; ctx.fillText(a >= 1000 ? 'FL' + String(Math.round(a / 100)).padStart(3, '0') : String(a), prL - 6 * dpr, y);
+    }
+    ctx.strokeStyle = 'rgba(120,200,140,0.5)'; ctx.setLineDash([4 * dpr, 4 * dpr]);              // field elevation
+    ctx.beginPath(); ctx.moveTo(prL, PY(fieldFt)); ctx.lineTo(prR, PY(fieldFt)); ctx.stroke(); ctx.setLineDash([]);
+
+    const climb = [[PX(0), PY(fieldFt)]];                                                       // climb profile through constraints
+    for (const c of cons) if (c.a) climb.push([PX(c.d), PY(c.a.ft)]);
+    ctx.strokeStyle = '#d96ec8'; ctx.lineWidth = 2 * dpr; ctx.beginPath();
+    climb.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke();
+
+    for (const c of cons) {
+      const x = PX(c.d);
+      ctx.strokeStyle = 'rgba(150,170,190,0.25)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, prT); ctx.lineTo(x, prB); ctx.stroke();   // fix gridline
+      ctx.fillStyle = 'rgba(160,180,200,0.7)'; ctx.font = `${8.5 * dpr}px "IBM Plex Mono",monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(c.fix, x, prB + 4 * dpr);
+      if (!c.a) continue;
+      const y = PY(c.a.ft), col = c.a.kind === 'above' ? '#5dd47e' : c.a.kind === 'below' ? '#e8b446' : '#eef2f7';
+      ctx.strokeStyle = col; ctx.lineWidth = 2.4 * dpr; ctx.beginPath(); ctx.moveTo(x - 9 * dpr, y); ctx.lineTo(x + 9 * dpr, y); ctx.stroke();   // constraint bar
+      const ar = c.a.kind === 'above' ? 1 : c.a.kind === 'below' ? -1 : 0;                       // above/below tick
+      if (ar) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + ar * 6 * dpr); ctx.stroke(); }
+      ctx.fillStyle = col; ctx.font = `${9 * dpr}px "IBM Plex Mono",monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText(c.a.ft >= 1000 ? 'FL' + Math.round(c.a.ft / 100) : c.a.ft, x, y - 4 * dpr);
+    }
   }
 
   const _gcNm = (aLat, aLon, bLat, bLon) => {
@@ -3510,11 +3623,13 @@
   function _briefingTab(name, dep, arr, md) {
     document.querySelectorAll('#fb-tabs .fb-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
     const tx = document.getElementById('fb-text');
-    const isChart = name === 'route' || name === 'airport';
+    document.getElementById('fb-chart').onclick = null;   // only the departure chart uses click
+    const isChart = name === 'route' || name === 'airport' || name === 'departure';
     /* Canvas stays laid out (stable offsetWidth); the opaque text pane just covers it. */
     tx.style.display = isChart ? 'none' : 'block';
-    if      (name === 'route')   requestAnimationFrame(() => _renderRouteChart(dep, arr));
-    else if (name === 'airport') requestAnimationFrame(() => _renderAirportChart(dep, md));
+    if      (name === 'route')     requestAnimationFrame(() => _renderRouteChart(dep, arr));
+    else if (name === 'airport')   requestAnimationFrame(() => _renderAirportChart(dep, md));
+    else if (name === 'departure') requestAnimationFrame(() => _renderDepartureChart(dep, md));
     else if (name === 'navlog')  tx.innerHTML = _navLogHtml(dep, arr);
     else if (name === 'freqs')   tx.innerHTML = _freqsHtml(dep, arr);
     else if (name === 'weather') { tx.innerHTML = _weatherLoadingHtml(dep, arr); _fillWeather(dep, arr); }
