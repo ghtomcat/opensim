@@ -2,6 +2,7 @@
    affine / cylindrical / bounding-box), Swiss cross, winglet logo billboard,
    Polish szachownica roundel. Extracted from outside.js. */
 import { S } from '../core/state.js';
+import { _r } from './outside-wb.js';   /* default fuselage radius — vtail placement fallback */
 
 /* ── Livery decals — SVG paths projected onto named surface group ─
    Per-face affine mapping: each visible face gets its own SVG→screen
