@@ -1319,6 +1319,37 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     return { ps, br, spec, avgD, col, grad, fc: FC_[i] };
   }).filter(Boolean);
 
+  /* ── Render context — the shared seam for extracted domain renderers ──
+     Everything a domain pass (rockets, gear, engines, livery, …) needs from
+     this closure, gathered once the projection, lighting and face list exist.
+     Extraction phases hand `rc` to outside-*-draw.js modules instead of the
+     closure variables. All members are final for the frame at this point;
+     `verts`/`faces`/`pts` are shared by reference, so passes that mutate them
+     (gear pushes faces, nozzles push faces) keep working. Helpers defined
+     later in the frame attach where they are born (rc.wCol below). */
+  const rc = {
+    /* canvas + screen */
+    canvas, ctx, dpr, W, H, cx, cy, focal, mapPx,
+    /* camera — post auto-fit/auto-director values */
+    camBack, camUp, camSide, camPitch, cosCP, sinCP,
+    orbitAzDeg, orbitElDeg, cosAz, sinAz, cosEl, sinEl,
+    panX, wingView, fixedFraming,
+    /* attitude */
+    cosP, sinP, cosR, sinR, isBodyRoll,
+    /* render profile */
+    profile, isC172, isSV, isSS, isF9, isBf109, isF4U, isMig15, isPP,
+    /* geometry tables */
+    V_, F_, FC_, FN_, E_, SE_, SL_, COL_, GV_, VN_,
+    b: _b, reg: _reg, wbGeo: _wbGeo, ssGeo: _ssGeo, ppGeo: _ppGeo,
+    /* per-frame vertex/face data */
+    verts, pts, faces, ptsCSM, projectCSM: _projectCSM, inTDSep: _inTDSep,
+    /* staging + environment */
+    rStage, altNm: alt_nm, svRise: _svRise, hasLM, lmPts, bPts, ssBPts,
+    trActive: _trActive, upStr: _upStr, UPCOL: _UPCOL, acDim: _acDim,
+    /* shared closures */
+    project, rotateNormal, litBr,
+  };
+
   /* Starship stage sep: fill open bottom ring of Ship with a disc cap */
   if (isSS && rStage >= 2 && _ssGeo) {
     const _ssRg = S.aircraft?.rocketGeometry;
@@ -2567,6 +2598,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     const k = _goldStr * Math.max(0, bv - 0.20);
     return `rgb(${col[0]*bv|0},${Math.min(255,col[1]*bv*(1-0.70*k))|0},${Math.max(0,col[2]*bv*(1-1.30*k))|0})`;
   };
+  rc.wCol = _wCol;   // golden-hour shader — born here, shared via the render context
 
   /* Fill shaded faces */
   for (const f of faces) {
