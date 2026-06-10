@@ -7,6 +7,7 @@
 import { S, setState } from './state.js';
 import { bbEvent } from './blackbox.js';
 import { capturePushback, pushbackPose } from './pushback.js';
+import { computeAirbusFMA } from './fma.js';
 
 const DEG = Math.PI / 180;
 
@@ -296,9 +297,16 @@ export function tickPhysics(dt) {
     }
   }
 
-  /* ── FMA phase from aircraft config ── */
+  /* ── FMA ── glass airliners drive it from the shared phase model; other aircraft keep
+     their altitude-banded fmaPhases strip. ── */
   let fma = S.fma;
-  if (ac.fmaPhases) {
+  if (ac.panel === 'airbus' || ac.panel === 'e190') {
+    const fieldElev = S.mission?.departure?.elevation ?? S.mission?.arrival?.elevation ?? 0;
+    fma = computeAirbusFMA({
+      wow: newWow, n1: S.n1 ?? 0, vs, alt: newAlt, altT: S.altT,
+      gear: S.gear, ap: S.ap, athr: S.athr, fieldElev,
+    });
+  } else if (ac.fmaPhases) {
     const phase = ac.fmaPhases.find(p => newAlt >= p.minAlt);
     if (phase) {
       fma = phase.vals.map((val, i) => ({

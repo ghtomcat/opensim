@@ -39,32 +39,30 @@ export function drawFMA(ctx, box, style) {
   ctx.fillStyle = _c(style, 'bg');
   ctx.fillRect(x, y, w, h);
 
+  /* Thin column separators — the real Airbus FMA divides its 5 columns, but carries no
+     labels: the column position is the meaning. */
   ctx.strokeStyle = 'rgba(255,255,255,0.12)';
   ctx.lineWidth = 1;
   for (let i = 1; i < 5; i++) {
     ctx.beginPath();
-    ctx.moveTo(x + i * cw, y + h * 0.08);
-    ctx.lineTo(x + i * cw, y + h * 0.92);
+    ctx.moveTo(x + i * cw, y + h * 0.12);
+    ctx.lineTo(x + i * cw, y + h * 0.88);
     ctx.stroke();
   }
 
-  const SUBS = ['SPEED','AUTOPILOT','LATERAL','VERTICAL','ALTITUDE'];
-
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
   for (let i = 0; i < 5; i++) {
     const fma = S.fma[i];
-    if (!fma) continue;
+    if (!fma || !fma.val) continue;
     const cx = x + i * cw + cw / 2;
 
-    ctx.font      = `${h * 0.26}px ${f}`;
-    ctx.fillStyle = 'rgba(200,215,225,0.45)';
-    ctx.textAlign = 'center';
-    ctx.fillText(fma.sub || SUBS[i], cx, y + h * 0.33);
-
-    if (fma.val) {
-      ctx.font      = `bold ${h * 0.46}px ${f}`;
-      ctx.fillStyle = _fmaCol(fma.col ?? 'white', style);
-      ctx.fillText(fma.val, cx, y + h * 0.79);
-    }
+    let fs = h * 0.5;
+    ctx.font = `bold ${fs}px ${f}`;
+    const tw = ctx.measureText(fma.val).width;
+    if (tw > cw * 0.9) { fs *= (cw * 0.9) / tw; ctx.font = `bold ${fs}px ${f}`; }   // fit long modes
+    ctx.fillStyle = _fmaCol(fma.col ?? 'white', style);
+    ctx.fillText(fma.val, cx, y + h * 0.52);
   }
 
   ctx.restore();
