@@ -9,6 +9,7 @@
   "departure": {
     "icao": "KBZN",
     "name": "Bozeman Yellowstone Intl",
+    "runway": "30",
     "elevation": 4473
   },
   "arrival": {

@@ -9,6 +9,7 @@
   "departure": {
     "icao": "WSSS",
     "name": "Singapore Changi",
+    "runway": "02C",
     "elevation": 22
   },
   "arrival": {

@@ -3312,8 +3312,109 @@
             pts.reduce((s, p) => s + p[1], 0) / pts.length];
   }
 
-  /* Route-overview chart: coastline backdrop + the airway route (dep → fixes → arr),
-     fit-to-route on a simple equirectangular projection. */
+  /* A STAR in CIFP is split into records sharing a name: enroute transitions (entry fix →
+     common point), a common middle (trans empty), and runway transitions (RWxx, common →
+     approach). Assemble the full arrival path for one entry transition + the arrival runway. */
+  function _assembleStarLegs(stars, name, arrRwId, entryTrans) {
+    const lp = (pr) => (pr?.legs || []).filter(l => l.lat != null);
+    const enr    = stars.find(s => s.name === name && s.trans === entryTrans);
+    const common = stars.find(s => s.name === name && !s.trans);
+    const rwt    = arrRwId && stars.find(s => s.name === name && s.trans === arrRwId);
+    const legs = [];
+    for (const p of [enr, common, rwt]) { if (!p) continue;
+      for (const l of lp(p)) { const last = legs[legs.length - 1];
+        if (last && last.fix === l.fix) continue;                 // dedupe the shared join fix
+        legs.push(l); } }
+    return legs;
+  }
+  /* One assembled option per STAR name: enroute transition (entry nearest the departure)
+     + common + the arrival-runway transition. */
+  function _arrStarOptions(aP, arrRwId, depLL) {
+    if (!aP?.stars?.length) return [];
+    const lp = (pr) => (pr?.legs || []).filter(l => l.lat != null);
+    const enrOf = new Map();
+    for (const s of aP.stars) {
+      if (/^RW/.test(s.trans || '') || !s.trans || !lp(s).length) continue;   // enroute transitions only
+      if (!enrOf.has(s.name)) enrOf.set(s.name, []);
+      enrOf.get(s.name).push(s);
+    }
+    const opts = [];
+    for (const [name, recs] of enrOf) {
+      let best = null;
+      for (const s of recs) { const en = lp(s)[0], d = depLL ? _gcNm(en.lat, en.lon, depLL[0], depLL[1]) : 0;
+        if (!best || d < best.d) best = { s, en, d }; }
+      const legs = _assembleStarLegs(aP.stars, name, arrRwId, best.s.trans);
+      if (legs.length) opts.push({ name, legs, en: { lat: best.en.lat, lon: best.en.lon }, d: best.d });
+    }
+    return opts;
+  }
+
+  /* Gate-to-gate route: SID (runway → exit fix) + en-route airways (SID exit → STAR
+     entry) + STAR (entry → arrival). Each piece is optional — with no procedures it
+     degrades to the old airport→airport airway route. Returns
+     { legs:[{lat,lon,id,seg}], distNm, sid, star } with seg ∈ dep|sid|awy|star|arr. */
+  function _buildFullRoute(dep, arr) {
+    const depIc = dep?.icao, arrIc = arr?.icao;
+    const depLL = _airportCentre(depIc), arrLL = _airportCentre(arrIc);
+    if (!depLL || !arrLL) return null;
+    const dP = _PROCEDURES[depIc], aP = _PROCEDURES[arrIc];
+    const legPts = (pr) => (pr?.legs || []).filter(l => l.lat != null);
+    const depRwLL = (dep?.runway && dP?.rwys?.['RW' + dep.runway]) || depLL;
+    const arrRwLL = (arr?.runway && aP?.rwys?.['RW' + arr.runway]) || arrLL;
+
+    /* arrival STAR — full assembled path (enroute + common + runway transition). Mission may
+       pin the STAR by name (arr.star); otherwise the one whose entry is nearest the departure. */
+    const arrRwId = arr?.runway ? ('RW' + arr.runway) : null;
+    const starOpts = _arrStarOptions(aP, arrRwId, depLL);
+    let star = starOpts.length
+      ? ((arr?.star && starOpts.find(o => o.name === arr.star)) ||
+         starOpts.reduce((b, o) => (!b || o.d < b.d) ? o : b, null))
+      : null;
+    const starEntry = star ? star.en : { lat: arrRwLL[0], lon: arrRwLL[1] };
+
+    /* departure SID for the runway. Empty airspace → just pick the shortest: the exit fix
+       that minimises (runway→exit)+(exit→STAR entry). Mission may pin it (dep.sid);
+       later ATC would assign it in the clearance. */
+    let sid = null;
+    if (dP?.sids?.length) {
+      const rwy = dep?.runway ? 'RW' + dep.runway : null;
+      let cands = dP.sids.filter(s => legPts(s).length && (!rwy || s.trans === rwy));
+      if (!cands.length) cands = dP.sids.filter(s => legPts(s).length);
+      const pin = dep?.sid && (cands.find(s => s.name === dep.sid) || dP.sids.find(s => s.name === dep.sid && legPts(s).length));
+      if (pin) sid = { s: pin, ex: legPts(pin).at(-1) };
+      else for (const s of cands) {
+        const lp = legPts(s), ex = lp.at(-1);
+        let flown = 0, prev = depRwLL;                       // actual flown SID distance — penalises doglegs
+        for (const l of lp) { flown += _gcNm(prev[0], prev[1], l.lat, l.lon); prev = [l.lat, l.lon]; }
+        const d = flown + _gcNm(ex.lat, ex.lon, starEntry.lat, starEntry.lon);
+        if (!sid || d < sid.d) sid = { s, ex, d };
+      }
+    }
+    const sidExit = sid ? sid.ex : { lat: depRwLL[0], lon: depRwLL[1] };
+
+    let awy = null;
+    try { awy = routeAirway(sidExit.lat, sidExit.lon, starEntry.lat, starEntry.lon); } catch {}
+
+    const legs = [];
+    const push = (lat, lon, id, seg) => {
+      const last = legs[legs.length - 1];
+      if (last && Math.abs(last.lat - lat) < 1e-5 && Math.abs(last.lon - lon) < 1e-5) return;   // drop dup
+      legs.push({ lat, lon, id: id || null, seg });
+    };
+    push(depRwLL[0], depRwLL[1], depIc, 'dep');
+    if (sid)      for (const l of legPts(sid.s)) push(l.lat, l.lon, l.fix, 'sid');
+    if (awy?.wpts) for (const w of awy.wpts)     push(w.lat, w.lon, w.id, 'awy');
+    if (star)     for (const l of star.legs) push(l.lat, l.lon, l.fix, 'star');
+    push(arrRwLL[0], arrRwLL[1], arrIc, 'arr');
+
+    let dist = 0;
+    for (let i = 1; i < legs.length; i++) dist += _gcNm(legs[i-1].lat, legs[i-1].lon, legs[i].lat, legs[i].lon);
+    return { legs, distNm: dist, sid: sid?.s || null, star: star || null };
+  }
+
+  /* Route-overview chart: coastline backdrop + the full gate-to-gate route, fit-to-route
+     on a simple equirectangular projection. Segments coloured SID→en-route→STAR. */
+  const _SEG_COL = { dep: '#5dd47e', sid: '#56c7e6', awy: '#d96ec8', star: '#e6b455', arr: '#ff6e6e' };
   function _renderRouteChart(dep, arr) {
     const cv = document.getElementById('fb-chart');
     if (!cv) return;
@@ -3324,13 +3425,9 @@
     ctx.fillStyle = '#070b11'; ctx.fillRect(0, 0, W, H);
 
     const depLL = _airportCentre(dep?.icao), arrLL = _airportCentre(arr?.icao);
-    let route = null;
-    try { if (depLL && arrLL) route = routeAirway(depLL[0], depLL[1], arrLL[0], arrLL[1]); } catch {}
-
-    const pts = [];
-    if (depLL) pts.push(depLL);
-    if (route?.pts) for (const p of route.pts) pts.push(p);
-    if (arrLL) pts.push(arrLL);
+    const route = _buildFullRoute(dep, arr);
+    const pts = route ? route.legs.map(l => [l.lat, l.lon]) : [];
+    if (depLL && !pts.length) pts.push(depLL);
     if (!pts.length) return;
 
     let latMin = 90, latMax = -90, lonMin = 180, lonMax = -180;
@@ -3360,14 +3457,17 @@
     }
     ctx.stroke();
 
-    if (pts.length > 1) {                                  // route line (magenta)
-      ctx.strokeStyle = '#d96ec8'; ctx.lineWidth = 2 * dpr; ctx.lineJoin = 'round'; ctx.beginPath();
-      pts.forEach(([la, lo], i) => { const [x, y] = proj(la, lo); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
-      ctx.stroke();
-    }
-    if (route?.pts) {                                      // fix dots
-      ctx.fillStyle = 'rgba(110,200,235,0.85)';
-      for (const [la, lo] of route.pts) { const [x, y] = proj(la, lo); ctx.beginPath(); ctx.arc(x, y, 2.2 * dpr, 0, 7); ctx.fill(); }
+    if (route && route.legs.length > 1) {                  // route line, coloured per segment
+      ctx.lineWidth = 2 * dpr; ctx.lineJoin = ctx.lineCap = 'round';
+      for (let i = 1; i < route.legs.length; i++) {
+        const a = route.legs[i-1], b = route.legs[i];
+        ctx.strokeStyle = _SEG_COL[b.seg] || '#d96ec8'; ctx.beginPath();
+        const pa = proj(a.lat, a.lon), pb = proj(b.lat, b.lon);
+        ctx.moveTo(pa[0], pa[1]); ctx.lineTo(pb[0], pb[1]); ctx.stroke();
+      }
+      ctx.fillStyle = 'rgba(110,200,235,0.85)';            // fix dots (en-route + procedure fixes)
+      for (const l of route.legs) { if (l.seg === 'dep' || l.seg === 'arr') continue;
+        const [x, y] = proj(l.lat, l.lon); ctx.beginPath(); ctx.arc(x, y, 2.2 * dpr, 0, 7); ctx.fill(); }
     }
     const mark = (ll, icao, col) => {                      // airport markers + labels
       if (!ll) return; const [x, y] = proj(ll[0], ll[1]);
@@ -3378,10 +3478,13 @@
     mark(depLL, dep?.icao, '#5dd47e');
     mark(arrLL, arr?.icao, '#ff6e6e');
 
-    if (route) {                                           // distance / leg count
+    if (route) {                                           // SID / STAR labels + distance
       ctx.fillStyle = 'rgba(216,224,234,0.6)'; ctx.font = `${11 * dpr}px "IBM Plex Mono",monospace`;
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      const tag = [route.sid && 'SID ' + route.sid.name, route.star && 'STAR ' + route.star.name].filter(Boolean).join('   ');
+      if (tag) ctx.fillText(tag, 22 * dpr, 14 * dpr);
       ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
-      ctx.fillText(`${Math.round(route.distNm)} nm · ${route.pts.length} legs`, W - 22 * dpr, H - 70 * dpr);
+      ctx.fillText(`${Math.round(route.distNm)} nm · ${route.legs.length} legs`, W - 22 * dpr, H - 70 * dpr);
     }
   }
 
@@ -3471,27 +3574,47 @@
     const ic = apt?.icao, proc = _PROCEDURES[ic];
     if (!ic)   { center(isDep ? 'No departure airport' : 'No arrival airport'); cv.onclick = null; return; }
     if (!proc) { center('Procedures not loaded — run scripts/build-cifp.py (local, X-Plane).'); cv.onclick = null; return; }
-    const rwy = isDep && md?.departure?.runway ? ('RW' + md.departure.runway) : null;
-    let list = isDep ? proc.sids.filter(s => !rwy || s.trans === rwy) : proc.stars;
-    if (!list.length) list = isDep ? proc.sids.filter(s => s.trans === 'ALL') : proc.apprs;
+    const rwRaw = isDep ? md?.departure?.runway : md?.arrival?.runway;
+    const rwy = rwRaw ? ('RW' + rwRaw) : null;
+    /* default to the procedure the route actually flies; the tab opens on it and clicks
+       cycle the alternatives. Departure = SID records (one per name on this runway);
+       arrival = full assembled STARs (enroute + common + runway transition), one per name. */
+    const route = _buildFullRoute(md?.departure, md?.arrival);
+    let list, chosen;
+    if (isDep) {
+      list = proc.sids.filter(s => !rwy || s.trans === rwy);
+      if (!list.length) list = proc.sids.filter(s => s.trans === 'ALL');
+      chosen = route?.sid;
+    } else {
+      list = _arrStarOptions(proc, rwy, _airportCentre(md?.departure?.icao));
+      chosen = route?.star;
+    }
     if (!list.length) { center('No ' + (isDep ? 'SIDs' : 'STARs') + ' for ' + (ic || '')); cv.onclick = null; return; }
 
+    const base0 = chosen ? (isDep ? list.indexOf(chosen) : list.findIndex(o => o.name === chosen.name)) : -1;
+    const base = base0 < 0 ? 0 : base0;
     const iv = isDep ? _fbDepIdx : _fbArrIdx;
-    const idx = ((iv % list.length) + list.length) % list.length, sel = list[idx];
+    const idx = (((base + iv) % list.length) + list.length) % list.length, sel = list[idx];
+    const isChosen = isDep ? (sel === chosen) : (!!chosen && sel.name === chosen.name);
     cv.onclick = () => { if (isDep) _fbDepIdx++; else _fbArrIdx++; _renderProcChart(apt, md, kind); };   // click → next
 
     const path = sel.legs.filter(l => l.lat != null);
     if (!path.length) { center('No fix coordinates for ' + sel.name); return; }
-    const rwLL = isDep && rwy && proc.rwys[rwy];
-    const anchorLL = rwLL || (!isDep && _airportCentre(ic));        // runway threshold (dep) or airport (arr)
-    const pts = rwLL ? [{ lat: rwLL[0], lon: rwLL[1] }, ...path] : path;
+    const rwLL = rwy && proc.rwys[rwy];
+    const ctrLL = _airportCentre(ic);
+    const anchorPt = rwLL ? { lat: rwLL[0], lon: rwLL[1] } : (ctrLL ? { lat: ctrLL[0], lon: ctrLL[1] } : null);
+    const anchorLL = anchorPt ? [anchorPt.lat, anchorPt.lon] : null;   // runway threshold, else airport centre
+    /* departure starts at the field and climbs out; arrival flies the STAR in and ends at the field */
+    const pts = anchorPt ? (isDep ? [anchorPt, ...path] : [...path, anchorPt]) : path;
     const fieldFt = (isDep ? md?.departure?.elevation : md?.arrival?.elevation) ?? 0;
 
     /* title */
     ctx.fillStyle = '#eef2f7'; ctx.font = `bold ${13 * dpr}px "IBM Plex Mono",monospace`; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    ctx.fillText(`${ic || ''} ${rwy || ''} · ${sel.name}`, 22 * dpr, 12 * dpr);
-    ctx.fillStyle = 'rgba(216,224,234,0.45)'; ctx.font = `${11 * dpr}px "IBM Plex Mono",monospace`;
-    ctx.fillText(`${isDep ? 'SID' : 'STAR'} ${idx + 1}/${list.length} — click to cycle`, 22 * dpr, 30 * dpr);
+    ctx.fillText(isDep ? `${ic || ''} ${rwy || ''} · ${sel.name}` : `${sel.name} · ${ic || ''} ${rwy || ''}`, 22 * dpr, 12 * dpr);
+    ctx.font = `${11 * dpr}px "IBM Plex Mono",monospace`;
+    ctx.fillStyle = isChosen ? 'rgba(110,200,235,0.9)' : 'rgba(216,224,234,0.45)';
+    const tag = isChosen ? ' · PLANNED' : '';
+    ctx.fillText(`${isDep ? 'SID' : 'STAR'} ${idx + 1}/${list.length}${tag} — click to cycle`, 22 * dpr, 30 * dpr);
 
     /* ── PLAN (top) ── */
     let latMin = 90, latMax = -90, lonMin = 180, lonMax = -180;
@@ -3520,12 +3643,12 @@
       ctx.fillStyle = '#cfe6f5'; ctx.font = `bold ${10 * dpr}px "IBM Plex Mono",monospace`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       ctx.fillText(' ' + l.fix, x + 5 * dpr, y - 5 * dpr);
     }
-    if (anchorLL) { const [x, y] = proj(anchorLL[0], anchorLL[1]); ctx.fillStyle = '#5dd47e'; ctx.beginPath(); ctx.arc(x, y, 4.5 * dpr, 0, 7); ctx.fill(); }
+    if (anchorLL) { const [x, y] = proj(anchorLL[0], anchorLL[1]); ctx.fillStyle = isDep ? _SEG_COL.dep : _SEG_COL.arr; ctx.beginPath(); ctx.arc(x, y, 4.5 * dpr, 0, 7); ctx.fill(); }
 
     /* ── PROFILE (bottom): cumulative distance × altitude, with constraints ── */
     const cum = [0];
     for (let i = 1; i < pts.length; i++) cum[i] = cum[i - 1] + _gcNm(pts[i - 1].lat, pts[i - 1].lon, pts[i].lat, pts[i].lon);
-    const totalNm = cum[cum.length - 1] || 1, off = rwLL ? 1 : 0;
+    const totalNm = cum[cum.length - 1] || 1, off = (isDep && anchorPt) ? 1 : 0;
     const cons = path.map((l, j) => ({ d: cum[j + off], a: _altParse(l.alt), fix: l.fix }));
     const maxAlt = Math.max(fieldFt + 6000, ...cons.filter(c => c.a).map(c => c.a.ft)) * 1.12;
     const prT = H * 0.63, prB = H - 34 * dpr, prL = 56 * dpr, prR = W - 26 * dpr;
@@ -3542,8 +3665,9 @@
     ctx.strokeStyle = 'rgba(120,200,140,0.5)'; ctx.setLineDash([4 * dpr, 4 * dpr]);              // field elevation
     ctx.beginPath(); ctx.moveTo(prL, PY(fieldFt)); ctx.lineTo(prR, PY(fieldFt)); ctx.stroke(); ctx.setLineDash([]);
 
-    const vpath = isDep ? [[PX(0), PY(fieldFt)]] : [];   // climb starts at the runway; descent at the first constraint
+    const vpath = isDep ? [[PX(0), PY(fieldFt)]] : [];   // departure climbs from the runway; arrival descends to it
     for (const c of cons) if (c.a) vpath.push([PX(c.d), PY(c.a.ft)]);
+    if (!isDep && anchorPt) vpath.push([PX(totalNm), PY(fieldFt)]);   // …down to the field
     ctx.strokeStyle = '#d96ec8'; ctx.lineWidth = 2 * dpr; ctx.beginPath();
     vpath.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke();
 
@@ -3578,21 +3702,22 @@
 
   /* Nav log — the route as a table: fix · leg distance · track · cumulative. */
   function _navLogHtml(dep, arr) {
-    const depLL = _airportCentre(dep?.icao), arrLL = _airportCentre(arr?.icao);
-    let r = null; try { if (depLL && arrLL) r = routeAirway(depLL[0], depLL[1], arrLL[0], arrLL[1]); } catch {}
-    if (!r?.wpts?.length) return `<div class="fb-empty">No en-route plan (local departure).</div>`;
-    const wp = [];
-    if (depLL) wp.push({ lat: depLL[0], lon: depLL[1], id: dep?.icao });
-    for (const w of r.wpts) wp.push(w);
-    if (arrLL) wp.push({ lat: arrLL[0], lon: arrLL[1], id: arr?.icao });
+    const r = _buildFullRoute(dep, arr);
+    if (!r?.legs?.length) return `<div class="fb-empty">No en-route plan (local departure).</div>`;
+    const segLbl = { dep: 'DEP', sid: 'SID', awy: 'AWY', star: 'STAR', arr: 'ARR' };
     let cum = 0, rows = '';
-    wp.forEach((w, i) => {
+    r.legs.forEach((w, i) => {
       let leg = '', trk = '';
-      if (i > 0) { const p = wp[i-1], lg = _gcNm(p.lat, p.lon, w.lat, w.lon); cum += lg;
+      if (i > 0) { const p = r.legs[i-1], lg = _gcNm(p.lat, p.lon, w.lat, w.lon); cum += lg;
         leg = Math.round(lg) + ' nm'; trk = String(Math.round(_bearing(p.lat, p.lon, w.lat, w.lon))).padStart(3, '0') + '°'; }
-      rows += `<tr><td>${i+1}</td><td class="id">${w.id || '—'}</td><td>${leg}</td><td>${trk}</td><td class="v">${Math.round(cum)} nm</td></tr>`;
+      const col = _SEG_COL[w.seg] || '#9fb0c0';
+      rows += `<tr><td>${i+1}</td><td class="id" style="color:${col}">${w.id || '—'}</td>` +
+              `<td style="color:${col};opacity:.7">${segLbl[w.seg] || ''}</td>` +
+              `<td>${leg}</td><td>${trk}</td><td class="v">${Math.round(cum)} nm</td></tr>`;
     });
-    return `<table class="fb-tbl"><thead><tr><th>#</th><th>FIX</th><th>LEG</th><th>TRK</th><th>DIST</th></tr></thead><tbody>${rows}</tbody></table>`;
+    const hdr = [r.sid && 'SID ' + r.sid.name, r.star && 'STAR ' + r.star.name].filter(Boolean).join(' · ');
+    return (hdr ? `<div class="fb-h">${hdr}</div>` : '') +
+      `<table class="fb-tbl"><thead><tr><th>#</th><th>FIX</th><th>SEG</th><th>LEG</th><th>TRK</th><th>DIST</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
   /* Frequencies — the bundled comm frequencies for departure + arrival. */
@@ -3637,8 +3762,8 @@
     tx.style.display = isChart ? 'none' : 'block';
     if      (name === 'route')     requestAnimationFrame(() => _renderRouteChart(dep, arr));
     else if (name === 'airport')   requestAnimationFrame(() => _renderAirportChart(dep, md));
-    else if (name === 'departure') requestAnimationFrame(() => _renderDepartureChart(dep, md));
-    else if (name === 'arrival')   requestAnimationFrame(() => _renderArrivalChart(arr, md));
+    else if (name === 'departure') { _fbDepIdx = 0; requestAnimationFrame(() => _renderDepartureChart(dep, md)); }   // open on the planned SID
+    else if (name === 'arrival')   { _fbArrIdx = 0; requestAnimationFrame(() => _renderArrivalChart(arr, md)); }     // open on the planned STAR
     else if (name === 'navlog')  tx.innerHTML = _navLogHtml(dep, arr);
     else if (name === 'freqs')   tx.innerHTML = _freqsHtml(dep, arr);
     else if (name === 'weather') { tx.innerHTML = _weatherLoadingHtml(dep, arr); _fillWeather(dep, arr); }
