@@ -98,8 +98,10 @@
     body.panel-dual #fcu                  { display: block; }
     body.panel-dual #pfd:not(.combined)   { top: 9vh; height: 91vh; }
     body.panel-dual #nd:not(.combined)    { top: 9vh; height: 91vh; }
-    body.panel-dual #pfd.combined         { top: 50vh; height: 50vh; }
-    body.panel-dual #nd.combined          { top: 50vh; height: 50vh; }
+    /* Combined (outside) view: end the displays at the top of the 80px status panel so the
+       bottom row (heading tape) isn't hidden behind it. */
+    body.panel-dual #pfd.combined         { top: 50vh; height: calc(50vh - 80px); }
+    body.panel-dual #nd.combined          { top: 50vh; height: calc(50vh - 80px); }
 
     /* ── ND (second display) — hidden by default, shown in dual-screen mode ── */
     #nd {

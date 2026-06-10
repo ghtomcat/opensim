@@ -6,9 +6,10 @@
     "tape":     "rgba(4,8,16,0.86)",
     "dim":      "rgba(220,230,240,0.38)",
 
-    "sky":      "#1b3f66",
-    "ground":   "#4d3018",
-    "horizon":  "#d4a843",
+    "sky":      "#1a76c4",
+    "ground":   "#7a5526",
+    "horizon":  "#ffffff",
+    "refSymbol":"#e8c91e",
 
     "white":    "#e8ecf0",
     "engaged":  "#3ddc6e",

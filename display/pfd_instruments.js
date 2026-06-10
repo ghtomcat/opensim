@@ -183,16 +183,15 @@ function _aircraftRef(ctx, box, style) {
   const cx  = box.x + box.w / 2;
   const cy  = box.y + box.h / 2;
   const arm = box.h * 0.038;
-  const col = _c(style, 'white');
+  const col = style.colors.refSymbol ?? '#e8c91e';   // Airbus aircraft reference symbol — yellow
 
   ctx.save();
   ctx.strokeStyle = col;
   ctx.fillStyle   = col;
-  ctx.lineWidth   = 2.5;
+  ctx.lineWidth   = 3;
 
-  ctx.beginPath();
-  ctx.arc(cx, cy, 3, 0, Math.PI * 2);
-  ctx.fill();
+  /* Two yellow wings with a square hub + a stub below — the fixed aircraft reference. */
+  ctx.fillRect(cx - 2.5, cy - 2.5, 5, 5);
 
   ctx.beginPath();
   ctx.moveTo(cx - arm * 3, cy);
@@ -295,11 +294,21 @@ function _bankArc(ctx, box, style) {
     ctx.stroke();
   }
 
+  /* Fixed roll reference index at the top (0°) — a small triangle the moving pointer
+     sits under at wings level. */
+  ctx.fillStyle = _c(style, 'white');
+  ctx.beginPath();
+  ctx.moveTo(0, -r);
+  ctx.lineTo(-5, -r - 9);
+  ctx.lineTo( 5, -r - 9);
+  ctx.closePath();
+  ctx.fill();
+
+  /* Moving bank pointer — sweeps the scale with roll. */
   const ptr = (-S.roll - 90) * Math.PI / 180;
   const px  = Math.cos(ptr) * (r - 2);
   const py  = Math.sin(ptr) * (r - 2);
 
-  ctx.fillStyle = _c(style, 'white');
   ctx.beginPath();
   ctx.moveTo(px - Math.sin(ptr) * 8, py + Math.cos(ptr) * 8);
   ctx.lineTo(px + Math.sin(ptr) * 8, py - Math.cos(ptr) * 8);
