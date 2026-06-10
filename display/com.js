@@ -9,20 +9,39 @@ import { speakATC, speakPM } from '../core/crew.js';
 import { bbEvent } from '../core/blackbox.js';
 import { RUNWAYS } from './runways-data.js';
 
-/* True when on/near a runway (lined up anywhere along it, or holding short) — gates the
-   takeoff request. Perpendicular distance to the runway centreline, clamped to the ends. */
-function _nearRunway() {
+/* Nearest runway whose centreline is within `maxNm` (perpendicular distance, clamped to
+   the thresholds) — on it, lined up, or holding short. Drives the takeoff and the
+   runway-crossing requests. Returns the runway object (with .ref/.leId/.heId), else null. */
+function _nearestRunway(maxNm = 0.12) {
   const ic = S.mission?.departure?.icao, rws = ic && RUNWAYS[ic];
-  if (!rws) return false;
+  if (!rws) return null;
   const cl = Math.cos((S.lat ?? 0) * Math.PI / 180), px = (S.lon ?? 0) * cl, py = S.lat ?? 0;
+  let best = null, bd = maxNm;
   for (const r of rws) {
     const ax = r.a[1]*cl, ay = r.a[0], bx = r.b[1]*cl, by = r.b[0];
     const vx = bx-ax, vy = by-ay, L2 = vx*vx + vy*vy || 1e-12;
     let t = ((px-ax)*vx + (py-ay)*vy) / L2; t = Math.max(0, Math.min(1, t));
     const dNm = Math.hypot(px-(ax+t*vx), py-(ay+t*vy)) * 60;   // deg → NM
-    if (dNm < 0.12) return true;                                // on the runway or just short of it
+    if (dNm < bd) { bd = dNm; best = r; }
   }
-  return false;
+  return best;
+}
+
+const _isRunway = (r, id) => !!r && (r.leId === id || r.heId === id || (r.ref || '').split('/').includes(id));
+
+/* True when the runway we're short of is our departure runway → takeoff request. */
+function _atDepartureRunway() {
+  const r = _nearestRunway(); if (!r) return false;
+  const dep = S.mission?.departure?.runway;
+  return dep ? _isRunway(r, dep) : true;                       // no specific dep runway → any runway counts
+}
+
+/* The runway we must CROSS to keep taxiing — the nearest runway that is NOT our
+   departure runway. Returns the runway object, else null. */
+function _crossingRunway() {
+  const dep = S.mission?.departure?.runway; if (!dep) return null;
+  const r = _nearestRunway();
+  return r && !_isRunway(r, dep) ? r : null;
 }
 
 /* ── Default LSZH frequency card ── */
@@ -269,8 +288,15 @@ const _REQUESTS = [
                   return `${cs}, taxi to holding point${rwy}${via}`; },
     run:  () => {} },
 
+  { id: 'cross', label: 'Cross runway',
+    when: () => { if (!(S.wow && (S.spd ?? 0) < 25 && S.pushbackStart && S.taxiClearance && !S.taxiClearance.arr)) return false;
+                  const r = _crossingRunway(); return !!r && !(S.crossedRunways || []).includes(r.ref); },
+    pm:   cs => { const r = _crossingRunway(); return `${cs}, holding short runway ${r?.ref ?? ''}, request crossing`; },
+    atc:  cs => { const r = _crossingRunway(); return `${cs}, cross runway ${r?.ref ?? ''}, no delay`; },
+    run:  () => { const r = _crossingRunway(); if (r) (S.crossedRunways || (S.crossedRunways = [])).push(r.ref); } },
+
   { id: 'takeoff', label: 'Takeoff',
-    when: () => S.wow && (S.spd ?? 0) < 40 && _nearRunway(),
+    when: () => S.wow && (S.spd ?? 0) < 40 && _atDepartureRunway(),
     pm:   cs => `${cs}, ready for departure`,
     atc:  cs => { const rwy = S.mission?.departure?.runway ?? S.taxiClearance?.rwy ?? '';
                   return `${cs},${rwy ? ` runway ${rwy},` : ''} cleared for takeoff`; },

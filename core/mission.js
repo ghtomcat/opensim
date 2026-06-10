@@ -94,6 +94,7 @@ export async function loadMission(missionPath, aircraftPath) {
     pushbackDone: false,        // motion complete → release the pose override so the aircraft can taxi
     pushbackFrom: null,         // captured stand pose at pushback start {lat,lon,hdg}
     pushbackTo:   null,         // target taxiway pose {lat,lon,hdg} from the taxi route
+    crossedRunways: [],         // refs of runways already cleared to cross during taxi-out
   });
 
   /* G1000 (C172) cockpit switches — cold and dark */

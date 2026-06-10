@@ -2223,13 +2223,14 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         }
       }
       if (_nightW > 0.2) {                                // warm interior glow, contained within the structure
-        const sp = [];
-        for (const o of bot) if (o.p) sp.push(o.p);
-        for (const o of top) if (o.p) sp.push(o.p);
+        const sp = [];                                    // only finite projected corners (off-screen verts go non-finite)
+        for (const o of bot) if (o.p && Number.isFinite(o.p[0]) && Number.isFinite(o.p[1])) sp.push(o.p);
+        for (const o of top) if (o.p && Number.isFinite(o.p[0]) && Number.isFinite(o.p[1])) sp.push(o.p);
         if (sp.length) {
           let mx=0,my=0; for (const p of sp){ mx+=p[0]; my+=p[1]; } mx/=sp.length; my/=sp.length;
           let rad=0; for (const p of sp) rad = Math.max(rad, Math.hypot(p[0]-mx, p[1]-my));
           rad = Math.max(rad*1.05, 6*_dprB);
+        if (Number.isFinite(mx) && Number.isFinite(my) && Number.isFinite(rad)) {
           const gr = ctx.createRadialGradient(mx,my,0, mx,my,rad), a = _nightW*0.27;
           gr.addColorStop(0,   `rgba(255,226,168,${a.toFixed(3)})`);
           gr.addColorStop(0.6, `rgba(255,220,160,${(a*0.5).toFixed(3)})`);
@@ -2242,6 +2243,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           ctx.globalCompositeOperation='lighter'; ctx.fillStyle=gr;
           ctx.fillRect(mx-rad, my-rad, rad*2, rad*2);
           ctx.restore();
+        }
         }
       }
       if (typeof window !== 'undefined' && window.OPENSIM_MASSEDGES) {   // debug: bright footprint + vertex indices
