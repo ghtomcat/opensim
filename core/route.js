@@ -154,3 +154,25 @@ export function buildFullRoute(dep, arr) {
 
 /* Segment colours — Airbus-ish FMS palette, shared by the briefing charts and the ND. */
 export const SEG_COL = { dep: '#5dd47e', sid: '#56c7e6', awy: '#d96ec8', star: '#e6b455', app: '#ef9a5a', arr: '#ff6e6e' };
+
+/* Altitude constraints. A leg's raw alt is an ARINC 424 string: +/− at-or-above/below,
+   B = block (alt1 is the ceiling), C/H/J/V/Y = at-or-above (glideslope floors), G/I/X/@ = at,
+   FLnnn = flight level. altParse → { ft, kind }; altLabel → "≥FL260" / "≤8000" / "5000". */
+export function altParse(s) {
+  if (!s) return null;
+  let kind = 'at', t = String(s).trim();
+  const c = t[0];
+  if (c === '+') { kind = 'above'; t = t.slice(1); }
+  else if (c === '-') { kind = 'below'; t = t.slice(1); }
+  else if (c === 'B') { kind = 'below'; t = t.slice(1); }
+  else if ('CHJVY'.includes(c)) { kind = 'above'; t = t.slice(1); }
+  else if ('GIX@'.includes(c)) { t = t.slice(1); }
+  const ft = t.startsWith('FL') ? parseInt(t.slice(2)) * 100 : parseInt(t);
+  return Number.isFinite(ft) ? { ft, kind } : null;
+}
+export function altLabel(s) {
+  const a = (s && typeof s === 'object') ? s : altParse(s);
+  if (!a) return '';
+  const v = a.ft >= 18000 ? 'FL' + Math.round(a.ft / 100) : String(a.ft);
+  return (a.kind === 'above' ? '≥' : a.kind === 'below' ? '≤' : '') + v;
+}

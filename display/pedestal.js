@@ -7,8 +7,21 @@
 
 import { S, setState } from '../core/state.js';
 import { startEngineLifecycle, stopEngineLifecycle } from '../core/sound.js';
+import { buildFullRoute, altLabel } from '../core/route.js';
 
 let _el = null;
+
+const _DEG = Math.PI / 180;
+function _gc(aLat, aLon, bLat, bLon) {                    // great-circle nm
+  const p1 = aLat*_DEG, p2 = bLat*_DEG, dp = (bLat-aLat)*_DEG, dl = (bLon-aLon)*_DEG;
+  const h = Math.sin(dp/2)**2 + Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
+  return 2 * 3440.065 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+function _brg(aLat, aLon, bLat, bLon) {                   // initial bearing °
+  const p1 = aLat*_DEG, p2 = bLat*_DEG, dl = (bLon-aLon)*_DEG;
+  const y = Math.sin(dl)*Math.cos(p2), x = Math.cos(p1)*Math.sin(p2) - Math.sin(p1)*Math.cos(p2)*Math.cos(dl);
+  return (Math.atan2(y, x)/_DEG + 360) % 360;
+}
 
 /* ── CSS ──────────────────────────────────────────────────────── */
 const _CSS = `
@@ -265,6 +278,51 @@ const _CSS = `
   .ped-rotary-sub {
     font: 600 8px/1 monospace; letter-spacing: 0.10em; color: #485868;
   }
+
+  /* ── Two-column layout: controls + MCDU ── */
+  .ped-main {
+    display: flex; gap: 48px; align-items: flex-start; justify-content: center;
+  }
+  .ped-controls {
+    display: flex; flex-direction: column; align-items: center; gap: 28px;
+  }
+
+  /* ── MCDU (Airbus F-PLN page, read-only) ── */
+  .ped-mcdu {
+    width: 500px; max-height: 82vh;
+    display: flex; flex-direction: column;
+    background: #04070a; border: 1px solid #1b2730; border-radius: 8px;
+    padding: 16px 18px 14px;
+    font-family: "IBM Plex Mono","Courier New",monospace;
+    box-shadow: inset 0 0 60px rgba(0,50,40,0.10), 0 8px 30px rgba(0,0,0,0.5);
+  }
+  .mcdu-hdr {
+    display: flex; justify-content: space-between; align-items: baseline;
+    color: #e8ecf0; font-size: 15px; letter-spacing: 0.10em;
+    padding-bottom: 9px; border-bottom: 1px solid #1b2730;
+  }
+  .mcdu-dim { color: #56707f; }
+  .mcdu-cols, .mcdu-wp {
+    display: grid; grid-template-columns: 1fr auto 78px; gap: 16px; align-items: baseline;
+  }
+  .mcdu-cols {
+    color: #44586a; font-size: 11px; letter-spacing: 0.06em; padding: 8px 2px 2px;
+  }
+  .mcdu-cols span:last-child { text-align: right; }
+  .mcdu-list { overflow-y: auto; flex: 1; padding-right: 4px; }
+  .mcdu-wp { padding: 4px 2px; }
+  .mcdu-id  { font-size: 18px; letter-spacing: 0.04em; }
+  .mcdu-id.gr  { color: #3ddc6e; }
+  .mcdu-id.wht { color: #e8ecf0; }
+  .mcdu-td  { color: #6b8294; font-size: 13px; align-self: center; }
+  .mcdu-alt { color: #d96ec8; font-size: 14px; text-align: right; }
+  .mcdu-div {
+    font-size: 12px; letter-spacing: 0.12em;
+    padding: 11px 2px 4px; margin-top: 5px; border-top: 1px solid #121a22;
+  }
+  .mcdu-div.cy { color: #56c7e6; } .mcdu-div.mg { color: #d96ec8; }
+  .mcdu-div.am { color: #e6b455; } .mcdu-div.or { color: #ef9a5a; }
+  .mcdu-empty { color: #56707f; text-align: center; padding: 48px 0; font-size: 14px; line-height: 1.8; }
 `;
 
 /* ── Helpers ──────────────────────────────────────────────────── */
@@ -290,6 +348,45 @@ function _activeProfileIdx() {
     if (d < bestD) { bestD = d; best = i; }
   });
   return best;
+}
+
+/* ── MCDU — Airbus F-PLN page (read-only) ─────────────────────────
+   The text twin of the ND: the same buildFullRoute flight plan as a scrollable list, one
+   row per waypoint with track/distance and the altitude constraint, grouped by segment. */
+function _mcduHTML() {
+  const dep = S.mission?.departure, arr = S.mission?.arrival;
+  const tag = (d) => d?.icao ? d.icao + (d.runway ? d.runway : '') : '----';
+  const from = tag(dep), to = tag(arr);
+  const hdr = `<div class="mcdu-hdr"><span>F-PLN</span><span class="mcdu-dim">${from} → ${to}</span></div>`;
+
+  let route = null; try { route = buildFullRoute(dep, arr); } catch {}
+  if (!route?.legs?.length) {
+    const why = (!dep?.icao || !arr?.icao) ? 'needs departure + arrival' : 'procedures not loaded';
+    return hdr + `<div class="mcdu-empty">NO FLIGHT PLAN<br><span class="mcdu-dim">${why}</span></div>`;
+  }
+
+  const segName = { sid: route.sid?.name, star: route.star?.name, app: route.appr };
+  const segLbl  = { sid: 'SID', awy: 'AIRWAY', star: 'STAR', app: 'APPR' };
+  const segCol  = { sid: 'cy', awy: 'mg', star: 'am', app: 'or' };
+  let rows = '', lastSeg = null;
+  route.legs.forEach((l, i) => {
+    const isApt = l.seg === 'dep' || l.seg === 'arr';
+    if (!isApt && l.seg !== lastSeg) {
+      const nm = segName[l.seg];
+      rows += `<div class="mcdu-div ${segCol[l.seg]}">${nm ? nm + ' · ' : ''}${segLbl[l.seg] || ''}</div>`;
+    }
+    lastSeg = l.seg;
+    if (!l.id) return;
+    let td = '';
+    if (i > 0) { const p = route.legs[i-1];
+      td = `${String(Math.round(_brg(p.lat, p.lon, l.lat, l.lon))).padStart(3, '0')}°/${Math.round(_gc(p.lat, p.lon, l.lat, l.lon))}`; }
+    rows += `<div class="mcdu-wp"><span class="mcdu-id ${isApt ? 'wht' : 'gr'}">${l.id}</span>` +
+            `<span class="mcdu-td">${td}</span><span class="mcdu-alt">${altLabel(l.alt)}</span></div>`;
+  });
+
+  return hdr +
+    `<div class="mcdu-cols"><span>WPT</span><span>TRK/DIST</span><span>ALT</span></div>` +
+    `<div class="mcdu-list">${rows}</div>`;
 }
 
 /* ── HTML builder ─────────────────────────────────────────────── */
@@ -372,35 +469,45 @@ function _buildHTML() {
       </div>`;
   })() : '';
 
+  /* MCDU only on the glass-cockpit jets (it reads the procedure flight plan). */
+  const showMcdu = S.aircraft?.panel !== 'g1000' && S.aircraft?.panel !== 'dr400';
+  const mcdu = showMcdu ? `<div class="ped-mcdu">${_mcduHTML()}</div>` : '';
+
   return `
     <div class="ped-title">CENTRE PEDESTAL</div>
 
-    <div class="ped-tl-block">
-      <div class="ped-tl-label">THRUST</div>
-      <div class="ped-tl-row">${leverCols}</div>
-    </div>
-
-    <div class="ped-sep"></div>
-
-    <div style="display:flex;gap:36px;align-items:flex-start;">
-      <div class="ped-flap-block">
-        <div class="ped-flap-label">FLAPS</div>
-        <div class="ped-flap-gate">${flapBtns}</div>
-      </div>
-      <div class="ped-spdbk-block">
-        <div class="ped-spdbk-label">SPD BRK</div>
-        <div class="ped-spdbk-gate">${sbBtns}</div>
-      </div>
-      <div class="ped-park-block">
-        <div class="ped-park-label">PARK BRK</div>
-        <div class="ped-park-gate">
-          <div class="ped-park-pos" data-pb="1">ON</div>
-          <div class="ped-park-pos" data-pb="0">OFF</div>
+    <div class="ped-main">
+      <div class="ped-controls">
+        <div class="ped-tl-block">
+          <div class="ped-tl-label">THRUST</div>
+          <div class="ped-tl-row">${leverCols}</div>
         </div>
-      </div>
-    </div>
 
-    ${engStartSection}
+        <div class="ped-sep"></div>
+
+        <div style="display:flex;gap:36px;align-items:flex-start;">
+          <div class="ped-flap-block">
+            <div class="ped-flap-label">FLAPS</div>
+            <div class="ped-flap-gate">${flapBtns}</div>
+          </div>
+          <div class="ped-spdbk-block">
+            <div class="ped-spdbk-label">SPD BRK</div>
+            <div class="ped-spdbk-gate">${sbBtns}</div>
+          </div>
+          <div class="ped-park-block">
+            <div class="ped-park-label">PARK BRK</div>
+            <div class="ped-park-gate">
+              <div class="ped-park-pos" data-pb="1">ON</div>
+              <div class="ped-park-pos" data-pb="0">OFF</div>
+            </div>
+          </div>
+        </div>
+
+        ${engStartSection}
+      </div>
+
+      ${mcdu}
+    </div>
 
     <div class="ped-hint">D · CLOSE</div>
   `;
