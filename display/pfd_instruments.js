@@ -9,6 +9,19 @@
 
 import { S } from '../core/state.js';
 import { smooth, smoothAngle } from './smooth.js';
+import { buildFullRoute, getProcedures } from '../core/route.js';
+
+/* The in-flight flight plan — the same gate-to-gate route the briefing draws, cached per
+   mission (buildFullRoute does a Dijkstra over the airway graph, too heavy for every frame).
+   The procedure-count is in the key so the route refreshes once the lazy CIFP import lands. */
+let _ndRoute = { key: null, r: null };
+function _ndGetRoute() {
+  const dep = S.mission?.departure, arr = S.mission?.arrival;
+  const np  = Object.keys(getProcedures()).length;
+  const key = `${np}|${dep?.icao}/${dep?.runway}/${dep?.sid}|${arr?.icao}/${arr?.runway}/${arr?.star}`;
+  if (key !== _ndRoute.key) { _ndRoute.key = key; try { _ndRoute.r = buildFullRoute(dep, arr); } catch { _ndRoute.r = null; } }
+  return _ndRoute.r;
+}
 
 const _MONO = '"IBM Plex Mono","Courier New",monospace';
 const _UI   = '"Syne","Helvetica Neue",sans-serif';
@@ -604,7 +617,118 @@ export function drawHdgTape(ctx, box, style) {
 /* ════════════════════════════════════════════════════════════
    ND MAP — Navigation Display (heading-up compass rose)
    ════════════════════════════════════════════════════════════ */
+/* ── ND ARC mode (Airbus skin) ──────────────────────────────────────────────
+   Forward compass arc, aircraft near the bottom, heading-up. Draws the gate-to-gate
+   flight plan (green, Airbus F-PLN) with waypoint diamonds + labels, the active "TO"
+   waypoint and its distance, GS/TAS, and range arcs — modelled on a real Airbus ND. */
+function _drawNDArc(ctx, box, style, config = {}) {
+  const { x, y, w, h } = box;
+  const f       = _f(style);
+  const ox      = x + w / 2, oy = y + h * 0.86;        // ownship near the bottom centre
+  const R       = h * 0.74;                            // ownship → outer (compass) arc = selected range
+  const rangeNm = config.range_nm ?? 20;
+  const pxPerNm = R / rangeNm;
+  const ARC     = 65;                                  // degrees of arc shown each side of straight-ahead
+  const hdg     = S.hdg ?? 0, hdgRad = hdg * Math.PI / 180, cosH = Math.cos(hdgRad), sinH = Math.sin(hdgRad);
+  const acLat   = S.lat ?? 0, acLon = S.lon ?? 0, cosAcLat = Math.cos(acLat * Math.PI / 180);
+  const col     = (k) => _c(style, k);
+  const a0 = (-90 - ARC) * Math.PI / 180, a1 = (-90 + ARC) * Math.PI / 180;
+
+  ctx.save();
+  ctx.fillStyle = col('bg'); ctx.fillRect(x, y, w, h);
+  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+
+  /* heading-up projection: aircraft at (ox,oy), forward → up, right → +x */
+  const proj = (lat, lon) => {
+    const dN = (lat - acLat) * 60, dE = (lon - acLon) * 60 * cosAcLat;
+    const fwd = dN * cosH + dE * sinH, rgt = -dN * sinH + dE * cosH;
+    return [ox + rgt * pxPerNm, oy - fwd * pxPerNm, fwd];
+  };
+
+  /* range arcs (dashed half-range) + outer compass arc */
+  ctx.strokeStyle = 'rgba(180,210,225,0.22)'; ctx.lineWidth = 1; ctx.setLineDash([4, 5]);
+  ctx.beginPath(); ctx.arc(ox, oy, R * 0.5, a0, a1); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.strokeStyle = col('dim'); ctx.lineWidth = 1.3;
+  ctx.beginPath(); ctx.arc(ox, oy, R, a0, a1); ctx.stroke();
+
+  /* heading ticks + labels around the arc (heading-up) */
+  ctx.font = `${h * 0.032}px ${f}`; ctx.fillStyle = col('white'); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (let d = 0; d < 360; d += 5) {
+    const rel = ((d - hdg + 540) % 360) - 180; if (Math.abs(rel) > ARC) continue;
+    const ang = (-90 + rel) * Math.PI / 180, c = Math.cos(ang), s = Math.sin(ang);
+    const len = d % 10 === 0 ? 13 : 7;
+    ctx.strokeStyle = col('dim'); ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(ox + c * R, oy + s * R); ctx.lineTo(ox + c * (R - len), oy + s * (R - len)); ctx.stroke();
+    if (d % 30 === 0) ctx.fillText(['N','03','06','E','12','15','S','21','24','W','30','33'][d / 30], ox + c * (R - len - h * 0.035), oy + s * (R - len - h * 0.035));
+    else if (d % 10 === 0) ctx.fillText(String(d / 10).padStart(2, '0'), ox + c * (R - len - h * 0.032), oy + s * (R - len - h * 0.032));
+  }
+  /* lubber line + heading marker at top of arc */
+  ctx.fillStyle = col('white');
+  ctx.beginPath(); ctx.moveTo(ox, oy - R); ctx.lineTo(ox - 6, oy - R - 9); ctx.lineTo(ox + 6, oy - R - 9); ctx.closePath(); ctx.fill();
+
+  /* ── flight plan (green F-PLN) ── */
+  const route = _ndGetRoute();
+  let toWp = null;                                     // active "TO" waypoint = nearest fix ahead
+  if (route?.legs?.length) {
+    const P = route.legs.map(l => proj(l.lat, l.lon));
+    ctx.strokeStyle = col('engaged'); ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    ctx.beginPath(); P.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke();
+
+    ctx.font = `${h * 0.028}px ${f}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    route.legs.forEach((l, i) => {
+      const [sx, sy, fwd] = P[i];
+      if (l.id && fwd > 0.5 && (!toWp || fwd < toWp.fwd)) toWp = { id: l.id, fwd, dN: (l.lat - acLat) * 60, dE: (l.lon - acLon) * 60 * cosAcLat };
+      if (!l.id || l.seg === 'dep' || l.seg === 'arr') return;
+      if (sx < x - 20 || sx > x + w + 20 || sy < y - 20 || sy > y + h + 20) return;
+      const sz = h * 0.013;
+      ctx.strokeStyle = col('engaged'); ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(sx, sy - sz); ctx.lineTo(sx + sz, sy); ctx.lineTo(sx, sy + sz); ctx.lineTo(sx - sz, sy); ctx.closePath(); ctx.stroke();
+      ctx.fillStyle = col('engaged'); ctx.fillText(l.id, sx + sz + 3, sy);
+    });
+  }
+
+  /* ── ownship (Airbus yellow aircraft) + heading line ── */
+  ctx.strokeStyle = 'rgba(232,236,240,0.4)'; ctx.lineWidth = 1; ctx.setLineDash([5, 5]);
+  ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy - R); ctx.stroke(); ctx.setLineDash([]);
+  const oz = h * 0.022, yel = col('refSymbol');
+  ctx.strokeStyle = yel; ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  ctx.moveTo(ox, oy - oz); ctx.lineTo(ox, oy + oz);                 // fuselage
+  ctx.moveTo(ox - oz, oy - oz * 0.1); ctx.lineTo(ox + oz, oy - oz * 0.1);  // wings
+  ctx.moveTo(ox - oz * 0.5, oy + oz); ctx.lineTo(ox + oz * 0.5, oy + oz);  // tailplane
+  ctx.stroke();
+
+  /* ── data: GS / TAS top-left, active waypoint top-right ── */
+  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+  ctx.font = `${h * 0.036}px ${f}`;
+  ctx.fillStyle = col('engaged'); ctx.fillText('GS', x + w * 0.03, y + h * 0.07);
+  ctx.fillStyle = col('white');   ctx.fillText(String(Math.round(S.gs ?? S.spd ?? 0)), x + w * 0.10, y + h * 0.07);
+  ctx.fillStyle = col('engaged'); ctx.fillText('TAS', x + w * 0.30, y + h * 0.07);
+  ctx.fillStyle = col('white');   ctx.fillText(String(Math.round(S.spd ?? 0)), x + w * 0.40, y + h * 0.07);
+  if (toWp) {
+    const distNm = Math.hypot(toWp.dN, toWp.dE);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = col('managed'); ctx.font = `${h * 0.040}px ${f}`;
+    ctx.fillText(toWp.id, x + w * 0.97, y + h * 0.07);
+    ctx.fillStyle = col('white'); ctx.font = `${h * 0.034}px ${f}`;
+    ctx.fillText(`${distNm.toFixed(1)} NM`, x + w * 0.97, y + h * 0.12);
+    if ((S.gs ?? S.spd) > 20) {
+      const ete = distNm / (S.gs ?? S.spd) * 3600;
+      ctx.fillStyle = col('white');
+      ctx.fillText(`${String(Math.floor(ete / 60)).padStart(2, '0')}:${String(Math.floor(ete % 60)).padStart(2, '0')}`, x + w * 0.97, y + h * 0.17);
+    }
+  }
+  /* range number at the arc */
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = col('dim'); ctx.font = `${h * 0.026}px ${f}`;
+  ctx.fillText(String(rangeNm), ox + Math.cos(a1) * R + 4, oy + Math.sin(a1) * R);
+  ctx.fillText(String(rangeNm / 2), ox + Math.cos(a1) * R * 0.5 + 4, oy + Math.sin(a1) * R * 0.5);
+
+  ctx.restore();
+}
+
 export function drawNDMap(ctx, box, style, config = {}) {
+  if ((config.mode ?? 'rose') === 'arc') return _drawNDArc(ctx, box, style, config);
   const { x, y, w, h } = box;
   const cx = x + w / 2;
   const cy = y + h / 2;
