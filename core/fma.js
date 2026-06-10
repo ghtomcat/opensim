@@ -3,53 +3,56 @@
    Flight Mode Annunciator state — a shared phase model.
 
    Autoflight modes mean the same thing across manufacturers; only the words and the
-   column/field layout differ. This computes the phase → modes model once; the renderers
-   (Airbus 5 columns now, Boeing 3 fields later) decompress it into their own vocabulary.
+   column/field layout differ. _phase() decides the flight phase once; each manufacturer's
+   mapper decompresses it into its own vocabulary — Airbus (5 columns) and Boeing (3 fields).
 
-   computeAirbusFMA returns 5 cells { val, col, flash } in Airbus reading order:
-     0 A/THR·thrust · 1 vertical · 2 lateral · 3 approach-capability · 4 AP/FD/A-THR
-   col is a name resolved by the renderer: green=engaged, cyan=armed(blue), white, amber.
+   col is a name the renderer resolves: green=engaged, cyan=armed(blue), white, amber.
    ═══════════════════════════════════════════════════════════════ */
 
 const cell  = (val, col) => ({ val, col, flash: 0 });
 const BLANK = cell('', 'white');
 
-export function computeAirbusFMA(p) {
-  const { wow, n1 = 0, vs = 0, alt = 0, altT = alt,
-          gear = false, ap = false, athr = false, fieldElev = 0 } = p;
-  const agl      = alt - fieldElev;
-  const toThrust = n1 > 80;                                   // TOGA / FLX set
-  const apfd     = ap ? cell('AP1', 'white') : cell('1FD2', 'white');
-
-  // Parked / taxi — below takeoff thrust on the ground → FMA blank (the correct rest state).
-  if (wow && !toThrust) return [BLANK, BLANK, BLANK, BLANK, BLANK];
-
-  // Takeoff roll / initial rotation — TOGA set, on or just off the ground.
-  if (wow || agl < 30) {
-    return [cell('MAN TO/GA', 'white'), cell('SRS', 'green'), cell('RWY', 'green'),
-            BLANK, cell('A/THR', 'cyan')];                    // A/THR armed (blue) once thrust is set
-  }
-
+/* Flight phase from the raw state — shared by both mappers. */
+function _phase(p) {
+  const { wow, n1 = 0, vs = 0, alt = 0, altT = alt, gear = false, fieldElev = 0 } = p;
+  const agl = alt - fieldElev;
+  if (wow && n1 <= 80)  return 'parked';                       // on the ground, below takeoff thrust
+  if (wow || agl < 30)  return 'takeoff';                      // TOGA set, on or just off the ground
   const nearCruise = Math.abs(alt - altT) < 250 && Math.abs(vs) < 350;
+  if (vs > 350 && !nearCruise)  return 'climb';
+  if (gear && agl < 2500)       return 'approach';
+  if (vs < -350 && !nearCruise) return 'descent';
+  return 'cruise';
+}
 
-  // Climb — SRS until clean/accel, then CLB; MAN TO/GA until thrust is reduced to CLB.
-  if (vs > 350 && !nearCruise) {
-    return [n1 > 90 ? cell('MAN TO/GA', 'white') : cell('THR CLB', 'green'),
-            agl < 1500 ? cell('SRS', 'green') : cell('CLB', 'green'),
-            cell('NAV', 'green'), BLANK, apfd];
+/* Airbus — 5 columns: A/THR·thrust | vertical | lateral | approach-cap | AP/FD·A-THR. */
+export function computeAirbusFMA(p) {
+  const { n1 = 0, alt = 0, fieldElev = 0, ap = false } = p;
+  const agl  = alt - fieldElev;
+  const apfd = ap ? cell('AP1', 'white') : cell('1FD2', 'white');
+  switch (_phase(p)) {
+    case 'parked':   return [BLANK, BLANK, BLANK, BLANK, BLANK];
+    case 'takeoff':  return [cell('MAN TO/GA', 'white'), cell('SRS', 'green'), cell('RWY', 'green'),
+                             BLANK, cell('A/THR', 'cyan')];               // A/THR armed (blue) once set
+    case 'climb':    return [n1 > 90 ? cell('MAN TO/GA', 'white') : cell('THR CLB', 'green'),
+                             agl < 1500 ? cell('SRS', 'green') : cell('CLB', 'green'),
+                             cell('NAV', 'green'), BLANK, apfd];
+    case 'approach': return [cell('SPEED', 'green'), cell('G/S', 'green'), cell('LOC', 'green'),
+                             cell('CAT 3', 'green'), apfd];
+    case 'descent':  return [cell('SPEED', 'green'), cell('DES', 'green'), cell('NAV', 'green'), BLANK, apfd];
+    default:         return [cell('SPEED', 'green'), cell('ALT CRZ', 'green'), cell('NAV', 'green'), BLANK, apfd];
   }
+}
 
-  // Approach — gear down and low.
-  if (gear && agl < 2500) {
-    return [cell('SPEED', 'green'), cell('G/S', 'green'), cell('LOC', 'green'),
-            cell('CAT 3', 'green'), apfd];
+/* Boeing — 3 fields: A/T | roll | pitch. Active modes in green (armed would be white). */
+export function computeBoeingFMA(p) {
+  const { n1 = 0 } = p, G = 'green';
+  switch (_phase(p)) {
+    case 'parked':   return [BLANK, BLANK, BLANK];
+    case 'takeoff':  return [cell('N1', G),                          cell('TO/GA', G), cell('TO/GA', G)];
+    case 'climb':    return [cell(n1 > 90 ? 'N1' : 'THR REF', G),    cell('LNAV', G),  cell('VNAV SPD', G)];
+    case 'approach': return [cell('SPD', G),                         cell('LOC', G),   cell('G/S', G)];
+    case 'descent':  return [cell('SPD', G),                         cell('LNAV', G),  cell('VNAV PTH', G)];
+    default:         return [cell('SPD', G),                         cell('LNAV', G),  cell('VNAV PTH', G)];  // cruise
   }
-
-  // Descent.
-  if (vs < -350 && !nearCruise) {
-    return [cell('SPEED', 'green'), cell('DES', 'green'), cell('NAV', 'green'), BLANK, apfd];
-  }
-
-  // Cruise / level.
-  return [cell('SPEED', 'green'), cell('ALT CRZ', 'green'), cell('NAV', 'green'), BLANK, apfd];
 }

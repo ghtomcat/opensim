@@ -30,7 +30,14 @@ function _fmaCol(col, style) {
 /* ════════════════════════════════════════════════════════════
    FMA — Flight Mode Annunciator
    ════════════════════════════════════════════════════════════ */
+/* Manufacturer seam: Boeing reads 3 fields (A/T | roll | pitch), everyone else the
+   Airbus 5 columns. Both consume S.fma, populated by the shared phase model. */
 export function drawFMA(ctx, box, style) {
+  return (S.aircraft?.manufacturer === 'boeing' ? _fmaBoeing : _fmaAirbus)(ctx, box, style);
+}
+
+/* Airbus — five unlabeled columns with thin separators; column position is the meaning. */
+function _fmaAirbus(ctx, box, style) {
   const { x, y, w, h } = box;
   const f  = _f(style);
   const cw = w / 5;
@@ -39,8 +46,6 @@ export function drawFMA(ctx, box, style) {
   ctx.fillStyle = _c(style, 'bg');
   ctx.fillRect(x, y, w, h);
 
-  /* Thin column separators — the real Airbus FMA divides its 5 columns, but carries no
-     labels: the column position is the meaning. */
   ctx.strokeStyle = 'rgba(255,255,255,0.12)';
   ctx.lineWidth = 1;
   for (let i = 1; i < 5; i++) {
@@ -62,6 +67,35 @@ export function drawFMA(ctx, box, style) {
     const tw = ctx.measureText(fma.val).width;
     if (tw > cw * 0.9) { fs *= (cw * 0.9) / tw; ctx.font = `bold ${fs}px ${f}`; }   // fit long modes
     ctx.fillStyle = _fmaCol(fma.col ?? 'white', style);
+    ctx.fillText(fma.val, cx, y + h * 0.52);
+  }
+
+  ctx.restore();
+}
+
+/* Boeing — three fields (A/T | roll | pitch), no separators (spacing carries it), green
+   active modes. */
+function _fmaBoeing(ctx, box, style) {
+  const { x, y, w, h } = box;
+  const f  = _f(style);
+  const cw = w / 3;
+
+  ctx.save();
+  ctx.fillStyle = _c(style, 'bg');
+  ctx.fillRect(x, y, w, h);
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i < 3; i++) {
+    const fma = S.fma[i];
+    if (!fma || !fma.val) continue;
+    const cx = x + i * cw + cw / 2;
+
+    let fs = h * 0.5;
+    ctx.font = `bold ${fs}px ${f}`;
+    const tw = ctx.measureText(fma.val).width;
+    if (tw > cw * 0.86) { fs *= (cw * 0.86) / tw; ctx.font = `bold ${fs}px ${f}`; }
+    ctx.fillStyle = _fmaCol(fma.col ?? 'green', style);
     ctx.fillText(fma.val, cx, y + h * 0.52);
   }
 
