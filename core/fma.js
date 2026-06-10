@@ -27,32 +27,35 @@ function _phase(p) {
 
 /* Airbus — 5 columns: A/THR·thrust | vertical | lateral | approach-cap | AP/FD·A-THR. */
 export function computeAirbusFMA(p) {
-  const { n1 = 0, alt = 0, fieldElev = 0, ap = false } = p;
+  const { n1 = 0, alt = 0, fieldElev = 0, ap = false, navManaged = false } = p;
   const agl  = alt - fieldElev;
   const apfd = ap ? cell('AP1', 'white') : cell('1FD2', 'white');
+  /* lateral: managed NAV (green) when LNAV follows the plan, else selected HDG (cyan) */
+  const lat  = navManaged ? cell('NAV', 'green') : cell('HDG', 'cyan');
   switch (_phase(p)) {
     case 'parked':   return [BLANK, BLANK, BLANK, BLANK, BLANK];
     case 'takeoff':  return [cell('MAN TO/GA', 'white'), cell('SRS', 'green'), cell('RWY', 'green'),
                              BLANK, cell('A/THR', 'cyan')];               // A/THR armed (blue) once set
     case 'climb':    return [n1 > 90 ? cell('MAN TO/GA', 'white') : cell('THR CLB', 'green'),
                              agl < 1500 ? cell('SRS', 'green') : cell('CLB', 'green'),
-                             cell('NAV', 'green'), BLANK, apfd];
+                             lat, BLANK, apfd];
     case 'approach': return [cell('SPEED', 'green'), cell('G/S', 'green'), cell('LOC', 'green'),
                              cell('CAT 3', 'green'), apfd];
-    case 'descent':  return [cell('SPEED', 'green'), cell('DES', 'green'), cell('NAV', 'green'), BLANK, apfd];
-    default:         return [cell('SPEED', 'green'), cell('ALT CRZ', 'green'), cell('NAV', 'green'), BLANK, apfd];
+    case 'descent':  return [cell('SPEED', 'green'), cell('DES', 'green'), lat, BLANK, apfd];
+    default:         return [cell('SPEED', 'green'), cell('ALT CRZ', 'green'), lat, BLANK, apfd];
   }
 }
 
 /* Boeing — 3 fields: A/T | roll | pitch. Active modes in green (armed would be white). */
 export function computeBoeingFMA(p) {
-  const { n1 = 0 } = p, G = 'green';
+  const { n1 = 0, navManaged = false } = p, G = 'green';
+  const roll = navManaged ? cell('LNAV', G) : cell('HDG SEL', G);   // managed plan vs selected heading
   switch (_phase(p)) {
     case 'parked':   return [BLANK, BLANK, BLANK];
     case 'takeoff':  return [cell('N1', G),                          cell('TO/GA', G), cell('TO/GA', G)];
-    case 'climb':    return [cell(n1 > 90 ? 'N1' : 'THR REF', G),    cell('LNAV', G),  cell('VNAV SPD', G)];
+    case 'climb':    return [cell(n1 > 90 ? 'N1' : 'THR REF', G),    roll,  cell('VNAV SPD', G)];
     case 'approach': return [cell('SPD', G),                         cell('LOC', G),   cell('G/S', G)];
-    case 'descent':  return [cell('SPD', G),                         cell('LNAV', G),  cell('VNAV PTH', G)];
-    default:         return [cell('SPD', G),                         cell('LNAV', G),  cell('VNAV PTH', G)];  // cruise
+    case 'descent':  return [cell('SPD', G),                         roll,  cell('VNAV PTH', G)];
+    default:         return [cell('SPD', G),                         roll,  cell('VNAV PTH', G)];  // cruise
   }
 }

@@ -33,6 +33,8 @@ export const S = {
   ambientTemp: 15,                // °C — controls cooling rate when off
   ap:       true,                 // autopilot engaged
   athr:     true,                 // autothrust
+  navManaged: false,              // lateral managed NAV (LNAV) — follow the flight plan vs hold the FCU heading
+  fmsActive:  0,                  // active waypoint index in the flight-plan legs (LNAV sequencer)
   wow:      false,                // weight on wheels (squat switch)
   touchdownVS: 0,                 // VS at last touchdown (fpm, negative)
   crashed:  false,                // bounds exceeded — physics frozen

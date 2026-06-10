@@ -8,6 +8,7 @@ import { S, setState } from './state.js';
 import { bbEvent } from './blackbox.js';
 import { capturePushback, pushbackPose } from './pushback.js';
 import { computeAirbusFMA, computeBoeingFMA } from './fma.js';
+import { lnavTargetHeading } from './lnav.js';
 
 const DEG = Math.PI / 180;
 
@@ -102,8 +103,20 @@ export function tickPhysics(dt) {
     const maxRollRate  = ac.handling?.rollRate  ?? 30;   // deg/s
     const maxPitchRate = ac.handling?.pitchRate ?? 5;    // deg/s
 
-    /* On ground: snap back to level; in flight: fight inertia */
-    const rollTarget  = onGround ? 0 : S.rollT;
+    /* AP lateral channel — when engaged in flight the autopilot banks toward a target
+       heading: managed NAV follows the flight plan (LNAV), else it holds the FCU bug. */
+    let apBank = null;
+    if (S.ap && !onGround) {
+      let tgtHdg = S.navManaged ? lnavTargetHeading() : null;
+      if (tgtHdg == null) tgtHdg = S.hdgT;                     // fall back to selected HDG (or if no route)
+      if (tgtHdg != null) {
+        const e = ((tgtHdg - S.hdg + 540) % 360) - 180;        // shortest heading error
+        apBank = Math.max(-25, Math.min(25, e * 1.2));         // proportional, AP bank limit 25°
+      }
+    }
+
+    /* On ground: snap back to level; in flight: fight inertia (AP bank overrides the stick) */
+    const rollTarget  = onGround ? 0 : (apBank ?? S.rollT);
     const pitchTarget = (onGround && S.spd < Vr) ? 0 : S.pitchT;
     const maxBank     = ac.handling?.maxBank  ?? 60;
     const maxPitch    = ac.handling?.maxPitch ?? 30;
@@ -303,7 +316,7 @@ export function tickPhysics(dt) {
   if (ac.panel === 'airbus' || ac.panel === 'e190') {
     const fieldElev = S.mission?.departure?.elevation ?? S.mission?.arrival?.elevation ?? 0;
     const fp = { wow: newWow, n1: S.n1 ?? 0, vs, alt: newAlt, altT: S.altT,
-                 gear: S.gear, ap: S.ap, athr: S.athr, fieldElev };
+                 gear: S.gear, ap: S.ap, athr: S.athr, fieldElev, navManaged: S.navManaged };
     fma = ac.manufacturer === 'boeing' ? computeBoeingFMA(fp) : computeAirbusFMA(fp);
   } else if (ac.fmaPhases) {
     const phase = ac.fmaPhases.find(p => newAlt >= p.minAlt);

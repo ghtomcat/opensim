@@ -913,7 +913,7 @@ export function drawFCU(ctx, W, H, style) {
     ctx.stroke();
   }
 
-  function _sec(label, value, x, sw) {
+  function _sec(label, value, x, sw, managed) {
     const cx  = x + sw / 2;
     const bh  = H * 0.44;
     const bw  = sw * 0.82;
@@ -956,14 +956,20 @@ export function drawFCU(ctx, W, H, style) {
     ctx.fillStyle = '#d4cba4';
     ctx.textAlign = 'center';
     ctx.fillText(value, cx, by + bh * 0.78);
+
+    // FMS-managed dot — lit when the FMS flies this axis (Airbus white/green dot)
+    if (managed) {
+      ctx.fillStyle = '#3ddc6e';
+      ctx.beginPath(); ctx.arc(bx + bw - bw * 0.10, by + bh * 0.28, H * 0.045, 0, Math.PI * 2); ctx.fill();
+    }
   }
 
   // ── Speed ──
   _sec('SPD  MACH', Math.round(S.spdT).toString(), spdX, spdW);
 
-  // ── Heading ──
+  // ── Heading ──   ('---' with the managed dot when LNAV flies the lateral channel)
   const hdgDisp = String(Math.round(S.hdgT) % 360 || 360).padStart(3, '0');
-  _sec('HDG  TRK', hdgDisp, hdgX, hdgW);
+  _sec('HDG  TRK', S.navManaged ? '---' : hdgDisp, hdgX, hdgW, S.navManaged);
 
   // ── Altitude ──
   _sec('ALT', String(Math.round(S.altT)).padStart(5, '0'), altX, altW);
