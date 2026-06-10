@@ -1594,6 +1594,41 @@
       transition: border-color 0.15s, background 0.15s;
     }
     .ss-fly-btn:hover { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.05); }
+
+    /* ── Flight briefing (pre-flight: mission parameters + route chart) ── */
+    #flight-briefing {
+      position: fixed; inset: 0; z-index: 200; display: none;
+      background: #06080c; color: #d8e0ea; font-family: "IBM Plex Mono", monospace;
+    }
+    #flight-briefing.visible { display: block; }
+    .fb-inner { position: absolute; inset: 0; display: flex; }
+    .fb-params {
+      width: 380px; min-width: 320px; padding: 34px 30px; box-sizing: border-box;
+      border-right: 1px solid rgba(255,255,255,0.08);
+      background: rgba(0,0,0,0.28); overflow-y: auto;
+    }
+    .fb-title { font-size: 18px; letter-spacing: 0.04em; color: #eef2f7; }
+    .fb-sub   { font-size: 12px; color: rgba(216,224,234,0.5); margin-bottom: 18px; }
+    .fb-h {
+      font-size: 10.5px; letter-spacing: 0.18em; color: rgba(216,224,234,0.42);
+      margin: 22px 0 8px; border-bottom: 1px solid rgba(255,255,255,0.07); padding-bottom: 5px;
+    }
+    .fb-row { display: flex; justify-content: space-between; gap: 14px; padding: 4px 0; font-size: 13px; }
+    .fb-row .k { color: rgba(216,224,234,0.55); }
+    .fb-row .v { color: #eef2f7; text-align: right; }
+    .fb-chart-wrap { flex: 1; position: relative; }
+    #fb-chart { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .fb-chart-title {
+      position: absolute; top: 20px; left: 24px; z-index: 2;
+      font-size: 11px; letter-spacing: 0.16em; color: rgba(216,224,234,0.5);
+    }
+    .fb-fly-btn {
+      position: absolute; bottom: 30px; right: 34px; z-index: 2;
+      padding: 13px 30px; background: rgba(255,255,255,0.04); color: #eef2f7;
+      border: 1px solid rgba(255,255,255,0.32); border-radius: 4px; cursor: pointer;
+      font: 600 14px "IBM Plex Mono", monospace; letter-spacing: 0.1em;
+    }
+    .fb-fly-btn:hover { border-color: rgba(255,255,255,0.6); background: rgba(255,255,255,0.09); }
     .ss-section { width: 100%; max-width: 720px; margin-bottom: 28px; }
     .ss-section-label {
       font-family: "IBM Plex Mono", monospace;
@@ -1799,6 +1834,18 @@
   </div>
 
   <button class="ss-fly-btn" id="ss-fly-btn">Fly</button>
+</div>
+
+<!-- Flight briefing (pre-flight prep: mission parameters + route chart) — WB/NB jets -->
+<div id="flight-briefing">
+  <div class="fb-inner">
+    <div class="fb-params" id="fb-params"></div>
+    <div class="fb-chart-wrap">
+      <div class="fb-chart-title">ROUTE OVERVIEW</div>
+      <canvas id="fb-chart"></canvas>
+      <button class="fb-fly-btn" id="fb-fly-btn">Fly &rarr;</button>
+    </div>
+  </div>
 </div>
 
 <!-- Outside view -->
@@ -2125,6 +2172,9 @@
 <script type="module">
   import { S, setState }  from './core/state.js';
   import { loadMission }  from './core/mission.js';
+  import { COAST }        from './display/coastlines.js';
+  import { RUNWAYS }      from './display/runways-data.js';
+  import { routeAirway }  from './core/airway-graph.js';
   import { tickPhysics }     from './core/physics.js';
   import { tickHovercraft }  from './core/hovercraft_physics.js';
   import { tickRocket, tickBooster } from './core/rocket.js';
@@ -3206,10 +3256,133 @@
       });
 
       el.classList.remove('visible');
-      setTimeout(() => init(m.id, m.aircraft), 400);
+      setTimeout(() => showFlightBriefing(m), 400);   // WB/NB jets → briefing page; others skip through
     };
 
     requestAnimationFrame(() => el.classList.add('visible'));
+  }
+
+  /* Airport centre = mean of its runway thresholds. */
+  function _airportCentre(icao) {
+    const rws = icao && RUNWAYS[icao];
+    if (!rws || !rws.length) return null;
+    const pts = rws.flatMap(r => [r.a, r.b]);
+    return [pts.reduce((s, p) => s + p[0], 0) / pts.length,
+            pts.reduce((s, p) => s + p[1], 0) / pts.length];
+  }
+
+  /* Route-overview chart: coastline backdrop + the airway route (dep → fixes → arr),
+     fit-to-route on a simple equirectangular projection. */
+  function _renderRouteChart(dep, arr) {
+    const cv = document.getElementById('fb-chart');
+    if (!cv) return;
+    const dpr = window.devicePixelRatio || 1;
+    const W = cv.width = Math.max(1, cv.offsetWidth) * dpr;
+    const H = cv.height = Math.max(1, cv.offsetHeight) * dpr;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#070b11'; ctx.fillRect(0, 0, W, H);
+
+    const depLL = _airportCentre(dep?.icao), arrLL = _airportCentre(arr?.icao);
+    let route = null;
+    try { if (depLL && arrLL) route = routeAirway(depLL[0], depLL[1], arrLL[0], arrLL[1]); } catch {}
+
+    const pts = [];
+    if (depLL) pts.push(depLL);
+    if (route?.pts) for (const p of route.pts) pts.push(p);
+    if (arrLL) pts.push(arrLL);
+    if (!pts.length) return;
+
+    let latMin = 90, latMax = -90, lonMin = 180, lonMax = -180;
+    for (const [la, lo] of pts) {
+      latMin = Math.min(latMin, la); latMax = Math.max(latMax, la);
+      lonMin = Math.min(lonMin, lo); lonMax = Math.max(lonMax, lo);
+    }
+    if (latMax - latMin < 0.5 && lonMax - lonMin < 0.5) { latMin -= 2; latMax += 2; lonMin -= 3; lonMax += 3; }  // dep-only
+    const padLat = (latMax - latMin) * 0.12 + 0.5, padLon = (lonMax - lonMin) * 0.12 + 0.5;
+    latMin -= padLat; latMax += padLat; lonMin -= padLon; lonMax += padLon;
+
+    const cosMid = Math.cos((latMin + latMax) / 2 * Math.PI / 180);
+    const gw = (lonMax - lonMin) * cosMid, gh = (latMax - latMin), pad = 44 * dpr;
+    const sc = Math.min((W - 2 * pad) / gw, (H - 2 * pad) / gh);
+    const ox = (W - gw * sc) / 2, oy = (H - gh * sc) / 2;
+    const proj = (la, lo) => [ox + (lo - lonMin) * cosMid * sc, oy + (latMax - la) * sc];
+
+    /* Coastlines (COAST = [[lon,lat]…]) — break the path outside the view. */
+    ctx.strokeStyle = 'rgba(120,150,180,0.22)'; ctx.lineWidth = 1 * dpr; ctx.beginPath();
+    for (const poly of COAST) {
+      let started = false;
+      for (const [lo, la] of poly) {
+        if (lo < lonMin - 5 || lo > lonMax + 5 || la < latMin - 5 || la > latMax + 5) { started = false; continue; }
+        const [x, y] = proj(la, lo);
+        if (started) ctx.lineTo(x, y); else { ctx.moveTo(x, y); started = true; }
+      }
+    }
+    ctx.stroke();
+
+    if (pts.length > 1) {                                  // route line (magenta)
+      ctx.strokeStyle = '#d96ec8'; ctx.lineWidth = 2 * dpr; ctx.lineJoin = 'round'; ctx.beginPath();
+      pts.forEach(([la, lo], i) => { const [x, y] = proj(la, lo); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+      ctx.stroke();
+    }
+    if (route?.pts) {                                      // fix dots
+      ctx.fillStyle = 'rgba(110,200,235,0.85)';
+      for (const [la, lo] of route.pts) { const [x, y] = proj(la, lo); ctx.beginPath(); ctx.arc(x, y, 2.2 * dpr, 0, 7); ctx.fill(); }
+    }
+    const mark = (ll, icao, col) => {                      // airport markers + labels
+      if (!ll) return; const [x, y] = proj(ll[0], ll[1]);
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, 4.5 * dpr, 0, 7); ctx.fill();
+      ctx.fillStyle = '#eef2f7'; ctx.font = `bold ${12 * dpr}px "IBM Plex Mono",monospace`;
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(' ' + (icao || ''), x + 5 * dpr, y);
+    };
+    mark(depLL, dep?.icao, '#5dd47e');
+    mark(arrLL, arr?.icao, '#ff6e6e');
+
+    if (route) {                                           // distance / leg count
+      ctx.fillStyle = 'rgba(216,224,234,0.6)'; ctx.font = `${11 * dpr}px "IBM Plex Mono",monospace`;
+      ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+      ctx.fillText(`${Math.round(route.distNm)} nm · ${route.pts.length} legs`, W - 22 * dpr, H - 70 * dpr);
+    }
+  }
+
+  /* ── Flight briefing (WB/NB jets): mission parameters + a route overview, shown after
+     the scenario setup and before launch. Props/VFR and non-flight missions skip straight
+     through to init (transparent). ── */
+  async function showFlightBriefing(m) {
+    let md = {}, acd = {};
+    try {
+      md  = await fetch(`missions/${m.id}.json?v=${Date.now()}`).then(r => r.json());
+      acd = await fetch(`aircraft/${m.aircraft}.json?v=${Date.now()}`).then(r => r.json());
+    } catch {}
+    const isJet = acd.panel === 'airbus' || acd.panel === 'e190';   // WB/NB glass airliners only
+    if (!isJet) { init(m.id, m.aircraft); return; }
+
+    const dep = md.departure || {}, arr = md.arrival || {};
+    const row = (k, v) => v ? `<div class="fb-row"><span class="k">${k}</span><span class="v">${v}</span></div>` : '';
+    const fl  = md.initialState?.alt ? `FL${String(Math.round(md.initialState.alt / 100)).padStart(3, '0')}` : '—';
+    document.getElementById('fb-params').innerHTML =
+      `<div class="fb-title">${m.acName ?? m.aircraft}</div>` +
+      `<div class="fb-sub">${m.title ?? ''}</div>` +
+      `<div class="fb-h">ROUTE</div>` +
+      row('FROM',    dep.icao ? `${dep.icao}${dep.name ? ' · ' + dep.name : ''}` : '—') +
+      row('TO',      arr.icao ? `${arr.icao}${arr.name ? ' · ' + arr.name : ''}` : '—') +
+      row('DEP RWY', dep.runway) +
+      `<div class="fb-h">AIRCRAFT</div>` +
+      row('REG',      acd.registration) +
+      row('CALLSIGN', acd.callsign) +
+      row('ICAO',     acd.icaoType) +
+      `<div class="fb-h">PLAN</div>` +
+      row('CRUISE',  fl) +
+      row('WEATHER', md.weather?.source === 'live' ? `LIVE · ${md.weather.icao ?? dep.icao ?? ''}` : 'PRESET');
+
+    const el = document.getElementById('flight-briefing');
+    document.getElementById('fb-fly-btn').onclick = () => {
+      el.classList.remove('visible');
+      setTimeout(() => init(m.id, m.aircraft), 300);
+    };
+    requestAnimationFrame(() => {
+      el.classList.add('visible');
+      requestAnimationFrame(() => _renderRouteChart(dep, arr));   // render once the canvas has layout
+    });
   }
 
   /* ── Init ── */
