@@ -8,6 +8,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from '../core/state.js';
+import { smooth, smoothAngle } from './smooth.js';
 
 const _MONO = '"IBM Plex Mono","Courier New",monospace';
 const _UI   = '"Syne","Helvetica Neue",sans-serif';
@@ -283,7 +284,7 @@ function _bankArc(ctx, box, style) {
 export function drawSpeedTape(ctx, box, style) {
   const { x, y, w, h } = box;
   const cy   = y + h / 2;
-  const spd  = S.spd;
+  const spd  = smooth('pfd.spd', S.spd, 0.35);   // gliding airspeed, AP bug stays snappy
   const spdT = S.spdT;
   const f    = _f(style);
 
@@ -359,7 +360,7 @@ export function drawSpeedTape(ctx, box, style) {
 export function drawAltTape(ctx, box, style) {
   const { x, y, w, h } = box;
   const cy  = y + h / 2;
-  const alt = S.alt;
+  const alt = smooth('pfd.alt', S.alt, 0.30);    // gliding altitude
   const altT = S.altT;
   const f   = _f(style);
 
@@ -458,7 +459,7 @@ export function drawVSI(ctx, box, style) {
   ctx.fillStyle = _c(style, 'tape');
   ctx.fillRect(x, y, w, h);
 
-  const vsCap = Math.max(-maxV, Math.min(maxV, S.vs));
+  const vsCap = Math.max(-maxV, Math.min(maxV, smooth('pfd.vs', S.vs, 0.5)));
   const barH  = (vsCap / maxV) * halfH;
 
   ctx.fillStyle = vsCap >= 0 ? _c(style, 'engaged') : _c(style, 'caution');
@@ -482,7 +483,7 @@ export function drawVSI(ctx, box, style) {
 export function drawHdgTape(ctx, box, style) {
   const { x, y, w, h } = box;
   const cx   = x + w / 2;
-  const hdg  = S.hdg;
+  const hdg  = smoothAngle('pfd.hdg', S.hdg, 0.30);   // gliding heading (shortest-arc)
   const hdgT = S.hdgT;
   const f    = _f(style);
 
@@ -994,12 +995,20 @@ function _ecamMemoZone(ctx, x, w, h, memoY, f, col) {
 
 /* Per-engine running values (shared scatter), given the single commanded N1. */
 function _ewdEngineVals(eng, cmd, tNow) {
-  const live = cmd > 1;
-  const n1   = live ? Math.max(0, cmd + _ewdScatter(eng, tNow, 0.35)) : cmd;
-  const n2   = live ? Math.max(0, 48 + 0.55 * n1 + _ewdScatter(eng, tNow, 0.5)) : 0;  // CFM56: ~60% N2 idle
-  const egt  = Math.round(350 + Math.pow(Math.max(0, n1) / 100, 1.5) * 500 + _ewdOffset(eng, 6));
-  const ff   = Math.round(200 + Math.pow(Math.max(0, n1) / 100, 2) * 3000);
-  return { live, n1, n2, egt, ff };
+  const live  = cmd > 1;
+  const n1raw = live ? Math.max(0, cmd + _ewdScatter(eng, tNow, 0.35)) : cmd;
+  const n2raw = live ? Math.max(0, 48 + 0.55 * n1raw + _ewdScatter(eng, tNow, 0.5)) : 0;  // CFM56: ~60% N2 idle
+  const egtR  = 350 + Math.pow(Math.max(0, n1raw) / 100, 1.5) * 500 + _ewdOffset(eng, 6);
+  const ffR   = 200 + Math.pow(Math.max(0, n1raw) / 100, 2) * 3000;
+  /* Per-quantity display lag — each parameter has its own inertia: FF responds first,
+     then N2, N1 trails it, EGT (thermal mass) lags most. */
+  return {
+    live,
+    n1:  smooth(`ewd.n1.${eng}`,  n1raw, 0.9),
+    n2:  smooth(`ewd.n2.${eng}`,  n2raw, 0.6),
+    egt: smooth(`ewd.egt.${eng}`, egtR,  1.3),
+    ff:  Math.round(smooth(`ewd.ff.${eng}`, ffR, 0.3)),
+  };
 }
 
 /* Airbus EWD engine zone — N1 hero gauge + EGT below, digital N2/FF, value boxed low. */

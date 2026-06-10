@@ -12,6 +12,7 @@ import { resetElectrical } from './electrical.js';
 import { resetHydraulics } from './hydraulics.js';
 import { setCrewLang }    from './crew.js';
 import { resolveStart }   from './mission-start.js';
+import { resetSmooth }    from '../display/smooth.js';
 
 /**
  * loadMission(missionPath, aircraftPath)
@@ -170,6 +171,7 @@ export async function loadMission(missionPath, aircraftPath) {
   resetBattery();
   resetElectrical();
   resetHydraulics();
+  resetSmooth();           // drop display lag so the new panel snaps, not glides from the last flight
 
   /* Reset cockpit switches — all off at mission start */
   S.switches.master   = false;
