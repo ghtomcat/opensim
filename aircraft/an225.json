@@ -1,6 +1,9 @@
 {
   "id": "an225",
   "name": "Antonov An-225 Mriya",
+  "manufacturer": "antonov",
+  "family": "an-225",
+  "model": "an-225",
   "registration": "UR-82060",
   "clock": "digital",
   "callsign": "UR-82060",

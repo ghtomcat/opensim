@@ -1,6 +1,9 @@
 {
   "id": "b737max9",
   "name": "Boeing 737 MAX 9",
+  "manufacturer": "boeing",
+  "family": "737",
+  "model": "737-max-9",
   "registration": "N932AK",
   "cabinWindows": 86,
   "windowsToEngineLip": 14,
@@ -20,7 +23,6 @@
   "flapTracks": 4,
   "clock": "digital",
   "panel": "airbus",
-  "family": "boeing",
   "livery": {
     "colors": [
       [

@@ -1,6 +1,9 @@
 {
   "id":    "hovercraft_markus",
   "name":  "Markus' Demonstrator",
+  "manufacturer": "custom",
+  "family": "hovercraft",
+  "model": "demonstrator",
   "type":  "hovercraft",
   "color": "#f85149",
 

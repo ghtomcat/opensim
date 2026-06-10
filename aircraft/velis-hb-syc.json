@@ -1,6 +1,9 @@
 {
   "id": "velis-hb-syc",
   "name": "Pipistrel Velis Electro HB-SYC",
+  "manufacturer": "pipistrel",
+  "family": "velis",
+  "model": "velis-electro",
   "clock": "digital",
   "callsign": "HB-SYC",
   "icaoType": "POVE",

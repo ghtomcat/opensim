@@ -1,6 +1,9 @@
 {
   "id":   "yertle",
   "name": "Yertle Quadruped Dog",
+  "manufacturer": "custom",
+  "family": "quadruped",
+  "model": "yertle",
   "type": "robot-dog",
   "vehicleType": "robot-dog",
   "map": false,

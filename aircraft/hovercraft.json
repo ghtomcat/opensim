@@ -1,6 +1,9 @@
 {
   "id":   "hovercraft",
   "name": "Timo's Hovercraft",
+  "manufacturer": "custom",
+  "family": "hovercraft",
+  "model": "hovercraft",
   "type": "hovercraft",
 
   "specs": {

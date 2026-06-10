@@ -1,6 +1,9 @@
 {
   "id":   "so101",
   "name": "SO-101 Robot Arm",
+  "manufacturer": "huggingface",
+  "family": "so-arm",
+  "model": "so-101",
   "type": "robot-arm",
   "vehicleType": "robot-arm",
   "map": false,

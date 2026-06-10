@@ -1,6 +1,9 @@
 {
   "id": "tu95ms",
   "name": "Tupolev Tu-95MS Bear H",
+  "manufacturer": "tupolev",
+  "family": "tu-95",
+  "model": "tu-95ms",
   "clock": "analog",
   "callsign": "Борт 11",
   "icaoType": "TU95",

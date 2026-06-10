@@ -1,6 +1,9 @@
 {
   "id": "dc8",
   "name": "Douglas DC-8",
+  "manufacturer": "douglas",
+  "family": "dc-8",
+  "model": "dc-8",
   "_status": "stub — nose profile only; full geometry TBD",
   "nose": {
     "tipX": 0.023,

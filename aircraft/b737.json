@@ -1,6 +1,9 @@
 {
   "id": "b737",
   "name": "Boeing 737-800",
+  "manufacturer": "boeing",
+  "family": "737",
+  "model": "737-800",
   "registration": "G-DOCB",
   "cabinWindows": 86,
   "windowsToEngineLip": 14,
@@ -20,7 +23,6 @@
   "flapTracks": 4,
   "clock": "digital",
   "panel": "airbus",
-  "family": "boeing",
   "livery": {
     "colors": [
       [

@@ -638,8 +638,8 @@ const _WIDGETS = {
   vsi:        (ctx, box, style, cfg) => drawVSI(ctx, box, style),
   hdg_tape:   (ctx, box, style, cfg) => drawHdgTape(ctx, box, style),
   nd_map:     (ctx, box, style, cfg) => drawNDMap(ctx, box, style, cfg),
-  ecam_ewd:   (ctx, box, style, cfg) =>            // family seam: Boeing → EICAS, else Airbus ECAM
-    (S.aircraft?.family === 'boeing' ? drawEICAS : drawECAM)(ctx, box, style),
+  ecam_ewd:   (ctx, box, style, cfg) =>            // manufacturer seam: Boeing → EICAS, else Airbus ECAM
+    (S.aircraft?.manufacturer === 'boeing' ? drawEICAS : drawECAM)(ctx, box, style),
   spacer:     () => {},
 
   /* GA cockpit widgets */

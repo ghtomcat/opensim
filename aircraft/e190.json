@@ -1,6 +1,9 @@
 {
   "id": "e190",
   "name": "Embraer E190-E2",
+  "manufacturer": "embraer",
+  "family": "e-jet-e2",
+  "model": "e190-e2",
   "registration": "HB-AZE",
   "flapTracks": 6,
   "clock": "digital",

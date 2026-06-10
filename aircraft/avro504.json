@@ -1,6 +1,9 @@
 {
   "id": "avro504",
   "name": "Avro 504K",
+  "manufacturer": "avro",
+  "family": "avro-504",
+  "model": "avro-504k",
   "clock": "analog",
   "callsign": "Wolfskopf",
   "icaoType": "AV04",

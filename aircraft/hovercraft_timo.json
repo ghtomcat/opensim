@@ -1,6 +1,9 @@
 {
   "id":    "hovercraft_timo",
   "name":  "Timo's Hovercraft",
+  "manufacturer": "custom",
+  "family": "hovercraft",
+  "model": "hovercraft",
   "type":  "hovercraft",
   "color": "#39d0d0",
 

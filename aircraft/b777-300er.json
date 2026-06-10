@@ -1,6 +1,9 @@
 {
   "id": "b777-300er",
   "name": "Boeing 777-300ER",
+  "manufacturer": "boeing",
+  "family": "777",
+  "model": "777-300er",
   "registration": "9V-SWY",
   "callsign": "Singapore",
   "icaoType": "B77W",
