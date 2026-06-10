@@ -1868,6 +1868,7 @@
         <button class="fb-tab active" data-tab="route">Route</button>
         <button class="fb-tab" data-tab="airport">Airport</button>
         <button class="fb-tab" data-tab="departure">Departure</button>
+        <button class="fb-tab" data-tab="arrival">Arrival</button>
         <button class="fb-tab" data-tab="navlog">Nav Log</button>
         <button class="fb-tab" data-tab="weather">Weather</button>
         <button class="fb-tab" data-tab="freqs">Freqs</button>
@@ -3453,10 +3454,10 @@
     return Number.isFinite(ft) ? { ft, kind } : null;
   }
 
-  /* Departure chart: ONE SID at a time (click to cycle) — a top-down plan and, below it, a
-     vertical profile of the altitude constraints along the procedure. */
-  let _fbDepIdx = 0;
-  function _renderDepartureChart(dep, md) {
+  /* Procedure chart (departure SID / arrival STAR): one procedure at a time (click to
+     cycle) — a top-down plan and, below it, a vertical profile of the altitude constraints. */
+  let _fbDepIdx = 0, _fbArrIdx = 0;
+  function _renderProcChart(apt, md, kind) {
     const cv = document.getElementById('fb-chart'); if (!cv) return;
     const dpr = window.devicePixelRatio || 1;
     const W = cv.width = Math.min(6000, Math.max(1, cv.clientWidth)) * dpr;
@@ -3466,32 +3467,37 @@
     const center = (txt) => { ctx.fillStyle = 'rgba(216,224,234,0.45)'; ctx.font = `${13 * dpr}px "IBM Plex Mono",monospace`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, W / 2, H / 2); };
 
-    const ic = dep?.icao, proc = _PROCEDURES[ic];
+    const isDep = kind === 'departure';
+    const ic = apt?.icao, proc = _PROCEDURES[ic];
+    if (!ic)   { center(isDep ? 'No departure airport' : 'No arrival airport'); cv.onclick = null; return; }
     if (!proc) { center('Procedures not loaded — run scripts/build-cifp.py (local, X-Plane).'); cv.onclick = null; return; }
-    const rwy = md?.departure?.runway ? ('RW' + md.departure.runway) : null;
-    let sids = proc.sids.filter(s => !rwy || s.trans === rwy);
-    if (!sids.length) sids = proc.sids.filter(s => s.trans === 'ALL');
-    if (!sids.length) { center('No SIDs for ' + (ic || '') + (rwy ? ' ' + rwy : '')); cv.onclick = null; return; }
+    const rwy = isDep && md?.departure?.runway ? ('RW' + md.departure.runway) : null;
+    let list = isDep ? proc.sids.filter(s => !rwy || s.trans === rwy) : proc.stars;
+    if (!list.length) list = isDep ? proc.sids.filter(s => s.trans === 'ALL') : proc.apprs;
+    if (!list.length) { center('No ' + (isDep ? 'SIDs' : 'STARs') + ' for ' + (ic || '')); cv.onclick = null; return; }
 
-    const idx = ((_fbDepIdx % sids.length) + sids.length) % sids.length, sel = sids[idx];
-    cv.onclick = () => { _fbDepIdx++; _renderDepartureChart(dep, md); };          // click → next SID
+    const iv = isDep ? _fbDepIdx : _fbArrIdx;
+    const idx = ((iv % list.length) + list.length) % list.length, sel = list[idx];
+    cv.onclick = () => { if (isDep) _fbDepIdx++; else _fbArrIdx++; _renderProcChart(apt, md, kind); };   // click → next
 
     const path = sel.legs.filter(l => l.lat != null);
     if (!path.length) { center('No fix coordinates for ' + sel.name); return; }
-    const rwLL = rwy && proc.rwys[rwy];
+    const rwLL = isDep && rwy && proc.rwys[rwy];
+    const anchorLL = rwLL || (!isDep && _airportCentre(ic));        // runway threshold (dep) or airport (arr)
     const pts = rwLL ? [{ lat: rwLL[0], lon: rwLL[1] }, ...path] : path;
-    const fieldFt = md?.departure?.elevation ?? 0;
+    const fieldFt = (isDep ? md?.departure?.elevation : md?.arrival?.elevation) ?? 0;
 
     /* title */
     ctx.fillStyle = '#eef2f7'; ctx.font = `bold ${13 * dpr}px "IBM Plex Mono",monospace`; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     ctx.fillText(`${ic || ''} ${rwy || ''} · ${sel.name}`, 22 * dpr, 12 * dpr);
     ctx.fillStyle = 'rgba(216,224,234,0.45)'; ctx.font = `${11 * dpr}px "IBM Plex Mono",monospace`;
-    ctx.fillText(`SID ${idx + 1}/${sids.length} — click to cycle`, 22 * dpr, 30 * dpr);
+    ctx.fillText(`${isDep ? 'SID' : 'STAR'} ${idx + 1}/${list.length} — click to cycle`, 22 * dpr, 30 * dpr);
 
     /* ── PLAN (top) ── */
     let latMin = 90, latMax = -90, lonMin = 180, lonMax = -180;
     const ext = (la, lo) => { latMin = Math.min(latMin, la); latMax = Math.max(latMax, la); lonMin = Math.min(lonMin, lo); lonMax = Math.max(lonMax, lo); };
     for (const p of pts) ext(p.lat, p.lon);
+    if (anchorLL) ext(anchorLL[0], anchorLL[1]);
     const padLat = (latMax - latMin) * 0.16 + 0.03, padLon = (lonMax - lonMin) * 0.16 + 0.03;
     latMin -= padLat; latMax += padLat; lonMin -= padLon; lonMax += padLon;
     const cosMid = Math.cos((latMin + latMax) / 2 * Math.PI / 180);
@@ -3514,7 +3520,7 @@
       ctx.fillStyle = '#cfe6f5'; ctx.font = `bold ${10 * dpr}px "IBM Plex Mono",monospace`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       ctx.fillText(' ' + l.fix, x + 5 * dpr, y - 5 * dpr);
     }
-    if (rwLL) { const [x, y] = proj(rwLL[0], rwLL[1]); ctx.fillStyle = '#5dd47e'; ctx.beginPath(); ctx.arc(x, y, 4.5 * dpr, 0, 7); ctx.fill(); }
+    if (anchorLL) { const [x, y] = proj(anchorLL[0], anchorLL[1]); ctx.fillStyle = '#5dd47e'; ctx.beginPath(); ctx.arc(x, y, 4.5 * dpr, 0, 7); ctx.fill(); }
 
     /* ── PROFILE (bottom): cumulative distance × altitude, with constraints ── */
     const cum = [0];
@@ -3536,10 +3542,10 @@
     ctx.strokeStyle = 'rgba(120,200,140,0.5)'; ctx.setLineDash([4 * dpr, 4 * dpr]);              // field elevation
     ctx.beginPath(); ctx.moveTo(prL, PY(fieldFt)); ctx.lineTo(prR, PY(fieldFt)); ctx.stroke(); ctx.setLineDash([]);
 
-    const climb = [[PX(0), PY(fieldFt)]];                                                       // climb profile through constraints
-    for (const c of cons) if (c.a) climb.push([PX(c.d), PY(c.a.ft)]);
+    const vpath = isDep ? [[PX(0), PY(fieldFt)]] : [];   // climb starts at the runway; descent at the first constraint
+    for (const c of cons) if (c.a) vpath.push([PX(c.d), PY(c.a.ft)]);
     ctx.strokeStyle = '#d96ec8'; ctx.lineWidth = 2 * dpr; ctx.beginPath();
-    climb.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke();
+    vpath.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke();
 
     for (const c of cons) {
       const x = PX(c.d);
@@ -3555,6 +3561,8 @@
       ctx.fillText(c.a.ft >= 1000 ? 'FL' + Math.round(c.a.ft / 100) : c.a.ft, x, y - 4 * dpr);
     }
   }
+  const _renderDepartureChart = (dep, md) => _renderProcChart(dep, md, 'departure');
+  const _renderArrivalChart   = (arr, md) => _renderProcChart(arr, md, 'arrival');
 
   const _gcNm = (aLat, aLon, bLat, bLon) => {
     const R = 3440.065, d = Math.PI / 180;
@@ -3624,12 +3632,13 @@
     document.querySelectorAll('#fb-tabs .fb-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
     const tx = document.getElementById('fb-text');
     document.getElementById('fb-chart').onclick = null;   // only the departure chart uses click
-    const isChart = name === 'route' || name === 'airport' || name === 'departure';
+    const isChart = name === 'route' || name === 'airport' || name === 'departure' || name === 'arrival';
     /* Canvas stays laid out (stable offsetWidth); the opaque text pane just covers it. */
     tx.style.display = isChart ? 'none' : 'block';
     if      (name === 'route')     requestAnimationFrame(() => _renderRouteChart(dep, arr));
     else if (name === 'airport')   requestAnimationFrame(() => _renderAirportChart(dep, md));
     else if (name === 'departure') requestAnimationFrame(() => _renderDepartureChart(dep, md));
+    else if (name === 'arrival')   requestAnimationFrame(() => _renderArrivalChart(arr, md));
     else if (name === 'navlog')  tx.innerHTML = _navLogHtml(dep, arr);
     else if (name === 'freqs')   tx.innerHTML = _freqsHtml(dep, arr);
     else if (name === 'weather') { tx.innerHTML = _weatherLoadingHtml(dep, arr); _fillWeather(dep, arr); }

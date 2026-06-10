@@ -15,7 +15,7 @@ For a public, redistributable build use the FAA CIFP (public domain, US airports
     python3 scripts/build-cifp.py                          # default X-Plane path below
     python3 scripts/build-cifp.py --xplane "/path/X-Plane 12"
 """
-import json, os, re, sys
+import json, math, os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_XP = "/Users/markusleutwyler/X-Plane 12"
@@ -79,21 +79,21 @@ def parse_cifp(path):
 
 
 def resolve_fixes(xp, needed):
-    """id -> {area -> [lat,lon]} from earth_fix.dat + earth_nav.dat (only needed idents)."""
+    """id -> [[lat,lon], …] ALL candidates from earth_fix.dat + earth_nav.dat (a 5-letter
+    name isn't globally unique, so keep every match and let the caller pick the nearest)."""
     fixes = {}
     fp = os.path.join(xp, "Resources", "default data", "earth_fix.dat")
     for ln in open(fp, encoding="latin-1"):
         p = ln.split()
-        if len(p) < 5:
+        if len(p) < 3:
             continue
         ident = p[2]
         if ident not in needed:
             continue
         try:
-            la, lo = float(p[0]), float(p[1])
+            fixes.setdefault(ident, []).append([round(float(p[0]), 6), round(float(p[1]), 6)])
         except ValueError:
             continue
-        fixes.setdefault(ident, {})[p[3]] = [round(la, 6), round(lo, 6)]   # p[3] = terminal area (ICAO/ENRT)
     nv = os.path.join(xp, "Resources", "default data", "earth_nav.dat")
     if os.path.exists(nv):
         for ln in open(nv, encoding="latin-1"):
@@ -101,10 +101,10 @@ def resolve_fixes(xp, needed):
             if len(p) < 9 or not p[0].isdigit():
                 continue
             ident = p[7]
-            if ident not in needed or ident in fixes:
+            if ident not in needed:
                 continue
             try:
-                fixes.setdefault(ident, {})["ENRT"] = [round(float(p[1]), 6), round(float(p[2]), 6)]
+                fixes.setdefault(ident, []).append([round(float(p[1]), 6), round(float(p[2]), 6)])
             except (ValueError, IndexError):
                 pass
     return fixes
@@ -128,18 +128,23 @@ def main():
 
     fixes = resolve_fixes(xp, needed)
 
-    def coord(fixid, rgn, ic):
+    def coord(fixid, ref):
         cand = fixes.get(fixid)
         if not cand:
             return None
-        return cand.get(ic) or cand.get("ENRT") or next(iter(cand.values()))
+        if ref is None or len(cand) == 1:
+            return cand[0]
+        cl = math.cos(ref[0] * math.pi / 180)
+        return min(cand, key=lambda c: (c[0] - ref[0]) ** 2 + ((c[1] - ref[1]) * cl) ** 2)   # nearest the airport
 
     procs = {}
     for ic, data in raw.items():
+        rw = list(data["rwys"].values())
+        ref = [sum(r[0] for r in rw) / len(rw), sum(r[1] for r in rw) / len(rw)] if rw else None
         for grp in ("sids", "stars", "apprs"):
             for pr in data[grp]:
                 for l in pr["legs"]:
-                    c = coord(l["fix"], l.get("rgn"), ic) if l["fix"] else None
+                    c = coord(l["fix"], ref) if l["fix"] else None
                     if c: l["lat"], l["lon"] = c[0], c[1]
                     l.pop("rgn", None)
         procs[ic] = data
