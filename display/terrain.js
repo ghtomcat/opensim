@@ -41,6 +41,12 @@ const M_NM  = 1 / 1852;
 let _tugPath = null, _tugKey = null;          // cached two-link tug path, rebuilt per pushback
 const _floodCache = { key: null, list: [] };  // derived apron flood-mast positions, per airport
 
+/* Point-light depth attenuation: shrink (radius ∝ 1/z) and dim (alpha falloff) with the
+   forward distance f (nm). Additive blending then fuses distant clusters into a beaded
+   shimmer. Clamped so near lights don't balloon and far ones don't vanish. */
+const _zScale = (f) => Math.max(0.45, Math.min(2.0, 0.5 / Math.max(0.05, f)));
+const _zAlpha = (f) => Math.max(0.30, Math.min(1.0, 0.8 / Math.max(0.05, f)));
+
 /* Point-in-polygon (ray cast) on a [lat,lon] ring. */
 function _pipLL(lat, lon, ring) {
   let inside = false;
@@ -1734,6 +1740,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
       if (_night > 0.12) {
         const _DPR = devicePixelRatio || 1;
         const _alpha = (0.35 + 0.55 * _night).toFixed(2);
+        const _aBase = 0.35 + 0.55 * _night;     // numeric base for per-light depth-dimmed alpha
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
         for (const rg of _runways) {
@@ -1745,15 +1752,16 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           const bN=(rg.b.lat-acLat)*60, bE=(rg.b.lon-acLon)*60*cosAcLat;
           const dN=bN-aN, dE=bE-aE, L=Math.hypot(dN,dE) || 1e-6;
           const uN=dN/L, uE=dE/L, pN=-uE, pE=uN, half=(rg.widthM/1852)/2;
-          const _dot=(N,E,col,sz)=>{ const f=N*cosH+E*sinH, r=E*cosH-N*sinH;
+          const _dot=(N,E,rgb,baseSz)=>{ const f=N*cosH+E*sinH; if(f<0.02)return; const r=E*cosH-N*sinH;
             const sp=proj(f,r,_eNm); if(!sp)return;
-            ctx.fillStyle=col; ctx.beginPath(); ctx.arc(sp[0],sp[1],sz,0,Math.PI*2); ctx.fill(); };
+            ctx.fillStyle=`rgba(${rgb},${(_aBase*_zAlpha(f)).toFixed(3)})`;
+            ctx.beginPath(); ctx.arc(sp[0],sp[1],baseSz*_zScale(f),0,Math.PI*2); ctx.fill(); };
           for (let t=0; t<=L; t+=0.0324) {            // edge lights ~60 m both sides
-            _dot(aN+uN*t+pN*half, aE+uE*t+pE*half, `rgba(255,248,228,${_alpha})`, 1.5*_DPR);
-            _dot(aN+uN*t-pN*half, aE+uE*t-pE*half, `rgba(255,248,228,${_alpha})`, 1.5*_DPR);
+            _dot(aN+uN*t+pN*half, aE+uE*t+pE*half, '255,248,228', 1.5*_DPR);
+            _dot(aN+uN*t-pN*half, aE+uE*t-pE*half, '255,248,228', 1.5*_DPR);
           }
           for (const e of [0, L]) for (let s=-half; s<=half+1e-9; s+=half/3)   // green threshold bars
-            _dot(aN+uN*e+pN*s, aE+uE*e+pE*s, `rgba(70,255,110,${_alpha})`, 1.8*_DPR);
+            _dot(aN+uN*e+pN*s, aE+uE*e+pE*s, '70,255,110', 1.8*_DPR);
         }
         /* Taxiway edge lights (blue) — both sides of each taxiway centerline. Batched:
            one fillStyle, all dots as rects in a single path, one fill() (Changi's taxi
@@ -1767,7 +1775,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           const _txM = _apElevNm !== null ? null : _sampleElev(g[0].lat, g[0].lon);
           const _txNm = _apElevNm !== null ? _apElevNm : (_txM!==null?(_txM-refM)*M_NM:0);
           const _tx=(N,E)=>{ const f=N*cosH+E*sinH, r=E*cosH-N*sinH; const sp=proj(f,r,_txNm);
-            if(sp){ ctx.moveTo(sp[0]+_tw, sp[1]); ctx.arc(sp[0], sp[1], _tw, 0, 7); } };
+            if(sp){ const rad=_tw*_zScale(f); ctx.moveTo(sp[0]+rad, sp[1]); ctx.arc(sp[0], sp[1], rad, 0, 7); } };
           for (let s=0;s<g.length-1;s++){
             const n0=(g[s].lat-acLat)*60, e0=(g[s].lon-acLon)*60*cosAcLat;
             const n1=(g[s+1].lat-acLat)*60, e1=(g[s+1].lon-acLon)*60*cosAcLat;
@@ -1797,8 +1805,8 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
             if (mN*mN+mE*mE > 9 || mN*cosH+mE*sinH < -0.4) continue;
             const dN = n1-n0, dE = e1-e0, segL = Math.hypot(dN,dE)||1e-6, uN = dN/segL, uE = dE/segL;
             for (let t = 0; t < segL; t += 0.016) { const cN = n0+uN*t, cE = e0+uE*t;
-              const sp = proj(cN*cosH+cE*sinH, cE*cosH-cN*sinH, _cNm);
-              if (sp) { ctx.moveTo(sp[0]+_tw, sp[1]); ctx.arc(sp[0], sp[1], _tw, 0, 7); } }
+              const f = cN*cosH+cE*sinH, sp = proj(f, cE*cosH-cN*sinH, _cNm);
+              if (sp) { const rad=_tw*_zScale(f); ctx.moveTo(sp[0]+rad, sp[1]); ctx.arc(sp[0], sp[1], rad, 0, 7); } }
           }
         }
         ctx.fill();
@@ -1903,9 +1911,9 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
               const ac = edge + i*_sp;
               const N = e.T[0] + e.iN*_aim + lN*ac, E = e.T[1] + e.iE*_aim + lE*ac;
               const ang = Math.atan2(_vAGLnm, Math.hypot(N,E)||1e-6) * 180/Math.PI;
-              const sp = proj(N*cosH+E*sinH, E*cosH-N*sinH, _eNm); if (!sp) continue;
+              const f = N*cosH+E*sinH, sp = proj(f, E*cosH-N*sinH, _eNm); if (!sp) continue;
               ctx.fillStyle = ang >= _SET[i] ? 'rgba(255,255,255,0.95)' : 'rgba(255,45,45,0.95)';
-              ctx.beginPath(); ctx.arc(sp[0], sp[1], 1.9*_DPR, 0, 7); ctx.fill();
+              ctx.beginPath(); ctx.arc(sp[0], sp[1], 1.9*_DPR*_zScale(f), 0, 7); ctx.fill();
             }
           }
         }
