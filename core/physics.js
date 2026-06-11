@@ -14,6 +14,7 @@ import { activeDetent } from './thrust.js';
 import { managedSpeed } from './managed-speed.js';
 
 let _athrSpdPrev = null;   // previous airspeed for the A/THR damping (speed-rate) term
+let _apVsCmd     = null;   // rate-limited AP vertical-speed command — eases the descent in (no step → no VS spike)
 
 const DEG = Math.PI / 180;
 
@@ -163,10 +164,14 @@ export function tickPhysics(dt) {
     if (S.ap && !onGround) {
       const altTgt   = S.altManaged ? vnavTargetAlt() : S.altT;
       const horizFpm = Math.max(120, tas_ms * 196.85);                          // TRUE airspeed → ft/min (IAS understated the path angle up high → over-steep VS)
-      const cmdVS    = Math.max(-1800, Math.min(1800, (altTgt - S.alt) * 3));   // gentle gain → flares ~600 ft out, less overshoot
+      const cmdVSraw = Math.max(-1800, Math.min(1800, (altTgt - S.alt) * 3));   // gentle gain → flares ~600 ft out, less overshoot
+      if (_apVsCmd == null || onGround) _apVsCmd = S.vs ?? 0;
+      const vsStep   = 550 * dt;                                                 // ease the command in (~3 s to full rate) so the descent doesn't step → no spike
+      _apVsCmd = Math.max(_apVsCmd - vsStep, Math.min(_apVsCmd + vsStep, cmdVSraw));
+      const cmdVS    = _apVsCmd;
       const gammaDeg = Math.asin(Math.max(-0.3, Math.min(0.3, cmdVS / horizFpm))) * 180 / Math.PI;
-      const vsErr    = cmdVS - (S.vs ?? 0);                                     // close the loop on actual VS — kills the AoA-assumption overshoot
-      apPitch = Math.max(-8, Math.min(15, gammaDeg + 2.5 + vsErr * 0.0022));    // + ~trim AoA for level flight
+      const vsErr    = cmdVS - (S.vs ?? 0);                                     // close the loop on actual VS — the ramp keeps the start small, so damping can be firm
+      apPitch = Math.max(-8, Math.min(15, gammaDeg + 2.5 + vsErr * 0.0032));    // + ~trim AoA for level flight
     }
 
     /* On ground: snap back to level; in flight: fight inertia (AP overrides the stick) */
