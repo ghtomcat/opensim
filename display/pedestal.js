@@ -8,6 +8,7 @@
 import { S, setState } from '../core/state.js';
 import { startEngineLifecycle, stopEngineLifecycle } from '../core/sound.js';
 import { buildFullRoute, altLabel } from '../core/route.js';
+import { buildDescentPath } from '../core/vnav.js';
 
 let _el = null;
 
@@ -316,6 +317,8 @@ const _CSS = `
   .mcdu-id.wht { color: #e8ecf0; }
   .mcdu-td  { color: #6b8294; font-size: 13px; align-self: center; }
   .mcdu-alt { color: #d96ec8; font-size: 14px; text-align: right; }
+  .mcdu-alt.pred { color: #56707f; }   /* FMS-predicted altitude (no published constraint) */
+  .mcdu-div.td { color: #8fd6ff; border-top: 1px dashed #2b4658; }   /* Top of Descent marker */
   .mcdu-div {
     font-size: 12px; letter-spacing: 0.12em;
     padding: 11px 2px 4px; margin-top: 5px; border-top: 1px solid #121a22;
@@ -361,6 +364,17 @@ function _mcduHTML() {
     return hdr + `<div class="mcdu-empty">NO FLIGHT PLAN<br><span class="mcdu-dim">${why}</span></div>`;
   }
 
+  /* FMS vertical predictions — the descent path's altitude at each fix + the Top of Descent. */
+  let prof = null;
+  try {
+    const cruiseAlt = Math.max(S.alt ?? 0, S.altT ?? 0);   // the real cruise you descend from (not the type ceiling)
+    prof = buildDescentPath(route.legs, cruiseAlt, arr?.elevation ?? 0);
+  } catch {}
+  const _predLabel = (ft) => ft == null ? '' : (ft >= 18000 ? 'FL' + Math.round(ft / 100) : String(Math.round(ft / 100) * 100));
+  let todAfter = -1;
+  if (prof) for (let i = 0; i < route.legs.length - 1; i++)
+    if (prof.distToEnd[i] >= prof.todDist && prof.distToEnd[i + 1] < prof.todDist) { todAfter = i; break; }
+
   const segName = { sid: route.sid?.name, star: route.star?.name, app: route.appr };
   const segLbl  = { sid: 'SID', awy: 'AIRWAY', star: 'STAR', app: 'APPR' };
   const segCol  = { sid: 'cy', awy: 'mg', star: 'am', app: 'or' };
@@ -376,8 +390,12 @@ function _mcduHTML() {
     let td = '';
     if (i > 0) { const p = route.legs[i-1];
       td = `${String(Math.round(_brg(p.lat, p.lon, l.lat, l.lon))).padStart(3, '0')}°/${Math.round(_gc(p.lat, p.lon, l.lat, l.lon))}`; }
+    const con = altLabel(l.alt);                                    // published constraint (magenta) wins, else FMS prediction (dim)
+    const alt = con ? `<span class="mcdu-alt">${con}</span>`
+                    : `<span class="mcdu-alt pred">${prof ? _predLabel(prof.predAlt[i]) : ''}</span>`;
     rows += `<div class="mcdu-wp"><span class="mcdu-id ${isApt ? 'wht' : 'gr'}">${l.id}</span>` +
-            `<span class="mcdu-td">${td}</span><span class="mcdu-alt">${altLabel(l.alt)}</span></div>`;
+            `<span class="mcdu-td">${td}</span>${alt}</div>`;
+    if (i === todAfter) rows += `<div class="mcdu-div td">⊤ T/D · TOP OF DESCENT</div>`;
   });
 
   return hdr +

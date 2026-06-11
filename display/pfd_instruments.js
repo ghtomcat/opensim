@@ -10,6 +10,7 @@
 import { S } from '../core/state.js';
 import { smooth, smoothAngle } from './smooth.js';
 import { buildFullRoute, getProcedures } from '../core/route.js';
+import { buildDescentPath } from '../core/vnav.js';
 
 /* The in-flight flight plan — the same gate-to-gate route the briefing draws, cached per
    mission (buildFullRoute does a Dijkstra over the airway graph, too heavy for every frame).
@@ -714,6 +715,33 @@ function _drawNDArc(ctx, box, style, config = {}) {
       ctx.beginPath(); ctx.moveTo(sx, sy - sz); ctx.lineTo(sx + sz, sy); ctx.lineTo(sx, sy + sz); ctx.lineTo(sx - sz, sy); ctx.closePath(); ctx.stroke();
       ctx.fillStyle = col('green'); ctx.fillText(l.id, sx + sz + 3, sy);
     });
+
+    /* ── Top of Descent — white circle + tick on the route where the descent path meets cruise ── */
+    let _prof = null;
+    try {
+      const cruiseAlt = Math.max(S.alt ?? 0, S.altT ?? 0);   // the real cruise you descend from
+      _prof = buildDescentPath(route.legs, cruiseAlt, S.mission?.arrival?.elevation ?? 0);
+    } catch {}
+    if (_prof && _prof.todDist > 0 && _prof.todDist < _prof.distToEnd[0]) {
+      for (let i = 0; i < route.legs.length - 1; i++) {
+        if (_prof.distToEnd[i] >= _prof.todDist && _prof.distToEnd[i + 1] < _prof.todDist) {
+          const fr   = (_prof.distToEnd[i] - _prof.todDist) / ((_prof.distToEnd[i] - _prof.distToEnd[i + 1]) || 1);
+          const tLat = route.legs[i].lat + fr * (route.legs[i + 1].lat - route.legs[i].lat);
+          const tLon = route.legs[i].lon + fr * (route.legs[i + 1].lon - route.legs[i].lon);
+          const [tx, ty] = proj(tLat, tLon);
+          if (tx > x - 20 && tx < x + w + 20 && ty > y - 20 && ty < y + h + 20) {
+            const r = h * 0.016;
+            ctx.strokeStyle = col('white'); ctx.lineWidth = 1.6;
+            ctx.beginPath(); ctx.arc(tx, ty, r, 0, Math.PI * 2); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(tx, ty + r); ctx.lineTo(tx, ty + r * 2.3); ctx.stroke();   // downward tick
+            ctx.fillStyle = col('white'); ctx.font = `${fh * 0.026}px ${f}`;
+            ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+            ctx.fillText('T/D', tx + r + 3, ty);
+          }
+          break;
+        }
+      }
+    }
   }
 
   /* ── ownship (Airbus yellow aircraft) + heading line ── */
