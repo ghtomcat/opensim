@@ -37,7 +37,7 @@
         "isp": 365,
         "massWet": 1200000,
         "massDry": 100000,
-        "burnDuration": 342
+        "burnDuration": 343
       }
     ],
     "payload": 0,
