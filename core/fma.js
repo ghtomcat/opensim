@@ -27,24 +27,27 @@ function _phase(p) {
 
 /* Airbus — 5 columns: A/THR·thrust | vertical | lateral | approach-cap | AP/FD·A-THR. */
 export function computeAirbusFMA(p) {
-  const { n1 = 0, alt = 0, fieldElev = 0, ap = false, navManaged = false, altManaged = false } = p;
+  const { n1 = 0, alt = 0, fieldElev = 0, ap = false, athr = false,
+          athrMode = null, athrDetent = null, navManaged = false, altManaged = false } = p;
   const agl  = alt - fieldElev;
   const apfd = ap ? cell('AP1', 'white') : cell('1FD2', 'white');
   /* lateral: managed NAV (green) when LNAV follows the plan, else selected HDG (cyan) */
   const lat  = navManaged ? cell('NAV', 'green') : cell('HDG', 'cyan');
   /* vertical: managed mode (green) when VNAV flies the profile, else selected ALT hold (cyan) */
   const vert = (label) => altManaged ? cell(label, 'green') : cell('ALT', 'cyan');
+  /* thrust column: A/THR pinned at the detent ceiling → THR <detent> (green); modulating to
+     hold speed → SPEED/MACH (green); A/THR off → MAN, from the lever detent (white). */
+  const thr = !athr        ? cell(athrDetent === 'TOGA' ? 'MAN TO/GA' : 'MAN THR', 'white')
+            : athrMode === 'THR' ? cell('THR ' + (athrDetent ?? 'CLB'), 'green')
+            : cell(athrMode === 'MACH' ? 'MACH' : 'SPEED', 'green');
   switch (_phase(p)) {
     case 'parked':   return [BLANK, BLANK, BLANK, BLANK, BLANK];
     case 'takeoff':  return [cell('MAN TO/GA', 'white'), cell('SRS', 'green'), cell('RWY', 'green'),
-                             BLANK, cell('A/THR', 'cyan')];               // A/THR armed (blue) once set
-    case 'climb':    return [n1 > 90 ? cell('MAN TO/GA', 'white') : cell('THR CLB', 'green'),
-                             agl < 1500 ? cell('SRS', 'green') : vert('CLB'),
-                             lat, BLANK, apfd];
-    case 'approach': return [cell('SPEED', 'green'), cell('G/S', 'green'), cell('LOC', 'green'),
-                             cell('CAT 3', 'green'), apfd];
-    case 'descent':  return [cell('SPEED', 'green'), vert('DES'), lat, BLANK, apfd];
-    default:         return [cell('SPEED', 'green'), vert('ALT CRZ'), lat, BLANK, apfd];
+                             BLANK, athr ? cell('A/THR', 'cyan') : BLANK];   // A/THR armed (blue) once set
+    case 'climb':    return [thr, agl < 1500 ? cell('SRS', 'green') : vert('CLB'), lat, BLANK, apfd];
+    case 'approach': return [thr, cell('G/S', 'green'), cell('LOC', 'green'), cell('CAT 3', 'green'), apfd];
+    case 'descent':  return [thr, vert('DES'), lat, BLANK, apfd];
+    default:         return [thr, vert('ALT CRZ'), lat, BLANK, apfd];
   }
 }
 

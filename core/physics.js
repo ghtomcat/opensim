@@ -10,6 +10,7 @@ import { capturePushback, pushbackPose } from './pushback.js';
 import { computeAirbusFMA, computeBoeingFMA } from './fma.js';
 import { lnavTargetHeading } from './lnav.js';
 import { vnavTargetAlt } from './vnav.js';
+import { activeDetent } from './thrust.js';
 
 let _athrSpdPrev = null;   // previous airspeed for the A/THR damping (speed-rate) term
 
@@ -66,12 +67,21 @@ export function tickPhysics(dt) {
        descent → idles. Target = the FCU/managed speed, capped by 250 < FL100 and Vmo. */
     const athrActive = state === 'running' && S.ap && S.athr && !S.wow;
     let n1Target, athrI = S.athrN1 ?? n1Now;
+    let athrMode = null, athrDetent = null;
     if (athrActive) {
+      /* The thrust-lever detent is a flat-rated N1 ceiling — the A/THR may modulate up to
+         it, no further. Pinned at the ceiling → THR <detent>; below it → SPEED/MACH. */
+      const det     = activeDetent(ac, S.thrustLever ?? 0);
+      const ceiling = det ? det.n1Limit : 100;
+      athrDetent    = det?.label ?? null;
       const spdTgt  = Math.min(S.spdT ?? vmo, S.alt < 10000 ? 250 : 1e4, vmo);  // FCU/managed, capped 250<FL100 & Vmo
       const spdErr  = spdTgt - (S.spd ?? 0);
       const spdRate = _athrSpdPrev != null ? ((S.spd ?? 0) - _athrSpdPrev) / dt : 0;    // kt/s — damps overshoot
-      athrI    = Math.max(IDLE_N1, Math.min(100, athrI + spdErr * 0.10 * dt));          // integral (finds the trim N1)
-      n1Target = Math.max(IDLE_N1, Math.min(100, athrI + spdErr * 1.0 - spdRate * 3.5));// + proportional − derivative
+      athrI    = Math.max(IDLE_N1, Math.min(ceiling, athrI + spdErr * 0.10 * dt));      // integral (anti-windup at ceiling)
+      const speedN1 = Math.max(IDLE_N1, Math.min(100, athrI + spdErr * 1.0 - spdRate * 3.5)); // + proportional − derivative
+      n1Target = Math.min(speedN1, ceiling);                                            // detent caps the command
+      athrMode = (speedN1 >= ceiling - 0.5) ? 'THR'                                     // demand pinned at the limit
+               : (S.alt > 28000 ? 'MACH' : 'SPEED');                                    // modulating to hold speed
     } else {
       /* A/THR off → manual thrust: N1 follows the thrust lever, not the FCU selected speed
          (turning the SPD knob no longer changes thrust). Falls back to spdT for old state. */
@@ -86,7 +96,8 @@ export function tickPhysics(dt) {
     const newN1 = n1Now + (n1Target - n1Now) * (1 - Math.exp(-dt / tau));
 
     const n1Up = { n1: Math.max(0, Math.min(100, newN1)),
-                   athrN1: athrActive ? athrI : newN1 };   // track the A/THR integral; sync to N1 when off
+                   athrN1: athrActive ? athrI : newN1,      // track the A/THR integral; sync to N1 when off
+                   athrMode, athrDetent };                  // thrust mode for the FMA (null when A/THR off)
     if (state === 'starting' && newN1 >= IDLE_N1 * 0.95) n1Up.engineState = 'running';
     if (state === 'shutdown' && newN1 < 0.5) n1Up.engineState = 'off';
     setState(n1Up);
@@ -357,7 +368,8 @@ export function tickPhysics(dt) {
     const fieldElev = S.mission?.departure?.elevation ?? S.mission?.arrival?.elevation ?? 0;
     const fp = { wow: newWow, n1: S.n1 ?? 0, vs, alt: newAlt, altT: S.altT,
                  gear: S.gear, ap: S.ap, athr: S.athr, fieldElev,
-                 navManaged: S.navManaged, altManaged: S.altManaged };
+                 navManaged: S.navManaged, altManaged: S.altManaged,
+                 athrMode: S.athrMode, athrDetent: S.athrDetent };
     fma = ac.manufacturer === 'boeing' ? computeBoeingFMA(fp) : computeAirbusFMA(fp);
   } else if (ac.fmaPhases) {
     const phase = ac.fmaPhases.find(p => newAlt >= p.minAlt);

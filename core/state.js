@@ -37,6 +37,8 @@ export const S = {
   fmsActive:  0,                  // active waypoint index in the flight-plan legs (LNAV sequencer)
   altManaged: false,              // vertical managed VNAV — fly the altitude profile vs hold the FCU altitude
   athrN1:     55,                 // A/THR commanded N1 (the autothrust speed-loop integrator state)
+  athrMode:   null,               // active A/THR thrust mode: 'SPEED' | 'MACH' | 'THR' (null when A/THR off) — FMA column 0
+  athrDetent: null,               // thrust-lever detent the A/THR is rated to: IDLE/CLB/MCT/TOGA
   thrustLever: 0,                 // manual thrust-lever position 0=idle…1=TOGA — drives N1 when A/THR is off (spdT then is only the selected speed)
   wow:      false,                // weight on wheels (squat switch)
   touchdownVS: 0,                 // VS at last touchdown (fpm, negative)

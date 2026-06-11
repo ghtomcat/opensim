@@ -52,6 +52,7 @@ const GP = {
 };
 
 let _gpPrevButtons = [];
+let _gpPrevThrottle = null;   // last applied throttle-axis value — only re-assert thrust on real movement
 
 export function initInput() {
   window.addEventListener('keydown',   _onKeyDown);
@@ -135,12 +136,19 @@ export function tickGamepad() {
   }
 
   /* Throttle slider: -1=full fwd → full thrust, +1=full back → idle. Turbofans drive the
-     thrust lever (the FCU speed is the A/THR target, not the throttle); others use spdT. */
+     thrust lever (the FCU speed is the A/THR target, not the throttle); others use spdT.
+     Only apply on real axis movement — otherwise a resting/centred axis re-asserts the lever
+     every frame and overrides the pedestal detent (so the A/THR ceiling kept climbing back up). */
   const frac = (1 - throttleRaw) / 2;
-  if (S.aircraft?.engine?.type === 'turbofan')
-    setState({ thrustLever: Math.max(0, Math.min(1, frac)) });
-  else
-    setState({ spdT: Math.round(frac * (S.aircraft?.envelope.maxSpd ?? 350)) });
+  if (_gpPrevThrottle === null) {
+    _gpPrevThrottle = throttleRaw;                 // seed silently — keep the mission's initial thrust
+  } else if (Math.abs(throttleRaw - _gpPrevThrottle) > 0.01) {
+    _gpPrevThrottle = throttleRaw;                 // physical throttle actually moved → it takes over
+    if (S.aircraft?.engine?.type === 'turbofan')
+      setState({ thrustLever: Math.max(0, Math.min(1, frac)) });
+    else
+      setState({ spdT: Math.round(frac * (S.aircraft?.envelope.maxSpd ?? 350)) });
+  }
 
   /* PTT — trigger */
   const trigNow = btn[GP.TRIGGER]?.pressed ?? false;
