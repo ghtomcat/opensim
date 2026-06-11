@@ -254,11 +254,14 @@ function _checkGPWS(prev, curr, ac) {
   const fieldElev = S.mission?.arrival?.elevation ?? S.mission?.departure?.elevation ?? 0;
   for (const { alt, speech, red } of ac.gpws) {
     const abs = alt + fieldElev;
-    if (prev > abs && curr <= abs && !_gpwsFired.has(alt)) {
-      _gpwsFired.add(alt);
-      setTimeout(() => _playGPWS(speech, red), 200);
+    const key = `${alt}_${speech}`;   // key per callout, not per alt — two can share an alt (e.g. "two hundred" + "minimum")
+    if (prev > abs && curr <= abs && !_gpwsFired.has(key)) {
+      _gpwsFired.add(key);
+      const isMin = /minimum/i.test(speech);
+      const delay = isMin ? 1000 : 200;   // stagger "minimum" after the height callout at the same alt
+      setTimeout(() => _playGPWS(speech, red), delay);
       /* PF answers the decision-altitude callout — "minimum(s)" → "continue" */
-      if (/minimum/i.test(speech)) setTimeout(() => speakPF('continue'), 1100);
+      if (isMin) setTimeout(() => speakPF('continue'), delay + 900);
     }
   }
 }
