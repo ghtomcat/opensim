@@ -101,9 +101,9 @@ test('approach — autopilot holds altitude over 15 s', async ({ page }) => {
 
 test('approach — ILS captures and tracks the LOC + GS to the runway', async ({ page }) => {
   await loadSim(page, 'lszh-approach');                      // a350 into LSZH 28 (ILS 280°)
-  // stabilised on the localizer ~5 nm out, on the glideslope, gear + flaps
-  await set(page, { lat: 47.4421, lon: 8.6913, alt: 3000, altT: 1500, spd: 150, spdT: 150,
-                    hdg: 280, pitch: 8, vs: -750, gear: true, flaps: 3,
+  // stabilised on the localizer ~5 nm out (runway true bearing 276°), on the glideslope, gear + flaps
+  await set(page, { lat: 47.4479, lon: 8.6929, alt: 3000, altT: 1500, spd: 150, spdT: 150,
+                    hdg: 276, pitch: 8, vs: -750, gear: true, flaps: 3,
                     ap: true, athr: true, navManaged: true, paused: false });
   await step(page, 50);
   const after = await get(page);

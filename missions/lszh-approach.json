@@ -20,11 +20,11 @@
     "elevation": 1416
   },
   "initialState": {
-    "lat": 47.4335,
-    "lon": 8.7648,
-    "alt": 3900,
+    "lat": 47.4427,
+    "lon": 8.7665,
+    "alt": 3980,
     "spd": 165,
-    "hdg": 280,
+    "hdg": 276,
     "pitch": 4,
     "roll": 0,
     "gear": true,

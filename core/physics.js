@@ -126,13 +126,13 @@ export function tickPhysics(dt) {
   if (_ils && !S.wow) {
     const _rw = runwayThreshold(S.mission.arrival.icao, S.mission.arrival.runway);
     if (_rw) {
-      const crs    = _ils.course;
+      const crs    = _rw.hdg ?? _ils.course;                    // the runway's TRUE bearing — the published course is magnetic (~4° off → off the centerline)
       const dNm    = _gcNm(_rw.thr[0], _rw.thr[1], S.lat, S.lon);
       const angOff = ((_brgDeg(_rw.thr[0], _rw.thr[1], S.lat, S.lon) - (crs + 180) + 540) % 360) - 180;  // ° off centerline (+ = right)
       const hdgOff = ((S.hdg - crs + 540) % 360) - 180;
       if (dNm < 30 && Math.abs(hdgOff) < 90) {                  // inbound and within range
         ilsLocNow = Math.max(-2.5, Math.min(2.5, angOff));      // localizer dots (~1 dot/°)
-        _gsAlt    = (S.mission.arrival.elevation ?? 0) + dNm * 318;   // 3° glideslope altitude at this distance
+        _gsAlt    = (S.mission.arrival.elevation ?? 0) + 50 + dNm * 318;   // 3° glideslope + ~50 ft threshold-crossing height
         ilsGsNow  = Math.max(-2.5, Math.min(2.5, (S.alt - _gsAlt) / 80));   // + = above the slope
         _dmeNm    = dNm;
         if (!locCap && Math.abs(ilsLocNow) < 1.5 && Math.abs(hdgOff) < 35 && dNm < 18) locCap = true;
@@ -205,7 +205,7 @@ export function tickPhysics(dt) {
       let cmdVSraw;
       if (gsCap) {
         const gsRate = -horizFpm * 0.05241;                                    // nominal 3° descent rate at this TAS
-        cmdVSraw = Math.max(-2000, Math.min(300, gsRate + (_gsAlt - S.alt) * 5));   // + deviation pull; small climb to regain from below
+        cmdVSraw = Math.max(-2000, Math.min(500, gsRate + (_gsAlt - S.alt) * 8));   // + firm deviation pull; small climb to regain from below
       } else {
         const altTgt = S.altManaged ? vnavTargetAlt() : S.altT;
         cmdVSraw = Math.max(-1800, Math.min(1800, (altTgt - S.alt) * 3));      // gentle gain → flares ~600 ft out, less overshoot
