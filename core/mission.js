@@ -79,6 +79,9 @@ export async function loadMission(missionPath, aircraftPath) {
     gearAnim: aircraft.fixedGear ? 1 : (startOnGround ? 1 : 0),
     ap:    mission.initialState.ap   ?? !aircraft.manualControl,   // airborne missions may start on the AP
     athr:  mission.initialState.athr ?? !aircraft.manualControl,
+    navManaged: mission.initialState.navManaged ?? false,         // managed lateral/vertical/speed (else selected/held)
+    altManaged: mission.initialState.altManaged ?? false,
+    spdManaged: mission.initialState.spdManaged ?? false,
     wow:   startOnGround,
     parkBrake: startOnGround,   // parked on the ground → brake set; airborne → released
     trim:  0,

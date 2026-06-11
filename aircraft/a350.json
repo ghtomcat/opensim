@@ -365,12 +365,12 @@
   ],
   "checklist": {
     "flaps": [
-      { "alt": 1400, "config": 1, "pf": "flaps one",  "pm": "flaps one"  },
-      { "alt":  900, "config": 2, "pf": "flaps two",  "pm": "flaps two"  },
-      { "alt":  500, "config": 3, "pf": "flaps full", "pm": "flaps full" }
+      { "alt": 2400, "config": 1, "pf": "flaps one",  "pm": "flaps one"  },
+      { "alt": 2000, "config": 2, "pf": "flaps two",  "pm": "flaps two"  },
+      { "alt": 1500, "config": 3, "pf": "flaps full", "pm": "flaps full" }
     ],
     "gear": {
-      "alt": 700,
+      "alt": 1800,
       "pf": "gear down",
       "pm": "gear down and locked"
     }

@@ -970,7 +970,12 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   /* Rise from pad — used to gate pad-structure geometry and nozzle visibility */
   const alt_nm   = (S.alt ?? 0) * FT_NM;
   const _svRise  = Math.max(0, alt_nm - (S.mission?.departure?.elevation ?? 0) * FT_NM);
-  if (alt_nm < 0.082 && F_.length) {
+  /* Height above the local field (AGL) — the shadow must gate on AGL, not MSL, or it
+     vanishes at any airport above ~498 ft elevation (LSZH 1416 ft). Match physics' field
+     pick (departure ?? arrival). */
+  const _fieldElevFt = S.mission?.departure?.elevation ?? S.mission?.arrival?.elevation ?? 0;
+  const agl_nm   = Math.max(0, alt_nm - _fieldElevFt * FT_NM);
+  if (agl_nm < 0.082 && F_.length) {
     /* Silhouette shadow — project every vertex along the light direction onto the ground,
        then fill ALL geometry faces as one union path (uniform opacity, no per-face
        darkening). Reads the true planform: fuselage, swept wings, engines, tail.
@@ -990,7 +995,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
        at its wheel-contact ride height (not MSL, or it would float); airborne, MSL. */
     const groundUR = (isSV || isF9 || isSS)
       ? Math.min(...rot.map(v => v.uR))
-      : S.wow ? -_groundOffsetFt() * FT_NM : -alt_nm;
+      : S.wow ? -_groundOffsetFt() * FT_NM : -agl_nm;
     /* Each vertex → ground along the light dir → orbit → screen. The orbit rotation must
        match project() exactly (chase cam: el then az; side cam: az then el), or the ground
        shadow won't track the airframe as the side cam swings around. */
@@ -1009,7 +1014,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       return { x: cx + crW / cf * focal, y: cy - (cuW * cosCP - cfW * sinCP) / cf * focal };
     });
 
-    const _ft     = alt_nm / 0.082;
+    const _ft     = agl_nm / 0.082;
     const opacity = (1 - _ft) * 0.38;
     const blur    = Math.round(2 + _ft * 8);
     ctx.save();

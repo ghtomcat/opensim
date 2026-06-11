@@ -257,6 +257,8 @@ function _checkGPWS(prev, curr, ac) {
     if (prev > abs && curr <= abs && !_gpwsFired.has(alt)) {
       _gpwsFired.add(alt);
       setTimeout(() => _playGPWS(speech, red), 200);
+      /* PF answers the decision-altitude callout — "minimum(s)" → "continue" */
+      if (/minimum/i.test(speech)) setTimeout(() => speakPF('continue'), 1100);
     }
   }
 }

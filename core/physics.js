@@ -79,7 +79,7 @@ export function tickPhysics(dt) {
        descent → idles. Target = the FCU/managed speed, capped by 250 < FL100 and Vmo. */
     const athrActive = state === 'running' && S.ap && S.athr && !S.wow;
     let n1Target, athrI = S.athrN1 ?? n1Now;
-    let athrMode = null, athrDetent = null;
+    let athrMode = null, athrDetent = null, retardLever = false;
     if (athrActive) {
       /* The thrust-lever detent is a flat-rated N1 ceiling — the A/THR may modulate up to
          it, no further. Pinned at the ceiling → THR <detent>; below it → SPEED/MACH. */
@@ -100,6 +100,7 @@ export function tickPhysics(dt) {
          speed bleeds and the jet settles, instead of the A/THR holding speed and floating it. */
       if (S.gsCaptured && (S.alt - (S.mission?.arrival?.elevation ?? 0)) < 30) {
         n1Target = IDLE_N1; athrMode = 'IDLE';
+        retardLever = true;   // pull the thrust levers back so they're at idle by touchdown
       }
     } else {
       /* A/THR off → manual thrust: N1 follows the thrust lever, not the FCU selected speed
@@ -117,6 +118,7 @@ export function tickPhysics(dt) {
     const n1Up = { n1: Math.max(0, Math.min(100, newN1)),
                    athrN1: athrActive ? athrI : newN1,      // track the A/THR integral; sync to N1 when off
                    athrMode, athrDetent };                  // thrust mode for the FMA (null when A/THR off)
+    if (retardLever) n1Up.thrustLever = 0;                  // RETARD — levers to idle, so on the ground N1 stays at idle
     if (state === 'starting' && newN1 >= IDLE_N1 * 0.95) n1Up.engineState = 'running';
     if (state === 'shutdown' && newN1 < 0.5) n1Up.engineState = 'off';
     setState(n1Up);
@@ -241,7 +243,7 @@ export function tickPhysics(dt) {
       const _flaring = gsCap && _aglP < 50;
       const _vsGain  = _flaring ? 0.0045 : 0.0032;                            // flare — arrest the sink, but capped so the camber lift doesn't balloon it
       apPitch = Math.max(-8, Math.min(16, gammaDeg + trimAoA + vsErr * _vsGain));
-      if (_flaring) apPitch = Math.max(trimAoA, Math.min(apPitch, trimAoA + 4));   // flare: hold level..+4° — never nose-down (let ground effect cushion), never balloon
+      if (_flaring) apPitch = Math.max(trimAoA - 1.0, Math.min(apPitch, trimAoA + 4));   // flare: a touch below level..+4° — gentle settle (ground effect cushions), no balloon
     }
 
     /* On ground: snap back to level; in flight: fight inertia (AP overrides the stick) */
@@ -286,7 +288,7 @@ export function tickPhysics(dt) {
     const span    = perf.wingSpan ?? Math.sqrt(8.5 * S_wing);            // estimate from area (AR ~8.5) if absent
     const hOverB  = Math.max(0, S.alt - groundFt) / span;               // height above ground / wingspan
     const geK     = hOverB < 1.1 ? ((16 * hOverB) ** 2) / (1 + (16 * hOverB) ** 2) : 1;   // induced-drag factor → ~0.4 at touchdown
-    const geLift  = hOverB < 1.1 ? 1 + 0.06 * (1 - Math.min(1, hOverB)) : 1;              // up to +6% CL near the ground (more = floats down the runway)
+    const geLift  = hOverB < 1.1 ? 1 + 0.04 * (1 - Math.min(1, hOverB)) : 1;              // up to +3% CL near the ground (more = floats down the runway)
 
     /* Ground spoilers (speedBrake = 2, deployed on touchdown): dump lift to plant the jet on
        its wheels + add drag to slow the roll-out. Without this they were cosmetic. */
@@ -519,8 +521,10 @@ export function tickPhysics(dt) {
      idle by then (the flare RETARD), so don't gate on the manual lever — A/THR holds the CL
      detent, which isn't "idle lever". */
   const justTouched = !S.wow && newWow;
-  const _sbPatch = (justTouched && (S.speedBrake ?? 0) === 1)
-    ? { speedBrake: 2 } : {};
+  const _sbPatch = justTouched
+    ? { thrustLever: 0,                                     // levers to idle on touchdown (no spool-up to hold speed)
+        ...((S.speedBrake ?? 0) === 1 ? { speedBrake: 2 } : {}) }
+    : {};
 
   /* Gear animation — 12-second transit (not for fixed-gear aircraft) */
   const GEAR_TIME = 12;
