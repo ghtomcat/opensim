@@ -35,6 +35,22 @@ function _makeGlowSprite(c0, c1, c2) {
   return s;
 }
 
+/* Airfield-lamp sprite — a white-hot core fading through the lamp colour to a soft halo, so
+   a taxiway/runway light reads as a lit point with a glow + ground spill (drawn additively),
+   not a flat dot. Tight bright centre keeps the lamp crisp; the falloff is the halo. */
+let _twBlueGlow = null, _twGreenGlow = null, _rwWhiteGlow = null;
+function _makeLampGlow(rgb) {
+  const s = document.createElement('canvas'); s.width = s.height = 64;
+  const g = s.getContext('2d');
+  const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grd.addColorStop(0,    'rgba(255,255,255,0.95)');     // white-hot core
+  grd.addColorStop(0.16, `rgba(${rgb},0.80)`);          // lamp colour
+  grd.addColorStop(0.45, `rgba(${rgb},0.16)`);          // halo
+  grd.addColorStop(1,    `rgba(${rgb},0)`);
+  g.fillStyle = grd; g.fillRect(0, 0, 64, 64);
+  return s;
+}
+
 const DEG   = Math.PI / 180;
 const FT_NM = 1 / 6076.12;
 const M_NM  = 1 / 1852;
@@ -1763,36 +1779,37 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           for (const e of [0, L]) for (let s=-half; s<=half+1e-9; s+=half/3)   // green threshold bars
             _dot(aN+uN*e+pN*s, aE+uE*e+pE*s, '70,255,110', 1.8*_DPR);
         }
-        /* Taxiway edge lights (blue) — both sides of each taxiway centerline. Batched:
-           one fillStyle, all dots as rects in a single path, one fill() (Changi's taxi
-           network is enormous). Tight distance + behind culls. */
-        ctx.fillStyle = `rgba(70,130,255,${_alpha})`;
-        ctx.beginPath();
-        const _tw = 1.3*_DPR;
-        for (const way of _osmWays) {
+        /* Taxiway edge lights (blue) + centreline lights (green) — a soft lamp-glow sprite per
+           light (white-hot core + halo + ground spill), drawn additively. Sparser than the old
+           flat dots since the glows blend. Tight distance + behind culls (Changi is enormous). */
+        _twBlueGlow  ||= _makeLampGlow('90,150,255');
+        _twGreenGlow ||= _makeLampGlow('70,235,110');
+        const _glowR = 3.4 * _DPR;
+        const _lamp = (N, E, sprite, elevNm) => {
+          const f = N*cosH + E*sinH; if (f < 0.02) return;
+          const sp = proj(f, E*cosH - N*sinH, elevNm); if (!sp) return;
+          const rad = _glowR * _zScale(f);
+          ctx.globalAlpha = _aBase * _zAlpha(f);
+          ctx.drawImage(sprite, sp[0]-rad, sp[1]-rad, rad*2, rad*2);
+        };
+        for (const way of _osmWays) {                              // blue edge lights, both sides
           if (way.tags?.aeroway !== 'taxiway' || !way.geometry || way.geometry.length < 2) continue;
           const _hw = ((parseFloat(way.tags?.width)||15)/1852)/2, g = way.geometry;
           const _txM = _apElevNm !== null ? null : _sampleElev(g[0].lat, g[0].lon);
           const _txNm = _apElevNm !== null ? _apElevNm : (_txM!==null?(_txM-refM)*M_NM:0);
-          const _tx=(N,E)=>{ const f=N*cosH+E*sinH, r=E*cosH-N*sinH; const sp=proj(f,r,_txNm);
-            if(sp){ const rad=_tw*_zScale(f); ctx.moveTo(sp[0]+rad, sp[1]); ctx.arc(sp[0], sp[1], rad, 0, 7); } };
           for (let s=0;s<g.length-1;s++){
             const n0=(g[s].lat-acLat)*60, e0=(g[s].lon-acLon)*60*cosAcLat;
             const n1=(g[s+1].lat-acLat)*60, e1=(g[s+1].lon-acLon)*60*cosAcLat;
             const mN=(n0+n1)/2, mE=(e0+e1)/2;
-            if (mN*mN+mE*mE > 9) continue;           // >3 nm away
-            if (mN*cosH+mE*sinH < -0.4) continue;     // behind the camera
+            if (mN*mN+mE*mE > 9 || mN*cosH+mE*sinH < -0.4) continue;
             const dN=n1-n0, dE=e1-e0, segL=Math.hypot(dN,dE)||1e-6;
             const uN=dN/segL, uE=dE/segL, pN=-uE, pE=uN;
-            for (let t=0;t<segL;t+=0.022){ const cN=n0+uN*t, cE=e0+uE*t;
-              _tx(cN+pN*_hw, cE+pE*_hw); _tx(cN-pN*_hw, cE-pE*_hw); }
+            for (let t=0;t<segL;t+=0.03){ const cN=n0+uN*t, cE=e0+uE*t;
+              _lamp(cN+pN*_hw, cE+pE*_hw, _twBlueGlow, _txNm);
+              _lamp(cN-pN*_hw, cE-pE*_hw, _twBlueGlow, _txNm); }
           }
         }
-        ctx.fill();
-        /* Green taxiway centreline lights (paved taxiways) — additive dots along the centreline */
-        ctx.fillStyle = `rgba(60,235,95,${_alpha})`;
-        ctx.beginPath();
-        for (const way of _osmWays) {
+        for (const way of _osmWays) {                              // green centreline lights (paved)
           if (way.tags?.aeroway !== 'taxiway' || !way.geometry || way.geometry.length < 2) continue;
           if (_isGrass(way.tags?.surface)) continue;
           const g = way.geometry;
@@ -1804,12 +1821,11 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
             const mN = (n0+n1)/2, mE = (e0+e1)/2;
             if (mN*mN+mE*mE > 9 || mN*cosH+mE*sinH < -0.4) continue;
             const dN = n1-n0, dE = e1-e0, segL = Math.hypot(dN,dE)||1e-6, uN = dN/segL, uE = dE/segL;
-            for (let t = 0; t < segL; t += 0.016) { const cN = n0+uN*t, cE = e0+uE*t;
-              const f = cN*cosH+cE*sinH, sp = proj(f, cE*cosH-cN*sinH, _cNm);
-              if (sp) { const rad=_tw*_zScale(f); ctx.moveTo(sp[0]+rad, sp[1]); ctx.arc(sp[0], sp[1], rad, 0, 7); } }
+            for (let t = 0; t < segL; t += 0.022) { const cN = n0+uN*t, cE = e0+uE*t;
+              _lamp(cN, cE, _twGreenGlow, _cNm); }
           }
         }
-        ctx.fill();
+        ctx.globalAlpha = 1;
         ctx.restore();
       }
 
