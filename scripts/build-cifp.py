@@ -64,8 +64,11 @@ def parse_cifp(path):
         name, trans, fixid, region = f[2].strip(), f[3].strip(), f[4].strip(), f[5].strip()
         legtype = f[11].strip()
         alt = (f[22].strip() + f[23].strip()).strip()        # e.g. "+3500", "FL080"
+        spd = (f[26].strip() + f[27].strip()).strip() if len(f) > 27 else ""   # e.g. "-220" = at/below 220 kt
         key = (name, trans)
         leg = {"fix": fixid, "rgn": region, "t": legtype, "alt": alt}
+        if spd:
+            leg["spd"] = spd
         procs[kind].setdefault(key, []).append((int(f[0]) if f[0].strip().isdigit() else 0, leg))
         if fixid:
             needed.add(fixid)
@@ -153,7 +156,7 @@ def main():
           "   X-Plane CIFP install. SOURCE IS PROPRIETARY (Navigraph / Jeppesen) — this file\n"
           "   is gitignored and must not be redistributed. Regenerate: scripts/build-cifp.py.\n"
           "   PROCEDURES[ic] = { rwys:{id:[lat,lon]}, sids/stars/apprs:[{name,trans,legs:[\n"
-          "     {fix,t(legtype),alt,lat,lon}]}] }. */\n"
+          "     {fix,t(legtype),alt,spd?,lat,lon}]}] }. */\n"
           "export const PROCEDURES = " + json.dumps(procs, separators=(",", ":")) + ";\n")
     out = os.path.join(ROOT, "display", "procedures-data-xp.js")
     open(out, "w").write(js)

@@ -53,6 +53,14 @@ test('cruise — A/THR is capped by the thrust-lever detent (THR CLB)', async ({
   expect(after.athrMode).toBe('THR');                       // demand exceeds the limit → thrust-locked
 });
 
+test('cruise — managed speed flies the schedule, not the FCU speed', async ({ page }) => {
+  await loadSim(page, 'evra-approach');
+  await set(page, { spdT: 200, spdManaged: true, ap: true, athr: true, paused: false });  // FCU 200 must be ignored
+  await step(page, 40);
+  const after = await get(page);
+  expect(after.spd).toBeGreaterThan(260);                   // held near the spdProfile target (~283 at FL350), not 200
+});
+
 test('cruise — engine failure bleeds speed (AP holding altitude)', async ({ page }) => {
   await loadSim(page, 'evra-approach');
   const before = await get(page);

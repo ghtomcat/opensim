@@ -2212,6 +2212,7 @@
   import { TERMINALS, APRONS } from './display/terminals-data.js';
   import { buildFullRoute as _buildFullRoute, arrStarOptions as _arrStarOptions,
            approachLegs as _approachLegs, airportCentre as _airportCentre,
+           spdParse as _spdParse, spdLabel as _spdLabel,
            SEG_COL as _SEG_COL } from './core/route.js';
   import { tickPhysics }     from './core/physics.js';
   import { tickHovercraft }  from './core/hovercraft_physics.js';
@@ -2346,10 +2347,12 @@
   fcuCanvas.addEventListener('click', evt => {
     const panel = S.aircraft?.panel;
     if (panel !== 'airbus' && panel !== 'e190') return;
-    const { hdgX, hdgW, apX, apW, altX, altW } = _fcuGeometry();
+    const { spdX, hdgX, hdgW, apX, apW, altX, altW } = _fcuGeometry();
     const rect    = fcuCanvas.getBoundingClientRect();
     const mx      = evt.clientX - rect.left;
-    if (mx >= hdgX && mx < hdgX + hdgW) {
+    if (mx >= spdX && mx < hdgX) {
+      if (!_fcuMoved) setState({ spdManaged: !S.spdManaged });   // push SPD knob → managed speed / pull → SPD
+    } else if (mx >= hdgX && mx < hdgX + hdgW) {
       if (!_fcuMoved) setState({ navManaged: !S.navManaged });   // push HDG knob → managed NAV / pull → HDG
     } else if (mx >= altX && mx < altX + altW) {
       if (!_fcuMoved) setState({ altManaged: !S.altManaged });   // push ALT knob → managed VNAV / pull → ALT
@@ -2389,7 +2392,7 @@
     const coarse = evt.shiftKey;
     if (_fcuDrag.knob === 'spd') {
       setState({ spdT: Math.max(100, Math.min(350,
-        _fcuDrag.startSpd + Math.round(dy / 3))) });
+        _fcuDrag.startSpd + Math.round(dy / 3))), spdManaged: false });   // pulling SPD → selected
     } else if (_fcuDrag.knob === 'hdg') {
       const delta = Math.round(dy / 3);
       setState({ hdgT: ((_fcuDrag.startHdg + delta - 1 + 7200) % 360) + 1, navManaged: false });   // pulling HDG → selected
@@ -3628,14 +3631,16 @@
         leg = Math.round(lg) + ' nm'; trk = String(Math.round(_bearing(p.lat, p.lon, w.lat, w.lon))).padStart(3, '0') + '°'; }
       const col = _SEG_COL[w.seg] || '#9fb0c0';
       const a = _altParse(w.alt), altCol = a ? (a.kind === 'above' ? '#5dd47e' : a.kind === 'below' ? '#e8b446' : '#cfd8e4') : '';
+      const s = _spdParse(w.spd), spdCol = s ? (s.kind === 'above' ? '#5dd47e' : s.kind === 'below' ? '#e8b446' : '#cfd8e4') : '';
       rows += `<tr><td>${i+1}</td><td class="id" style="color:${col}">${w.id || '—'}</td>` +
               `<td style="color:${col};opacity:.7">${segLbl[w.seg] || ''}</td>` +
               `<td style="color:${altCol}">${_altLabel(a)}</td>` +
+              `<td style="color:${spdCol}">${_spdLabel(s)}</td>` +
               `<td>${leg}</td><td>${trk}</td><td class="v">${Math.round(cum)} nm</td></tr>`;
     });
     const hdr = [r.sid && 'SID ' + r.sid.name, r.star && 'STAR ' + r.star.name, r.appr && 'APPR ' + r.appr].filter(Boolean).join(' · ');
     return (hdr ? `<div class="fb-h">${hdr}</div>` : '') +
-      `<table class="fb-tbl"><thead><tr><th>#</th><th>FIX</th><th>SEG</th><th>ALT</th><th>LEG</th><th>TRK</th><th>DIST</th></tr></thead><tbody>${rows}</tbody></table>`;
+      `<table class="fb-tbl"><thead><tr><th>#</th><th>FIX</th><th>SEG</th><th>ALT</th><th>SPD</th><th>LEG</th><th>TRK</th><th>DIST</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
   /* Frequencies — the bundled comm frequencies for departure + arrival. */

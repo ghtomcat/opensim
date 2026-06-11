@@ -134,17 +134,17 @@ export function buildFullRoute(dep, arr) {
   try { awy = routeAirway(sidExit.lat, sidExit.lon, starEntry.lat, starEntry.lon); } catch {}
 
   const legs = [];
-  const push = (lat, lon, id, seg, alt) => {
+  const push = (lat, lon, id, seg, alt, spd) => {
     const last = legs[legs.length - 1];
     if (last && Math.abs(last.lat - lat) < 1e-5 && Math.abs(last.lon - lon) < 1e-5) return;   // drop dup
-    legs.push({ lat, lon, id: id || null, seg, alt: alt || null });
+    legs.push({ lat, lon, id: id || null, seg, alt: alt || null, spd: spd || null });
   };
   push(depRwLL[0], depRwLL[1], depIc, 'dep');
-  if (sid)      for (const l of legPts(sid.s)) push(l.lat, l.lon, l.fix, 'sid', l.alt);
+  if (sid)      for (const l of legPts(sid.s)) push(l.lat, l.lon, l.fix, 'sid', l.alt, l.spd);
   if (awy?.wpts) for (const w of awy.wpts)     push(w.lat, w.lon, w.id, 'awy');
-  if (star)     for (const l of star.legs) push(l.lat, l.lon, l.fix, 'star', l.alt);
+  if (star)     for (const l of star.legs) push(l.lat, l.lon, l.fix, 'star', l.alt, l.spd);
   const appr = approachLegs(aP, arr?.runway);
-  for (const l of appr.legs) push(l.lat, l.lon, l.fix, 'app', l.alt);
+  for (const l of appr.legs) push(l.lat, l.lon, l.fix, 'app', l.alt, l.spd);
   push(arrRwLL[0], arrRwLL[1], arrIc, 'arr');
 
   let dist = 0;
@@ -175,4 +175,23 @@ export function altLabel(s) {
   if (!a) return '';
   const v = a.ft >= 18000 ? 'FL' + Math.round(a.ft / 100) : String(a.ft);
   return (a.kind === 'above' ? '≥' : a.kind === 'below' ? '≤' : '') + v;
+}
+
+/* Speed constraints. Raw spd is the ARINC 424 speed-limit field: descriptor (− at-or-below,
+   + at-or-above, blank/@ at) + the limit in knots, e.g. "-220" = ≤220. spdParse → { kt, kind };
+   spdLabel → "≤220" / "≥250" / "210". */
+export function spdParse(s) {
+  if (!s) return null;
+  let kind = 'at', t = String(s).trim();
+  const c = t[0];
+  if (c === '+') { kind = 'above'; t = t.slice(1); }
+  else if (c === '-') { kind = 'below'; t = t.slice(1); }
+  else if (c === '@') { t = t.slice(1); }
+  const kt = parseInt(t);
+  return Number.isFinite(kt) ? { kt, kind } : null;
+}
+export function spdLabel(s) {
+  const a = (s && typeof s === 'object') ? s : spdParse(s);
+  if (!a) return '';
+  return (a.kind === 'above' ? '≥' : a.kind === 'below' ? '≤' : '') + a.kt;
 }

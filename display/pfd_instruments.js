@@ -1053,8 +1053,8 @@ export function drawFCU(ctx, W, H, style) {
     }
   }
 
-  // ── Speed ──
-  _sec('SPD  MACH', Math.round(S.spdT).toString(), spdX, spdW);
+  // ── Speed ──   ('---' with the managed dot when the A/THR flies the schedule)
+  _sec('SPD  MACH', S.spdManaged ? '---' : Math.round(S.spdT).toString(), spdX, spdW, S.spdManaged);
 
   // ── Heading ──   ('---' with the managed dot when LNAV flies the lateral channel)
   const hdgDisp = String(Math.round(S.hdgT) % 360 || 360).padStart(3, '0');

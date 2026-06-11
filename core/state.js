@@ -36,6 +36,7 @@ export const S = {
   navManaged: false,              // lateral managed NAV (LNAV) — follow the flight plan vs hold the FCU heading
   fmsActive:  0,                  // active waypoint index in the flight-plan legs (LNAV sequencer)
   altManaged: false,              // vertical managed VNAV — fly the altitude profile vs hold the FCU altitude
+  spdManaged: false,              // managed speed — A/THR flies the phase speed schedule vs hold the FCU speed
   athrN1:     55,                 // A/THR commanded N1 (the autothrust speed-loop integrator state)
   athrMode:   null,               // active A/THR thrust mode: 'SPEED' | 'MACH' | 'THR' (null when A/THR off) — FMA column 0
   athrDetent: null,               // thrust-lever detent the A/THR is rated to: IDLE/CLB/MCT/TOGA

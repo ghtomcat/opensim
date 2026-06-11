@@ -11,6 +11,7 @@ import { computeAirbusFMA, computeBoeingFMA } from './fma.js';
 import { lnavTargetHeading } from './lnav.js';
 import { vnavTargetAlt } from './vnav.js';
 import { activeDetent } from './thrust.js';
+import { managedSpeed } from './managed-speed.js';
 
 let _athrSpdPrev = null;   // previous airspeed for the A/THR damping (speed-rate) term
 
@@ -74,7 +75,9 @@ export function tickPhysics(dt) {
       const det     = activeDetent(ac, S.thrustLever ?? 0);
       const ceiling = det ? det.n1Limit : 100;
       athrDetent    = det?.label ?? null;
-      const spdTgt  = Math.min(S.spdT ?? vmo, S.alt < 10000 ? 250 : 1e4, vmo);  // FCU/managed, capped 250<FL100 & Vmo
+      const mgSpd   = S.spdManaged ? managedSpeed() : null;                      // managed → phase speed schedule
+      const spdTgt  = (mgSpd != null) ? Math.min(mgSpd, vmo)                      // (already capped 250<FL100 inside)
+                                      : Math.min(S.spdT ?? vmo, S.alt < 10000 ? 250 : 1e4, vmo);  // selected FCU speed
       const spdErr  = spdTgt - (S.spd ?? 0);
       const spdRate = _athrSpdPrev != null ? ((S.spd ?? 0) - _athrSpdPrev) / dt : 0;    // kt/s — damps overshoot
       athrI    = Math.max(IDLE_N1, Math.min(ceiling, athrI + spdErr * 0.10 * dt));      // integral (anti-windup at ceiling)
