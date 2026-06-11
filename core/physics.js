@@ -12,6 +12,16 @@ import { lnavTargetHeading } from './lnav.js';
 import { vnavTargetAlt } from './vnav.js';
 import { activeDetent } from './thrust.js';
 import { managedSpeed } from './managed-speed.js';
+import { runwayThreshold } from './mission-start.js';
+
+const _DEG = Math.PI / 180;
+const _gcNm = (aLat, aLon, bLat, bLon) => {
+  const p1 = aLat*_DEG, p2 = bLat*_DEG, dp = (bLat-aLat)*_DEG, dl = (bLon-aLon)*_DEG;
+  const h = Math.sin(dp/2)**2 + Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
+  return 2 * 3440.065 * Math.asin(Math.min(1, Math.sqrt(h)));
+};
+const _brgDeg = (aLat, aLon, bLat, bLon) =>
+  ((Math.atan2((bLon-aLon)*Math.cos(aLat*_DEG), bLat-aLat) * 180/Math.PI) + 360) % 360;
 
 let _athrSpdPrev = null;   // previous airspeed for the A/THR damping (speed-rate) term
 let _apVsCmd     = null;   // rate-limited AP vertical-speed command — eases the descent in (no step → no VS spike)
@@ -107,6 +117,32 @@ export function tickPhysics(dt) {
     setState(n1Up);
   }
 
+  /* ── ILS approach — real LOC/GS deviations from the runway threshold, with capture. Computed
+     once (outside the flight branches) so both the AP coupling and the PFD needles read it.
+     Once captured the AP couples: bank tracks the localizer, pitch flies the glideslope. ── */
+  let locCap = S.locCaptured ?? false, gsCap = S.gsCaptured ?? false;
+  let ilsLocNow = S.ilsLoc, ilsGsNow = S.ilsGs, _locTgtHdg = null, _gsAlt = null;
+  const _ils = S.mission?.arrival?.ils;
+  if (_ils && !S.wow) {
+    const _rw = runwayThreshold(S.mission.arrival.icao, S.mission.arrival.runway);
+    if (_rw) {
+      const crs    = _ils.course;
+      const dNm    = _gcNm(_rw.thr[0], _rw.thr[1], S.lat, S.lon);
+      const angOff = ((_brgDeg(_rw.thr[0], _rw.thr[1], S.lat, S.lon) - (crs + 180) + 540) % 360) - 180;  // ° off centerline (+ = right)
+      const hdgOff = ((S.hdg - crs + 540) % 360) - 180;
+      if (dNm < 30 && Math.abs(hdgOff) < 90) {                  // inbound and within range
+        ilsLocNow = Math.max(-2.5, Math.min(2.5, angOff));      // localizer dots (~1 dot/°)
+        _gsAlt    = (S.mission.arrival.elevation ?? 0) + dNm * 318;   // 3° glideslope altitude at this distance
+        ilsGsNow  = Math.max(-2.5, Math.min(2.5, (S.alt - _gsAlt) / 80));   // + = above the slope
+        _dmeNm    = dNm;
+        if (!locCap && Math.abs(ilsLocNow) < 1.5 && Math.abs(hdgOff) < 35 && dNm < 18) locCap = true;
+        if (locCap && !gsCap && ilsGsNow < 0.4 && ilsGsNow > -1.8) gsCap = true;
+        if (locCap) _locTgtHdg = crs + ilsLocNow * 8;           // crab toward the centerline → null deviation flies the course
+      }
+    }
+  }
+  if (!_ils || S.wow) { locCap = false; gsCap = false; }
+
   if (ac.manualControl) {
     /* ── Shared setup ── */
     const perf = ac.performance ?? {};
@@ -145,11 +181,11 @@ export function tickPhysics(dt) {
     const maxRollRate  = ac.handling?.rollRate  ?? 30;   // deg/s
     const maxPitchRate = ac.handling?.pitchRate ?? 5;    // deg/s
 
-    /* AP lateral channel — when engaged in flight the autopilot banks toward a target
-       heading: managed NAV follows the flight plan (LNAV), else it holds the FCU bug. */
+    /* AP lateral channel — when engaged in flight the autopilot banks toward a target heading:
+       captured localizer > managed NAV (LNAV) > selected FCU bug. */
     let apBank = null;
     if (S.ap && !onGround) {
-      let tgtHdg = S.navManaged ? lnavTargetHeading() : null;
+      let tgtHdg = locCap ? _locTgtHdg : (S.navManaged ? lnavTargetHeading() : null);
       if (tgtHdg == null) tgtHdg = S.hdgT;                     // fall back to selected HDG (or if no route)
       if (tgtHdg != null) {
         const e = ((tgtHdg - S.hdg + 540) % 360) - 180;        // shortest heading error
@@ -162,16 +198,30 @@ export function tickPhysics(dt) {
        altitude. Outer loop alt→VS (eased near capture), inner loop VS→flight-path-angle→pitch. */
     let apPitch = null;
     if (S.ap && !onGround) {
-      const altTgt   = S.altManaged ? vnavTargetAlt() : S.altT;
       const horizFpm = Math.max(120, tas_ms * 196.85);                          // TRUE airspeed → ft/min (IAS understated the path angle up high → over-steep VS)
-      const cmdVSraw = Math.max(-1800, Math.min(1800, (altTgt - S.alt) * 3));   // gentle gain → flares ~600 ft out, less overshoot
+      /* Captured glideslope: feed-forward the nominal 3° rate so the aircraft tracks the beam
+         without lag, plus a gentle pull toward it. Pure proportional on a moving target either
+         lags high or oscillates (phugoid); the feed-forward fixes both. */
+      let cmdVSraw;
+      if (gsCap) {
+        const gsRate = -horizFpm * 0.05241;                                    // nominal 3° descent rate at this TAS
+        cmdVSraw = Math.max(-2000, Math.min(300, gsRate + (_gsAlt - S.alt) * 5));   // + deviation pull; small climb to regain from below
+      } else {
+        const altTgt = S.altManaged ? vnavTargetAlt() : S.altT;
+        cmdVSraw = Math.max(-1800, Math.min(1800, (altTgt - S.alt) * 3));      // gentle gain → flares ~600 ft out, less overshoot
+      }
       if (_apVsCmd == null || onGround) _apVsCmd = S.vs ?? 0;
       const vsStep   = 550 * dt;                                                 // ease the command in (~3 s to full rate) so the descent doesn't step → no spike
       _apVsCmd = Math.max(_apVsCmd - vsStep, Math.min(_apVsCmd + vsStep, cmdVSraw));
       const cmdVS    = _apVsCmd;
       const gammaDeg = Math.asin(Math.max(-0.3, Math.min(0.3, cmdVS / horizFpm))) * 180 / Math.PI;
       const vsErr    = cmdVS - (S.vs ?? 0);                                     // close the loop on actual VS — the ramp keeps the start small, so damping can be firm
-      apPitch = Math.max(-8, Math.min(15, gammaDeg + 2.5 + vsErr * 0.0032));    // + ~trim AoA for level flight
+      /* Trim AoA from the lift the wing actually needs at this speed — a fixed 2.5° held at
+         cruise but badly under-trimmed on a slow approach (a heavy jet needs ~10° at Vapp),
+         so the AP sank through the glideslope. Derive it from CL = W/(q·S). */
+      const clNeed = (mass * 9.81) / Math.max(1, q * S_wing);
+      const trimAoA = Math.max(0, Math.min(12, (clNeed - CL_0) / CL_alpha * 180 / Math.PI));
+      apPitch = Math.max(-8, Math.min(15, gammaDeg + trimAoA + vsErr * 0.0032));
     }
 
     /* On ground: snap back to level; in flight: fight inertia (AP overrides the stick) */
@@ -339,35 +389,9 @@ export function tickPhysics(dt) {
     newWow   = apOnGnd;
   }
 
-  /* ── ILS tracking ── */
-  let ilsLoc = S.ilsLoc;
-  let ilsGs  = S.ilsGs;
-
-  if (S.mission && S.mission.arrival) {
-    /* Initialise DME estimate when we enter approach zone */
-    if (!_approachInit && newAlt < APPROACH_FLOOR) {
-      _approachInit = true;
-      _dmeNm = Math.max(2, newAlt / 318);   // 3° slope: alt_ft ≈ dme_nm × 318
-    }
-
-    if (_approachInit && newAlt > 10) {
-      /* Decrease DME at groundspeed rate along approach track */
-      const gsKts = newSpd;
-      _dmeNm = Math.max(0, _dmeNm - (gsKts / 3600) * dt);
-
-      /* LOC: 2 dots per degree off course — only if ILS exists */
-      if (S.mission.arrival.ils) {
-        const course = S.mission.arrival.ils.course;
-        let hdgDiff = ((newHdg - course + 540) % 360) - 180;
-        ilsLoc = Math.max(-2.5, Math.min(2.5, hdgDiff * -2));
-
-        /* GS: expected alt on 3° slope = dme × 318 ft */
-        const altExpected = _dmeNm * 318;
-        const gsErr = newAlt - altExpected;
-        ilsGs = Math.max(-2.5, Math.min(2.5, gsErr / 80));
-      }
-    }
-  }
+  /* ── ILS needles — the geometric LOC/GS computed at the top (display value) ── */
+  const ilsLoc = ilsLocNow;
+  const ilsGs  = ilsGsNow;
 
   /* ── FMA ── glass airliners drive it from the shared phase model; other aircraft keep
      their altitude-banded fmaPhases strip. ── */
@@ -377,7 +401,8 @@ export function tickPhysics(dt) {
     const fp = { wow: newWow, n1: S.n1 ?? 0, vs, alt: newAlt, altT: S.altT,
                  gear: S.gear, ap: S.ap, athr: S.athr, fieldElev,
                  navManaged: S.navManaged, altManaged: S.altManaged,
-                 athrMode: S.athrMode, athrDetent: S.athrDetent };
+                 athrMode: S.athrMode, athrDetent: S.athrDetent,
+                 locCap, gsCap };
     fma = ac.manufacturer === 'boeing' ? computeBoeingFMA(fp) : computeAirbusFMA(fp);
   } else if (ac.fmaPhases) {
     const phase = ac.fmaPhases.find(p => newAlt >= p.minAlt);
@@ -502,7 +527,7 @@ export function tickPhysics(dt) {
 
   setState({ alt: newAlt, spd: newSpd, hdg: pbHdg, pitch: newPitch, roll: newRoll,
              rollRate: newRollRate, pitchRate: newPitchRate,
-             vs, ilsLoc, ilsGs, fma, lat: pbLat, lon: pbLon,
+             vs, ilsLoc, ilsGs, locCaptured: locCap, gsCaptured: gsCap, fma, lat: pbLat, lon: pbLon,
              prevAlt: S.alt, time: S.time + dt,
              wow: newWow, touchdownVS: newTouchdownVS,
              oilTempC: newOilTempC, ..._trPatch, ..._gearPatch, ..._sbPatch, ...pbPatch });

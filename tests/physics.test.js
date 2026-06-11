@@ -99,6 +99,23 @@ test('approach — autopilot holds altitude over 15 s', async ({ page }) => {
   expect(after.crashed).toBe(false);
 });
 
+test('approach — ILS captures and tracks the LOC + GS to the runway', async ({ page }) => {
+  await loadSim(page, 'lszh-approach');                      // a350 into LSZH 28 (ILS 280°)
+  // stabilised on the localizer ~5 nm out, on the glideslope, gear + flaps
+  await set(page, { lat: 47.4421, lon: 8.6913, alt: 3000, altT: 1500, spd: 150, spdT: 150,
+                    hdg: 280, pitch: 8, vs: -750, gear: true, flaps: 3,
+                    ap: true, athr: true, navManaged: true, paused: false });
+  await step(page, 50);
+  const after = await get(page);
+  expect(after.locCaptured).toBe(true);
+  expect(after.gsCaptured).toBe(true);
+  expect(Math.abs(after.ilsLoc)).toBeLessThan(0.5);         // holding the centerline
+  expect(Math.abs(after.ilsGs)).toBeLessThan(1.6);          // tracking the beam (within ~1.5 dots)
+  expect(after.alt).toBeLessThan(2700);                     // descended down the slope
+  expect(after.alt).toBeGreaterThan(1500);                  // did not dive into the ground
+  expect(after.crashed).toBe(false);
+});
+
 // ── Takeoff — B777, singapore-london (lined up on WSSS runway 20C) ───────────────
 
 test('takeoff — accelerates down the runway under thrust', async ({ page }) => {

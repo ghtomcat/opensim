@@ -28,7 +28,8 @@ function _phase(p) {
 /* Airbus — 5 columns: A/THR·thrust | vertical | lateral | approach-cap | AP/FD·A-THR. */
 export function computeAirbusFMA(p) {
   const { n1 = 0, alt = 0, fieldElev = 0, ap = false, athr = false,
-          athrMode = null, athrDetent = null, navManaged = false, altManaged = false } = p;
+          athrMode = null, athrDetent = null, navManaged = false, altManaged = false,
+          locCap = false, gsCap = false } = p;
   const agl  = alt - fieldElev;
   const apfd = ap ? cell('AP1', 'white') : cell('1FD2', 'white');
   /* lateral: managed NAV (green) when LNAV follows the plan, else selected HDG (cyan) */
@@ -45,7 +46,9 @@ export function computeAirbusFMA(p) {
     case 'takeoff':  return [cell('MAN TO/GA', 'white'), cell('SRS', 'green'), cell('RWY', 'green'),
                              BLANK, athr ? cell('A/THR', 'cyan') : BLANK];   // A/THR armed (blue) once set
     case 'climb':    return [thr, agl < 1500 ? cell('SRS', 'green') : vert('CLB'), lat, BLANK, apfd];
-    case 'approach': return [thr, cell('G/S', 'green'), cell('LOC', 'green'), cell('CAT 3', 'green'), apfd];
+    case 'approach': return [thr, cell('G/S', gsCap ? 'green' : 'cyan'),     // green = captured, cyan = armed
+                                  cell('LOC', locCap ? 'green' : 'cyan'),
+                                  cell('CAT 3', 'green'), apfd];
     case 'descent':  return [thr, vert('DES'), lat, BLANK, apfd];
     default:         return [thr, vert('ALT CRZ'), lat, BLANK, apfd];
   }

@@ -48,6 +48,8 @@ export const S = {
   /* ── ILS ── */
   ilsLoc:   1.2,  ilsLocT: 1.2,  // deviation dots
   ilsGs:   -0.8,  ilsGsT: -0.8,
+  locCaptured: false,            // APP mode — localizer captured (AP banks to track it)
+  gsCaptured:  false,            // APP mode — glideslope captured (AP pitches to fly it)
 
   /* ── FMA — 5 boxes ── */
   fma: [
