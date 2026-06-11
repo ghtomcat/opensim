@@ -137,7 +137,11 @@ export function tickPhysics(dt) {
         _dmeNm    = dNm;
         if (!locCap && Math.abs(ilsLocNow) < 1.5 && Math.abs(hdgOff) < 35 && dNm < 18) locCap = true;
         if (locCap && !gsCap && ilsGsNow < 0.4 && ilsGsNow > -1.8) gsCap = true;
-        if (locCap) _locTgtHdg = crs + ilsLocNow * 8;           // crab toward the centerline → null deviation flies the course
+        if (locCap) {                                           // crab toward the centerline → null deviation flies the course
+          const aglNow = S.alt - (S.mission.arrival.elevation ?? 0);
+          _locTgtHdg = (aglNow < 150) ? crs                     // near the ground the localizer is over-sensitive → just hold the runway heading (align)
+                                      : crs + Math.max(-12, Math.min(12, ilsLocNow * 8));
+        }
       }
     }
   }
@@ -205,7 +209,13 @@ export function tickPhysics(dt) {
       let cmdVSraw;
       if (gsCap) {
         const gsRate = -horizFpm * 0.05241;                                    // nominal 3° descent rate at this TAS
-        cmdVSraw = Math.max(-2000, Math.min(500, gsRate + (_gsAlt - S.alt) * 8));   // + firm deviation pull; small climb to regain from below
+        const aglFt  = S.alt - (S.mission?.arrival?.elevation ?? 0);
+        if (aglFt < 40) {                                                      // FLARE — ease the sink to a gentle touchdown (else it hits at the full GS rate → hard-landing crash)
+          const f = Math.max(0, aglFt / 40);
+          cmdVSraw = gsRate * f - 130 * (1 - f);                               // GS rate at 40 ft → ~-130 fpm at the ground
+        } else {
+          cmdVSraw = Math.max(-2000, Math.min(500, gsRate + (_gsAlt - S.alt) * 8));   // + firm deviation pull; small climb to regain from below
+        }
       } else {
         const altTgt = S.altManaged ? vnavTargetAlt() : S.altT;
         cmdVSraw = Math.max(-1800, Math.min(1800, (altTgt - S.alt) * 3));      // gentle gain → flares ~600 ft out, less overshoot
@@ -219,9 +229,12 @@ export function tickPhysics(dt) {
       /* Trim AoA from the lift the wing actually needs at this speed — a fixed 2.5° held at
          cruise but badly under-trimmed on a slow approach (a heavy jet needs ~10° at Vapp),
          so the AP sank through the glideslope. Derive it from CL = W/(q·S). */
-      const clNeed = (mass * 9.81) / Math.max(1, q * S_wing);
-      const trimAoA = Math.max(0, Math.min(12, (clNeed - CL_0) / CL_alpha * 180 / Math.PI));
-      apPitch = Math.max(-8, Math.min(15, gammaDeg + trimAoA + vsErr * 0.0032));
+      const clNeed   = (mass * 9.81) / Math.max(1, q * S_wing);
+      const _dCL0ap  = ((ac.flaps ?? [])[S.flaps] ?? {}).dCL_0 ?? 0;            // flaps add camber lift → less AoA at a given CL
+      const trimAoA  = Math.max(0, Math.min(14, (clNeed - CL_0 - _dCL0ap) / CL_alpha * 180 / Math.PI));
+      const _aglP    = S.alt - (S.mission?.arrival?.elevation ?? 0);
+      const _vsGain  = (gsCap && _aglP < 50) ? 0.0075 : 0.0032;               // firm flare authority near the ground (pitch up to arrest the sink)
+      apPitch = Math.max(-8, Math.min(16, gammaDeg + trimAoA + vsErr * _vsGain));
     }
 
     /* On ground: snap back to level; in flight: fight inertia (AP overrides the stick) */
@@ -250,6 +263,7 @@ export function tickPhysics(dt) {
     /* Flap effects */
     const flapCfg  = (ac.flaps ?? [])[S.flaps] ?? {};
     const CL_max_e = CL_max + (flapCfg.dCL_max ?? 0);
+    const CL_0_e   = CL_0   + (flapCfg.dCL_0   ?? 0);   // camber lift — more CL at the same AoA (slow flight at low pitch)
     const CD_0_e   = CD_0   + (flapCfg.dCD_0   ?? 0);
 
     /* Gear drag — retractable aircraft only; fixed-gear drag is baked into CD_0 */
@@ -262,7 +276,7 @@ export function tickPhysics(dt) {
 
     /* Aerodynamics */
     const alpha = newPitch * DEG;
-    const CL    = Math.min(CL_max_e, Math.max(-0.5, CL_0 + CL_alpha * alpha));
+    const CL    = Math.min(CL_max_e, Math.max(-0.5, CL_0_e + CL_alpha * alpha));
     const CD    = CD_0_eff + k_ind * CL * CL;
     const L     = q * S_wing * CL;
     const D     = q * S_wing * CD;
