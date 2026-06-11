@@ -723,7 +723,7 @@ export function renderPanel(canvas, screenIdx = 0, specOverride = null) {
   const spec = _cache.specs[specName];
   if (!spec) return;
 
-  _render(canvas, spec, _cache.style);
+  _render(canvas, spec, _cache.style, true);   // PFD/ND screens: boost fonts when squished (outside view)
 }
 
 export function renderFCU(canvas) {
@@ -794,10 +794,26 @@ function _blank(canvas) {
   canvas.getContext('2d').fillRect(0, 0, W, H);
 }
 
-function _render(canvas, spec, style) {
+/* Run fn with every `ctx.font` px size multiplied by fk — one place to keep panel text legible
+   when the display is squished (the outside view halves the height; the width stays). Intercepts
+   the font setter on the instance, then restores the prototype accessor. */
+const _FONT_DESC = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'font');
+function _scaledFont(ctx, fk, fn) {
+  Object.defineProperty(ctx, 'font', {
+    configurable: true,
+    get() { return _FONT_DESC.get.call(ctx); },
+    set(v) { _FONT_DESC.set.call(ctx, String(v).replace(/(\d*\.?\d+)px/, (_, n) => (parseFloat(n) * fk) + 'px')); },
+  });
+  try { fn(); } finally { delete ctx.font; }
+}
+
+function _render(canvas, spec, style, squish = false) {
   const W   = canvas.width  = canvas.offsetWidth  * devicePixelRatio;
   const H   = canvas.height = canvas.offsetHeight * devicePixelRatio;
   const ctx = canvas.getContext('2d');
+
+  /* portrait-design displays squished into a short box → boost the fonts (geometry stays) */
+  const fk = squish ? Math.max(1, Math.min(W, H * 1.7) / H) : 1;
 
   ctx.save();
   ctx.fillStyle = style.colors?.bg ?? '#0e1014';
@@ -809,9 +825,28 @@ function _render(canvas, spec, style) {
     let colX   = 0;
     for (const col of row.cols) {
       const colW = col.w * W;
-      const box  = { x: colX, y: rowY, w: colW, h: rowH };
+      const box  = { x: colX, y: rowY, w: colW, h: rowH, fk };   // fk: widgets scale text-boxes to match the font
       const fn   = _WIDGETS[col.widget];
-      if (fn) fn(ctx, box, style, col.config ?? {});
+      if (fn) {
+        if (fk !== 1 && col.widget === 'ecam_ewd') {
+          /* The ECAM/EWD is a connected schematic (boxes + lines + labels). Don't font-boost it
+             piecemeal — scale it as a whole: draw into a taller box (h·fk, a fuller aspect that
+             uses the wide outside-view width), vertically centred and clipped to the real box,
+             so text + boxes + lines grow together. */
+          ctx.save();
+          ctx.beginPath(); ctx.rect(box.x, box.y, box.w, box.h); ctx.clip();
+          /* the schematic spans ~0.10–0.78 of its height (GENs at the top, ESS bus at the
+             bottom), so cap the stretch at 1.4 to keep it all on-screen, and align its content
+             centre (~0.44) on the box centre. Text + boxes + lines still grow ~1.4×. */
+          const hB = box.h * Math.min(fk, 1.4);
+          fn(ctx, { x: box.x, y: box.y + box.h * 0.5 - hB * 0.44, w: box.w, h: hB }, style, col.config ?? {});
+          ctx.restore();
+        } else if (fk !== 1 && col.widget !== 'nd_map') {   // isolated text → boost fonts; the ND scales its own
+          _scaledFont(ctx, fk, () => fn(ctx, box, style, col.config ?? {}));
+        } else {
+          fn(ctx, box, style, col.config ?? {});
+        }
+      }
       colX += colW;
     }
     rowY += rowH;

@@ -412,20 +412,23 @@ export function drawSpeedTape(ctx, box, style) {
     ctx.fill();
   }
 
-  // current speed readout box
-  const rh = h * 0.075;
-  const ry = cy - rh / 2;
+  // current speed readout box — box height tracks the font (the renderer scales the font ×fk
+  // when the display is squished, so grow the box by fk too)
+  const _fk = box.fk ?? 1;
+  const rh  = h * 0.075;            // font reference (font gets ×fk from the renderer)
+  const rhB = rh * _fk;             // box grows to fit
+  const ry  = cy - rhB / 2;
 
   ctx.fillStyle = 'rgba(6,10,16,0.88)';
-  ctx.fillRect(x, ry, w, rh);
+  ctx.fillRect(x, ry, w, rhB);
   ctx.strokeStyle = _c(style, 'white');
   ctx.lineWidth   = 1.5;
-  ctx.strokeRect(x, ry, w, rh);
+  ctx.strokeRect(x, ry, w, rhB);
 
   ctx.font      = `bold ${rh * 0.68}px ${f}`;
   ctx.fillStyle = _c(style, 'white');
   ctx.textAlign = 'center';
-  ctx.fillText(Math.round(spd), x + w / 2, ry + rh * 0.75);
+  ctx.fillText(Math.round(spd), x + w / 2, ry + rhB * 0.75);
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -488,20 +491,22 @@ export function drawAltTape(ctx, box, style) {
     ctx.fill();
   }
 
-  // current alt readout box
-  const rh = h * 0.065;
-  const ry = cy - rh / 2;
+  // current alt readout box — box height tracks the fk-scaled font (panel squish)
+  const _fk = box.fk ?? 1;
+  const rh  = h * 0.065;
+  const rhB = rh * _fk;
+  const ry  = cy - rhB / 2;
 
   ctx.fillStyle = 'rgba(6,10,16,0.88)';
-  ctx.fillRect(x, ry, w, rh);
+  ctx.fillRect(x, ry, w, rhB);
   ctx.strokeStyle = _c(style, 'white');
   ctx.lineWidth   = 1.5;
-  ctx.strokeRect(x, ry, w, rh);
+  ctx.strokeRect(x, ry, w, rhB);
 
   ctx.font      = `bold ${rh * 0.66}px ${f}`;
   ctx.fillStyle = _c(style, 'white');
   ctx.textAlign = 'center';
-  ctx.fillText(Math.round(alt), x + w / 2, ry + rh * 0.75);
+  ctx.fillText(Math.round(alt), x + w / 2, ry + rhB * 0.75);
 
   /* ── Radio altitude — shown below 2500 ft AGL ── */
   const fieldElev = S.mission?.arrival?.elevation
@@ -644,6 +649,9 @@ export function drawHdgTape(ctx, box, style) {
 function _drawNDArc(ctx, box, style, config = {}) {
   const { x, y, w, h } = box;
   const f       = _f(style);
+  /* Font reference height — geometry follows h, but text shouldn't shrink when the display is
+     squished (outside view halves the height; the width stays). Keeps labels legible there. */
+  const fh      = Math.max(h, Math.min(w, h * 1.7));
   const ox      = x + w / 2, oy = y + h * 0.86;        // ownship near the bottom centre
   const R       = h * 0.74;                            // ownship → outer (compass) arc = selected range
   const rangeNm = config.range_nm ?? 20;
@@ -673,7 +681,7 @@ function _drawNDArc(ctx, box, style, config = {}) {
   ctx.beginPath(); ctx.arc(ox, oy, R, a0, a1); ctx.stroke();
 
   /* heading ticks + labels around the arc (heading-up) */
-  ctx.font = `${h * 0.032}px ${f}`; ctx.fillStyle = col('white'); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = `${fh * 0.032}px ${f}`; ctx.fillStyle = col('white'); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (let d = 0; d < 360; d += 5) {
     const rel = ((d - hdg + 540) % 360) - 180; if (Math.abs(rel) > ARC) continue;
     const ang = (-90 + rel) * Math.PI / 180, c = Math.cos(ang), s = Math.sin(ang);
@@ -695,7 +703,7 @@ function _drawNDArc(ctx, box, style, config = {}) {
     ctx.strokeStyle = col('engaged'); ctx.lineWidth = 2; ctx.lineJoin = 'round';
     ctx.beginPath(); P.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke();
 
-    ctx.font = `${h * 0.028}px ${f}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.font = `${fh * 0.028}px ${f}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     route.legs.forEach((l, i) => {
       const [sx, sy, fwd] = P[i];
       if (l.id && fwd > 0.5 && (!toWp || fwd < toWp.fwd)) toWp = { id: l.id, fwd, dN: (l.lat - acLat) * 60, dE: (l.lon - acLon) * 60 * cosAcLat };
@@ -721,7 +729,7 @@ function _drawNDArc(ctx, box, style, config = {}) {
 
   /* ── data: GS / TAS top-left, active waypoint top-right ── */
   ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
-  ctx.font = `${h * 0.036}px ${f}`;
+  ctx.font = `${fh * 0.036}px ${f}`;
   ctx.fillStyle = col('engaged'); ctx.fillText('GS', x + w * 0.03, y + h * 0.07);
   ctx.fillStyle = col('white');   ctx.fillText(String(Math.round(S.gs ?? S.spd ?? 0)), x + w * 0.10, y + h * 0.07);
   ctx.fillStyle = col('engaged'); ctx.fillText('TAS', x + w * 0.30, y + h * 0.07);
@@ -729,9 +737,9 @@ function _drawNDArc(ctx, box, style, config = {}) {
   if (toWp) {
     const distNm = Math.hypot(toWp.dN, toWp.dE);
     ctx.textAlign = 'right';
-    ctx.fillStyle = col('managed'); ctx.font = `${h * 0.040}px ${f}`;
+    ctx.fillStyle = col('managed'); ctx.font = `${fh * 0.040}px ${f}`;
     ctx.fillText(toWp.id, x + w * 0.97, y + h * 0.07);
-    ctx.fillStyle = col('white'); ctx.font = `${h * 0.034}px ${f}`;
+    ctx.fillStyle = col('white'); ctx.font = `${fh * 0.034}px ${f}`;
     ctx.fillText(`${distNm.toFixed(1)} NM`, x + w * 0.97, y + h * 0.12);
     if ((S.gs ?? S.spd) > 20) {
       const ete = distNm / (S.gs ?? S.spd) * 3600;
@@ -740,7 +748,7 @@ function _drawNDArc(ctx, box, style, config = {}) {
     }
   }
   /* range number at the arc */
-  ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = col('dim'); ctx.font = `${h * 0.026}px ${f}`;
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = col('dim'); ctx.font = `${fh * 0.026}px ${f}`;
   ctx.fillText(String(rangeNm), ox + Math.cos(a1) * R + 4, oy + Math.sin(a1) * R);
   ctx.fillText(String(rangeNm / 2), ox + Math.cos(a1) * R * 0.5 + 4, oy + Math.sin(a1) * R * 0.5);
 
@@ -768,9 +776,9 @@ function _drawNDArc(ctx, box, style, config = {}) {
     if (!v) return;
     const lx = side < 0 ? x + w*0.03 : x + w*0.97;
     ctx.textAlign = side < 0 ? 'left' : 'right'; ctx.textBaseline = 'bottom';
-    ctx.fillStyle = color; ctx.font = `bold ${h*0.030}px ${f}`;
+    ctx.fillStyle = color; ctx.font = `bold ${fh*0.030}px ${f}`;
     ctx.fillText(`${label}  ${v.id}`, lx, y + h*0.955);
-    ctx.fillStyle = col('dim'); ctx.font = `${h*0.026}px ${f}`;
+    ctx.fillStyle = col('dim'); ctx.font = `${fh*0.026}px ${f}`;
     ctx.fillText(`${v.freq.toFixed(2)}   DME ${v.dme.toFixed(1)}`, lx, y + h*0.99);
   };
   if (_vors[0]) { _vorPtr(_vors[0].brg, col('white'),    false); _vorBox(_vors[0], -1, 'VOR1', col('white')); }
