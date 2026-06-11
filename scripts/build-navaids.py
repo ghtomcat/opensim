@@ -1,25 +1,24 @@
 #!/usr/bin/env python3
-"""Regenerate display/navaids-data.js: VOR / VOR-DME stations near the mission airports,
-sliced from X-Plane's earth_nav.dat, for the ND's VOR1 / VOR2 radio-navigation display.
+"""Regenerate display/navaids-data.js: VOR / VOR-DME / VORTAC stations near the mission
+airports, from OurAirports' navaids.csv, for the ND's VOR1 / VOR2 radio-navigation display.
 
-earth_nav.dat row (code 3 = VOR):
-    3  <lat> <lon> <elev_ft> <freq×100> <range_nm> <slaved_var> <ident> ENRT <region> <name … VOR/DME>
-We keep code-3 stations whose name carries "VOR" (VOR / VOR-DME / VORTAC; pure TACAN/NDB
-dropped) within a box around any mission airport, de-duplicated by ident.
+OurAirports data is PUBLIC DOMAIN (David Megginson / OurAirports — "all of OurAirports' data
+into the public domain"), so unlike the X-Plane / Navigraph nav data the bundle this writes
+(display/navaids-data.js) is committable and reproducible without any proprietary source.
 
-LICENSING: X-Plane's nav data is "Copyright Navigraph, Datasource Jeppesen" — PROPRIETARY.
-The bundle this writes is therefore gitignored (display/navaids-data.js) and must not be
-redistributed. For a public, redistributable build use the OurAirports navaids.csv (public
-domain, CC0). The script itself contains no data.
+The CSV is fetched once to scripts/ourairports/navaids.csv (gitignored) and reused. We keep
+VOR-azimuth stations (VOR / VOR-DME / VORTAC; pure TACAN / DME / NDB dropped) within a box
+around any mission airport. frequency_khz / 1000 = MHz.
 
     python3 scripts/build-navaids.py
-    python3 scripts/build-navaids.py --xplane "/path/X-Plane 12"
 """
-import json, os, re, sys
+import csv, json, os, re, sys, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_XP = "/Users/markusleutwyler/X-Plane 12"
-BBOX_LAT, BBOX_LON = 3.0, 4.0   # ° around each mission airport (~180 nm) — terminal-area VORs
+CSV_URL  = "https://davidmegginson.github.io/ourairports-data/navaids.csv"
+CSV_PATH = os.path.join(ROOT, "scripts", "ourairports", "navaids.csv")
+BBOX_LAT, BBOX_LON = 3.0, 4.0          # ° around each mission airport (~180 nm) — terminal-area VORs
+VOR_TYPES = {"VOR", "VOR-DME", "VORTAC"}
 
 
 def mission_airports():
@@ -59,12 +58,16 @@ def airport_centres(icaos):
     return out
 
 
-def main():
-    xp = sys.argv[sys.argv.index("--xplane") + 1] if "--xplane" in sys.argv else DEFAULT_XP
-    nav = os.path.join(xp, "Resources", "default data", "earth_nav.dat")
-    if not os.path.exists(nav):
-        sys.exit(f"no earth_nav.dat at {nav} — pass --xplane <X-Plane install>")
+def fetch_csv():
+    if os.path.exists(CSV_PATH):
+        return
+    os.makedirs(os.path.dirname(CSV_PATH), exist_ok=True)
+    print(f"fetching {CSV_URL} …")
+    urllib.request.urlretrieve(CSV_URL, CSV_PATH)
 
+
+def main():
+    fetch_csv()
     centres = airport_centres(mission_airports())
     if not centres:
         sys.exit("no mission-airport coordinates (need display/runways-data.js)")
@@ -74,29 +77,26 @@ def main():
         return any(abs(la - c[0]) <= BBOX_LAT and abs(lo - c[1]) <= BBOX_LON for c in cs)
 
     vors = {}
-    for ln in open(nav, encoding="latin-1"):
-        p = ln.split()
-        if len(p) < 11 or p[0] != "3":
-            continue
-        name = " ".join(p[10:])
-        if "VOR" not in name.upper():               # VOR / VOR-DME / VORTAC; skip TACAN, NDB
-            continue
-        try:
-            la, lo, freq = float(p[1]), float(p[2]), int(p[4]) / 100.0
-        except ValueError:
-            continue
-        if not near(la, lo):
-            continue
-        ident = p[7]
-        if ident not in vors:
-            vors[ident] = {"id": ident, "freq": round(freq, 2),
-                           "lat": round(la, 5), "lon": round(lo, 5), "name": name}
+    with open(CSV_PATH, newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            if row.get("type") not in VOR_TYPES:
+                continue
+            try:
+                la, lo = float(row["latitude_deg"]), float(row["longitude_deg"])
+                freq = int(row["frequency_khz"]) / 1000.0
+            except (ValueError, KeyError):
+                continue
+            if not near(la, lo):
+                continue
+            key = (row["ident"], round(la, 2), round(lo, 2))     # ident isn't globally unique
+            if key not in vors:
+                vors[key] = {"id": row["ident"], "freq": round(freq, 2),
+                             "lat": round(la, 5), "lon": round(lo, 5), "name": row["name"]}
 
-    out = sorted(vors.values(), key=lambda v: v["id"])
-    js = ("/* VOR / VOR-DME stations near the mission airports, sliced from X-Plane earth_nav.dat\n"
-          "   for the ND VOR1/VOR2 display. SOURCE IS PROPRIETARY (Navigraph / Jeppesen) — this\n"
-          "   file is gitignored and must not be redistributed. Regenerate: scripts/build-navaids.py.\n"
-          "   VORS = [{ id, freq, lat, lon, name }]. */\n"
+    out = sorted(vors.values(), key=lambda v: (v["id"], v["lat"]))
+    js = ("/* VOR / VOR-DME / VORTAC stations near the mission airports, from OurAirports'\n"
+          "   navaids.csv (PUBLIC DOMAIN — OurAirports). Regenerate: scripts/build-navaids.py.\n"
+          "   VORS = [{ id, freq(MHz), lat, lon, name }]. */\n"
           "export const VORS = " + json.dumps(out, separators=(",", ":")) + ";\n")
     path = os.path.join(ROOT, "display", "navaids-data.js")
     open(path, "w").write(js)

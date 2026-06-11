@@ -10,4 +10,4 @@ scripts/xplane-nav/
 __pycache__/
 scripts/faa-cifp/
 display/procedures-data-xp.js
-display/navaids-data.js
+scripts/ourairports/
