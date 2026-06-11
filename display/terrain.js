@@ -1759,7 +1759,28 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         const _aBase = 0.35 + 0.55 * _night;     // numeric base for per-light depth-dimmed alpha
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
-        for (const rg of _runways) {
+
+        /* One soft lamp for every airfield light: a steep-night halo (subtle at dusk, full deep
+           night) plus a bright, poppy core (the lamp itself). Sprites cached, core colour per light. */
+        _rwWhiteGlow ||= _makeLampGlow('255,238,205');
+        _twBlueGlow  ||= _makeLampGlow('90,150,255');
+        _twGreenGlow ||= _makeLampGlow('70,235,110');
+        const _glowR = 3.4 * _DPR;
+        const _glowA = 0.9 * Math.pow(_night, 1.6);     // halo — subtle at dusk
+        const _coreA = 0.45 + 0.55 * _night;            // core — stays bright / poppy
+        const _lamp = (N, E, sprite, core, elevNm) => {
+          const f = N*cosH + E*sinH; if (f < 0.02) return;
+          const sp = proj(f, E*cosH - N*sinH, elevNm); if (!sp) return;
+          const rad = _glowR * _zScale(f);
+          ctx.globalAlpha = _glowA * _zAlpha(f);                  // soft halo + ground spill
+          ctx.drawImage(sprite, sp[0]-rad, sp[1]-rad, rad*2, rad*2);
+          ctx.globalAlpha = _coreA * _zAlpha(f);                  // bright lamp core — pops
+          ctx.fillStyle = core;
+          const cr = 1.15 * _DPR * _zScale(f);
+          ctx.beginPath(); ctx.arc(sp[0], sp[1], cr, 0, Math.PI*2); ctx.fill();
+        };
+
+        for (const rg of _runways) {                    // runway edge (white) + threshold (green)
           const _lit = rg.bundled ? !!rg.lit : !_isGrass(rg.surface);
           if (!_lit) continue;                                   // only light runways that are lit
           const _eM  = _sampleElev(rg.a.lat, rg.a.lon);
@@ -1768,30 +1789,15 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           const bN=(rg.b.lat-acLat)*60, bE=(rg.b.lon-acLon)*60*cosAcLat;
           const dN=bN-aN, dE=bE-aE, L=Math.hypot(dN,dE) || 1e-6;
           const uN=dN/L, uE=dE/L, pN=-uE, pE=uN, half=(rg.widthM/1852)/2;
-          const _dot=(N,E,rgb,baseSz)=>{ const f=N*cosH+E*sinH; if(f<0.02)return; const r=E*cosH-N*sinH;
-            const sp=proj(f,r,_eNm); if(!sp)return;
-            ctx.fillStyle=`rgba(${rgb},${(_aBase*_zAlpha(f)).toFixed(3)})`;
-            ctx.beginPath(); ctx.arc(sp[0],sp[1],baseSz*_zScale(f),0,Math.PI*2); ctx.fill(); };
-          for (let t=0; t<=L; t+=0.0324) {            // edge lights ~60 m both sides
-            _dot(aN+uN*t+pN*half, aE+uE*t+pE*half, '255,248,228', 1.5*_DPR);
-            _dot(aN+uN*t-pN*half, aE+uE*t-pE*half, '255,248,228', 1.5*_DPR);
+          for (let t=0; t<=L; t+=0.0324) {              // edge lights ~60 m both sides
+            _lamp(aN+uN*t+pN*half, aE+uE*t+pE*half, _rwWhiteGlow, 'rgba(255,250,235,1)', _eNm);
+            _lamp(aN+uN*t-pN*half, aE+uE*t-pE*half, _rwWhiteGlow, 'rgba(255,250,235,1)', _eNm);
           }
           for (const e of [0, L]) for (let s=-half; s<=half+1e-9; s+=half/3)   // green threshold bars
-            _dot(aN+uN*e+pN*s, aE+uE*e+pE*s, '70,255,110', 1.8*_DPR);
+            _lamp(aN+uN*e+pN*s, aE+uE*e+pE*s, _twGreenGlow, 'rgba(190,255,205,1)', _eNm);
         }
-        /* Taxiway edge lights (blue) + centreline lights (green) — a soft lamp-glow sprite per
-           light (white-hot core + halo + ground spill), drawn additively. Sparser than the old
-           flat dots since the glows blend. Tight distance + behind culls (Changi is enormous). */
-        _twBlueGlow  ||= _makeLampGlow('90,150,255');
-        _twGreenGlow ||= _makeLampGlow('70,235,110');
-        const _glowR = 3.4 * _DPR;
-        const _lamp = (N, E, sprite, elevNm) => {
-          const f = N*cosH + E*sinH; if (f < 0.02) return;
-          const sp = proj(f, E*cosH - N*sinH, elevNm); if (!sp) return;
-          const rad = _glowR * _zScale(f);
-          ctx.globalAlpha = _aBase * _zAlpha(f);
-          ctx.drawImage(sprite, sp[0]-rad, sp[1]-rad, rad*2, rad*2);
-        };
+        /* Taxiway edge lights (blue) + centreline lights (green) — same lamp, sparser since the
+           glows blend. Tight distance + behind culls (Changi is enormous). */
         for (const way of _osmWays) {                              // blue edge lights, both sides
           if (way.tags?.aeroway !== 'taxiway' || !way.geometry || way.geometry.length < 2) continue;
           const _hw = ((parseFloat(way.tags?.width)||15)/1852)/2, g = way.geometry;
@@ -1805,8 +1811,8 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
             const dN=n1-n0, dE=e1-e0, segL=Math.hypot(dN,dE)||1e-6;
             const uN=dN/segL, uE=dE/segL, pN=-uE, pE=uN;
             for (let t=0;t<segL;t+=0.03){ const cN=n0+uN*t, cE=e0+uE*t;
-              _lamp(cN+pN*_hw, cE+pE*_hw, _twBlueGlow, _txNm);
-              _lamp(cN-pN*_hw, cE-pE*_hw, _twBlueGlow, _txNm); }
+              _lamp(cN+pN*_hw, cE+pE*_hw, _twBlueGlow, 'rgba(200,222,255,1)', _txNm);
+              _lamp(cN-pN*_hw, cE-pE*_hw, _twBlueGlow, 'rgba(200,222,255,1)', _txNm); }
           }
         }
         for (const way of _osmWays) {                              // green centreline lights (paved)
@@ -1822,7 +1828,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
             if (mN*mN+mE*mE > 9 || mN*cosH+mE*sinH < -0.4) continue;
             const dN = n1-n0, dE = e1-e0, segL = Math.hypot(dN,dE)||1e-6, uN = dN/segL, uE = dE/segL;
             for (let t = 0; t < segL; t += 0.022) { const cN = n0+uN*t, cE = e0+uE*t;
-              _lamp(cN, cE, _twGreenGlow, _cNm); }
+              _lamp(cN, cE, _twGreenGlow, 'rgba(190,255,205,1)', _cNm); }
           }
         }
         ctx.globalAlpha = 1;
