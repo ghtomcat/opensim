@@ -48,7 +48,10 @@ export function managedSpeed() {
   const profile = ac.envelope?.spdProfile;
   if (!profile) return null;
 
-  let tgt = scheduleSpeed(profile, S.alt ?? 0);
+  /* The profile's low end is the approach/landing schedule (0 ft = touchdown), so interpolate by
+     height above the destination field — otherwise a high airport (LSZH 1416 ft) lands ~Vapp+15. */
+  const fieldElev = S.mission?.arrival?.elevation ?? 0;
+  let tgt = scheduleSpeed(profile, Math.max(0, (S.alt ?? 0) - fieldElev));
 
   /* Honour each upcoming speed constraint only when close enough to act on it (≈0.5 nm per kt
      to bleed off, min 12 nm). Far constraints — including the whole approach seen from cruise —

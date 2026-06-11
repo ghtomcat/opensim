@@ -233,8 +233,10 @@ export function tickPhysics(dt) {
       const _dCL0ap  = ((ac.flaps ?? [])[S.flaps] ?? {}).dCL_0 ?? 0;            // flaps add camber lift → less AoA at a given CL
       const trimAoA  = Math.max(0, Math.min(14, (clNeed - CL_0 - _dCL0ap) / CL_alpha * 180 / Math.PI));
       const _aglP    = S.alt - (S.mission?.arrival?.elevation ?? 0);
-      const _vsGain  = (gsCap && _aglP < 50) ? 0.0075 : 0.0032;               // firm flare authority near the ground (pitch up to arrest the sink)
+      const _flaring = gsCap && _aglP < 50;
+      const _vsGain  = _flaring ? 0.0045 : 0.0032;                            // flare — arrest the sink, but capped so the camber lift doesn't balloon it
       apPitch = Math.max(-8, Math.min(16, gammaDeg + trimAoA + vsErr * _vsGain));
+      if (_flaring) apPitch = Math.min(apPitch, trimAoA + 4);                 // flare pitch cap: enough to arrest, not enough to climb away
     }
 
     /* On ground: snap back to level; in flight: fight inertia (AP overrides the stick) */
