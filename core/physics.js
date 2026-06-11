@@ -96,6 +96,11 @@ export function tickPhysics(dt) {
       n1Target = Math.min(speedN1, ceiling);                                            // detent caps the command
       athrMode = (speedN1 >= ceiling - 0.5) ? 'THR'                                     // demand pinned at the limit
                : (S.alt > 28000 ? 'MACH' : 'SPEED');                                    // modulating to hold speed
+      /* RETARD — in the flare (low on the captured glideslope) close the thrust to idle so the
+         speed bleeds and the jet settles, instead of the A/THR holding speed and floating it. */
+      if (S.gsCaptured && (S.alt - (S.mission?.arrival?.elevation ?? 0)) < 30) {
+        n1Target = IDLE_N1; athrMode = 'IDLE';
+      }
     } else {
       /* A/THR off → manual thrust: N1 follows the thrust lever, not the FCU selected speed
          (turning the SPD knob no longer changes thrust). Falls back to spdT for old state. */
@@ -281,7 +286,7 @@ export function tickPhysics(dt) {
     const span    = perf.wingSpan ?? Math.sqrt(8.5 * S_wing);            // estimate from area (AR ~8.5) if absent
     const hOverB  = Math.max(0, S.alt - groundFt) / span;               // height above ground / wingspan
     const geK     = hOverB < 1.1 ? ((16 * hOverB) ** 2) / (1 + (16 * hOverB) ** 2) : 1;   // induced-drag factor → ~0.4 at touchdown
-    const geLift  = hOverB < 1.1 ? 1 + 0.10 * (1 - Math.min(1, hOverB)) : 1;              // up to +10% CL near the ground
+    const geLift  = hOverB < 1.1 ? 1 + 0.06 * (1 - Math.min(1, hOverB)) : 1;              // up to +6% CL near the ground (more = floats down the runway)
 
     /* Aerodynamics */
     const alpha = newPitch * DEG;
