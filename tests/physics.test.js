@@ -61,6 +61,14 @@ test('cruise — managed speed flies the schedule, not the FCU speed', async ({ 
   expect(after.spd).toBeGreaterThan(260);                   // held near the spdProfile target (~283 at FL350), not 200
 });
 
+test('cruise — managed speed ignores a distant approach constraint', async ({ page }) => {
+  await loadSim(page, 'evra-approach');
+  await set(page, { spdManaged: true, navManaged: true, ap: true, athr: true, paused: false });
+  await step(page, 100);                                     // LNAV builds the route → constraints become visible
+  const after = await get(page);
+  expect(after.spd).toBeGreaterThan(255);                   // holds the FL350 schedule (~283), not the ≤210 limit far ahead
+});
+
 test('cruise — engine failure bleeds speed (AP holding altitude)', async ({ page }) => {
   await loadSim(page, 'evra-approach');
   const before = await get(page);

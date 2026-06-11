@@ -14,6 +14,14 @@ import { S } from './state.js';
 import { lnavActive } from './lnav.js';
 import { spdParse }   from './route.js';
 
+/* Great-circle distance, nm. */
+function gcNm(aLat, aLon, bLat, bLon) {
+  const D = Math.PI / 180;
+  const p1 = aLat*D, p2 = bLat*D, dp = (bLat-aLat)*D, dl = (bLon-aLon)*D;
+  const h = Math.sin(dp/2)**2 + Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
+  return 2 * 3440.065 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
 /* Interpolate envelope.spdProfile (altitude → speed) at the current altitude. */
 function scheduleSpeed(profile, alt) {
   const pts = Object.entries(profile).map(([a, v]) => [Number(a), Number(v)]).sort((p, q) => p[0] - q[0]);
@@ -31,7 +39,8 @@ function scheduleSpeed(profile, alt) {
 /**
  * managedSpeed() → target IAS (kt), or null when no managed target applies.
  * The A/THR speed loop uses it when S.spdManaged is set. The phase schedule is then bounded
- * by the nearest upcoming flight-plan speed constraint (e.g. ≤220 over a STAR fix).
+ * by published flight-plan speed constraints — but only once within a deceleration window of
+ * the constrained fix, so a ≤210 approach restriction doesn't slow the aircraft at cruise.
  */
 export function managedSpeed() {
   const ac = S.aircraft;
@@ -41,12 +50,17 @@ export function managedSpeed() {
 
   let tgt = scheduleSpeed(profile, S.alt ?? 0);
 
-  /* Honour the nearest published speed constraint ahead (the one we cross next). */
+  /* Honour each upcoming speed constraint only when close enough to act on it (≈0.5 nm per kt
+     to bleed off, min 12 nm). Far constraints — including the whole approach seen from cruise —
+     don't bind; the tightest one within range wins. */
   const { legs, idx } = lnavActive() ?? {};
-  if (legs) {
+  if (legs && S.lat != null && S.lon != null) {
     for (let j = Math.max(0, idx ?? 0); j < legs.length; j++) {
       const c = spdParse(legs[j].spd);
-      if (c) { tgt = (c.kind === 'above') ? Math.max(tgt, c.kt) : Math.min(tgt, c.kt); break; }
+      if (!c) continue;
+      const dist = gcNm(S.lat, S.lon, legs[j].lat, legs[j].lon);
+      const lookahead = Math.max(12, ((S.spd ?? tgt) - c.kt) * 0.5);
+      if (dist <= lookahead) tgt = (c.kind === 'above') ? Math.max(tgt, c.kt) : Math.min(tgt, c.kt);
     }
   }
   return Math.round(tgt);
