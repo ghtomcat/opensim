@@ -89,6 +89,12 @@
     "CL_0": 0.2, "CL_alpha": 4.5, "CL_max": 2.0, "CD_0": 0.018, "inducedK": 0.034,
     "Vr": 165, "muRoll": 0.02, "muBrake": 0.4, "gearDrag": 0.012
   },
+  "flaps": [
+    { "label": "0",   "dCL_max": 0,    "dCD_0": 0 },
+    { "label": "1+F", "dCL_max": 0.45, "dCD_0": 0.01 },
+    { "label": "2",   "dCL_max": 0.75, "dCD_0": 0.025 },
+    { "label": "3",   "dCL_max": 1.1,  "dCD_0": 0.06 }
+  ],
   "callsign": "VisionPilot",
   "icaoType": "A359",
   "nose": {
