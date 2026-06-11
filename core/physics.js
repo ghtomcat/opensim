@@ -288,11 +288,17 @@ export function tickPhysics(dt) {
     const geK     = hOverB < 1.1 ? ((16 * hOverB) ** 2) / (1 + (16 * hOverB) ** 2) : 1;   // induced-drag factor → ~0.4 at touchdown
     const geLift  = hOverB < 1.1 ? 1 + 0.06 * (1 - Math.min(1, hOverB)) : 1;              // up to +6% CL near the ground (more = floats down the runway)
 
+    /* Ground spoilers (speedBrake = 2, deployed on touchdown): dump lift to plant the jet on
+       its wheels + add drag to slow the roll-out. Without this they were cosmetic. */
+    const _sb     = S.speedBrake ?? 0;
+    const sbCD    = _sb >= 2 ? (perf.spoilerDrag ?? 0.06) : 0;
+    const sbLift  = _sb >= 2 ? 0.5 : 1;                                  // spoil ~50% of the lift
+
     /* Aerodynamics */
     const alpha = newPitch * DEG;
     const CL_b  = Math.min(CL_max_e, Math.max(-0.5, CL_0_e + CL_alpha * alpha));
-    const CL    = CL_b * geLift;                                         // ground effect lifts …
-    const CD    = CD_0_eff + k_ind * CL_b * CL_b * geK;                  // … and cuts the induced drag near the ground
+    const CL    = CL_b * geLift * sbLift;                                // ground effect lifts, spoilers dump …
+    const CD    = CD_0_eff + sbCD + k_ind * CL_b * CL_b * geK;           // … spoilers + induced (cut near the ground)
     const L     = q * S_wing * CL;
     const D     = q * S_wing * CD;
     const engineLive = S.engineState === 'running';
@@ -509,9 +515,11 @@ export function tickPhysics(dt) {
   const _trOn = _trCapable && newWow && newSpd > 60 && (_idleThr || S.braking);
   const _trPatch = _trCapable ? { thrustReverser: _trOn } : {};
 
-  /* Ground spoilers: auto-deploy on touchdown when armed (lever at 1) + idle thrust */
+  /* Ground spoilers: auto-deploy on touchdown when armed (lever at 1). The thrust is already
+     idle by then (the flare RETARD), so don't gate on the manual lever — A/THR holds the CL
+     detent, which isn't "idle lever". */
   const justTouched = !S.wow && newWow;
-  const _sbPatch = (justTouched && (S.speedBrake ?? 0) === 1 && _idleThr)
+  const _sbPatch = (justTouched && (S.speedBrake ?? 0) === 1)
     ? { speedBrake: 2 } : {};
 
   /* Gear animation — 12-second transit (not for fixed-gear aircraft) */

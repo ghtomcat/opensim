@@ -87,7 +87,7 @@
   "performance": {
     "mass": 230000, "wingArea": 443, "wingSpan": 64.75, "thrustMax": 750000,
     "CL_0": 0.2, "CL_alpha": 4.5, "CL_max": 2.0, "CD_0": 0.018, "inducedK": 0.034,
-    "Vr": 165, "muRoll": 0.02, "muBrake": 0.4, "gearDrag": 0.012
+    "Vr": 165, "muRoll": 0.02, "muBrake": 0.4, "gearDrag": 0.012, "spoilerDrag": 0.08
   },
   "flaps": [
     { "label": "0",   "dCL_0": 0,   "dCL_max": 0,    "dCD_0": 0 },
@@ -185,10 +185,10 @@
     "spdProfile": {
       "35000": 312,
       "10000": 250,
-      "3000": 180,
-      "1500": 160,
-      "1000": 145,
-      "0": 135
+      "3000": 175,
+      "1500": 152,
+      "1000": 140,
+      "0": 132
     }
   },
   "situations": [
