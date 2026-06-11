@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "hub":  "node server/hub.js",
-    "test": "node --test tests/db601-synth.test.mjs && playwright test",
+    "test": "node --test tests/*.test.mjs && playwright test",
     "version": "git add index.html"
   },
   "dependencies": {
