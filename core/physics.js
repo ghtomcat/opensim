@@ -9,6 +9,7 @@ import { bbEvent } from './blackbox.js';
 import { capturePushback, pushbackPose } from './pushback.js';
 import { computeAirbusFMA, computeBoeingFMA } from './fma.js';
 import { lnavTargetHeading } from './lnav.js';
+import { vnavTargetAlt } from './vnav.js';
 
 const DEG = Math.PI / 180;
 
@@ -115,9 +116,22 @@ export function tickPhysics(dt) {
       }
     }
 
-    /* On ground: snap back to level; in flight: fight inertia (AP bank overrides the stick) */
+    /* AP vertical channel — when engaged in flight the autopilot pitches to capture and hold
+       a target altitude: managed VNAV flies the flight-plan profile, else it holds the FCU
+       altitude. Outer loop alt→VS (eased near capture), inner loop VS→flight-path-angle→pitch. */
+    let apPitch = null;
+    if (S.ap && !onGround) {
+      const altTgt   = S.altManaged ? vnavTargetAlt() : S.altT;
+      const cmdVS    = Math.max(-1800, Math.min(1800, (altTgt - S.alt) * 3));   // gentle gain → flares ~600 ft out, less overshoot
+      const horizFpm = Math.max(120, (S.spd ?? 0) * 101.27);                    // kt → ft/min horizontal
+      const gammaDeg = Math.asin(Math.max(-0.3, Math.min(0.3, cmdVS / horizFpm))) * 180 / Math.PI;
+      const vsErr    = cmdVS - (S.vs ?? 0);                                     // arrest the rate approaching the target (damping)
+      apPitch = Math.max(-8, Math.min(15, gammaDeg + 2.5 + vsErr * 0.0010));    // + ~trim AoA for level flight
+    }
+
+    /* On ground: snap back to level; in flight: fight inertia (AP overrides the stick) */
     const rollTarget  = onGround ? 0 : (apBank ?? S.rollT);
-    const pitchTarget = (onGround && S.spd < Vr) ? 0 : S.pitchT;
+    const pitchTarget = (onGround && S.spd < Vr) ? 0 : (apPitch ?? S.pitchT);
     const maxBank     = ac.handling?.maxBank  ?? 60;
     const maxPitch    = ac.handling?.maxPitch ?? 30;
 
@@ -316,7 +330,8 @@ export function tickPhysics(dt) {
   if (ac.panel === 'airbus' || ac.panel === 'e190') {
     const fieldElev = S.mission?.departure?.elevation ?? S.mission?.arrival?.elevation ?? 0;
     const fp = { wow: newWow, n1: S.n1 ?? 0, vs, alt: newAlt, altT: S.altT,
-                 gear: S.gear, ap: S.ap, athr: S.athr, fieldElev, navManaged: S.navManaged };
+                 gear: S.gear, ap: S.ap, athr: S.athr, fieldElev,
+                 navManaged: S.navManaged, altManaged: S.altManaged };
     fma = ac.manufacturer === 'boeing' ? computeBoeingFMA(fp) : computeAirbusFMA(fp);
   } else if (ac.fmaPhases) {
     const phase = ac.fmaPhases.find(p => newAlt >= p.minAlt);

@@ -2339,18 +2339,20 @@
       setState({ hdgT: ((S.hdgT + dir - 1 + 360) % 360) + 1, navManaged: false });   // selecting a heading → HDG mode
     } else if (mx >= altX && mx < vsX) {
       const step = evt.shiftKey ? 1000 : 100;
-      setState({ altT: Math.max(0, Math.min(43000, Math.round(S.altT / step) * step + dir * step)) });
+      setState({ altT: Math.max(0, Math.min(43000, Math.round(S.altT / step) * step + dir * step)), altManaged: false });
     }
   }, { passive: false });
 
   fcuCanvas.addEventListener('click', evt => {
     const panel = S.aircraft?.panel;
     if (panel !== 'airbus' && panel !== 'e190') return;
-    const { hdgX, hdgW, apX, apW } = _fcuGeometry();
+    const { hdgX, hdgW, apX, apW, altX, altW } = _fcuGeometry();
     const rect    = fcuCanvas.getBoundingClientRect();
     const mx      = evt.clientX - rect.left;
     if (mx >= hdgX && mx < hdgX + hdgW) {
       if (!_fcuMoved) setState({ navManaged: !S.navManaged });   // push HDG knob → managed NAV / pull → HDG
+    } else if (mx >= altX && mx < altX + altW) {
+      if (!_fcuMoved) setState({ altManaged: !S.altManaged });   // push ALT knob → managed VNAV / pull → ALT
     } else if (mx >= apX && mx < apX + apW) {
       const btnW   = apW / 4;
       const btnIdx = Math.floor((mx - apX) / btnW);
@@ -2395,7 +2397,7 @@
       const step  = coarse ? 1000 : 100;
       const delta = Math.round(dy / 2) * step;
       setState({ altT: Math.max(0, Math.min(43000,
-        Math.round(_fcuDrag.startAlt / step) * step + delta)) });
+        Math.round(_fcuDrag.startAlt / step) * step + delta)), altManaged: false });   // pulling ALT → selected
     }
   });
 

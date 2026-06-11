@@ -35,6 +35,7 @@ export const S = {
   athr:     true,                 // autothrust
   navManaged: false,              // lateral managed NAV (LNAV) — follow the flight plan vs hold the FCU heading
   fmsActive:  0,                  // active waypoint index in the flight-plan legs (LNAV sequencer)
+  altManaged: false,              // vertical managed VNAV — fly the altitude profile vs hold the FCU altitude
   wow:      false,                // weight on wheels (squat switch)
   touchdownVS: 0,                 // VS at last touchdown (fpm, negative)
   crashed:  false,                // bounds exceeded — physics frozen

@@ -972,7 +972,7 @@ export function drawFCU(ctx, W, H, style) {
   _sec('HDG  TRK', S.navManaged ? '---' : hdgDisp, hdgX, hdgW, S.navManaged);
 
   // ── Altitude ──
-  _sec('ALT', String(Math.round(S.altT)).padStart(5, '0'), altX, altW);
+  _sec('ALT', String(Math.round(S.altT)).padStart(5, '0'), altX, altW, S.altManaged);   // ALT keeps its value + managed dot
 
   // ── Vertical speed ──
   const vsRaw  = Math.round(S.vs / 100) * 100;
