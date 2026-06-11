@@ -236,7 +236,7 @@ export function tickPhysics(dt) {
       const _flaring = gsCap && _aglP < 50;
       const _vsGain  = _flaring ? 0.0045 : 0.0032;                            // flare — arrest the sink, but capped so the camber lift doesn't balloon it
       apPitch = Math.max(-8, Math.min(16, gammaDeg + trimAoA + vsErr * _vsGain));
-      if (_flaring) apPitch = Math.min(apPitch, trimAoA + 4);                 // flare pitch cap: enough to arrest, not enough to climb away
+      if (_flaring) apPitch = Math.max(trimAoA, Math.min(apPitch, trimAoA + 4));   // flare: hold level..+4° — never nose-down (let ground effect cushion), never balloon
     }
 
     /* On ground: snap back to level; in flight: fight inertia (AP overrides the stick) */
@@ -276,10 +276,18 @@ export function tickPhysics(dt) {
     const propDrag = (1 - ePow) * 0.022;
     const CD_0_eff = CD_0_e + propDrag + gearDrag;
 
+    /* Ground effect — within ~1 wingspan of the ground the wing's induced drag collapses
+       (Wieselsberger) and lift rises a little: the cushion that floats the flare. */
+    const span    = perf.wingSpan ?? Math.sqrt(8.5 * S_wing);            // estimate from area (AR ~8.5) if absent
+    const hOverB  = Math.max(0, S.alt - groundFt) / span;               // height above ground / wingspan
+    const geK     = hOverB < 1.1 ? ((16 * hOverB) ** 2) / (1 + (16 * hOverB) ** 2) : 1;   // induced-drag factor → ~0.4 at touchdown
+    const geLift  = hOverB < 1.1 ? 1 + 0.10 * (1 - Math.min(1, hOverB)) : 1;              // up to +10% CL near the ground
+
     /* Aerodynamics */
     const alpha = newPitch * DEG;
-    const CL    = Math.min(CL_max_e, Math.max(-0.5, CL_0_e + CL_alpha * alpha));
-    const CD    = CD_0_eff + k_ind * CL * CL;
+    const CL_b  = Math.min(CL_max_e, Math.max(-0.5, CL_0_e + CL_alpha * alpha));
+    const CL    = CL_b * geLift;                                         // ground effect lifts …
+    const CD    = CD_0_eff + k_ind * CL_b * CL_b * geK;                  // … and cuts the induced drag near the ground
     const L     = q * S_wing * CL;
     const D     = q * S_wing * CD;
     const engineLive = S.engineState === 'running';
