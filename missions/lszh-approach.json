@@ -17,13 +17,15 @@
     "elevation": 1416
   },
   "initialState": {
-    "lat": 47.20,
-    "lon": 11.00,
-    "alt": 39000,
-    "spd": 312,
-    "hdg": 280,
-    "pitch": 2,
-    "roll": 0
+    "lat": 47.5053,
+    "lon": 8.0408,
+    "alt": 7000,
+    "spd": 250,
+    "hdg": 98,
+    "pitch": 3,
+    "roll": 0,
+    "ap": true,
+    "athr": true
   },
   "weather": {
     "source": "live",

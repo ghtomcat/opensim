@@ -23,7 +23,9 @@
     "spd": 290,
     "hdg": 45,
     "pitch": 2,
-    "roll": 0
+    "roll": 0,
+    "ap": true,
+    "athr": true
   },
   "weather": {
     "source": "live",

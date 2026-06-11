@@ -11,6 +11,8 @@ import { computeAirbusFMA, computeBoeingFMA } from './fma.js';
 import { lnavTargetHeading } from './lnav.js';
 import { vnavTargetAlt } from './vnav.js';
 
+let _athrSpdPrev = null;   // previous airspeed for the A/THR damping (speed-rate) term
+
 const DEG = Math.PI / 180;
 
 /* ── ILS approach tracking ── */
@@ -29,6 +31,10 @@ export function tickPhysics(dt) {
   if (!ac.envelope) return;  // non-flight vehicles (robot-arm, robot-dog, etc.)
 
   const prevAlt = S.alt;
+
+  /* Throttle-at-idle: turbofans key off the thrust lever (spdT is the A/THR selected speed,
+     not the throttle); props/others key off spdT. Used for auto-brake / reverser / speedbrake. */
+  const _idleThr = (ac.engine?.type === 'turbofan') ? (S.thrustLever ?? 0) < 0.05 : (S.spdT ?? 0) === 0;
 
   /* ── Speed limit from envelope profile ── */
   const profile = ac.envelope.spdProfile;
@@ -52,16 +58,35 @@ export function tickPhysics(dt) {
     const IDLE_N1 = ac.engine?.idleN1 ?? 22;
     const state   = S.engineState ?? 'off';
     const n1Now   = S.n1 ?? 0;
-    const spdNorm = Math.min(1, Math.max(0, (S.spdT ?? 0) / (ac.envelope.maxSpd ?? 340)));
+    const vmo     = ac.envelope.maxSpd ?? 340;
 
-    const n1Target = (state === 'running') ? IDLE_N1 + (100 - IDLE_N1) * spdNorm
-                   : (state === 'starting') ? IDLE_N1
-                   : 0;   // 'off' or 'shutdown'
+    /* A/THR — when the AP + autothrust are engaged in flight, N1 is driven by a speed loop
+       (integrator on the speed error) to hold the target speed instead of being a thrust
+       lever. One loop gives the right phase behaviour: level → holds, climb → spools up,
+       descent → idles. Target = the FCU/managed speed, capped by 250 < FL100 and Vmo. */
+    const athrActive = state === 'running' && S.ap && S.athr && !S.wow;
+    let n1Target, athrI = S.athrN1 ?? n1Now;
+    if (athrActive) {
+      const spdTgt  = Math.min(S.spdT ?? vmo, S.alt < 10000 ? 250 : 1e4, vmo);  // FCU/managed, capped 250<FL100 & Vmo
+      const spdErr  = spdTgt - (S.spd ?? 0);
+      const spdRate = _athrSpdPrev != null ? ((S.spd ?? 0) - _athrSpdPrev) / dt : 0;    // kt/s — damps overshoot
+      athrI    = Math.max(IDLE_N1, Math.min(100, athrI + spdErr * 0.10 * dt));          // integral (finds the trim N1)
+      n1Target = Math.max(IDLE_N1, Math.min(100, athrI + spdErr * 1.0 - spdRate * 3.5));// + proportional − derivative
+    } else {
+      /* A/THR off → manual thrust: N1 follows the thrust lever, not the FCU selected speed
+         (turning the SPD knob no longer changes thrust). Falls back to spdT for old state. */
+      const lever = S.thrustLever ?? Math.min(1, Math.max(0, (S.spdT ?? 0) / vmo));
+      n1Target = (state === 'running') ? IDLE_N1 + (100 - IDLE_N1) * lever
+               : (state === 'starting') ? IDLE_N1
+               : 0;   // 'off' or 'shutdown'
+    }
+    _athrSpdPrev = athrActive ? (S.spd ?? 0) : null;
 
     const tau  = (state === 'starting') ? 25 : (n1Target > n1Now ? 8 : 15);
     const newN1 = n1Now + (n1Target - n1Now) * (1 - Math.exp(-dt / tau));
 
-    const n1Up = { n1: Math.max(0, Math.min(100, newN1)) };
+    const n1Up = { n1: Math.max(0, Math.min(100, newN1)),
+                   athrN1: athrActive ? athrI : newN1 };   // track the A/THR integral; sync to N1 when off
     if (state === 'starting' && newN1 >= IDLE_N1 * 0.95) n1Up.engineState = 'running';
     if (state === 'shutdown' && newN1 < 0.5) n1Up.engineState = 'off';
     setState(n1Up);
@@ -80,8 +105,9 @@ export function tickPhysics(dt) {
     const rho    = 1.225 * Math.pow(Math.max(0, 1 - 2.2558e-5 * alt_m), 4.2559);
 
     /* Airspeed and dynamic pressure */
-    const spd_ms = Math.max(1, S.spd) * 0.5144;
-    const q      = 0.5 * rho * spd_ms * spd_ms;
+    const spd_ms = Math.max(1, S.spd) * 0.5144;                          // IAS (m/s) — what the wing & gauge feel
+    const tas_ms = spd_ms / Math.sqrt(Math.max(0.05, rho / 1.225));      // true airspeed (faster than IAS up high)
+    const q      = 0.5 * 1.225 * spd_ms * spd_ms;                        // dynamic pressure from IAS (sea-level ρ)
 
     /* Throttle — turbofan uses N1-derived fraction; piston/prop uses spdT directly */
     const isTurbofan = ac.engine?.type === 'turbofan';
@@ -189,7 +215,7 @@ export function tickPhysics(dt) {
       const spd_ms_gnd = S.spd * 0.5144;
       /* Parking brake latches full braking (holds against thrust even at a standstill);
          momentary brakes / idle-stop only bite once actually rolling. */
-      const braking = (S.parkBrake || ((S.spdT === 0 || engineDead || S.braking) && spd_ms_gnd > 0.5)) ? 1 : 0;
+      const braking = (S.parkBrake || ((_idleThr || engineDead || S.braking) && spd_ms_gnd > 0.5)) ? 1 : 0;
 
       /* Static (breakaway) friction below taxi speed for jets, so idle thrust alone can't
          start a parked aircraft rolling — it takes a touch above idle to break away, then
@@ -214,18 +240,18 @@ export function tickPhysics(dt) {
       /* ── Flight model ──
          Point-mass wind axes. VS integrated across frames via S.vs.  */
       const vz_ms  = (S.vs ?? 0) / 196.85;
-      const gamma  = Math.asin(Math.max(-0.5, Math.min(0.5, vz_ms / spd_ms)));
+      const gamma  = Math.asin(Math.max(-0.5, Math.min(0.5, vz_ms / tas_ms)));
 
       const a_long = (T * Math.cos(alpha) - D - W * Math.sin(gamma)) / mass;
-      const dGamma = (L - W * Math.cos(gamma)) / (mass * Math.max(10, spd_ms))
+      const dGamma = (L - W * Math.cos(gamma)) / (mass * Math.max(10, tas_ms))
                    - 0.4 * gamma                        // pitch damping — horizontal stab
                    + (S.trim ?? 0) * 0.0015;            // trim — shifts pitch equilibrium
 
-      const newSpd_ms = Math.max(0, spd_ms + a_long * dt);
+      const newTas_ms = Math.max(0, tas_ms + a_long * dt);   // integrate TAS (forces are real); display IAS
       const newGamma  = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, gamma + dGamma * dt));
 
-      newSpd = newSpd_ms / 0.5144;
-      vs     = newSpd_ms * Math.sin(newGamma) * 196.85;
+      newSpd = newTas_ms * Math.sqrt(Math.max(0.05, rho / 1.225)) / 0.5144;   // TAS → IAS for the gauge
+      vs     = newTas_ms * Math.sin(newGamma) * 196.85;
 
       /* High-alpha stall: CL hits CL_max — sudden snap, nose drops */
       if (CL > CL_max_e * 0.95) {
@@ -243,8 +269,8 @@ export function tickPhysics(dt) {
       /* Liftoff: bump clear of ground to release WoW next frame */
       newAlt = Math.max(onGround ? groundFt + 1 : groundFt, S.alt + vs * dt / 60);
 
-      /* Coordinated turn */
-      const turnRate = 9.81 * Math.tan(newRoll * DEG) / Math.max(10, newSpd_ms);
+      /* Coordinated turn — rate uses true airspeed */
+      const turnRate = 9.81 * Math.tan(newRoll * DEG) / Math.max(10, newTas_ms);
       newHdg = (S.hdg + turnRate * dt * 180 / Math.PI + 360) % 360;
 
       /* ── Rotary engine gyroscopic precession ──
@@ -364,8 +390,10 @@ export function tickPhysics(dt) {
      aircraft doesn't get blown across the apron). ── */
   const hdgRad = newHdg * DEG;
   const cosLat = Math.cos(S.lat * DEG);
-  const acN_ms = newSpd * 0.5144 * Math.cos(hdgRad);
-  const acE_ms = newSpd * 0.5144 * Math.sin(hdgRad);
+  const _rhoRatio = Math.pow(Math.max(0, 1 - 2.2558e-5 * newAlt * 0.3048), 4.2559);   // ρ/ρ₀ at the new altitude
+  const _tasMs    = newSpd * 0.5144 / Math.sqrt(Math.max(0.05, _rhoRatio));            // groundspeed ≈ TAS (IAS→TAS)
+  const acN_ms = _tasMs * Math.cos(hdgRad);
+  const acE_ms = _tasMs * Math.sin(hdgRad);
   const gndN_ms = acN_ms + (newWow ? 0 : windN_ms);
   const gndE_ms = acE_ms + (newWow ? 0 : windE_ms);
   const newLat  = S.lat + gndN_ms / 1852 / 60 * dt;
@@ -404,12 +432,12 @@ export function tickPhysics(dt) {
 
   /* Thrust reverser: auto-deploy on rollout above 60 kt, auto-stow below */
   const _trCapable = !!(ac.engine?.thrustReverser);
-  const _trOn = _trCapable && newWow && newSpd > 60 && (S.spdT === 0 || S.braking);
+  const _trOn = _trCapable && newWow && newSpd > 60 && (_idleThr || S.braking);
   const _trPatch = _trCapable ? { thrustReverser: _trOn } : {};
 
   /* Ground spoilers: auto-deploy on touchdown when armed (lever at 1) + idle thrust */
   const justTouched = !S.wow && newWow;
-  const _sbPatch = (justTouched && (S.speedBrake ?? 0) === 1 && (S.spdT ?? 0) === 0)
+  const _sbPatch = (justTouched && (S.speedBrake ?? 0) === 1 && _idleThr)
     ? { speedBrake: 2 } : {};
 
   /* Gear animation — 12-second transit (not for fixed-gear aircraft) */

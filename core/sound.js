@@ -268,10 +268,14 @@ export function getCurrentRpm() {
     return '---';
   }
 
-  const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 350;
-  const throttle = Math.max(0, Math.min(1, S.spdT / maxSpd));
   const ePow     = S.enginePower ?? 1.0;
   if (ePow <= 0) return '---';
+  /* Turbofan N1 readout reflects the actual fan speed, not the FCU SPD/MACH selection. */
+  if (S.aircraft?.engine?.type === 'turbofan' && !_cfg.impulse && !_cfg.showRpm) {
+    return 'N1 ' + Math.round(S.n1 ?? 0) + '%';
+  }
+  const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 350;
+  const throttle = Math.max(0, Math.min(1, S.spdT / maxSpd));
   if (_cfg.impulse || _cfg.showRpm) {
     const rpm = Math.round((_cfg.rpmIdle + (_cfg.rpmMax - _cfg.rpmIdle) * throttle) * ePow);
     return rpm + ' RPM';
@@ -814,7 +818,12 @@ export function tickSound() {
   }
 
   const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 350;
-  const throttle = Math.max(0, Math.min(1, S.spdT / maxSpd));
+  /* Turbofan: sound tracks actual fan speed (N1), which already encodes the A/THR speed loop
+     or the manual thrust lever — not the FCU SPD/MACH knob. Other engines: throttle ≈ spdT. */
+  const _idleN1  = S.aircraft?.engine?.idleN1 ?? 20;
+  const throttle = (S.aircraft?.engine?.type === 'turbofan')
+    ? Math.max(0, Math.min(1, ((S.n1 ?? 0) - _idleN1) / (100 - _idleN1)))
+    : Math.max(0, Math.min(1, S.spdT / maxSpd));
   const now      = _ctx.currentTime;
 
   if (_cfg.impulse && _workletNode && _workletReady) {

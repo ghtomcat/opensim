@@ -4296,7 +4296,15 @@
     document.getElementById('pv-hdg').textContent  = String(Math.round(S.hdg)).padStart(3, '0') + '°';
     document.getElementById('pv-cfg').textContent  = `F${S.flaps} · ${S.gear ? 'DN' : 'UP'}`;
     const _profiles = S.aircraft?.thrustProfiles;
-    const _active   = _profiles?.find(p => p.spdT === S.spdT)?.label ?? '---';
+    let _active = '---';
+    if (_profiles?.length) {
+      /* Match the detent nearest the thrust lever (not the FCU speed) — mirrors the pedestal. */
+      const _maxSpdT = Math.max(..._profiles.map(p => p.spdT)) || 1;
+      const _lever   = S.thrustLever ?? 0;
+      _active = _profiles.reduce((b, p) =>
+        Math.abs(_lever - p.spdT / _maxSpdT) < Math.abs(_lever - b.spdT / _maxSpdT) ? p : b
+      ).label;
+    }
     document.getElementById('pv-thrust').textContent = _active;
     document.getElementById('pv-mode').textContent = S.mode;
     document.getElementById('pv-role').textContent = S.pilotCallsign ?? S.role;

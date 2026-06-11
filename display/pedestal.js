@@ -329,22 +329,18 @@ const _CSS = `
 
 /* Return 0-1 fraction for lever position: IDLE=0, TOGA=1 */
 function _leverFrac() {
-  const profiles = S.aircraft?.thrustProfiles;
-  if (!profiles?.length) {
-    const maxSpd = S.aircraft?.envelope?.maxSpd ?? 350;
-    return Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
-  }
-  const maxSpdT = Math.max(...profiles.map(p => p.spdT));
-  return maxSpdT > 0 ? Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpdT)) : 0;
+  return Math.max(0, Math.min(1, S.thrustLever ?? 0));   // lever position (0=idle…1=TOGA)
 }
 
-/* Return index of nearest thrust profile to current spdT */
+/* Return index of nearest thrust profile to the current lever position */
 function _activeProfileIdx() {
   const profiles = S.aircraft?.thrustProfiles;
   if (!profiles?.length) return -1;
+  const maxSpdT = Math.max(...profiles.map(p => p.spdT)) || 1;
+  const lever   = S.thrustLever ?? 0;
   let best = 0, bestD = Infinity;
   profiles.forEach((p, i) => {
-    const d = Math.abs((S.spdT ?? 0) - p.spdT);
+    const d = Math.abs(lever - p.spdT / maxSpdT);
     if (d < bestD) { bestD = d; best = i; }
   });
   return best;
@@ -561,13 +557,13 @@ function _attachHandlers() {
         { label: 'IDLE', spdT: 0 }, { label: 'CLB', spdT: 175 },
         { label: 'MCT', spdT: 280 }, { label: 'TOGA', spdT: 350 },
       ];
-      const maxSpdT  = Math.max(...profiles.map(p => p.spdT));
+      const maxSpdT  = Math.max(...profiles.map(p => p.spdT)) || 1;
       const targetSpd = frac * maxSpdT;
-      /* Snap to nearest detent */
+      /* Snap to nearest detent, set the thrust lever (0…1) — not the FCU speed */
       const snapped = profiles.reduce((best, p) =>
         Math.abs(p.spdT - targetSpd) < Math.abs(best.spdT - targetSpd) ? p : best
       );
-      setState({ spdT: snapped.spdT });
+      setState({ thrustLever: Math.max(0, Math.min(1, snapped.spdT / maxSpdT)) });
     });
   });
 

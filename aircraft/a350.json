@@ -71,6 +71,8 @@
     ]
   },
   "engine": {
+    "type": "turbofan",
+    "count": 2,
     "model": "trent-xwb",
     "chevrons": true,
     "thrustReverser": true,

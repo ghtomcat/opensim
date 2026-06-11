@@ -64,6 +64,8 @@ export async function loadMission(missionPath, aircraftPath) {
     mission,
     alt,   altT:  alt,
     spd,   spdT:  spd,
+    thrustLever: Math.min(1, Math.max(0, spd / (aircraft.envelope?.maxSpd ?? 340))),   // lever ≈ cruise thrust
+
     hdg,   hdgT:  hdg,
     pitch, pitchT: pitch,
     roll,  rollT:  roll,
@@ -75,8 +77,8 @@ export async function loadMission(missionPath, aircraftPath) {
     gear:     aircraft.fixedGear ? true : startOnGround,
     prevGear: aircraft.fixedGear ? true : startOnGround,
     gearAnim: aircraft.fixedGear ? 1 : (startOnGround ? 1 : 0),
-    ap:    !aircraft.manualControl,
-    athr:  !aircraft.manualControl,
+    ap:    mission.initialState.ap   ?? !aircraft.manualControl,   // airborne missions may start on the AP
+    athr:  mission.initialState.athr ?? !aircraft.manualControl,
     wow:   startOnGround,
     parkBrake: startOnGround,   // parked on the ground → brake set; airborne → released
     trim:  0,

@@ -134,9 +134,13 @@ export function tickGamepad() {
     });
   }
 
-  /* Throttle slider: -1=full fwd → max speed, +1=full back → idle */
-  const spdT = Math.round(((1 - throttleRaw) / 2) * (S.aircraft?.envelope.maxSpd ?? 350));
-  setState({ spdT });
+  /* Throttle slider: -1=full fwd → full thrust, +1=full back → idle. Turbofans drive the
+     thrust lever (the FCU speed is the A/THR target, not the throttle); others use spdT. */
+  const frac = (1 - throttleRaw) / 2;
+  if (S.aircraft?.engine?.type === 'turbofan')
+    setState({ thrustLever: Math.max(0, Math.min(1, frac)) });
+  else
+    setState({ spdT: Math.round(frac * (S.aircraft?.envelope.maxSpd ?? 350)) });
 
   /* PTT — trigger */
   const trigNow = btn[GP.TRIGGER]?.pressed ?? false;
@@ -244,19 +248,30 @@ function _onKeyDown(e) {
     return;
   }
 
-  /* Throttle / speed */
-  /* Step size: larger for manual-control aircraft (throttle lever) vs AP (speed target) */
-  const _spdStep = S.aircraft?.manualControl ? 20 : 5;
-  if (e.key === '=' || e.key === '+') setState({ spdT: Math.min(S.aircraft?.envelope.maxSpd ?? 350, S.spdT + _spdStep) });
-  if (e.key === '-' || e.key === '_') setState({ spdT: Math.max(0, S.spdT - _spdStep) });
+  /* Throttle / speed. Turbofans drive the thrust lever (manual thrust); others set spdT,
+     which is the throttle for props and the AP speed target otherwise. */
+  const _tf = S.aircraft?.engine?.type === 'turbofan';
+  const _up = e.key === '=' || e.key === '+', _dn = e.key === '-' || e.key === '_';
+  if (_up || _dn) {
+    if (_tf) setState({ thrustLever: Math.max(0, Math.min(1, (S.thrustLever ?? 0) + (_up ? 0.1 : -0.1))) });
+    else {
+      const _spdStep = S.aircraft?.manualControl ? 20 : 5;
+      setState({ spdT: Math.max(0, Math.min(S.aircraft?.envelope.maxSpd ?? 350, S.spdT + (_up ? _spdStep : -_spdStep))) });
+    }
+  }
 
   /* Thrust detents — aircraft-specific profiles or hardcoded fallback */
   const _fi = ['F1','F2','F3','F4'].indexOf(e.key);
   if (_fi >= 0) {
     e.preventDefault();
     const profiles = S.aircraft?.thrustProfiles;
-    const spdT = profiles ? (profiles[Math.min(_fi, profiles.length - 1)]?.spdT ?? 0) : [0, 180, 280, 350][_fi];
-    setState({ spdT });
+    const spdTv = profiles ? (profiles[Math.min(_fi, profiles.length - 1)]?.spdT ?? 0) : [0, 180, 280, 350][_fi];
+    if (_tf) {
+      const maxSpdT = profiles ? (Math.max(...profiles.map(p => p.spdT)) || 1) : 350;
+      setState({ thrustLever: Math.max(0, Math.min(1, spdTv / maxSpdT)) });
+    } else {
+      setState({ spdT: spdTv });
+    }
   }
 
   /* Situation presets — number keys 1–5 (disabled when a mission is active) */
