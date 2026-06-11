@@ -163,7 +163,7 @@ export function tickPhysics(dt) {
     if (S.ap && !onGround) {
       const altTgt   = S.altManaged ? vnavTargetAlt() : S.altT;
       const cmdVS    = Math.max(-1800, Math.min(1800, (altTgt - S.alt) * 3));   // gentle gain → flares ~600 ft out, less overshoot
-      const horizFpm = Math.max(120, (S.spd ?? 0) * 101.27);                    // kt → ft/min horizontal
+      const horizFpm = Math.max(120, tas_ms * 196.85);                          // TRUE airspeed → ft/min (IAS understated the path angle up high → over-steep VS)
       const gammaDeg = Math.asin(Math.max(-0.3, Math.min(0.3, cmdVS / horizFpm))) * 180 / Math.PI;
       const vsErr    = cmdVS - (S.vs ?? 0);                                     // arrest the rate approaching the target (damping)
       apPitch = Math.max(-8, Math.min(15, gammaDeg + 2.5 + vsErr * 0.0010));    // + ~trim AoA for level flight
