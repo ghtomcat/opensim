@@ -5,7 +5,10 @@
   "description": "Air Baltic A220 at cruise altitude over Poland, inbound Riga. FL350. Live METAR. Baltic Sea ahead to the left.",
   "author": "Markus Leutwyler",
   "aircraft": "a220",
-  "departure": null,
+  "departure": {
+    "icao": "EPWA",
+    "name": "Warsaw"
+  },
   "arrival": {
     "icao": "EVRA",
     "name": "Rīga",

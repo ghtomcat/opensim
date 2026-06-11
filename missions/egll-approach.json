@@ -6,7 +6,10 @@
   "author": "Markus Leutwyler",
   "aircraft": "b737",
   "timeOfDay": 2,
-  "departure": null,
+  "departure": {
+    "icao": "LEMD",
+    "name": "Madrid"
+  },
   "arrival": {
     "icao": "EGLL",
     "name": "London Heathrow",

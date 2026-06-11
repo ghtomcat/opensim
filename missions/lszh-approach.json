@@ -5,7 +5,10 @@
   "description": "Standard ILS approach into Zürich runway 28. Live METAR weather. Full crew loop: ATC clearances, approach brief, checklist, GPWS.",
   "author": "Markus Leutwyler",
   "aircraft": "a350",
-  "departure": null,
+  "departure": {
+    "icao": "KSFO",
+    "name": "San Francisco"
+  },
   "arrival": {
     "icao": "LSZH",
     "name": "Zürich",

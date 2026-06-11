@@ -4,7 +4,7 @@
     "aircraft": "a350",
     "acName": "Airbus A350-900",
     "engine": "Rolls-Royce Trent XWB · GTF",
-    "location": "Zürich LSZH",
+    "location": "San Francisco → Zürich LSZH",
     "title": "ILS Approach · RWY 28",
     "era": "MODERN",
     "accent": "#4dc5dc",
@@ -14,7 +14,7 @@
       "unit": "Zurich Approach 119.700",
       "aircraft": "Airbus A350-900 · FMGS engaged",
       "orders": "Cleared ILS 28. Descend 4000ft.\nExpect vectors from LOBEP. Speed 250kt below FL100.\nGear down abeam threshold. Full flaps by FAP.\nDecision height: 700ft. Go-around: climb 5000ft, track 283°.",
-      "atmosphere": "Live METAR active. Weather may differ from brief.\nOpen kneeboard (K) for full approach plate."
+      "atmosphere": "Long-haul inbound from San Francisco — fourteen hours behind you.\nLive METAR active. Weather may differ from brief.\nOpen kneeboard (K) for full approach plate."
     },
     "roles": [
       {
@@ -36,16 +36,16 @@
     "aircraft": "e190",
     "acName": "Embraer E190-E2",
     "engine": "Pratt & Whitney PW1900G · GTF",
-    "location": "Genève LSGG",
-    "title": "Takeoff · RWY 23",
+    "location": "Genève LSGG → München",
+    "title": "Takeoff · RWY 22",
     "era": "MODERN",
     "accent": "#00cfb0",
     "briefing": {
-      "date": "LSGG · RWY 23 · Departure",
+      "date": "LSGG · RWY 22 · Departure",
       "pilot": "Captain / First Officer",
       "unit": "Geneva Ground / Tower",
       "aircraft": "Embraer E190-E2 · Helvetic Airways",
-      "orders": "Start engines (E key). Taxi to RWY 23 via Foxtrot and November.\nHold short — one departure ahead. Cleared takeoff when ready.\nMaintain RWY heading to 1000ft AGL. Squawk 4712.\nClimb FL240. Mont Blanc at 12 o'clock.",
+      "orders": "Start engines (E key). Taxi to RWY 22 via Foxtrot and November.\nHold short — one departure ahead. Cleared takeoff when ready.\nMaintain RWY heading to 1000ft AGL. Squawk 4712.\nClimb FL240, routing to München (EDDM). Mont Blanc at 12 o'clock.",
       "atmosphere": "Live METAR active.\nGeneva — Lake to the right, mountains straight ahead.\nHelvetica. Clean, efficient, on time."
     },
     "roles": [
@@ -68,7 +68,7 @@
     "aircraft": "b737",
     "acName": "Boeing 737-800",
     "engine": "CFM International CFM56-7B · Twin",
-    "location": "London Heathrow EGLL",
+    "location": "Madrid → London EGLL",
     "title": "ILS Approach · RWY 27L",
     "era": "MODERN",
     "accent": "#3060b4",
