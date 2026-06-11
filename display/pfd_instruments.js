@@ -700,7 +700,7 @@ function _drawNDArc(ctx, box, style, config = {}) {
   let toWp = null;                                     // active "TO" waypoint = nearest fix ahead
   if (route?.legs?.length) {
     const P = route.legs.map(l => proj(l.lat, l.lon));
-    ctx.strokeStyle = col('engaged'); ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    ctx.strokeStyle = col('green'); ctx.lineWidth = 2; ctx.lineJoin = 'round';
     ctx.beginPath(); P.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke();
 
     ctx.font = `${fh * 0.028}px ${f}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
@@ -710,40 +710,43 @@ function _drawNDArc(ctx, box, style, config = {}) {
       if (!l.id || l.seg === 'dep' || l.seg === 'arr') return;
       if (sx < x - 20 || sx > x + w + 20 || sy < y - 20 || sy > y + h + 20) return;
       const sz = h * 0.013;
-      ctx.strokeStyle = col('engaged'); ctx.lineWidth = 1.5;
+      ctx.strokeStyle = col('green'); ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(sx, sy - sz); ctx.lineTo(sx + sz, sy); ctx.lineTo(sx, sy + sz); ctx.lineTo(sx - sz, sy); ctx.closePath(); ctx.stroke();
-      ctx.fillStyle = col('engaged'); ctx.fillText(l.id, sx + sz + 3, sy);
+      ctx.fillStyle = col('green'); ctx.fillText(l.id, sx + sz + 3, sy);
     });
   }
 
   /* ── ownship (Airbus yellow aircraft) + heading line ── */
   ctx.strokeStyle = 'rgba(232,236,240,0.4)'; ctx.lineWidth = 1; ctx.setLineDash([5, 5]);
   ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy - R); ctx.stroke(); ctx.setLineDash([]);
-  const oz = h * 0.022, yel = col('refSymbol');
-  ctx.strokeStyle = yel; ctx.lineWidth = 2.4;
+  const oz = h * 0.032, yel = '#e8c91e';                 // Airbus reference-symbol yellow (palette has no refSymbol key)
+  ctx.strokeStyle = yel; ctx.lineWidth = 3; ctx.lineCap = 'round';
   ctx.beginPath();
   ctx.moveTo(ox, oy - oz); ctx.lineTo(ox, oy + oz);                 // fuselage
   ctx.moveTo(ox - oz, oy - oz * 0.1); ctx.lineTo(ox + oz, oy - oz * 0.1);  // wings
   ctx.moveTo(ox - oz * 0.5, oy + oz); ctx.lineTo(ox + oz * 0.5, oy + oz);  // tailplane
-  ctx.stroke();
+  ctx.stroke(); ctx.lineCap = 'butt';
 
-  /* ── data: GS / TAS top-left, active waypoint top-right ── */
-  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
-  ctx.font = `${fh * 0.036}px ${f}`;
-  ctx.fillStyle = col('engaged'); ctx.fillText('GS', x + w * 0.03, y + h * 0.07);
-  ctx.fillStyle = col('white');   ctx.fillText(String(Math.round(S.gs ?? S.spd ?? 0)), x + w * 0.10, y + h * 0.07);
-  ctx.fillStyle = col('engaged'); ctx.fillText('TAS', x + w * 0.30, y + h * 0.07);
-  ctx.fillStyle = col('white');   ctx.fillText(String(Math.round(S.spd ?? 0)), x + w * 0.40, y + h * 0.07);
+  /* ── data readouts.  Airbus ND convention throughout: labels white, values green, units cyan. ── */
+  const C_LBL = col('white'), C_NUM = col('green'), C_UNIT = col('cyan');
+  const _segs = (segs, anchorX, baseY, align) => {       // mixed-colour text, left- or right-anchored
+    let total = 0; for (const s of segs) { ctx.font = s.font; total += ctx.measureText(s.t).width; }
+    let cx = (align === 'right') ? anchorX - total : anchorX; ctx.textAlign = 'left';
+    for (const s of segs) { ctx.font = s.font; ctx.fillStyle = s.c; ctx.fillText(s.t, cx, baseY); cx += ctx.measureText(s.t).width; }
+  };
+  ctx.textBaseline = 'alphabetic';
+  const fGS = `${fh * 0.036}px ${f}`;
+  _segs([{ t: 'GS ',  c: C_LBL, font: fGS }, { t: String(Math.round(S.gs ?? S.spd ?? 0)), c: C_NUM, font: fGS }], x + w*0.03, y + h*0.07, 'left');
+  _segs([{ t: 'TAS ', c: C_LBL, font: fGS }, { t: String(Math.round(S.spd ?? 0)),         c: C_NUM, font: fGS }], x + w*0.30, y + h*0.07, 'left');
   if (toWp) {
     const distNm = Math.hypot(toWp.dN, toWp.dE);
-    ctx.textAlign = 'right';
-    ctx.fillStyle = col('managed'); ctx.font = `${fh * 0.040}px ${f}`;
+    ctx.textAlign = 'right'; ctx.fillStyle = C_LBL; ctx.font = `${fh * 0.040}px ${f}`;   // active waypoint ident — white
     ctx.fillText(toWp.id, x + w * 0.97, y + h * 0.07);
-    ctx.fillStyle = col('white'); ctx.font = `${fh * 0.034}px ${f}`;
-    ctx.fillText(`${distNm.toFixed(1)} NM`, x + w * 0.97, y + h * 0.12);
+    const fD = `${fh * 0.034}px ${f}`;
+    _segs([{ t: distNm.toFixed(1), c: C_NUM, font: fD }, { t: ' NM', c: C_UNIT, font: fD }], x + w*0.97, y + h*0.12, 'right');
     if ((S.gs ?? S.spd) > 20) {
       const ete = distNm / (S.gs ?? S.spd) * 3600;
-      ctx.fillStyle = col('white');
+      ctx.textAlign = 'right'; ctx.fillStyle = C_NUM; ctx.font = fD;
       ctx.fillText(`${String(Math.floor(ete / 60)).padStart(2, '0')}:${String(Math.floor(ete % 60)).padStart(2, '0')}`, x + w * 0.97, y + h * 0.17);
     }
   }
@@ -754,35 +757,61 @@ function _drawNDArc(ctx, box, style, config = {}) {
 
   /* ── VOR 1 / VOR 2 — tuned radio-nav stations: bottom-corner readouts + bearing pointers ── */
   const _vors = _tunedVORs();
-  const _vorPtr = (brg, color, dbl) => {                  // RMI-style pointer at the rose toward the station
+  /* VOR1 = single needle with a filled triangle head; VOR2 = single needle with an open
+     (outline) arrowhead. The same two heads appear as legends beside the readouts. */
+  const _vorHead = (kind, color, hx, hy, bx, by, ux, uy) => {   // (hx,hy)=tip, (bx,by)=base centre, (ux,uy)=unit ⟂
+    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 1.6;
+    if (kind === 'arrow') {                              // open chevron — the outline arrow
+      ctx.beginPath();
+      ctx.moveTo(bx - ux, by - uy); ctx.lineTo(hx, hy); ctx.lineTo(bx + ux, by + uy);
+      ctx.stroke();
+    } else {                                             // solid triangle
+      ctx.beginPath();
+      ctx.moveTo(hx, hy); ctx.lineTo(bx - ux, by - uy); ctx.lineTo(bx + ux, by + uy);
+      ctx.closePath(); ctx.fill();
+    }
+  };
+  const _vorPtr = (brg, color, kind) => {                // RMI-style bearing needle at the rose toward the station
     const rel = ((brg - hdg + 540) % 360) - 180; if (Math.abs(rel) > ARC) return;
     const ang = (-90 + rel) * Math.PI / 180, c = Math.cos(ang), s = Math.sin(ang);
-    const rTip = R - 3, rTail = R - 26;
-    ctx.strokeStyle = color; ctx.lineWidth = 1.4;
-    for (const o of (dbl ? [-2.4, 2.4] : [0])) {          // single bar = VOR1, double bar = VOR2
-      ctx.beginPath();
-      ctx.moveTo(ox + c*rTail - s*o, oy + s*rTail + c*o);
-      ctx.lineTo(ox + c*(rTip-7) - s*o, oy + s*(rTip-7) + c*o);
-      ctx.stroke();
-    }
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(ox + c*rTip, oy + s*rTip);
-    ctx.lineTo(ox + c*(rTip-8) - s*4, oy + s*(rTip-8) + c*4);
-    ctx.lineTo(ox + c*(rTip-8) + s*4, oy + s*(rTip-8) - c*4);
-    ctx.closePath(); ctx.fill();
+    const rTip = R - 4, rTail = R * 0.77;                // visible needle, ~half the rose radius
+    const hLen = h * 0.034, hHalf = h * 0.016;           // arrowhead size, scales with the ND
+    const rMid = (rTip + rTail) / 2;                     // head sits mid-shaft, off the ring → never hides the rose numbers
+    ctx.strokeStyle = color; ctx.lineWidth = 2.4;
+    ctx.beginPath();                                     // continuous thin shaft, tip to tail
+    ctx.moveTo(ox + c*rTip,  oy + s*rTip);
+    ctx.lineTo(ox + c*rTail, oy + s*rTail);
+    ctx.stroke();
+    _vorHead(kind, color, ox + c*(rMid + hLen*0.5), oy + s*(rMid + hLen*0.5),
+                          ox + c*(rMid - hLen*0.5), oy + s*(rMid - hLen*0.5), -s*hHalf, c*hHalf);
   };
-  const _vorBox = (v, side, label, color) => {
+  const _vorIcon = (cx, cy, kind, color) => {            // mini legend needle, vertical, head up
+    const H = fh*0.024;
+    ctx.strokeStyle = color; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(cx, cy + H); ctx.lineTo(cx, cy - H*0.4); ctx.stroke();   // shaft
+    _vorHead(kind, color, cx, cy - H, cx, cy - H*0.35, H*0.45, 0);                       // head (tip up)
+  };
+  const _vorBox = (v, side, label, kind, color) => {     // colour follows the ND convention; icon keeps the needle colour
     if (!v) return;
     const lx = side < 0 ? x + w*0.03 : x + w*0.97;
-    ctx.textAlign = side < 0 ? 'left' : 'right'; ctx.textBaseline = 'bottom';
-    ctx.fillStyle = color; ctx.font = `bold ${fh*0.030}px ${f}`;
-    ctx.fillText(`${label}  ${v.id}`, lx, y + h*0.955);
-    ctx.fillStyle = col('dim'); ctx.font = `${fh*0.026}px ${f}`;
-    ctx.fillText(`${v.freq.toFixed(2)}   DME ${v.dme.toFixed(1)}`, lx, y + h*0.99);
+    const labY = y + h*0.955, frqY = y + h*0.99, iconY = labY - fh*0.012, iw = fh*0.05;
+    const bold = `bold ${fh*0.030}px ${f}`, reg = `${fh*0.026}px ${f}`;
+    ctx.textBaseline = 'bottom';
+    const lab = [{ t: label + ' ', c: C_LBL, font: bold }, { t: v.id, c: C_NUM, font: bold }];
+    const frq = [{ t: v.freq.toFixed(2), c: C_NUM, font: reg }, { t: '  DME ', c: C_LBL, font: reg }, { t: v.dme.toFixed(1), c: C_NUM, font: reg }];
+    if (side < 0) {
+      _vorIcon(lx + iw*0.35, iconY, kind, color);
+      _segs(lab, lx + iw, labY, 'left');
+      _segs(frq, lx + iw, frqY, 'left');
+    } else {
+      _segs(lab, lx, labY, 'right');
+      let lw = 0; for (const s of lab) { ctx.font = s.font; lw += ctx.measureText(s.t).width; }
+      _vorIcon(lx - lw - iw*0.45, iconY, kind, color);
+      _segs(frq, lx, frqY, 'right');
+    }
   };
-  if (_vors[0]) { _vorPtr(_vors[0].brg, col('white'),    false); _vorBox(_vors[0], -1, 'VOR1', col('white')); }
-  if (_vors[1]) { _vorPtr(_vors[1].brg, col('selected'), true);  _vorBox(_vors[1],  1, 'VOR2', col('selected')); }
+  if (_vors[0]) { _vorPtr(_vors[0].brg, col('white'), 'tri');   _vorBox(_vors[0], -1, 'VOR1', 'tri',   col('white')); }
+  if (_vors[1]) { _vorPtr(_vors[1].brg, col('cyan'),  'arrow'); _vorBox(_vors[1],  1, 'VOR2', 'arrow', col('cyan')); }
 
   ctx.restore();
 }
