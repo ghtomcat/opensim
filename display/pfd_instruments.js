@@ -23,6 +23,26 @@ function _ndGetRoute() {
   return _ndRoute.r;
 }
 
+/* VOR/DME navaids for the ND's VOR1/VOR2 radio-nav display — lazily loaded (gitignored,
+   optional). Auto-tuned to the two nearest stations for now (raw-data nav / pilot tuning
+   later); each gives bearing (true) and DME (slant-range ≈ ground distance). */
+let _VORS = [];
+import('../display/navaids-data.js').then(m => { _VORS = m.VORS || []; }).catch(() => {});
+function _tunedVORs() {
+  if (!_VORS.length || S.lat == null) return [];
+  const la = S.lat, lo = S.lon, cos = Math.cos(la * Math.PI / 180);
+  let a = null, b = null;
+  for (const v of _VORS) {
+    const dN = (v.lat - la) * 60, dE = (v.lon - lo) * 60 * cos, d = Math.hypot(dN, dE);
+    if (!a || d < a.d) { b = a; a = { v, d, dN, dE }; }
+    else if (!b || d < b.d) { b = { v, d, dN, dE }; }
+  }
+  return [a, b].filter(Boolean).map(x => ({
+    id: x.v.id, freq: x.v.freq, dme: x.d,
+    brg: (Math.atan2(x.dE, x.dN) * 180 / Math.PI + 360) % 360,
+  }));
+}
+
 const _MONO = '"IBM Plex Mono","Courier New",monospace';
 const _UI   = '"Syne","Helvetica Neue",sans-serif';
 
@@ -723,6 +743,38 @@ function _drawNDArc(ctx, box, style, config = {}) {
   ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = col('dim'); ctx.font = `${h * 0.026}px ${f}`;
   ctx.fillText(String(rangeNm), ox + Math.cos(a1) * R + 4, oy + Math.sin(a1) * R);
   ctx.fillText(String(rangeNm / 2), ox + Math.cos(a1) * R * 0.5 + 4, oy + Math.sin(a1) * R * 0.5);
+
+  /* ── VOR 1 / VOR 2 — tuned radio-nav stations: bottom-corner readouts + bearing pointers ── */
+  const _vors = _tunedVORs();
+  const _vorPtr = (brg, color, dbl) => {                  // RMI-style pointer at the rose toward the station
+    const rel = ((brg - hdg + 540) % 360) - 180; if (Math.abs(rel) > ARC) return;
+    const ang = (-90 + rel) * Math.PI / 180, c = Math.cos(ang), s = Math.sin(ang);
+    const rTip = R - 3, rTail = R - 26;
+    ctx.strokeStyle = color; ctx.lineWidth = 1.4;
+    for (const o of (dbl ? [-2.4, 2.4] : [0])) {          // single bar = VOR1, double bar = VOR2
+      ctx.beginPath();
+      ctx.moveTo(ox + c*rTail - s*o, oy + s*rTail + c*o);
+      ctx.lineTo(ox + c*(rTip-7) - s*o, oy + s*(rTip-7) + c*o);
+      ctx.stroke();
+    }
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(ox + c*rTip, oy + s*rTip);
+    ctx.lineTo(ox + c*(rTip-8) - s*4, oy + s*(rTip-8) + c*4);
+    ctx.lineTo(ox + c*(rTip-8) + s*4, oy + s*(rTip-8) - c*4);
+    ctx.closePath(); ctx.fill();
+  };
+  const _vorBox = (v, side, label, color) => {
+    if (!v) return;
+    const lx = side < 0 ? x + w*0.03 : x + w*0.97;
+    ctx.textAlign = side < 0 ? 'left' : 'right'; ctx.textBaseline = 'bottom';
+    ctx.fillStyle = color; ctx.font = `bold ${h*0.030}px ${f}`;
+    ctx.fillText(`${label}  ${v.id}`, lx, y + h*0.955);
+    ctx.fillStyle = col('dim'); ctx.font = `${h*0.026}px ${f}`;
+    ctx.fillText(`${v.freq.toFixed(2)}   DME ${v.dme.toFixed(1)}`, lx, y + h*0.99);
+  };
+  if (_vors[0]) { _vorPtr(_vors[0].brg, col('white'),    false); _vorBox(_vors[0], -1, 'VOR1', col('white')); }
+  if (_vors[1]) { _vorPtr(_vors[1].brg, col('selected'), true);  _vorBox(_vors[1],  1, 'VOR2', col('selected')); }
 
   ctx.restore();
 }
