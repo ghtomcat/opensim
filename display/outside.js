@@ -240,8 +240,12 @@ function _bodyCentreFt() {                               // fuselage centre abov
   }
   return (Math.abs(bz) + _ml + _mt) / FT_NM;
 }
-function _groundOffsetFt() {                             // body centre, gated (0 unless on the wheels)
-  if (!S.wow || S.aircraft?.vehicleType === 'rocket') return 0;
+function _groundOffsetFt() {                             // fuselage centre above the wheels (S.alt tracks the wheels)
+  if (S.aircraft?.vehicleType === 'rocket') return 0;
+  /* Applied in the air too, not just on the wheels: S.alt is the wheel reference (WoW at
+     field+0.5), so the body sits bodyCentre above it at every height. Gating it to 0 while
+     airborne made the jet sink into the runway through the last ~bodyCentre ft of the flare,
+     then snap up at touchdown — the "jump" on landing. Constant offset = no discontinuity. */
   return _bodyCentreFt();
 }
 /* Cockpit eye height above the ground: body centre + eye above the centreline. Drives the

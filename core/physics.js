@@ -106,7 +106,10 @@ export function tickPhysics(dt) {
       /* A/THR off → manual thrust: N1 follows the thrust lever, not the FCU selected speed
          (turning the SPD knob no longer changes thrust). Falls back to spdT for old state. */
       const lever = S.thrustLever ?? Math.min(1, Math.max(0, (S.spdT ?? 0) / vmo));
-      n1Target = (state === 'running') ? IDLE_N1 + (100 - IDLE_N1) * lever
+      /* Thrust reverser deployed → engines spool up to reverse thrust (the landing roar),
+         ramped with the reverser; below 60 kt it stows and N1 falls back to the lever. */
+      const _revN1 = IDLE_N1 + (78 - IDLE_N1) * Math.min(1, (S.groundRollT ?? 0) / 2.5);
+      n1Target = (state === 'running') ? (S.thrustReverser ? _revN1 : IDLE_N1 + (100 - IDLE_N1) * lever)
                : (state === 'starting') ? IDLE_N1
                : 0;   // 'off' or 'shutdown'
     }

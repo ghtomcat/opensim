@@ -68,8 +68,10 @@ def main():
         if "vF" in rg: rg["vF"] *= fX
         if "cz" in rg: rg["cz"] *= fR
 
-    # ---- cockpit panels: [x,y,z] triples ----
+    # ---- cockpit panels / windows / mask: [x,y,z] triples ----
     nose["cockpitPanels"] = [[scale_xyz(pt, fX, fR) for pt in panel] for panel in nose.get("cockpitPanels", [])]
+    if isinstance(nose.get("windows"), list):     nose["windows"]     = [scale_xyz(pt, fX, fR) for pt in nose["windows"]]
+    if isinstance(nose.get("cockpitMask"), list): nose["cockpitMask"] = [scale_xyz(pt, fX, fR) for pt in nose["cockpitMask"]]
 
     # ---- engine: position is longitudinal (fX); the nacelle is a body of revolution
     #      so its size scales uniformly (fR); its total length is set from the measured
@@ -85,8 +87,8 @@ def main():
     if eng_len:                                       # nacelle length measured -> exact
         nozzle = g["nacelleProfile"][-1] if isinstance(g.get("nacelleProfile"), list) else DEFAULT_NOZZLE
         g["engineLen"] = (eng_len * S) / nozzle
-    elif isinstance(g.get("engineLen"), (int,float)):
-        g["engineLen"] *= fR                          # no measurement: keep proportional
+    # else: leave engineLen alone — it's a dimensionless multiplier on nacelleProfile,
+    # which already carries the fR length scaling (scaling both double-shrinks the nacelle).
 
     # ---- gear: x = station, y = half-track, len = strut (vertical) ----
     for leg in gear.values():
