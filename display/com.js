@@ -301,6 +301,14 @@ const _REQUESTS = [
     atc:  cs => { const rwy = S.mission?.departure?.runway ?? S.taxiClearance?.rwy ?? '';
                   return `${cs},${rwy ? ` runway ${rwy},` : ''} cleared for takeoff`; },
     run:  () => {} },
+
+  /* Arrival: once the landing runway is left (S.vacated, set by physics), call Ground for the
+     taxi-in. The gate (from arrival.dock) and the exit→gate route are assigned in the next brick. */
+  { id: 'taxiGate', label: 'Taxi to gate',
+    when: () => S.vacated && !S.taxiCleared,
+    pm:   cs => `Ground, ${cs}, runway ${S.mission?.arrival?.runway ?? ''} vacated, request taxi to stand`,
+    atc:  cs => `${cs}, Ground, taxi to stand`,              // gate + route assigned in brick 3
+    run:  () => { S.taxiCleared = true; } },                 // → map.js reveals the arrival route
 ];
 
 function _toggleReqPopup() {

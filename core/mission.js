@@ -86,6 +86,7 @@ export async function loadMission(missionPath, aircraftPath) {
     autobrakeActive: false,
     vacated:  false,            // landing runway not yet left
     vacateAt: null,
+    taxiCleared: false,         // taxi-in not yet cleared by Ground
     wow:   startOnGround,
     parkBrake: startOnGround,   // parked on the ground → brake set; airborne → released
     trim:  0,

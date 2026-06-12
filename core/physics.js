@@ -172,7 +172,7 @@ export function tickPhysics(dt) {
       const aOff = (((_brgDeg(_vrw.thr[0], _vrw.thr[1], S.lat, S.lon) - (_vrw.hdg + 180) + 540) % 360) - 180) * Math.PI / 180;
       const xtkM = Math.abs(dNm * 1852 * Math.sin(aOff));          // perpendicular distance from the centerline (m)
       const halfW = (_vrw.widthM ?? 45) / 2;
-      if ((S.spd ?? 0) < 40 && xtkM > halfW + 12)                  // slow + clear of the pavement (+12 m shoulder margin)
+      if ((S.spd ?? 0) < 40 && xtkM > halfW + 6)                   // slow + just clear of the runway edge (+6 m)
         setState({ vacated: true, vacateAt: { lat: S.lat, lon: S.lon } });
     }
   }

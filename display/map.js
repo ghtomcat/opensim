@@ -62,6 +62,9 @@ function _updateTaxiRoute(lat, lon) {
   if (!graph) return;                                  // still loading
 
   const isArr = m?.arrival?.icao === icao && m?.departure?.icao !== icao;
+  if (isArr && !S.taxiCleared) {                          // arrival: no taxi route until Ground clears the taxi-in
+    _ltaxiLine.setLatLngs([]); _taxiRoute = null; _taxiKey = null; S.taxiRoute = null; return;
+  }
   let goal = null, depRwy = null;
   if (isArr) { const st = nearestStand(graph, lat, lon); if (st) goal = { lat: st.lat, lon: st.lon }; }
   if (!goal) {                                         // departure: the mission's runway, else nearest threshold

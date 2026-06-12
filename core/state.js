@@ -53,6 +53,7 @@ export const S = {
   gsCaptured:  false,            // APP mode — glideslope captured (AP pitches to fly it)
   vacated:  false,               // landing runway left (slow + laterally clear) — unlocks the taxi-to-gate request
   vacateAt: null,                // {lat,lon} where the runway was vacated — start point for the gate routing
+  taxiCleared: false,            // Ground cleared the taxi-in → the arrival route (green line) is revealed
 
   /* ── FMA — 5 boxes ── */
   fma: [
