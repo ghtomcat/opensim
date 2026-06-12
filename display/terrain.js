@@ -2875,7 +2875,9 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         const N = (la - acLat)*60, E = (lo - acLon)*60*cosAcLat; return N*cosH + E*sinH; };   // larger = farther
       /* the actual aircraft (not the camera) in the gate frame */
       const aN = (S.lat - _vg.lat)*111320, aE = (S.lon - _vg.lon)*111320*gCos;
-      const dist = -(aN*hN + aE*hE);          // metres still to the stop (+ while approaching from behind)
+      const dOrig = -(aN*hN + aE*hE);         // model origin → stop along the lead-in (+ while still approaching)
+      const noseM = (S.aircraft?.gear?.nose?.x ?? 0) * 1852;   // nose-gear station ahead of the origin (NM→m)
+      const dist  = dOrig - noseM;            // NOSE GEAR → the parking-line stop (what the pilot drives to)
       const devL = aN*lN + aE*lE;             // + = aircraft is left of the lead-in centreline
       if (!(dist > -3 && dist < 90)) return;
       const PF = 3.5, PW = 2.6, PH = 2.2, PY = 6.5, PD = 0.5;   // front-fwd, width, height, base height, depth (m)

@@ -817,6 +817,10 @@ export function tickSound() {
     return;
   }
 
+  /* Turbofan: the shutdown spool-down (below) rode N1 down to ~0 — now tear the engine sound
+     down (this closes the audio context, so only do it once the fan has fully coasted out). */
+  if (S.engineState === 'off' && S.aircraft?.engine?.type === 'turbofan') { stopSound(); return; }
+
   const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 350;
   /* Turbofan: sound tracks actual fan speed (N1), which already encodes the A/THR speed loop
      or the manual thrust lever — not the FCU SPD/MACH knob. Other engines: throttle ≈ spdT. */
@@ -878,13 +882,19 @@ export function tickSound() {
 
   } else if (!_cfg.impulse) {
     const slew  = _cfg.slewTime ?? 0.12;
+    const isTf  = S.aircraft?.engine?.type === 'turbofan';
     const ePow2 = S.enginePower ?? 1.0;
-    const dead2 = ePow2 <= 0;
-    const freq  = _cfg.fundamentalIdle + (_cfg.fundamentalMax - _cfg.fundamentalIdle) * throttle;
+    /* Turbofan coast-down: ENG MASTER OFF cuts the combustor, N1 spools to 0 by inertia. Below
+       idle (shutdown) follow N1 down — drop both pitch and gain so the fan winds down to a
+       descending whine instead of cutting out. sub = 1 at/above idle (no change), 0 at N1=0. */
+    const sub   = isTf ? Math.max(0, Math.min(1, (S.n1 ?? 0) / (_idleN1 || 1))) : 1;
+    const dead2 = isTf ? false : (ePow2 <= 0);
+    const freq  = (_cfg.fundamentalIdle + (_cfg.fundamentalMax - _cfg.fundamentalIdle) * throttle) * (isTf ? (0.35 + 0.65 * sub) : 1);
     _oscs.forEach(({ osc, mult }) => osc.frequency.setTargetAtTime(freq * mult, now, slew));
-    const gain  = dead2 ? 0 : _cfg.masterGain * (0.35 + 0.65 * throttle);
+    const gBase = _cfg.masterGain * (0.35 + 0.65 * throttle);
+    const gain  = isTf ? gBase * sub : (dead2 ? 0 : gBase);
     _master.gain.setTargetAtTime(gain, now, dead2 ? 1.5 : slew);
-    _noiseGain?.gain.setTargetAtTime(_cfg.noiseGain * throttle, now, slew * 1.5);
+    _noiseGain?.gain.setTargetAtTime(_cfg.noiseGain * throttle * (isTf ? sub : 1), now, slew * 1.5);
   }
 
   /* Flap motor — detect step change, trigger whirr + thunk */
@@ -2573,7 +2583,10 @@ export function stopEngineLifecycle() {
     setState({ engineState: 'shutdown' });
     /* Abort startup buffer if still playing; prevent onended from starting oscillator */
     if (_lifecycleSrc) { _lifecycleSrc.onended = null; try { _lifecycleSrc.stop(); } catch {} _lifecycleSrc = null; }
-    stopSound();   // fade audio; N1 physics handles state → 'off'
+    /* Don't tear down: keep the oscillators running so tickSound rides the fan (N1) down to a
+       descending spool-down whine. The teardown happens once N1 reaches 'off' (in tickSound).
+       If nothing is running yet (mid-startup), just stop. */
+    if (!_started) stopSound();
     return;
   }
   /* VK-1: fuel cutoff — N1 spools down over ~8s */

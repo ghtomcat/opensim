@@ -117,6 +117,7 @@ export function tickPhysics(dt) {
     _athrSpdPrev = athrActive ? (S.spd ?? 0) : null;
 
     const tau  = (state === 'starting') ? 25
+               : (state === 'shutdown') ? 12                    // fuel cutoff — the fan coasts down by inertia, a slow ~30 s wind-down (not the ground-idle fast case)
                : n1Target > n1Now ? 8
                : (S.wow && _idleThr && !S.thrustReverser) ? 4   // ground idle (e.g. after the reverser stows) — spool down fast, no lingering roar
                : 15;
