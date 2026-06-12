@@ -39,20 +39,26 @@ export function initFMA(container) {
 
 export function renderFMA() {
   if (!_boxes.length) return;
+  const now = performance.now();
 
   for (let i = 0; i < 5; i++) {
     const fmaBox = S.fma[i];
     if (!fmaBox) continue;
-    const { box, sub, val, val2 } = _boxes[i];
+    const b = _boxes[i];
 
-    val.textContent  = fmaBox.val;
-    val.style.color  = _colourToHex(fmaBox.col);
-    sub.textContent  = fmaBox.sub || SUBS[i];
+    b.val.textContent  = fmaBox.val;
+    b.val.style.color  = _colourToHex(fmaBox.col);
+    b.sub.textContent  = fmaBox.sub || SUBS[i];
 
-    val2.textContent = fmaBox.val2 || '';
-    val2.style.color = _colourToHex(fmaBox.col2 || 'white');
+    b.val2.textContent = fmaBox.val2 || '';
+    b.val2.style.color = _colourToHex(fmaBox.col2 || 'white');
 
-    box.classList.toggle('flash', !!fmaBox.flash);
+    /* Mode-change boxing — a white box for ~10 s whenever the annunciation changes (the Airbus
+       cue that a mode engaged/reverted, e.g. NAV/ALT dropping when the AP is disconnected). */
+    const cur = fmaBox.val + '|' + (fmaBox.val2 || '');
+    if (b.prev !== undefined && cur !== b.prev) b.boxUntil = now + 10000;
+    b.prev = cur;
+    b.box.classList.toggle('flash', !!fmaBox.flash || now < (b.boxUntil ?? 0));
   }
 }
 
