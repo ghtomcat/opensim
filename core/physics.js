@@ -622,10 +622,14 @@ function _getWind() {
             : w.source === 'live'   ? S.metar
             : w.fallback;
   if (!src) return { dir: 0, spd: 0, turbulence: 0 };
+  /* Sanitise to finite numbers — a live METAR carries non-numeric fields (wdir "VRB" for
+     variable wind, nulls), and `?? 0` lets them through, so "VRB"*DEG = NaN poisoned the
+     wind → ground velocity → lat/lon went NaN (black terrain, frozen map). */
+  const num = (v) => { const n = +v; return Number.isFinite(n) ? n : 0; };
   return {
-    dir:        src.wdir  ?? src.wind  ?? 0,
-    spd:        src.wspd  ?? 0,
-    turbulence: src.turbulence ?? 0,
+    dir:        num(src.wdir ?? src.wind),
+    spd:        num(src.wspd),
+    turbulence: num(src.turbulence),
   };
 }
 
