@@ -290,11 +290,16 @@ export function tickPhysics(dt) {
     const geK     = hOverB < 1.1 ? ((16 * hOverB) ** 2) / (1 + (16 * hOverB) ** 2) : 1;   // induced-drag factor → ~0.4 at touchdown
     const geLift  = hOverB < 1.1 ? 1 + 0.04 * (1 - Math.min(1, hOverB)) : 1;              // up to +3% CL near the ground (more = floats down the runway)
 
+    /* Deceleration onset — brakes/spoilers/reverser don't bite instantly on touchdown.
+       _grT accumulates seconds since weight-on-wheels (reset airborne), driving the ramps. */
+    const _grT    = S.wow ? (S.groundRollT ?? 0) : 0;
+    const _sbRamp = Math.min(1, _grT / 1.5);                            // spoilers deploy over ~1.5 s
+
     /* Ground spoilers (speedBrake = 2, deployed on touchdown): dump lift to plant the jet on
        its wheels + add drag to slow the roll-out. Without this they were cosmetic. */
     const _sb     = S.speedBrake ?? 0;
-    const sbCD    = _sb >= 2 ? (perf.spoilerDrag ?? 0.06) : 0;
-    const sbLift  = _sb >= 2 ? 0.5 : 1;                                  // spoil ~50% of the lift
+    const sbCD    = _sb >= 2 ? (perf.spoilerDrag ?? 0.06) * _sbRamp : 0;
+    const sbLift  = _sb >= 2 ? 1 - 0.5 * _sbRamp : 1;                   // spoil up to ~50% of the lift
 
     /* Aerodynamics */
     const alpha = newPitch * DEG;
@@ -327,7 +332,16 @@ export function tickPhysics(dt) {
          start a parked aircraft rolling — it takes a touch above idle to break away, then
          idle sustains the taxi once moving. */
       const muGround  = (isTurbofan && spd_ms_gnd < 1.0) ? muStatic : muRoll;
-      const F_net     = T - D - (muGround + braking * muBrake) * W;
+      /* Brakes ramp in over ~3 s after a ~0.8 s delay — no instant 0.4 g slam on touchdown.
+         An idle roll-out brakes at a moderate level (placeholder until selectable autobrake);
+         the pilot's brake key or the park brake commands full braking. */
+      const _brakeRamp  = Math.min(1, Math.max(0, (_grT - 0.8) / 3));
+      const _brakeLevel = (S.parkBrake || S.braking) ? 1 : 0.6;
+      /* Thrust reverser — real reverse-thrust force while deployed (auto-out >60 kt), spooled
+         over ~2.5 s. Lets the reverser do the high-speed work, brakes less, like real ops. */
+      const _revFrac    = perf.reverserFrac ?? 0.30;
+      const revThrust   = S.thrustReverser ? _revFrac * T_max * (rho / 1.225) * Math.min(1, _grT / 2.5) : 0;
+      const F_net     = T - D - (muGround + braking * muBrake * _brakeLevel * _brakeRamp) * W - revThrust;
       const newSpd_ms = Math.max(0, spd_ms_gnd + F_net / mass * dt);
 
       newSpd = newSpd_ms / 0.5144;
@@ -571,6 +585,7 @@ export function tickPhysics(dt) {
              vs, ilsLoc, ilsGs, locCaptured: locCap, gsCaptured: gsCap, fma, lat: pbLat, lon: pbLon,
              prevAlt: S.alt, time: S.time + dt,
              wow: newWow, touchdownVS: newTouchdownVS,
+             groundRollT: newWow ? (S.groundRollT ?? 0) + dt : 0,   // seconds since touchdown → brake/spoiler/reverser ramp
              oilTempC: newOilTempC, ..._trPatch, ..._gearPatch, ..._sbPatch, ...pbPatch });
 }
 

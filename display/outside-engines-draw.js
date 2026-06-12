@@ -197,9 +197,9 @@ export function _engineOverlays(pts, faces, acEng, _b = 162) {
         const cy = nozPts.reduce((s, p) => s + p.y, 0) / nozPts.length;
         const avgD = nozPts.reduce((s, p) => s + p.d, 0) / nozPts.length;
         for (let i = 0; i < 4; i++) {
-          const j = (i + 1) % 8;
+          const a = i * 2, c = (i * 2 + 2) % 8;   // every other nozzle point; wrap 8→0 (was (i+1)%8*2 → pNoz[8] = undefined)
           const half = { x: cx, y: cy, d: avgD };
-          faces.push({ ps: [pNoz[i*2], pNoz[j*2], half], br: 0.6, avgD: avgD + 0.0002, col: cascadeCol });
+          faces.push({ ps: [pNoz[a], pNoz[c], half], br: 0.6, avgD: avgD + 0.0002, col: cascadeCol });
         }
       }
     }

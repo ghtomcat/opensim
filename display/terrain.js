@@ -621,8 +621,19 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
      field elevation when parked keeps the visual height a pure camera offset, so the aircraft
      doesn't float by that gap. (Altimeter still reads S.alt; only the visual ground changes.) */
   const _fieldFt  = S.mission?.departure?.elevation ?? S.mission?.arrival?.elevation ?? null;
-  const elevFt    = (S.wow && _fieldFt !== null) ? _fieldFt
-                  : (_acSampM !== null ? _acSampM / 0.3048 : (_fieldFt ?? 0));
+  const _mapFt    = _acSampM !== null ? _acSampM / 0.3048 : null;
+  /* Reference the *published* field elevation when on/near the field — the Mapbox sample
+     can sit tens of feet off the real apron, which made the runway draw high (aircraft
+     sank in) on the flare and pop on touchdown. Blend from the Mapbox horizon to the field
+     over the last ~1500 ft so the en-route horizon still tracks real terrain with no jump. */
+  let elevFt;
+  if (_fieldFt === null)        elevFt = _mapFt ?? 0;
+  else if (_mapFt === null || S.wow) elevFt = _fieldFt;
+  else {
+    const h = (S.alt ?? 0) - _fieldFt;                          // camera height above the field
+    const t = Math.max(0, Math.min(1, (1800 - h) / 1500));     // 1 near the field → 0 above ~1800 ft
+    elevFt = _mapFt + (_fieldFt - _mapFt) * t;
+  }
   const agl    = Math.max(1, (S.alt ?? 1000) - elevFt) + eyeFt;   // forward view sits at cockpit eye height
   const altNm  = agl * FT_NM;
 
