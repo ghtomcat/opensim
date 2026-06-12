@@ -14,6 +14,7 @@
 
 import { S } from '../core/state.js';
 import { RUNWAYS } from './runways-data.js';
+import { TAXI_WAYS } from './taxi-data.js';   // named taxiways → runway-exit signs
 import { TOWERS } from './towers-data.js';
 import { nightDensity } from './night-lights.js';
 import { landColor }    from './terrain-color.js';
@@ -404,6 +405,48 @@ function _taxiSigns(icao, graph) {
   }
   _signCache.set(icao, signs);
   return signs;
+}
+
+/* Runway-exit signs — where a named taxiway crosses a paved runway's edge, derived from the
+   taxi geometry + runway rectangle. Same {lat,lon,legs:[{ref,brg}]} shape as _taxiSigns so the
+   one billboard renderer draws both: a yellow panel with the exit taxiway's designation + an
+   arrow toward it. brg = the taxiway's bearing leaving the runway. */
+const _exitCache = new Map();
+function _runwayExits(icao) {
+  if (_exitCache.has(icao)) return _exitCache.get(icao);
+  const ways = TAXI_WAYS[icao] || [];
+  const rws  = (RUNWAYS[icao] || []).filter(r => !_isGrass(r.surface));
+  const out = [], M = 111320;
+  for (const w of ways) {
+    const ref = (w.r || '').trim().toUpperCase();
+    if (w.k !== 't' || !w.g || w.g.length < 2) continue;
+    if (!/^[A-Z]{1,2}\d{0,2}$/.test(ref)) continue;            // taxiway designator only (A, B, C2, H3…)
+    for (const r of rws) {
+      const cl = Math.cos(r.a[0]*DEG);
+      const bx=(r.b[1]-r.a[1])*cl*M, by=(r.b[0]-r.a[0])*M, L=Math.hypot(bx,by)||1;
+      const ux=bx/L, uy=by/L, nx=-uy, ny=ux, hw=r.widthM/2;
+      let prev = null;
+      for (const [plat,plon] of w.g) {
+        const px=(plon-r.a[1])*cl*M, py=(plat-r.a[0])*M;
+        const along=px*ux+py*uy, perp=px*nx+py*ny;
+        if (prev && along>0 && along<L && prev.along>0 && prev.along<L &&
+            Math.sign(perp)===Math.sign(prev.perp) &&
+            (Math.abs(prev.perp)-hw)*(Math.abs(perp)-hw) < 0) {     // segment crosses |perp| = hw (the runway edge)
+          const side=Math.sign(perp)||1;
+          const f=(side*hw - prev.perp)/(perp - prev.perp);
+          const ealong=prev.along + f*(along-prev.along);
+          const ex=ealong*ux + side*hw*nx, ey=ealong*uy + side*hw*ny;
+          const lon=r.a[1]+ex/(cl*M), lat=r.a[0]+ey/M;
+          const aw=Math.abs(perp)>Math.abs(prev.perp)?1:-1;        // toward increasing |perp| = away from the runway
+          const brg=(Math.atan2((px-prev.px)*aw,(py-prev.py)*aw)/DEG+360)%360;
+          out.push({ lat, lon, legs:[{ ref, brg }], away:{ N: side*ny, E: side*nx } });   // unit normal off the runway, exit side
+        }
+        prev = { px, py, along, perp };
+      }
+    }
+  }
+  _exitCache.set(icao, out);
+  return out;
 }
 
 /* Designation of a runway (rg): its ref, else derived "XX-YY" from the bearing. */
@@ -2921,10 +2964,16 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         if (!ic) continue;
         const graph = getTaxiGraph(ic, acPose?.lat ?? acLat, acPose?.lon ?? acLon);
         if (!graph) continue;
-        for (const sg of _taxiSigns(ic, graph)) {
+        for (const sg of [..._taxiSigns(ic, graph), ..._runwayExits(ic)]) {
           const dN0 = (sg.lat - acLat) * 60, dE0 = (sg.lon - acLon) * 60 * cosAcLat;
           if (dN0*dN0 + dE0*dE0 > 0.32*0.32) continue;        // within ~0.32 NM
-          const dN = dN0 - _hc*SBACK + _hs*SLEFT, dE = dE0 - _hs*SBACK - _hc*SLEFT;   // off the pavement, left + back
+          let dN, dE;
+          if (sg.away) {                                       // runway exit: push clear of the runway edge on the exit side
+            const SOUT = 13 * M_NM;
+            dN = dN0 + sg.away.N*SOUT - _hc*SBACK; dE = dE0 + sg.away.E*SOUT - _hs*SBACK;
+          } else {
+            dN = dN0 - _hc*SBACK + _hs*SLEFT; dE = dE0 - _hs*SBACK - _hc*SLEFT;   // taxiway junction: off the pavement, left + back
+          }
           const base = projNE(dN, dE, 0), top = projNE(dN, dE, 1.9 * M_NM);
           if (!base || !top) continue;
           const sc = Math.hypot(top[0]-base[0], top[1]-base[1]);
