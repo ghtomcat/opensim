@@ -60,6 +60,7 @@ export function tickPhysics(dt) {
   let newAlt, newSpd, newHdg, newPitch, newRoll, vs;
   let newWow = S.wow ?? false;
   let newTouchdownVS = S.touchdownVS ?? 0;
+  let _abEngaged = false;   // autobrake actively decelerating (set in the ground-roll branch) → panel/ECAM
 
   /* ── Turbofan N1 dynamics ─────────────────────────────────────────────
      Runs for all turbofan aircraft before the main physics block.
@@ -115,7 +116,10 @@ export function tickPhysics(dt) {
     }
     _athrSpdPrev = athrActive ? (S.spd ?? 0) : null;
 
-    const tau  = (state === 'starting') ? 25 : (n1Target > n1Now ? 8 : 15);
+    const tau  = (state === 'starting') ? 25
+               : n1Target > n1Now ? 8
+               : (S.wow && _idleThr && !S.thrustReverser) ? 4   // ground idle (e.g. after the reverser stows) — spool down fast, no lingering roar
+               : 15;
     const newN1 = n1Now + (n1Target - n1Now) * (1 - Math.exp(-dt / tau));
 
     const n1Up = { n1: Math.max(0, Math.min(100, newN1)),
@@ -335,11 +339,22 @@ export function tickPhysics(dt) {
          start a parked aircraft rolling — it takes a touch above idle to break away, then
          idle sustains the taxi once moving. */
       const muGround  = (isTurbofan && spd_ms_gnd < 1.0) ? muStatic : muRoll;
-      /* Brakes ramp in over ~3 s after a ~0.8 s delay — no instant 0.4 g slam on touchdown.
-         An idle roll-out brakes at a moderate level (placeholder until selectable autobrake);
-         the pilot's brake key or the park brake commands full braking. */
+      /* Brakes ramp in over ~3 s after a ~0.8 s delay — no instant slam on touchdown.
+         Wheel braking comes from the selected AUTO BRK level (engages once the ground
+         spoilers are out), unless the pilot brakes manually / sets the park brake → full. */
       const _brakeRamp  = Math.min(1, Math.max(0, (_grT - 0.8) / 3));
-      const _brakeLevel = (S.parkBrake || S.braking) ? 1 : 0.6;
+      const _manualBrk  = S.parkBrake || S.braking;
+      let _brakeLevel;
+      if (_manualBrk) {
+        _brakeLevel = 1;                                              // pilot brake / park brake → full
+      } else if (ac.autobrake) {
+        /* Jet: the selected AUTO BRK level, engaging once the ground spoilers are out. */
+        const _abMul = ({ OFF: 0, LO: 0.4, MED: 0.6, MAX: 1.0 })[S.autobrake ?? 'OFF'] ?? 0;
+        _abEngaged   = _abMul > 0 && (S.speedBrake ?? 0) >= 2;
+        _brakeLevel  = _abEngaged ? _abMul : 0;
+      } else {
+        _brakeLevel = 0.6;                                            // no autobrake (light aircraft): moderate idle braking, as before
+      }
       /* Thrust reverser — real reverse-thrust force while deployed (auto-out >60 kt), spooled
          over ~2.5 s. Lets the reverser do the high-speed work, brakes less, like real ops. */
       const _revFrac    = perf.reverserFrac ?? 0.30;
@@ -589,6 +604,8 @@ export function tickPhysics(dt) {
              prevAlt: S.alt, time: S.time + dt,
              wow: newWow, touchdownVS: newTouchdownVS,
              groundRollT: newWow ? (S.groundRollT ?? 0) + dt : 0,   // seconds since touchdown → brake/spoiler/reverser ramp
+             autobrakeActive: _abEngaged,                           // DECEL — panel/ECAM annunciation
+             ...(S.braking && newWow && ac.autobrake && (S.autobrake ?? 'OFF') !== 'OFF' ? { autobrake: 'OFF' } : {}),  // manual braking disarms autobrake
              oilTempC: newOilTempC, ..._trPatch, ..._gearPatch, ..._sbPatch, ...pbPatch });
 }
 

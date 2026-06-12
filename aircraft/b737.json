@@ -23,6 +23,7 @@
   "flapTracks": 4,
   "clock": "digital",
   "panel": "airbus",
+  "autobrake": true,
   "livery": {
     "colors": [
       [

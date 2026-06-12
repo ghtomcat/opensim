@@ -8,6 +8,7 @@
   "flapTracks": 6,
   "clock": "digital",
   "panel": "e190",
+  "autobrake": true,
   "livery": {
     "swissCross": true,
     "swissCrossV": 0.38,

@@ -10,6 +10,7 @@
   "flapTracks": 7,
   "clock": "digital",
   "panel": "airbus",
+  "autobrake": true,
   "cabinWindows": 124,
   "windowEndX": -0.036,
   "doors": [

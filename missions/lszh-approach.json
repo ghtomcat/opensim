@@ -29,7 +29,9 @@
     "roll": 0,
     "gear": true,
     "ap": true,
-    "athr": true
+    "athr": true,
+    "autobrake": "MED",
+    "speedBrake": 1
   },
   "weather": {
     "source": "live",

@@ -19,6 +19,7 @@ export const S = {
   /* ── Systems ── */
   flaps:    0,    prevFlaps: 0,   // 0-3 (config)
   speedBrake: 0,                  // 0=RET, 1=ARM, 2=FULL
+  autobrake: 'OFF',               // OFF | LO | MED | MAX — armed level; engages on touchdown with ground spoilers
   trim:     0,                    // pitch trim (-10 nose down … +10 nose up)
   gear:     false, prevGear: false,
   gearAnim: 0,    // 0 = fully retracted, 1 = fully extended

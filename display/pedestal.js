@@ -164,6 +164,21 @@ const _CSS = `
     box-shadow: inset 0 -2px 0 #b06030;
   }
 
+  /* ── Autobrake (OFF / LO / MED / MAX) ── */
+  .ped-autobrk-block { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .ped-autobrk-label { font: 600 9px/1 monospace; letter-spacing: 0.10em; color: #50607c; }
+  .ped-autobrk-gate { display: flex; gap: 0; border: 1px solid #252c3c; border-radius: 3px; overflow: hidden; }
+  .ped-autobrk-pos {
+    padding: 7px 11px; background: #141820;
+    font: 700 9px/1 monospace; letter-spacing: 0.05em;
+    color: #3a4860; cursor: pointer; border-right: 1px solid #252c3c;
+    transition: background 0.08s, color 0.08s; user-select: none;
+  }
+  .ped-autobrk-pos:last-child { border-right: none; }
+  .ped-autobrk-pos:hover { background: #1e2534; color: #6080a8; }
+  .ped-autobrk-pos.ped-autobrk-sel    { background: #142231; color: #4ab0e0; box-shadow: inset 0 -2px 0 #2878a8; }   /* armed */
+  .ped-autobrk-pos.ped-autobrk-active { background: #2a2410; color: #f0c050; box-shadow: inset 0 -2px 0 #c09020; }   /* DECEL — engaged */
+
   /* ── Parking brake ── */
   .ped-park-block { display: flex; flex-direction: column; align-items: center; gap: 8px; }
   .ped-park-label { font: 600 9px/1 monospace; letter-spacing: 0.10em; color: #50607c; }
@@ -452,6 +467,14 @@ function _buildHTML() {
     `<div class="ped-spdbk-pos" data-sb="${i}">${lbl}</div>`
   ).join('');
 
+  /* ── Autobrake (only on equipped aircraft) ── */
+  const abBlock = S.aircraft?.autobrake ? `
+          <div class="ped-autobrk-block">
+            <div class="ped-autobrk-label">AUTO BRK</div>
+            <div class="ped-autobrk-gate">${['OFF', 'LO', 'MED', 'MAX'].map(lbl =>
+              `<div class="ped-autobrk-pos" data-ab="${lbl}">${lbl}</div>`).join('')}</div>
+          </div>` : '';
+
   /* ── ENG START section (turbofan only) ── */
   const turbofan = S.aircraft?.engine?.type === 'turbofan';
   const engStartSection = turbofan ? (() => {
@@ -508,6 +531,7 @@ function _buildHTML() {
             <div class="ped-spdbk-label">SPD BRK</div>
             <div class="ped-spdbk-gate">${sbBtns}</div>
           </div>
+          ${abBlock}
           <div class="ped-park-block">
             <div class="ped-park-label">PARK BRK</div>
             <div class="ped-park-gate">
@@ -603,6 +627,11 @@ function _attachHandlers() {
   _el.querySelectorAll('.ped-park-pos').forEach(btn => {
     btn.addEventListener('click', () => setState({ parkBrake: btn.dataset.pb === '1' }));
   });
+
+  /* Autobrake — OFF / LO / MED / MAX */
+  _el.querySelectorAll('.ped-autobrk-pos').forEach(btn => {
+    btn.addEventListener('click', () => setState({ autobrake: btn.dataset.ab }));
+  });
 }
 
 /* ── Live update ───────────────────────────────────────────────── */
@@ -651,6 +680,15 @@ function _update() {
     const isOn = btn.dataset.pb === '1';
     btn.classList.toggle('ped-park-sel-on',  isOn && pbOn);
     btn.classList.toggle('ped-park-sel-off', !isOn && !pbOn);
+  });
+
+  /* Autobrake — selected level cyan (armed); amber when actually decelerating (DECEL) */
+  const curAB     = S.autobrake ?? 'OFF';
+  const abEngaged = !!S.autobrakeActive;   // set by physics when the level is doing the braking
+  _el.querySelectorAll('.ped-autobrk-pos').forEach(btn => {
+    const isSel = btn.dataset.ab === curAB && curAB !== 'OFF';
+    btn.classList.toggle('ped-autobrk-sel',    isSel && !abEngaged);
+    btn.classList.toggle('ped-autobrk-active', isSel && abEngaged);
   });
 
   /* Engine master flip switches */

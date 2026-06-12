@@ -11,6 +11,7 @@
   "flapTracks": 6,
   "clock": "digital",
   "panel": "airbus",
+  "autobrake": true,
   "livery": {
     "colors": [null, null, [164, 210, 0], null, null, [20, 22, 28], null, null, null, [164, 210, 0]],
     "decals": [

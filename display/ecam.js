@@ -135,7 +135,7 @@ function _drawStatusPage(ctx, W, top, H, s) {
   } else {
     warnings.forEach((w, i) => {
       _label(ctx, w.text, W / 2, top + pad + i * 22 * s,
-             w.level === 'WARNING' ? C.red : C.amber, 11 * s);
+             w.level === 'WARNING' ? C.red : w.level === 'MEMO' ? C.green : C.amber, 11 * s);
     });
   }
 
@@ -472,6 +472,9 @@ function _getWarnings() {
   if ((S.hydBluePsi  ?? 0) < 500)         w.push({ level: 'CAUTION', text: 'HYD BLUE LO' });
   if ((S.hydYellowPsi?? 0) < 500)         w.push({ level: 'CAUTION', text: 'HYD YELLOW LO' });
   if (!(S.essentialBusPowered ?? true))   w.push({ level: 'WARNING', text: 'ELEC — ESS BUS OFF' });
+  /* Autobrake memo (green): armed level, or DECEL while it's actively braking */
+  if (S.aircraft?.autobrake && (S.autobrake ?? 'OFF') !== 'OFF')
+    w.push({ level: 'MEMO', text: S.autobrakeActive ? `AUTO BRK ${S.autobrake} — DECEL` : `AUTO BRK ${S.autobrake}` });
   return w;
 }
 

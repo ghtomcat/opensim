@@ -17,6 +17,7 @@
   ],
   "clock": "digital",
   "panel": "airbus",
+  "autobrake": true,
   "livery": {
     "wingletLogo": true,
     "colors": [

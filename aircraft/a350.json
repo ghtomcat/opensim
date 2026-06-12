@@ -8,6 +8,7 @@
   "flapTracks": 8,
   "clock": "digital",
   "panel": "airbus",
+  "autobrake": true,
   "livery": {
     "swissCross": true,
     "colors": [
