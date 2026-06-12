@@ -1564,6 +1564,74 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         ctx.restore();
       }
 
+      /* ── Runway distance-remaining signs — a standing black panel with the white number
+         of thousands of feet of runway left, every 1000 ft down each edge, derived from the
+         runway length alone (faces oncoming traffic; one set per landing direction). */
+      {
+        const _M = 1/1852, FT_NM = 0.3048/1852;
+        ctx.save();
+        /* Crossing-runway suppression — at intersections (LSZH 16/34 cuts 10/28) a sign on one
+           runway's edge can land on another's surface. Real airports don't plant signs on a
+           runway, so drop any whose position falls on/near a *different* runway. */
+        const _rwSegs = _runways.map(r => {
+          const aN=(r.a.lat-acLat)*60, aE=(r.a.lon-acLon)*60*cosAcLat;
+          const bN=(r.b.lat-acLat)*60, bE=(r.b.lon-acLon)*60*cosAcLat;
+          const dN=bN-aN, dE=bE-aE, L=Math.hypot(dN,dE)||1e-6;
+          return { r, aN, aE, uN:dN/L, uE:dE/L, L, hw:(r.widthM/1852)/2 };
+        });
+        const _onOtherRwy = (N, E, self) => {
+          for (const sg of _rwSegs) { if (sg.r === self) continue;
+            const al=(N-sg.aN)*sg.uN+(E-sg.aE)*sg.uE;
+            if (al < 0 || al > sg.L) continue;                              // only within the other runway's length
+            if (Math.abs(-(N-sg.aN)*sg.uE+(E-sg.aE)*sg.uN) < sg.hw+0.005) return true; }  // on its surface (+~9 m)
+          return false;
+        };
+        for (const rg of _runways) {
+          if (_isGrass(rg.surface)) continue;
+          const aN=(rg.a.lat-acLat)*60, aE=(rg.a.lon-acLon)*60*cosAcLat;
+          const bN=(rg.b.lat-acLat)*60, bE=(rg.b.lon-acLon)*60*cosAcLat;
+          if (((aN+bN)/2)**2 + ((aE+bE)/2)**2 > 9) continue;        // > 3 nm
+          const dN=bN-aN, dE=bE-aE, L=Math.hypot(dN,dE)||1e-6, uN=dN/L, uE=dE/L, pN=-uE, pE=uN;
+          const hw=(rg.widthM/1852)/2, L_ft=L/FT_NM;
+          const _eM=_sampleElev(rg.a.lat,rg.a.lon), _eNm=_eM!==null?(_eM-refM)*M_NM:0;
+          const _dCam=-aN*uN-aE*uE;   // viewer's along-position from threshold a (NM) → back-face cull
+          const SIGN_W=4*_M, SIGN_H=2.2*_M, EDGE=11*_M, digH=SIGN_H*0.62, digW=SIGN_W*0.32, gap=0.5*_M;
+          /* One sign per direction per edge (FAA: both sides). `edge` ±1 picks the runway side;
+             `face` +1 faces threshold b (b→a traffic), -1 faces a (a→b traffic). Single-faced:
+             only drawn when the viewer is on the side it faces (else its mirrored back). The
+             glyph x is flipped by `face` so the number reads upright from the facing direction. */
+          const _drawSign=(d_ft, edge, face, num)=>{
+            const d=d_ft*FT_NM;
+            if (face > 0 ? _dCam <= d : _dCam >= d) return;        // viewer behind the face → skip
+            const ac0=edge*(hw+EDGE);
+            const cN=aN+uN*d+pN*ac0, cE=aE+uE*d+pE*ac0;
+            if (cN*cN+cE*cE > 4) return;                            // > 2 nm: too far to read
+            if (_onOtherRwy(cN, cE, rg)) return;                   // not inside a crossing runway (ICAO)
+            const _sp=(x,h)=>{ const ac=ac0+x; const N=aN+uN*d+pN*ac, E=aE+uE*d+pE*ac;
+              return proj(N*cosH+E*sinH, E*cosH-N*sinH, _eNm+h); };
+            const p=[ _sp(-SIGN_W/2,0), _sp(SIGN_W/2,0), _sp(SIGN_W/2,SIGN_H), _sp(-SIGN_W/2,SIGN_H) ];
+            if (p.some(q=>!q)) return;
+            const hpx=Math.hypot(p[3][0]-p[0][0], p[3][1]-p[0][1]); if (hpx<3) return;
+            ctx.fillStyle='rgba(14,14,14,0.92)';
+            ctx.beginPath(); ctx.moveTo(p[0][0],p[0][1]); for(let i=1;i<4;i++)ctx.lineTo(p[i][0],p[i][1]); ctx.closePath(); ctx.fill();
+            const chars=[...String(num)], tw=chars.length*digW+(chars.length-1)*gap;
+            ctx.strokeStyle='rgba(238,238,238,0.95)'; ctx.lineWidth=Math.max(1.2, hpx*0.11); ctx.lineCap='round'; ctx.lineJoin='round';
+            for (let ci=0; ci<chars.length; ci++){ const glyph=_RW_FONT[chars[ci]]; if(!glyph)continue;
+              const x0=-tw/2 + ci*(digW+gap) + digW/2;
+              for (const st of glyph){ ctx.beginPath(); let go=false;
+                for (const [gx,gy] of st){ const s=_sp(-face*(x0+(gx-0.5)*digW), (SIGN_H-digH)/2 + gy*digH);
+                  if(!s){go=false;continue;} if(!go){ctx.moveTo(s[0],s[1]);go=true;} else ctx.lineTo(s[0],s[1]); }
+                ctx.stroke(); } }
+          };
+          const nMax=Math.floor(L_ft/1000);
+          for (let k=1; k<nMax; k++){
+            _drawSign(L_ft - k*1000, +1, -1, k); _drawSign(L_ft - k*1000, -1, -1, k);  // a→b: thousands left to b, both edges, faces a
+            _drawSign(k*1000,        +1, +1, k); _drawSign(k*1000,        -1, +1, k);  // b→a: thousands left to a, both edges, faces b
+          }
+        }
+        ctx.restore();
+      }
+
       /* ── Taxiway centrelines (yellow paint) — the defining taxiway marking, on paved
          taxiways. The OSM taxiway way IS the centreline, so we just stroke it. */
       {
