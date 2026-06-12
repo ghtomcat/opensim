@@ -9,7 +9,7 @@
    col is a name the renderer resolves: green=engaged, cyan=armed(blue), white, amber.
    ═══════════════════════════════════════════════════════════════ */
 
-const cell  = (val, col) => ({ val, col, flash: 0 });
+const cell  = (val, col, val2 = '', col2 = 'white') => ({ val, col, flash: 0, val2, col2 });
 const BLANK = cell('', 'white');
 
 /* Flight phase from the raw state — shared by both mappers. */
@@ -31,7 +31,9 @@ export function computeAirbusFMA(p) {
           athrMode = null, athrDetent = null, navManaged = false, altManaged = false,
           locCap = false, gsCap = false } = p;
   const agl  = alt - fieldElev;
-  const apfd = ap ? cell('AP1', 'white') : cell('1FD2', 'white');
+  /* Column 5 — AP/FD on top, A/THR below (cyan when active). One AP modelled → AP1 / 1FD2. */
+  const apfd = ap ? cell('AP1',  'white', athr ? 'A/THR' : '', 'cyan')
+                  : cell('1FD2', 'white', athr ? 'A/THR' : '', 'cyan');
   /* lateral: managed NAV (green) when LNAV follows the plan, else selected HDG (cyan) */
   const lat  = navManaged ? cell('NAV', 'green') : cell('HDG', 'cyan');
   /* vertical: managed mode (green) when VNAV flies the profile, else selected ALT hold (cyan) */
@@ -48,7 +50,8 @@ export function computeAirbusFMA(p) {
     case 'climb':    return [thr, agl < 1500 ? cell('SRS', 'green') : vert('CLB'), lat, BLANK, apfd];
     case 'approach': return [thr, cell('G/S', gsCap ? 'green' : 'cyan'),     // green = captured, cyan = armed
                                   cell('LOC', locCap ? 'green' : 'cyan'),
-                                  cell('CAT 3', 'green'), apfd];
+                                  cell('CAT 3 SINGLE', 'green', 'DH 50', 'white'),   // single AP → SINGLE + decision height
+                                  apfd];
     case 'descent':  return [thr, vert('DES'), lat, BLANK, apfd];
     default:         return [thr, vert('ALT CRZ'), lat, BLANK, apfd];
   }

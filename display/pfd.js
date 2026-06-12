@@ -5,6 +5,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from '../core/state.js';
+import { managedSpeed } from '../core/managed-speed.js';
 
 const C = {
   sky:     '#1a3a5c',
@@ -301,8 +302,11 @@ function _drawSpeedTape(ctx, W, H, scale) {
   ctx.textAlign = 'right';
   ctx.fillText(Math.round(spd), x + tapeW + 42 * scale, cy + 6 * scale);
 
-  /* Target speed bug */
-  const tgtY = cy + (spd - S.spdT) * 4.8 * scale;
+  /* Target speed bug — managed approach/descent flies the speed schedule (VAPP near the
+     ground), so the cyan bug tracks managedSpeed(); selected speed otherwise. */
+  const _mgT = S.spdManaged ? managedSpeed() : null;
+  const _tgt = (_mgT != null) ? _mgT : (S.spdT ?? spd);
+  const tgtY = cy + (spd - _tgt) * 4.8 * scale;
   ctx.fillStyle = C.cyan;
   ctx.fillRect(x + tapeW - 4 * scale, tgtY - 1.5 * scale, tapeW * 0.4, 3 * scale);
 }

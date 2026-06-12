@@ -26,10 +26,14 @@ export function initFMA(container) {
     const val = document.createElement('div');
     val.className = 'fma-val';
 
+    const val2 = document.createElement('div');
+    val2.className = 'fma-val2';
+
     box.appendChild(sub);
     box.appendChild(val);
+    box.appendChild(val2);
     _container.appendChild(box);
-    _boxes.push({ box, sub, val });
+    _boxes.push({ box, sub, val, val2 });
   }
 }
 
@@ -39,11 +43,14 @@ export function renderFMA() {
   for (let i = 0; i < 5; i++) {
     const fmaBox = S.fma[i];
     if (!fmaBox) continue;
-    const { box, sub, val } = _boxes[i];
+    const { box, sub, val, val2 } = _boxes[i];
 
     val.textContent  = fmaBox.val;
     val.style.color  = _colourToHex(fmaBox.col);
     sub.textContent  = fmaBox.sub || SUBS[i];
+
+    val2.textContent = fmaBox.val2 || '';
+    val2.style.color = _colourToHex(fmaBox.col2 || 'white');
 
     box.classList.toggle('flash', !!fmaBox.flash);
   }

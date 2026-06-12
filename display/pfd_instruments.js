@@ -8,6 +8,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from '../core/state.js';
+import { managedSpeed } from '../core/managed-speed.js';
 import { smooth, smoothAngle } from './smooth.js';
 import { buildFullRoute, getProcedures } from '../core/route.js';
 import { buildDescentPath } from '../core/vnav.js';
@@ -360,7 +361,8 @@ export function drawSpeedTape(ctx, box, style) {
   const { x, y, w, h } = box;
   const cy   = y + h / 2;
   const spd  = smooth('pfd.spd', S.spd, 0.35);   // gliding airspeed, AP bug stays snappy
-  const spdT = S.spdT;
+  const _mgT = S.spdManaged ? managedSpeed() : null;   // managed → speed schedule (VAPP near the ground)
+  const spdT = (_mgT != null) ? _mgT : (S.spdT ?? spd);
   const f    = _f(style);
 
   ctx.fillStyle = _c(style, 'tape');
