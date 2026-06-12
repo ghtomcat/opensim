@@ -361,7 +361,7 @@ export function drawSpeedTape(ctx, box, style) {
   const { x, y, w, h } = box;
   const cy   = y + h / 2;
   const spd  = smooth('pfd.spd', S.spd, 0.35);   // gliding airspeed, AP bug stays snappy
-  const _mgT = S.spdManaged ? managedSpeed() : null;   // managed → speed schedule (VAPP near the ground)
+  const _mgT = (S.spdManaged && S.athr) ? managedSpeed() : null;   // managed → speed schedule (VAPP near the ground)
   const spdT = (_mgT != null) ? _mgT : (S.spdT ?? spd);
   const f    = _f(style);
 
@@ -1083,15 +1083,20 @@ export function drawFCU(ctx, W, H, style) {
     }
   }
 
+  /* Managed only counts as actively tracking when something flies it: SPD with the A/THR,
+     HDG/ALT with the AP (no FD hand-fly loop). AP off → HDG/ALT revert to the selected value
+     (dot drops); SPD keeps its managed dot while the A/THR is on. */
+  const _spdM = S.spdManaged && S.athr, _navM = S.navManaged && S.ap, _altM = S.altManaged && S.ap;
+
   // ── Speed ──   ('---' with the managed dot when the A/THR flies the schedule)
-  _sec('SPD  MACH', S.spdManaged ? '---' : Math.round(S.spdT).toString(), spdX, spdW, S.spdManaged);
+  _sec('SPD  MACH', _spdM ? '---' : Math.round(S.spdT).toString(), spdX, spdW, _spdM);
 
   // ── Heading ──   ('---' with the managed dot when LNAV flies the lateral channel)
   const hdgDisp = String(Math.round(S.hdgT) % 360 || 360).padStart(3, '0');
-  _sec('HDG  TRK', S.navManaged ? '---' : hdgDisp, hdgX, hdgW, S.navManaged);
+  _sec('HDG  TRK', _navM ? '---' : hdgDisp, hdgX, hdgW, _navM);
 
   // ── Altitude ──
-  _sec('ALT', String(Math.round(S.altT)).padStart(5, '0'), altX, altW, S.altManaged);   // ALT keeps its value + managed dot
+  _sec('ALT', String(Math.round(S.altT)).padStart(5, '0'), altX, altW, _altM);   // ALT keeps its value + managed dot
 
   // ── Vertical speed ──
   const vsRaw  = Math.round(S.vs / 100) * 100;

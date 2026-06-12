@@ -304,7 +304,7 @@ function _drawSpeedTape(ctx, W, H, scale) {
 
   /* Target speed bug — managed approach/descent flies the speed schedule (VAPP near the
      ground), so the cyan bug tracks managedSpeed(); selected speed otherwise. */
-  const _mgT = S.spdManaged ? managedSpeed() : null;
+  const _mgT = (S.spdManaged && S.athr) ? managedSpeed() : null;
   const _tgt = (_mgT != null) ? _mgT : (S.spdT ?? spd);
   const tgtY = cy + (spd - _tgt) * 4.8 * scale;
   ctx.fillStyle = C.cyan;

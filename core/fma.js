@@ -43,7 +43,8 @@ export function computeAirbusFMA(p) {
   const thr = !athr        ? cell(athrDetent === 'TOGA' ? 'MAN TO/GA' : 'MAN THR', 'white')
             : athrMode === 'THR' ? cell('THR ' + (athrDetent ?? 'CLB'), 'green')
             : cell(athrMode === 'MACH' ? 'MACH' : 'SPEED', 'green');
-  switch (_phase(p)) {
+  const ph = _phase(p);
+  const cols = (() => { switch (ph) {
     case 'parked':   return [BLANK, BLANK, BLANK, BLANK, BLANK];
     case 'takeoff':  return [cell('MAN TO/GA', 'white'), cell('SRS', 'green'), cell('RWY', 'green'),
                              BLANK, athr ? cell('A/THR', 'cyan') : BLANK];   // A/THR armed (blue) once set
@@ -54,7 +55,12 @@ export function computeAirbusFMA(p) {
                                   apfd];
     case 'descent':  return [thr, vert('DES'), lat, BLANK, apfd];
     default:         return [thr, vert('ALT CRZ'), lat, BLANK, apfd];
-  }
+  } })();
+  /* AP off → no AP flies the lateral/vertical channel (the sim has no FD hand-fly loop), so
+     the green engaged vertical + lateral modes drop. Thrust/SPEED stays — A/THR is independent.
+     Takeoff is hand-flown on the FD (SRS/RWY), so it keeps its modes. */
+  if (!ap && ph !== 'takeoff' && ph !== 'parked') { cols[1] = BLANK; cols[2] = BLANK; }
+  return cols;
 }
 
 /* Boeing — 3 fields: A/T | roll | pitch. Active modes in green (armed would be white). */
