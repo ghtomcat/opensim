@@ -84,6 +84,8 @@ export async function loadMission(missionPath, aircraftPath) {
     spdManaged: mission.initialState.spdManaged ?? false,
     autobrake:  mission.initialState.autobrake  ?? 'OFF',          // armed AUTO BRK level (jets); approach missions arm it
     autobrakeActive: false,
+    vacated:  false,            // landing runway not yet left
+    vacateAt: null,
     wow:   startOnGround,
     parkBrake: startOnGround,   // parked on the ground → brake set; airborne → released
     trim:  0,

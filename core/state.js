@@ -51,6 +51,8 @@ export const S = {
   ilsGs:   -0.8,  ilsGsT: -0.8,
   locCaptured: false,            // APP mode — localizer captured (AP banks to track it)
   gsCaptured:  false,            // APP mode — glideslope captured (AP pitches to fly it)
+  vacated:  false,               // landing runway left (slow + laterally clear) — unlocks the taxi-to-gate request
+  vacateAt: null,                // {lat,lon} where the runway was vacated — start point for the gate routing
 
   /* ── FMA — 5 boxes ── */
   fma: [

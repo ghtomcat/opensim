@@ -161,6 +161,22 @@ export function tickPhysics(dt) {
   }
   if (!_ils || S.wow) { locCap = false; gsCap = false; }
 
+  /* ── Vacate detection: the aircraft has left the landing runway. Latches true once we're on the
+     ground at taxi speed AND laterally clear of the runway surface (cross-track beyond the
+     half-width + a shoulder margin) — i.e. we've turned off onto an exit. This is the trigger
+     that unlocks the "request taxi to gate" call. Records where we left, as the routing start. ── */
+  if (!S.vacated && S.wow && S.mission?.arrival?.runway) {
+    const _vrw = runwayThreshold(S.mission.arrival.icao, S.mission.arrival.runway);
+    if (_vrw) {
+      const dNm  = _gcNm(_vrw.thr[0], _vrw.thr[1], S.lat, S.lon);
+      const aOff = (((_brgDeg(_vrw.thr[0], _vrw.thr[1], S.lat, S.lon) - (_vrw.hdg + 180) + 540) % 360) - 180) * Math.PI / 180;
+      const xtkM = Math.abs(dNm * 1852 * Math.sin(aOff));          // perpendicular distance from the centerline (m)
+      const halfW = (_vrw.widthM ?? 45) / 2;
+      if ((S.spd ?? 0) < 40 && xtkM > halfW + 12)                  // slow + clear of the pavement (+12 m shoulder margin)
+        setState({ vacated: true, vacateAt: { lat: S.lat, lon: S.lon } });
+    }
+  }
+
   if (ac.manualControl) {
     /* ── Shared setup ── */
     const perf = ac.performance ?? {};

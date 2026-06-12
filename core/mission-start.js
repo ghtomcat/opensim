@@ -59,14 +59,15 @@ export function resolveStart(mission, aircraft) {
   return null;
 }
 
-/* Landing threshold of a named runway — { thr:[lat,lon], far:[lat,lon], hdg } — for the ILS geometry. */
+/* Landing threshold of a named runway — { thr:[lat,lon], far:[lat,lon], hdg, widthM } — for the
+   ILS geometry and the vacate (off-runway) detection. */
 export function runwayThreshold(icao, runwayId) {
   const rws = RUNWAYS[icao];
   if (!rws || runwayId == null) return null;
   const want = String(runwayId).toUpperCase();
   for (const r of rws) {
-    if ((r.leId || '').toUpperCase() === want) return { thr: r.a, far: r.b, hdg: _bearing(r.a, r.b) };
-    if ((r.heId || '').toUpperCase() === want) return { thr: r.b, far: r.a, hdg: _bearing(r.b, r.a) };
+    if ((r.leId || '').toUpperCase() === want) return { thr: r.a, far: r.b, hdg: _bearing(r.a, r.b), widthM: r.widthM };
+    if ((r.heId || '').toUpperCase() === want) return { thr: r.b, far: r.a, hdg: _bearing(r.b, r.a), widthM: r.widthM };
   }
   return null;
 }
