@@ -2528,8 +2528,10 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         ctx.fillStyle = grd;
         ctx.beginPath(); ctx.arc(head[0], head[1], glowR, 0, Math.PI * 2); ctx.fill();
       }
-      ctx.fillStyle = _nightF > 0.3 ? 'rgba(255,248,224,0.95)' : 'rgba(210,220,230,0.85)';
-      ctx.beginPath(); ctx.arc(head[0], head[1], 1.7 * _dpr, 0, Math.PI * 2); ctx.fill();
+      /* The head is the floodlight array: a warm lit lamp at night, but an unlit dark grey
+         fixture by day — not a bright white knob visible from miles off. */
+      ctx.fillStyle = _nightF > 0.3 ? 'rgba(255,248,224,0.95)' : 'rgba(66,72,80,0.85)';
+      ctx.beginPath(); ctx.arc(head[0], head[1], 1.5 * _dpr, 0, Math.PI * 2); ctx.fill();
     };
 
     const _drawBridge = (gLat, gLon, gHdg, noLamp, fTReach, leftOff, retract) => {
