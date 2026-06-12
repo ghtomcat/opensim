@@ -66,7 +66,7 @@ function _updateTaxiRoute(lat, lon) {
     _ltaxiLine.setLatLngs([]); _taxiRoute = null; _taxiKey = null; S.taxiRoute = null; return;
   }
   let goal = null, depRwy = null;
-  if (isArr) { const st = nearestStand(graph, lat, lon); if (st) goal = { lat: st.lat, lon: st.lon }; }
+  if (isArr) { const g = S.arrivalGate || nearestStand(graph, lat, lon); if (g) goal = { lat: g.lat, lon: g.lon }; }
   if (!goal) {                                         // departure: the mission's runway, else nearest threshold
     const want = String(m?.departure?.runway || '').toUpperCase();
     if (want) for (const r of RUNWAYS[icao]) {
@@ -87,7 +87,7 @@ function _updateTaxiRoute(lat, lon) {
   if (moved || _taxiKey !== icao) {
     _taxiRoute = routeTaxi(graph, { lat, lon }, goal);
     _taxiFrom = [lat, lon]; _taxiKey = icao;
-    if (_taxiRoute?.seq?.length) S.taxiClearance = { icao, via: _taxiRoute.seq, distM: _taxiRoute.distM, arr: isArr, rwy: isArr ? null : depRwy };
+    if (_taxiRoute?.seq?.length) S.taxiClearance = { icao, via: _taxiRoute.seq, distM: _taxiRoute.distM, arr: isArr, rwy: isArr ? null : depRwy, gate: isArr ? (S.arrivalGate?.ref ?? null) : null };
   }
   S.taxiRoute = _taxiRoute;                              // expose the green line for pushback routing
   _ltaxiLine.setLatLngs(_taxiRoute?.pts ?? []);

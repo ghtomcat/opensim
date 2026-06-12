@@ -8,6 +8,8 @@ import { S } from '../core/state.js';
 import { speakATC, speakPM } from '../core/crew.js';
 import { bbEvent } from '../core/blackbox.js';
 import { RUNWAYS } from './runways-data.js';
+import { STANDS } from './stands-data.js';
+import { getTaxiGraph, routeTaxi } from '../core/taxi-graph.js';
 
 /* Nearest runway whose centreline is within `maxNm` (perpendicular distance, clamped to
    the thresholds) — on it, lined up, or holding short. Drives the takeoff and the
@@ -303,13 +305,43 @@ const _REQUESTS = [
     run:  () => {} },
 
   /* Arrival: once the landing runway is left (S.vacated, set by physics), call Ground for the
-     taxi-in. The gate (from arrival.dock) and the exit→gate route are assigned in the next brick. */
+     taxi-in. prep() assigns the gate from arrival.dock the moment the request fires, so the
+     ATC reply can name it; run() reveals the arrival route (to that gate) in map.js. */
   { id: 'taxiGate', label: 'Taxi to gate',
     when: () => S.vacated && !S.taxiCleared,
+    prep: () => {                                            // assign the gate, route to it → ATC + kneeboard read gate + via
+      if (!S.arrivalGate) S.arrivalGate = _assignArrivalGate();
+      const g = S.arrivalGate, icao = S.mission?.arrival?.icao;
+      if (!g || !icao) return;
+      const graph = getTaxiGraph(icao, S.lat, S.lon);
+      const rt = graph && routeTaxi(graph, { lat: S.lat, lon: S.lon }, { lat: g.lat, lon: g.lon });
+      S.taxiClearance = { icao, arr: true, gate: g.ref, via: rt?.seq ?? [], distM: rt?.distM };
+    },
     pm:   cs => `Ground, ${cs}, runway ${S.mission?.arrival?.runway ?? ''} vacated, request taxi to stand`,
-    atc:  cs => `${cs}, Ground, taxi to stand`,              // gate + route assigned in brick 3
-    run:  () => { S.taxiCleared = true; } },                 // → map.js reveals the arrival route
+    atc:  cs => { const via = S.taxiClearance?.via ?? [];
+                  const viaStr = via.length ? ` via ${via.join(', ')}` : '';
+                  return `${cs}, Ground, taxi to stand ${S.arrivalGate?.ref ?? ''}${viaStr}`.replace(/\s+/g, ' ').trim(); },
+    run:  () => { S.taxiCleared = true; } },                 // → map.js reveals/updates the route to S.arrivalGate                 // → map.js reveals the route to S.arrivalGate
 ];
+
+/* Assign an arrival gate from mission.arrival.dock, against the airport's bundled stands:
+     absent  → a random stand (any)
+     "E"     → a random stand in dock E (ref starts with E)
+     "E27"   → exactly that stand
+   Returns {ref,lat,lon,hdg} or null. */
+function _assignArrivalGate() {
+  const stands = STANDS[S.mission?.arrival?.icao] ?? [];
+  if (!stands.length) return null;
+  const dock = String(S.mission?.arrival?.dock ?? '').toUpperCase().trim();
+  let pool = stands;
+  if (dock) {
+    const exact = stands.find(s => String(s.ref).toUpperCase() === dock);
+    if (exact) return exact;                                 // "E27" → that exact stand
+    const inDock = stands.filter(s => String(s.ref).toUpperCase().startsWith(dock));
+    if (inDock.length) pool = inDock;                        // "E" → the dock-E stands
+  }
+  return pool[Math.floor(Math.random() * pool.length)];     // random within the pool
+}
 
 function _toggleReqPopup() {
   const pop = document.getElementById('com-req-popup'); if (!pop) return;
@@ -326,6 +358,7 @@ function _runRequest(id) {
   const pop = document.getElementById('com-req-popup'); if (pop) pop.hidden = true;
   const cs = S.aircraft?.callsign ?? S.mission?.callsign ?? 'Aircraft';
   const gate = S.mission?.start?.stand ?? '';
+  if (r.prep) r.prep();                                     // resolve state the calls depend on (e.g. the assigned gate)
   bbEvent?.('atc_request', { id });
   if (r.pm) speakPM(r.pm(cs, gate));                        // crew makes the radio call
   setTimeout(() => speakATC(r.atc(cs)), 3000);             // ATC approves

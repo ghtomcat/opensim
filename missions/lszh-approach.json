@@ -13,6 +13,7 @@
     "icao": "LSZH",
     "name": "Zürich",
     "runway": "28",
+    "dock": "E",
     "ils": {
       "freq": "109.900",
       "course": 280

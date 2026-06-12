@@ -54,6 +54,7 @@ export const S = {
   vacated:  false,               // landing runway left (slow + laterally clear) — unlocks the taxi-to-gate request
   vacateAt: null,                // {lat,lon} where the runway was vacated — start point for the gate routing
   taxiCleared: false,            // Ground cleared the taxi-in → the arrival route (green line) is revealed
+  arrivalGate: null,             // {ref,lat,lon,hdg} assigned by Ground from arrival.dock — the taxi-in goal
 
   /* ── FMA — 5 boxes ── */
   fma: [

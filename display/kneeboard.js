@@ -38,7 +38,7 @@ export function tickKneeboard() {
     _render();
   }
   /* live-refresh the scratchpad when the taxi clearance changes and it's on screen */
-  const via = (S.taxiClearance?.via ?? []).join(',') + '|' + (S.taxiClearance?.rwy ?? '');
+  const via = (S.taxiClearance?.via ?? []).join(',') + '|' + (S.taxiClearance?.rwy ?? '') + '|' + (S.taxiClearance?.gate ?? '');
   if (via !== _lastVia) {
     _lastVia = via;
     if (_visible && _pages()[_page]?.type === 'scratch') _render();
@@ -80,11 +80,12 @@ function _render() {
   `;
 
   if (isScratch) {
-    const t = p.clearance, rwy = t?.rwy ? `RWY ${t.rwy}` : 'RWY —';
+    const t = p.clearance;
+    const dest = t?.arr ? `STAND ${t.gate ?? '—'}` : (t?.rwy ? `RWY ${t.rwy}` : 'RWY —');
     const via = t?.via?.length ? t.via.join('   ') : null;
     html += `
       <div class="kb-scratch">
-        <div class="kb-scratch-head">TAXI · ${rwy}</div>
+        <div class="kb-scratch-head">TAXI · ${dest}</div>
         ${via ? `<div class="kb-scratch-seq">${via}</div>`
               : `<div class="kb-scratch-empty">— awaiting taxi clearance —</div>`}
       </div>`;
