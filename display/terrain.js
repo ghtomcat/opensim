@@ -2850,6 +2850,92 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
     _zJobs.sort((a, b) => b.d - a.d);
     for (const j of _zJobs) j.fn();
 
+    /* ── VDGS (Visual Docking Guidance System) — a 3D housing box at the assigned arrival gate
+       (the only "occupied" gate while we're alone here). Guidance only: the emissive front face
+       shows the azimuth (a dot tracking the aircraft's offset from the lead-in centreline) +
+       the closing distance as you taxi in, and STOP at the parking point. The gate NUMBER lives
+       on a separate fixed sign, not here (a real VDGS shows nothing unless a flight is docking).
+       Built as a box so it reads as a solid unit from any side-cam angle; the display is back-
+       face culled so it isn't seen through the housing. Azimuth dot is placed in the gate frame
+       (GP), so left/right are physically correct. ── */
+    const _drawVDGS = (_vg) => {
+      if (!_vg || _vg.lat == null || _vg.hdg == null) return;
+      const _dpr = devicePixelRatio || 1;
+      const gCos = Math.cos(_vg.lat * DEG);
+      const hE = Math.sin(_vg.hdg * DEG), hN = Math.cos(_vg.hdg * DEG);   // nose-in (toward terminal)
+      const lE = -hN, lN = hE;                                            // aircraft-left
+      const _emG = _sampleElev(_vg.lat, _vg.lon);
+      const e0 = _emG !== null ? (_emG - refM) * M_NM : 0;
+      /* gate frame → screen (fwd along nose-in, side left, height m) and its camera-forward depth */
+      const GP  = (fwd, side, hM) => { const dE = fwd*hE + side*lE, dN = fwd*hN + side*lN;
+        const la = _vg.lat + dN/111320, lo = _vg.lon + dE/(111320*gCos);
+        const N = (la - acLat)*60, E = (lo - acLon)*60*cosAcLat; return proj(N*cosH + E*sinH, E*cosH - N*sinH, e0 + hM*M_NM); };
+      const DEP = (fwd, side, hM) => { const dE = fwd*hE + side*lE, dN = fwd*hN + side*lN;
+        const la = _vg.lat + dN/111320, lo = _vg.lon + dE/(111320*gCos);
+        const N = (la - acLat)*60, E = (lo - acLon)*60*cosAcLat; return N*cosH + E*sinH; };   // larger = farther
+      /* the actual aircraft (not the camera) in the gate frame */
+      const aN = (S.lat - _vg.lat)*111320, aE = (S.lon - _vg.lon)*111320*gCos;
+      const dist = -(aN*hN + aE*hE);          // metres still to the stop (+ while approaching from behind)
+      const devL = aN*lN + aE*lE;             // + = aircraft is left of the lead-in centreline
+      if (!(dist > -3 && dist < 90)) return;
+      const PF = 3.5, PW = 2.6, PH = 2.2, PY = 6.5, PD = 0.5;   // front-fwd, width, height, base height, depth (m)
+      const F0 = PF, F1 = PF + PD, A = -PW/2, B = PW/2, H0 = PY, H1 = PY + PH;
+      const fa = GP(F0,A,H0), fb = GP(F0,B,H0);
+      if (!fa || !fb || Math.hypot(fb[0]-fa[0], fb[1]-fa[1]) <= 7) return;  // too far/small to read
+      const _hm = (H0+H1)/2, _fm = (F0+F1)/2;
+      const faces = [
+        { p:[GP(F0,A,H0),GP(F0,B,H0),GP(F0,B,H1),GP(F0,A,H1)], d: DEP(F0,0,_hm), face:'display' },
+        { p:[GP(F1,A,H0),GP(F1,B,H0),GP(F1,B,H1),GP(F1,A,H1)], d: DEP(F1,0,_hm), face:'house' },   // back
+        { p:[GP(F0,A,H0),GP(F1,A,H0),GP(F1,A,H1),GP(F0,A,H1)], d: DEP(_fm,A,_hm), face:'house' },   // right side
+        { p:[GP(F0,B,H0),GP(F1,B,H0),GP(F1,B,H1),GP(F0,B,H1)], d: DEP(_fm,B,_hm), face:'house' },   // left side
+        { p:[GP(F0,A,H1),GP(F1,A,H1),GP(F1,B,H1),GP(F0,B,H1)], d: DEP(_fm,0,H1), face:'house' },    // top
+        { p:[GP(F0,A,H0),GP(F1,A,H0),GP(F1,B,H0),GP(F0,B,H0)], d: DEP(_fm,0,H0), face:'house' },    // bottom
+      ];
+      const displayFront = DEP(F0,0,_hm) < DEP(F1,0,_hm);     // the display faces the camera (not seen from behind)
+      faces.sort((u,v)=>v.d-u.d);                             // far → near (display, being nearest when visible, paints last)
+      const _poly = (p) => { ctx.beginPath(); ctx.moveTo(p[0][0],p[0][1]); for(let i=1;i<4;i++)ctx.lineTo(p[i][0],p[i][1]); ctx.closePath(); };
+      for (const f of faces) {
+        if (f.p.some(q=>!q)) continue;
+        if (f.face === 'house') {                             // grey housing shell
+          _poly(f.p); ctx.fillStyle='rgba(60,68,78,0.95)'; ctx.fill();
+          ctx.strokeStyle='rgba(26,30,36,0.9)'; ctx.lineWidth=1*_dpr; ctx.stroke();
+          continue;
+        }
+        if (!displayFront) continue;                          // back-face cull the emissive screen
+        ctx.save(); _poly(f.p);
+        ctx.fillStyle='rgba(6,9,11,0.97)'; ctx.fill();
+        ctx.strokeStyle='rgba(28,34,40,0.95)'; ctx.lineWidth=1.2*_dpr; ctx.stroke();
+        ctx.clip(); ctx.textAlign='center';
+        const cx=(f.p[0][0]+f.p[1][0]+f.p[2][0]+f.p[3][0])/4;
+        const yBot=(f.p[0][1]+f.p[1][1])/2, yTop=(f.p[2][1]+f.p[3][1])/2, ph=Math.abs(yBot-yTop);
+        const centred=Math.abs(devL)<0.5;
+        const _act = (S.aircraft?.icaoType || '').toUpperCase();
+        if (dist <= 50 && _act) {                             // aircraft type at the top — real VDGS read it out
+          ctx.fillStyle='#ffb000'; ctx.textBaseline='top';
+          ctx.font=`800 ${Math.max(5,(ph*0.2)|0)}px system-ui,sans-serif`;
+          ctx.fillText(_act, cx, yTop + ph*0.06);
+        }
+        if (dist < 0.8) {                                     // STOP (below the type)
+          ctx.fillStyle='#ff4030'; ctx.textBaseline='middle';
+          ctx.font=`900 ${Math.max(7,(ph*0.34)|0)}px system-ui,sans-serif`;
+          ctx.fillText('STOP', cx, yTop + ph*0.62);
+        } else if (dist <= 50) {                              // docking: azimuth (mid) + distance (bottom)
+          const by=PY+PH*0.50;
+          const bl=GP(F0,-PW*0.40,by), br=GP(F0,PW*0.40,by), tT=GP(F0,0,by+0.20), tB=GP(F0,0,by-0.20);
+          ctx.strokeStyle='rgba(120,130,140,0.8)'; ctx.lineWidth=1.3*_dpr;
+          if (bl&&br){ ctx.beginPath(); ctx.moveTo(bl[0],bl[1]); ctx.lineTo(br[0],br[1]); ctx.stroke(); }
+          if (tT&&tB){ ctx.beginPath(); ctx.moveTo(tT[0],tT[1]); ctx.lineTo(tB[0],tB[1]); ctx.stroke(); }
+          const dot=GP(F0, Math.max(-PW*0.40,Math.min(PW*0.40,devL)), by);
+          if (dot){ ctx.fillStyle=centred?'#30ff60':'#ffb000'; ctx.beginPath(); ctx.arc(dot[0],dot[1],Math.max(2,ph*0.07),0,Math.PI*2); ctx.fill(); }
+          ctx.fillStyle=centred?'#30ff60':'#ffb000'; ctx.textBaseline='bottom';
+          ctx.font=`800 ${Math.max(5,(ph*0.22)|0)}px system-ui,sans-serif`;
+          ctx.fillText(`${dist.toFixed(1)} m`, cx, yBot-ph*0.06);
+        }                                                     // dist>50: screen on but blank (waiting)
+        ctx.restore();
+      }
+    };
+    _drawVDGS(S.arrivalGate);                                 // only the occupied (assigned arrival) gate is active
+
     /* ── Pushback tug + tow bar ── a low vehicle at the nose that pushes with the
        aircraft, then disconnects and drives away. Drawn in the aircraft's own
        (fwd=nose, side=left) frame, anchored at the origin and offset to the nose gear. */
