@@ -1,6 +1,12 @@
 {
   "id": "b737max9",
   "name": "Boeing 737 MAX 9",
+  "winglet": "split",
+  "wingletSplit": {
+    "_note": "MAX AT split winglet from the airport-planning DWG (drawing × 1.10878e-7 = model). upper 29397dr ≈ 2.45 m @ 32°, lower 18047dr ≈ 1.50 m @ 30° (cant from vertical).",
+    "upper": { "len": 0.003260, "cant": 32 },
+    "lower": { "len": 0.002001, "cant": 30 }
+  },
   "manufacturer": "boeing",
   "family": "737",
   "model": "737-max-9",

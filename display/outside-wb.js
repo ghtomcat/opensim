@@ -159,11 +159,12 @@ export function _buildWB(np) {
      overrides the preset: the tip cants out+up by length·sin/cos, and the LE sweep is set
      so the winglet tip chord matches (TE stays aligned with the wing-tip TE). */
   const _wlType = np.winglet ?? 'classic';
-  const _wlH  = { classic: 0.0030, sharklet: 0.0065, blended: 0.0055, raked: 0.0015, none: 0 }[_wlType] ?? 0.0030;
-  const _wlSwP = { classic: 0.0012, sharklet: 0.0040, blended: 0.0008, raked: 0.0035, none: 0 }[_wlType] ?? 0.0012;
+  const _wsp  = np.wingletSplit;     // split (MAX AT) winglet — upper/lower {len (model), cant°}, derived from the DWG
+  const _wlH  = { classic: 0.0030, sharklet: 0.0065, blended: 0.0055, raked: 0.0015, split: 0.0058, none: 0 }[_wlType] ?? 0.0030;
+  const _wlSwP = { classic: 0.0012, sharklet: 0.0040, blended: 0.0008, raked: 0.0035, split: 0.0030, none: 0 }[_wlType] ?? 0.0012;
   const _wg   = np.wingletGeom;
-  const _wlL  = (_wg?.lengthMM != null) ? _wg.lengthMM / 1852000 : null;
-  const _wlCt = (_wg?.cantDeg ?? 0) * Math.PI / 180;
+  const _wlL  = _wsp?.upper ? _wsp.upper.len : ((_wg?.lengthMM != null) ? _wg.lengthMM / 1852000 : null);   // upper feather length (model) — DWG data wins
+  const _wlCt = (_wsp?.upper ? _wsp.upper.cant : (_wg?.cantDeg ?? 0)) * Math.PI / 180;
   const wy    = (_wlL != null) ? hs + _wlL * Math.sin(_wlCt) : hs;
   const wz    = dh + ((_wlL != null) ? _wlL * Math.cos(_wlCt) : _wlH);
   const _wlSw = (_wlL != null && _wg.tipChordMM != null) ? (tLE - tTE) - _wg.tipChordMM / 1852000 : _wlSwP;
@@ -429,6 +430,17 @@ export function _buildWB(np) {
     [_wgLTEx, WV[32][1], _wtZ(_wgLTEx, WV[32], WV[33])],   // _wgRLE+3  L winglet root TE
   );
 
+  /* Split (MAX AT) winglet — a shorter second feather canting DOWN from the wing tip (DWG data). */
+  const _wgLo = V_.length;
+  if (_wlType === 'split') {
+    const _loL = _wsp?.lower ? _wsp.lower.len : 0.0040, _loC = (_wsp?.lower ? _wsp.lower.cant : 30) * Math.PI / 180;
+    const _loY = hs + _loL * Math.sin(_loC), _loZ = dh - _loL * Math.cos(_loC);
+    V_.push(
+      [_wgTipLEx,        _loY, _loZ], [_wgTipLEx,        -_loY, _loZ],   // _wgLo+0/1 R/L lower-tip LE
+      [_wgTipLEx-_wgWtc, _loY, _loZ], [_wgTipLEx-_wgWtc, -_loY, _loZ],   // _wgLo+2/3 R/L lower-tip TE
+    );
+  }
+
   /* Nose tris: noseTip → ring0 (outward normals) */
   for (let si = 0; si < N; si++) { F_.push([noseTip, rb[0]+(si+1)%N, rb[0]+si]); FC_.push(6); }
   /* Tail tris: last ring → tailTip (outward normals) */
@@ -477,6 +489,10 @@ export function _buildWB(np) {
     [b+128,b+156,b+157,b+6],[b+156,b+130,b+122,b+157],    // L outer lower + upper
     [_wgRLE,_wgRLE+2,b+101,b+100],[_wgRLE,b+100,b+101,_wgRLE+2],  // R winglet (set-back root LE/TE, raked tip)
     [_wgRLE+1,_wgRLE+3,b+103,b+102],[_wgRLE+1,b+102,b+103,_wgRLE+3],  // L winglet
+    ...(_wlType === 'split' ? [
+      [_wgRLE,   _wgRLE+2, _wgLo+2, _wgLo+0], [_wgRLE,   _wgLo+0, _wgLo+2, _wgRLE+2],   // R split lower feather + back
+      [_wgRLE+1, _wgRLE+3, _wgLo+3, _wgLo+1], [_wgRLE+1, _wgLo+1, _wgLo+3, _wgRLE+3],   // L split lower feather + back
+    ] : []),
     // V-stab airfoil (b+160..b+171)
     [b+166,b+233,b+232,b+160],[b+161,b+232,b+233,b+167],  // LE rounds +Y / -Y
     [b+160,b+162,b+168,b+166],[b+161,b+167,b+169,b+163],  // main body +Y/-Y
@@ -494,6 +510,7 @@ export function _buildWB(np) {
   FC_.push(
     1,1,1,1, 1,1,1,1,                          // LE rounds R+L (8)
     1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1, 9,9,9,9,  // R wing (14) + L wing (14) + winglets (4)
+    ...(_wlType === 'split' ? [9,9,9,9] : []),                          // split lower feather (4)
     2,2,2,2,2,2,2,2, 3,3,3,3, 3,3,3,3,     // vstab airfoil (8) + R hstab (4) + L hstab (4)
   );   // engine tube/cap colours are pushed by the appended 16-vert nacelle skin
   /* Cockpit window faces — only for ring-sampled aircraft (no cockpitPanels).
@@ -646,6 +663,10 @@ export function _buildWB(np) {
     [b+188,b+194],[b+189,b+195],                     // L TE spanwise
     [_wgRLE,b+100],[_wgRLE+2,b+101],[b+100,b+101],[_wgRLE,_wgRLE+2],   // R winglet (LE, TE, tip chord, root chord)
     [_wgRLE+1,b+102],[_wgRLE+3,b+103],[b+102,b+103],[_wgRLE+1,_wgRLE+3], // L winglet
+    ...(_wlType === 'split' ? [
+      [_wgRLE,_wgLo+0],[_wgRLE+2,_wgLo+2],[_wgLo+0,_wgLo+2],   // R split lower feather: LE, TE, tip chord
+      [_wgRLE+1,_wgLo+1],[_wgRLE+3,_wgLo+3],[_wgLo+1,_wgLo+3], // L split lower feather
+    ] : []),
     /* R engine rings A-E */
     [b+20,b+21],[b+21,b+22],[b+22,b+23],[b+23,b+24],[b+24,b+25],[b+25,b+26],[b+26,b+27],[b+27,b+20],
     [b+28,b+29],[b+29,b+30],[b+30,b+31],[b+31,b+32],[b+32,b+33],[b+33,b+34],[b+34,b+35],[b+35,b+28],
@@ -923,6 +944,7 @@ export function _acGeoFromJson(aircraft, baseNp) {
     dorsalFillet:  aircraft.dorsalFillet ?? baseNp.dorsalFillet,
     winglet:       aircraft.winglet   ?? baseNp.winglet,
     wingletGeom:   aircraft.wingletGeom ?? baseNp.wingletGeom,
+    wingletSplit:  aircraft.wingletSplit ?? baseNp.wingletSplit,
     eLen:          jGeo.engineLen     ?? baseNp.eLen ?? 1.0,
     fanCowlRatio:  jGeo.fanCowlRatio  ?? baseNp.fanCowlRatio,
     nacelleProfile: jGeo.nacelleProfile ?? baseNp.nacelleProfile,

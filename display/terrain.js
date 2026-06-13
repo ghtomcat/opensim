@@ -1734,8 +1734,10 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           const L = Math.hypot(dN,dE)||1, uN = dN/L, uE = dE/L, pN = -uE, pE = uN;
           const _eM = _apElevNm !== null ? null : _sampleElev(cLat,cLon);
           const _eNm = _apElevNm !== null ? _apElevNm : (_eM!==null?(_eM-refM)*_M:0);
-          const chars = [...ref];
-          const digH = 4.5*_M, digW = 2.6*_M, gap = 1.2*_M, totalH = chars.length*digH + (chars.length-1)*gap;
+          const chars = [...ref.replace(/[^A-Z0-9]/g, '')];      // drop hyphens/spaces — LEMD taxiways are "G-6"/"Y-4"
+          if (!chars.length) continue;
+          const digH = Math.min(4.5, 6/chars.length)*_M, digW = 2.6*_M, gap = 1.0*_M;   // cap multi-char so it stays compact (single letters unchanged at 4.5 m)
+          const totalH = chars.length*digH + (chars.length-1)*gap;
           const _wp = (al, ac) => { const N = nN+uN*al+pN*ac, E = nE+uE*al+pE*ac;
             return proj(N*cosH+E*sinH, E*cosH-N*sinH, _eNm); };
           const t0 = _wp(-totalH/2, 0), t1 = _wp(-totalH/2 + digH, 0);
