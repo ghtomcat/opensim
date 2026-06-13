@@ -1,13 +1,15 @@
 {
   "id": "lsgg-takeoff",
-  "phase": "approach",
-  "title": "Genève → München — ILS Approach 26L",
-  "description": "Helvetic E190 from Genève on final into München, ILS runway 26L. Live METAR. A first arrival at a brand-new airport — taxi-in, gate and VDGS all derive from OSM data.",
+  "phase": "ground",
+  "title": "Takeoff — Genève LSGG",
+  "description": "Helvetic Airways E190 parked at gate 10, Genève, bound for München. Live METAR. Cold start, pushback and taxi to runway 22 — mountains ahead.",
   "author": "Markus Leutwyler",
   "aircraft": "e190",
   "departure": {
     "icao": "LSGG",
-    "name": "Genève"
+    "name": "Genève",
+    "runway": "22",
+    "elevation": 1411
   },
   "arrival": {
     "icao": "EDDM",
@@ -18,47 +20,50 @@
     "elevation": 1487
   },
   "initialState": {
-    "lat": 48.3601,
-    "lon": 12.0039,
-    "alt": 4080,
-    "spd": 150,
-    "hdg": 263,
-    "pitch": 4,
-    "roll": 0,
-    "gear": true,
-    "ap": true,
-    "athr": true,
-    "spdManaged": true,
-    "autobrake": "MED",
-    "speedBrake": 1
+    "alt": 1411,
+    "spd": 0,
+    "pitch": 0,
+    "roll": 0
   },
+  "start": { "stand": "10" },
   "weather": {
     "source": "live",
-    "icao": "EDDM",
+    "icao": "LSGG",
     "fallback": {
-      "wdir": 260,
+      "wdir": 230,
       "wspd": 10,
-      "altim": 1015,
-      "temp": 9,
-      "dewp": 4,
+      "altim": 1018,
+      "temp": 8,
+      "dewp": 2,
       "visib": "6+",
       "clouds": [
-        { "cover": "FEW", "base": 4000 }
+        { "cover": "FEW", "base": 3500 }
       ]
     }
   },
   "atcClearances": [
     {
-      "alt": 4000,
-      "pm": "München Approach, Helvetic, established localizer two six left",
-      "atc": "Helvetic, München Approach, cleared ILS approach runway two six left, contact Tower one one eight decimal seven, servus"
+      "pm": "Helvetic, startup approved, IFR to München, squawk 4712",
+      "atc": "Helvetic, startup approved, clearance to München EDDM, flight level two four zero, departure heading two one zero, squawk four seven one two"
+    },
+    {
+      "pm": "request taxi, runway two two",
+      "atc": "Helvetic, taxi to holding point runway two two via Foxtrot and November"
+    },
+    {
+      "pm": "Holding point runway two two, ready",
+      "atc": "Helvetic, line up and wait runway two two, one departure ahead"
+    },
+    {
+      "pm": "Lining up two two, Helvetic",
+      "atc": "Helvetic, wind two three zero at ten, runway two two, cleared for takeoff"
     }
   ],
   "debrief": [
-    "Was the approach stabilised at 1000ft?",
-    "Did the ILS 26L localizer and glideslope capture cleanly?",
-    "After landing — did the taxi-in clearance, the gate and the VDGS appear at a brand-new airport?",
-    "What would trigger a go-around?"
+    "Was the takeoff roll smooth on runway 22?",
+    "Did you maintain runway heading until 1000ft AGL?",
+    "Lake Geneva appeared off the right — did you see it?",
+    "Mont Blanc is visible at 12 o'clock — how clear was it?"
   ],
   "failures": [],
   "timeOfDay": 9.0
