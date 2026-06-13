@@ -2526,6 +2526,12 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         cLat /= n; cLon /= n;
         const cN = (cLat - acLat) * 60, cE = (cLon - acLon) * 60 * cosAcLat;
         if (cN * cN + cE * cE > 25) continue;             // >5 nm: skip
+        /* Skip oversized footprints — OSM tags whole terminal ZONES/aprons as aeroway=terminal at
+           some airports (LEMD), which extrude into a giant slab over the apron. A real building
+           footprint is bounded; a >550 m span is a zone, not a building. */
+        let _mnA=99,_mxA=-99,_mnO=199,_mxO=-199;
+        for (const p of poly){ if(p[0]<_mnA)_mnA=p[0]; if(p[0]>_mxA)_mxA=p[0]; if(p[1]<_mnO)_mnO=p[1]; if(p[1]>_mxO)_mxO=p[1]; }
+        if (Math.max((_mxA-_mnA)*111320, (_mxO-_mnO)*111320*Math.cos(cLat*DEG)) > 550) continue;
         let isSat = false;                                // skip round satellite drums (drawn separately)
         for (const s of sats) { const dN = (cLat - s.lat) * 111320, dE = (cLon - s.lon) * 111320 * Math.cos(s.lat * DEG);
           if (Math.hypot(dN, dE) < s.r * 1.6) { isSat = true; break; } }
