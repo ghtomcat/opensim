@@ -48,6 +48,8 @@ OpenSim is not a game. It is a modular simulation engine that runs entirely in t
 - **3D wireframe aircraft at 60 fps** — flat-shaded painter's algorithm in pure Canvas 2D. Back-face culling, depth sorting, light-direction shading. No WebGL. No Three.js. No dependencies. Chase cam · side cam · wing view · plume cam · booster cam. For Falcon 9: engine plumes, LOX vent clouds, grid fins, S2 Merlin Vacuum bell, landing legs that deploy.
 - **Any aircraft** — envelope, performance, handling, sound, crew language, checklists in one JSON file
 - **Any mission** — weather, ATC clearances, classified briefing documents, scripted failures, crew voices in one JSON file
+- **Data-driven airports** — runways, taxiways, gates and terminals derived from OSM + OurAirports. Fly an approach into an airport the sim has never seen and the ground environment is already there.
+- **Gate-to-gate** — pushback, ATC taxi clearances over the taxiway graph, vacate detection, gate assignment, and VDGS docking guidance — both directions of the ground phase.
 - **Live radar** — real flights via OpenSky Network, color-coded by destination, route lines to arrival airport, 150/400/1000nm range
 - **Runs anywhere** — laptop, tablet, Raspberry Pi, custom cockpit panels
 
@@ -154,6 +156,32 @@ Truth in, truth out. Accuracy is intrinsic, and a wrong number shows up as a vis
 
 ---
 
+## Data-driven airports
+
+The same idea, one level up: an airport is not modelled by hand either. ICAO Annex 14 standardises how every airport is laid out — and the open data already maps it. So the entire ground environment is *derived*, not drawn:
+
+- **runways** from OurAirports (CC0) — thresholds, true bearing, width
+- **taxiways** from OpenStreetMap (ODbL) become a navigable graph — shared nodes are vertices, each way carries its designator (`A`, `B`, `C`…)
+- **stands / gates** from OSM `aeroway=parking_position` — the painted lead-in line gives the stop point *and* the nose-in heading for free
+- **terminals + aprons** from OSM `aeroway=terminal` footprints, extruded to wireframe massing
+- **jet bridges** reach from each gate to the nearest terminal wall; **VDGS units, taxiway signs and lead-in lines** all fall out of the geometry
+
+Run `scripts/build-*.py` once to bundle a new airport's OSM data. Then you can **fly an approach into an airport the sim has never seen** — München, say — and the runway, your taxi-in route, the assigned gate, the VDGS and the taxiway signs are all there, because the standardisation *is* the model. The drawing is the compression; the sim decompresses it.
+
+---
+
+## Gate-to-gate flying
+
+One taxiway graph powers the entire ground phase, in both directions.
+
+**Departure** — request **pushback** at your stand; a tug walks the aircraft back onto the taxiway. Ground gives a taxi clearance routed over the graph — *"taxi to holding point runway 22 via Foxtrot, November"* — the green route draws on the map, you hold short of and cross runways on request, then line up and go.
+
+**Arrival** — after touchdown, **vacate detection** latches once you turn off the runway and slow to taxi speed. That unlocks the **REQUEST → Taxi to gate** call. Ground assigns a **gate from the arrival dock** (random within the dock, or a fixed stand) and reads the full clearance — *"taxi to stand E27 via Foxtrot, Delta"* — which lands on the **kneeboard** scratchpad while the green route leads you in. At the stand a **VDGS** shows your aircraft type, an azimuth dot tracking your offset from the lead-in centreline, the closing distance, and **STOP** at the parking line. **ENG MASTER OFF** and the turbofan coasts down by inertia to a descending spool-down whine.
+
+Autobrake (LO/MED/MAX), Brake-to-Vacate, the jet-bridge connect and brake-temperature are the next links in the chain.
+
+---
+
 ## Missions included
 
 ### Fly tab
@@ -163,6 +191,7 @@ Truth in, truth out. Accuracy is intrinsic, and a wrong number shows up as a vis
 | ILS Approach RWY 28 | A350 | Modern | Live METAR, ATC clearances, approach brief |
 | ILS Approach LSGG RWY 23 | A220 | Modern | Geneva, live METAR, full crew loop |
 | ILS Approach EVRA RWY 36 | E190 | Modern | Rīga, live METAR, Air Baltic crew voices |
+| Genève → München RWY 26L | E190 | Modern | First arrival at a brand-new airport — data-driven gate-to-gate, VDGS docking |
 | Cross-Country LSZG→LSGN | C172 | PPL | Cold-dark startup, Schnupperflug route, live METAR |
 | VFR Pattern LSZF | C172 | PPL | Grass strip Speck-Fehraltorf, circuits, kneeboard |
 | VFR Circuit LSZG | Robin DR400 | PPL | Grenchen, Flugschule checklists, live METAR |
