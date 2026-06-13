@@ -167,7 +167,7 @@ export function _buildWB(np) {
   const _wlCt = (_wsp?.upper ? _wsp.upper.cant : (_wg?.cantDeg ?? 0)) * Math.PI / 180;
   const wy    = (_wlL != null) ? hs + _wlL * Math.sin(_wlCt) : hs;
   const wz    = dh + ((_wlL != null) ? _wlL * Math.cos(_wlCt) : _wlH);
-  const _wlSw = (_wlL != null && _wg.tipChordMM != null) ? (tLE - tTE) - _wg.tipChordMM / 1852000 : _wlSwP;
+  const _wlSw = (_wlL != null && _wg?.tipChordMM != null) ? (tLE - tTE) - _wg.tipChordMM / 1852000 : _wlSwP;
   const _wgSb = (_wg?.rootSetbackMM ?? 0) / 1852000;   // winglet root LE set back aft of the wing-tip LE (nav-light notch)
   /* Winglet planform, anchored on its LEADING edge so its trailing edge floats forward of
      the wing TE (after-gap) instead of being pinned to it. Root LE = wing-tip LE + setback;
