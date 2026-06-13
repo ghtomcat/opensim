@@ -1,86 +1,58 @@
 {
   "id": "egll-approach",
   "phase": "approach",
-  "title": "ILS Approach — London Heathrow EGLL",
-  "description": "ILS approach into London Heathrow runway 27L. Speedbird heavy on the standard STAR. Live METAR weather. Full crew loop.",
+  "title": "ILS Approach — Madrid LEMD 32L (temp)",
+  "description": "TEMPORARY: London → Madrid, B737 MAX 9 on final into Barajas runway 32L. Live METAR. First arrival at Madrid — data-driven gate-to-gate. (Restore to the EGLL approach afterwards.)",
   "author": "Markus Leutwyler",
-  "aircraft": "b737",
-  "timeOfDay": 2,
+  "aircraft": "b737max9",
+  "timeOfDay": 11,
   "departure": {
-    "icao": "LEMD",
-    "name": "Madrid"
+    "icao": "EGLL",
+    "name": "London Heathrow"
   },
   "arrival": {
-    "icao": "EGLL",
-    "name": "London Heathrow",
-    "runway": "27L",
-    "ils": {
-      "freq": "110.300",
-      "course": 270
-    },
-    "elevation": 83
+    "icao": "LEMD",
+    "name": "Madrid",
+    "runway": "32L",
+    "dock": "2",
+    "ils": { "freq": "111.500", "course": 322 },
+    "elevation": 1998
   },
   "initialState": {
-    "lat": 51.7262,
-    "lon": -0.5497,
-    "alt": 7000,
-    "spd": 250,
-    "hdg": 127,
+    "lat": 40.3504,
+    "lon": -3.4394,
+    "alt": 4592,
+    "spd": 160,
+    "hdg": 322,
     "pitch": 4,
     "roll": 0,
+    "gear": true,
     "ap": true,
-    "athr": true
+    "athr": true,
+    "spdManaged": true,
+    "autobrake": "MED",
+    "speedBrake": 1
   },
   "weather": {
     "source": "live",
-    "icao": "EGLL",
+    "icao": "LEMD",
     "fallback": {
-      "wdir": 270,
-      "wspd": 14,
-      "altim": 1013,
-      "temp": 10,
+      "wdir": 320,
+      "wspd": 10,
+      "altim": 1016,
+      "temp": 18,
       "dewp": 6,
       "visib": "6+",
       "clouds": [
-        { "cover": "SCT", "base": 3500 }
+        { "cover": "FEW", "base": 5000 }
       ]
     }
   },
   "atcClearances": [
     {
-      "alt": 32000,
-      "pm": "london control, Speedbird one, request descent, flight level two four zero",
-      "atc": "Speedbird one, london control, descend flight level two four zero, standard pressure"
-    },
-    {
-      "alt": 24000,
-      "pm": "Speedbird one, descending two four zero",
-      "atc": "Speedbird one, continue descent flight level one zero zero, speed two five zero knots"
-    },
-    {
-      "alt": 10000,
-      "pm": "Speedbird one, descending one zero zero, speed two fifty",
-      "atc": "Speedbird one, contact london terminal one one eight decimal two, good day"
-    },
-    {
-      "alt": 8000,
-      "pm": "london terminal, Speedbird one, with you, descending one zero thousand",
-      "atc": "Speedbird one, identified, descend five thousand, expect ILS runway two seven left"
-    },
-    {
-      "alt": 5000,
-      "pm": "descending five thousand, Speedbird one",
-      "atc": "Speedbird one, turn left heading two four zero, descend three thousand, reduce speed two ten"
-    },
-    {
-      "alt": 3000,
-      "pm": "turning two four zero, descending three thousand, Speedbird one",
-      "atc": "Speedbird one, turn left heading two zero zero, cleared ILS runway two seven left, report established"
-    },
-    {
-      "alt": 2500,
-      "pm": "established ILS two seven left, Speedbird one",
-      "atc": "Speedbird one, contact heathrow tower one one eight decimal seven, cleared to land runway two seven left, wind two seven zero at twelve"
+      "alt": 4000,
+      "pm": "Madrid Approach, Speedbird, established localizer three two left",
+      "atc": "Speedbird, Madrid Approach, cleared ILS approach runway three two left, contact Tower one one eight decimal one, adiós"
     }
   ]
 }

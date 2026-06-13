@@ -3908,7 +3908,7 @@
       { key: 'G',      desc: 'Gear toggle' },
       { key: 'Tab',    desc: 'Display: PFD ↔ ECAM' },
       { key: 'P',      desc: 'Pause' },
-      { key: 'M',      desc: 'Audio on/off' },
+      { key: 'X',      desc: 'Audio on/off' },
       { key: 'E / Q',  desc: 'Anlasser / Kraftstoffhahn (Bf 109)' },
       { key: 'Q',      desc: 'Fuel selector: BOTH → LEFT → RIGHT → OFF' },
       { key: 'R',      desc: 'Role: PF → PM → INSTRUCTOR' },
@@ -4052,7 +4052,7 @@
         bbEvent({ type: 'carb_heat', carbHeat: next });
       }
 
-      if (e.key === 'm' || e.key === 'M') {
+      if (e.key === 'x' || e.key === 'X') {                 // audio mute (moved off M — M is free for the centre cockpit view)
         if (!_hasLifecycle) {
           _audioOn = !_audioOn;
           if (_audioOn) { startSound(engineType); audioEl.textContent = 'ON';  audioEl.className = 'panel-value green'; }

@@ -238,6 +238,24 @@ function _drawILS(ctx, cx, cy, scale) {
   _disc(ctx, gsX, cy - S.ilsGs * dotSp, 6 * scale);
 
   ctx.restore();
+
+  /* ── ILS scratchpad (bottom-left, Airbus magenta): what's "tuned" for the approach.
+     Display-only for now — freq/course come from the mission; manual tuning is a TODO. ── */
+  const _ils = S.mission?.arrival?.ils;
+  if (_ils) {
+    const lines = [{ t: `ILS ${S.mission?.arrival?.runway ?? ''}`.trim(), bold: true }];
+    if (_ils.ident)         lines.push({ t: String(_ils.ident) });
+    if (_ils.freq != null)  lines.push({ t: String(_ils.freq) });
+    if (_ils.course != null) lines.push({ t: `CRS ${String(_ils.course).padStart(3, '0')}` });
+    const x0 = cx - 168 * scale; let y = locY + 34 * scale; const lh = 19 * scale;
+    ctx.save();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = '#d96ec8';
+    for (const ln of lines) {
+      ctx.font = `${ln.bold ? '700 ' : ''}${15 * scale}px ui-monospace, monospace`;
+      ctx.fillText(ln.t, x0, y); y += lh;
+    }
+    ctx.restore();
+  }
 }
 
 function _circle(ctx, x, y, r) {

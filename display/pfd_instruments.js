@@ -307,6 +307,23 @@ function _ils(ctx, box, style) {
   ctx.fill();
 
   ctx.restore();
+
+  /* ── ILS scratchpad (bottom-left, magenta): what's "tuned" for the approach.
+     Display-only for now — freq/course come from the mission; manual tuning is a TODO. ── */
+  const _il = S.mission?.arrival?.ils;
+  if (_il) {
+    const lines = [`ILS ${S.mission?.arrival?.runway ?? ''}`.trim()];
+    if (_il.ident)          lines.push(String(_il.ident));
+    if (_il.freq != null)   lines.push(String(_il.freq));
+    if (_il.course != null) lines.push(`CRS ${String(_il.course).padStart(3, '0')}`);
+    const fs = Math.max(9, box.h * 0.046), lh = fs * 1.25;
+    let y = box.y + box.h * 0.78; const x0 = box.x + box.w * 0.035;
+    ctx.save();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = '#d96ec8';
+    ctx.font = `${fs}px ui-monospace, monospace`;
+    for (const t of lines) { ctx.fillText(t, x0, y); y += lh; }
+    ctx.restore();
+  }
 }
 
 function _bankArc(ctx, box, style) {

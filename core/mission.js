@@ -21,10 +21,12 @@ import { resolveAircraftConfig } from './aircraft-config.js';
  */
 export async function loadMission(missionPath, aircraftPath) {
   const _fetch = (p) => fetch(`${p}?v=${Date.now()}`).then(r => r.json());
-  const [mission, aircraft] = await Promise.all([
-    typeof missionPath  === 'object' ? missionPath  : _fetch(missionPath),
-    typeof aircraftPath === 'object' ? aircraftPath : _fetch(aircraftPath),
-  ]);
+  const mission = typeof missionPath === 'object' ? missionPath : await _fetch(missionPath);
+  /* The mission JSON is the source of truth for the aircraft: its "aircraft" field wins over
+     the caller's path (the catalog's aircraftId, which is only the picker label + a fallback).
+     So changing a mission's aircraft actually swaps the model — no catalog edit needed. */
+  const _acPath = mission.aircraft ? `aircraft/${mission.aircraft}.json` : aircraftPath;
+  const aircraft = typeof _acPath === 'object' ? _acPath : await _fetch(_acPath);
 
   aircraft.cockpitCfg = await resolveAircraftConfig(aircraft);   // deep-merged lineage config (comm placement, …)
 
