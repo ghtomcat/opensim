@@ -20,6 +20,7 @@ import { nightDensity } from './night-lights.js';
 import { landColor }    from './terrain-color.js';
 import { WINDSOCKS }    from './windsocks-data.js';
 import { STANDS, BRIDGE_COVERAGE } from './stands-data.js';
+import { gatesFor } from './stands-util.js';
 import { SATELLITES }   from './satellites-data.js';
 import { TERMINALS, APRONS } from './terminals-data.js';   // APRONS → derived apron flood masts
 import { computeTugPath, tugPose, pushbackDist } from '../core/pushback.js';
@@ -2458,12 +2459,13 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
        P* = parking, skipped). Either way a low wireframe block is drawn landside of the
        gate line — the gates nose IN, so the frontage runs ⟂ to the nose-in heading. */
     const _contactGates = new Set();   // gates in a drawn terminal cluster → eligible for a jet bridge
+    const _clusteredAirports = new Set();   // airports whose letter-cluster produced a usable contact cluster
     /* Terminals, bridges and masts are collected as deferred jobs and drawn far→near, so a
        building occludes a bridge or mast standing behind it (painter's order by depth). */
     const _zJobs = [];
     const _zDepth = (lat, lon) => ((lat - acLat) * 60) * cosH + ((lon - acLon) * 60 * cosAcLat) * sinH;
     for (const ic of [S.mission?.departure?.icao, S.mission?.arrival?.icao]) {
-      const gates = ic && STANDS[ic];
+      const gates = ic && gatesFor(ic);
       if (!gates || gates.length < 2) continue;
       const _covered = BRIDGE_COVERAGE[ic];             // OSM maps real jet bridges at this airport
       const _realTerm = TERMINALS[ic];                  // OSM maps real terminal footprints → skip the derived block
@@ -2503,6 +2505,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         const _emT=_sampleElev(cLat,cLon), e0=_emT!==null?(_emT-refM)*M_NM:0;
         if (!_realTerm) _zJobs.push({ d: _zDepth(cLat, cLon), fn: () => _drawMassing(foot, e0, H) });  // real footprint present → skip derived box
         for (const g of grp) _contactGates.add(g);        // contact gates → eligible for a jet bridge
+        _clusteredAirports.add(ic);                       // this airport got a usable letter-cluster
       }
     }
 
@@ -2775,13 +2778,18 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
 
     /* Bridges at contact gates — OSM flag where covered, else the cluster. */
     for (const ic of [S.mission?.departure?.icao, S.mission?.arrival?.icao]) {
-      const gates = ic && STANDS[ic];
+      const gates = ic && gatesFor(ic);
       if (!gates) continue;
       const _covered = BRIDGE_COVERAGE[ic], _terms = TERMINALS[ic];
       const _ownStand = S.mission?.start?.stand;          // your gate → pushback retracts its bridge
       const _pbR = S.pushbackStart ? Math.min(1, (performance.now() - S.pushbackStart) / 6000) : 0;
+      /* Numeric/unclustered airport with real OSM terminals (e.g. EDDM, gates 101…): the
+         letter-cluster found no contact gates, so derive them by terminal proximity instead —
+         let every gate reach the ray-cast below, which only draws a bridge where a terminal wall
+         sits 6–60 m off the nose. Lettered airports keep the cluster path untouched. */
+      const _byProximity = !_clusteredAirports.has(ic) && !!_terms;
       for (const g of gates) {
-        if (_covered ? !g.bridge : !_contactGates.has(g)) continue;  // real OSM flag where mapped, else cluster
+        if (_covered ? !g.bridge : (!_byProximity && !_contactGates.has(g))) continue;  // OSM flag / cluster / terminal-proximity
         const gN = (g.lat - acLat) * 60, gE = (g.lon - acLon) * 60 * cosAcLat;
         if (gN * gN + gE * gE > 25) continue;             // >5 nm: skip
         const rr = (g.ref === _ownStand) ? _pbR : 0;      // retract only your own gate's bridge
@@ -2799,7 +2807,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
         if (!done) {                                      // derived: ray-cast the gate heading into the terminal
           let reach = null;
           if (_terms) { const wd = _wallDist(g.lat, g.lon, Math.sin(g.hdg*DEG), Math.cos(g.hdg*DEG), _terms);
-            if (wd && wd > 6 && wd < 60) reach = wd; }
+            if (wd != null && wd < 60) reach = Math.max(wd, 10); }   // wall within 60 m → bridge; an implausibly close hit (<10 m) is a clipped pier edge → use a sensible min reach
           if (reach === null) continue;                   // no terminal wall in front → remote stand, no bridge
           _zJobs.push({ d: _zDepth(g.lat, g.lon), fn: () => _drawBridge(g.lat, g.lon, g.hdg, false, reach, undefined, rr) });
         }

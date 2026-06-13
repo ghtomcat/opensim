@@ -8,7 +8,7 @@ import { S } from '../core/state.js';
 import { speakATC, speakPM } from '../core/crew.js';
 import { bbEvent } from '../core/blackbox.js';
 import { RUNWAYS } from './runways-data.js';
-import { STANDS } from './stands-data.js';
+import { gatesFor } from './stands-util.js';
 import { getTaxiGraph, routeTaxi } from '../core/taxi-graph.js';
 
 /* Nearest runway whose centreline is within `maxNm` (perpendicular distance, clamped to
@@ -330,7 +330,7 @@ const _REQUESTS = [
      "E27"   → exactly that stand
    Returns {ref,lat,lon,hdg} or null. */
 function _assignArrivalGate() {
-  const stands = STANDS[S.mission?.arrival?.icao] ?? [];
+  const stands = gatesFor(S.mission?.arrival?.icao);
   if (!stands.length) return null;
   const dock = String(S.mission?.arrival?.dock ?? '').toUpperCase().trim();
   let pool = stands;
