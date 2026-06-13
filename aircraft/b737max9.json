@@ -191,6 +191,12 @@
     }
   ],
   "approachSpeed": 138,
+  "flaps": [
+    { "label": "0", "dCL_0": 0, "dCL_max": 0, "dCD_0": 0 },
+    { "label": "5", "dCL_0": 0.3, "dCL_max": 0.45, "dCD_0": 0.012 },
+    { "label": "15", "dCL_0": 0.6, "dCL_max": 0.75, "dCD_0": 0.03 },
+    { "label": "30", "dCL_0": 1.0, "dCL_max": 1.1, "dCD_0": 0.07 }
+  ],
   "manualControl": true,
   "performance": {
     "mass": 66000, "wingArea": 127, "thrustMax": 240000,
@@ -603,26 +609,26 @@
   "checklist": {
     "flaps": [
       {
-        "alt": 1400,
+        "alt": 2400,
         "config": 1,
         "pf": "flaps one",
         "pm": "flaps one"
       },
       {
-        "alt": 900,
+        "alt": 2000,
         "config": 2,
         "pf": "flaps five",
         "pm": "flaps five"
       },
       {
-        "alt": 500,
+        "alt": 1500,
         "config": 3,
         "pf": "flaps full",
         "pm": "flaps full"
       }
     ],
     "gear": {
-      "alt": 700,
+      "alt": 1800,
       "pf": "gear down",
       "pm": "gear down and locked"
     }
