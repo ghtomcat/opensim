@@ -145,9 +145,10 @@ export function tickPhysics(dt) {
       const dNm    = _gcNm(_rw.thr[0], _rw.thr[1], S.lat, S.lon);
       const angOff = ((_brgDeg(_rw.thr[0], _rw.thr[1], S.lat, S.lon) - (crs + 180) + 540) % 360) - 180;  // ° off centerline (+ = right)
       const hdgOff = ((S.hdg - crs + 540) % 360) - 180;
+      const _along = dNm * Math.cos(angOff * Math.PI / 180);   // signed along-track to the threshold — negative once past it
       if (dNm < 30 && Math.abs(hdgOff) < 90) {                  // inbound and within range
         ilsLocNow = Math.max(-2.5, Math.min(2.5, angOff));      // localizer dots (~1 dot/°)
-        _gsAlt    = (S.mission.arrival.elevation ?? 0) + 50 + dNm * 318;   // 3° glideslope + ~50 ft threshold-crossing height
+        _gsAlt    = (S.mission.arrival.elevation ?? 0) + 50 + _along * 318;   // 3° glideslope, 50 ft threshold crossing → aims ~300 m past the threshold (TDZ), keeps descending past it
         ilsGsNow  = Math.max(-2.5, Math.min(2.5, (S.alt - _gsAlt) / 80));   // + = above the slope
         _dmeNm    = dNm;
         if (!locCap && Math.abs(ilsLocNow) < 1.5 && Math.abs(hdgOff) < 35 && dNm < 18) locCap = true;
