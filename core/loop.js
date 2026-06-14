@@ -5,7 +5,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from './state.js';
-import { tickPhysics }     from './physics.js';
+import { tickPhysics }     from './physics.js?v=5';
 import { tickHovercraft }  from './hovercraft_physics.js';
 import { tickRocket, tickBooster } from './rocket.js';
 import { tickCrew }        from './crew.js';

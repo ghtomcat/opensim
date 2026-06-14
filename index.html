@@ -2223,7 +2223,7 @@
            approachLegs as _approachLegs, airportCentre as _airportCentre,
            spdParse as _spdParse, spdLabel as _spdLabel,
            SEG_COL as _SEG_COL } from './core/route.js';
-  import { tickPhysics }     from './core/physics.js';
+  import { tickPhysics }     from './core/physics.js?v=5';
   import { tickHovercraft }  from './core/hovercraft_physics.js';
   import { tickRocket, tickBooster } from './core/rocket.js';
   import { tickFailures }    from './core/failures.js';
@@ -2252,7 +2252,7 @@
   import { initOverhead, toggleOverhead, renderOverhead } from './display/overhead.js';
   import { initPedestal, togglePedestal, renderPedestal } from './display/pedestal.js';
   import { initSound, startSound, stopSound, startEngineLifecycle, stopEngineLifecycle, switchEngine, tickSound, getCurrentRpm, silenceAll, apDisconnectChime } from './core/sound.js';
-  import { initOutside, tickOutside, outsideInvalidate, setOutsideCamMode } from './display/outside.js?v=3';
+  import { initOutside, tickOutside, outsideInvalidate, setOutsideCamMode } from './display/outside.js?v=4';
   import { initKneeboard, toggleKneeboard, tickKneeboard } from './display/kneeboard.js';
   import { initMap, renderMap, toggleMap, showMap, hideMap, initVelisMap, hideVelisMap, initG1000Map, hideG1000Map } from './display/map.js';
   import { renderCislunar, renderMoonMap, resetCislunar } from './display/cislunar.js';

@@ -1,11 +1,11 @@
 {
   "id": "anchorage-bozeman",
-  "phase": "departure",
-  "title": "Bozeman \u2192 Anchorage",
+  "phase": "approach",
+  "title": "Bozeman \u2192 Anchorage \u2014 ILS 15 (temp approach)",
   "description": "Alaska 737 MAX 9 parked at gate B7, Bozeman Yellowstone, bound for Ted Stevens Anchorage. Live METAR. Start up cold, taxi to runway 30, and depart northwest over the Bridgers and climb out across the Rockies.",
   "author": "Markus Leutwyler",
   "aircraft": "b737max9",
-  "timeOfDay": 21.5,
+  "timeOfDay": 18.0,
   "departure": {
     "icao": "KBZN",
     "name": "Bozeman Yellowstone Intl",
@@ -15,21 +15,29 @@
   "arrival": {
     "icao": "PANC",
     "name": "Ted Stevens Anchorage Intl",
-    "runway": "15",
+    "runway": "07R",
+    "dock": "C",
+    "ils": { "freq": "110.300", "course": 70 },
     "elevation": 152
   },
   "initialState": {
-    "alt": 4473,
-    "spd": 0,
-    "pitch": 0,
-    "roll": 0
-  },
-  "start": {
-    "stand": "B7"
+    "lat": 61.1674,
+    "lon": -150.4569,
+    "alt": 4018,
+    "spd": 180,
+    "hdg": 90,
+    "pitch": 4,
+    "roll": 0,
+    "gear": true,
+    "ap": true,
+    "athr": true,
+    "spdManaged": true,
+    "autobrake": "MED",
+    "speedBrake": 1
   },
   "weather": {
     "source": "live",
-    "icao": "KBZN",
+    "icao": "PANC",
     "fallback": {
       "wdir": 300,
       "wspd": 8,

@@ -975,9 +975,10 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const alt_nm   = (S.alt ?? 0) * FT_NM;
   const _svRise  = Math.max(0, alt_nm - (S.mission?.departure?.elevation ?? 0) * FT_NM);
   /* Height above the local field (AGL) — the shadow must gate on AGL, not MSL, or it
-     vanishes at any airport above ~498 ft elevation (LSZH 1416 ft). Match physics' field
-     pick (departure ?? arrival). */
-  const _fieldElevFt = S.mission?.departure?.elevation ?? S.mission?.arrival?.elevation ?? 0;
+     vanishes at any airport above ~498 ft elevation (LSZH 1416 ft). Use physics' field pick
+     (S.fieldElev = nearer airport), so on an arrival it tracks the destination, not the
+     departure — otherwise the shadow sticks to the airframe over a high departure field. */
+  const _fieldElevFt = S.fieldElev ?? S.mission?.departure?.elevation ?? S.mission?.arrival?.elevation ?? 0;
   const agl_nm   = Math.max(0, alt_nm - _fieldElevFt * FT_NM);
   if (agl_nm < 0.082 && F_.length) {
     /* Silhouette shadow — project every vertex along the light direction onto the ground,

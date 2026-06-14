@@ -45,6 +45,19 @@ export function tickPhysics(dt) {
 
   const prevAlt = S.alt;
 
+  /* Ground-elevation reference — the field the aircraft is AT, chosen by the NEARER airport.
+     On an arrival the departure field (e.g. KBZN 4473 ft) must NOT be the ground, or the aircraft
+     "lands" in mid-air over a high-elevation departure and the AP shuts off / it can't descend.
+     Falls back to departure ?? arrival when a runway can't be resolved. */
+  const _dep = S.mission?.departure, _arr = S.mission?.arrival;
+  let _grdElev = _dep?.elevation ?? _arr?.elevation ?? S.aircraft.situations?.[0]?.alt ?? 0;
+  if (_dep?.elevation != null && _arr?.elevation != null && S.lat != null) {
+    const _dt = runwayThreshold(_dep.icao, _dep.runway), _at = runwayThreshold(_arr.icao, _arr.runway);
+    if (_dt && _at)
+      _grdElev = _gcNm(_at.thr[0], _at.thr[1], S.lat, S.lon) < _gcNm(_dt.thr[0], _dt.thr[1], S.lat, S.lon)
+               ? _arr.elevation : _dep.elevation;
+  }
+
   /* Throttle-at-idle: turbofans key off the thrust lever (spdT is the A/THR selected speed,
      not the throttle); props/others key off spdT. Used for auto-brake / reverser / speedbrake. */
   const _idleThr = (ac.engine?.type === 'turbofan') ? (S.thrustLever ?? 0) < 0.05 : (S.spdT ?? 0) === 0;
@@ -183,8 +196,8 @@ export function tickPhysics(dt) {
     /* ── Shared setup ── */
     const perf = ac.performance ?? {};
 
-    /* Ground elevation from mission */
-    const groundFt = S.mission?.departure?.elevation ?? S.mission?.arrival?.elevation ?? 0;
+    /* Ground elevation — nearer airport (see _grdElev up top); NOT always the departure */
+    const groundFt = _grdElev;
     const onGround = S.alt <= groundFt + 0.5;
 
     /* ISA density */
@@ -446,9 +459,8 @@ export function tickPhysics(dt) {
     if (!S.wow && newWow) newTouchdownVS = vs;   // record VS on touchdown
 
   } else {
-    /* ── Autopilot convergence ── */
-    const apGround = S.mission?.departure?.elevation ?? S.mission?.arrival?.elevation
-                  ?? ac.situations?.[0]?.alt ?? 0;
+    /* ── Autopilot convergence ── (simplified kinematic AP for non-manualControl aircraft) */
+    const apGround = _grdElev;                 // nearer airport — see _grdElev up top
     const apOnGnd  = S.alt <= apGround + 0.5;
     const agl      = S.alt - apGround;
 
@@ -484,7 +496,7 @@ export function tickPhysics(dt) {
      their altitude-banded fmaPhases strip. ── */
   let fma = S.fma;
   if (ac.panel === 'airbus' || ac.panel === 'e190') {
-    const fieldElev = S.mission?.departure?.elevation ?? S.mission?.arrival?.elevation ?? 0;
+    const fieldElev = _grdElev;   // nearer airport — shared with the shadow renderer (outside.js)
     const fp = { wow: newWow, n1: S.n1 ?? 0, vs, alt: newAlt, altT: S.altT,
                  gear: S.gear, ap: S.ap, athr: S.athr, fieldElev,
                  navManaged: S.navManaged, altManaged: S.altManaged,
@@ -617,7 +629,7 @@ export function tickPhysics(dt) {
   }
 
   setState({ alt: newAlt, spd: newSpd, hdg: pbHdg, pitch: newPitch, roll: newRoll,
-             rollRate: newRollRate, pitchRate: newPitchRate,
+             rollRate: newRollRate, pitchRate: newPitchRate, fieldElev: _grdElev,   // nearer airport — drives the shadow's AGL gate (outside.js), all panels
              vs, ilsLoc, ilsGs, locCaptured: locCap, gsCaptured: gsCap, fma, lat: pbLat, lon: pbLon,
              prevAlt: S.alt, time: S.time + dt,
              wow: newWow, touchdownVS: newTouchdownVS,
