@@ -1691,22 +1691,30 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           if (_0n*_0n + _0e*_0e > 16) continue;                 // > 4 nm
           const _yM = _apElevNm !== null ? null : _sampleElev(g[0].lat, g[0].lon);
           const _yNm = _apElevNm !== null ? _apElevNm : (_yM !== null ? (_yM-refM)*M_NM : 0);
-          let prev = null;                                      // { sp, dN, dE }
-          for (const nd of g) {
+          let prev = null;                                      // { sp:[x,y], off:[dx,dy] } — centre + half-width screen vector
+          for (let gi = 0; gi < g.length; gi++) {
+            const nd = g[gi];
             const dN = (nd.lat-acLat)*60, dE = (nd.lon-acLon)*60*cosAcLat;
-            const sp = (Math.hypot(dN, dE) > 4 || dN*cosH+dE*sinH < -0.3) ? null
-                     : proj(dN*cosH+dE*sinH, dE*cosH-dN*sinH, _yNm);
-            if (sp && prev) {                                   // ribbon quad — width tapers with distance
-              const sx = sp[0]-prev.sp[0], sy = sp[1]-prev.sp[1], plen = Math.hypot(sx, sy);
-              const wlen = Math.hypot(dN-prev.dN, dE-prev.dE) || 1e-6;
-              if (plen > 0.4) {
-                const hw = Math.max(0.25*_DPRt, Math.min(9*_DPRt, HW_NM * plen / wlen));
-                const px = -sy/plen*hw, py = sx/plen*hw;
-                ctx.moveTo(prev.sp[0]+px, prev.sp[1]+py); ctx.lineTo(sp[0]+px, sp[1]+py);
-                ctx.lineTo(sp[0]-px, sp[1]-py); ctx.lineTo(prev.sp[0]-px, prev.sp[1]-py); ctx.closePath();
-              }
+            if (Math.hypot(dN, dE) > 4 || dN*cosH+dE*sinH < -0.3) { prev = null; continue; }
+            const sp = proj(dN*cosH+dE*sinH, dE*cosH-dN*sinH, _yNm);
+            if (!sp) { prev = null; continue; }
+            /* Half-width = the world-perpendicular offset (HW_NM) projected, not the along-line
+               scale — so the painted line keeps its true width at any viewing angle / bend. */
+            const nb = g[gi-1] ?? g[gi+1]; let off = null;
+            if (nb) {
+              const tN = dN - (nb.lat-acLat)*60, tE = dE - (nb.lon-acLon)*60*cosAcLat, tl = Math.hypot(tN, tE) || 1e-9;
+              const pn = -tE/tl*HW_NM, pe = tN/tl*HW_NM;
+              const spO = proj((dN+pn)*cosH+(dE+pe)*sinH, (dE+pe)*cosH-(dN+pn)*sinH, _yNm);
+              if (spO) { let dx = spO[0]-sp[0], dy = spO[1]-sp[1], dl = Math.hypot(dx,dy);
+                if (dl < 0.25*_DPRt && dl > 0) { dx *= 0.25*_DPRt/dl; dy *= 0.25*_DPRt/dl; }   // keep a hairline visible far out
+                else if (dl > 9*_DPRt)         { dx *= 9*_DPRt/dl;   dy *= 9*_DPRt/dl;   }      // cap so a foreshortened segment can't balloon
+                off = [dx, dy]; }
             }
-            prev = sp ? { sp, dN, dE } : null;
+            if (off && prev?.off) {
+              ctx.moveTo(prev.sp[0]+prev.off[0], prev.sp[1]+prev.off[1]); ctx.lineTo(sp[0]+off[0], sp[1]+off[1]);
+              ctx.lineTo(sp[0]-off[0], sp[1]-off[1]); ctx.lineTo(prev.sp[0]-prev.off[0], prev.sp[1]-prev.off[1]); ctx.closePath();
+            }
+            prev = { sp, off };
           }
         }
         ctx.fill();
@@ -1736,27 +1744,42 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           const _eNm = _apElevNm !== null ? _apElevNm : (_eM!==null?(_eM-refM)*_M:0);
           const chars = [...ref.replace(/[^A-Z0-9]/g, '')];      // drop hyphens/spaces — LEMD taxiways are "G-6"/"Y-4"
           if (!chars.length) continue;
-          const digH = Math.min(4.5, 6/chars.length)*_M, digW = 2.6*_M, gap = 1.0*_M;   // cap multi-char so it stays compact (single letters unchanged at 4.5 m)
-          const totalH = chars.length*digH + (chars.length-1)*gap;
+          const digH = 4.5*_M, digW = 2.8*_M, gap = 0.8*_M;      // letters SIDE BY SIDE across the centreline → compact, reads flat (not a long blob stacked along it)
+          const totalW = chars.length*digW + (chars.length-1)*gap;
           const _wp = (al, ac) => { const N = nN+uN*al+pN*ac, E = nE+uE*al+pE*ac;
             return proj(N*cosH+E*sinH, E*cosH-N*sinH, _eNm); };
-          const t0 = _wp(-totalH/2, 0), t1 = _wp(-totalH/2 + digH, 0);
+          const t0 = _wp(-digH/2, 0), t1 = _wp(digH/2, 0);       // char height (along) for the readability/scale test
           if (!t0 || !t1) continue;
           const hpx = Math.hypot(t1[0]-t0[0], t1[1]-t0[1]); if (hpx < 4) continue;
           /* black background box (ICAO taxiway location sign — yellow letter on black) */
-          const _bw = digW*0.9, _bo = digH*0.35;
-          const _bc = [_wp(-totalH/2-_bo,-_bw), _wp(totalH/2+_bo,-_bw), _wp(totalH/2+_bo,_bw), _wp(-totalH/2-_bo,_bw)];
+          const _bo = digH*0.30, _bm = digW*0.30;
+          const _bc = [_wp(-digH/2-_bo,-totalW/2-_bm), _wp(digH/2+_bo,-totalW/2-_bm), _wp(digH/2+_bo,totalW/2+_bm), _wp(-digH/2-_bo,totalW/2+_bm)];
           if (_bc.every(Boolean)) { ctx.fillStyle = 'rgba(12,12,12,0.82)';
             ctx.beginPath(); ctx.moveTo(_bc[0][0],_bc[0][1]);
             for (let i=1;i<4;i++) ctx.lineTo(_bc[i][0],_bc[i][1]); ctx.closePath(); ctx.fill(); }
-          ctx.lineWidth = Math.max(1.4, hpx*0.18);
+          /* Fill each glyph stroke as a flat surface ribbon (buffered in along/across coords,
+             then projected) — lies flat on the pavement like the runway designators, instead of
+             a constant-screen-width stroke that reads as a raised 3D "tube". */
+          ctx.fillStyle = `rgba(224,204,72,${(0.6 + 0.3 * dayFrac).toFixed(2)})`;
+          const _sw = digW * 0.14;                               // stroke half-width in surface NM
           for (let ci=0; ci<chars.length; ci++) {
             const glyph = _RW_FONT[chars[ci]]; if (!glyph) continue;
-            const base = -totalH/2 + ci*(digH+gap);
-            for (const st of glyph) { ctx.beginPath(); let go=false;
-              for (const [gx,gy] of st) { const sp = _wp(base + gy*digH, (gx-0.5)*digW);
-                if(!sp){go=false;continue;} if(!go){ctx.moveTo(sp[0],sp[1]);go=true;} else ctx.lineTo(sp[0],sp[1]); }
-              ctx.stroke(); }
+            const acBase = -totalW/2 + ci*(digW+gap) + digW/2;   // centre of char ci, across the centreline
+            for (const stroke of glyph) {
+              const _pts = stroke.map(([gx,gy]) => [(gy-0.5)*digH, acBase + (gx-0.5)*digW]);
+              const _Ls=[], _Rs=[];
+              for (let i=0;i<_pts.length;i++){
+                const a=_pts[Math.max(0,i-1)], b=_pts[Math.min(_pts.length-1,i+1)];
+                let dA=b[0]-a[0], dC=b[1]-a[1]; const ln=Math.hypot(dA,dC)||1e-9; dA/=ln; dC/=ln;
+                _Ls.push([_pts[i][0]-dC*_sw, _pts[i][1]+dA*_sw]);
+                _Rs.push([_pts[i][0]+dC*_sw, _pts[i][1]-dA*_sw]);
+              }
+              const _ring=_Ls.concat(_Rs.reverse());
+              ctx.beginPath(); let go=false;
+              for (const [al,ac] of _ring){ const sp=_wp(al,ac);
+                if(!sp){go=false;continue;} if(!go){ctx.moveTo(sp[0],sp[1]);go=true;}else ctx.lineTo(sp[0],sp[1]); }
+              if(go){ctx.closePath(); ctx.fill();}
+            }
           }
         }
         ctx.restore();
