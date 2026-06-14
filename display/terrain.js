@@ -2146,7 +2146,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
           const half=0.0095;                         // ~17 m to each side
           const _gl=(N,E,lit)=>{ const f=N*cosH+E*sinH, r=E*cosH-N*sinH; const sp=proj(f,r,_eNm); if(!sp)return;
             ctx.fillStyle = lit ? 'rgba(255,205,30,0.98)' : 'rgba(90,65,8,0.6)';
-            ctx.beginPath(); ctx.arc(sp[0],sp[1],2.0*_DPR,0,7); ctx.fill(); };
+            ctx.beginPath(); ctx.arc(sp[0],sp[1],2.0*_DPR*_zScale(f),0,7); ctx.fill(); };
           _gl(nN+pN*half, nE+pE*half, _on);
           _gl(nN-pN*half, nE-pE*half, !_on);
         }

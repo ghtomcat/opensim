@@ -5,7 +5,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from '../core/state.js';
-import { renderTerrain } from './terrain.js';
+import { renderTerrain } from './terrain.js?v=1';
 import { getMapReservedRight } from './map.js';
 
 import { computeFaceNormals, _buildRocket, animHinge } from './outside-shared.js';
