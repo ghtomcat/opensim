@@ -564,6 +564,16 @@ export function tickPhysics(dt) {
       bbEvent({ type: 'crash', reason: `OVERSPEED ${Math.round(newSpd)} kt` });
       return;
     }
+    // CFIT — flew into terrain (Mapbox DEM under the aircraft, set by terrain.js). Gated to
+    // terrain meaningfully above the destination field so a normal landing on the runway
+    // (terrain ≈ field) goes through the WoW/touchdown path, not a terrain hit.
+    const _terrFt = S.terrainElevFt;
+    if (!newWow && _terrFt != null && _terrFt > _grdElev + 100 && newAlt <= _terrFt) {
+      setState({ crashed: true, crashReason: `TERRAIN  ${Math.round(_terrFt)} ft`,
+                 enginePower: 0, spdT: 0 });
+      bbEvent({ type: 'crash', reason: `CFIT — terrain ${Math.round(_terrFt)} ft` });
+      return;
+    }
   }
 
   /* ── Oil temperature — first-order lag toward throttle-dependent target ── */

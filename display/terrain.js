@@ -12,7 +12,7 @@
      roll  rotates in right/up plane (right bank → right side drops)
    ═══════════════════════════════════════════════════════════════ */
 
-import { S } from '../core/state.js';
+import { S, setState } from '../core/state.js';
 import { RUNWAYS } from './runways-data.js';
 import { TAXI_WAYS } from './taxi-data.js';   // named taxiways → runway-exit signs
 import { TOWERS } from './towers-data.js';
@@ -666,6 +666,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
      doesn't float by that gap. (Altimeter still reads S.alt; only the visual ground changes.) */
   const _fieldFt  = S.mission?.departure?.elevation ?? S.mission?.arrival?.elevation ?? null;
   const _mapFt    = _acSampM !== null ? _acSampM / 0.3048 : null;
+  if (_mapFt !== S.terrainElevFt) setState({ terrainElevFt: _mapFt });   // Mapbox DEM under the aircraft → physics CFIT check (brick 1)
   /* Reference the *published* field elevation when on/near the field — the Mapbox sample
      can sit tens of feet off the real apron, which made the runway draw high (aircraft
      sank in) on the flare and pop on touchdown. Blend from the Mapbox horizon to the field
