@@ -52,6 +52,7 @@ export function bbTick(dt) {
     type:         'snapshot',
     simTime:      +(S.time ?? 0).toFixed(1),
     alt:          Math.round(S.alt  ?? 0),
+    radioAlt:     S.terrainElevFt != null ? Math.round((S.alt ?? 0) - S.terrainElevFt) : null,   // AGL over the Mapbox terrain (FDR radio-altimeter trace)
     spd:          Math.round(S.spd  ?? 0),
     hdg:          Math.round(S.hdg  ?? 0),
     vs:           Math.round(S.vs   ?? 0),

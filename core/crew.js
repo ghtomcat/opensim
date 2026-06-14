@@ -31,6 +31,8 @@ let _radioAtmosphere  = null;   // active radio chain while ATC speaks (TTS path
 const _pmFired        = new Set();   // altitude callout thresholds already fired
 const _gpwsFired      = new Set();   // GPWS callout altitudes already fired
 const _takeoffFired   = new Set();   // takeoff speed callouts already fired
+/* Terrain GPWS (brick 3a) — radio-altitude + sink/closure envelope, repeats while active */
+let _gpwsPrevRadioAlt = null, _gpwsPrevAt = 0, _gpwsTerrAt = 0, _gpwsTerrLvl = 0, _gpwsClosure = 0;
 
 /* ── Active ambient Audio elements (stopped on resetCrew) ── */
 const _ambientAudio = [];
@@ -69,6 +71,7 @@ const AUDIO_FILES = {
 export function initCrew() {
   _loadVoices();
   window._testGPWS = (speech = 'minimums', red = false) => _playGPWS(speech, red);
+  window._testWhoop = () => _whoopWhoop();   // hear the WHOOP-WHOOP siren from the console
 }
 
 /** Switch crew language — call after aircraft JSON loads */
@@ -121,6 +124,7 @@ export function tickCrew(prevAlt, currAlt) {
 
   _checkPMCallouts(prevAlt, currAlt, ac);
   _checkGPWS(prevAlt, currAlt, ac);
+  _checkTerrainGPWS();
   _checkChecklist(prevAlt, currAlt, ac);
   _checkATC(prevAlt, currAlt, ms);
   _checkApproachBrief(prevAlt, currAlt, ms);
@@ -175,6 +179,7 @@ export function resetCrew() {
   _prevWow    = false;
   _pmFired.clear();
   _gpwsFired.clear();
+  _gpwsPrevRadioAlt = null; _gpwsPrevAt = 0; _gpwsTerrAt = 0; _gpwsTerrLvl = 0; _gpwsClosure = 0;
   _takeoffFired.clear();
   _rocketFired.clear();
   _prevComPowered = false;
@@ -263,6 +268,71 @@ function _checkGPWS(prev, curr, ac) {
       /* PF answers the decision-altitude callout — "minimum(s)" → "continue" */
       if (isMin) setTimeout(() => speakPF('continue'), delay + 900);
     }
+  }
+}
+
+/* ── Terrain GPWS (brick 3a) — reactive sink-rate + terrain-closure warnings off the real
+   Mapbox terrain (S.terrainElevFt). Radio altitude = alt − terrain; the closure rate captures
+   BOTH own sink and rising terrain below (so it fires even in level flight toward a slope).
+   Smoothed to ride out DEM-sampling jitter. Repeats every ~1.4 s while in the envelope; the
+   thresholds widen with altitude so a normal ~700 fpm approach stays silent. ── */
+function _checkTerrainGPWS() {
+  const terr = S.terrainElevFt;
+  const now  = performance.now();
+  if (terr == null || S.wow) { _gpwsPrevRadioAlt = null; _gpwsTerrLvl = 0; _gpwsClosure = 0; return; }
+  const radioAlt = (S.alt ?? 0) - terr;
+
+  let closureRaw = 0;   // fpm the radio altitude is shrinking (own sink + terrain rise)
+  if (_gpwsPrevRadioAlt != null) {
+    const dtMin = Math.max(1 / 6000, (now - _gpwsPrevAt) / 60000);
+    closureRaw = (_gpwsPrevRadioAlt - radioAlt) / dtMin;
+  }
+  _gpwsPrevRadioAlt = radioAlt; _gpwsPrevAt = now;
+  _gpwsClosure += (closureRaw - _gpwsClosure) * 0.15;   // EMA ~100 ms — kills single-frame DEM spikes
+  const closure = _gpwsClosure;
+
+  /* Envelope only in the proximity band, above the flare */
+  if (radioAlt <= 30 || radioAlt >= 2500) { _gpwsTerrLvl = 0; return; }
+  const cThresh = 1000 + radioAlt * 1.8;   // caution closure (fpm)
+  const wThresh = 1500 + radioAlt * 2.6;   // warning closure (fpm)
+
+  const lvl = closure > wThresh ? 2 : closure > cThresh ? 1 : 0;
+  if (lvl === 0) { _gpwsTerrLvl = 0; return; }
+  _gpwsTerrLvl = lvl;
+
+  /* Fixed ~1.4 s cadence between any two utterances (the WHOOP-WHOOP period). The timer
+     survives short dips below the threshold, so closure jitter can't machine-gun the callout.
+     The phrase is chosen at fire time, so a caution that has since escalated speaks "pull up". */
+  if (now - _gpwsTerrAt < 1400) return;
+  _gpwsTerrAt = now;
+
+  if (lvl === 2) { _whoopWhoop(); setTimeout(() => _playGPWS('pull up', true), 700); }   // "WHOOP WHOOP … PULL UP"
+  else _playGPWS(-(S.vs ?? 0) > closure * 0.6 ? 'sink rate' : 'terrain', true);
+}
+
+/* ── "WHOOP WHOOP" siren (synthesised) — two fast upward sweeps that precede the PULL UP voice,
+   the way the Sundstrand/Honeywell GPWS does. Pure Web Audio, no sample needed. ── */
+function _whoopWhoop() {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+  const t0 = ctx.currentTime;
+  const whoop = 0.30, gap = 0.06;
+  const out = ctx.createGain();
+  out.gain.value = 0.7;
+  out.connect(ctx.destination);
+  for (let i = 0; i < 2; i++) {
+    const t = t0 + i * (whoop + gap);
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(360, t);
+    osc.frequency.exponentialRampToValueAtTime(1200, t + whoop);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(1.0, t + 0.03);
+    g.gain.setValueAtTime(1.0, t + whoop - 0.04);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + whoop);
+    osc.connect(g); g.connect(out);
+    osc.start(t); osc.stop(t + whoop + 0.02);
   }
 }
 
