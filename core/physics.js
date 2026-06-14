@@ -91,7 +91,7 @@ export function tickPhysics(dt) {
        (integrator on the speed error) to hold the target speed instead of being a thrust
        lever. One loop gives the right phase behaviour: level → holds, climb → spools up,
        descent → idles. Target = the FCU/managed speed, capped by 250 < FL100 and Vmo. */
-    const athrActive = state === 'running' && S.ap && S.athr && !S.wow;
+    const athrActive = state === 'running' && S.athr && !S.wow;   // A/THR is independent of the AP — holds speed while you hand-fly
     let n1Target, athrI = S.athrN1 ?? n1Now;
     let athrMode = null, athrDetent = null, retardLever = false;
     if (athrActive) {

@@ -420,7 +420,7 @@ export function drawSpeedTape(ctx, box, style) {
 
   // target speed bug — notch on right edge
   const tgtY = cy + (spd - spdT) * pxPerKt;
-  if (tgtY >= y && tgtY <= y + h) {
+  if (S.athr && tgtY >= y && tgtY <= y + h) {     // speed bug follows the A/THR (independent of the AP)
     const bh = h * 0.025;
     const bw = w * 0.22;
     ctx.fillStyle = _c(style, 'selected');
@@ -499,7 +499,7 @@ export function drawAltTape(ctx, box, style) {
 
   // target alt bug — notch on left edge
   const tgtY = cy + (alt - altT) * pxPerFt;
-  if (tgtY >= y && tgtY <= y + h) {
+  if (S.ap && tgtY >= y && tgtY <= y + h) {     // AP off → no captured-altitude target shown
     const bh = h * 0.02;
     const bw = w * 0.22;
     ctx.fillStyle = _c(style, 'selected');
