@@ -2220,7 +2220,7 @@
   import { STANDS }       from './display/stands-data.js';
   import { TERMINALS, APRONS } from './display/terminals-data.js';
   import { buildFullRoute as _buildFullRoute, arrStarOptions as _arrStarOptions,
-           approachLegs as _approachLegs, airportCentre as _airportCentre,
+           approachLegs as _approachLegs, missedApproachText as _missedApproachText, airportCentre as _airportCentre,
            spdParse as _spdParse, spdLabel as _spdLabel,
            SEG_COL as _SEG_COL } from './core/route.js';
   import { tickPhysics }     from './core/physics.js?v=6';
@@ -3722,13 +3722,38 @@
     const dep = md.departure || {}, arr = md.arrival || {};
     const row = (k, v) => v ? `<div class="fb-row"><span class="k">${k}</span><span class="v">${v}</span></div>` : '';
     const fl  = md.initialState?.alt ? `FL${String(Math.round(md.initialState.alt / 100)).padStart(3, '0')}` : '—';
+
+    /* APPROACH block — arrival runway, ILS, approx minima, and the missed approach (kept legs) */
+    const _minH = (acd.gpws || []).find(g => /minimum/i.test(g.speech || ''))?.alt;
+    let _missedLines = [];
+    try { _missedLines = _missedApproachText(_approachLegs(_PROCEDURES[arr.icao], arr.runway).missed); } catch {}
+    const _apprBlock = arr.icao ? (
+      `<div class="fb-h">APPROACH</div>` +
+      row('ARR RWY', arr.runway ? `${arr.ils ? 'ILS ' : ''}${arr.runway}` : '—') +
+      (arr.ils ? row('ILS', `${arr.ils.freq} · CRS ${String(arr.ils.course ?? '').padStart(3, '0')}`) : '') +
+      (_minH ? row('MINIMA', `${_minH} ft AGL ≈`) : '') +
+      (_missedLines.length ? `<div class="fb-row"><span class="k">MISSED</span><span class="v">${_missedLines.join('<br>')}</span></div>` : '')
+    ) : '';
+
+    /* DEPARTURE block — runway + the planned SID (the full SID legs are in the Departure tab).
+       No engine-out/EOSID here: that's not in the standard nav data (operator-specific). */
+    let _sid = null;
+    try { const _ss = _PROCEDURES[dep.icao]?.sids || [];
+          _sid = _ss.find(s => s.trans === dep.runway) || _ss.find(s => s.trans === 'ALL') || null; } catch {}
+    const _depBlock = dep.icao ? (
+      `<div class="fb-h">DEPARTURE</div>` +
+      row('DEP RWY', dep.runway) +
+      (_sid?.name ? row('SID', _sid.name) : '')
+    ) : '';
+
     document.getElementById('fb-params').innerHTML =
       `<div class="fb-title">${m.acName ?? m.aircraft}</div>` +
       `<div class="fb-sub">${m.title ?? ''}</div>` +
       `<div class="fb-h">ROUTE</div>` +
       row('FROM',    dep.icao ? `${dep.icao}${dep.name ? ' · ' + dep.name : ''}` : '—') +
       row('TO',      arr.icao ? `${arr.icao}${arr.name ? ' · ' + arr.name : ''}` : '—') +
-      row('DEP RWY', dep.runway) +
+      _depBlock +
+      _apprBlock +
       `<div class="fb-h">AIRCRAFT</div>` +
       row('REG',      acd.registration) +
       row('CALLSIGN', acd.callsign) +

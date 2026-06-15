@@ -6,6 +6,7 @@
 
 import { S }                              from '../core/state.js';
 import { loadDSKYProgram, setApolloRole } from './rocket_display.js';
+import { approachLegs, getProcedures, missedApproachText } from '../core/route.js';
 
 let _el       = null;
 let _visible  = false;
@@ -45,13 +46,39 @@ export function tickKneeboard() {
   }
 }
 
-/* ── Pages: mission first, then aircraft, then a scratchpad (not for rockets) ── */
+/* ── Generated APPROACH briefing page — built from the arrival data + the (kept) missed-approach
+   legs, so every arrival gets one automatically. Cached on the arrival key (buildFullRoute is
+   heavy). Degrades gracefully when the procedure bundle is absent (missed → generic line). ── */
+let _apprPage = { key: null, page: null };
+function _approachPage() {
+  const m = S.mission, arr = m?.arrival;
+  if (!arr?.runway) return null;
+  const key = `${arr.icao}/${arr.runway}/${arr.ils?.freq ?? ''}`;
+  if (_apprPage.key === key) return _apprPage.page;
+
+  const items = [`${arr.ils ? 'ILS' : 'APPR'} ${arr.runway}`];
+  if (arr.ils) items.push(`LOC ${arr.ils.freq}    CRS ${String(arr.ils.course ?? '').padStart(3, '0')}`);
+  const minH = (S.aircraft?.gpws || []).find(g => /minimum/i.test(g.speech || ''))?.alt;
+  if (minH) items.push(`DA  ${minH} ft AGL  (≈)`);
+
+  let missed = [];
+  try { missed = missedApproachText(approachLegs(getProcedures()[arr.icao], arr.runway).missed); } catch {}
+  items.push('— MISSED APPROACH —');
+  if (missed.length) items.push(...missed);
+  else items.push('GO AROUND — climb on track, see chart');
+
+  _apprPage = { key, page: { type: 'briefing', title: 'APPROACH', items } };
+  return _apprPage.page;
+}
+
+/* ── Pages: mission first, then aircraft, generated approach, then a scratchpad (not rockets) ── */
 function _pages() {
   const mp = S.mission?.kneeboard  ?? [];
   const ap = S.aircraft?.kneeboard ?? [];
   const base = [...mp, ...ap];
   if (S.aircraft?.vehicleType === 'rocket') return base;
-  return [...base, { type: 'scratch', title: 'SCRATCHPAD', clearance: S.taxiClearance }];
+  const appr = _approachPage();
+  return [...base, ...(appr ? [appr] : []), { type: 'scratch', title: 'SCRATCHPAD', clearance: S.taxiClearance }];
 }
 
 /* ── Render ── */
@@ -83,12 +110,19 @@ function _render() {
     const t = p.clearance;
     const dest = t?.arr ? `STAND ${t.gate ?? '—'}` : (t?.rwy ? `RWY ${t.rwy}` : 'RWY —');
     const via = t?.via?.length ? t.via.join('   ') : null;
-    html += `
-      <div class="kb-scratch">
-        <div class="kb-scratch-head">TAXI · ${dest}</div>
-        ${via ? `<div class="kb-scratch-seq">${via}</div>`
-              : `<div class="kb-scratch-empty">— awaiting taxi clearance —</div>`}
-      </div>`;
+    const arr = S.mission?.arrival;
+    let inner;
+    if (!via && !S.wow && arr?.runway) {
+      /* airborne, before the taxi-in clearance → the destination's missed approach as a glance aid */
+      let lines = []; try { lines = missedApproachText(approachLegs(getProcedures()[arr.icao], arr.runway).missed); } catch {}
+      inner = lines.length
+        ? `<div class="kb-scratch-head">MISSED · ${arr.ils ? 'ILS ' : ''}${arr.runway}</div><div class="kb-scratch-seq">${lines.join('<br>')}</div>`
+        : `<div class="kb-scratch-head">TAXI · ${dest}</div><div class="kb-scratch-empty">— go around: climb on track —</div>`;
+    } else {
+      inner = `<div class="kb-scratch-head">TAXI · ${dest}</div>` +
+        (via ? `<div class="kb-scratch-seq">${via}</div>` : `<div class="kb-scratch-empty">— awaiting taxi clearance —</div>`);
+    }
+    html += `<div class="kb-scratch">${inner}</div>`;
     _el.innerHTML = html;
     _el.querySelector('#kb-prev')?.addEventListener('click', () => { _page--; _render(); });
     _el.querySelector('#kb-next')?.addEventListener('click', () => { _page++; _render(); });

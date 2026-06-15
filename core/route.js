@@ -82,9 +82,53 @@ export function approachLegs(aP, arrRunway) {
   const finals = aP.apprs.filter(a => !a.trans && a.name && a.name.slice(1).startsWith(String(arrRunway)));
   if (!finals.length) return { legs: [], name: null };
   finals.sort((a, b) => (order[a.name[0]] ?? 9) - (order[b.name[0]] ?? 9));
-  const appr = finals[0], legs = [];
-  for (const l of appr.legs) { if (l.fix === rwId) break; if (l.lat != null) legs.push(l); }   // stop before the missed approach
-  return { legs, name: appr.name };
+  const appr = finals[0], legs = [], missed = [];
+  let past = false;
+  for (const l of appr.legs) {
+    if (l.fix === rwId) { past = true; continue; }   // the runway threshold — boundary to the missed approach
+    if (past) missed.push(l);                         // keep ALL missed-approach legs (incl. no-lat climb/hold legs)
+    else if (l.lat != null) legs.push(l);
+  }
+  return { legs, name: appr.name, missed };
+}
+
+/* Human-readable missed-approach summary derived from the kept legs (ARINC path terminators +
+   lat/lon). The published course/DME/radial fields aren't in our parse, but we can recover:
+   step-climbs (alt), speed limits (spd), the track between fixes (bearing from lat/lon) and the
+   turn direction (heading change). Course/DME/radial-only legs (CA/CD/CR/VM…) show intent only. */
+export function missedApproachText(missed, fromLL) {
+  if (!missed?.length) return [];
+  const brg = (aLat, aLon, bLat, bLon) => {
+    const y = Math.sin((bLon - aLon) * DEG) * Math.cos(bLat * DEG);
+    const x = Math.cos(aLat * DEG) * Math.sin(bLat * DEG)
+            - Math.sin(aLat * DEG) * Math.cos(bLat * DEG) * Math.cos((bLon - aLon) * DEG);
+    return (Math.atan2(y, x) / DEG + 360) % 360;
+  };
+  const spLabel = (s) => s ? (s[0] === '+' ? 'MIN ' : 'MAX ') + s.replace(/[^0-9]/g, '') : null;
+  const out = [];
+  let pLat = fromLL?.[0] ?? null, pLon = fromLL?.[1] ?? null, pTrk = null, prevHadLL = fromLL != null;
+  for (const l of missed) {
+    const t = l.t || '', alt = l.alt ? altLabel(l.alt) : null, sp = spLabel(l.spd), hasLL = l.lat != null && l.lon != null;
+    /* Track is only trustworthy between two CONSECUTIVE fixes — a course/DME/radial intercept leg
+       (CI/CD/CR/VI…) in between makes the straight fix-to-fix bearing wrong, so don't fabricate it. */
+    let trk = null, turn = '';
+    if (hasLL && prevHadLL && pLat != null) {
+      trk = Math.round(brg(pLat, pLon, l.lat, l.lon)) || 360;
+      if (pTrk != null) { const d = ((trk - pTrk + 540) % 360) - 180; if (Math.abs(d) > 12) turn = d > 0 ? 'turn R ' : 'turn L '; }
+    }
+    let s;
+    if      (t === 'CA' || t === 'FA' || t === 'VA') s = `CLIMB ${alt || ''}`.trim();
+    else if (t[0] === 'H')                           s = `HOLD ${l.fix || ''}`.trim();
+    else if (t === 'FM' || t === 'VM')               s = `${turn}vectors`;
+    else if (l.fix) s = `${turn}${trk != null ? 'trk ' + String(trk).padStart(3, '0') + '° ' : ''}${l.fix}${alt ? '  ' + alt : ''}`;
+    else if (alt || sp) s = alt ? `CLIMB ${alt}` : 'intercept';   // CI/CD/CR/VI carrying a constraint
+    else { prevHadLL = hasLL; if (hasLL) { pLat = l.lat; pLon = l.lon; } continue; }
+    if (sp) s += `  ${sp}`;
+    if (s && s !== out[out.length - 1]) out.push(s);
+    prevHadLL = hasLL;
+    if (hasLL) { pLat = l.lat; pLon = l.lon; if (trk != null) pTrk = trk; }
+  }
+  return out;
 }
 
 /* Gate-to-gate route: SID (runway → exit fix) + en-route airways (SID exit → STAR entry) +
@@ -149,7 +193,7 @@ export function buildFullRoute(dep, arr) {
 
   let dist = 0;
   for (let i = 1; i < legs.length; i++) dist += gcNm(legs[i-1].lat, legs[i-1].lon, legs[i].lat, legs[i].lon);
-  return { legs, distNm: dist, sid: sid?.s || null, star: star || null, appr: appr.name || null };
+  return { legs, distNm: dist, sid: sid?.s || null, star: star || null, appr: appr.name || null, missed: appr.missed || [] };
 }
 
 /* Segment colours — Airbus-ish FMS palette, shared by the briefing charts and the ND. */
