@@ -31,6 +31,7 @@ const DEG = Math.PI / 180;
 /* ── ILS approach tracking ── */
 let _approachInit  = false;
 let _dmeNm         = 0;        // estimated distance to threshold (nm)
+let _flapActual    = null;     // smoothed flap position (the AERO ramps to the selected stage over ~6 s/stage)
 
 const APPROACH_FLOOR = 4800;   // ft — activate ILS tracking below this
 
@@ -226,6 +227,21 @@ export function tickPhysics(dt) {
     const k_ind    = perf.inducedK ?? 0.055;
     const Vr       = perf.Vr ?? 55;
 
+    /* ── Flap actuator ── S.flaps is a discrete selected stage; the AERO must RAMP to it over a
+       few seconds, not snap, or each selection steps the drag/lift and punches the VS (≈−3000 fpm)
+       before the AP recovers. Interpolate the flap coefficients toward the target stage. */
+    const _flapList = ac.flaps ?? [];
+    const _flapsCmd = S.flaps ?? 0;
+    if (_flapActual == null) _flapActual = _flapsCmd;
+    const _flapRate = dt / 9;                                    // ~9 s of travel per stage — slow enough that the lift balloon stays small
+    _flapActual += Math.max(-_flapRate, Math.min(_flapRate, _flapsCmd - _flapActual));
+    const _fi  = Math.max(0, Math.floor(_flapActual));
+    const _ff  = _flapActual - _fi;
+    const _fs0 = _flapList[_fi] ?? {};
+    const _fs1 = _flapList[Math.min(_fi + 1, _flapList.length - 1)] ?? _fs0;
+    const _flapLerp = (k) => (_fs0[k] ?? 0) + ((_fs1[k] ?? 0) - (_fs0[k] ?? 0)) * _ff;
+    const _dCL0f = _flapLerp('dCL_0'), _dCD0f = _flapLerp('dCD_0'), _dCLmaxf = _flapLerp('dCL_max');
+
     /* ── Angular inertia — roll and pitch rates have momentum ── */
     const maxRollRate  = ac.handling?.rollRate  ?? 30;   // deg/s
     const maxPitchRate = ac.handling?.pitchRate ?? 5;    // deg/s
@@ -259,7 +275,7 @@ export function tickPhysics(dt) {
           const f = Math.max(0, aglFt / 40);
           cmdVSraw = gsRate * f - 130 * (1 - f);                               // GS rate at 40 ft → ~-130 fpm at the ground
         } else {
-          cmdVSraw = Math.max(-2000, Math.min(500, gsRate + (_gsAlt - S.alt) * 8));   // + firm deviation pull; small climb to regain from below
+          cmdVSraw = Math.max(-1400, Math.min(500, gsRate + (_gsAlt - S.alt) * 5));   // gentler deviation pull + tighter sink clamp → no violent dive recovering a flap balloon
         }
       } else {
         const altTgt = S.altManaged ? vnavTargetAlt() : S.altT;
@@ -275,7 +291,7 @@ export function tickPhysics(dt) {
          cruise but badly under-trimmed on a slow approach (a heavy jet needs ~10° at Vapp),
          so the AP sank through the glideslope. Derive it from CL = W/(q·S). */
       const clNeed   = (mass * 9.81) / Math.max(1, q * S_wing);
-      const _dCL0ap  = ((ac.flaps ?? [])[S.flaps] ?? {}).dCL_0 ?? 0;            // flaps add camber lift → less AoA at a given CL
+      const _dCL0ap  = _dCL0f;                                                  // smoothed flap camber lift → less AoA at a given CL
       const trimAoA  = Math.max(0, Math.min(14, (clNeed - CL_0 - _dCL0ap) / CL_alpha * 180 / Math.PI));
       const _aglP    = S.alt - (S.mission?.arrival?.elevation ?? 0);
       const _flaring = gsCap && _aglP < 50;
@@ -307,11 +323,10 @@ export function tickPhysics(dt) {
     newRoll  = Math.max(-maxBank,  Math.min(maxBank,  S.roll  + newRollRateVal  * dt));
     newPitch = Math.max(-maxPitch, Math.min(maxPitch, S.pitch + newPitchRateVal * dt));
 
-    /* Flap effects */
-    const flapCfg  = (ac.flaps ?? [])[S.flaps] ?? {};
-    const CL_max_e = CL_max + (flapCfg.dCL_max ?? 0);
-    const CL_0_e   = CL_0   + (flapCfg.dCL_0   ?? 0);   // camber lift — more CL at the same AoA (slow flight at low pitch)
-    const CD_0_e   = CD_0   + (flapCfg.dCD_0   ?? 0);
+    /* Flap effects — smoothed (ramped) coefficients, so a flap selection doesn't step the forces */
+    const CL_max_e = CL_max + _dCLmaxf;
+    const CL_0_e   = CL_0   + _dCL0f;   // camber lift — more CL at the same AoA (slow flight at low pitch)
+    const CD_0_e   = CD_0   + _dCD0f;
 
     /* Gear drag — retractable aircraft only; fixed-gear drag is baked into CD_0 */
     const gearDrag = (!ac.fixedGear && S.gear) ? (perf.gearDrag ?? 0) : 0;
@@ -640,6 +655,7 @@ export function tickPhysics(dt) {
 
   setState({ alt: newAlt, spd: newSpd, hdg: pbHdg, pitch: newPitch, roll: newRoll,
              rollRate: newRollRate, pitchRate: newPitchRate, fieldElev: _grdElev,   // nearer airport — drives the shadow's AGL gate (outside.js), all panels
+             ...( _flapActual != null ? { flapPos: _flapActual } : {} ),   // smoothed flap position — visual reads this so flaps & aero move together
              vs, ilsLoc, ilsGs, locCaptured: locCap, gsCaptured: gsCap, fma, lat: pbLat, lon: pbLon,
              prevAlt: S.alt, time: S.time + dt,
              wow: newWow, touchdownVS: newTouchdownVS,
@@ -652,6 +668,7 @@ export function tickPhysics(dt) {
 export function resetApproach() {
   _approachInit = false;
   _dmeNm = 0;
+  _flapActual = null;   // re-seed to the mission's initial flap setting on next tick
 }
 
 /* ── Helpers ── */

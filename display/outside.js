@@ -812,7 +812,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     const cmd = _warbirdCtrlCmd(S.aircraft?.handling?.maxBank ?? 60);
     verts = _ppGeo.animSurfaces({ ...cmd, propAngle: _propAngle });
   } else if (profile === 'wb') {
-    const flap   = S.flaps ?? 0;
+    const flap   = S.flapPos ?? S.flaps ?? 0;   // smoothed flap position (physics) → visual ramps with the aero
     const sb     = S.speedBrake ?? 0;
     /* AP aircraft (no manualControl): add heading error so arrow-key turns show aileron deflection.
        Manual WB aircraft (AN-225 etc.) use rollT from tickControls; hdgDelta would drift spuriously. */
