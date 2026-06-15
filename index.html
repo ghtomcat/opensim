@@ -2368,7 +2368,13 @@
     } else if (mx >= apX && mx < apX + apW) {
       const btnW   = apW / 4;
       const btnIdx = Math.floor((mx - apX) / btnW);
-      if (btnIdx === 0) setState({ ap:   !S.ap   });   // AP 1
+      if (btnIdx === 0) {                              // AP 1
+        const sync = !S.ap ? {                         // engaging → hold present state, don't yank to stale targets
+          ...(S.navManaged ? {} : { hdgT: ((Math.round(S.hdg ?? 0) + 359) % 360) + 1 }),   // selected HDG → present heading
+          ...(S.altManaged ? {} : { altT: Math.round((S.alt ?? 0) / 100) * 100 }),          // selected ALT → present altitude (nearest 100)
+        } : {};
+        setState({ ap: !S.ap, ...sync });
+      }
       if (btnIdx === 3) setState({ athr: !S.athr });   // A/THR
     }
   });
