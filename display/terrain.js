@@ -159,6 +159,10 @@ function _sampleElev(lat, lon) {
   return -10000 + (t.data[i] * 65536 + t.data[i + 1] * 256 + t.data[i + 2]) * 0.1;
 }
 
+/* Look-ahead terrain query for the EGPWS (crew.js) — DEM elevation in metres at any lat/lon,
+   or null if that tile isn't decoded yet (the call also queues the fetch). */
+export function terrainElevM(lat, lon) { return _sampleElev(lat, lon); }
+
 function _terrainColor(elevM, dayFrac, depth, shade) {
   let r, g, b;
   if      (elevM <    0) { r = 22;  g = 58;  b = 100 }

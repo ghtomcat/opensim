@@ -7,6 +7,7 @@
 import { S, setState } from './state.js';
 import { playThroughChain, createRadioChain } from './radio.js';
 import { getAudioContext, getEngineBleedNode } from './sound.js';
+import { terrainElevM } from '../display/terrain.js?v=2';   // EGPWS look-ahead (3b) — MUST match outside.js's URL (shared tile cache)
 
 /* ── Voice handles ── */
 let _pfVoice        = null;
@@ -33,6 +34,8 @@ const _gpwsFired      = new Set();   // GPWS callout altitudes already fired
 const _takeoffFired   = new Set();   // takeoff speed callouts already fired
 /* Terrain GPWS (brick 3a) — radio-altitude + sink/closure envelope, repeats while active */
 let _gpwsPrevRadioAlt = null, _gpwsPrevAt = 0, _gpwsTerrAt = 0, _gpwsTerrLvl = 0, _gpwsClosure = 0;
+/* Predictive EGPWS (brick 3b) — look-ahead along the track; shares the _gpwsTerrAt cadence */
+let _egpwsLvl = 0, _egpwsScanAt = 0;
 
 /* ── Active ambient Audio elements (stopped on resetCrew) ── */
 const _ambientAudio = [];
@@ -124,6 +127,7 @@ export function tickCrew(prevAlt, currAlt) {
 
   _checkPMCallouts(prevAlt, currAlt, ac);
   _checkGPWS(prevAlt, currAlt, ac);
+  _checkPredictiveTerrain();   // EGPWS look-ahead (3b) first — shares the cadence, takes priority
   _checkTerrainGPWS();
   _checkChecklist(prevAlt, currAlt, ac);
   _checkATC(prevAlt, currAlt, ms);
@@ -180,6 +184,7 @@ export function resetCrew() {
   _pmFired.clear();
   _gpwsFired.clear();
   _gpwsPrevRadioAlt = null; _gpwsPrevAt = 0; _gpwsTerrAt = 0; _gpwsTerrLvl = 0; _gpwsClosure = 0;
+  _egpwsLvl = 0; _egpwsScanAt = 0;
   _takeoffFired.clear();
   _rocketFired.clear();
   _prevComPowered = false;
@@ -307,7 +312,57 @@ function _checkTerrainGPWS() {
   _gpwsTerrAt = now;
 
   if (lvl === 2) { _whoopWhoop(); setTimeout(() => _playGPWS('pull up', true), 700); }   // "WHOOP WHOOP … PULL UP"
-  else _playGPWS(-(S.vs ?? 0) > closure * 0.6 ? 'sink rate' : 'terrain', true);
+  else {
+    const phrase = -(S.vs ?? 0) > closure * 0.6 ? 'sink rate' : 'terrain';
+    // EGPWS Mode 2B: the terrain-closure ("terrain") caution is inhibited in the landing config
+    // (gear down) below 700 ft — you're intentionally descending to the runway. Sink rate stays.
+    if (phrase === 'terrain' && S.gear && radioAlt < 700) return;
+    _playGPWS(phrase, true);
+  }
+}
+
+/* ── Predictive EGPWS (brick 3b) — look-ahead terrain. Samples the Mapbox DEM along the ground
+   track and warns when terrain RISES into the projected flight path ahead, BEFORE you're in it
+   (3a only catches terrain already coming up underneath). "caution terrain" (amber) → "terrain
+   ahead, pull up" (red, + whoop). Shares the 3a cadence so the two never talk over each other. ── */
+function _checkPredictiveTerrain() {
+  const now = performance.now();
+  if (now - _egpwsScanAt < 220) return;            // the DEM scan is the cost — ~4–5×/s is plenty
+  _egpwsScanAt = now;
+  if (S.wow || S.terrainElevFt == null) { _egpwsLvl = 0; return; }
+  const spd = S.spd ?? 0;
+  if (spd < 50) { _egpwsLvl = 0; return; }          // need forward motion to look ahead
+
+  const alt    = S.alt ?? 0;
+  const field  = S.fieldElev ?? 0;
+  const lat0   = S.lat ?? 0, lon0 = S.lon ?? 0;
+  const hdg    = (S.hdg ?? 0) * Math.PI / 180;
+  const cosLat = Math.cos(lat0 * Math.PI / 180) || 1;
+  const nmPerMin  = spd / 60;
+  const horizonNm = Math.min(6, Math.max(1.5, nmPerMin));        // ~60 s of track ahead
+  const vsProj    = Math.max(-2000, Math.min(1200, S.vs ?? 0));  // project the current flight path, clamped
+
+  let worst = null;
+  for (let d = 0.3; d <= horizonNm; d += 0.3) {
+    const tM = terrainElevM(lat0 + (d / 60) * Math.cos(hdg),
+                            lon0 + (d / 60) * Math.sin(hdg) / cosLat);
+    if (tM == null) continue;
+    const terr = tM / 0.3048;
+    if (terr < field + 100) continue;               // ignore terrain ≈ destination field (no runway nuisance)
+    const ttSec     = (d / nmPerMin) * 60;
+    const clearance = (alt + vsProj * (d / nmPerMin)) - terr;    // (where we'll be over this point) − terrain
+    if (worst == null || clearance < worst.clearance) worst = { clearance, ttSec };
+  }
+  if (!worst) { _egpwsLvl = 0; return; }
+
+  const lvl = (worst.clearance < 150 && worst.ttSec < 30) ? 2
+            : (worst.clearance < 500 && worst.ttSec < 60) ? 1 : 0;
+  if (lvl === 0) { _egpwsLvl = 0; return; }
+
+  if (now - _gpwsTerrAt < 1400) { _egpwsLvl = lvl; return; }     // shared cadence — never overlaps 3a
+  _gpwsTerrAt = now; _egpwsLvl = lvl;
+  if (lvl === 2) { _whoopWhoop(); setTimeout(() => _playGPWS('terrain ahead pull up', true), 700); }
+  else _playGPWS('caution terrain', true);
 }
 
 /* ── "WHOOP WHOOP" siren (synthesised) — two fast upward sweeps that precede the PULL UP voice,
