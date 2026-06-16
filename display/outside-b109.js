@@ -15,6 +15,7 @@ export const _baRz = 0.0011;  // aft   half-height
 export const _btRy = 0.0004;  // tail  half-width
 export const _btRz = 0.0006;  // tail  half-height
 export const _b9hs = 0.0138;   // half-span
+export const _SB109 = 0.194;   // Bf109 authored ~5× oversize → scale to real nm (span 9.92 m)
 export const _b9dh = 0.0002;   // wing dihedral
 export const _b9vH = 0.0038;   // V-stab height above fuselage top
 export const _b9hw = 0.0045;   // H-stab half-span
@@ -304,7 +305,7 @@ export const { V_: _V_b109, F_: _F_b109, FC_: _FC_b109, E_: _E_b109, anim: _anim
     [121,124],[122,123],[119,126],[120,125],
   );
 
-  return { V_, F_, FC_, E_, anim: { r_fl, r_el, r_ru, r_ail } };
+  return { V_: V_.map(v => v.map(c => c * _SB109)), F_, FC_, E_, anim: { r_fl, r_el, r_ru, r_ail } };
 })();
 export const _FN_b109 = computeFaceNormals(_V_b109, _F_b109);
 
@@ -315,7 +316,7 @@ export const _GV_b109 = [
   /* 3 */ [ 0.001, -0.0016, -0.0037 ],  // L main wheel
   /* 4 */ [-0.012,  0,      -0.0006 ],  // tail strut top
   /* 5 */ [-0.012,  0,      -0.0012 ],  // tail wheel
-];
+].map(v => v.map(c => c * _SB109));
 
 /* Animate control surfaces (flaps/ailerons/elevator/rudder). Returns a clone. */
 export function animSurfaces_b109({ flapCfg, ailCmd, elevCmd, rudCmd }) {

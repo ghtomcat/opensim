@@ -18,11 +18,11 @@ import {
   _GV_c172, animSurfaces_c172, _PROP_c172
 } from './outside-c172.js';
 import {
-  _bcR, _COLORS_b109, _V_b109, _F_b109, _FC_b109, _E_b109, _FN_b109, _GV_b109,
+  _bcR, _SB109, _COLORS_b109, _V_b109, _F_b109, _FC_b109, _E_b109, _FN_b109, _GV_b109,
   animSurfaces_b109, _PROP_b109
 } from './outside-b109.js';
 import {
-  _COLORS_f4u, _V_f4u, _F_f4u, _FC_f4u, _E_f4u, _FN_f4u, _GV_f4u, animSurfaces_f4u,
+  _SF4U, _COLORS_f4u, _V_f4u, _F_f4u, _FC_f4u, _E_f4u, _FN_f4u, _GV_f4u, animSurfaces_f4u,
   _PROP_f4u
 } from './outside-f4u.js';
 import {
@@ -212,8 +212,8 @@ export function outsideInvalidate()  { /* redraws every frame */ }
 function _bodyCentreFt() {                               // fuselage centre above the wheels (ungated)
   const id = S.aircraft?.id ?? '';
   if (id === 'c172' || id === 'robin-dr400') return (_xr + 0.0020) * _S172 / FT_NM;   // c172-profile prop — real main-gear depth, scaled
-  if (id.startsWith('bf109')) return 0.0032 / FT_NM;  // ~19 ft
-  if (id.startsWith('f4u'))   return 0.0038 / FT_NM;  // ~23 ft
+  if (id.startsWith('bf109')) return 0.0032 * _SB109 / FT_NM;  // scaled main-gear depth
+  if (id.startsWith('f4u'))   return 0.0038 * _SF4U  / FT_NM;  // scaled main-gear depth
   /* WB / airliners — body-centre to wheel-bottom = |belly z at the main-gear station|
      + main strut + tyre. The main gear sits outboard on the wing-body fairing, where
      the belly is far shallower than the bare fuselage radius, so sample the actual

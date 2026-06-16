@@ -12,6 +12,7 @@ export const _f4uARz   = 0.00100;  // aft half-height
 export const _f4uTRy   = 0.00040;  // tail half-width
 export const _f4uTRz   = 0.00055;  // tail half-height
 export const _f4uHS    = 0.01580;  // half-span
+export const _SF4U     = 0.214;    // F4U authored ~4.7× oversize → scale to real nm (span 12.5 m)
 export const _f4uVH    = 0.00350;  // V-stab height
 export const _f4uHW    = 0.00460;  // H-stab half-span
 export const _f4uPropR = 0.00520;  // prop disk radius ref
@@ -336,7 +337,7 @@ export const { V_: _V_f4u, F_: _F_f4u, FC_: _FC_f4u, E_: _E_f4u, anim: _anim_f4u
     [129,131],[130,132],[128,134],[127,133],
   );
 
-  return { V_, F_, FC_, E_, anim: { r_fl, r_el, r_ru, r_ail } };
+  return { V_: V_.map(v => v.map(c => c * _SF4U)), F_, FC_, E_, anim: { r_fl, r_el, r_ru, r_ail } };
 })();
 export const _FN_f4u = computeFaceNormals(_V_f4u, _F_f4u);
 
@@ -347,7 +348,7 @@ export const _GV_f4u = [
   /* 3 */ [ 0.001,  -0.0050, -0.0038 ],  // L main wheel center
   /* 4 */ [-0.012,   0,      -0.0008 ],  // tail wheel strut top
   /* 5 */ [-0.012,   0,      -0.0015 ],  // tail wheel center
-];
+].map(v => v.map(c => c * _SF4U));
 
 /* Animate control surfaces (flaps/ailerons/elevator/rudder). Returns a clone. */
 export function animSurfaces_f4u({ flapCfg, ailCmd, elevCmd, rudCmd }) {
