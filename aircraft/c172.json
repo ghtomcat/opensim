@@ -17,6 +17,8 @@
   "icaoType": "C172",
   "landSurfaces": ["runway", "grass"],
   "gearRuggedness": 0.5,
+  "nose":     { "tipX":  0.00351 },
+  "geometry": { "tailX": -0.00351 },
   "era": "VFR / PPL(A)",
   "engine": "Lycoming IO-360, 180hp",
   "envelope": {

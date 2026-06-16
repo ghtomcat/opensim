@@ -14,6 +14,7 @@ export const _hst172 = 0.0050;   // C172 h-stab half-span
 export const _hst_th = 0.00025;  // h-stab thickness (z)
 export const _vst_th = 0.00022;  // v-stab half-thickness (y)
 export const _pr172  = 0.0014;   // prop disk radius (for arc rendering)
+export const _S172   = 0.27;     // C172 was authored ~3.7× oversize → scale to real nm (span 11 m, matching the WB nm-scale)
 export const _sp172  = 0.00050;  // C172 spinner base radius (small cone at prop plane)
 
 /* ── C172 wing spec ───────────────────────────────────────────── */
@@ -294,7 +295,7 @@ export const { V_: _V_c172, F_: _F_c172, FC_: _FC_c172, E_: _E_c172, anim: _anim
     [155,157],[156,158],[155,160],[160,156],[157,162],[162,158],[160,162],                     // L h-stab upper
   );
 
-  return { V_, F_, FC_, E_, anim: { r_fl, r_el, r_ru, r_ail } };
+  return { V_: V_.map(v => v.map(c => c * _S172)), F_, FC_, E_, anim: { r_fl, r_el, r_ru, r_ail } };
 })();
 export const _FN_c172 = computeFaceNormals(_V_c172, _F_c172);
 
@@ -307,7 +308,7 @@ export const _LIGHTS_c172 = [
   { pos: [ 0.003,  _hs172,  _xr+_dh172], col: [255,255,255], key: 'strobe'  },  // R strobe
   { pos: [ 0.003, -_hs172,  _xr+_dh172], col: [255,255,255], key: 'strobe'  },  // L strobe
   { pos: [ 0.011,  0,        0          ], col: [255,248,220], key: 'landing' },  // landing light
-];
+].map(l => ({ ...l, pos: l.pos.map(c => c * _S172) }));
 
 export const _GV_c172 = [
   /* 0 */ [ 0.007,  0,        -_xr        ],  // nose strut top
@@ -316,7 +317,7 @@ export const _GV_c172 = [
   /* 3 */ [ 0.000,  0.0014,   -_xr-0.0020 ],  // R main wheel
   /* 4 */ [ 0.000, -0.0014,   -_xr        ],  // L main top
   /* 5 */ [ 0.000, -0.0014,   -_xr-0.0020 ],  // L main wheel
-];
+].map(v => v.map(c => c * _S172));
 
 /* Animate control surfaces for the given command set (flaps/ailerons/
    elevator/rudder). Returns a freshly-cloned vertex array. */

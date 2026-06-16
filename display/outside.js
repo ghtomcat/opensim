@@ -14,7 +14,7 @@ import {
   _r, _WB_WING_DEFAULT, _WB_NP, _buildWB, _acGeoFromJson, _wbCache, _GV, _LIGHTS_wb
 } from './outside-wb.js';
 import {
-  _xr, _COLORS_c172, _V_c172, _F_c172, _FC_c172, _E_c172, _FN_c172, _LIGHTS_c172,
+  _xr, _S172, _COLORS_c172, _V_c172, _F_c172, _FC_c172, _E_c172, _FN_c172, _LIGHTS_c172,
   _GV_c172, animSurfaces_c172, _PROP_c172
 } from './outside-c172.js';
 import {
@@ -211,7 +211,7 @@ export function outsideInvalidate()  { /* redraws every frame */ }
    Returns 0 when not on ground; vehicle-specific values derived from gear geometry. */
 function _bodyCentreFt() {                               // fuselage centre above the wheels (ungated)
   const id = S.aircraft?.id ?? '';
-  if (id === 'c172')          return (_xr + 0.0020 + _xr * 0.56) / FT_NM;  // ~32 ft
+  if (id === 'c172')          return (_xr + 0.0020) * _S172 / FT_NM;       // real main-gear depth, scaled (~6.7 ft)
   if (id.startsWith('bf109')) return 0.0032 / FT_NM;  // ~19 ft
   if (id.startsWith('f4u'))   return 0.0038 / FT_NM;  // ~23 ft
   /* WB / airliners — body-centre to wheel-bottom = |belly z at the main-gear station|
