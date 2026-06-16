@@ -12,6 +12,7 @@ import { managedSpeed } from '../core/managed-speed.js';
 import { smooth, smoothAngle } from './smooth.js';
 import { buildFullRoute, getProcedures } from '../core/route.js';
 import { buildDescentPath } from '../core/vnav.js';
+import { terrainElevM } from './terrain.js?v=2';   // ND terrain (brick 4) — SAME URL as outside.js/crew.js (shared tile cache)
 
 /* The in-flight flight plan — the same gate-to-gate route the briefing draws, cached per
    mission (buildFullRoute does a Dijkstra over the airway graph, too heavy for every frame).
@@ -23,6 +24,28 @@ function _ndGetRoute() {
   const key = `${np}|${dep?.icao}/${dep?.runway}/${dep?.sid}|${arr?.icao}/${arr?.runway}/${arr?.star}`;
   if (key !== _ndRoute.key) { _ndRoute.key = key; try { _ndRoute.r = buildFullRoute(dep, arr); } catch { _ndRoute.r = null; } }
   return _ndRoute.r;
+}
+
+/* ── ND terrain grid (brick 4) — sample the Mapbox DEM in a NORTH-up disc around the aircraft.
+   Heading-independent + altitude-independent (we cache the elevation, colour at paint time), so
+   it only re-samples when the aircraft moves ~0.4 nm; turns and climbs are free. ── */
+let _ndTerr = { key: null, cells: [], step: 1, at: 0 };
+function _ndTerrainGrid(lat0, lon0, rangeNm) {
+  const key = `${Math.round(lat0 * 150)}/${Math.round(lon0 * 150)}/${rangeNm}`;
+  const now = performance.now();
+  if (key === _ndTerr.key && now - _ndTerr.at < 2000) return _ndTerr.cells;   // re-sample on move, or every 2 s to catch newly-loaded tiles
+  const cells = [];
+  const step = Math.max(0.7, rangeNm / 16);
+  const cosL = Math.cos(lat0 * Math.PI / 180) || 1;
+  for (let dN = -rangeNm; dN <= rangeNm; dN += step)
+    for (let dE = -rangeNm; dE <= rangeNm; dE += step) {
+      if (dN * dN + dE * dE > rangeNm * rangeNm) continue;
+      const elM = terrainElevM(lat0 + dN / 60, lon0 + dE / (60 * cosL));
+      if (elM == null) continue;
+      cells.push({ dN, dE, elFt: elM / 0.3048 });
+    }
+  _ndTerr = { key, cells, step, at: now };
+  return cells;
 }
 
 /* VOR/DME navaids for the ND's VOR1/VOR2 radio-nav display — lazily loaded (gitignored,
@@ -685,6 +708,27 @@ function _drawNDArc(ctx, box, style, config = {}) {
   ctx.save();
   ctx.fillStyle = col('bg'); ctx.fillRect(x, y, w, h);
   ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+
+  /* ── EGPWS terrain backdrop — red (at/above) / amber (≤1000 ft below) / green (lower) vs own
+     altitude. Self-hides at cruise (nothing within 2500 ft below). Clipped to the compass arc. ── */
+  if (config.terrain !== false && S.lat != null && !S.wow) {   // blank on the ground — own alt ≈ field, so everything would read red
+    ctx.save();
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.arc(ox, oy, R, a0, a1); ctx.closePath(); ctx.clip();
+    const _alt = S.alt ?? 0, _cells = _ndTerrainGrid(acLat, acLon, rangeNm), _cw = (_ndTerr.step || 1) * pxPerNm + 1;
+    for (const c of _cells) {
+      const rel = c.elFt - _alt;
+      let tcol;
+      if      (rel >= -100)  tcol = 'rgba(208,48,48,0.50)';   // red  — at or above own altitude
+      else if (rel >= -1000) tcol = 'rgba(216,168,40,0.42)';  // amber — within 1000 ft below
+      else if (rel >= -2500) tcol = 'rgba(52,150,64,0.34)';   // green — lower (reference)
+      else continue;                                          // well below → not painted
+      const fwd = c.dN * cosH + c.dE * sinH, rgt = -c.dN * sinH + c.dE * cosH;
+      if (fwd < -2) continue;                                 // behind the aircraft
+      ctx.fillStyle = tcol;
+      ctx.fillRect(ox + rgt * pxPerNm - _cw / 2, oy - fwd * pxPerNm - _cw / 2, _cw, _cw);
+    }
+    ctx.restore();
+  }
 
   /* heading-up projection: aircraft at (ox,oy), forward → up, right → +x */
   const proj = (lat, lon) => {
