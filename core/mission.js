@@ -25,7 +25,9 @@ export async function loadMission(missionPath, aircraftPath) {
   /* The mission JSON is the source of truth for the aircraft: its "aircraft" field wins over
      the caller's path (the catalog's aircraftId, which is only the picker label + a fallback).
      So changing a mission's aircraft actually swaps the model — no catalog edit needed. */
-  const _acPath = mission.aircraft ? `aircraft/${mission.aircraft}.json` : aircraftPath;
+  /* mission.aircraft may be an id ("f4u1a") or a full path ("aircraft/f4u1a.json") — normalise both */
+  const _acId   = mission.aircraft ? String(mission.aircraft).replace(/^aircraft\//, '').replace(/\.json$/, '') : null;
+  const _acPath = _acId ? `aircraft/${_acId}.json` : aircraftPath;
   const aircraft = typeof _acPath === 'object' ? _acPath : await _fetch(_acPath);
 
   aircraft.cockpitCfg = await resolveAircraftConfig(aircraft);   // deep-merged lineage config (comm placement, …)
