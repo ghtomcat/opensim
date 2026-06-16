@@ -443,27 +443,60 @@ function _drawBottomSwitches(ctx, box, style, cfg) {
   });
 }
 
-/* ── g1000_screen (dual PFD+MFD, C172) ── */
+/* ── g1000_screen (dual PFD | placard | MFD, C172) ── */
 function _drawG1000Screen(ctx, box, style, cfg) {
   const powered = S.masterBat !== false && S.avionicsOn !== false;
   const { x, y, w, h } = box;
 
-  if (!powered) {
-    ctx.fillStyle = '#000';
-    ctx.fillRect(x, y, w, h);
-    hideG1000Map();
-    return;
-  }
-
-  const pfdW = Math.round(w * 0.52);
-  const mfdW = w - pfdW;
+  const centerW = Math.round(w * 0.055);          /* avionics-stack placard */
+  const scrTot  = w - centerW;
+  const pfdW = Math.round(scrTot * 0.52);
+  const mfdW = scrTot - pfdW;
+  const cenX = x + pfdW;
+  const mfdX = cenX + centerW;
   const bzP  = Math.round(w * 0.004);
   const bzT  = Math.round(h * 0.03);
 
-  drawG1000Bezel(ctx, x,        y, pfdW, h);
-  drawG1000Bezel(ctx, x + pfdW, y, mfdW, h);
-  drawG1000PFD(ctx, x + bzP,        y + bzT, pfdW - bzP*2, h - bzT*2);
-  drawG1000MFD(ctx, _currentCanvas, x + pfdW + bzP, y + bzT, mfdW - bzP*2, h - bzT*2);
+  drawG1000Bezel(ctx, x,    y, pfdW, h);
+  drawG1000Bezel(ctx, mfdX, y, mfdW, h);
+
+  if (powered) {
+    drawG1000PFD(ctx, x + bzP,        y + bzT, pfdW - bzP*2, h - bzT*2);
+    drawG1000MFD(ctx, _currentCanvas, mfdX + bzP, y + bzT, mfdW - bzP*2, h - bzT*2);
+  } else {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(x + bzP,    y + bzT, pfdW - bzP*2, h - bzT*2);
+    ctx.fillRect(mfdX + bzP, y + bzT, mfdW - bzP*2, h - bzT*2);
+    hideG1000Map();
+  }
+
+  _drawCenterPlacard(ctx, cenX, y, centerW, h);
+}
+
+/* Centre placard — aircraft name + registration, between the two screens */
+function _drawCenterPlacard(ctx, x, y, w, h) {
+  ctx.fillStyle = '#0c0e14';
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = '#08090c'; ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, w, h);
+
+  const name = S.aircraft?.name ?? '';
+  const reg  = S.aircraft?.registration ?? S.aircraft?.callsign ?? '';
+
+  ctx.save();
+  ctx.translate(x + w / 2, y + h / 2);
+  ctx.rotate(-Math.PI / 2);                       /* read bottom-to-top */
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+
+  ctx.fillStyle = 'rgba(232,240,248,0.82)';       /* registration — bold, bright */
+  ctx.font = `bold ${Math.round(w * 0.30)}px ${MONO}`;
+  ctx.fillText(reg, 0, -w * 0.16);
+
+  ctx.fillStyle = 'rgba(232,240,248,0.30)';        /* name — smaller, dim */
+  ctx.font = `${Math.round(w * 0.17)}px ${MONO}`;
+  ctx.fillText(name, 0, w * 0.24);
+
+  ctx.restore();
 }
 
 /* ── garmin_gtn (single-screen GTN/G5xx, DR-400) ── */
@@ -702,8 +735,8 @@ export function renderPanel(canvas, screenIdx = 0, specOverride = null) {
           .filter(Boolean)
       )];
       Promise.all([
-        fetch(`panels/styles/${aircraft.panel}.json`).then(r => r.json()),
-        ...names.map(n => fetch(`panels/${n}.json`).then(r => r.json())),
+        fetch(`panels/styles/${aircraft.panel}.json?v=${Date.now()}`).then(r => r.json()),
+        ...names.map(n => fetch(`panels/${n}.json?v=${Date.now()}`).then(r => r.json())),
       ]).then(([style, ...loaded]) => {
         _cache.style = style;
         names.forEach((n, i) => { _cache.specs[n] = loaded[i]; });
@@ -751,8 +784,8 @@ export function renderCockpit(canvas) {
 
       const panel = aircraft.panel;
       Promise.all([
-        fetch(`panels/${panel}.json`).then(r => r.json()),
-        fetch(`panels/styles/${panel}.json`).then(r => r.json()).catch(() => _DEFAULT_STYLE),
+        fetch(`panels/${panel}.json?v=${Date.now()}`).then(r => r.json()),
+        fetch(`panels/styles/${panel}.json?v=${Date.now()}`).then(r => r.json()).catch(() => _DEFAULT_STYLE),
       ]).then(([spec, style]) => {
         _cpCache.spec  = spec;
         _cpCache.style = style;

@@ -1,5 +1,6 @@
 {
   "id": "e190",
+  "views": ["overhead", "left", "center", "right", "pedestal"],
   "name": "Embraer E190-E2",
   "manufacturer": "embraer",
   "family": "e-jet-e2",

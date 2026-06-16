@@ -1,5 +1,6 @@
 {
   "id": "b737max9",
+  "views": ["overhead", "left", "center", "right", "pedestal"],
   "name": "Boeing 737 MAX 9",
   "winglet": "split",
   "wingletSplit": {

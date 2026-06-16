@@ -206,6 +206,9 @@ export const S = {
   /* ── ECAM lower page ── */
   ecamPage: 'status',    // 'status' | 'elec' | 'hyd'
 
+  /* ── Mixture (light pistons) ── */
+  mixture:      1,       // 1=RICH, 0.5=LEAN, 0=ICO (idle cut-off)
+
   /* ── Carburettor heat ── */
   carbHeat:     false,   // true = carb heat lever ON
   carbIceLevel: 0,       // 0=clear, 1=fully iced

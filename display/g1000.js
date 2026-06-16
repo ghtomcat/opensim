@@ -5,26 +5,9 @@
    MFD (right 48%): horizontal engine strip (top 17%) · Leaflet topo map
    ═══════════════════════════════════════════════════════════════ */
 
-import { S, setState }                           from '../core/state.js';
-import { updateG1000MapOverlay, hideG1000Map }   from './map.js';
-import { startEngineLifecycle, stopEngineLifecycle, startFuelPump, stopFuelPump } from '../core/sound.js';
-import { getCOMState, comTransfer }              from './com.js';
-
-/* Hit regions rebuilt each frame by _switchPanel */
-let _swHits = [];
-
-export function handleG1000Click(canvas, evt) {
-  const DPR  = devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
-  const x    = (evt.clientX - rect.left) * DPR;
-  const y    = (evt.clientY - rect.top)  * DPR;
-  for (const h of _swHits) {
-    if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) {
-      h.action();
-      return;
-    }
-  }
-}
+import { S }                    from '../core/state.js';
+import { updateG1000MapOverlay } from './map.js';
+import { getCOMState }           from './com.js';
 
 const G = {
   bg:      'rgba(18,20,26,0.65)',
@@ -46,60 +29,6 @@ const MONO = '"IBM Plex Mono", "Courier New", monospace';
 
 /* C172 speed limits (kt) */
 const V = { Vs0: 44, Vs1: 53, Vfe: 85, Vno: 128, Vne: 163 };
-
-/* ── Public ── */
-export function renderG1000(canvas) {
-  const W = canvas.width  = canvas.offsetWidth  * devicePixelRatio;
-  const H = canvas.height = canvas.offsetHeight * devicePixelRatio;
-  const ctx = canvas.getContext('2d');
-  ctx.save();
-
-  ctx.fillStyle = G.bezel;
-  ctx.fillRect(0, 0, W, H);
-
-  /* Three-zone layout: switch panel | PFD bezel | MFD bezel */
-  const swW   = Math.round(W * 0.14);
-  const gap   = Math.round(W * 0.004);
-  const scrW  = Math.round((W - swW - gap) / 2);
-  const pfdX  = swW;
-  const mfdX  = pfdX + scrW + gap;
-
-  /* Bezel insets */
-  const bzT   = Math.round(H * 0.045);   /* top  — GARMIN label */
-  const bzB   = Math.round(H * 0.025);   /* bottom */
-  const bzP   = Math.round(W * 0.007);   /* side padding */
-  const bkpH  = Math.round(H * 0.18);    /* backup instruments strip */
-  const scrH  = H - bkpH - bzT - bzB;    /* usable screen height */
-
-  /* ── Switch panel (left column) ── */
-  _switchPanel(ctx, 0, 0, swW, H);
-
-  const powered = S.masterBat !== false && S.avionicsOn !== false;
-
-  /* ── PFD ── */
-  _screenBezel(ctx, pfdX, 0, scrW, H - bkpH);
-  if (powered) {
-    _pfd(ctx, pfdX + bzP, bzT, scrW - bzP * 2, scrH);
-  } else {
-    ctx.fillStyle = '#000';
-    ctx.fillRect(pfdX + bzP, bzT, scrW - bzP * 2, scrH);
-  }
-
-  /* ── MFD ── */
-  _screenBezel(ctx, mfdX, 0, scrW, H - bkpH);
-  if (powered) {
-    _mfd(ctx, canvas, mfdX + bzP, bzT, scrW - bzP * 2, scrH);
-  } else {
-    ctx.fillStyle = '#000';
-    ctx.fillRect(mfdX + bzP, bzT, scrW - bzP * 2, scrH);
-    hideG1000Map();
-  }
-
-  /* ── Analog backup instruments (always powered — vacuum/standby) ── */
-  _backupGauges(ctx, pfdX, H - bkpH, W - swW, bkpH);
-
-  ctx.restore();
-}
 
 /* ══════════════════════════════════════════
    PFD
@@ -135,13 +64,12 @@ function _topBar(ctx, x, y, w, h) {
   const com = getCOMState();
   const comOpen = S.comPanelVisible;
 
-  /* COM1 click region — opens/closes the COM panel overlay */
+  /* COM1 active-highlight when the COM panel overlay is open */
   const comW = w * 0.28;
   if (comOpen) {
     ctx.fillStyle = 'rgba(100,160,255,0.10)';
     ctx.fillRect(x, y, comW, h);
   }
-  _swHits.push({ x, y, w: comW, h, action: () => setState({ comPanelVisible: !S.comPanelVisible }) });
 
   ctx.fillStyle = G.dim;
   ctx.font = `${fs * 0.8}px ${MONO}`;
@@ -468,7 +396,7 @@ function _hsi(ctx, x, y, w, h) {
   const hdg  = S.hdg  ?? 0;
   const hdgT = S.hdgT ?? 0;
 
-  /* no background fill — renderG1000 handles it */
+  /* no background fill — the screen bezel fills behind */
 
   const cx = x + w / 2;
   const cy = y + h * 0.54;
@@ -618,11 +546,8 @@ function _engineStrip(ctx, x, y, w, h) {
               g.val, g.min, g.max, g.label, g.text, g.bands, g.alert);
   });
 
-  /* ── Fuel selector (compact, lower quarter) ── */
-  _fuelSelectorCompact(ctx, x, y + h * 0.68, w, h * 0.16);
-
-  /* ── Caution annunciators (bottom strip) ── */
-  const cautY    = y + h * 0.85;
+  /* ── Caution annunciators (fuel selector moved to the pedestal) ── */
+  const cautY    = y + h * 0.72;
   const cautH    = h * 0.14;
   const cautions = [
     { label: 'LOW FUEL',  active: warns.LOW_FUEL,                  color: G.amber },
@@ -697,130 +622,6 @@ function _fuelSelectorCompact(ctx, x, y, w, h) {
    Switch panel
    ══════════════════════════════════════════ */
 
-const _MAG_CYCLE = ['OFF', 'R', 'L', 'BOTH', 'START'];
-
-function _switchPanel(ctx, x, y, w, h) {
-  _swHits = [];
-
-  ctx.fillStyle = '#0c0e14';
-  ctx.fillRect(x, y, w, h);
-  ctx.strokeStyle = '#1e2028'; ctx.lineWidth = 2;
-  _line(ctx, x + w - 1, y, x + w - 1, y + h);   /* right edge separator */
-
-  const li   = S.lights ?? {};
-  const swW  = Math.round(w * 0.40);   /* toggle width — fits two per row */
-  const swH  = Math.round(h * 0.070);  /* toggle height */
-  const cx1  = x + w * 0.28;
-  const cx2  = x + w * 0.72;
-  const rg   = h * 0.010;              /* row gap */
-
-  const reg2 = (cx, sy, action) =>
-    _swHits.push({ x: cx - swW / 2, y: sy, w: swW, h: swH, action });
-
-  const secLabel = (text, ly) => {
-    ctx.fillStyle    = 'rgba(255,255,255,0.22)';
-    ctx.font         = `${Math.round(h * 0.022)}px ${MONO}`;
-    ctx.textAlign    = 'center'; ctx.textBaseline = 'top';
-    ctx.fillText(text, x + w / 2, ly);
-  };
-
-  /* Start below MET clock (fixed at ~top:90px + ~80px height in CSS).
-     h * 0.24 clears the clock on 768p–1440p at DPR 1–2. */
-  let sy = y + h * 0.24;
-
-  /* ── MASTER ── */
-  secLabel('MASTER', sy); sy += h * 0.032;
-  _toggleSwitch(ctx, cx1, sy, swW, swH, S.masterBat, 'BAT');
-  reg2(cx1, sy, () => setState({ masterBat: !S.masterBat }));
-  _toggleSwitch(ctx, cx2, sy, swW, swH, S.masterAlt, 'ALT');
-  reg2(cx2, sy, () => setState({ masterAlt: !S.masterAlt }));
-  sy += swH + rg * 2;
-
-  /* ── AVIONICS ── */
-  secLabel('AVIONICS', sy); sy += h * 0.032;
-  _toggleSwitch(ctx, x + w / 2, sy, swW, swH, S.avionicsOn, 'AVNCS');
-  _swHits.push({ x: x + w / 2 - swW / 2, y: sy, w: swW, h: swH,
-                 action: () => setState({ avionicsOn: !S.avionicsOn }) });
-  sy += swH + rg * 2;
-
-  /* ── FUEL PUMP ── */
-  secLabel('FUEL PUMP', sy); sy += h * 0.032;
-  _toggleSwitch(ctx, x + w / 2, sy, swW, swH, S.fuelPump, 'PUMP');
-  _swHits.push({ x: x + w / 2 - swW / 2, y: sy, w: swW, h: swH,
-    action: () => {
-      const next = !S.fuelPump;
-      setState({ fuelPump: next });
-      if (next) startFuelPump(); else stopFuelPump();
-    }
-  });
-  sy += swH + rg * 2;
-
-  /* ── MAGNETO ── */
-  secLabel('MAGNETO', sy); sy += h * 0.032;
-  const magR  = Math.min(w * 0.26, (h - sy) * 0.11);
-  const magCx = x + w / 2;
-  const magCy = sy + magR * 1.55;
-  _magRotary(ctx, magCx, magCy, magR, S.magnetos ?? 'BOTH');
-  _swHits.push({ x: magCx - magR * 1.6, y: sy, w: magR * 3.2, h: magR * 3.4,
-    action: () => {
-      const cur  = S.magnetos ?? 'OFF';
-      const next = _MAG_CYCLE[(_MAG_CYCLE.indexOf(cur) + 1) % _MAG_CYCLE.length];
-      setState({ magnetos: next });
-      if (next === 'START') startEngineLifecycle();
-      if (next === 'OFF')   stopEngineLifecycle();
-    }
-  });
-  sy = magCy + magR * 1.55 + rg * 2;
-
-  /* ── LIGHTS ── */
-  secLabel('LIGHTS', sy); sy += h * 0.032;
-  _toggleSwitch(ctx, cx1, sy, swW, swH, li.nav,    'NAV');
-  reg2(cx1, sy, () => setState({ lights: { ...S.lights, nav:    !li.nav    } }));
-  _toggleSwitch(ctx, cx2, sy, swW, swH, li.beacon, 'BCN');
-  reg2(cx2, sy, () => setState({ lights: { ...S.lights, beacon: !li.beacon } }));
-  sy += swH + rg;
-  _toggleSwitch(ctx, cx1, sy, swW, swH, li.strobe,  'STRB');
-  reg2(cx1, sy, () => setState({ lights: { ...S.lights, strobe:  !li.strobe  } }));
-  _toggleSwitch(ctx, cx2, sy, swW, swH, li.landing, 'LAND');
-  reg2(cx2, sy, () => setState({ lights: { ...S.lights, landing: !li.landing } }));
-}
-
-function _toggleSwitch(ctx, cx, y, w, h, on, label) {
-  /* Housing (recessed dark plate) */
-  const hw = w * 0.60, hh = h * 0.38;
-  const hx = cx - hw / 2, hy = y + h * 0.18;
-  _roundRect(ctx, hx, hy, hw, hh, hw * 0.14);
-  ctx.fillStyle = '#0c1018'; ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 0.8; ctx.stroke();
-
-  /* Lever — thin bat-handle: UP = ON, DOWN = OFF */
-  const lw = hw * 0.30, lh = h * 0.44;
-  const pvY = hy + hh * 0.50;
-  const levY = on ? pvY - lh : pvY;
-  _roundRect(ctx, cx - lw / 2, levY, lw, lh, lw * 0.30);
-  ctx.fillStyle = on ? '#9eaabf' : '#2c3038'; ctx.fill();
-
-  /* Lever highlight */
-  ctx.fillStyle = on ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.04)';
-  ctx.fillRect(cx - lw / 2 + lw * 0.14, levY + lh * 0.12, lw * 0.26, lh * 0.76);
-
-  /* LED indicator dot below housing */
-  const dotR = Math.min(hw, hh) * 0.12;
-  const dotY = hy + hh + dotR * 2.0;
-  ctx.beginPath(); ctx.arc(cx, dotY, dotR, 0, Math.PI * 2);
-  ctx.fillStyle = on ? '#38d060' : '#101810'; ctx.fill();
-  if (on) {
-    ctx.beginPath(); ctx.arc(cx, dotY, dotR * 1.9, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(56,208,96,0.22)'; ctx.lineWidth = dotR * 0.8; ctx.stroke();
-  }
-
-  /* Label */
-  ctx.fillStyle    = on ? 'rgba(255,255,255,0.62)' : 'rgba(255,255,255,0.24)';
-  ctx.font         = `${Math.round(Math.min(w * 0.46, h * 0.115))}px ${MONO}`;
-  ctx.textAlign    = 'center'; ctx.textBaseline = 'bottom';
-  ctx.fillText(label, cx, y + h);
-}
-
 function _magRotary(ctx, cx, cy, r, state) {
   const pos = { OFF: -120, R: -60, L: 0, BOTH: 60, START: 120 };
 
@@ -886,161 +687,6 @@ function _screenBezel(ctx, x, y, w, h) {
 
   ctx.strokeStyle = '#08090c'; ctx.lineWidth = 2;
   ctx.strokeRect(x, y, w, h);
-}
-
-/* ── Backup instruments strip ── */
-function _backupGauges(ctx, x, y, w, h) {
-  ctx.fillStyle = '#0e1018';
-  ctx.fillRect(x, y, w, h);
-  ctx.strokeStyle = '#282c38'; ctx.lineWidth = 1;
-  _line(ctx, x, y, x + w, y);
-
-  const r   = h * 0.40;
-  const cy  = y + h / 2;
-  _analogASI(ctx,   x + w * 0.20, cy, r);
-  _analogAI(ctx,    x + w * 0.50, cy, r);
-  _analogALT(ctx,   x + w * 0.80, cy, r);
-}
-
-function _analogASI(ctx, cx, cy, r) {
-  const spd = S.spd ?? 0;
-  const s0  = Math.PI * (4 / 3);
-  const rng = Math.PI * 1.5;
-  const ang = v => s0 + (Math.max(0, Math.min(200, v)) / 200) * rng;
-
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fillStyle = '#0a0c12'; ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = r * 0.04; ctx.stroke();
-
-  /* coloured arcs */
-  const arcs = [
-    [V.Vs0, V.Vfe, '#d8d8d8'],
-    [V.Vs1, V.Vno, G.green],
-    [V.Vno, V.Vne, G.amber],
-  ];
-  ctx.lineWidth = r * 0.09;
-  arcs.forEach(([lo, hi, col]) => {
-    ctx.strokeStyle = col;
-    ctx.beginPath(); ctx.arc(cx, cy, r * 0.82, ang(lo), ang(hi)); ctx.stroke();
-  });
-  const vneA = ang(V.Vne);
-  ctx.strokeStyle = G.red; ctx.lineWidth = r * 0.04;
-  _line(ctx, cx + r*0.73*Math.cos(vneA), cy + r*0.73*Math.sin(vneA),
-             cx + r*0.90*Math.cos(vneA), cy + r*0.90*Math.sin(vneA));
-
-  /* ticks */
-  for (let v = 0; v <= 200; v += 20) {
-    const a = ang(v); const major = v % 40 === 0;
-    ctx.strokeStyle = G.white; ctx.lineWidth = major ? r * 0.025 : r * 0.015;
-    _line(ctx, cx+(major?r*0.66:r*0.74)*Math.cos(a), cy+(major?r*0.66:r*0.74)*Math.sin(a),
-               cx+r*0.88*Math.cos(a),                cy+r*0.88*Math.sin(a));
-    if (major && v > 0) {
-      ctx.fillStyle = G.white; ctx.font = `${Math.round(r*0.14)}px ${MONO}`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(v, cx + r*0.54*Math.cos(a), cy + r*0.54*Math.sin(a));
-    }
-  }
-
-  /* needle */
-  const na = ang(spd);
-  ctx.strokeStyle = G.white; ctx.lineWidth = r * 0.04;
-  ctx.beginPath();
-  ctx.moveTo(cx - r*0.14*Math.cos(na), cy - r*0.14*Math.sin(na));
-  ctx.lineTo(cx + r*0.78*Math.cos(na), cy + r*0.78*Math.sin(na));
-  ctx.stroke();
-  ctx.beginPath(); ctx.arc(cx, cy, r*0.08, 0, Math.PI*2);
-  ctx.fillStyle = '#b0b4be'; ctx.fill();
-
-  ctx.fillStyle = G.dim; ctx.font = `${Math.round(r*0.16)}px ${MONO}`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('KIAS', cx, cy + r * 0.40);
-}
-
-function _analogAI(ctx, cx, cy, r) {
-  const pitch = S.pitch ?? 0;
-  const roll  = S.roll  ?? 0;
-  const pxPD  = r / 22;
-
-  ctx.save();
-  ctx.beginPath(); ctx.arc(cx, cy, r * 0.88, 0, Math.PI * 2); ctx.clip();
-
-  ctx.translate(cx, cy); ctx.rotate(-roll * Math.PI / 180); ctx.translate(-cx, -cy);
-
-  const hy = cy + pitch * pxPD;
-  const skyG = ctx.createLinearGradient(0, hy - r, 0, hy);
-  skyG.addColorStop(0, '#1a3e80'); skyG.addColorStop(1, '#4a80c8');
-  ctx.fillStyle = skyG; ctx.fillRect(cx - r, cy - r, r*2, hy-(cy-r)+1);
-  const gndG = ctx.createLinearGradient(0, hy, 0, hy + r);
-  gndG.addColorStop(0, '#7a4e28'); gndG.addColorStop(1, '#3e2208');
-  ctx.fillStyle = gndG; ctx.fillRect(cx - r, hy, r*2, r*2);
-  ctx.strokeStyle = G.white; ctx.lineWidth = r * 0.025;
-  _line(ctx, cx - r, hy, cx + r, hy);
-
-  for (let p of [-20, -10, 10, 20]) {
-    const py = hy - p * pxPD; if (py < cy-r || py > cy+r) continue;
-    const len = r * (Math.abs(p) === 20 ? 0.24 : 0.16);
-    ctx.lineWidth = r * 0.018;
-    _line(ctx, cx - len, py, cx + len, py);
-  }
-  ctx.restore();
-
-  ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = r * 0.04;
-  ctx.beginPath(); ctx.arc(cx, cy, r * 0.88, 0, Math.PI * 2); ctx.stroke();
-
-  const wl = r * 0.20;
-  ctx.strokeStyle = G.amber; ctx.lineWidth = r * 0.035;
-  ctx.beginPath(); ctx.moveTo(cx-wl*1.8,cy); ctx.lineTo(cx-wl*0.4,cy);
-  ctx.lineTo(cx-wl*0.4, cy+wl*0.28); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(cx+wl*1.8,cy); ctx.lineTo(cx+wl*0.4,cy);
-  ctx.lineTo(cx+wl*0.4, cy+wl*0.28); ctx.stroke();
-
-  ctx.fillStyle = G.dim; ctx.font = `${Math.round(r*0.16)}px ${MONO}`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-  ctx.fillText('ATT', cx, cy + r * 0.94);
-}
-
-function _analogALT(ctx, cx, cy, r) {
-  const alt = S.alt ?? 0;
-  const s0  = Math.PI * (4 / 3);
-  const rng = Math.PI * 1.5;
-
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fillStyle = '#0a0c12'; ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = r * 0.04; ctx.stroke();
-
-  /* 10 major ticks (each = 1000ft per rev) */
-  for (let i = 0; i <= 50; i++) {
-    const a = s0 + (i / 50) * rng; const major = i % 5 === 0;
-    ctx.strokeStyle = G.white; ctx.lineWidth = major ? r * 0.025 : r * 0.015;
-    _line(ctx, cx+(major?r*0.66:r*0.76)*Math.cos(a), cy+(major?r*0.66:r*0.76)*Math.sin(a),
-               cx+r*0.88*Math.cos(a),                cy+r*0.88*Math.sin(a));
-    if (major) {
-      ctx.fillStyle = G.white; ctx.font = `${Math.round(r*0.14)}px ${MONO}`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText((i / 5) % 10, cx + r*0.54*Math.cos(a), cy + r*0.54*Math.sin(a));
-    }
-  }
-
-  /* thousands needle (1 rev = 10 000 ft) */
-  const bigA = s0 + ((alt % 10000) / 10000) * rng;
-  ctx.strokeStyle = G.white; ctx.lineWidth = r * 0.04;
-  ctx.beginPath();
-  ctx.moveTo(cx - r*0.12*Math.cos(bigA), cy - r*0.12*Math.sin(bigA));
-  ctx.lineTo(cx + r*0.68*Math.cos(bigA), cy + r*0.68*Math.sin(bigA)); ctx.stroke();
-
-  /* hundreds needle (1 rev = 1 000 ft) */
-  const smlA = s0 + ((alt % 1000) / 1000) * rng;
-  ctx.strokeStyle = G.white; ctx.lineWidth = r * 0.025;
-  ctx.beginPath();
-  ctx.moveTo(cx - r*0.14*Math.cos(smlA), cy - r*0.14*Math.sin(smlA));
-  ctx.lineTo(cx + r*0.82*Math.cos(smlA), cy + r*0.82*Math.sin(smlA)); ctx.stroke();
-
-  ctx.beginPath(); ctx.arc(cx, cy, r*0.08, 0, Math.PI*2);
-  ctx.fillStyle = '#b0b4be'; ctx.fill();
-
-  ctx.fillStyle = G.dim; ctx.font = `${Math.round(r*0.15)}px ${MONO}`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('ALT  FT', cx, cy + r * 0.40);
 }
 
 /* ── Arc gauge (RPM) ── */

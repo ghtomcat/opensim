@@ -1,5 +1,7 @@
 {
   "id": "c172",
+  "views": ["pedestal"],
+  "pedestal": ["throttle", "mixture", "carbheat", "magneto", "fuel", "switches", "lights", "flaps", "breakers", "parkbrake"],
   "render": "propplane",
   "gear": { "fixed": true, "tires": [[1, 0.000321], [3, 0.000222, 0.000082], [5, 0.000222, 0.000082]] },
   "name": "Cessna 172S Skyhawk",

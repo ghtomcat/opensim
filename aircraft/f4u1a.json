@@ -1,5 +1,6 @@
 {
   "id": "f4u1a",
+  "views": ["left", "right"],
   "render": "f4u",
   "gear": { "fixed": true, "tires": [[1, 0.000273], [3, 0.000273], [5, 0.000141]] },
   "panel": "f4u",

@@ -1,5 +1,6 @@
 {
   "id": "b777-300er",
+  "views": ["overhead", "left", "center", "right", "pedestal"],
   "name": "Boeing 777-300ER",
   "manufacturer": "boeing",
   "family": "777",

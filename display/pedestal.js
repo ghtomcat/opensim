@@ -6,7 +6,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from '../core/state.js';
-import { startEngineLifecycle, stopEngineLifecycle } from '../core/sound.js';
+import { startEngineLifecycle, stopEngineLifecycle, startFuelPump, stopFuelPump } from '../core/sound.js';
 import { buildFullRoute, altLabel } from '../core/route.js';
 import { buildDescentPath } from '../core/vnav.js';
 
@@ -193,6 +193,105 @@ const _CSS = `
   .ped-park-pos:hover { background: #1e2534; color: #6080a8; }
   .ped-park-pos.ped-park-sel-on  { background: #3a1414; color: #ff5a4a; box-shadow: inset 0 -2px 0 #c02020; }
   .ped-park-pos.ped-park-sel-off { background: #14241a; color: #5ad08a; box-shadow: inset 0 -2px 0 #2a8050; }
+
+  /* ── Light-piston vernier knobs + magneto (C172 pedestal) ── */
+  .ped-flexrow { display: flex; gap: 36px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+  .ped-knob-block { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .ped-knob-label { font: 600 9px/1 monospace; letter-spacing: 0.12em; color: #50607c; }
+  .ped-knob-row { display: flex; gap: 26px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+  .ped-knob-wrap { display: flex; flex-direction: column; align-items: center; gap: 7px; }
+  .ped-knob {
+    width: 42px; height: 42px; border-radius: 50%;
+    background: radial-gradient(circle at 34% 32%, #3a4150 0%, #20252f 55%, #14171e 100%);
+    border: 2px solid #303848; cursor: pointer; user-select: none;
+    box-shadow: 0 3px 9px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06);
+    transition: transform 0.18s ease, box-shadow 0.15s; position: relative;
+  }
+  .ped-knob i {
+    position: absolute; top: 4px; left: 50%; width: 3px; height: 13px;
+    background: #c8cdd4; border-radius: 1px; transform: translateX(-50%);
+  }
+  .ped-knob.knob-black { background: radial-gradient(circle at 34% 32%, #30343c 0%, #15171c 60%, #0c0d10 100%); border-color: #2a2e36; }
+  .ped-knob.knob-red   { background: radial-gradient(circle at 34% 32%, #b84038 0%, #7a221c 60%, #4a1210 100%); border-color: #803028; }
+  .ped-knob.knob-blue  { background: radial-gradient(circle at 34% 32%, #3a6db8 0%, #1e3f7a 60%, #122648 100%); border-color: #2a4a80; }
+  .ped-knob.knob-plain { background: radial-gradient(circle at 34% 32%, #6a7280 0%, #424a58 60%, #2a303a 100%); border-color: #4a5260; }
+  .ped-knob.ped-knob-lit { box-shadow: 0 3px 9px rgba(0,0,0,0.7), 0 0 8px rgba(110,170,230,0.35), inset 0 1px 0 rgba(255,255,255,0.08); }
+  .ped-knob-name { font: 700 7px/1 monospace; letter-spacing: 0.05em; color: #50607c; }
+  .ped-knob-val  { font: 700 9px/1 monospace; letter-spacing: 0.04em; color: #80b0e0; }
+
+  /* ── Fuel selector — vertical button gate ── */
+  .ped-fuel-gate { display: flex; flex-direction: column; gap: 0; border: 1px solid #252c3c; border-radius: 3px; overflow: hidden; }
+  .ped-fuel-pos {
+    padding: 6px 14px; background: #141820;
+    font: 700 9px/1 monospace; letter-spacing: 0.05em; color: #3a4860;
+    cursor: pointer; border-bottom: 1px solid #252c3c;
+    transition: background 0.08s, color 0.08s; user-select: none; text-align: center;
+  }
+  .ped-fuel-pos:last-child { border-bottom: none; }
+  .ped-fuel-pos:hover { background: #1e2534; color: #6080a8; }
+  .ped-fuel-pos.ped-fuel-sel     { background: #14241a; color: #5ad08a; box-shadow: inset 2px 0 0 #2a8050; }
+  .ped-fuel-pos.ped-fuel-sel-off { background: #3a1414; color: #ff5a4a; box-shadow: inset 2px 0 0 #c02020; }
+
+  /* ── Bat-handle toggle switches (G1000 design, recreated in the DOM) ── */
+  .ped-toggle-block { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .ped-toggle-grouplabel { font: 600 9px/1 monospace; letter-spacing: 0.12em; color: #50607c; }
+  .ped-toggle-row { display: flex; gap: 16px; }
+  .ped-toggle { display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: pointer; user-select: none; width: 34px; }
+  .ped-toggle-housing {
+    width: 16px; height: 26px; border-radius: 3px;
+    background: #0c1018; border: 1px solid rgba(255,255,255,0.14); position: relative;
+  }
+  .ped-toggle-lever {
+    position: absolute; left: 50%; transform: translateX(-50%); bottom: 3px;
+    width: 5px; height: 11px; border-radius: 2px; background: #2c3038;
+    transition: bottom 0.14s ease, background 0.1s;
+  }
+  .ped-toggle.on .ped-toggle-lever { bottom: 12px; background: #9eaabf; box-shadow: inset 1px 0 0 rgba(255,255,255,0.22); }
+  .ped-toggle-led { width: 6px; height: 6px; border-radius: 50%; background: #101810; transition: background 0.1s, box-shadow 0.1s; }
+  .ped-toggle.on .ped-toggle-led { background: #38d060; box-shadow: 0 0 6px rgba(56,208,96,0.6); }
+  .ped-toggle-lbl { font: 700 7px/1 monospace; letter-spacing: 0.04em; color: rgba(255,255,255,0.24); }
+  .ped-toggle.on .ped-toggle-lbl { color: rgba(255,255,255,0.62); }
+
+  /* ── Magneto rotary (G1000 design) ── */
+  .ped-magrot { position: relative; width: 92px; height: 80px; cursor: pointer; user-select: none; }
+  .ped-magrot-lbl {
+    position: absolute; transform: translate(-50%, -50%);
+    font: 700 7px/1 monospace; letter-spacing: 0.03em; color: rgba(255,255,255,0.30); white-space: nowrap;
+  }
+  .ped-magrot-lbl.ped-magrot-lbl-on { color: #e8f0f8; }
+  .ped-magrot-lbl[data-magl="OFF"]   { left: 17%; top: 74%; }
+  .ped-magrot-lbl[data-magl="R"]     { left: 17%; top: 33%; }
+  .ped-magrot-lbl[data-magl="L"]     { left: 50%; top: 12%; }
+  .ped-magrot-lbl[data-magl="BOTH"]  { left: 83%; top: 33%; }
+  .ped-magrot-lbl[data-magl="START"] { left: 83%; top: 74%; }
+  .ped-magrot-knob {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 38px; height: 38px; border-radius: 50%;
+    background: radial-gradient(circle at 36% 36%, #2c3040 0%, #141820 100%);
+    border: 1px solid rgba(255,255,255,0.22);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 2px 6px rgba(0,0,0,0.6);
+  }
+  .ped-magrot-knob::after {
+    content: ''; position: absolute; left: 50%; top: 50%;
+    width: 6px; height: 6px; border-radius: 50%; background: #d8dce0;
+    transform: translate(-50%, -50%); z-index: 2;
+  }
+  .ped-magrot-ptr {
+    position: absolute; left: 50%; bottom: 50%;
+    width: 3px; height: 15px; border-radius: 1px; background: #d8dce0;
+    transform-origin: bottom center; transform: translateX(-50%) rotate(0deg);
+    transition: transform 0.18s ease;
+  }
+
+  /* ── Circuit breakers (decorative) ── */
+  .ped-brk-block { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .ped-brk-label { font: 600 9px/1 monospace; letter-spacing: 0.12em; color: #50607c; }
+  .ped-brk-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 7px; }
+  .ped-brk-dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: radial-gradient(circle at 36% 34%, #2a2e36 0%, #16181e 70%);
+    border: 1px solid #2a3040; display: block;
+  }
 
   /* ── Parking-brake annunciator (visible in any view when set) ── */
   #parkbrk-ind {
@@ -420,7 +519,22 @@ function _mcduHTML() {
 
 /* ── HTML builder ─────────────────────────────────────────────── */
 
+/* Which control groups sit on this aircraft's pedestal, in render order.
+   Explicit `aircraft.pedestal` wins; otherwise derive the historical airliner
+   layout so every existing aircraft renders byte-identical (no JSON churn). */
+function _pedestalTokens() {
+  if (Array.isArray(S.aircraft?.pedestal)) return S.aircraft.pedestal;
+  const t = ['thrust', 'flaps', 'speedbrake'];
+  if (S.aircraft?.autobrake) t.push('autobrake');
+  t.push('parkbrake');
+  if (S.aircraft?.engine?.type === 'turbofan') t.push('engstart');
+  if (!['g1000', 'dr400', 'velis-epsi'].includes(S.aircraft?.panel)) t.push('mcdu');
+  return t;
+}
+
 function _buildHTML() {
+  const tokens    = _pedestalTokens();
+  const has       = (t) => tokens.includes(t);
   const profiles  = S.aircraft?.thrustProfiles ?? [
     { label: 'IDLE', spdT: 0 },
     { label: 'CLB',  spdT: 175 },
@@ -432,16 +546,17 @@ function _buildHTML() {
     { label: '0' }, { label: '1+F' }, { label: '2' }, { label: '3' },
   ];
 
-  /* ── Thrust levers ── */
-  /* Detent positions top-to-bottom: TOGA at top (0%), IDLE at bottom (100%) */
-  const detentPcts = profiles.map((_, i) => {
-    const frac = i / Math.max(1, profiles.length - 1);
-    return (1 - frac) * 82 + 4;   // 4% (top) … 86% (bottom), leaving head room
-  }).reverse();  // reverse: TOGA first = top
+  /* ── Thrust levers (quadrant — airliners + large props) ── */
+  const thrustBlock = has('thrust') ? (() => {
+    /* Detent positions top-to-bottom: TOGA at top (0%), IDLE at bottom (100%) */
+    const detentPcts = profiles.map((_, i) => {
+      const frac = i / Math.max(1, profiles.length - 1);
+      return (1 - frac) * 82 + 4;   // 4% (top) … 86% (bottom), leaving head room
+    }).reverse();  // reverse: TOGA first = top
 
-  let leverCols = '';
-  for (let e = 0; e < engCount; e++) {
-    leverCols += `
+    let leverCols = '';
+    for (let e = 0; e < engCount; e++) {
+      leverCols += `
       <div class="ped-lever-wrap">
         <div class="ped-lever-eng">${e + 1}</div>
         <div class="ped-lever-track" data-eng="${e}">
@@ -454,30 +569,120 @@ function _buildHTML() {
         </div>
         <div class="ped-n1" id="ped-n1-${e}">—</div>
       </div>`;
-  }
+    }
+    return `
+        <div class="ped-tl-block">
+          <div class="ped-tl-label">THRUST</div>
+          <div class="ped-tl-row">${leverCols}</div>
+        </div>
 
-  /* ── Flap handle ── */
+        <div class="ped-sep"></div>`;
+  })() : '';
+
+  /* ── Engine vernier knobs (light pistons) + magneto ── */
+  const KNOBS = [
+    { tok: 'throttle', label: 'THROTTLE',  cls: 'knob-black' },
+    { tok: 'prop',     label: 'PROP',      cls: 'knob-blue'  },
+    { tok: 'mixture',  label: 'MIXTURE',   cls: 'knob-red'   },
+    { tok: 'carbheat', label: 'CARB HEAT', cls: 'knob-plain' },
+  ].filter(k => has(k.tok));
+  const knobsBlock = (KNOBS.length || has('magneto')) ? `
+        <div class="ped-knob-block">
+          <div class="ped-knob-label">ENGINE</div>
+          <div class="ped-knob-row">
+            ${KNOBS.map(k => `
+              <div class="ped-knob-wrap">
+                <div class="ped-knob ${k.cls}" id="ped-knob-${k.tok}"><i></i></div>
+                <div class="ped-knob-name">${k.label}</div>
+                <div class="ped-knob-val" id="ped-kv-${k.tok}">—</div>
+              </div>`).join('')}
+            ${has('magneto') ? `
+              <div class="ped-knob-wrap">
+                <div class="ped-magrot" id="ped-mag-rot">
+                  ${['OFF', 'R', 'L', 'BOTH', 'START'].map(p =>
+                    `<span class="ped-magrot-lbl" data-magl="${p}">${p}</span>`).join('')}
+                  <div class="ped-magrot-knob"><div class="ped-magrot-ptr" id="ped-mag-ptr"></div></div>
+                </div>
+                <div class="ped-knob-name">MAGNETOS</div>
+              </div>` : ''}
+          </div>
+        </div>
+        <div class="ped-sep"></div>` : '';
+
+  /* ── Flex row: flaps / spd brk / autobrake / fuel / elec / lights / park brk ── */
   const flapBtns = flapCfgs.map((f, i) =>
     `<div class="ped-flap-pos" data-flap="${i}">${f.label}</div>`
   ).join('');
-
-  /* ── Speed brake ── */
-  const sbPositions = ['RET', 'ARM', 'FULL'];
-  const sbBtns = sbPositions.map((lbl, i) =>
+  const sbBtns = ['RET', 'ARM', 'FULL'].map((lbl, i) =>
     `<div class="ped-spdbk-pos" data-sb="${i}">${lbl}</div>`
   ).join('');
 
-  /* ── Autobrake (only on equipped aircraft) ── */
-  const abBlock = S.aircraft?.autobrake ? `
+  const flapBlock = has('flaps') ? `
+          <div class="ped-flap-block">
+            <div class="ped-flap-label">FLAPS</div>
+            <div class="ped-flap-gate">${flapBtns}</div>
+          </div>` : '';
+  const sbBlock = has('speedbrake') ? `
+          <div class="ped-spdbk-block">
+            <div class="ped-spdbk-label">SPD BRK</div>
+            <div class="ped-spdbk-gate">${sbBtns}</div>
+          </div>` : '';
+  const abBlock = has('autobrake') ? `
           <div class="ped-autobrk-block">
             <div class="ped-autobrk-label">AUTO BRK</div>
             <div class="ped-autobrk-gate">${['OFF', 'LO', 'MED', 'MAX'].map(lbl =>
               `<div class="ped-autobrk-pos" data-ab="${lbl}">${lbl}</div>`).join('')}</div>
           </div>` : '';
+  const pbBlock = has('parkbrake') ? `
+          <div class="ped-park-block">
+            <div class="ped-park-label">PARK BRK</div>
+            <div class="ped-park-gate">
+              <div class="ped-park-pos" data-pb="1">ON</div>
+              <div class="ped-park-pos" data-pb="0">OFF</div>
+            </div>
+          </div>` : '';
+  /* ── Fuel selector (BOTH / LEFT / RIGHT / OFF) — moved off the G1000 main panel ── */
+  const fuelBlock = has('fuel') ? `
+          <div class="ped-flap-block">
+            <div class="ped-flap-label">FUEL SEL</div>
+            <div class="ped-fuel-gate">${['BOTH', 'LEFT', 'RIGHT', 'OFF'].map(p =>
+              `<div class="ped-fuel-pos" data-fuel="${p}">${p}</div>`).join('')}</div>
+          </div>` : '';
+  /* Bat-handle toggle (G1000 design: housing + lever + LED) */
+  const _toggle = (attr, key, lbl) => `
+              <div class="ped-toggle" data-${attr}="${key}">
+                <div class="ped-toggle-housing"><span class="ped-toggle-lever"></span></div>
+                <span class="ped-toggle-led"></span>
+                <span class="ped-toggle-lbl">${lbl}</span>
+              </div>`;
+  /* ── Electrical switches (master / avionics / fuel pump) ── */
+  const switchBlock = has('switches') ? `
+          <div class="ped-toggle-block">
+            <div class="ped-toggle-grouplabel">ELEC</div>
+            <div class="ped-toggle-row">${[
+              ['masterBat', 'BAT'], ['masterAlt', 'ALT'], ['avionicsOn', 'AVNCS'], ['fuelPump', 'PUMP'],
+            ].map(([id, lbl]) => _toggle('sw', id, lbl)).join('')}</div>
+          </div>` : '';
+  /* ── Exterior lights ── */
+  const lightsBlock = has('lights') ? `
+          <div class="ped-toggle-block">
+            <div class="ped-toggle-grouplabel">LIGHTS</div>
+            <div class="ped-toggle-row">${[
+              ['nav', 'NAV'], ['beacon', 'BCN'], ['strobe', 'STRB'], ['landing', 'LAND'],
+            ].map(([k, lbl]) => _toggle('light', k, lbl)).join('')}</div>
+          </div>` : '';
+  const flexRow = (flapBlock || sbBlock || abBlock || pbBlock || fuelBlock || switchBlock || lightsBlock) ? `
+        <div class="ped-flexrow">${flapBlock}${sbBlock}${abBlock}${fuelBlock}${switchBlock}${lightsBlock}${pbBlock}
+        </div>` : '';
+  /* ── Circuit breakers (decorative — light singles) ── */
+  const breakersBlock = has('breakers') ? `
+        <div class="ped-brk-block">
+          <div class="ped-brk-label">CIRCUIT BREAKERS</div>
+          <div class="ped-brk-grid">${Array.from({ length: 20 }, () => '<i class="ped-brk-dot"></i>').join('')}</div>
+        </div>` : '';
 
-  /* ── ENG START section (turbofan only) ── */
-  const turbofan = S.aircraft?.engine?.type === 'turbofan';
-  const engStartSection = turbofan ? (() => {
+  /* ── ENG START section (turbofan) ── */
+  const engStartSection = has('engstart') ? (() => {
     const flips = Array.from({ length: engCount }, (_, i) => `
       <div class="ped-flip-wrap">
         <div class="ped-flip-top-label">MASTER</div>
@@ -506,41 +711,17 @@ function _buildHTML() {
       </div>`;
   })() : '';
 
-  /* MCDU only on the glass-cockpit jets (it reads the procedure flight plan). */
-  const showMcdu = S.aircraft?.panel !== 'g1000' && S.aircraft?.panel !== 'dr400';
-  const mcdu = showMcdu ? `<div class="ped-mcdu">${_mcduHTML()}</div>` : '';
+  /* ── MCDU — Airbus F-PLN page (FMS jets only) ── */
+  const mcdu = has('mcdu') ? `<div class="ped-mcdu">${_mcduHTML()}</div>` : '';
 
   return `
     <div class="ped-title">CENTRE PEDESTAL</div>
 
     <div class="ped-main">
       <div class="ped-controls">
-        <div class="ped-tl-block">
-          <div class="ped-tl-label">THRUST</div>
-          <div class="ped-tl-row">${leverCols}</div>
-        </div>
-
-        <div class="ped-sep"></div>
-
-        <div style="display:flex;gap:36px;align-items:flex-start;">
-          <div class="ped-flap-block">
-            <div class="ped-flap-label">FLAPS</div>
-            <div class="ped-flap-gate">${flapBtns}</div>
-          </div>
-          <div class="ped-spdbk-block">
-            <div class="ped-spdbk-label">SPD BRK</div>
-            <div class="ped-spdbk-gate">${sbBtns}</div>
-          </div>
-          ${abBlock}
-          <div class="ped-park-block">
-            <div class="ped-park-label">PARK BRK</div>
-            <div class="ped-park-gate">
-              <div class="ped-park-pos" data-pb="1">ON</div>
-              <div class="ped-park-pos" data-pb="0">OFF</div>
-            </div>
-          </div>
-        </div>
-
+        ${thrustBlock}${knobsBlock}
+        ${flexRow}
+        ${breakersBlock}
         ${engStartSection}
       </div>
 
@@ -632,6 +813,49 @@ function _attachHandlers() {
   _el.querySelectorAll('.ped-autobrk-pos').forEach(btn => {
     btn.addEventListener('click', () => setState({ autobrake: btn.dataset.ab }));
   });
+
+  /* ── Light-piston controls (moved off the G1000 main panel) ── */
+  /* Throttle vernier — IDLE → CRUISE → FULL → IDLE */
+  document.getElementById('ped-knob-throttle')?.addEventListener('click', () => {
+    const cur = S.thrustLever ?? 0;
+    setState({ thrustLever: cur < 0.33 ? 0.5 : cur < 0.8 ? 1 : 0 });
+  });
+  /* Mixture vernier — RICH → LEAN → ICO → RICH */
+  document.getElementById('ped-knob-mixture')?.addEventListener('click', () => {
+    const cur = S.mixture ?? 1;
+    setState({ mixture: cur >= 1 ? 0.5 : cur >= 0.5 ? 0 : 1 });
+  });
+  /* Carb heat — COLD / HOT */
+  document.getElementById('ped-knob-carbheat')?.addEventListener('click', () => {
+    setState({ carbHeat: !S.carbHeat });
+  });
+  /* Magneto rotary — OFF → R → L → BOTH → START */
+  const MAG = ['OFF', 'R', 'L', 'BOTH', 'START'];
+  document.getElementById('ped-mag-rot')?.addEventListener('click', () => {
+    const next = MAG[(MAG.indexOf(S.magnetos ?? 'OFF') + 1) % MAG.length];
+    setState({ magnetos: next });
+    if (next === 'START') startEngineLifecycle();
+    if (next === 'OFF')   stopEngineLifecycle();
+  });
+  /* Fuel selector — BOTH / LEFT / RIGHT / OFF */
+  _el.querySelectorAll('.ped-fuel-pos').forEach(btn => {
+    btn.addEventListener('click', () => setState({ fuelSelector: btn.dataset.fuel }));
+  });
+  /* Electrical switches — bat-handle toggle */
+  _el.querySelectorAll('.ped-toggle[data-sw]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const k = btn.dataset.sw, next = !S[k];
+      setState({ [k]: next });
+      if (k === 'fuelPump') { if (next) startFuelPump(); else stopFuelPump(); }
+    });
+  });
+  /* Exterior lights — bat-handle toggle */
+  _el.querySelectorAll('.ped-toggle[data-light]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const k = btn.dataset.light;
+      setState({ lights: { ...S.lights, [k]: !(S.lights?.[k]) } });
+    });
+  });
 }
 
 /* ── Live update ───────────────────────────────────────────────── */
@@ -702,6 +926,41 @@ function _update() {
   const ANGLES = { 'CRANK': -120, 'NORM': 0, 'IGN+START': 120 };
   const knob = document.getElementById('ped-rotary-knob');
   if (knob) knob.style.transform = `rotate(${ANGLES[S.engMode ?? 'NORM']}deg)`;
+
+  /* ── Light-piston controls ── */
+  const setKnob = (id, valId, angle, txt, lit) => {
+    const k = document.getElementById(id);
+    if (k) { k.style.transform = `rotate(${angle}deg)`; k.classList.toggle('ped-knob-lit', !!lit); }
+    const v = document.getElementById(valId);
+    if (v) v.textContent = txt;
+  };
+  const thr = S.thrustLever ?? 0;
+  setKnob('ped-knob-throttle', 'ped-kv-throttle', -120 + thr * 240, `${Math.round(thr * 100)}%`, thr > 0.02);
+  const mix = S.mixture ?? 1;
+  setKnob('ped-knob-mixture', 'ped-kv-mixture', -120 + mix * 240, mix >= 1 ? 'RICH' : mix <= 0 ? 'ICO' : 'LEAN', mix > 0);
+  const carb = !!S.carbHeat;
+  setKnob('ped-knob-carbheat', 'ped-kv-carbheat', carb ? 60 : -60, carb ? 'HOT' : 'COLD', carb);
+
+  /* Magneto rotary — pointer rotates to position, recolours (OFF red / START amber) */
+  const mag  = S.magnetos ?? 'OFF';
+  const MAGA = { OFF: -120, R: -60, L: 0, BOTH: 60, START: 120 };
+  const magPtr = document.getElementById('ped-mag-ptr');
+  if (magPtr) {
+    magPtr.style.transform  = `translateX(-50%) rotate(${MAGA[mag] ?? 0}deg)`;
+    magPtr.style.background  = mag === 'OFF' ? '#ff5a4a' : mag === 'START' ? '#f0c050' : '#d8dce0';
+  }
+  _el.querySelectorAll('.ped-magrot-lbl').forEach(l =>
+    l.classList.toggle('ped-magrot-lbl-on', l.dataset.magl === mag));
+
+  /* Fuel selector */
+  const fsel = S.fuelSelector ?? 'BOTH';
+  _el.querySelectorAll('.ped-fuel-pos').forEach(b => {
+    b.classList.toggle('ped-fuel-sel',     b.dataset.fuel === fsel && fsel !== 'OFF');
+    b.classList.toggle('ped-fuel-sel-off', b.dataset.fuel === fsel && fsel === 'OFF');
+  });
+  /* Electrical switches + lights — bat-handle toggles */
+  _el.querySelectorAll('.ped-toggle[data-sw]').forEach(b => b.classList.toggle('on', !!S[b.dataset.sw]));
+  _el.querySelectorAll('.ped-toggle[data-light]').forEach(b => b.classList.toggle('on', !!(S.lights?.[b.dataset.light])));
 }
 
 /* ── Public API ────────────────────────────────────────────────── */
@@ -730,6 +989,7 @@ export function initPedestal() {
 }
 
 export function togglePedestal() {
+  if (!S.aircraft?.views?.includes('pedestal')) return;   // aircraft declares no pedestal
   const next = S.cockpitView === 'pedestal' ? 'forward' : 'pedestal';
   setState({ cockpitView: next });
 }

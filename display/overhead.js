@@ -853,6 +853,7 @@ export function initOverhead() {
 }
 
 export function toggleOverhead() {
+  if (!S.aircraft?.views?.includes('overhead')) return;   // aircraft declares no overhead panel
   const next = S.cockpitView === 'overhead' ? 'forward' : 'overhead';
   setState({ cockpitView: next });
 }

@@ -1,5 +1,6 @@
 {
   "id": "robin-dr400",
+  "views": ["pedestal"],
   "render": "c172",
   "name": "Robin DR400/140B Dauphin",
   "manufacturer": "robin",

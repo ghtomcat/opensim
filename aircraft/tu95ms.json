@@ -1,5 +1,6 @@
 {
   "id": "tu95ms",
+  "views": ["overhead", "left", "center", "right", "pedestal"],
   "name": "Tupolev Tu-95MS Bear H",
   "manufacturer": "tupolev",
   "family": "tu-95",

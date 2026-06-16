@@ -2040,7 +2040,7 @@
   <span id="keys-spd">+ / − SPD</span><span id="keys-throttle" style="display:none">+ / − THROTTLE</span> · F1–F4 DETENT<br>
   f/F flaps ▼▲ · G gear · Q fuel sel<br>
   <span id="keys-carb" style="display:none">H carb heat<br></span>
-  TAB display · V outside · C cam (chase/side/wing/plume) · O overhead · D pedestal · P pause · R role<br>
+  TAB display · V outside · C cam (chase/side/wing/plume) · <span id="keys-overhead">O overhead · </span><span id="keys-pedestal">D pedestal · </span>P pause · R role<br>
   SPACE PTT
 </div>
 
@@ -4501,6 +4501,8 @@
     document.getElementById('keys-spd').style.display      = isManual ? 'none'   : '';
     document.getElementById('keys-throttle').style.display = isManual ? 'inline' : 'none';
     document.getElementById('keys-carb').style.display     = S.aircraft?.hasCarbHeat ? '' : 'none';
+    document.getElementById('keys-overhead').style.display = S.aircraft?.views?.includes('overhead') ? '' : 'none';
+    document.getElementById('keys-pedestal').style.display = S.aircraft?.views?.includes('pedestal') ? '' : 'none';
   }
 
   /* ── Mission elapsed time counter ── */

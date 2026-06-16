@@ -1,5 +1,6 @@
 {
   "id": "a340",
+  "views": ["overhead", "left", "center", "right", "pedestal"],
   "name": "Airbus A340-300",
   "manufacturer": "airbus",
   "family": "a340",

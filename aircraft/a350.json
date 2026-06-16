@@ -1,5 +1,6 @@
 {
   "id": "a350",
+  "views": ["overhead", "left", "center", "right", "pedestal"],
   "name": "Airbus A350-900",
   "manufacturer": "airbus",
   "family": "a350",

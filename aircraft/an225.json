@@ -1,5 +1,6 @@
 {
   "id": "an225",
+  "views": ["overhead", "left", "center", "right", "pedestal"],
   "name": "Antonov An-225 Mriya",
   "manufacturer": "antonov",
   "family": "an-225",

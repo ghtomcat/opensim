@@ -8,49 +8,7 @@
       "cols": [
 
         {
-          "w": 0.14,
-          "widget": "grid",
-          "config": {
-            "layout": [
-              { "h": 0.10, "cols": [{ "w": 1.0, "widget": "spacer" }] },
-              { "h": 0.14, "cols": [{ "w": 1.0, "widget": "aircraft_tag" }] },
-
-              { "h": 0.13, "cols": [{ "w": 1.0, "widget": "bottom_switches", "config": {
-                "switches": [
-                  { "label": "BAT",  "state": "masterBat" },
-                  { "label": "ALT",  "state": "masterAlt" }
-                ]
-              }}]},
-
-              { "h": 0.09, "cols": [{ "w": 1.0, "widget": "bottom_switches", "config": {
-                "switches": [{ "label": "AVNCS", "state": "avionicsOn" }]
-              }}]},
-
-              { "h": 0.09, "cols": [{ "w": 1.0, "widget": "bottom_switches", "config": {
-                "switches": [{ "label": "PUMP", "state": "fuelPump" }]
-              }}]},
-
-              { "h": 0.26, "cols": [{ "w": 1.0, "widget": "magneto_knob" }] },
-
-              { "h": 0.10, "cols": [{ "w": 1.0, "widget": "bottom_switches", "config": {
-                "switches": [
-                  { "label": "NAV",  "state": "lights.nav"    },
-                  { "label": "BCN",  "state": "lights.beacon" }
-                ]
-              }}]},
-
-              { "h": 0.09, "cols": [{ "w": 1.0, "widget": "bottom_switches", "config": {
-                "switches": [
-                  { "label": "STRB", "state": "lights.strobe"  },
-                  { "label": "LAND", "state": "lights.landing" }
-                ]
-              }}]}
-            ]
-          }
-        },
-
-        {
-          "w": 0.86,
+          "w": 1.0,
           "widget": "grid",
           "config": {
             "layout": [

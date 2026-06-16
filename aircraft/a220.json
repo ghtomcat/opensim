@@ -1,5 +1,6 @@
 {
   "id": "a220",
+  "views": ["overhead", "left", "center", "right", "pedestal"],
   "name": "Airbus A220-300",
   "manufacturer": "airbus",
   "family": "a220",

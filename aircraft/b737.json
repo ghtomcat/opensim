@@ -1,5 +1,6 @@
 {
   "id": "b737",
+  "views": ["overhead", "left", "center", "right", "pedestal"],
   "name": "Boeing 737-800",
   "manufacturer": "boeing",
   "family": "737",

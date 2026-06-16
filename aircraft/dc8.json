@@ -1,5 +1,6 @@
 {
   "id": "dc8",
+  "views": ["overhead", "left", "center", "right", "pedestal"],
   "name": "Douglas DC-8",
   "manufacturer": "douglas",
   "family": "dc-8",

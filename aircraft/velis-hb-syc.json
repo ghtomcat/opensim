@@ -1,5 +1,6 @@
 {
   "id": "velis-hb-syc",
+  "views": ["pedestal"],
   "name": "Pipistrel Velis Electro HB-SYC",
   "manufacturer": "pipistrel",
   "family": "velis",
