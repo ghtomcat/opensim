@@ -32,8 +32,10 @@ let _radioAtmosphere  = null;   // active radio chain while ATC speaks (TTS path
 const _pmFired        = new Set();   // altitude callout thresholds already fired
 const _gpwsFired      = new Set();   // GPWS callout altitudes already fired
 const _takeoffFired   = new Set();   // takeoff speed callouts already fired
-/* Terrain GPWS (brick 3a) — radio-altitude + sink/closure envelope, repeats while active */
-let _gpwsPrevRadioAlt = null, _gpwsPrevAt = 0, _gpwsTerrAt = 0, _gpwsTerrLvl = 0, _gpwsClosure = 0;
+/* Terrain GPWS (brick 3a) — radio-altitude + sink/closure envelope, repeats while active.
+   Closure is the trend of a SMOOTHED radio altitude over a ~1.2 s window (the DEM is a stepwise
+   nearest-pixel sample; a per-frame difference spiked to thousands of fpm even when climbing). */
+let _gpwsRadioSm = null, _gpwsSmAt = 0, _gpwsTrendVal = 0, _gpwsTrendAt = 0, _gpwsTerrAt = 0, _gpwsTerrLvl = 0, _gpwsClosure = 0, _gpwsAboveSince = null;
 /* Predictive EGPWS (brick 3b) — look-ahead along the track; shares the _gpwsTerrAt cadence */
 let _egpwsLvl = 0, _egpwsScanAt = 0;
 
@@ -183,7 +185,7 @@ export function resetCrew() {
   _prevWow    = false;
   _pmFired.clear();
   _gpwsFired.clear();
-  _gpwsPrevRadioAlt = null; _gpwsPrevAt = 0; _gpwsTerrAt = 0; _gpwsTerrLvl = 0; _gpwsClosure = 0;
+  _gpwsRadioSm = null; _gpwsSmAt = 0; _gpwsTrendVal = 0; _gpwsTrendAt = 0; _gpwsTerrAt = 0; _gpwsTerrLvl = 0; _gpwsClosure = 0; _gpwsAboveSince = null;
   _egpwsLvl = 0; _egpwsScanAt = 0;
   _takeoffFired.clear();
   _rocketFired.clear();
@@ -284,16 +286,19 @@ function _checkGPWS(prev, curr, ac) {
 function _checkTerrainGPWS() {
   const terr = S.terrainElevFt;
   const now  = performance.now();
-  if (terr == null || S.wow) { _gpwsPrevRadioAlt = null; _gpwsTerrLvl = 0; _gpwsClosure = 0; return; }
+  if (terr == null || S.wow) { _gpwsRadioSm = null; _gpwsTerrLvl = 0; _gpwsClosure = 0; _gpwsAboveSince = null; return; }
   const radioAlt = (S.alt ?? 0) - terr;
 
-  let closureRaw = 0;   // fpm the radio altitude is shrinking (own sink + terrain rise)
-  if (_gpwsPrevRadioAlt != null) {
-    const dtMin = Math.max(1 / 6000, (now - _gpwsPrevAt) / 60000);
-    closureRaw = (_gpwsPrevRadioAlt - radioAlt) / dtMin;
+  /* Closure = the trend of the SMOOTHED radio altitude over a ~1.2 s window. A per-frame diff on
+     the nearest-pixel DEM sample reads thousands of fpm of "closure" from cell-stepping alone (it
+     logged +7000 fpm while the aircraft was climbing AWAY from the ground). */
+  if (_gpwsRadioSm == null) { _gpwsRadioSm = radioAlt; _gpwsTrendVal = radioAlt; _gpwsTrendAt = now; _gpwsSmAt = now; _gpwsClosure = 0; }
+  _gpwsRadioSm += (radioAlt - _gpwsRadioSm) * Math.min(1, (now - _gpwsSmAt) / 350);   // ~0.35 s tau
+  _gpwsSmAt = now;
+  if (now - _gpwsTrendAt >= 1200) {
+    _gpwsClosure = (_gpwsTrendVal - _gpwsRadioSm) / ((now - _gpwsTrendAt) / 60000);    // fpm the radio alt is shrinking (sink + terrain rise)
+    _gpwsTrendVal = _gpwsRadioSm; _gpwsTrendAt = now;
   }
-  _gpwsPrevRadioAlt = radioAlt; _gpwsPrevAt = now;
-  _gpwsClosure += (closureRaw - _gpwsClosure) * 0.15;   // EMA ~100 ms — kills single-frame DEM spikes
   const closure = _gpwsClosure;
 
   /* Envelope only in the proximity band, above the flare */
@@ -302,23 +307,28 @@ function _checkTerrainGPWS() {
   const wThresh = 1500 + radioAlt * 2.6;   // warning closure (fpm)
 
   const lvl = closure > wThresh ? 2 : closure > cThresh ? 1 : 0;
-  if (lvl === 0) { _gpwsTerrLvl = 0; return; }
+  if (lvl === 0) { _gpwsTerrLvl = 0; _gpwsAboveSince = null; return; }
   _gpwsTerrLvl = lvl;
+  if (_gpwsAboveSince == null) _gpwsAboveSince = now;
 
-  /* Fixed ~1.4 s cadence between any two utterances (the WHOOP-WHOOP period). The timer
-     survives short dips below the threshold, so closure jitter can't machine-gun the callout.
-     The phrase is chosen at fire time, so a caution that has since escalated speaks "pull up". */
+  /* Mode 1 (SINK RATE, from the clean own-VS) vs Mode 2 (TERRAIN closure, from the noisy stepped
+     DEM sample). Mode 1 fires immediately. Mode 2 is (a) inhibited in the landing config — gear
+     down = committed to the published approach that clears the terrain — and (b) must PERSIST
+     ~1.4 s, so a one-off DEM step (crossing a shoreline: terr 0→142 ft) doesn't trigger while a
+     real rising slope (sustained over many windows) does. */
+  const sinkDriven = -(S.vs ?? 0) > closure * 0.6;
+  if (!sinkDriven) {
+    if (S.gear) return;
+    if (now - _gpwsAboveSince < 1400) return;
+  }
+
+  /* Fixed ~1.4 s cadence between utterances (the WHOOP-WHOOP period); the timer survives short
+     dips so jitter can't machine-gun the callout. */
   if (now - _gpwsTerrAt < 1400) return;
   _gpwsTerrAt = now;
 
   if (lvl === 2) { _whoopWhoop(); setTimeout(() => _playGPWS('pull up', true), 700); }   // "WHOOP WHOOP … PULL UP"
-  else {
-    const phrase = -(S.vs ?? 0) > closure * 0.6 ? 'sink rate' : 'terrain';
-    // EGPWS Mode 2B: the terrain-closure ("terrain") caution is inhibited in the landing config
-    // (gear down) below 700 ft — you're intentionally descending to the runway. Sink rate stays.
-    if (phrase === 'terrain' && S.gear && radioAlt < 700) return;
-    _playGPWS(phrase, true);
-  }
+  else _playGPWS(sinkDriven ? 'sink rate' : 'terrain', true);
 }
 
 /* ── Predictive EGPWS (brick 3b) — look-ahead terrain. Samples the Mapbox DEM along the ground
@@ -358,6 +368,10 @@ function _checkPredictiveTerrain() {
   const lvl = (worst.clearance < 150 && worst.ttSec < 30) ? 2
             : (worst.clearance < 500 && worst.ttSec < 60) ? 1 : 0;
   if (lvl === 0) { _egpwsLvl = 0; return; }
+  /* Landing config (gear down) → committed to the approach; the terrain ahead is the approach
+     environment (the field lies beyond/below it). Inhibit the look-ahead CAUTION like the EGPWS
+     terrain-clearance floor — the imminent "terrain ahead, pull up" (lvl 2) still fires. */
+  if (lvl === 1 && S.gear) { _egpwsLvl = lvl; return; }
 
   if (now - _gpwsTerrAt < 1400) { _egpwsLvl = lvl; return; }     // shared cadence — never overlaps 3a
   _gpwsTerrAt = now; _egpwsLvl = lvl;
