@@ -563,7 +563,7 @@ function _drawMagnetoKnob(ctx, box, style, cfg) {
 }
 
 /* ── fuel_selector ── */
-const FUEL_STATES = ['LEFT', 'BOTH', 'RIGHT', 'OFF'];
+const FUEL_STATES = ['LEFT', 'BOTH', 'RIGHT'];
 
 function _drawFuelSelector(ctx, box, style, cfg) {
   drawFuelSel(ctx, box.x, box.y, box.w, box.h);

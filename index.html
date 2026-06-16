@@ -2005,7 +2005,7 @@
 <div id="warning-lights">
   <div class="warn-light red"   id="wl-oil">OIL PRESS</div>
   <div class="warn-light amber" id="wl-fuel">LOW FUEL</div>
-  <div class="warn-light amber" id="wl-fsel">FUEL SEL OFF</div>
+  <div class="warn-light amber" id="wl-fsel">FUEL SHUTOFF</div>
   <div class="warn-light amber" id="wl-carb">CARB ICE</div>
   <div class="warn-light red"   id="wl-cool">COOLANT</div>
   <div class="warn-light amber" id="wl-batt-low">BATT LOW</div>
@@ -4421,7 +4421,7 @@
     const battCritWasActive = wlBattCrit.classList.contains('active');
     wlOil.classList.toggle('active',      !!w.OIL_PRESS);
     wlFuel.classList.toggle('active',     !!w.LOW_FUEL);
-    wlFsel.classList.toggle('active',     !!w.FUEL_SEL_OFF);
+    wlFsel.classList.toggle('active',     !!w.FUEL_SHUTOFF);
     wlCarb.classList.toggle('active',     carbIcing);
     wlCool.classList.toggle('active',     coolLeaking);
     wlBattLow.classList.toggle('active',  battLow);

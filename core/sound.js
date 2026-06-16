@@ -2461,7 +2461,7 @@ export async function startEngineLifecycle() {
   if (_engineType !== 'v12-supercharged' && _engineType !== 'radial-2000hp' && _engineType !== 'lycoming-o360' && _engineType !== 'turbojet-vk1') { startSound(); return; }
   if (S.engineState === 'starting' || S.engineState === 'running' || S.engineState === 'idle') return;
   if (S.coolantState === 'failed') return;
-  if (S.fuelSelector === 'OFF' && S.fuelLeft !== null) return;   // fuel cut — no start
+  if (S.fuelShutoff && S.fuelLeft !== null) return;   // fuel shutoff closed — no start
 
   if (!_ctx) {
     _ctx    = new AudioContext();

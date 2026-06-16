@@ -219,18 +219,47 @@ const _CSS = `
   .ped-knob-name { font: 700 7px/1 monospace; letter-spacing: 0.05em; color: #50607c; }
   .ped-knob-val  { font: 700 9px/1 monospace; letter-spacing: 0.04em; color: #80b0e0; }
 
-  /* ── Fuel selector — vertical button gate ── */
-  .ped-fuel-gate { display: flex; flex-direction: column; gap: 0; border: 1px solid #252c3c; border-radius: 3px; overflow: hidden; }
-  .ped-fuel-pos {
-    padding: 6px 14px; background: #141820;
-    font: 700 9px/1 monospace; letter-spacing: 0.05em; color: #3a4860;
-    cursor: pointer; border-bottom: 1px solid #252c3c;
-    transition: background 0.08s, color 0.08s; user-select: none; text-align: center;
+  /* ── Fuel selector — white rotary lever (LEFT / BOTH / RIGHT) ── */
+  .ped-fsel { position: relative; width: 88px; height: 68px; cursor: pointer; user-select: none; }
+  .ped-fsel-lbl {
+    position: absolute; transform: translate(-50%, -50%);
+    font: 700 7px/1 monospace; letter-spacing: 0.03em; color: rgba(255,255,255,0.32); white-space: nowrap;
   }
-  .ped-fuel-pos:last-child { border-bottom: none; }
-  .ped-fuel-pos:hover { background: #1e2534; color: #6080a8; }
-  .ped-fuel-pos.ped-fuel-sel     { background: #14241a; color: #5ad08a; box-shadow: inset 2px 0 0 #2a8050; }
-  .ped-fuel-pos.ped-fuel-sel-off { background: #3a1414; color: #ff5a4a; box-shadow: inset 2px 0 0 #c02020; }
+  .ped-fsel-lbl.ped-fsel-lbl-on { color: #e8f0f8; }
+  .ped-fsel-lbl[data-fsel="LEFT"]  { left: 17%; top: 42%; }
+  .ped-fsel-lbl[data-fsel="BOTH"]  { left: 50%; top: 13%; }
+  .ped-fsel-lbl[data-fsel="RIGHT"] { left: 83%; top: 42%; }
+  .ped-fsel-knob {
+    position: absolute; left: 50%; top: 58%; transform: translate(-50%, -50%);
+    width: 34px; height: 34px; border-radius: 50%;
+    background: radial-gradient(circle at 36% 36%, #2c3040 0%, #141820 100%);
+    border: 1px solid rgba(255,255,255,0.22);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 2px 6px rgba(0,0,0,0.6);
+  }
+  .ped-fsel-lever {   /* white winged handle, points up (BOTH) at 0deg */
+    position: absolute; left: 50%; bottom: 50%;
+    width: 7px; height: 21px; border-radius: 3px;
+    background: linear-gradient(180deg, #f0f2f5 0%, #c4c8ce 100%);
+    border: 1px solid rgba(0,0,0,0.30);
+    transform-origin: bottom center; transform: translateX(-50%) rotate(0deg);
+    transition: transform 0.18s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+  }
+
+  /* ── Fuel shutoff — red cutoff knob ── */
+  .ped-shutoff {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: radial-gradient(circle at 36% 32%, #e85048 0%, #b02018 55%, #7a1410 100%);
+    border: 2px solid #6a1410; cursor: pointer; user-select: none;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.18);
+    display: flex; align-items: center; justify-content: center;
+    transition: box-shadow 0.15s, transform 0.12s;
+  }
+  .ped-shutoff span { font: 700 7px/1 monospace; letter-spacing: 0.06em; color: rgba(255,255,255,0); }
+  .ped-shutoff.ped-shutoff-on {
+    transform: translateY(-3px);   /* pulled out */
+    box-shadow: 0 6px 13px rgba(0,0,0,0.6), 0 0 12px rgba(255,70,58,0.6), inset 0 1px 0 rgba(255,255,255,0.18);
+  }
+  .ped-shutoff.ped-shutoff-on span { color: #fff; }
 
   /* ── Bat-handle toggle switches (G1000 design, recreated in the DOM) ── */
   .ped-toggle-block { display: flex; flex-direction: column; align-items: center; gap: 10px; }
@@ -641,12 +670,21 @@ function _buildHTML() {
               <div class="ped-park-pos" data-pb="0">OFF</div>
             </div>
           </div>` : '';
-  /* ── Fuel selector (BOTH / LEFT / RIGHT / OFF) — moved off the G1000 main panel ── */
+  /* ── Fuel selector — white rotary lever (LEFT / BOTH / RIGHT) ── */
   const fuelBlock = has('fuel') ? `
-          <div class="ped-flap-block">
-            <div class="ped-flap-label">FUEL SEL</div>
-            <div class="ped-fuel-gate">${['BOTH', 'LEFT', 'RIGHT', 'OFF'].map(p =>
-              `<div class="ped-fuel-pos" data-fuel="${p}">${p}</div>`).join('')}</div>
+          <div class="ped-knob-wrap">
+            <div class="ped-fsel" id="ped-fsel">
+              ${['LEFT', 'BOTH', 'RIGHT'].map(p =>
+                `<span class="ped-fsel-lbl" data-fsel="${p}">${p}</span>`).join('')}
+              <div class="ped-fsel-knob"><div class="ped-fsel-lever" id="ped-fsel-lever"></div></div>
+            </div>
+            <div class="ped-knob-name">FUEL SEL</div>
+          </div>` : '';
+  /* ── Fuel shutoff — red cutoff knob (push in = on, pull out = OFF) ── */
+  const cutoffBlock = has('fuelcutoff') ? `
+          <div class="ped-knob-wrap">
+            <div class="ped-shutoff" id="ped-shutoff"><span>OFF</span></div>
+            <div class="ped-knob-name">FUEL<br>SHUTOFF</div>
           </div>` : '';
   /* Bat-handle toggle (G1000 design: housing + lever + LED) */
   const _toggle = (attr, key, lbl) => `
@@ -671,8 +709,8 @@ function _buildHTML() {
               ['nav', 'NAV'], ['beacon', 'BCN'], ['strobe', 'STRB'], ['landing', 'LAND'],
             ].map(([k, lbl]) => _toggle('light', k, lbl)).join('')}</div>
           </div>` : '';
-  const flexRow = (flapBlock || sbBlock || abBlock || pbBlock || fuelBlock || switchBlock || lightsBlock) ? `
-        <div class="ped-flexrow">${flapBlock}${sbBlock}${abBlock}${fuelBlock}${switchBlock}${lightsBlock}${pbBlock}
+  const flexRow = (flapBlock || sbBlock || abBlock || pbBlock || fuelBlock || cutoffBlock || switchBlock || lightsBlock) ? `
+        <div class="ped-flexrow">${flapBlock}${sbBlock}${abBlock}${fuelBlock}${cutoffBlock}${switchBlock}${lightsBlock}${pbBlock}
         </div>` : '';
   /* ── Circuit breakers (decorative — light singles) ── */
   const breakersBlock = has('breakers') ? `
@@ -815,10 +853,12 @@ function _attachHandlers() {
   });
 
   /* ── Light-piston controls (moved off the G1000 main panel) ── */
-  /* Throttle vernier — IDLE → CRUISE → FULL → IDLE */
+  /* Throttle vernier — props use spdT as the throttle (same as +/-): IDLE → CRUISE → FULL */
   document.getElementById('ped-knob-throttle')?.addEventListener('click', () => {
-    const cur = S.thrustLever ?? 0;
-    setState({ thrustLever: cur < 0.33 ? 0.5 : cur < 0.8 ? 1 : 0 });
+    const maxSpd = S.aircraft?.envelope?.maxSpd ?? 130;
+    const cur = (S.spdT ?? 0) / maxSpd;
+    const next = cur < 0.33 ? 0.7 : cur < 0.85 ? 1 : 0;
+    setState({ spdT: Math.round(next * maxSpd) });
   });
   /* Mixture vernier — RICH → LEAN → ICO → RICH */
   document.getElementById('ped-knob-mixture')?.addEventListener('click', () => {
@@ -837,9 +877,14 @@ function _attachHandlers() {
     if (next === 'START') startEngineLifecycle();
     if (next === 'OFF')   stopEngineLifecycle();
   });
-  /* Fuel selector — BOTH / LEFT / RIGHT / OFF */
-  _el.querySelectorAll('.ped-fuel-pos').forEach(btn => {
-    btn.addEventListener('click', () => setState({ fuelSelector: btn.dataset.fuel }));
+  /* Fuel selector rotary — cycle BOTH → LEFT → RIGHT */
+  const FSEL = ['BOTH', 'LEFT', 'RIGHT'];
+  document.getElementById('ped-fsel')?.addEventListener('click', () => {
+    setState({ fuelSelector: FSEL[(FSEL.indexOf(S.fuelSelector ?? 'BOTH') + 1) % FSEL.length] });
+  });
+  /* Fuel shutoff — red cutoff knob */
+  document.getElementById('ped-shutoff')?.addEventListener('click', () => {
+    setState({ fuelShutoff: !S.fuelShutoff });
   });
   /* Electrical switches — bat-handle toggle */
   _el.querySelectorAll('.ped-toggle[data-sw]').forEach(btn => {
@@ -934,7 +979,8 @@ function _update() {
     const v = document.getElementById(valId);
     if (v) v.textContent = txt;
   };
-  const thr = S.thrustLever ?? 0;
+  /* Throttle knob follows the prop throttle (spdT / maxSpd), which +/- drive */
+  const thr = Math.max(0, Math.min(1, (S.spdT ?? 0) / (S.aircraft?.envelope?.maxSpd ?? 130)));
   setKnob('ped-knob-throttle', 'ped-kv-throttle', -120 + thr * 240, `${Math.round(thr * 100)}%`, thr > 0.02);
   const mix = S.mixture ?? 1;
   setKnob('ped-knob-mixture', 'ped-kv-mixture', -120 + mix * 240, mix >= 1 ? 'RICH' : mix <= 0 ? 'ICO' : 'LEAN', mix > 0);
@@ -952,12 +998,15 @@ function _update() {
   _el.querySelectorAll('.ped-magrot-lbl').forEach(l =>
     l.classList.toggle('ped-magrot-lbl-on', l.dataset.magl === mag));
 
-  /* Fuel selector */
+  /* Fuel selector — white lever rotates to LEFT / BOTH / RIGHT */
   const fsel = S.fuelSelector ?? 'BOTH';
-  _el.querySelectorAll('.ped-fuel-pos').forEach(b => {
-    b.classList.toggle('ped-fuel-sel',     b.dataset.fuel === fsel && fsel !== 'OFF');
-    b.classList.toggle('ped-fuel-sel-off', b.dataset.fuel === fsel && fsel === 'OFF');
-  });
+  const lever = document.getElementById('ped-fsel-lever');
+  if (lever) lever.style.transform = `translateX(-50%) rotate(${({ LEFT: -55, BOTH: 0, RIGHT: 55 })[fsel] ?? 0}deg)`;
+  _el.querySelectorAll('.ped-fsel-lbl').forEach(l =>
+    l.classList.toggle('ped-fsel-lbl-on', l.dataset.fsel === fsel));
+  /* Fuel shutoff — red knob pulled out (glow) when closed */
+  const shut = document.getElementById('ped-shutoff');
+  if (shut) shut.classList.toggle('ped-shutoff-on', !!S.fuelShutoff);
   /* Electrical switches + lights — bat-handle toggles */
   _el.querySelectorAll('.ped-toggle[data-sw]').forEach(b => b.classList.toggle('on', !!S[b.dataset.sw]));
   _el.querySelectorAll('.ped-toggle[data-light]').forEach(b => b.classList.toggle('on', !!(S.lights?.[b.dataset.light])));

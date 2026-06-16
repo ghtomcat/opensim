@@ -11,6 +11,7 @@
 
 import { S, setState } from './state.js';
 import { bbEvent } from './blackbox.js';
+import { stopEngineLifecycle } from './sound.js';
 
 /* Default fuel burn rates litres/hour at full power */
 const BURN_DEFAULTS = {
@@ -31,6 +32,8 @@ export function initFuel() {
     fuelLeft:     tanks.left  ?? 0,
     fuelRight:    tanks.right ?? 0,
     fuelSelector: 'BOTH',
+    fuelShutoff:  false,
+    fuelStarveT:  null,
   });
 }
 
@@ -39,7 +42,7 @@ export function resetFuel() {
 }
 
 export function cycleFuelSelector() {
-  const order = ['BOTH', 'LEFT', 'RIGHT', 'OFF'];
+  const order = ['BOTH', 'LEFT', 'RIGHT'];
   const cur   = S.fuelSelector ?? 'BOTH';
   const next  = order[(order.indexOf(cur) + 1) % order.length];
   setState({ fuelSelector: next });
@@ -58,18 +61,15 @@ export function tickFuel(dt) {
   const power    = S.enginePower  ?? 1.0;
   const running  = power > 0.05;
 
-  /* Fuel selector OFF — starve engine immediately */
-  if (sel === 'OFF') {
-    if (running) {
-      setState({ enginePower: 0, engineState: 'off' });
-      if (S.emergLog) S.emergLog.push({ t: S.time, type: 'failure', failureType: 'fuel_starvation', value: 0 });
-      bbEvent({ type: 'fuel_selector_cutoff', selector: 'OFF' });
-    }
+  /* Fuel shutoff valve closed — no burn; engine runs on residual fuel, then quits */
+  if (S.fuelShutoff) {
+    _starveRunDown(dt, 'fuel_shutoff');
     _updateWarnings();
     return;
   }
 
   if (!running) {
+    _clearStarve();
     _updateWarnings();
     return;
   }
@@ -101,22 +101,35 @@ export function tickFuel(dt) {
 
   setState({ fuelLeft: left, fuelRight: right });
 
-  /* Engine cuts out if selected tank(s) are empty */
+  /* Selected tank(s) empty → fuel starvation (same run-down as a shutoff) */
   const selectedEmpty =
     (sel === 'BOTH'  && left  <= 0 && right <= 0) ||
     (sel === 'LEFT'  && left  <= 0) ||
-    (sel === 'RIGHT' && right <= 0) ||
-    (sel === 'OFF');
+    (sel === 'RIGHT' && right <= 0);
 
-  if (selectedEmpty && power > 0) {
-    setState({ enginePower: 0, engineState: 'off' });
-    if (S.emergLog) {
-      S.emergLog.push({ t: S.time, type: 'failure', failureType: 'fuel_starvation', value: 0 });
-    }
-    bbEvent({ type: 'fuel_exhausted', selector: sel, fuelLeft: left, fuelRight: right });
-  }
+  if (selectedEmpty) _starveRunDown(dt, 'fuel_exhausted');
+  else               _clearStarve();
 
   _updateWarnings();
+}
+
+/* Fuel cut (shutoff or empty tank): the engine keeps running on the fuel left in
+   the lines/carburettor for a few seconds, then quits with the normal shutdown sound. */
+const STARVE_RUNDOWN_S = 4;
+function _starveRunDown(dt, kind) {
+  if ((S.enginePower ?? 0) <= 0.05) { _clearStarve(); return; }   // already stopped
+  const t = (S.fuelStarveT ?? STARVE_RUNDOWN_S) - dt;
+  if (t <= 0) {
+    setState({ enginePower: 0, engineState: 'off', fuelStarveT: null });
+    stopEngineLifecycle();                                         // same as engine shutdown
+    if (S.emergLog) S.emergLog.push({ t: S.time, type: 'failure', failureType: 'fuel_starvation', value: 0 });
+    bbEvent({ type: kind, selector: S.fuelSelector ?? null, shutoff: !!S.fuelShutoff });
+  } else {
+    setState({ fuelStarveT: t });
+  }
+}
+function _clearStarve() {
+  if (S.fuelStarveT != null) setState({ fuelStarveT: null });      // fuel restored → cancel run-down
 }
 
 function _updateWarnings() {
@@ -141,8 +154,8 @@ function _updateWarnings() {
     (sel === 'RIGHT' && right < 5);
   warnings.LOW_FUEL = lowFuel;
 
-  /* FUEL SELECTOR OFF — amber */
-  warnings.FUEL_SEL_OFF = sel === 'OFF';
+  /* FUEL SHUTOFF closed — amber */
+  warnings.FUEL_SHUTOFF = !!S.fuelShutoff;
 
   setState({ warnings });
 }

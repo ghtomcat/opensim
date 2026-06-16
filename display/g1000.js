@@ -552,7 +552,7 @@ function _engineStrip(ctx, x, y, w, h) {
   const cautions = [
     { label: 'LOW FUEL',  active: warns.LOW_FUEL,                  color: G.amber },
     { label: 'OIL PRESS', active: warns.OIL_PRESS,                 color: G.red   },
-    { label: 'FUEL SEL',  active: warns.FUEL_SEL_OFF,              color: G.amber },
+    { label: 'FUEL OFF',  active: warns.FUEL_SHUTOFF,             color: G.amber },
     { label: 'CARB ICE',  active: (S.carbIceLevel ?? 0) > 0.15,    color: G.amber },
   ];
   const cw = (gbw - 4) / 2;

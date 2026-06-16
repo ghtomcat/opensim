@@ -141,7 +141,9 @@ export const S = {
   lights: { nav: false, beacon: false, strobe: false, landing: false },
 
   /* ── Fuel system ── */
-  fuelSelector: 'BOTH',  // 'LEFT' | 'RIGHT' | 'BOTH' | 'OFF'
+  fuelSelector: 'BOTH',  // 'LEFT' | 'RIGHT' | 'BOTH'  (OFF moved to fuelShutoff)
+  fuelShutoff: false,     // fuel shutoff valve / cock closed → starves the engine
+  fuelStarveT: null,      // run-down countdown (s) once fuel is cut; engine quits at 0
   fuelLeft:  null,        // litres — null = no fuel system on this aircraft
   fuelRight: null,
 
@@ -234,7 +236,7 @@ export const S = {
   dogJoints:    null,   // [lf_sho,lf_thi,lf_shi, rf_..., lb_..., rb_...] degrees × 12
 
   /* ── Warning lights ── */
-  warnings: {},           // { OIL_PRESS: bool, LOW_FUEL: bool, FUEL_SEL_OFF: bool }
+  warnings: {},           // { OIL_PRESS: bool, LOW_FUEL: bool, FUEL_SHUTOFF: bool }
 
   /* ── Emergency log (scored at debrief) ── */
   emergLog: [],   // { t, type: 'failure'|'tune'|'squawk7700'|'ptt', ... }
