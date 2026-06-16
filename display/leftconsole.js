@@ -1,0 +1,209 @@
+/* ═══════════════════════════════════════════════════════════════
+   OpenSim — display/leftconsole.js
+   Left cockpit console — slides in from the left. Toggle: L key.
+   Data-driven from aircraft.left = [tokens]. First user: Bf 109.
+     throttle  — Gashebel (power lever)  → spdT  (props key off spdT)
+     trim      — Höhentrimmrad           → trim  (-10 nose-down … +10 nose-up)
+     fuelcock  — Brandhahn (fuel cock)   → fuelShutoff
+   ═══════════════════════════════════════════════════════════════ */
+
+import { S, setState } from '../core/state.js';
+
+let _el = null;
+
+/* ── CSS ──────────────────────────────────────────────────────── */
+const _CSS = `
+  #lcon {
+    position: fixed; inset: 0; z-index: 180;
+    background: #14161a;
+    display: flex; flex-direction: column;
+    align-items: flex-start; justify-content: center;
+    gap: 26px; padding: 24px 48px;
+    transform: translateX(-100%);
+    transition: transform 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  #lcon.lcon-visible { transform: translateX(0); }
+
+  .lc-title { font: 600 10px/1 monospace; letter-spacing: 0.14em; color: #44504a; text-transform: uppercase; }
+  .lc-row   { display: flex; gap: 52px; align-items: flex-end; }
+  .lc-ctrl  { display: flex; flex-direction: column; align-items: center; gap: 11px; }
+  .lc-label { font: 600 9px/1 monospace; letter-spacing: 0.10em; color: #6a7a66; }
+  .lc-val   { font: 700 10px/1 monospace; letter-spacing: 0.04em; color: #9ab088; min-height: 11px; }
+  .lc-hint  { font: 500 9px/1 monospace; letter-spacing: 0.08em; color: #28302a; margin-top: 4px; }
+
+  /* ── Gashebel (throttle) — vertical lever ── */
+  .lc-throttle-track {
+    position: relative; width: 30px; height: 178px;
+    background: #0e1014; border: 1px solid #2a322c; border-radius: 4px; cursor: ns-resize;
+  }
+  .lc-throttle-handle {
+    position: absolute; left: 50%; transform: translateX(-50%); top: 0;
+    width: 40px; height: 18px;
+    background: linear-gradient(180deg, #3a4038 0%, #20241e 100%);
+    border: 1px solid #4a5244; border-radius: 3px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.6); transition: top 0.12s ease;
+  }
+  .lc-throttle-handle::after {
+    content: ''; position: absolute; left: 4px; right: 4px; top: 50%;
+    height: 2px; background: rgba(160,180,150,0.3); transform: translateY(-50%);
+  }
+
+  /* ── Höhentrimmrad (elevator trim wheel) ── */
+  .lc-wheel {
+    position: relative; width: 78px; height: 78px; border-radius: 50%;
+    background: radial-gradient(circle at 38% 36%, #3a4038 0%, #1c201a 70%);
+    border: 2px solid #4a5244; cursor: pointer;
+    box-shadow: 0 3px 9px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+  .lc-wheel::before {   /* hub */
+    content: ''; position: absolute; left: 50%; top: 50%;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #10120e; border: 1px solid #3a423a; transform: translate(-50%, -50%);
+  }
+  .lc-wheel-mark {
+    position: absolute; left: 50%; bottom: 50%;
+    width: 4px; height: 31px; border-radius: 2px; background: #aebf9e;
+    transform-origin: bottom center; transform: translateX(-50%) rotate(0deg);
+    transition: transform 0.14s ease;
+  }
+
+  /* ── Brandhahn (fuel cock) — red valve lever ── */
+  .lc-cock {
+    position: relative; width: 66px; height: 66px; border-radius: 50%;
+    background: radial-gradient(circle at 38% 36%, #2a2e26 0%, #15170f 70%);
+    border: 2px solid #3a4234; cursor: pointer; transition: box-shadow 0.15s;
+  }
+  .lc-cock::after {   /* centre pivot */
+    content: ''; position: absolute; left: 50%; top: 50%;
+    width: 9px; height: 9px; border-radius: 50%; background: #d8dce0;
+    transform: translate(-50%, -50%); z-index: 2;
+  }
+  .lc-cock-lever {
+    position: absolute; left: 50%; bottom: 50%;
+    width: 8px; height: 25px; border-radius: 3px;
+    background: linear-gradient(180deg, #e85048 0%, #a02018 100%);
+    border: 1px solid #6a1410;
+    transform-origin: bottom center; transform: translateX(-50%) rotate(0deg);
+    transition: transform 0.16s ease; box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  }
+  .lc-cock.lc-cock-closed { box-shadow: 0 0 13px rgba(255,70,58,0.5); }
+`;
+
+/* ── Build ─────────────────────────────────────────────────────── */
+function _buildHTML() {
+  const tokens = S.aircraft?.left ?? [];
+  const has = (t) => tokens.includes(t);
+
+  const throttle = has('throttle') ? `
+        <div class="lc-ctrl">
+          <div class="lc-label">GASHEBEL</div>
+          <div class="lc-throttle-track" id="lc-throttle"><div class="lc-throttle-handle" id="lc-throttle-h"></div></div>
+          <div class="lc-val" id="lc-throttle-v">—</div>
+        </div>` : '';
+  const trim = has('trim') ? `
+        <div class="lc-ctrl">
+          <div class="lc-label">HÖHENTRIMM</div>
+          <div class="lc-wheel" id="lc-trim"><div class="lc-wheel-mark"></div></div>
+          <div class="lc-val" id="lc-trim-v">—</div>
+        </div>` : '';
+  const cock = has('fuelcock') ? `
+        <div class="lc-ctrl">
+          <div class="lc-label">BRANDHAHN</div>
+          <div class="lc-cock" id="lc-cock"><div class="lc-cock-lever" id="lc-cock-l"></div></div>
+          <div class="lc-val" id="lc-cock-v">—</div>
+        </div>` : '';
+
+  return `
+    <div class="lc-title">Linke Konsole</div>
+    <div class="lc-row">${throttle}${trim}${cock}</div>
+    <div class="lc-hint">L · schliessen</div>
+  `;
+}
+
+/* ── Handlers ──────────────────────────────────────────────────── */
+function _attachHandlers() {
+  if (!_el) return;
+
+  /* Gashebel — click the track to set the throttle (spdT, like +/-) */
+  const track = document.getElementById('lc-throttle');
+  track?.addEventListener('click', e => {
+    const rect = track.getBoundingClientRect();
+    const frac = 1 - (e.clientY - rect.top) / rect.height;   // 0 idle (bottom) … 1 full (top)
+    const maxSpd = S.aircraft?.envelope?.maxSpd ?? 335;
+    setState({ spdT: Math.round(Math.max(0, Math.min(1, frac)) * maxSpd) });
+  });
+
+  /* Höhentrimmrad — click upper half = nose up, lower = nose down (same 0.5 step as t/T) */
+  const wheel = document.getElementById('lc-trim');
+  wheel?.addEventListener('click', e => {
+    const rect = wheel.getBoundingClientRect();
+    const up = (e.clientY - rect.top) < rect.height / 2;
+    setState({ trim: Math.max(-10, Math.min(10, (S.trim ?? 0) + (up ? 0.5 : -0.5))) });
+  });
+
+  /* Brandhahn — toggle fuel cock (fuelShutoff) */
+  document.getElementById('lc-cock')?.addEventListener('click', () => {
+    setState({ fuelShutoff: !S.fuelShutoff });
+  });
+}
+
+/* ── Live update ───────────────────────────────────────────────── */
+function _update() {
+  if (!_el || !_el.classList.contains('lcon-visible')) return;
+
+  /* Gashebel — handle rides up with throttle */
+  const maxSpd = S.aircraft?.envelope?.maxSpd ?? 335;
+  const thr = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
+  const h = document.getElementById('lc-throttle-h');
+  if (h) h.style.top = `${(1 - thr) * 89}%`;
+  const tv = document.getElementById('lc-throttle-v');
+  if (tv) tv.textContent = `${Math.round(thr * 100)}%`;
+
+  /* Höhentrimmrad — wheel notch rotates with trim, ±10 → ±150° */
+  const trim = S.trim ?? 0;
+  const mk = _el.querySelector('#lc-trim .lc-wheel-mark');
+  if (mk) mk.style.transform = `translateX(-50%) rotate(${trim / 10 * 150}deg)`;
+  const trv = document.getElementById('lc-trim-v');
+  if (trv) trv.textContent = trim === 0 ? 'NEUTRAL' : `${trim > 0 ? 'KOPF' : 'SCHWANZ'} ${Math.abs(trim).toFixed(1)}`;
+
+  /* Brandhahn — lever up = AUF (open), sideways + glow = ZU (closed) */
+  const closed = !!S.fuelShutoff;
+  const lever = document.getElementById('lc-cock-l');
+  if (lever) lever.style.transform = `translateX(-50%) rotate(${closed ? 90 : 0}deg)`;
+  document.getElementById('lc-cock')?.classList.toggle('lc-cock-closed', closed);
+  const cv = document.getElementById('lc-cock-v');
+  if (cv) cv.textContent = closed ? 'ZU' : 'AUF';
+}
+
+/* ── Public API ────────────────────────────────────────────────── */
+export function initLeftConsole() {
+  document.getElementById('lcon')?.remove();
+  if (!document.getElementById('lcon-style')) {
+    const s = document.createElement('style');
+    s.id = 'lcon-style';
+    s.textContent = _CSS;
+    document.head.appendChild(s);
+  }
+  _el = document.createElement('div');
+  _el.id = 'lcon';
+  document.body.appendChild(_el);
+  _el.innerHTML = _buildHTML();
+  _attachHandlers();
+}
+
+export function toggleLeftConsole() {
+  if (!S.aircraft?.views?.includes('left')) return;   // aircraft declares no left console
+  setState({ cockpitView: S.cockpitView === 'left' ? 'forward' : 'left' });
+}
+
+export function renderLeftConsole() {
+  if (!_el) return;
+  const visible    = S.cockpitView === 'left';
+  const wasVisible = _el.classList.contains('lcon-visible');
+  _el.classList.toggle('lcon-visible', visible);
+  if (visible && !wasVisible) {
+    _el.innerHTML = _buildHTML();
+    _attachHandlers();
+  }
+  if (visible) _update();
+}

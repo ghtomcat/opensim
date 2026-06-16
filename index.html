@@ -2040,7 +2040,7 @@
   <span id="keys-spd">+ / − SPD</span><span id="keys-throttle" style="display:none">+ / − THROTTLE</span> · F1–F4 DETENT<br>
   f/F flaps ▼▲ · G gear · Q fuel sel<br>
   <span id="keys-carb" style="display:none">H carb heat<br></span>
-  TAB display · V outside · C cam (chase/side/wing/plume) · <span id="keys-overhead">O overhead · </span><span id="keys-pedestal">D pedestal · </span>P pause · R role<br>
+  TAB display · V outside · C cam (chase/side/wing/plume) · <span id="keys-overhead">O overhead · </span><span id="keys-pedestal">D pedestal · </span><span id="keys-left">L console · </span>P pause · R role<br>
   SPACE PTT
 </div>
 
@@ -2251,6 +2251,7 @@
   import { initCOM }           from './display/com.js';
   import { initOverhead, toggleOverhead, renderOverhead } from './display/overhead.js';
   import { initPedestal, togglePedestal, renderPedestal } from './display/pedestal.js';
+  import { initLeftConsole, toggleLeftConsole, renderLeftConsole } from './display/leftconsole.js';
   import { initSound, startSound, stopSound, startEngineLifecycle, stopEngineLifecycle, switchEngine, tickSound, getCurrentRpm, silenceAll, apDisconnectChime } from './core/sound.js';
   import { initOutside, tickOutside, outsideInvalidate, setOutsideCamMode } from './display/outside.js?v=6';
   import { initKneeboard, toggleKneeboard, tickKneeboard } from './display/kneeboard.js';
@@ -3830,6 +3831,7 @@
       );
     });
     initPedestal();
+    initLeftConsole();
 
     /* Seed robot arm state if applicable — Three.js init happens lazily on first render */
     if (S.aircraft?.vehicleType === 'robot-arm') {
@@ -4114,6 +4116,7 @@
       }
       /* L — toggle CM ↔ LM panel (Saturn V missions with LM only) */
       if ((e.key === 'l' || e.key === 'L') && !e.ctrlKey && !e.shiftKey) {
+        if (S.aircraft?.views?.includes('left')) { toggleLeftConsole(); return; }
         if (S.aircraft?.id === 'saturn-v' && S.mission?.hasLM && S.sivbSep) {
           setState({ inLM: !(S.inLM ?? false) });
         }
@@ -4279,6 +4282,7 @@
       () => renderFMA(),
       () => renderOverhead(),
       () => renderPedestal(),
+      () => renderLeftConsole(),
       () => updatePanel(),
       () => updateEscTemps(),
       () => updateMetar(),
@@ -4503,6 +4507,7 @@
     document.getElementById('keys-carb').style.display     = S.aircraft?.hasCarbHeat ? '' : 'none';
     document.getElementById('keys-overhead').style.display = S.aircraft?.views?.includes('overhead') ? '' : 'none';
     document.getElementById('keys-pedestal').style.display = S.aircraft?.views?.includes('pedestal') ? '' : 'none';
+    document.getElementById('keys-left').style.display     = S.aircraft?.views?.includes('left') ? '' : 'none';
   }
 
   /* ── Mission elapsed time counter ── */
