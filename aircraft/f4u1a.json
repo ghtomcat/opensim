@@ -12,6 +12,8 @@
   "fuelBurn": 160,
   "callsign": "Jolly 1",
   "icaoType": "CORS",
+  "landSurfaces": ["runway", "grass"],
+  "gearRuggedness": 0.55,
 
   "envelope": {
     "cruiseAlt": 20000,

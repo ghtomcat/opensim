@@ -7,6 +7,8 @@
   "clock": "analog",
   "callsign": "Wolfskopf",
   "icaoType": "AV04",
+  "landSurfaces": ["runway", "grass"],
+  "gearRuggedness": 0.7,
   "era": "WWI / 1918",
   "engine": "Le Rhône 9J rotary, 110hp",
 

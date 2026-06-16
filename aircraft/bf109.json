@@ -13,6 +13,8 @@
   "panel": "bf109",
   "callsign": "Yellow 1",
   "icaoType": "ME09",
+  "landSurfaces": ["runway", "grass"],
+  "gearRuggedness": 0.4,
 
   "envelope": {
     "cruiseAlt": 20000,

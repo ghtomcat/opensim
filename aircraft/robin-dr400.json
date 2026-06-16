@@ -13,6 +13,8 @@
   "hasCarbHeat": true,
   "callsign": "HB-KFG",
   "icaoType": "DR40",
+  "landSurfaces": ["runway", "grass"],
+  "gearRuggedness": 0.5,
   "era": "VFR / PPL(A)",
   "engine": "Lycoming O-320-D2A, 160hp",
   "envelope": {

@@ -211,6 +211,7 @@
   },
   "callsign": "Alaska",
   "icaoType": "B39M",
+  "landSurfaces": ["runway"],
   "nose": {
     "tipX": 0.0177,
     "r": 0.00195,

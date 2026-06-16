@@ -181,6 +181,7 @@
   "approachSpeed": 145,
   "callsign": "Edelweiss Air",
   "icaoType": "A343",
+  "landSurfaces": ["runway"],
   "nose": {
     "tipX": 0.011067997318835182,
     "tipCz": -0.00015531317494600435,

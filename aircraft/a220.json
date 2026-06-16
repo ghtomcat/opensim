@@ -113,6 +113,7 @@
   },
   "callsign": "Airbaltic",
   "icaoType": "BCS3",
+  "landSurfaces": ["runway"],
   "nose": {
     "tipX": 0.021,
     "tipCz": 0.0001,

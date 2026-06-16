@@ -201,6 +201,7 @@
   },
   "callsign": "Speedbird",
   "icaoType": "B738",
+  "landSurfaces": ["runway"],
   "nose": {
     "tipX": 0.0177,
     "r": 0.00195,

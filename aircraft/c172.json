@@ -15,6 +15,8 @@
   "hasCarbHeat": true,
   "callsign": "HB-TBD",
   "icaoType": "C172",
+  "landSurfaces": ["runway", "grass"],
+  "gearRuggedness": 0.5,
   "era": "VFR / PPL(A)",
   "engine": "Lycoming IO-360, 180hp",
   "envelope": {

@@ -8,6 +8,7 @@
   "clock": "digital",
   "callsign": "UR-82060",
   "icaoType": "A225",
+  "landSurfaces": ["runway"],
   "era": "Cargo · 1988",
   "engine": "ZMKB Progress D-18T × 6 · 229.5 kN each · 1 377 kN total",
 

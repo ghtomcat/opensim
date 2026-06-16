@@ -10,6 +10,7 @@
   "panel": "bf109",
   "callsign": "Red 15",
   "icaoType": "MG15",
+  "landSurfaces": ["runway"],
 
   "manualControl": true,
 

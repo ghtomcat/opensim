@@ -70,6 +70,7 @@
   },
   "callsign": "Helvetic",
   "icaoType": "E290",
+  "landSurfaces": ["runway"],
   "nose": {
     "tipX": 0.020,
     "tipCz": 0.0001,
