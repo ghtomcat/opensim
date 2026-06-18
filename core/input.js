@@ -313,11 +313,15 @@ function _onKeyDown(e) {
     setState({ speedBrake: ((S.speedBrake ?? 0) + 1) % 3 });
   }
 
-  /* Role toggle (for solo sim) */
+  /* R — right console if the aircraft has one, else crew-role toggle (solo sim) */
   if (e.key === 'r') {
-    const roles = ['PF', 'PM', 'INSTRUCTOR'];
-    const i = roles.indexOf(S.role);
-    setState({ role: roles[(i + 1) % roles.length] });
+    if (S.aircraft?.views?.includes('right')) {
+      setState({ cockpitView: S.cockpitView === 'right' ? 'forward' : 'right' });
+    } else {
+      const roles = ['PF', 'PM', 'INSTRUCTOR'];
+      const i = roles.indexOf(S.role);
+      setState({ role: roles[(i + 1) % roles.length] });
+    }
   }
 }
 

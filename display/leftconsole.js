@@ -14,18 +14,20 @@ let _el = null;
 /* ── CSS ──────────────────────────────────────────────────────── */
 const _CSS = `
   #lcon {
-    position: fixed; inset: 0; z-index: 180;
-    background: #14161a;
+    position: fixed; left: 0; top: 0; bottom: 0; width: min(38vw, 500px); z-index: 180;
+    background: #14161a; border-right: 1px solid #20242a;
     display: flex; flex-direction: column;
-    align-items: flex-start; justify-content: center;
-    gap: 26px; padding: 24px 48px;
+    align-items: center; justify-content: center;
+    gap: 24px; padding: 24px 30px;
     transform: translateX(-100%);
     transition: transform 0.26s cubic-bezier(0.4, 0, 0.2, 1);
   }
   #lcon.lcon-visible { transform: translateX(0); }
+  /* Wide variant — airliner/transport Captain station covers the full screen */
+  #lcon.lcon-wide { width: 100vw; align-items: flex-start; padding: 24px 48px; }
 
   .lc-title { font: 600 10px/1 monospace; letter-spacing: 0.14em; color: #44504a; text-transform: uppercase; }
-  .lc-row   { display: flex; gap: 52px; align-items: flex-end; }
+  .lc-row   { display: flex; gap: 34px; align-items: flex-end; }
   .lc-ctrl  { display: flex; flex-direction: column; align-items: center; gap: 11px; }
   .lc-label { font: 600 9px/1 monospace; letter-spacing: 0.10em; color: #6a7a66; }
   .lc-val   { font: 700 10px/1 monospace; letter-spacing: 0.04em; color: #9ab088; min-height: 11px; }
@@ -200,6 +202,9 @@ export function renderLeftConsole() {
   if (!_el) return;
   const visible    = S.cockpitView === 'left';
   const wasVisible = _el.classList.contains('lcon-visible');
+  /* Airliners/transports (have an overhead) get the full-screen Captain station;
+     fighters get a narrow side console. */
+  _el.classList.toggle('lcon-wide', !!S.aircraft?.views?.includes('overhead'));
   _el.classList.toggle('lcon-visible', visible);
   if (visible && !wasVisible) {
     _el.innerHTML = _buildHTML();

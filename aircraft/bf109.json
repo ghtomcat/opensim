@@ -2,6 +2,7 @@
   "id": "bf109",
   "views": ["left", "right"],
   "left": ["throttle", "trim", "fuelcock"],
+  "right": ["radio", "oxygen", "breakers"],
   "render": "bf109",
   "gear": { "fixed": true, "tires": [[1, 0.000171], [3, 0.000171], [5, 0.000081]] },
   "name": "Messerschmitt Bf 109 G-4",
