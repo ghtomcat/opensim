@@ -390,7 +390,7 @@ export function tickPhysics(dt) {
       /* Brakes ramp in over ~3 s after a ~0.8 s delay — no instant slam on touchdown.
          Wheel braking comes from the selected AUTO BRK level (engages once the ground
          spoilers are out), unless the pilot brakes manually / sets the park brake → full. */
-      const _brakeRamp  = Math.min(1, Math.max(0, (_grT - 0.8) / 3));
+      const _brakeRamp  = S.parkBrake ? 1 : Math.min(1, Math.max(0, (_grT - 0.8) / 3));   // park brake bites full at once (the ramp is landing anti-slam)
       const _manualBrk  = S.parkBrake || S.braking;
       let _brakeLevel;
       if (_manualBrk) {
@@ -408,7 +408,10 @@ export function tickPhysics(dt) {
       const _revFrac    = perf.reverserFrac ?? 0.30;
       const revThrust   = S.thrustReverser ? _revFrac * T_max * (rho / 1.225) * Math.min(1, _grT / 2.5) : 0;
       const F_net     = T - D - (muGround + braking * muBrake * _brakeLevel * _brakeRamp) * W - revThrust;
-      const newSpd_ms = Math.max(0, spd_ms_gnd + F_net / mass * dt);
+      let   newSpd_ms = Math.max(0, spd_ms_gnd + F_net / mass * dt);
+      /* Park-brake latch — a set brake holds the aircraft at a standstill; idle/taxi thrust
+         can't creep it forward (works for any type, incl. turbojets without static breakaway). */
+      if (S.parkBrake && spd_ms_gnd < 1.0 && F_net > 0) newSpd_ms = Math.min(newSpd_ms, spd_ms_gnd);
 
       newSpd = newSpd_ms / 0.5144;
       newAlt = groundFt;
