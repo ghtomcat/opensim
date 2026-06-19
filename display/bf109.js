@@ -77,11 +77,18 @@ export function renderBf109(canvas) {
   _drawKompass(    ctx, cx,      y2, r1 * 0.85, sc);
   _drawVariometer( ctx, cx + cw, y2, r1 * 0.85, sc);
 
-  const _isJet = S.aircraft?.sound?.engineType === 'turbojet-vk1';
-  if (_isJet) _drawN1Messer(ctx, cx - cw * 0.62, y3, r2, sc);
-  else        _drawDrehzahl(ctx, cx - cw * 0.62, y3, r2, sc);
-  _drawOelTemp( ctx, cx,             y3, r2, sc);
-  _drawOelDruck(ctx, cx + cw * 0.62, y3, r2, sc);
+  const _isJet  = S.aircraft?.sound?.engineType === 'turbojet-vk1';
+  const _eng    = _isJet ? _drawN1Messer : _drawDrehzahl;
+  if (S.aircraft?.cooling) {   /* liquid-cooled → 4-gauge strip with Kühlstofftemp */
+    _eng(               ctx, cx - cw * 0.93, y3, r2, sc);
+    _drawKuehlstoffTemp(ctx, cx - cw * 0.31, y3, r2, sc);
+    _drawOelTemp(       ctx, cx + cw * 0.31, y3, r2, sc);
+    _drawOelDruck(      ctx, cx + cw * 0.93, y3, r2, sc);
+  } else {
+    _eng(         ctx, cx - cw * 0.62, y3, r2, sc);
+    _drawOelTemp( ctx, cx,             y3, r2, sc);
+    _drawOelDruck(ctx, cx + cw * 0.62, y3, r2, sc);
+  }
 
   /* Frost vignette — Arctic, -22°C */
   _drawFrost(ctx, W, H);
@@ -617,6 +624,39 @@ function _drawOelTemp(ctx, x, y, r, sc) {
   _needle(ctx, x, y, r, ang, 0.76, 0.20, sc);
   _cap(ctx, x, y, 4 * sc);
   _label(ctx, x, y, r, 'Öltemperatur', sc);
+}
+
+/* Kühlstofftemperatur — coolant temp (DB605); heat-balance state from physics.js.
+   Green band from aircraft.cooling.normal, red from redline up. */
+function _drawKuehlstoffTemp(ctx, x, y, r, sc) {
+  const maxT = 130;
+  const cT   = Math.max(0, Math.min(maxT, S.coolantTemp ?? 15));
+  const s0   = 220, sw = 280;
+  const norm = S.aircraft?.cooling?.normal  ?? [80, 100];
+  const red  = S.aircraft?.cooling?.redline ?? 115;
+
+  _base(ctx, x, y, r);
+  _ticks(ctx, x, y, r, s0, sw, 13, 2, sc);
+
+  ctx.textBaseline = 'middle';
+  for (let v = 0; v <= maxT; v += 20) _num(ctx, x, y, r, s0 + (v / maxT) * sw, String(v), 7, sc);
+  ctx.textBaseline = 'alphabetic';
+
+  ctx.save();
+  /* Green arc — normal band */
+  ctx.beginPath(); ctx.arc(x, y, r * 0.95, _r(s0 + (norm[0] / maxT) * sw), _r(s0 + (norm[1] / maxT) * sw));
+  ctx.strokeStyle = '#3a7a3a'; ctx.lineWidth = 4 * sc; ctx.stroke();
+  /* Red arc — redline to max */
+  ctx.beginPath(); ctx.arc(x, y, r * 0.95, _r(s0 + (red / maxT) * sw), _r(s0 + sw));
+  ctx.strokeStyle = '#9a2a2a'; ctx.lineWidth = 4 * sc; ctx.stroke();
+  ctx.restore();
+
+  _sublabel(ctx, x, y, r, '°C', sc);
+
+  const ang = s0 + Math.min(1, cT / maxT) * sw;
+  _needle(ctx, x, y, r, ang, 0.76, 0.20, sc);
+  _cap(ctx, x, y, 4 * sc);
+  _label(ctx, x, y, r, 'Kühlstoff', sc);
 }
 
 /* Öldruck — 0–10 atü */

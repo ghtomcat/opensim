@@ -108,6 +108,12 @@ function _buildHTML() {
           <div class="lc-wheel" id="lc-trim"><div class="lc-wheel-mark"></div></div>
           <div class="lc-val" id="lc-trim-v">—</div>
         </div>` : '';
+  const coolflap = has('coolflap') ? `
+        <div class="lc-ctrl">
+          <div class="lc-label">${S.aircraft?.coolingSystem === 'liquid' ? 'KÜHLERKLAPPE' : 'COWL FLAPS'}</div>
+          <div class="lc-throttle-track" id="lc-coolflap"><div class="lc-throttle-handle" id="lc-coolflap-h"></div></div>
+          <div class="lc-val" id="lc-coolflap-v">—</div>
+        </div>` : '';
   const cock = has('fuelcock') ? `
         <div class="lc-ctrl">
           <div class="lc-label">BRANDHAHN</div>
@@ -117,7 +123,7 @@ function _buildHTML() {
 
   return `
     <div class="lc-title">Linke Konsole</div>
-    <div class="lc-row">${throttle}${trim}${cock}</div>
+    <div class="lc-row">${throttle}${trim}${coolflap}${cock}</div>
     <div class="lc-hint">L · schliessen</div>
   `;
 }
@@ -141,6 +147,14 @@ function _attachHandlers() {
     const rect = wheel.getBoundingClientRect();
     const up = (e.clientY - rect.top) < rect.height / 2;
     setState({ trim: Math.max(-10, Math.min(10, (S.trim ?? 0) + (up ? 0.5 : -0.5))) });
+  });
+
+  /* Kühlerklappe / cowl flaps — click the track to set the opening (0 closed … 1 open) */
+  const ctrack = document.getElementById('lc-coolflap');
+  ctrack?.addEventListener('click', e => {
+    const rect = ctrack.getBoundingClientRect();
+    const frac = 1 - (e.clientY - rect.top) / rect.height;
+    setState({ coolFlap: Math.max(0, Math.min(1, frac)) });
   });
 
   /* Brandhahn — toggle fuel cock (fuelShutoff) */
@@ -167,6 +181,13 @@ function _update() {
   if (mk) mk.style.transform = `translateX(-50%) rotate(${trim / 10 * 150}deg)`;
   const trv = document.getElementById('lc-trim-v');
   if (trv) trv.textContent = trim === 0 ? 'NEUTRAL' : `${trim > 0 ? 'KOPF' : 'SCHWANZ'} ${Math.abs(trim).toFixed(1)}`;
+
+  /* Kühlerklappe / cowl flaps — handle rides up with the opening */
+  const cf = S.coolFlap ?? 1;
+  const cfh = document.getElementById('lc-coolflap-h');
+  if (cfh) cfh.style.top = `${(1 - cf) * 89}%`;
+  const cfv = document.getElementById('lc-coolflap-v');
+  if (cfv) cfv.textContent = cf <= 0.02 ? 'ZU' : cf >= 0.98 ? 'AUF' : `${Math.round(cf * 100)}%`;
 
   /* Brandhahn — lever up = AUF (open), sideways + glow = ZU (closed) */
   const closed = !!S.fuelShutoff;

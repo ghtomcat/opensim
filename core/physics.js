@@ -334,7 +334,9 @@ export function tickPhysics(dt) {
     /* Prop/damage drag — seized propeller + battle damage as engine dies */
     const ePow     = S.enginePower ?? 1.0;
     const propDrag = (1 - ePow) * 0.022;
-    const CD_0_eff = CD_0_e + propDrag + gearDrag;
+    /* Cooling drag — an open radiator/cowl flap adds parasitic drag (the cruise trade-off) */
+    const coolFlapDrag = (perf.coolFlapDrag ?? 0) * (S.coolFlap ?? 1);
+    const CD_0_eff = CD_0_e + propDrag + gearDrag + coolFlapDrag;
 
     /* Ground effect — within ~1 wingspan of the ground the wing's induced drag collapses
        (Wieselsberger) and lift rises a little: the cushion that floats the flare. */
@@ -599,6 +601,23 @@ export function tickPhysics(dt) {
   const _oilNow    = S.oilTempC ?? 15;
   const newOilTempC = _oilNow + (_oilTarget - _oilNow) * (dt / _tau);
 
+  /* ── Coolant / CHT temperature — heat balance for flap-cooled engines ──
+     Heat in ∝ engine power; heat out ∝ cooling airflow (speed × radiator/cowl flap).
+     T_eq = ambient + heatIn / coolCapacity, lagged by the coolant/cylinder mass.
+     Params in aircraft.cooling {ambient, heat, vRef, coolBase, flapMin, coolMin, tMax, tau}. */
+  let _coolPatch = {};
+  const _cool = ac.cooling;
+  if (_cool) {
+    const _amb   = _cool.ambient ?? 15;
+    const _heatI = _running ? (S.enginePower ?? 1) * (0.35 + 0.65 * _throttle) * (_cool.heat ?? 50) : 0;
+    const _air   = (_cool.coolBase ?? 0.30) + (1 - (_cool.coolBase ?? 0.30)) * Math.min(1, newSpd / (_cool.vRef ?? 260));
+    const _flapM = (_cool.flapMin ?? 0.5) + (S.coolFlap ?? 1) * (1 - (_cool.flapMin ?? 0.5));
+    const _cap   = Math.max(_cool.coolMin ?? 0.28, _air * _flapM);
+    const _tEq   = Math.min(_cool.tMax ?? 130, _amb + _heatI / _cap);
+    const _now   = S.coolantTemp ?? _amb;
+    _coolPatch = { coolantTemp: _now + (_tEq - _now) * (dt / (_cool.tau ?? 22)) };
+  }
+
   /* Thrust reverser: auto-deploy on rollout above 60 kt, auto-stow below */
   const _trCapable = !!(ac.engine?.thrustReverser);
   const _trOn = _trCapable && newWow && newSpd > 60 && (_idleThr || S.braking);
@@ -662,7 +681,7 @@ export function tickPhysics(dt) {
              groundRollT: newWow ? (S.groundRollT ?? 0) + dt : 0,   // seconds since touchdown → brake/spoiler/reverser ramp
              autobrakeActive: _abEngaged,                           // DECEL — panel/ECAM annunciation
              ...(S.braking && newWow && ac.autobrake && (S.autobrake ?? 'OFF') !== 'OFF' ? { autobrake: 'OFF' } : {}),  // manual braking disarms autobrake
-             oilTempC: newOilTempC, ..._trPatch, ..._gearPatch, ..._sbPatch, ...pbPatch });
+             oilTempC: newOilTempC, ..._coolPatch, ..._trPatch, ..._gearPatch, ..._sbPatch, ...pbPatch });
 }
 
 export function resetApproach() {

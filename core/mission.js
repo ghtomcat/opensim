@@ -45,6 +45,9 @@ export async function loadMission(missionPath, aircraftPath) {
 
   /* Oil temperature: cold on ground, warm if already airborne (engine running since before mission start) */
   const startOilTempC = startAirborne ? 75 : 15;
+  /* Coolant/CHT: ambient on ground, mid-normal if airborne (engine already warm) */
+  const startCoolantTemp = startAirborne ? (aircraft.cooling?.normal?.[0] ?? 85)
+                                         : (aircraft.cooling?.ambient ?? 15);
 
   /* Engine state: piston/electric ground starts begin 'off' (manual startup via E key).
      Turbofan ground starts also begin 'off' — crew must run through start sequence.
@@ -99,6 +102,8 @@ export async function loadMission(missionPath, aircraftPath) {
     engineState: startEngineState,
     n1:          initN1,
     oilTempC:    startOilTempC,
+    coolFlap:    1,
+    coolantTemp: startCoolantTemp,
     ilsLoc: 1.2, ilsLocT: 1.2,
     ilsGs: -0.8, ilsGsT: -0.8,
     time:  0,

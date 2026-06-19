@@ -218,6 +218,8 @@ export const S = {
 
   /* ── Cooling system ── */
   coolantState: 'ok',    // 'ok' | 'leaking' | 'failed' — liquid-cooled aircraft only
+  coolFlap:     1,       // radiator/cowl flap 0=closed (hot, low drag) … 1=open (cool, more drag)
+  coolantTemp:  15,      // °C — coolant (liquid) or CHT (air); heat balance, see physics.js
 
   /* ── Cockpit switches (electric aircraft) ── */
   switches: {
