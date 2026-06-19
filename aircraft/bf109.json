@@ -1,7 +1,7 @@
 {
   "id": "bf109",
   "views": ["left", "right"],
-  "left": ["throttle", "trim", "coolflap", "fuelcock"],
+  "left": ["throttle", "trim", "coolflap", "fuelcock", "parkbrake"],
   "right": ["radio", "oxygen", "breakers"],
   "render": "bf109",
   "gear": { "fixed": true, "tires": [[1, 0.000171], [3, 0.000171], [5, 0.000081]] },

@@ -1,7 +1,7 @@
 {
   "id": "f4u1a",
   "views": ["left", "right"],
-  "left": ["coolflap"],
+  "left": ["coolflap", "parkbrake"],
   "coolingSystem": "air",
   "cooling": {
     "type": "air", "ambient": 15,

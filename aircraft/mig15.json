@@ -1,6 +1,7 @@
 {
   "id": "mig15",
   "views": ["left", "right"],
+  "left": ["parkbrake"],
   "render": "mig15",
   "gear": { "tires": [[1, 0.00126], [3, 0.00147], [5, 0.00147]] },
   "name": "MiG-15 'Fagot'",

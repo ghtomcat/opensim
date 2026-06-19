@@ -60,7 +60,8 @@ const _CSS = `
   }
   .lc-gate-pos:last-child { border-bottom: none; }
   .lc-gate-pos:hover { background: #181c18; color: #6a7a66; }
-  .lc-gate-pos.lc-gate-on { background: #16241a; color: #9ab088; box-shadow: inset 3px 0 0 #3a7a4a; }
+  .lc-gate-pos.lc-gate-on   { background: #16241a; color: #9ab088; box-shadow: inset 3px 0 0 #3a7a4a; }
+  .lc-gate-pos.lc-gate-warn { background: #2a1414; color: #d89090; box-shadow: inset 3px 0 0 #a04040; }
 
   /* ── Höhentrimmrad (elevator trim wheel) ── */
   .lc-wheel {
@@ -137,10 +138,19 @@ function _buildHTML() {
           <div class="lc-cock" id="lc-cock"><div class="lc-cock-lever" id="lc-cock-l"></div></div>
           <div class="lc-val" id="lc-cock-v">—</div>
         </div>` : '';
+  /* Parking brake — fighters have no pedestal, so it lives on the left console */
+  const _pbPos = _liquid ? [['1', 'FEST'], ['0', 'LÖSEN']] : [['1', 'SET'], ['0', 'OFF']];
+  const parkbrake = has('parkbrake') ? `
+        <div class="lc-ctrl">
+          <div class="lc-label">${_liquid ? 'PARKBREMSE' : 'PARK BRAKE'}</div>
+          <div class="lc-gate" id="lc-parkbrake">
+            ${_pbPos.map(([v, lbl]) => `<div class="lc-gate-pos" data-pb="${v}">${lbl}</div>`).join('')}
+          </div>
+        </div>` : '';
 
   return `
     <div class="lc-title">Linke Konsole</div>
-    <div class="lc-row">${throttle}${trim}${coolflap}${cock}</div>
+    <div class="lc-row">${throttle}${trim}${coolflap}${cock}${parkbrake}</div>
     <div class="lc-hint">L · schliessen</div>
   `;
 }
@@ -175,6 +185,11 @@ function _attachHandlers() {
   document.getElementById('lc-cock')?.addEventListener('click', () => {
     setState({ fuelShutoff: !S.fuelShutoff });
   });
+
+  /* Parking brake — set / release */
+  _el.querySelectorAll('#lc-parkbrake .lc-gate-pos').forEach(btn => {
+    btn.addEventListener('click', () => setState({ parkBrake: btn.dataset.pb === '1' }));
+  });
 }
 
 /* ── Live update ───────────────────────────────────────────────── */
@@ -208,6 +223,14 @@ function _update() {
   document.getElementById('lc-cock')?.classList.toggle('lc-cock-closed', closed);
   const cv = document.getElementById('lc-cock-v');
   if (cv) cv.textContent = closed ? 'ZU' : 'AUF';
+
+  /* Parking brake — SET active = red caution, OFF active = green */
+  const pbOn = !!S.parkBrake;
+  _el.querySelectorAll('#lc-parkbrake .lc-gate-pos').forEach(btn => {
+    const set = btn.dataset.pb === '1';
+    btn.classList.toggle('lc-gate-warn', set && pbOn);
+    btn.classList.toggle('lc-gate-on',  !set && !pbOn);
+  });
 }
 
 /* ── Public API ────────────────────────────────────────────────── */
