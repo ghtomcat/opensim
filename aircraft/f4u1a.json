@@ -1,6 +1,14 @@
 {
   "id": "f4u1a",
   "views": ["left", "right"],
+  "left": ["coolflap"],
+  "coolingSystem": "air",
+  "cooling": {
+    "type": "air", "ambient": 15,
+    "normal": [180, 230], "redline": 232, "critical": 250, "tMax": 260,
+    "heat": 145, "vRef": 300, "coolBase": 0.45, "flapMin": 0.45, "coolMin": 0.30, "tau": 20,
+    "source": "R-2800 max CHT 232C/450F (F4U handbook). CHT (cylinder head temp), not coolant. Coefficients tuned to land cruise ~180-230C with the cowl flaps; tropics climb overheats. Oil temp is a separate system (oil cooler)."
+  },
   "render": "f4u",
   "gear": { "fixed": true, "tires": [[1, 0.000273], [3, 0.000273], [5, 0.000141]] },
   "panel": "f4u",
@@ -44,6 +52,7 @@
     "CL_max":    1.5,
     "CD_0":      0.024,
     "gearDrag":  0.014,
+    "coolFlapDrag": 0.008,
     "inducedK":  0.070,
     "Vr":        95,
     "muRoll":    0.03,

@@ -50,6 +50,18 @@ const _CSS = `
     height: 2px; background: rgba(160,180,150,0.3); transform: translateY(-50%);
   }
 
+  /* ── Kühler-/Cowl-Flap step gate (open / half / closed) ── */
+  .lc-gate { display: flex; flex-direction: column; border: 1px solid #2a322c; border-radius: 3px; overflow: hidden; }
+  .lc-gate-pos {
+    padding: 9px 20px; background: #0e1014;
+    font: 700 9px/1 monospace; letter-spacing: 0.06em; color: #4a5446;
+    cursor: pointer; border-bottom: 1px solid #2a322c; user-select: none; text-align: center;
+    transition: background 0.08s, color 0.08s;
+  }
+  .lc-gate-pos:last-child { border-bottom: none; }
+  .lc-gate-pos:hover { background: #181c18; color: #6a7a66; }
+  .lc-gate-pos.lc-gate-on { background: #16241a; color: #9ab088; box-shadow: inset 3px 0 0 #3a7a4a; }
+
   /* ── Höhentrimmrad (elevator trim wheel) ── */
   .lc-wheel {
     position: relative; width: 78px; height: 78px; border-radius: 50%;
@@ -108,11 +120,16 @@ function _buildHTML() {
           <div class="lc-wheel" id="lc-trim"><div class="lc-wheel-mark"></div></div>
           <div class="lc-val" id="lc-trim-v">—</div>
         </div>` : '';
+  /* Cowl/radiator flaps are operated in a few steps, not finely dialed → discrete gate */
+  const _liquid = S.aircraft?.coolingSystem === 'liquid';
+  const _cfPos  = _liquid ? [['1', 'AUF'], ['0.5', 'HALB'], ['0', 'ZU']]
+                          : [['1', 'OPEN'], ['0.5', 'TRAIL'], ['0', 'CLOSE']];
   const coolflap = has('coolflap') ? `
         <div class="lc-ctrl">
-          <div class="lc-label">${S.aircraft?.coolingSystem === 'liquid' ? 'KÜHLERKLAPPE' : 'COWL FLAPS'}</div>
-          <div class="lc-throttle-track" id="lc-coolflap"><div class="lc-throttle-handle" id="lc-coolflap-h"></div></div>
-          <div class="lc-val" id="lc-coolflap-v">—</div>
+          <div class="lc-label">${_liquid ? 'KÜHLERKLAPPE' : 'COWL FLAPS'}</div>
+          <div class="lc-gate" id="lc-coolflap">
+            ${_cfPos.map(([v, lbl]) => `<div class="lc-gate-pos" data-v="${v}">${lbl}</div>`).join('')}
+          </div>
         </div>` : '';
   const cock = has('fuelcock') ? `
         <div class="lc-ctrl">
@@ -149,12 +166,9 @@ function _attachHandlers() {
     setState({ trim: Math.max(-10, Math.min(10, (S.trim ?? 0) + (up ? 0.5 : -0.5))) });
   });
 
-  /* Kühlerklappe / cowl flaps — click the track to set the opening (0 closed … 1 open) */
-  const ctrack = document.getElementById('lc-coolflap');
-  ctrack?.addEventListener('click', e => {
-    const rect = ctrack.getBoundingClientRect();
-    const frac = 1 - (e.clientY - rect.top) / rect.height;
-    setState({ coolFlap: Math.max(0, Math.min(1, frac)) });
+  /* Kühlerklappe / cowl flaps — discrete steps (open / half / closed) */
+  _el.querySelectorAll('#lc-coolflap .lc-gate-pos').forEach(btn => {
+    btn.addEventListener('click', () => setState({ coolFlap: +btn.dataset.v }));
   });
 
   /* Brandhahn — toggle fuel cock (fuelShutoff) */
@@ -182,12 +196,10 @@ function _update() {
   const trv = document.getElementById('lc-trim-v');
   if (trv) trv.textContent = trim === 0 ? 'NEUTRAL' : `${trim > 0 ? 'KOPF' : 'SCHWANZ'} ${Math.abs(trim).toFixed(1)}`;
 
-  /* Kühlerklappe / cowl flaps — handle rides up with the opening */
+  /* Kühlerklappe / cowl flaps — highlight the active step */
   const cf = S.coolFlap ?? 1;
-  const cfh = document.getElementById('lc-coolflap-h');
-  if (cfh) cfh.style.top = `${(1 - cf) * 89}%`;
-  const cfv = document.getElementById('lc-coolflap-v');
-  if (cfv) cfv.textContent = cf <= 0.02 ? 'ZU' : cf >= 0.98 ? 'AUF' : `${Math.round(cf * 100)}%`;
+  _el.querySelectorAll('#lc-coolflap .lc-gate-pos').forEach(btn =>
+    btn.classList.toggle('lc-gate-on', Math.abs(+btn.dataset.v - cf) < 0.25));
 
   /* Brandhahn — lever up = AUF (open), sideways + glow = ZU (closed) */
   const closed = !!S.fuelShutoff;

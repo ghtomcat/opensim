@@ -74,9 +74,16 @@ export function renderF4U1A(canvas) {
   _drawCompass(    ctx, cx,      y2, r1 * 0.85, sc);
   _drawVSI(        ctx, cx + cw, y2, r1 * 0.85, sc);
 
-  _drawManifold(   ctx, cx - cw * 0.62, y3, r2, sc);
-  _drawOilTemp(    ctx, cx,             y3, r2, sc);
-  _drawOilPressure(ctx, cx + cw * 0.62, y3, r2, sc);
+  if (S.aircraft?.cooling) {   /* air-cooled → 4-gauge strip with Cyl. Head temp */
+    _drawManifold(   ctx, cx - cw * 0.93, y3, r2, sc);
+    _drawCHT(        ctx, cx - cw * 0.31, y3, r2, sc);
+    _drawOilTemp(    ctx, cx + cw * 0.31, y3, r2, sc);
+    _drawOilPressure(ctx, cx + cw * 0.93, y3, r2, sc);
+  } else {
+    _drawManifold(   ctx, cx - cw * 0.62, y3, r2, sc);
+    _drawOilTemp(    ctx, cx,             y3, r2, sc);
+    _drawOilPressure(ctx, cx + cw * 0.62, y3, r2, sc);
+  }
 
   /* Paused */
   if (S.paused) {
@@ -574,6 +581,39 @@ function _drawOilTemp(ctx, x, y, r, sc) {
   _needle(ctx, x, y, r, ang, 0.76, 0.20, sc);
   _cap(ctx, x, y, 4 * sc);
   _label(ctx, x, y, r, 'Oil Temp', sc);
+}
+
+/* ════════════════════════════════════════════════════════════
+   CYLINDER HEAD TEMP — R-2800 air-cooled, coolantTemp state (°C) in °F
+   ════════════════════════════════════════════════════════════ */
+function _drawCHT(ctx, x, y, r, sc) {
+  const maxT = 500;
+  const chtF = Math.max(0, Math.min(maxT, ((S.coolantTemp ?? 15) * 9/5) + 32));
+  const cF   = c => c * 9/5 + 32;
+  const norm = S.aircraft?.cooling?.normal  ?? [180, 230];
+  const redC = S.aircraft?.cooling?.redline ?? 232;
+  const s0   = 220, sw = 280;
+
+  _base(ctx, x, y, r);
+  _ticks(ctx, x, y, r, s0, sw, 6, 5, sc);
+
+  ctx.textBaseline = 'middle';
+  for (let v = 0; v <= maxT; v += 100) _num(ctx, x, y, r, s0 + (v / maxT) * sw, String(v), 7, sc);
+  ctx.textBaseline = 'alphabetic';
+
+  ctx.save();
+  ctx.beginPath(); ctx.arc(x, y, r * 0.95, _r(s0 + (cF(norm[0]) / maxT) * sw), _r(s0 + (cF(norm[1]) / maxT) * sw));
+  ctx.strokeStyle = '#2a7a2a'; ctx.lineWidth = 4 * sc; ctx.stroke();
+  ctx.beginPath(); ctx.arc(x, y, r * 0.95, _r(s0 + (cF(redC) / maxT) * sw), _r(s0 + sw));
+  ctx.strokeStyle = '#9a2a2a'; ctx.lineWidth = 4 * sc; ctx.stroke();
+  ctx.restore();
+
+  _sublabel(ctx, x, y, r, '°F', sc);
+
+  const ang = s0 + Math.min(1, chtF / maxT) * sw;
+  _needle(ctx, x, y, r, ang, 0.76, 0.20, sc);
+  _cap(ctx, x, y, 4 * sc);
+  _label(ctx, x, y, r, 'Cyl. Head', sc);
 }
 
 /* ════════════════════════════════════════════════════════════
