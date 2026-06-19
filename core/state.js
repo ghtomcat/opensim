@@ -210,6 +210,7 @@ export const S = {
 
   /* ── Mixture (light pistons) ── */
   mixture:      1,       // 1=RICH, 0.5=LEAN, 0=ICO (idle cut-off)
+  propPitch:    1,       // constant-speed prop lever 1=fine/high RPM … 0=coarse/low RPM (F4U quadrant)
 
   /* ── Carburettor heat ── */
   carbHeat:     false,   // true = carb heat lever ON

@@ -104,6 +104,8 @@ export async function loadMission(missionPath, aircraftPath) {
     oilTempC:    startOilTempC,
     coolFlap:    1,
     coolantTemp: startCoolantTemp,
+    propPitch:   1,
+    mixture:     1,
     ilsLoc: 1.2, ilsLocT: 1.2,
     ilsGs: -0.8, ilsGsT: -0.8,
     time:  0,

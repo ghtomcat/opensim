@@ -63,6 +63,24 @@ const _CSS = `
   .lc-gate-pos.lc-gate-on   { background: #16241a; color: #9ab088; box-shadow: inset 3px 0 0 #3a7a4a; }
   .lc-gate-pos.lc-gate-warn { background: #2a1414; color: #d89090; box-shadow: inset 3px 0 0 #a04040; }
 
+  /* ── Throttle quadrant — throttle / prop / mixture levers ── */
+  .lc-quad { display: flex; gap: 9px; align-items: flex-end; }
+  .lc-quad-col { display: flex; flex-direction: column; align-items: center; gap: 7px; }
+  .lc-quad-track {
+    position: relative; width: 18px; height: 150px;
+    background: #0e1014; border: 1px solid #2a322c; border-radius: 4px; cursor: ns-resize;
+  }
+  .lc-quad-handle {
+    position: absolute; left: 50%; transform: translateX(-50%); top: 0;
+    width: 26px; height: 14px; border-radius: 3px;
+    border: 1px solid rgba(255,255,255,0.20); box-shadow: 0 2px 5px rgba(0,0,0,0.6);
+    transition: top 0.12s ease;
+  }
+  .q-black .lc-quad-handle { background: linear-gradient(180deg, #2e3036 0%, #131418 100%); border-color: #3a3e46; }
+  .q-blue  .lc-quad-handle { background: linear-gradient(180deg, #3a6db8 0%, #1e3f7a 100%); border-color: #2a4a80; }
+  .q-red   .lc-quad-handle { background: linear-gradient(180deg, #c04038 0%, #7a201a 100%); border-color: #803028; }
+  .lc-quad-lbl { font: 700 7px/1 monospace; letter-spacing: 0.04em; color: #6a7a66; }
+
   /* ── Höhentrimmrad (elevator trim wheel) ── */
   .lc-wheel {
     position: relative; width: 78px; height: 78px; border-radius: 50%;
@@ -109,6 +127,19 @@ function _buildHTML() {
   const tokens = S.aircraft?.left ?? [];
   const has = (t) => tokens.includes(t);
 
+  /* Throttle quadrant — the classic American 3-lever set: throttle / prop / mixture */
+  const _QL = [['throttle', 'THR', 'q-black'], ['prop', 'PROP', 'q-blue'], ['mixture', 'MIX', 'q-red']];
+  const quadrant = has('quadrant') ? `
+        <div class="lc-ctrl">
+          <div class="lc-label">THROTTLE QUADRANT</div>
+          <div class="lc-quad">
+            ${_QL.map(([id, lbl, cls]) => `
+              <div class="lc-quad-col">
+                <div class="lc-quad-track ${cls}" id="lc-q-${id}"><div class="lc-quad-handle"></div></div>
+                <div class="lc-quad-lbl">${lbl}</div>
+              </div>`).join('')}
+          </div>
+        </div>` : '';
   const throttle = has('throttle') ? `
         <div class="lc-ctrl">
           <div class="lc-label">GASHEBEL</div>
@@ -150,7 +181,7 @@ function _buildHTML() {
 
   return `
     <div class="lc-title">Linke Konsole</div>
-    <div class="lc-row">${throttle}${trim}${coolflap}${cock}${parkbrake}</div>
+    <div class="lc-row">${quadrant}${throttle}${trim}${coolflap}${cock}${parkbrake}</div>
     <div class="lc-hint">L · schliessen</div>
   `;
 }
@@ -158,6 +189,20 @@ function _buildHTML() {
 /* ── Handlers ──────────────────────────────────────────────────── */
 function _attachHandlers() {
   if (!_el) return;
+
+  /* Throttle quadrant — click a lever track to set its position */
+  const _quad = (id, fn) => {
+    const t = document.getElementById('lc-q-' + id);
+    t?.addEventListener('click', e => {
+      const rect = t.getBoundingClientRect();
+      const frac = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height));
+      fn(frac);
+    });
+  };
+  const _maxSpdQ = S.aircraft?.envelope?.maxSpd ?? 360;
+  _quad('throttle', f => setState({ spdT: Math.round(f * _maxSpdQ) }));
+  _quad('prop',     f => setState({ propPitch: f }));
+  _quad('mixture',  f => setState({ mixture: f }));
 
   /* Gashebel — click the track to set the throttle (spdT, like +/-) */
   const track = document.getElementById('lc-throttle');
@@ -195,6 +240,16 @@ function _attachHandlers() {
 /* ── Live update ───────────────────────────────────────────────── */
 function _update() {
   if (!_el || !_el.classList.contains('lcon-visible')) return;
+
+  /* Throttle quadrant — each lever handle rides to its position */
+  const _qPos = (id, frac) => {
+    const h = _el.querySelector('#lc-q-' + id + ' .lc-quad-handle');
+    if (h) h.style.top = `${(1 - Math.max(0, Math.min(1, frac))) * 88}%`;
+  };
+  const _maxSpdU = S.aircraft?.envelope?.maxSpd ?? 360;
+  _qPos('throttle', (S.spdT ?? 0) / _maxSpdU);
+  _qPos('prop',     S.propPitch ?? 1);
+  _qPos('mixture',  S.mixture ?? 1);
 
   /* Gashebel — handle rides up with throttle */
   const maxSpd = S.aircraft?.envelope?.maxSpd ?? 335;
