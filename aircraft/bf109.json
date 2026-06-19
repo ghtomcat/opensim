@@ -15,7 +15,7 @@
   "coolingSystem": "liquid",
   "cooling": {
     "type": "liquid", "ambient": 15,
-    "minOp": 60, "normal": [60, 100], "redline": 100, "tMax": 125,
+    "minOp": 60, "normal": [60, 100], "redline": 100, "critical": 115, "tMax": 125,
     "altLimit": { "0": 100, "2000": 95, "4000": 91, "6000": 87, "8000": 82, "10000": 78 },
     "heat": 45, "vRef": 260, "coolBase": 0.30, "flapMin": 0.5, "coolMin": 0.28, "tau": 22,
     "source": "D-FEML = Bf 109 E-4 (DB 601Aa). Bf 109 E Bedienungsvorschrift-Fl: coolant max 100C@SL -> 78C@10km, min 60C, 50/50 glycol, ~1.8 ata pressurised. Limits historical; model coefficients (heat/vRef/flapMin/coolMin/tau) tuned to land normal ops in the documented band."

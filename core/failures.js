@@ -93,15 +93,16 @@ export function tickFailures(dt) {
     if (_ramps.length > 0) setState({ enginePower: power });
   }
 
-  /* ── Cooling system — runs independently of other failures ── */
-  if (S.coolantState === 'leaking') {
-    /* DB601 overheats — full power death over 80s, cannot restart */
-    const power = Math.max(0, (S.enginePower ?? 1) - (dt / 80));
-    if (power <= 0) {
-      setState({ enginePower: 0, coolantState: 'failed' });
-    } else {
-      setState({ enginePower: power });
-    }
+  /* ── Cooling system — a coolant leak overheats the engine until it seizes ──
+     The temp climbs on its own (physics.js: cooling capacity has collapsed). Crossing the
+     critical limit is irreversible (→ 'seizing'); the engine then dies regardless of temp,
+     so the partial cool-down as power drops can't save it. The gauge tells the story. */
+  if (S.coolantState === 'leaking' && (S.coolantTemp ?? 0) >= (S.aircraft?.cooling?.critical ?? 115)) {
+    setState({ coolantState: 'seizing' });
+  }
+  if (S.coolantState === 'seizing') {
+    const power = Math.max(0, (S.enginePower ?? 1) - (dt / 25));   // seizes over ~25s
+    setState({ enginePower: power, ...(power <= 0 ? { coolantState: 'failed' } : {}) });
   }
 
   /* ── Carb ice — runs independently of other failures ── */
