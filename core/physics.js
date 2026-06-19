@@ -608,7 +608,10 @@ export function tickPhysics(dt) {
   let _coolPatch = {};
   const _cool = ac.cooling;
   if (_cool) {
-    const _amb   = _cool.ambient ?? 15;
+    /* Ambient = real outside-air temp: mission/METAR surface temp, lapsed ~2°C per 1000 ft.
+       Cold air (Arctic -22°C) cools far better; hot air (desert) overheats faster. */
+    const _surfT = S.mission?.weather?.manual?.temp ?? S.metar?.temp ?? _cool.ambient ?? 15;
+    const _amb   = _surfT - 1.98 * (newAlt / 1000);
     const _heatI = _running ? (S.enginePower ?? 1) * (0.35 + 0.65 * _throttle) * (_cool.heat ?? 50) : 0;
     const _air   = (_cool.coolBase ?? 0.30) + (1 - (_cool.coolBase ?? 0.30)) * Math.min(1, newSpd / (_cool.vRef ?? 260));
     const _flapM = (_cool.flapMin ?? 0.5) + (S.coolFlap ?? 1) * (1 - (_cool.flapMin ?? 0.5));
