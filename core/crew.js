@@ -284,6 +284,8 @@ function _checkGPWS(prev, curr, ac) {
    Smoothed to ride out DEM-sampling jitter. Repeats every ~1.4 s while in the envelope; the
    thresholds widen with altitude so a normal ~700 fpm approach stays silent. ── */
 function _checkTerrainGPWS() {
+  /* No GPWS/EGPWS on aircraft without a gpws config (WWII/period warbirds had none) */
+  if (!S.aircraft?.gpws) { _gpwsRadioSm = null; _gpwsTerrLvl = 0; _gpwsClosure = 0; _gpwsAboveSince = null; return; }
   const terr = S.terrainElevFt;
   const now  = performance.now();
   if (terr == null || S.wow) { _gpwsRadioSm = null; _gpwsTerrLvl = 0; _gpwsClosure = 0; _gpwsAboveSince = null; return; }

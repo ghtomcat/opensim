@@ -225,6 +225,49 @@ function _label(ctx, x, y, r, name, sc) {
   ctx.fillText(name, x, y + r * 1.28);
 }
 
+/* Medium pictograms on the dial face — distinguish the two temp gauges at a glance.
+   Drawn with canvas paths (matches the hand-drawn instruments; no raster/SVG). */
+function _symOil(ctx, x, y, s, sc) {        /* oil-can */
+  ctx.save();
+  ctx.strokeStyle = P.subdued; ctx.fillStyle = P.subdued;
+  ctx.lineWidth = 1.1 * sc; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.beginPath();                          /* can body with a short filler neck */
+  ctx.moveTo(x - s,        y + s * 0.55);
+  ctx.lineTo(x + s,        y + s * 0.55);
+  ctx.lineTo(x + s,        y - s * 0.10);
+  ctx.lineTo(x + s * 0.25, y - s * 0.10);
+  ctx.lineTo(x + s * 0.25, y - s * 0.45);
+  ctx.lineTo(x - s * 0.25, y - s * 0.45);
+  ctx.lineTo(x - s * 0.25, y - s * 0.10);
+  ctx.lineTo(x - s,        y - s * 0.10);
+  ctx.closePath(); ctx.stroke();
+  ctx.beginPath();                          /* spout */
+  ctx.moveTo(x + s, y + s * 0.05);
+  ctx.lineTo(x + s * 1.75, y - s * 0.15);
+  ctx.stroke();
+  ctx.beginPath();                          /* falling drop */
+  ctx.arc(x + s * 1.75, y + s * 0.30, s * 0.26, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+function _symCoolant(ctx, x, y, s, sc) {    /* thermometer over waves */
+  ctx.save();
+  ctx.strokeStyle = P.subdued; ctx.fillStyle = P.subdued;
+  ctx.lineWidth = 1.1 * sc; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.beginPath();                          /* stem */
+  ctx.moveTo(x, y - s * 0.75); ctx.lineTo(x, y + s * 0.10); ctx.stroke();
+  ctx.beginPath();                          /* bulb */
+  ctx.arc(x, y + s * 0.32, s * 0.27, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();                          /* two waves */
+  for (const dy of [s * 0.85, s * 1.20]) {
+    ctx.moveTo(x - s, y + dy);
+    ctx.quadraticCurveTo(x - s * 0.5, y + dy - s * 0.28, x, y + dy);
+    ctx.quadraticCurveTo(x + s * 0.5, y + dy + s * 0.28, x + s, y + dy);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
 /* ════════════════════════════════════════════════════════════
    FAHRTMESSER — Airspeed · 0–800 km/h
    7 o'clock (220°) to 5 o'clock (220°+280°)
@@ -557,7 +600,8 @@ function _drawDrehzahl(ctx, x, y, r, sc) {
   const maxSpd    = S.aircraft?.envelope?.maxSpd ?? 335;
   const throttle  = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
   const liveRpm   = (running || starting || shuttingDown) ? (getRpmValue() ?? 0) : 0;
-  const rpm       = running ? Math.round(400 + (2800 - 400) * throttle) : liveRpm;
+  /* Scale by engine health — a seizing/damaged engine loses RPM even with the throttle up */
+  const rpm       = running ? Math.round((400 + (2800 - 400) * throttle) * (S.enginePower ?? 1)) : liveRpm;
   const maxR = 2800;
   const s0   = 220, sw = 280;
 
@@ -619,6 +663,7 @@ function _drawOelTemp(ctx, x, y, r, sc) {
   ctx.restore();
 
   _sublabel(ctx, x, y, r, '°C', sc);
+  _symOil(ctx, x, y - r * 0.34, r * 0.15, sc);
 
   const ang = s0 + Math.min(1, oilT / maxT) * sw;
   _needle(ctx, x, y, r, ang, 0.76, 0.20, sc);
@@ -652,6 +697,7 @@ function _drawKuehlstoffTemp(ctx, x, y, r, sc) {
   ctx.restore();
 
   _sublabel(ctx, x, y, r, '°C', sc);
+  _symCoolant(ctx, x, y - r * 0.34, r * 0.15, sc);
 
   const ang = s0 + Math.min(1, cT / maxT) * sw;
   _needle(ctx, x, y, r, ang, 0.76, 0.20, sc);

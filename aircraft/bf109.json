@@ -111,11 +111,6 @@
     { "minAlt": 0,    "vals": ["MAN",  "", "HDG", "APP", ""],     "cols": ["white","white","green","green","white"] }
   ],
 
-  "gpws": [
-    { "alt": 1000, "text": "1 0 0 0",   "speech": "one thousand", "red": false },
-    { "alt": 500,  "text": "5 0 0",     "speech": "five hundred", "red": false },
-    { "alt": 100,  "text": "1 0 0",     "speech": "one hundred",  "red": true  }
-  ],
 
   "pmCallouts": [],
 

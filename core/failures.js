@@ -10,7 +10,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from './state.js';
-import { engineBang, engineGunfire, coolantHiss } from './sound.js';
+import { engineBang, engineGunfire, coolantHiss, stopEngineLifecycle } from './sound.js';
 import { bbEvent } from './blackbox.js';
 
 let _fired    = new Set();   // indices of already-fired failures
@@ -102,7 +102,12 @@ export function tickFailures(dt) {
   }
   if (S.coolantState === 'seizing') {
     const power = Math.max(0, (S.enginePower ?? 1) - (dt / 25));   // seizes over ~25s
-    setState({ enginePower: power, ...(power <= 0 ? { coolantState: 'failed' } : {}) });
+    if (power <= 0) {
+      setState({ enginePower: 0, coolantState: 'failed', engineState: 'off' });
+      stopEngineLifecycle();   // engine seized — kill the run loop (RPM falls to 0)
+    } else {
+      setState({ enginePower: power });
+    }
   }
 
   /* ── Carb ice — runs independently of other failures ── */

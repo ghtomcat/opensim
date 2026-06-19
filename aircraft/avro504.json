@@ -85,12 +85,6 @@
     { "minAlt": 0,    "vals": ["FULL", "",  "VISUAL", "CLIMB",  ""], "cols": ["white","white","green","cyan", "white"] }
   ],
 
-  "gpws": [
-    { "alt": 1000, "text": "1 0 0 0",   "speech": "one thousand",  "red": false },
-    { "alt": 500,  "text": "5 0 0",     "speech": "five hundred",  "red": false },
-    { "alt": 200,  "text": "2 0 0",     "speech": "two hundred",   "red": true  },
-    { "alt": 50,   "text": "F I F T Y", "speech": "fifty",         "red": false }
-  ],
 
   "pmCallouts": [
     { "alt": 3000, "speech": "passing three thousand" },
