@@ -18,8 +18,8 @@ const _CSS = `
     position: fixed; right: 0; top: 0; bottom: 0; width: min(38vw, 500px); z-index: 180;
     background: #14161a; border-left: 1px solid #20242a;
     display: flex; flex-direction: column;
-    align-items: center; justify-content: flex-start;
-    gap: 22px; padding: 28px 30px;
+    align-items: center; justify-content: flex-end;   /* content low — clear of the top-right minimap */
+    gap: 22px; padding: 28px 30px 44px;
     transform: translateX(100%);
     transition: transform 0.26s cubic-bezier(0.4, 0, 0.2, 1);
   }
@@ -77,27 +77,29 @@ const _CSS = `
 function _buildHTML() {
   const tokens = S.aircraft?.right ?? [];
   const has = (t) => tokens.includes(t);
+  /* Cockpit language — liquid-cooled = Bf 109 (German), else American/English (proxy) */
+  const _de = S.aircraft?.coolingSystem === 'liquid';
 
   /* radio token has no inline DOM — it surfaces the shared #com-container (see render) */
   const oxygen = has('oxygen') ? `
         <div class="rc-ctrl">
-          <div class="rc-label">SAUERSTOFF</div>
+          <div class="rc-label">${_de ? 'SAUERSTOFF' : 'OXYGEN'}</div>
           <div class="rc-oxy">
             <div class="rc-oxy-gauge"><div class="rc-oxy-needle"></div></div>
             <div class="rc-oxy-blink"></div>
           </div>
-          <div class="rc-val">150 atü</div>
+          <div class="rc-val">${_de ? '150 atü' : '400 psi'}</div>
         </div>` : '';
   const breakers = has('breakers') ? `
         <div class="rc-ctrl">
-          <div class="rc-label">SICHERUNGEN</div>
+          <div class="rc-label">${_de ? 'SICHERUNGEN' : 'CIRCUIT BREAKERS'}</div>
           <div class="rc-brk-grid">${Array.from({ length: 15 }, () => '<i></i>').join('')}</div>
         </div>` : '';
 
   return `
-    <div class="rc-title">Rechte Konsole</div>
+    <div class="rc-title">${_de ? 'Rechte Konsole' : 'Right Console'}</div>
     <div class="rc-row">${oxygen}${breakers}</div>
-    <div class="rc-hint">R · schliessen</div>
+    <div class="rc-hint">R · ${_de ? 'schliessen' : 'close'}</div>
   `;
 }
 

@@ -3420,7 +3420,9 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
       ctx.fillText(`MET  ${sign}${mm}:${ss}`, W / 2, 8 * DPR);
       ctx.restore();
       _clockBottomY = 24 * DPR;
-    } else if (clockType === 'analog') {
+    } else if (clockType === 'analog' && S.aircraft?.panel !== 'f4u' && S.aircraft?.panel !== 'bf109') {
+      /* F4U / Bf 109 draw the clock as a cockpit instrument (top-left) in their
+         own panel renderer — no top-centre overlay for them. */
       const _h   = _clockTotal % 12;
       const _m   = (_clockTotal * 60) % 60;
       const _s   = (_clockTotal * 3600) % 60;

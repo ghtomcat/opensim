@@ -14,6 +14,7 @@
 
 import { S } from '../core/state.js';
 import { getRpmValue, getCurrentRpm } from '../core/sound.js';
+import { drawAnalogClock } from './clock.js';
 
 /* ── Palette ── */
 const P = {
@@ -54,51 +55,100 @@ export function renderBf109(canvas) {
   ctx.fillStyle = vg;
   ctx.fillRect(0, 0, W, H);
 
-  const sc = Math.min(W, H) / 860;
-  const cx = W / 2;
-  const cy = H / 2;
-
-  /* Layout: 3 rows, 3 columns */
-  const cw = 195 * sc;   /* column width   */
-  const rh = 205 * sc;   /* row height     */
-  const r1 = 90  * sc;   /* main instruments (top 2 rows) */
-  const r2 = 60  * sc;   /* engine strip (bottom row)     */
-
-  /* Row y-positions (centred in panel) */
-  const y1 = cy - rh * 0.85;   /* top row    */
-  const y2 = cy + rh * 0.15;   /* middle row */
-  const y3 = cy + rh * 1.05;   /* engine strip */
-
-  _drawFahrtmesser(ctx, cx - cw, y1, r1, sc);
-  _drawHorizont(   ctx, cx,      y1, r1, sc);
-  _drawHoehenmesser(ctx, cx + cw, y1, r1, sc);
-
-  _drawWendezeiger(ctx, cx - cw, y2, r1 * 0.85, sc);
-  _drawKompass(    ctx, cx,      y2, r1 * 0.85, sc);
-  _drawVariometer( ctx, cx + cw, y2, r1 * 0.85, sc);
-
   const _isJet  = S.aircraft?.sound?.engineType === 'turbojet-vk1';
   const _eng    = _isJet ? _drawN1Messer : _drawDrehzahl;
-  if (S.aircraft?.cooling) {   /* liquid-cooled → 4-gauge strip with Kühlstofftemp */
-    _eng(               ctx, cx - cw * 0.93, y3, r2, sc);
-    _drawKuehlstoffTemp(ctx, cx - cw * 0.31, y3, r2, sc);
-    _drawOelTemp(       ctx, cx + cw * 0.31, y3, r2, sc);
-    _drawOelDruck(      ctx, cx + cw * 0.93, y3, r2, sc);
+
+  /* In the combined "cockpit + outside" view the panel is flat & wide — spread
+     the gauges across the free side-space (2 flight rows left, engine block
+     right) instead of squashing 3 rows. Full cockpit keeps the 3-row layout. */
+  const wide = (W / H) > 2.0;
+
+  if (wide) {
+    const barH = 80 * devicePixelRatio;       // #panel bottom bar — keep gauges/labels above it
+    const Hu   = H - barH;                     // usable height above the bar
+    const sc   = Hu / 480;
+    const r1 = 90 * sc, r2 = 66 * sc;
+    const yTop = Hu * 0.30, yBot = Hu * 0.70;
+
+    /* Flight instruments — left / centre, 2×3 */
+    const cxL = W * 0.33, cwL = W * 0.135;
+    _drawFahrtmesser( ctx, cxL - cwL, yTop, r1, sc);
+    _drawHorizont(    ctx, cxL,       yTop, r1, sc);
+    _drawHoehenmesser(ctx, cxL + cwL, yTop, r1, sc);
+    _drawWendezeiger( ctx, cxL - cwL, yBot, r1 * 0.85, sc);
+    _drawKompass(     ctx, cxL,       yBot, r1 * 0.85, sc);
+    _drawVariometer(  ctx, cxL + cwL, yBot, r1 * 0.85, sc);
+
+    /* Engine / temperature block — right */
+    const cxR = W * 0.80, dxR = W * 0.085;
+    if (S.aircraft?.cooling) {
+      _eng(               ctx, cxR - dxR, yTop, r2, sc);
+      _drawKuehlstoffTemp(ctx, cxR + dxR, yTop, r2, sc);
+      _drawOelTemp(       ctx, cxR - dxR, yBot, r2, sc);
+      _drawOelDruck(      ctx, cxR + dxR, yBot, r2, sc);
+    } else {
+      _eng(         ctx, cxR,       yTop, r2, sc);
+      _drawOelTemp( ctx, cxR - dxR, yBot, r2, sc);
+      _drawOelDruck(ctx, cxR + dxR, yBot, r2, sc);
+    }
+
+    drawAnalogClock(ctx, W * 0.06, Hu * 0.28, 44 * sc);   // clock — top-left
+
+    _drawFrost(ctx, W, H);
+
+    if (S.paused) {
+      ctx.fillStyle = 'rgba(240,200,80,0.92)';
+      ctx.font = `bold ${15 * sc}px ${SANS}`;
+      ctx.textAlign = 'center';
+      ctx.fillText('PAUSE  [P]', W / 2, Hu * 0.95);
+    }
   } else {
-    _eng(         ctx, cx - cw * 0.62, y3, r2, sc);
-    _drawOelTemp( ctx, cx,             y3, r2, sc);
-    _drawOelDruck(ctx, cx + cw * 0.62, y3, r2, sc);
-  }
+    const sc = Math.min(W, H) / 860;
+    const cx = W / 2;
+    const cy = H / 2;
 
-  /* Frost vignette — Arctic, -22°C */
-  _drawFrost(ctx, W, H);
+    /* Layout: 3 rows, 3 columns */
+    const cw = 195 * sc;   /* column width   */
+    const rh = 205 * sc;   /* row height     */
+    const r1 = 90  * sc;   /* main instruments (top 2 rows) */
+    const r2 = 60  * sc;   /* engine strip (bottom row)     */
 
-  /* Paused */
-  if (S.paused) {
-    ctx.fillStyle = 'rgba(240,200,80,0.92)';
-    ctx.font = `bold ${14 * sc}px ${SANS}`;
-    ctx.textAlign = 'center';
-    ctx.fillText('PAUSE  [P]', cx, cy + rh * 1.68);
+    /* Row y-positions (centred in panel) */
+    const y1 = cy - rh * 0.85;   /* top row    */
+    const y2 = cy + rh * 0.15;   /* middle row */
+    const y3 = cy + rh * 1.05;   /* engine strip */
+
+    _drawFahrtmesser(ctx, cx - cw, y1, r1, sc);
+    _drawHorizont(   ctx, cx,      y1, r1, sc);
+    _drawHoehenmesser(ctx, cx + cw, y1, r1, sc);
+
+    _drawWendezeiger(ctx, cx - cw, y2, r1 * 0.85, sc);
+    _drawKompass(    ctx, cx,      y2, r1 * 0.85, sc);
+    _drawVariometer( ctx, cx + cw, y2, r1 * 0.85, sc);
+
+    if (S.aircraft?.cooling) {   /* liquid-cooled → 4-gauge strip with Kühlstofftemp */
+      _eng(               ctx, cx - cw * 0.93, y3, r2, sc);
+      _drawKuehlstoffTemp(ctx, cx - cw * 0.31, y3, r2, sc);
+      _drawOelTemp(       ctx, cx + cw * 0.31, y3, r2, sc);
+      _drawOelDruck(      ctx, cx + cw * 0.93, y3, r2, sc);
+    } else {
+      _eng(         ctx, cx - cw * 0.62, y3, r2, sc);
+      _drawOelTemp( ctx, cx,             y3, r2, sc);
+      _drawOelDruck(ctx, cx + cw * 0.62, y3, r2, sc);
+    }
+
+    drawAnalogClock(ctx, W * 0.11, H * 0.14, 48 * sc);   // clock — top-left
+
+    /* Frost vignette — Arctic, -22°C */
+    _drawFrost(ctx, W, H);
+
+    /* Paused */
+    if (S.paused) {
+      ctx.fillStyle = 'rgba(240,200,80,0.92)';
+      ctx.font = `bold ${14 * sc}px ${SANS}`;
+      ctx.textAlign = 'center';
+      ctx.fillText('PAUSE  [P]', cx, cy + rh * 1.68);
+    }
   }
 
   ctx.restore();

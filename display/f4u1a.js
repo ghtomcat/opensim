@@ -13,6 +13,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from '../core/state.js';
+import { drawAnalogClock } from './clock.js';
 
 /* ── Palette ── */
 const P = {
@@ -53,44 +54,91 @@ export function renderF4U1A(canvas) {
   ctx.fillStyle = vg;
   ctx.fillRect(0, 0, W, H);
 
-  const sc = Math.min(W, H) / 860;
-  const cx = W / 2;
-  const cy = H / 2;
+  /* In the combined "cockpit + outside" view the panel is flat & wide — gauges
+     would scale off the short height and cluster in the centre. Spread them
+     across the free side-space instead: 2 rows of flight instruments left,
+     the engine/temperature block on the right. Full cockpit stays 3 rows. */
+  const wide = (W / H) > 2.0;
 
-  const cw = 195 * sc;
-  const rh = 205 * sc;
-  const r1 = 90  * sc;
-  const r2 = 60  * sc;
+  if (wide) {
+    const barH = 80 * devicePixelRatio;       // #panel bottom bar — keep gauges/labels above it
+    const Hu   = H - barH;                     // usable height above the bar
+    const sc   = Hu / 480;                     // scale off usable height — 2 rows, bigger than the 3-row pack
+    const r1 = 90 * sc, r2 = 66 * sc;
+    const yTop = Hu * 0.30, yBot = Hu * 0.70;
 
-  const y1 = cy - rh * 0.85;
-  const y2 = cy + rh * 0.15;
-  const y3 = cy + rh * 1.05;
+    /* Flight instruments — left / centre, 2×3 */
+    const cxL = W * 0.33, cwL = W * 0.135;
+    _drawAirspeed( ctx, cxL - cwL, yTop, r1, sc);
+    _drawHorizon(  ctx, cxL,       yTop, r1, sc);
+    _drawAltimeter(ctx, cxL + cwL, yTop, r1, sc);
+    _drawTurnSlip( ctx, cxL - cwL, yBot, r1 * 0.85, sc);
+    _drawCompass(  ctx, cxL,       yBot, r1 * 0.85, sc);
+    _drawVSI(      ctx, cxL + cwL, yBot, r1 * 0.85, sc);
 
-  _drawAirspeed(   ctx, cx - cw, y1, r1, sc);
-  _drawHorizon(    ctx, cx,      y1, r1, sc);
-  _drawAltimeter(  ctx, cx + cw, y1, r1, sc);
+    /* Engine / temperature block — right, in the free space */
+    const cxR = W * 0.80, dxR = W * 0.085;
+    if (S.aircraft?.cooling) {
+      _drawManifold(   ctx, cxR - dxR, yTop, r2, sc);
+      _drawCHT(        ctx, cxR + dxR, yTop, r2, sc);
+      _drawOilTemp(    ctx, cxR - dxR, yBot, r2, sc);
+      _drawOilPressure(ctx, cxR + dxR, yBot, r2, sc);
+    } else {
+      _drawManifold(   ctx, cxR,       yTop, r2, sc);
+      _drawOilTemp(    ctx, cxR - dxR, yBot, r2, sc);
+      _drawOilPressure(ctx, cxR + dxR, yBot, r2, sc);
+    }
 
-  _drawTurnSlip(   ctx, cx - cw, y2, r1 * 0.85, sc);
-  _drawCompass(    ctx, cx,      y2, r1 * 0.85, sc);
-  _drawVSI(        ctx, cx + cw, y2, r1 * 0.85, sc);
+    drawAnalogClock(ctx, W * 0.06, Hu * 0.28, 44 * sc);   // clock — top-left
 
-  if (S.aircraft?.cooling) {   /* air-cooled → 4-gauge strip with Cyl. Head temp */
-    _drawManifold(   ctx, cx - cw * 0.93, y3, r2, sc);
-    _drawCHT(        ctx, cx - cw * 0.31, y3, r2, sc);
-    _drawOilTemp(    ctx, cx + cw * 0.31, y3, r2, sc);
-    _drawOilPressure(ctx, cx + cw * 0.93, y3, r2, sc);
+    if (S.paused) {
+      ctx.fillStyle = 'rgba(240,200,80,0.92)';
+      ctx.font = `bold ${15 * sc}px ${SANS}`;
+      ctx.textAlign = 'center';
+      ctx.fillText('PAUSE  [P]', W / 2, Hu * 0.95);
+    }
   } else {
-    _drawManifold(   ctx, cx - cw * 0.62, y3, r2, sc);
-    _drawOilTemp(    ctx, cx,             y3, r2, sc);
-    _drawOilPressure(ctx, cx + cw * 0.62, y3, r2, sc);
-  }
+    const sc = Math.min(W, H) / 860;
+    const cx = W / 2;
+    const cy = H / 2;
 
-  /* Paused */
-  if (S.paused) {
-    ctx.fillStyle = 'rgba(240,200,80,0.92)';
-    ctx.font = `bold ${14 * sc}px ${SANS}`;
-    ctx.textAlign = 'center';
-    ctx.fillText('PAUSE  [P]', cx, cy + rh * 1.68);
+    const cw = 195 * sc;
+    const rh = 205 * sc;
+    const r1 = 90  * sc;
+    const r2 = 60  * sc;
+
+    const y1 = cy - rh * 0.85;
+    const y2 = cy + rh * 0.15;
+    const y3 = cy + rh * 1.05;
+
+    _drawAirspeed(   ctx, cx - cw, y1, r1, sc);
+    _drawHorizon(    ctx, cx,      y1, r1, sc);
+    _drawAltimeter(  ctx, cx + cw, y1, r1, sc);
+
+    _drawTurnSlip(   ctx, cx - cw, y2, r1 * 0.85, sc);
+    _drawCompass(    ctx, cx,      y2, r1 * 0.85, sc);
+    _drawVSI(        ctx, cx + cw, y2, r1 * 0.85, sc);
+
+    if (S.aircraft?.cooling) {   /* air-cooled → 4-gauge strip with Cyl. Head temp */
+      _drawManifold(   ctx, cx - cw * 0.93, y3, r2, sc);
+      _drawCHT(        ctx, cx - cw * 0.31, y3, r2, sc);
+      _drawOilTemp(    ctx, cx + cw * 0.31, y3, r2, sc);
+      _drawOilPressure(ctx, cx + cw * 0.93, y3, r2, sc);
+    } else {
+      _drawManifold(   ctx, cx - cw * 0.62, y3, r2, sc);
+      _drawOilTemp(    ctx, cx,             y3, r2, sc);
+      _drawOilPressure(ctx, cx + cw * 0.62, y3, r2, sc);
+    }
+
+    drawAnalogClock(ctx, W * 0.11, H * 0.14, 48 * sc);   // clock — top-left
+
+    /* Paused */
+    if (S.paused) {
+      ctx.fillStyle = 'rgba(240,200,80,0.92)';
+      ctx.font = `bold ${14 * sc}px ${SANS}`;
+      ctx.textAlign = 'center';
+      ctx.fillText('PAUSE  [P]', cx, cy + rh * 1.68);
+    }
   }
 
   ctx.restore();

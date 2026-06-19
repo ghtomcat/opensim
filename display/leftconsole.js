@@ -180,9 +180,9 @@ function _buildHTML() {
         </div>` : '';
 
   return `
-    <div class="lc-title">Linke Konsole</div>
+    <div class="lc-title">${_liquid ? 'Linke Konsole' : 'Left Console'}</div>
     <div class="lc-row">${quadrant}${throttle}${trim}${coolflap}${cock}${parkbrake}</div>
-    <div class="lc-hint">L · schliessen</div>
+    <div class="lc-hint">L · ${_liquid ? 'schliessen' : 'close'}</div>
   `;
 }
 

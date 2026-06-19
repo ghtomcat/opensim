@@ -4258,6 +4258,7 @@
         const isPanel  = panel === 'airbus' || panel === 'e190';
         const hasDual  = isPanel && !!(S.aircraft?.displays?.some(d => d.screen === 1));
         const isDR400  = panel === 'dr400';
+        const isVintage = panel === 'f4u' || panel === 'bf109';   // steam-gauge warbirds (f4u, bf109, mig15)
         const hasOwnUI = isVelis || isG1000 || isDR400;
         const isDragon = isRocket && !!(S.mission?.dragonSepT);
         const isApollo = isRocket && S.aircraft?.id === 'saturn-v';
@@ -4277,9 +4278,9 @@
         }
         document.getElementById('panel').style.display          = (isRocket || hasOwnUI || isArm) ? 'none' : '';
         document.getElementById('keys').style.display           = (isRocket || isArm || isPanel) ? 'none' : '';
-        document.getElementById('fma').style.display            = (isRocket || hasOwnUI || isArm || isPanel) ? 'none' : '';
+        document.getElementById('fma').style.display            = (isRocket || hasOwnUI || isArm || isPanel || isVintage) ? 'none' : '';
         document.getElementById('warning-lights').style.display = (hasOwnUI || isPanel || isArm) ? 'none' : '';
-        document.getElementById('metar-strip').style.display    = (hasOwnUI || isPanel || isArm) ? 'none' : '';
+        document.getElementById('metar-strip').style.display    = (hasOwnUI || isPanel || isArm || isVintage) ? 'none' : '';
         _oskUpdate(isHover, S.aircraft?.manualControl);
       },
       () => renderFMA(),

@@ -2,6 +2,7 @@
   "id": "f4u1a",
   "views": ["left", "right"],
   "left": ["quadrant", "coolflap", "parkbrake"],
+  "right": ["radio", "oxygen", "breakers"],
   "coolingSystem": "air",
   "cooling": {
     "type": "air", "ambient": 15,
