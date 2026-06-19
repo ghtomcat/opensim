@@ -3182,7 +3182,8 @@
   function _hasScenarioSetup(m) {
     return m.phase !== 'launch'
       && !m.id.includes('hovercraft')
-      && m.id !== 'live-flight';
+      && m.id !== 'live-flight'
+      && !m.fixedScenario;   // scripted story missions (fixed weather + scripted failures) skip the chooser
   }
 
   function showScenarioSetup(m) {

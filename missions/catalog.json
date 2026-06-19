@@ -271,6 +271,7 @@
   {
     "id": "wolfskopf-1942",
     "aircraft": "bf109",
+    "fixedScenario": true,
     "acName": "Messerschmitt Bf 109 E-4",
     "engine": "Daimler-Benz DB 601 · 1175hp",
     "location": "Murmansk · Arctic",
