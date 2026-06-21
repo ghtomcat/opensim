@@ -1490,7 +1490,7 @@ function _ewdGauge(ctx, cx, cy, r, val, opts, grn, amb, red, f) {
 
 /* Engine/Warning Display page. The warning + memo zones are shared; the engine zone is
    family-specific — Airbus EWD (drawECAM) vs Boeing EICAS (drawEICAS). */
-function _ewdPage(ctx, box, style, engineZone) {
+function _ewdPage(ctx, box, style, engineZone, forcePage) {
   const { x, y, w, h } = box;
   const f   = _MONO;
   const col = {
@@ -1501,7 +1501,7 @@ function _ewdPage(ctx, box, style, engineZone) {
   ctx.fillStyle = '#030609';
   ctx.fillRect(x, y, w, h);
 
-  const page = S.ecamPage ?? 'status';
+  const page = forcePage ?? S.ecamPage ?? 'status';
   if (page === 'elec') { _ecamElec(ctx, x, y, w, h, f, col.grn, col.amb, col.dim, col.cyn); return; }
   if (page === 'hyd')  { _ecamHyd (ctx, x, y, w, h, f, col.grn, col.amb, col.dim, col.cyn); return; }
 
@@ -1516,6 +1516,13 @@ function _ewdPage(ctx, box, style, engineZone) {
 
 export function drawECAM (ctx, box, style) { _ewdPage(ctx, box, style, _engineZoneAirbus); }
 export function drawEICAS(ctx, box, style) { _ewdPage(ctx, box, style, _engineZoneBoeing); }
+
+/* Centre-panel split: upper E/WD always shows engines+warnings+memo; lower SD shows the
+   systems synoptic (elec/hyd). Both use the canonical renderer so the engine display matches
+   the forward ECAM exactly. */
+function _engZone() { return S.aircraft?.manufacturer === 'boeing' ? _engineZoneBoeing : _engineZoneAirbus; }
+export function drawECAMUpper(ctx, box, style) { _ewdPage(ctx, box, style, _engZone(), 'status'); }
+export function drawECAMLower(ctx, box, style) { _ewdPage(ctx, box, style, _engZone(), S.ecamPage === 'hyd' ? 'hyd' : 'elec'); }
 
 /* Shared warning zone + the divider above the engines. */
 function _ecamWarnZone(ctx, x, w, h, warnY, warnH, engY, f, col) {
