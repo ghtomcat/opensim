@@ -9,6 +9,7 @@
 
 import { S } from '../core/state.js';
 import { managedSpeed } from '../core/managed-speed.js';
+import { indicatedAlt, baroSubscale } from '../core/baro.js';
 import { smooth, smoothAngle } from './smooth.js';
 import { buildFullRoute, getProcedures } from '../core/route.js';
 import { buildDescentPath } from '../core/vnav.js';
@@ -18,6 +19,11 @@ import { terrainElevM } from './terrain.js?v=2';   // ND terrain (brick 4) — S
    mission (buildFullRoute does a Dijkstra over the airway graph, too heavy for every frame).
    The procedure-count is in the key so the route refreshes once the lazy CIFP import lands. */
 let _ndRoute = { key: null, r: null };
+
+/* QNH/baro window hit region (device px), refreshed each frame by drawAltTape so the
+   PFD canvas handlers can scroll to set the subscale / click to toggle STD. */
+let _qnhHit = null;
+export function qnhHitRegion() { return _qnhHit; }
 function _ndGetRoute() {
   const dep = S.mission?.departure, arr = S.mission?.arrival;
   const np  = Object.keys(getProcedures()).length;
@@ -576,10 +582,11 @@ export function drawSpeedTape(ctx, box, style) {
    ════════════════════════════════════════════════════════════ */
 export function drawAltTape(ctx, box, style) {
   const { x, y, w, h } = box;
-  const cy  = y + h / 2;
-  const alt = smooth('pfd.alt', S.alt, 0.30);    // gliding altitude
-  const altT = S.altT;
-  const f   = _f(style);
+  const cy   = y + h / 2;
+  const trueAlt = smooth('pfd.alt', S.alt, 0.30);   // true MSL (radio alt uses this)
+  const alt  = indicatedAlt(trueAlt);               // what the altimeter shows — tape, readout, bug
+  const altT = S.altT;                              // FCU target, already in indicated terms
+  const f    = _f(style);
 
   ctx.fillStyle = _c(style, 'tape');
   ctx.fillRect(x, y, w, h);
@@ -661,19 +668,24 @@ export function drawAltTape(ctx, box, style) {
     ctx.textBaseline = 'alphabetic';
   }
 
-  /* ── QNH — cyan, below the tape. No baro model yet → ISA standard 1013. ── */
+  /* ── Baro subscale — real QNH (hPa) or STD. Scroll the window to set, click to toggle STD.
+     STD shown amber when it disagrees with the start regime (a simple transition reminder). ── */
   const qH = rh * 0.78;
+  const qLabel = S.baroStd ? 'STD' : `QNH ${Math.round(baroSubscale())}`;
   ctx.font      = `${qH * 0.62}px ${f}`;
   ctx.fillStyle = _c(style, 'selected');
   ctx.textAlign = 'center';
-  ctx.fillText('QNH 1013', x + w / 2, y + h - qH * 0.3);
+  const qY = y + h - qH * 0.3;
+  ctx.fillText(qLabel, x + w / 2, qY);
+  _qnhHit = { x, y: qY - qH, w, h: qH * 1.4 };   // hit region for scroll/click (device px)
 
-  /* ── Radio altitude — shown below 2500 ft AGL, stacked above QNH ── */
+  /* ── Radio altitude — shown below 2500 ft AGL, stacked above QNH. Radio alt is TRUE
+     height above field (the subscale doesn't affect it). ── */
   const fieldElev = S.mission?.arrival?.elevation
                  ?? S.mission?.departure?.elevation
                  ?? S.aircraft?.situations?.[0]?.alt
                  ?? 0;
-  const ra = Math.round(alt - fieldElev);
+  const ra = Math.round(trueAlt - fieldElev);
   if (ra < 2500) {
     const raH = rh * 0.85;
     const raY = y + h - qH * 1.3 - raH;
@@ -1223,9 +1235,36 @@ export function drawFCU(ctx, W, H, style) {
   ctx.fillStyle = 'rgba(255,255,255,0.07)';
   ctx.fillRect(0, H - 1, W, 1);
 
-  // Section geometry
+  // ── Glareshield MASTER WARN / CAUT (left) — reflect real warnings + overspeed ──
+  const mwW = W * 0.055;
+  {
+    const lim   = _vSpeeds();
+    const amber = Object.entries(S.warnings ?? {}).some(([k, v]) => v && (k.startsWith('LOW') || k.startsWith('FUEL')));
+    const red   = Object.entries(S.warnings ?? {}).some(([k, v]) => v && !(k.startsWith('LOW') || k.startsWith('FUEL')))
+               || (lim?.vmo != null && S.spd > lim.vmo + 4);
+    const flash = (Math.floor(Date.now() / 350) % 2) === 0;
+    const lw = mwW * 0.80, lh = H * 0.36, lx = (mwW - lw) / 2;
+    const lamp = (ly, on, onCol, label, steady) => {
+      const lit = on && (steady || flash);
+      ctx.fillStyle = lit ? onCol : 'rgba(255,255,255,0.035)';
+      ctx.fillRect(lx, ly, lw, lh);
+      ctx.strokeStyle = on ? onCol : 'rgba(255,255,255,0.18)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(lx, ly, lw, lh);
+      ctx.fillStyle = lit ? '#000' : (on ? onCol : 'rgba(200,210,225,0.34)');
+      ctx.font = `bold ${H * 0.105}px ${f}`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('MASTER', lx + lw / 2, ly + lh * 0.34);
+      ctx.fillText(label,    lx + lw / 2, ly + lh * 0.66);
+      ctx.textBaseline = 'alphabetic';
+    };
+    lamp(H * 0.10, red,   '#ff3b30', 'WARN', false);   // red — flashes
+    lamp(H * 0.54, amber, '#ffb400', 'CAUT', true);    // amber — steady
+  }
+
+  // Section geometry — content starts right of the master-light zone
   const padX  = W * 0.028;
-  const inner = W - padX * 2;
+  const inner = W - mwW - padX;
 
   const spdW  = inner * 0.130;
   const hdgW  = inner * 0.130;
@@ -1235,7 +1274,7 @@ export function drawFCU(ctx, W, H, style) {
   const altW  = inner * 0.200;
   const vsW   = inner * 0.160;
 
-  const spdX = padX;
+  const spdX = mwW;
   const hdgX = spdX + spdW;
   const apX  = hdgX + hdgW + gapAP;
   const altX = apX  + apW  + gapAL;

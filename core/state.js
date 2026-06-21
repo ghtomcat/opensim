@@ -8,7 +8,9 @@
 export const S = {
 
   /* ── Flight state ── */
-  alt:   35000,   altT:  35000,   // ft
+  alt:   35000,   altT:  35000,   // ft (alt = true MSL; the altimeter shows indicated, see core/baro.js)
+  baroSet: 1013,                  // altimeter subscale set by the pilot (hPa)
+  baroStd: false,                 // STD (1013) selected vs QNH
   spd:   312,     spdT:  312,     // knots
   hdg:   360,     hdgT:  360,     // degrees
   vs:    0,                       // ft/min

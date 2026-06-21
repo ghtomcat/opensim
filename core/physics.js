@@ -13,6 +13,7 @@ import { vnavTargetAlt } from './vnav.js';
 import { activeDetent } from './thrust.js';
 import { managedSpeed } from './managed-speed.js';
 import { runwayThreshold } from './mission-start.js';
+import { indicatedAlt } from './baro.js';
 
 const _DEG = Math.PI / 180;
 const _gcNm = (aLat, aLon, bLat, bLon) => {
@@ -279,7 +280,7 @@ export function tickPhysics(dt) {
         }
       } else {
         const altTgt = S.altManaged ? vnavTargetAlt() : S.altT;
-        cmdVSraw = Math.max(-1800, Math.min(1800, (altTgt - S.alt) * 3));      // gentle gain → flares ~600 ft out, less overshoot
+        cmdVSraw = Math.max(-1800, Math.min(1800, (altTgt - indicatedAlt(S.alt)) * 3));   // FCU target is indicated; hold indicated (baro). gentle gain → flares ~600 ft out
       }
       if (_apVsCmd == null || onGround) _apVsCmd = S.vs ?? 0;
       const vsStep   = 550 * dt;                                                 // ease the command in (~3 s to full rate) so the descent doesn't step → no spike

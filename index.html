@@ -47,7 +47,7 @@
     }
     #outside.visible  { display: block; }
     #outside.combined { height: 50vh; }
-    body.panel-dual #outside.combined { top: 9vh; height: calc(50vh - 9vh); }
+    body.panel-dual #outside.combined { top: 0; height: calc(50vh - 9vh); }   /* outside on top; FCU sits just above the displays */
 
     #outside-canvas {
       position: absolute; top: 0; left: 0;
@@ -96,6 +96,7 @@
       cursor: default;
     }
     body.panel-dual #fcu                  { display: block; }
+    body.panel-dual.outside-active #fcu   { top: calc(50vh - 9vh); }   /* combined: FCU drops to just above PFD/ND (glareshield order) */
     body.panel-dual #pfd:not(.combined)   { top: 9vh; height: 91vh; }
     body.panel-dual #nd:not(.combined)    { top: 9vh; height: 91vh; }
     /* Combined (outside) view: end the displays at the top of the 80px status panel so the
@@ -2236,6 +2237,8 @@
   import { initBlackbox, bbEvent, downloadBlackbox } from './core/blackbox.js';
   import { renderPFD }         from './display/pfd.js';
   import { renderPanel, renderFCU, renderCockpit, handleCockpitClick } from './display/panel_renderer.js';
+  import { qnhHitRegion } from './display/pfd_instruments.js';
+  import { indicatedAlt } from './core/baro.js';
   import { renderRocket, renderApollo, handleApolloClick, isApolloTelemetry } from './display/rocket_display.js';
   import { renderLM, handleLMClick } from './display/lm_display.js';
   import { renderDragon, handleDragonClick, isDragonTelemetry } from './display/dragon.js';
@@ -2321,15 +2324,16 @@
   /* ── FCU interaction — scroll to dial, click to toggle AP/A-THR ── */
   function _fcuGeometry() {
     const W     = fcuCanvas.offsetWidth;
+    const mwW   = W * 0.055;            // glareshield master warn/caut zone (left) — mirrors drawFCU
     const padX  = W * 0.028;
-    const inner = W - padX * 2;
+    const inner = W - mwW - padX;
     const spdW  = inner * 0.130;
     const hdgW  = inner * 0.130;
     const gapAP = inner * 0.030;
     const apW   = inner * 0.320;
     const gapAL = inner * 0.030;
     const altW  = inner * 0.200;
-    const spdX  = padX;
+    const spdX  = mwW;
     const hdgX  = spdX + spdW;
     const apX   = hdgX + hdgW + gapAP;
     const altX  = apX  + apW  + gapAL;
@@ -2373,7 +2377,7 @@
       if (btnIdx === 0) {                              // AP 1
         const sync = !S.ap ? {                         // engaging → hold present state, don't yank to stale targets
           ...(S.navManaged ? {} : { hdgT: ((Math.round(S.hdg ?? 0) + 359) % 360) + 1 }),   // selected HDG → present heading
-          ...(S.altManaged ? {} : { altT: Math.round((S.alt ?? 0) / 100) * 100 }),          // selected ALT → present altitude (nearest 100)
+          ...(S.altManaged ? {} : { altT: Math.round(indicatedAlt(S.alt ?? 0) / 100) * 100 }),   // selected ALT → present indicated altitude (nearest 100)
         } : {};
         setState({ ap: !S.ap, ...sync });
       }
@@ -2440,13 +2444,37 @@
   });
 
   /* Velis canvas click — switch toggles + COM swap */
+  /* Cursor in device px against a PFD hit region (qnhHitRegion etc.). */
+  function _overRegion(region, evt) {
+    if (!region) return false;
+    const DPR  = devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const px   = (evt.clientX - rect.left) * DPR;
+    const py   = (evt.clientY - rect.top)  * DPR;
+    return px >= region.x && px <= region.x + region.w && py >= region.y && py <= region.y + region.h;
+  }
+
   canvas.addEventListener('click', evt => {
     if (S.aircraft?.panel === 'velis-epsi') handleVelisClick(canvas, evt);
     if (S.aircraft?.vehicleType === 'rocket' && S.mission?.dragonSepT) handleDragonClick(canvas, evt);
     if (S.aircraft?.id === 'saturn-v' && S.inLM && S.mission?.hasLM) handleLMClick(canvas, evt);
     else if (S.aircraft?.id === 'saturn-v') handleApolloClick(canvas, evt);
     if (S.aircraft?.panel === 'g1000' || S.aircraft?.panel === 'dr400') handleCockpitClick(canvas, evt);
+    /* Airbus/E190 PFD: click the QNH window → toggle STD ↔ QNH */
+    if ((S.aircraft?.panel === 'airbus' || S.aircraft?.panel === 'e190') && _overRegion(qnhHitRegion(), evt)) {
+      setState({ baroStd: !S.baroStd });
+    }
   });
+
+  /* Airbus/E190 PFD: scroll the QNH window → set the subscale (hPa). Leaves STD when turned. */
+  canvas.addEventListener('wheel', evt => {
+    const panel = S.aircraft?.panel;
+    if (panel !== 'airbus' && panel !== 'e190') return;
+    if (!_overRegion(qnhHitRegion(), evt)) return;
+    evt.preventDefault();
+    const dir = evt.deltaY > 0 ? -1 : 1;
+    setState({ baroStd: false, baroSet: Math.max(940, Math.min(1050, Math.round(S.baroSet ?? 1013) + dir)) });
+  }, { passive: false });
   const loadEl     = document.getElementById('loading');
   const loadBar    = document.getElementById('loadBar');
   const loadStatus = document.getElementById('loadStatus');

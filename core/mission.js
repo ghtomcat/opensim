@@ -57,6 +57,15 @@ export async function loadMission(missionPath, aircraftPath) {
     (aircraft.engine?.type === 'turbofan' && startOnGround);
   const startEngineState = (startOnGround && hasColdStart) ? 'off' : 'running';
 
+  /* Barometric altimeter init — set the subscale to the field QNH (live METAR or mission
+     weather), and start on STD above the transition altitude. altT is held in INDICATED
+     terms so the AP doesn't jump on engage (see core/baro.js). */
+  const _qnhField = mission.weather?.manual?.altim ?? mission.weather?.fallback?.altim ?? 1013;
+  const _baroStd  = (alt ?? 0) > (mission.transitionAlt ?? 10000);
+  const _baroSet  = _qnhField;
+  const _subscale = _baroStd ? 1013.25 : _baroSet;
+  const _altInd   = Math.round(((alt ?? 0) + (_subscale - _qnhField) * 27.3) / 100) * 100;   // FCU step
+
   /* Initial N1 for turbofan — set to match cruise throttle when airborne, 0 when off */
   const initN1 = (() => {
     if (aircraft.engine?.type !== 'turbofan') return 0;
@@ -69,7 +78,8 @@ export async function loadMission(missionPath, aircraftPath) {
   setState({
     aircraft,
     mission,
-    alt,   altT:  alt,
+    alt,   altT:  _altInd,        // alt = true MSL; altT = indicated FCU target
+    baroSet: _baroSet, baroStd: _baroStd,
     spd,   spdT:  spd,
     thrustLever: Math.min(1, Math.max(0, spd / (aircraft.envelope?.maxSpd ?? 340))),   // lever ≈ cruise thrust
 
