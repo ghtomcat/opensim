@@ -172,9 +172,20 @@ export function drawAI(ctx, box, style, config = {}) {
   const pitchPx  = S.pitch * pxPerDeg;
   const rollRad  = S.roll  * Math.PI / 180;
 
+  /* Black margins around the sphere (Airbus shows the tapes against black) */
+  ctx.fillStyle = _c(style, 'bg');
+  ctx.fillRect(x, y, w, h);
+
   ctx.save();
+  /* Airbus attitude viewport: circular top & bottom, straight vertical sides.
+     Clip = circle ∩ vertical band → arcs cap top/bottom, chords give the flat sides. */
+  const R     = Math.min(h * 0.5, w * 0.62);
+  const halfW = Math.min(w * 0.5, R * 0.88);
   ctx.beginPath();
-  ctx.rect(x, y, w, h);
+  ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.beginPath();
+  ctx.rect(cx - halfW, y - h, halfW * 2, h * 3);   // tall band → clips only the sides
   ctx.clip();
 
   ctx.translate(cx, cy);
@@ -241,27 +252,44 @@ function _pitchLadder(ctx, pitchPx, pxPerDeg, style, bw, bh) {
 function _aircraftRef(ctx, box, style) {
   const cx  = box.x + box.w / 2;
   const cy  = box.y + box.h / 2;
-  const arm = box.h * 0.038;
   const col = style.colors.refSymbol ?? '#e8c91e';   // Airbus aircraft reference symbol — yellow
 
+  const t = box.h * 0.014;    // bar thickness
+  const g = box.h * 0.045;    // inner gap from centre
+  const L = box.h * 0.085;    // horizontal arm length
+  const D = box.h * 0.040;    // vertical drop at the inner end
+
   ctx.save();
-  ctx.strokeStyle = col;
-  ctx.fillStyle   = col;
-  ctx.lineWidth   = 3;
+  ctx.fillStyle    = '#000000';   // black body
+  ctx.strokeStyle  = col;         // yellow border
+  ctx.lineWidth    = box.h * 0.006;
+  ctx.lineJoin     = 'miter';
 
-  /* Two yellow wings with a square hub + a stub below — the fixed aircraft reference. */
-  ctx.fillRect(cx - 2.5, cy - 2.5, 5, 5);
+  /* Each wing: an L — horizontal arm with a downward leg at the inner end.
+     side = -1 (left) / +1 (right). */
+  const wing = (side) => {
+    const xi = cx + side * g;            // inner end
+    const xo = cx + side * (g + L);      // outer end
+    const xl = cx + side * (g + t);      // inner edge of the vertical leg
+    ctx.beginPath();
+    ctx.moveTo(xo, cy - t / 2);          // outer top
+    ctx.lineTo(xi, cy - t / 2);          // inner top
+    ctx.lineTo(xi, cy + D);              // down the leg (outer side)
+    ctx.lineTo(xl, cy + D);              // across leg bottom
+    ctx.lineTo(xl, cy + t / 2);          // up to bar bottom
+    ctx.lineTo(xo, cy + t / 2);          // outer bottom
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  };
+  wing(-1);
+  wing(+1);
 
+  /* Centre hub — small black square, yellow border */
+  const s = box.h * 0.013;
   ctx.beginPath();
-  ctx.moveTo(cx - arm * 3, cy);
-  ctx.lineTo(cx - arm,     cy);
-  ctx.moveTo(cx + arm,     cy);
-  ctx.lineTo(cx + arm * 3, cy);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.moveTo(cx, cy);
-  ctx.lineTo(cx, cy - arm * 1.6);
+  ctx.rect(cx - s, cy - s, s * 2, s * 2);
+  ctx.fill();
   ctx.stroke();
 
   ctx.restore();
@@ -292,6 +320,41 @@ function _fpv(ctx, box, style) {
   ctx.lineTo(fpvX,                fpvY - r - 10 * sc);
   ctx.stroke();
 
+  ctx.restore();
+}
+
+/* Aircraft speed limits (kt IAS) for the PFD strips. VMO from the envelope; VLS/Vs derived
+   from mass / wing / CL_max (+ selected flap) — VLS moves with weight & config, so it's
+   computed, not stored. An optional aircraft.vspeeds block overrides any value. */
+function _vSpeeds() {
+  const ac   = S.aircraft;
+  const perf = ac?.performance;
+  if (!perf) return null;
+  const ov    = ac.vspeeds ?? {};
+  const flaps = ac.flaps ?? [];
+  const fi    = Math.max(0, Math.min(flaps.length - 1, Math.round(S.flaps ?? 0)));
+  const clMax = (perf.CL_max ?? 1.9) + (flaps[fi]?.dCL_max ?? 0);
+  const vsMs  = Math.sqrt(2 * (perf.mass ?? 60000) * 9.81 / (1.225 * (perf.wingArea ?? 120) * clMax));
+  const vs    = ov.vs  ?? (vsMs / 0.5144);     // kt IAS (ρ₀ → IAS directly)
+  const vls   = ov.vls ?? (1.23 * vs);         // Airbus lowest selectable speed
+  const vmo   = ov.vmo ?? ac.envelope?.maxSpd ?? null;
+  return { vs, vls, vmo };
+}
+
+/* Diagonal red/black hazard strip (VMO above / α-max below). */
+function _barberPole(ctx, x, w, yTop, yBot, cA, cB) {
+  if (yBot - yTop < 1) return;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x, yTop, w, yBot - yTop); ctx.clip();
+  ctx.fillStyle = cA; ctx.fillRect(x, yTop, w, yBot - yTop);
+  ctx.strokeStyle = cB; ctx.lineWidth = w * 0.55;
+  ctx.beginPath();
+  const step = w * 1.4;
+  for (let yy = yTop - w * 3; yy < yBot + w; yy += step) {
+    ctx.moveTo(x - w,     yy);
+    ctx.lineTo(x + w * 2, yy + w * 3);          // ~45° diagonal
+  }
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -448,6 +511,31 @@ export function drawSpeedTape(ctx, box, style) {
     }
   }
 
+  /* ── Speed limit strips on the right edge ── */
+  const lim = _vSpeeds();
+  if (lim) {
+    const sw = w * 0.12, sx = x + w - sw;
+    const yOf    = (v) => cy + (spd - v) * pxPerKt;
+    const clampY = (yy) => Math.max(y, Math.min(y + h, yy));
+    /* VMO — red/black barber pole above VMO */
+    if (lim.vmo != null && yOf(lim.vmo) > y) {
+      _barberPole(ctx, sx, sw, y, clampY(yOf(lim.vmo)), '#d00000', '#101010');
+    }
+    /* Low-speed markings (VLS, α) only in flight — hidden on the ground (S.wow),
+       like a real Airbus, so they don't sweep through the readout while rolling out. */
+    if (!S.wow) {
+      /* VLS → Vs — amber strip */
+      if (lim.vls != null && lim.vs != null) {
+        const yT = clampY(yOf(lim.vls)), yB = clampY(yOf(lim.vs));
+        if (yB > yT) { ctx.fillStyle = '#ffb400'; ctx.fillRect(sx, yT, sw, yB - yT); }
+      }
+      /* below Vs — red/black barber pole (stall / α-max) */
+      if (lim.vs != null && yOf(lim.vs) < y + h) {
+        _barberPole(ctx, sx, sw, clampY(yOf(lim.vs)), y + h, '#d00000', '#101010');
+      }
+    }
+  }
+
   ctx.restore();
 
   // target speed bug — notch on right edge
@@ -471,7 +559,7 @@ export function drawSpeedTape(ctx, box, style) {
   const rhB = rh * _fk;             // box grows to fit
   const ry  = cy - rhB / 2;
 
-  ctx.fillStyle = 'rgba(6,10,16,0.88)';
+  ctx.fillStyle = 'rgba(74,80,90,0.95)';     // grey readout window, white digits (Airbus)
   ctx.fillRect(x, ry, w, rhB);
   ctx.strokeStyle = _c(style, 'white');
   ctx.lineWidth   = 1.5;
@@ -549,7 +637,7 @@ export function drawAltTape(ctx, box, style) {
   const rhB = rh * _fk;
   const ry  = cy - rhB / 2;
 
-  ctx.fillStyle = 'rgba(6,10,16,0.88)';
+  ctx.fillStyle = 'rgba(74,80,90,0.95)';     // grey readout window, white digits (Airbus)
   ctx.fillRect(x, ry, w, rhB);
   ctx.strokeStyle = _c(style, 'white');
   ctx.lineWidth   = 1.5;
@@ -690,22 +778,29 @@ export function drawHdgTape(ctx, box, style) {
   ctx.font        = `${h * 0.33}px ${f}`;
   ctx.textAlign   = 'center';
 
-  for (let d = -32; d <= 32; d += 5) {
-    const deg = ((hdg + d) % 360 + 360) % 360;
-    const px  = cx + d * pxPerDeg;
-    const th  = d % 10 === 0 ? th2 : th1;
+  /* Ticks at absolute headings divisible by 5°, labels every 10° — aligned to the
+     compass, not to the offset (the old offset loop never hit a multiple of 10). */
+  const halfSpan = 32;
+  const startA = Math.ceil((hdg - halfSpan) / 5) * 5;
+  const endA   = Math.floor((hdg + halfSpan) / 5) * 5;
+
+  for (let a = startA; a <= endA; a += 5) {
+    const deg   = ((a % 360) + 360) % 360;
+    const px    = cx + (a - hdg) * pxPerDeg;
+    const major = deg % 10 === 0;
+    const th    = major ? th2 : th1;
 
     ctx.beginPath();
     ctx.moveTo(px, y);
     ctx.lineTo(px, y + th);
     ctx.stroke();
 
-    if (d % 10 === 0) {
+    if (major) {
       const lbl = deg === 0   ? 'N'
                 : deg === 90  ? 'E'
                 : deg === 180 ? 'S'
                 : deg === 270 ? 'W'
-                : String(Math.round(deg / 10));
+                : String(deg / 10).padStart(2, '0');
       ctx.fillText(lbl, px, y + h * 0.84);
     }
   }
