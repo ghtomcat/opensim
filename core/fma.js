@@ -29,7 +29,7 @@ function _phase(p) {
 export function computeAirbusFMA(p) {
   const { n1 = 0, alt = 0, fieldElev = 0, ap = false, athr = false,
           athrMode = null, athrDetent = null, navManaged = false, altManaged = false,
-          locCap = false, gsCap = false } = p;
+          vsSelected = false, locCap = false, gsCap = false } = p;
   const agl  = alt - fieldElev;
   /* Column 5 — AP/FD on top, A/THR below (cyan when active). One AP modelled → AP1 / 1FD2. */
   const apfd = ap ? cell('AP1',  'white', athr ? 'A/THR' : '', 'cyan')
@@ -37,7 +37,9 @@ export function computeAirbusFMA(p) {
   /* lateral: managed NAV (green) when LNAV follows the plan, else selected HDG (cyan) */
   const lat  = navManaged ? cell('NAV', 'green') : cell('HDG', 'cyan');
   /* vertical: managed mode (green) when VNAV flies the profile, else selected ALT hold (cyan) */
-  const vert = (label) => altManaged ? cell(label, 'green') : cell('ALT', 'cyan');
+  const vert = (label) => altManaged ? cell(label, 'green')
+                        : vsSelected ? cell('V/S', 'cyan')      // selected V/S until ALT* capture
+                        : cell('ALT', 'cyan');
   /* thrust column: A/THR pinned at the detent ceiling → THR <detent> (green); modulating to
      hold speed → SPEED/MACH (green); A/THR off → MAN, from the lever detent (white). */
   const thr = !athr        ? cell(athrDetent === 'TOGA' ? 'MAN TO/GA' : 'MAN THR', 'white')

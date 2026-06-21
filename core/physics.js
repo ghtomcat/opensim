@@ -26,6 +26,7 @@ const _brgDeg = (aLat, aLon, bLat, bLon) =>
 
 let _athrSpdPrev = null;   // previous airspeed for the A/THR damping (speed-rate) term
 let _apVsCmd     = null;   // rate-limited AP vertical-speed command — eases the descent in (no step → no VS spike)
+let _vsRefAlt    = null;   // moving reference altitude for selected V/S mode (position feedback → no porpoising)
 
 const DEG = Math.PI / 180;
 
@@ -280,7 +281,26 @@ export function tickPhysics(dt) {
         }
       } else {
         const altTgt = S.altManaged ? vnavTargetAlt() : S.altT;
-        cmdVSraw = Math.max(-1800, Math.min(1800, (altTgt - indicatedAlt(S.alt)) * 3));   // FCU target is indicated; hold indicated (baro). gentle gain → flares ~600 ft out
+        const altErr = altTgt - indicatedAlt(S.alt);                               // FCU target is indicated (baro)
+        if (S.vsSelected && !S.altManaged) {
+          /* Selected V/S — fly the dialled rate via a moving reference altitude. Feed-forward
+             vsT plus a pull toward the reference (which advances at exactly vsT) gives the same
+             position feedback that keeps ALT hold from porpoising. Capture the FCU altitude
+             when the reference reaches it; dialling away from it just flies on. */
+          const indA = indicatedAlt(S.alt);
+          if (_vsRefAlt == null) _vsRefAlt = indA;
+          _vsRefAlt += S.vsT * dt / 60;
+          const reached = S.vsT <= 0 ? _vsRefAlt <= altTgt : _vsRefAlt >= altTgt;
+          if (reached) {
+            setState({ vsSelected: false });  _vsRefAlt = null;                     // ALT* capture
+            cmdVSraw = Math.max(-1800, Math.min(1800, altErr * 3));
+          } else {
+            cmdVSraw = Math.max(-2000, Math.min(2000, S.vsT + (_vsRefAlt - indA) * 2));
+          }
+        } else {
+          if (_vsRefAlt != null) _vsRefAlt = null;                                  // left V/S → drop the reference
+          cmdVSraw = Math.max(-1800, Math.min(1800, altErr * 3));                   // gentle gain → flares ~600 ft out
+        }
       }
       if (_apVsCmd == null || onGround) _apVsCmd = S.vs ?? 0;
       const vsStep   = 550 * dt;                                                 // ease the command in (~3 s to full rate) so the descent doesn't step → no spike
@@ -521,6 +541,7 @@ export function tickPhysics(dt) {
     const fp = { wow: newWow, n1: S.n1 ?? 0, vs, alt: newAlt, altT: S.altT,
                  gear: S.gear, ap: S.ap, athr: S.athr, fieldElev,
                  navManaged: S.navManaged, altManaged: S.altManaged,
+                 vsSelected: S.vsSelected,
                  athrMode: S.athrMode, athrDetent: S.athrDetent,
                  locCap, gsCap };
     fma = ac.manufacturer === 'boeing' ? computeBoeingFMA(fp) : computeAirbusFMA(fp);

@@ -1368,9 +1368,12 @@ export function drawFCU(ctx, W, H, style) {
   // ── Altitude ──
   _sec('ALT', String(Math.round(S.altT)).padStart(5, '0'), altX, altW, _altM);   // ALT keeps its value + managed dot
 
-  // ── Vertical speed ──
-  const vsRaw  = Math.round(S.vs / 100) * 100;
-  const vsDisp = vsRaw === 0 ? '+0000' : (vsRaw > 0 ? '+' : '') + vsRaw;
+  // ── Vertical speed ── (selected V/S target in V/S mode, else dashes — Airbus)
+  let vsDisp = '-----';
+  if (S.vsSelected) {
+    const v = Math.round((S.vsT ?? 0) / 100) * 100;
+    vsDisp = (v >= 0 ? '+' : '-') + String(Math.abs(v)).padStart(4, '0');
+  }
   _sec('V/S', vsDisp, vsX, vsW);
 
   // ── AP / A-THR buttons — 2×2 grid (top: AP1, AP2 · bottom: APPR, A/THR) ──

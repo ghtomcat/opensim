@@ -80,6 +80,7 @@ export async function loadMission(missionPath, aircraftPath) {
     mission,
     alt,   altT:  _altInd,        // alt = true MSL; altT = indicated FCU target
     baroSet: _baroSet, baroStd: _baroStd,
+    vsT: 0, vsSelected: false,    // V/S mode off at start
     spd,   spdT:  spd,
     thrustLever: Math.min(1, Math.max(0, spd / (aircraft.envelope?.maxSpd ?? 340))),   // lever ≈ cruise thrust
 

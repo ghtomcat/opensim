@@ -2360,6 +2360,8 @@
     } else if (mx >= altX && mx < vsX) {
       const step = evt.shiftKey ? 1000 : 100;
       setState({ altT: Math.max(0, Math.min(43000, Math.round(S.altT / step) * step + dir * step)), altManaged: false });
+    } else if (mx >= vsX) {
+      setState({ vsSelected: true, altManaged: false, vsT: Math.max(-6000, Math.min(6000, Math.round((S.vsT ?? 0) / 100) * 100 + dir * 100)) });   // turn V/S knob → V/S mode (drops managed)
     }
   }, { passive: false });
 
@@ -2377,6 +2379,8 @@
       if (!_fcuMoved) setState({ navManaged: !S.navManaged });   // push HDG knob → managed NAV / pull → HDG
     } else if (mx >= altX && mx < altX + altW) {
       if (!_fcuMoved) setState({ altManaged: !S.altManaged });   // push ALT knob → managed VNAV / pull → ALT
+    } else if (mx >= vsX) {
+      if (!_fcuMoved) setState({ vsSelected: true, altManaged: false, vsT: 0 });    // push V/S knob → LEVEL OFF (drops managed)
     } else if (mx >= apX && mx < apX + apW) {
       /* Hit-test the exact (narrow) button rects, not the cell quadrants.
          idx: 0 AP1 · 1 AP2 · 2 APPR · 3 A/THR */
@@ -2409,11 +2413,12 @@
     else if (mx >= spdX && mx < hdgX) { knob = 'spd'; }
     else if (mx >= hdgX && mx < apX)  { knob = 'hdg'; }
     else if (mx >= altX && mx < vsX)  { knob = 'alt'; }
+    else if (mx >= vsX)               { knob = 'vs'; }
     if (!knob) return;
     evt.preventDefault();
     evt.stopPropagation();
     _fcuDrag = { startY: evt.clientY, knob,
-                 startSpd: S.spdT, startHdg: S.hdgT, startAlt: S.altT, startBaro: S.baroSet ?? 1013 };
+                 startSpd: S.spdT, startHdg: S.hdgT, startAlt: S.altT, startBaro: S.baroSet ?? 1013, startVs: S.vsT ?? 0 };
     _fcuMoved = false;
     fcuCanvas.style.cursor = 'ns-resize';
   });
@@ -2437,6 +2442,9 @@
       const delta = Math.round(dy / 2) * step;
       setState({ altT: Math.max(0, Math.min(43000,
         Math.round(_fcuDrag.startAlt / step) * step + delta)), altManaged: false });   // pulling ALT → selected
+    } else if (_fcuDrag.knob === 'vs') {
+      const delta = Math.round(dy / 4) * 100;
+      setState({ vsSelected: true, altManaged: false, vsT: Math.max(-6000, Math.min(6000, _fcuDrag.startVs + delta)) });   // dial V/S → V/S mode (drops managed)
     }
   });
 
@@ -2454,7 +2462,7 @@
     const mx = evt.clientX - r.left;
     const inKnob = (mx >= qnhX && mx < hdgX) ||
                    (mx >= hdgX && mx < apX)   ||
-                   (mx >= altX && mx < vsX);
+                   (mx >= altX);                 // alt + V/S knobs
     const DPR = devicePixelRatio || 1;
     const mxD = mx * DPR, myD = (evt.clientY - r.top) * DPR;
     const overBtn = fcuButtonRegions().some(b => mxD >= b.x && mxD <= b.x + b.w && myD >= b.y && myD <= b.y + b.h);
