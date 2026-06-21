@@ -204,36 +204,37 @@ export function drawAI(ctx, box, style, config = {}) {
 }
 
 function _pitchLadder(ctx, pitchPx, pxPerDeg, style, bw, bh) {
-  const white = _c(style, 'white');
-  const warn  = _c(style, 'caution');
+  const white = _c(style, 'white');     // Airbus pitch ladder is white throughout
   const full  = Math.min(bw * 0.48, bh * 0.18);
   const half  = full * 0.5;
   const fs    = bh * 0.022;
 
   ctx.textAlign   = 'center';
   ctx.textBaseline = 'middle';
+  ctx.strokeStyle = white;
+  ctx.fillStyle   = white;
 
   for (let deg = -30; deg <= 30; deg += 5) {
     if (deg === 0) continue;
     const py  = pitchPx - deg * pxPerDeg;
     const w2  = deg % 10 === 0 ? full : half;
-    const col = deg > 0 ? white : warn;
 
-    ctx.strokeStyle = col;
-    ctx.lineWidth   = 1.5;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash(deg < 0 ? [5, 4] : []);   // below-horizon lines dashed (Airbus)
     ctx.beginPath();
     ctx.moveTo(-w2 / 2, py);
     ctx.lineTo( w2 / 2, py);
     ctx.stroke();
 
     if (deg % 10 === 0) {
-      ctx.font      = `${fs}px ${_MONO}`;
-      ctx.fillStyle = col;
+      ctx.setLineDash([]);
+      ctx.font = `${fs}px ${_MONO}`;
       ctx.fillText(Math.abs(deg), -w2 / 2 - fs * 1.2, py);
       ctx.fillText(Math.abs(deg),  w2 / 2 + fs * 1.2, py);
     }
   }
 
+  ctx.setLineDash([]);
   ctx.textBaseline = 'alphabetic';
 }
 
@@ -294,17 +295,30 @@ function _fpv(ctx, box, style) {
   ctx.restore();
 }
 
+/* Filled diamond (rotated square) — Airbus LOC/GS deviation index. */
+function _diamond(ctx, x, y, r, col) {
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.moveTo(x, y - r);
+  ctx.lineTo(x + r, y);
+  ctx.lineTo(x, y + r);
+  ctx.lineTo(x - r, y);
+  ctx.closePath();
+  ctx.fill();
+}
+
 function _ils(ctx, box, style) {
   const cx    = box.x + box.w / 2;
   const cy    = box.y + box.h / 2;
   const sp    = box.h * 0.05;
   const dotR  = Math.max(3, box.h * 0.005);
-  const sel   = _c(style, 'selected');
+  const mag   = '#e26fd6';   // Airbus LOC/GS deviation — magenta
   const dim   = _c(style, 'dim');
 
   ctx.save();
-  ctx.globalAlpha = 0.85;
+  ctx.globalAlpha = 0.9;
 
+  /* LOC scale (horizontal, below centre) — hollow reference dots + magenta diamond */
   const locY = cy + box.h * 0.15;
   ctx.strokeStyle = dim;
   ctx.lineWidth   = 1.5;
@@ -313,21 +327,16 @@ function _ils(ctx, box, style) {
     ctx.arc(cx + d * sp, locY, dotR, 0, Math.PI * 2);
     ctx.stroke();
   }
-  ctx.fillStyle = sel;
-  ctx.beginPath();
-  ctx.arc(cx + S.ilsLoc * sp, locY, dotR + 2, 0, Math.PI * 2);
-  ctx.fill();
+  _diamond(ctx, cx + Math.max(-2.4, Math.min(2.4, S.ilsLoc)) * sp, locY, dotR + 4, mag);
 
+  /* GS scale (vertical, right of centre) */
   const gsX = cx + box.w * 0.22;
   for (const d of [-2, -1, 1, 2]) {
     ctx.beginPath();
     ctx.arc(gsX, cy + d * sp, dotR, 0, Math.PI * 2);
     ctx.stroke();
   }
-  ctx.fillStyle = sel;
-  ctx.beginPath();
-  ctx.arc(gsX, cy - S.ilsGs * sp, dotR + 2, 0, Math.PI * 2);
-  ctx.fill();
+  _diamond(ctx, gsX, cy - Math.max(-2.4, Math.min(2.4, S.ilsGs)) * sp, dotR + 4, mag);
 
   ctx.restore();
 
@@ -551,7 +560,27 @@ export function drawAltTape(ctx, box, style) {
   ctx.textAlign = 'center';
   ctx.fillText(Math.round(alt), x + w / 2, ry + rhB * 0.75);
 
-  /* ── Radio altitude — shown below 2500 ft AGL ── */
+  /* ── Selected altitude (FCU) — cyan, in a box at the top edge of the tape ── */
+  {
+    const sh = rh * 1.05;
+    ctx.fillStyle = 'rgba(6,10,16,0.92)';
+    ctx.fillRect(x, y, w, sh);
+    ctx.font         = `bold ${sh * 0.6}px ${f}`;
+    ctx.fillStyle    = _c(style, 'selected');
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(Math.round(altT), x + w / 2, y + sh * 0.54);
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  /* ── QNH — cyan, below the tape. No baro model yet → ISA standard 1013. ── */
+  const qH = rh * 0.78;
+  ctx.font      = `${qH * 0.62}px ${f}`;
+  ctx.fillStyle = _c(style, 'selected');
+  ctx.textAlign = 'center';
+  ctx.fillText('QNH 1013', x + w / 2, y + h - qH * 0.3);
+
+  /* ── Radio altitude — shown below 2500 ft AGL, stacked above QNH ── */
   const fieldElev = S.mission?.arrival?.elevation
                  ?? S.mission?.departure?.elevation
                  ?? S.aircraft?.situations?.[0]?.alt
@@ -559,11 +588,11 @@ export function drawAltTape(ctx, box, style) {
   const ra = Math.round(alt - fieldElev);
   if (ra < 2500) {
     const raH = rh * 0.85;
-    const raY = y + h - raH * 1.1;
+    const raY = y + h - qH * 1.3 - raH;
     ctx.font      = `bold ${raH * 0.7}px ${f}`;
     ctx.fillStyle = ra < 200 ? _c(style, 'caution') : _c(style, 'engaged');
-    ctx.textAlign = 'right';
-    ctx.fillText(`RA  ${Math.max(0, ra)}`, x + w - w * 0.06, raY + raH * 0.78);
+    ctx.textAlign = 'center';
+    ctx.fillText(`RA ${Math.max(0, ra)}`, x + w / 2, raY + raH * 0.78);
   }
 }
 
@@ -572,31 +601,65 @@ export function drawAltTape(ctx, box, style) {
    ════════════════════════════════════════════════════════════ */
 export function drawVSI(ctx, box, style) {
   const { x, y, w, h } = box;
-  const cy   = y + h / 2;
-  const maxV = 4000;
+  const cy    = y + h / 2;
   const halfH = h * 0.44;
-  const barW  = w * 0.45;
-  const bx    = x + (w - barW) / 2;
+  const white = _c(style, 'white');
+  const dim   = _c(style, 'dim');
 
   ctx.fillStyle = _c(style, 'tape');
   ctx.fillRect(x, y, w, h);
 
-  const vsCap = Math.max(-maxV, Math.min(maxV, smooth('pfd.vs', S.vs, 0.5)));
-  const barH  = (vsCap / maxV) * halfH;
+  /* Airbus non-linear scale: linear to 1000, compressed 1000→2000, more 2000→6000.
+     Returns signed vertical offset (px) from centre for a given fpm value. */
+  const posOf = (v) => {
+    const a = Math.min(6000, Math.abs(v));
+    let frac;
+    if      (a <= 1000) frac = (a / 1000) * 0.50;
+    else if (a <= 2000) frac = 0.50 + (a - 1000) / 1000 * 0.25;
+    else                frac = 0.75 + (a - 2000) / 4000 * 0.25;
+    return Math.sign(v) * frac * halfH;
+  };
 
-  ctx.fillStyle = vsCap >= 0 ? _c(style, 'engaged') : _c(style, 'caution');
-  if (barH >= 0) ctx.fillRect(bx, cy - barH, barW, barH);
-  else           ctx.fillRect(bx, cy,          barW, -barH);
-
-  ctx.strokeStyle = _c(style, 'dim');
-  ctx.lineWidth   = 1;
-  for (const v of [1000, 2000, 4000, -1000, -2000, -4000]) {
-    const my = cy - (v / maxV) * halfH;
+  /* Scale ticks + labels (1·2·6 ×1000) */
+  ctx.strokeStyle = dim;
+  ctx.fillStyle   = white;
+  ctx.textAlign   = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.font        = `${h * 0.026}px ${_MONO}`;
+  for (const v of [500, 1000, 2000, 6000, -500, -1000, -2000, -6000]) {
+    const my  = cy - posOf(v);
+    const maj = Math.abs(v) % 1000 === 0 && Math.abs(v) !== 500;
+    ctx.lineWidth = maj ? 1.4 : 1;
     ctx.beginPath();
-    ctx.moveTo(x,     my);
-    ctx.lineTo(x + w, my);
+    ctx.moveTo(x,                         my);
+    ctx.lineTo(x + w * (maj ? 0.34 : 0.20), my);
     ctx.stroke();
+    if (maj) ctx.fillText(String(Math.abs(v) / 1000), x + w * 0.40, my);
   }
+
+  /* Needle — hinged at the inner (left) edge, tip on the scale */
+  const vs    = smooth('pfd.vs', S.vs, 0.5);
+  const vy     = cy - posOf(vs);
+  const climb  = vs >= 0;
+  ctx.strokeStyle = _c(style, 'engaged');
+  ctx.lineWidth   = 2.4;
+  ctx.lineCap     = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x,            cy);
+  ctx.lineTo(x + w * 0.88, vy);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  /* Digital readout (hundreds of fpm) at the climb/descent end, when significant */
+  if (Math.abs(vs) >= 200) {
+    ctx.fillStyle = _c(style, 'engaged');
+    ctx.font      = `bold ${h * 0.030}px ${_MONO}`;
+    ctx.textAlign = 'center';
+    const ry = climb ? y + h * 0.06 : y + h * 0.94;
+    ctx.fillText(String(Math.round(Math.abs(vs) / 100)).padStart(2, '0'), x + w * 0.5, ry);
+  }
+
+  ctx.textBaseline = 'alphabetic';
 }
 
 /* ════════════════════════════════════════════════════════════
