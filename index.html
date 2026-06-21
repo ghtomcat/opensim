@@ -2237,7 +2237,7 @@
   import { initBlackbox, bbEvent, downloadBlackbox } from './core/blackbox.js';
   import { renderPFD }         from './display/pfd.js';
   import { renderPanel, renderFCU, renderCockpit, handleCockpitClick } from './display/panel_renderer.js';
-  import { qnhHitRegion } from './display/pfd_instruments.js';
+  import { qnhHitRegion, fcuButtonRegions } from './display/pfd_instruments.js';
   import { indicatedAlt } from './core/baro.js';
   import { renderRocket, renderApollo, handleApolloClick, isApolloTelemetry } from './display/rocket_display.js';
   import { renderLM, handleLMClick } from './display/lm_display.js';
@@ -2327,29 +2327,33 @@
     const mwW   = W * 0.055;            // glareshield master warn/caut zone (left) — mirrors drawFCU
     const padX  = W * 0.028;
     const inner = W - mwW - padX;
-    const spdW  = inner * 0.130;
-    const hdgW  = inner * 0.130;
-    const gapAP = inner * 0.030;
-    const apW   = inner * 0.320;
-    const gapAL = inner * 0.030;
-    const altW  = inner * 0.200;
-    const spdX  = mwW;
+    const qnhW  = inner * 0.150;
+    const spdW  = inner * 0.120;
+    const hdgW  = inner * 0.120;
+    const gapAP = inner * 0.025;
+    const apW   = inner * 0.215;
+    const gapAL = inner * 0.025;
+    const altW  = inner * 0.175;
+    const qnhX  = mwW;
+    const spdX  = qnhX + qnhW;
     const hdgX  = spdX + spdW;
     const apX   = hdgX + hdgW + gapAP;
     const altX  = apX  + apW  + gapAL;
     const vsX   = altX + altW;
-    return { spdX, spdW, hdgX, hdgW, apX, apW, altX, altW, vsX };
+    return { qnhX, qnhW, spdX, spdW, hdgX, hdgW, apX, apW, altX, altW, vsX };
   }
 
   fcuCanvas.addEventListener('wheel', evt => {
     const panel = S.aircraft?.panel;
     if (panel !== 'airbus' && panel !== 'e190') return;
     evt.preventDefault();
-    const { spdX, hdgX, apX, altX, vsX } = _fcuGeometry();
+    const { qnhX, spdX, hdgX, apX, altX, vsX } = _fcuGeometry();
     const rect = fcuCanvas.getBoundingClientRect();
     const mx   = evt.clientX - rect.left;
     const dir  = evt.deltaY > 0 ? -1 : 1;
-    if (mx >= spdX && mx < hdgX) {
+    if (mx >= qnhX && mx < spdX) {
+      setState({ baroStd: false, baroSet: Math.max(940, Math.min(1050, Math.round(S.baroSet ?? 1013) + dir)) });
+    } else if (mx >= spdX && mx < hdgX) {
       setState({ spdT: Math.max(100, Math.min(350, S.spdT + dir)) });
     } else if (mx >= hdgX && mx < apX) {
       setState({ hdgT: ((S.hdgT + dir - 1 + 360) % 360) + 1, navManaged: false });   // selecting a heading → HDG mode
@@ -2362,18 +2366,25 @@
   fcuCanvas.addEventListener('click', evt => {
     const panel = S.aircraft?.panel;
     if (panel !== 'airbus' && panel !== 'e190') return;
-    const { spdX, hdgX, hdgW, apX, apW, altX, altW } = _fcuGeometry();
+    const { qnhX, spdX, hdgX, hdgW, apX, apW, altX, altW } = _fcuGeometry();
     const rect    = fcuCanvas.getBoundingClientRect();
     const mx      = evt.clientX - rect.left;
-    if (mx >= spdX && mx < hdgX) {
+    if (mx >= qnhX && mx < spdX) {
+      if (!_fcuMoved) setState({ baroStd: !S.baroStd });          // push QNH knob → STD ↔ QNH
+    } else if (mx >= spdX && mx < hdgX) {
       if (!_fcuMoved) setState({ spdManaged: !S.spdManaged });   // push SPD knob → managed speed / pull → SPD
     } else if (mx >= hdgX && mx < hdgX + hdgW) {
       if (!_fcuMoved) setState({ navManaged: !S.navManaged });   // push HDG knob → managed NAV / pull → HDG
     } else if (mx >= altX && mx < altX + altW) {
       if (!_fcuMoved) setState({ altManaged: !S.altManaged });   // push ALT knob → managed VNAV / pull → ALT
     } else if (mx >= apX && mx < apX + apW) {
-      const btnW   = apW / 4;
-      const btnIdx = Math.floor((mx - apX) / btnW);
+      /* Hit-test the exact (narrow) button rects, not the cell quadrants.
+         idx: 0 AP1 · 1 AP2 · 2 APPR · 3 A/THR */
+      const DPR = devicePixelRatio || 1;
+      const mxD = mx * DPR, myD = (evt.clientY - rect.top) * DPR;
+      const hit = fcuButtonRegions().find(r => mxD >= r.x && mxD <= r.x + r.w && myD >= r.y && myD <= r.y + r.h);
+      if (!hit) return;
+      const btnIdx = hit.idx;
       if (btnIdx === 0) {                              // AP 1
         const sync = !S.ap ? {                         // engaging → hold present state, don't yank to stale targets
           ...(S.navManaged ? {} : { hdgT: ((Math.round(S.hdg ?? 0) + 359) % 360) + 1 }),   // selected HDG → present heading
@@ -2391,17 +2402,18 @@
   fcuCanvas.addEventListener('mousedown', evt => {
     const panel = S.aircraft?.panel;
     if (panel !== 'airbus' && panel !== 'e190') return;
-    const { spdX, hdgX, apX, altX, vsX } = _fcuGeometry();
+    const { qnhX, spdX, hdgX, apX, altX, vsX } = _fcuGeometry();
     const mx = evt.clientX - fcuCanvas.getBoundingClientRect().left;
     let knob = null;
-    if      (mx >= spdX && mx < hdgX) { knob = 'spd'; }
+    if      (mx >= qnhX && mx < spdX) { knob = 'qnh'; }
+    else if (mx >= spdX && mx < hdgX) { knob = 'spd'; }
     else if (mx >= hdgX && mx < apX)  { knob = 'hdg'; }
     else if (mx >= altX && mx < vsX)  { knob = 'alt'; }
     if (!knob) return;
     evt.preventDefault();
     evt.stopPropagation();
     _fcuDrag = { startY: evt.clientY, knob,
-                 startSpd: S.spdT, startHdg: S.hdgT, startAlt: S.altT };
+                 startSpd: S.spdT, startHdg: S.hdgT, startAlt: S.altT, startBaro: S.baroSet ?? 1013 };
     _fcuMoved = false;
     fcuCanvas.style.cursor = 'ns-resize';
   });
@@ -2411,7 +2423,10 @@
     const dy   = _fcuDrag.startY - evt.clientY;   // up = positive
     if (Math.abs(dy) > 2) _fcuMoved = true;
     const coarse = evt.shiftKey;
-    if (_fcuDrag.knob === 'spd') {
+    if (_fcuDrag.knob === 'qnh') {
+      setState({ baroStd: false, baroSet: Math.max(940, Math.min(1050,
+        _fcuDrag.startBaro + Math.round(dy / 3))) });   // drag QNH knob → set hPa
+    } else if (_fcuDrag.knob === 'spd') {
       setState({ spdT: Math.max(100, Math.min(350,
         _fcuDrag.startSpd + Math.round(dy / 3))), spdManaged: false });   // pulling SPD → selected
     } else if (_fcuDrag.knob === 'hdg') {
@@ -2434,13 +2449,16 @@
     if (_fcuDrag) return;
     const panel = S.aircraft?.panel;
     if (panel !== 'airbus' && panel !== 'e190') return;
-    const { spdX, hdgX, apX, altX, vsX, apW } = _fcuGeometry();
-    const mx = evt.clientX - fcuCanvas.getBoundingClientRect().left;
-    const inKnob = (mx >= spdX && mx < hdgX) ||
+    const { qnhX, hdgX, apX, altX, vsX } = _fcuGeometry();
+    const r  = fcuCanvas.getBoundingClientRect();
+    const mx = evt.clientX - r.left;
+    const inKnob = (mx >= qnhX && mx < hdgX) ||
                    (mx >= hdgX && mx < apX)   ||
                    (mx >= altX && mx < vsX);
-    fcuCanvas.style.cursor = inKnob ? 'ns-resize'
-                           : (mx >= apX && mx < apX + apW ? 'pointer' : 'default');
+    const DPR = devicePixelRatio || 1;
+    const mxD = mx * DPR, myD = (evt.clientY - r.top) * DPR;
+    const overBtn = fcuButtonRegions().some(b => mxD >= b.x && mxD <= b.x + b.w && myD >= b.y && myD <= b.y + b.h);
+    fcuCanvas.style.cursor = inKnob ? 'ns-resize' : (overBtn ? 'pointer' : 'default');
   });
 
   /* Velis canvas click — switch toggles + COM swap */

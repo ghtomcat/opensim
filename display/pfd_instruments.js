@@ -24,6 +24,11 @@ let _ndRoute = { key: null, r: null };
    PFD canvas handlers can scroll to set the subscale / click to toggle STD. */
 let _qnhHit = null;
 export function qnhHitRegion() { return _qnhHit; }
+
+/* FCU AP/A·THR button hit rects (device px), refreshed by drawFCU each frame so the click
+   target matches the (now narrow) visual buttons. Each: { x, y, w, h, idx }. */
+let _fcuBtnHits = [];
+export function fcuButtonRegions() { return _fcuBtnHits; }
 function _ndGetRoute() {
   const dep = S.mission?.departure, arr = S.mission?.arrival;
   const np  = Object.keys(getProcedures()).length;
@@ -1262,19 +1267,21 @@ export function drawFCU(ctx, W, H, style) {
     lamp(H * 0.54, amber, '#ffb400', 'CAUT', true);    // amber — steady
   }
 
-  // Section geometry — content starts right of the master-light zone
+  // Section geometry — QNH after the master lights, then SPD/HDG/AP/ALT/V·S
   const padX  = W * 0.028;
   const inner = W - mwW - padX;
 
-  const spdW  = inner * 0.130;
-  const hdgW  = inner * 0.130;
-  const gapAP = inner * 0.030;
-  const apW   = inner * 0.320;
-  const gapAL = inner * 0.030;
-  const altW  = inner * 0.200;
-  const vsW   = inner * 0.160;
+  const qnhW  = inner * 0.150;
+  const spdW  = inner * 0.120;
+  const hdgW  = inner * 0.120;
+  const gapAP = inner * 0.025;
+  const apW   = inner * 0.215;
+  const gapAL = inner * 0.025;
+  const altW  = inner * 0.175;
+  const vsW   = inner * 0.170;
 
-  const spdX = mwW;
+  const qnhX = mwW;
+  const spdX = qnhX + qnhW;
   const hdgX = spdX + spdW;
   const apX  = hdgX + hdgW + gapAP;
   const altX = apX  + apW  + gapAL;
@@ -1283,7 +1290,7 @@ export function drawFCU(ctx, W, H, style) {
   // Vertical separators between major sections
   ctx.strokeStyle = 'rgba(255,255,255,0.07)';
   ctx.lineWidth   = 1;
-  for (const sx of [hdgX + hdgW + gapAP * 0.5, apX + apW + gapAL * 0.5]) {
+  for (const sx of [spdX, hdgX + hdgW + gapAP * 0.5, apX + apW + gapAL * 0.5]) {
     ctx.beginPath();
     ctx.moveTo(sx, H * 0.08);
     ctx.lineTo(sx, H * 0.92);
@@ -1292,53 +1299,55 @@ export function drawFCU(ctx, W, H, style) {
 
   function _sec(label, value, x, sw, managed) {
     const cx  = x + sw / 2;
-    const bh  = H * 0.44;
-    const bw  = sw * 0.82;
+    const bw  = sw * 0.86;
     const bx  = x + (sw - bw) / 2;
-    const by  = H * 0.50;
+    const by  = H * 0.10;          // display window at the top
+    const bh  = H * 0.46;          // bigger display
 
-    // Knob arc above the display window
-    const kr  = Math.min(sw, H) * 0.130;
-    const kcy = by - kr * 0.55;
-    ctx.strokeStyle = 'rgba(200,215,228,0.28)';
-    ctx.lineWidth   = Math.max(1, H * 0.018);
-    ctx.lineCap     = 'round';
-    ctx.beginPath();
-    ctx.arc(cx, kcy, kr, Math.PI * 0.72, Math.PI * 0.28, false);
-    ctx.stroke();
-    // Pointer tick at top
-    const tickLen = kr * 0.28;
-    ctx.strokeStyle = 'rgba(200,215,228,0.55)';
-    ctx.lineWidth   = Math.max(1, H * 0.016);
-    ctx.beginPath();
-    ctx.moveTo(cx, kcy - kr + tickLen * 0.2);
-    ctx.lineTo(cx, kcy - kr + tickLen);
-    ctx.stroke();
-    ctx.lineCap = 'butt';
-
-    // Label (below knob, above window)
-    ctx.font      = `${H * 0.130}px ${f}`;
-    ctx.fillStyle = 'rgba(175,188,205,0.32)';
-    ctx.textAlign = 'center';
-    ctx.fillText(label, cx, by - H * 0.03);
-
-    // Display window
+    // Display window (top)
     ctx.fillStyle = '#090d14';
     ctx.fillRect(bx, by, bw, bh);
     ctx.strokeStyle = 'rgba(200,212,228,0.11)';
     ctx.lineWidth   = 1;
     ctx.strokeRect(bx, by, bw, bh);
 
-    ctx.font      = `bold ${H * 0.340}px ${f}`;
+    // Label — small, top-left inside the window (Airbus)
+    ctx.font      = `${H * 0.115}px ${f}`;
+    ctx.fillStyle = 'rgba(175,188,205,0.55)';
+    ctx.textAlign = 'left';
+    ctx.fillText(label, bx + bw * 0.07, by + bh * 0.26);
+
+    // Value — large, centred
+    ctx.font      = `bold ${H * 0.350}px ${f}`;
     ctx.fillStyle = '#d4cba4';
     ctx.textAlign = 'center';
-    ctx.fillText(value, cx, by + bh * 0.78);
+    ctx.fillText(value, cx, by + bh * 0.82);
 
-    // FMS-managed dot — lit when the FMS flies this axis (Airbus white/green dot)
+    // FMS-managed dot — top-right of the window
     if (managed) {
       ctx.fillStyle = '#3ddc6e';
-      ctx.beginPath(); ctx.arc(bx + bw - bw * 0.10, by + bh * 0.28, H * 0.045, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(bx + bw - bw * 0.09, by + bh * 0.22, H * 0.045, 0, Math.PI * 2); ctx.fill();
     }
+
+    // Rotary knob (bottom) — round selector
+    const kr  = Math.min(sw * 0.42, H * 0.17);
+    const kcy = H * 0.79;
+    const kg  = ctx.createRadialGradient(cx, kcy - kr * 0.35, kr * 0.2, cx, kcy, kr);
+    kg.addColorStop(0, '#3a4048'); kg.addColorStop(1, '#171b21');
+    ctx.fillStyle = kg;
+    ctx.beginPath(); ctx.arc(cx, kcy, kr, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(200,215,228,0.34)';
+    ctx.lineWidth   = Math.max(1, H * 0.014);
+    ctx.beginPath(); ctx.arc(cx, kcy, kr, 0, Math.PI * 2); ctx.stroke();
+    // pointer notch at the top of the knob
+    ctx.strokeStyle = 'rgba(220,228,238,0.72)';
+    ctx.lineWidth   = Math.max(1, H * 0.020);
+    ctx.lineCap     = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx, kcy - kr * 0.82);
+    ctx.lineTo(cx, kcy - kr * 0.38);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
   }
 
   /* Managed only counts as actively tracking when something flies it: SPD with the A/THR,
@@ -1346,12 +1355,15 @@ export function drawFCU(ctx, W, H, style) {
      (dot drops); SPD keeps its managed dot while the A/THR is on. */
   const _spdM = S.spdManaged && S.athr, _navM = S.navManaged && S.ap, _altM = S.altManaged && S.ap;
 
+  // ── QNH / baro ── (scroll to set hPa, click for STD — see the FCU handlers)
+  _sec('QNH', S.baroStd ? 'Std' : String(Math.round(baroSubscale())), qnhX, qnhW, false);
+
   // ── Speed ──   ('---' with the managed dot when the A/THR flies the schedule)
-  _sec('SPD  MACH', _spdM ? '---' : Math.round(S.spdT).toString(), spdX, spdW, _spdM);
+  _sec('SPD', _spdM ? '---' : Math.round(S.spdT).toString(), spdX, spdW, _spdM);
 
   // ── Heading ──   ('---' with the managed dot when LNAV flies the lateral channel)
   const hdgDisp = String(Math.round(S.hdgT) % 360 || 360).padStart(3, '0');
-  _sec('HDG  TRK', _navM ? '---' : hdgDisp, hdgX, hdgW, _navM);
+  _sec('HDG', _navM ? '---' : hdgDisp, hdgX, hdgW, _navM);
 
   // ── Altitude ──
   _sec('ALT', String(Math.round(S.altT)).padStart(5, '0'), altX, altW, _altM);   // ALT keeps its value + managed dot
@@ -1359,44 +1371,47 @@ export function drawFCU(ctx, W, H, style) {
   // ── Vertical speed ──
   const vsRaw  = Math.round(S.vs / 100) * 100;
   const vsDisp = vsRaw === 0 ? '+0000' : (vsRaw > 0 ? '+' : '') + vsRaw;
-  _sec('V/S  FPA', vsDisp, vsX, vsW);
+  _sec('V/S', vsDisp, vsX, vsW);
 
-  // ── AP / A-THR button cluster ──
+  // ── AP / A-THR buttons — 2×2 grid (top: AP1, AP2 · bottom: APPR, A/THR) ──
   const btns = [
-    { label: 'AP 1',  lit: S.ap,   litCol: '#3ec55a' },
-    { label: 'APPR',  lit: false,  litCol: '#4dc5dc' },
-    { label: 'AP 2',  lit: false,  litCol: '#3ec55a' },
-    { label: 'A/THR', lit: S.athr, litCol: '#3ec55a' },
+    { label: 'AP 1',  lit: S.ap,   litCol: '#3ec55a' },   // 0 top-left
+    { label: 'AP 2',  lit: false,  litCol: '#3ec55a' },   // 1 top-right
+    { label: 'APPR',  lit: false,  litCol: '#4dc5dc' },   // 2 bottom-left
+    { label: 'A/THR', lit: S.athr, litCol: '#3ec55a' },   // 3 bottom-right
   ];
 
-  const btnW   = apW / btns.length;
-  const btnH   = H * 0.60;
-  const btnY   = (H - btnH) / 2;
-  const btnPad = btnW * 0.09;
+  const cellW  = apW / 2;
+  const cellH  = H * 0.34;
+  const rowGap = H * 0.06;
+  const gridY0 = H * 0.14;
 
+  ctx.font = `bold ${H * 0.130}px ${f}`;   // set before measuring so the box hugs the text
+  _fcuBtnHits = [];
   for (let i = 0; i < btns.length; i++) {
     const { label, lit, litCol } = btns[i];
-    const bx  = apX + i * btnW + btnPad;
-    const bwi = btnW - btnPad * 2;
-    const bcx = bx + bwi / 2;
+    const col = i % 2, row = (i / 2) | 0;
+    const bcx = apX + col * cellW + cellW / 2;          // cell centre
+    const by  = gridY0 + row * (cellH + rowGap);
+    const bwi = ctx.measureText(label).width + H * 0.14;   // narrow — just wraps the text
+    const bx  = bcx - bwi / 2;
+    _fcuBtnHits.push({ x: bx, y: by, w: bwi, h: cellH, idx: i });   // exact click target
 
     ctx.fillStyle   = lit ? `${litCol}1a` : 'rgba(255,255,255,0.025)';
-    ctx.fillRect(bx, btnY, bwi, btnH);
+    ctx.fillRect(bx, by, bwi, cellH);
     ctx.strokeStyle = lit ? litCol : 'rgba(255,255,255,0.16)';
     ctx.lineWidth   = lit ? 1.5 : 0.8;
-    ctx.strokeRect(bx, btnY, bwi, btnH);
+    ctx.strokeRect(bx, by, bwi, cellH);
 
-    const dotR = H * 0.038;
-    const dotY = btnY + btnH * 0.26;
+    const dotR = H * 0.026;
     ctx.fillStyle = lit ? litCol : 'rgba(255,255,255,0.07)';
     ctx.beginPath();
-    ctx.arc(bcx, dotY, dotR, 0, Math.PI * 2);
+    ctx.arc(bcx, by + cellH * 0.30, dotR, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.font      = `bold ${H * 0.178}px ${f}`;
     ctx.fillStyle = lit ? litCol : 'rgba(195,210,225,0.40)';
     ctx.textAlign = 'center';
-    ctx.fillText(label, bcx, btnY + btnH * 0.75);
+    ctx.fillText(label, bcx, by + cellH * 0.76);
   }
 }
 
