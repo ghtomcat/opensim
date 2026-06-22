@@ -164,20 +164,6 @@ const _CSS = `
     box-shadow: inset 0 -2px 0 #b06030;
   }
 
-  /* ── Autobrake (OFF / LO / MED / MAX) ── */
-  .ped-autobrk-block { display: flex; flex-direction: column; align-items: center; gap: 10px; }
-  .ped-autobrk-label { font: 600 9px/1 monospace; letter-spacing: 0.10em; color: #50607c; }
-  .ped-autobrk-gate { display: flex; gap: 0; border: 1px solid #252c3c; border-radius: 3px; overflow: hidden; }
-  .ped-autobrk-pos {
-    padding: 7px 11px; background: #141820;
-    font: 700 9px/1 monospace; letter-spacing: 0.05em;
-    color: #3a4860; cursor: pointer; border-right: 1px solid #252c3c;
-    transition: background 0.08s, color 0.08s; user-select: none;
-  }
-  .ped-autobrk-pos:last-child { border-right: none; }
-  .ped-autobrk-pos:hover { background: #1e2534; color: #6080a8; }
-  .ped-autobrk-pos.ped-autobrk-sel    { background: #142231; color: #4ab0e0; box-shadow: inset 0 -2px 0 #2878a8; }   /* armed */
-  .ped-autobrk-pos.ped-autobrk-active { background: #2a2410; color: #f0c050; box-shadow: inset 0 -2px 0 #c09020; }   /* DECEL — engaged */
 
   /* ── Parking brake ── */
   .ped-park-block { display: flex; flex-direction: column; align-items: center; gap: 8px; }
@@ -554,7 +540,7 @@ function _mcduHTML() {
 function _pedestalTokens() {
   if (Array.isArray(S.aircraft?.pedestal)) return S.aircraft.pedestal;
   const t = ['thrust', 'flaps', 'speedbrake'];
-  if (S.aircraft?.autobrake) t.push('autobrake');
+  /* AUTO BRK lives on the centre panel (M view), not the pedestal — see centerconsole.js */
   t.push('parkbrake');
   if (S.aircraft?.engine?.type === 'turbofan') t.push('engstart');
   if (!['g1000', 'dr400', 'velis-epsi'].includes(S.aircraft?.panel)) t.push('mcdu');
@@ -638,7 +624,7 @@ function _buildHTML() {
         </div>
         <div class="ped-sep"></div>` : '';
 
-  /* ── Flex row: flaps / spd brk / autobrake / fuel / elec / lights / park brk ── */
+  /* ── Flex row: flaps / spd brk / fuel / elec / lights / park brk ── */
   const flapBtns = flapCfgs.map((f, i) =>
     `<div class="ped-flap-pos" data-flap="${i}">${f.label}</div>`
   ).join('');
@@ -655,12 +641,6 @@ function _buildHTML() {
           <div class="ped-spdbk-block">
             <div class="ped-spdbk-label">SPD BRK</div>
             <div class="ped-spdbk-gate">${sbBtns}</div>
-          </div>` : '';
-  const abBlock = has('autobrake') ? `
-          <div class="ped-autobrk-block">
-            <div class="ped-autobrk-label">AUTO BRK</div>
-            <div class="ped-autobrk-gate">${['OFF', 'LO', 'MED', 'MAX'].map(lbl =>
-              `<div class="ped-autobrk-pos" data-ab="${lbl}">${lbl}</div>`).join('')}</div>
           </div>` : '';
   const pbBlock = has('parkbrake') ? `
           <div class="ped-park-block">
@@ -709,8 +689,8 @@ function _buildHTML() {
               ['nav', 'NAV'], ['beacon', 'BCN'], ['strobe', 'STRB'], ['landing', 'LAND'],
             ].map(([k, lbl]) => _toggle('light', k, lbl)).join('')}</div>
           </div>` : '';
-  const flexRow = (flapBlock || sbBlock || abBlock || pbBlock || fuelBlock || cutoffBlock || switchBlock || lightsBlock) ? `
-        <div class="ped-flexrow">${flapBlock}${sbBlock}${abBlock}${fuelBlock}${cutoffBlock}${switchBlock}${lightsBlock}${pbBlock}
+  const flexRow = (flapBlock || sbBlock || pbBlock || fuelBlock || cutoffBlock || switchBlock || lightsBlock) ? `
+        <div class="ped-flexrow">${flapBlock}${sbBlock}${fuelBlock}${cutoffBlock}${switchBlock}${lightsBlock}${pbBlock}
         </div>` : '';
   /* ── Circuit breakers (decorative — light singles) ── */
   const breakersBlock = has('breakers') ? `
@@ -847,10 +827,6 @@ function _attachHandlers() {
     btn.addEventListener('click', () => setState({ parkBrake: btn.dataset.pb === '1' }));
   });
 
-  /* Autobrake — OFF / LO / MED / MAX */
-  _el.querySelectorAll('.ped-autobrk-pos').forEach(btn => {
-    btn.addEventListener('click', () => setState({ autobrake: btn.dataset.ab }));
-  });
 
   /* ── Light-piston controls (moved off the G1000 main panel) ── */
   /* Throttle vernier — props use spdT as the throttle (same as +/-): IDLE → CRUISE → FULL */
@@ -949,15 +925,6 @@ function _update() {
     const isOn = btn.dataset.pb === '1';
     btn.classList.toggle('ped-park-sel-on',  isOn && pbOn);
     btn.classList.toggle('ped-park-sel-off', !isOn && !pbOn);
-  });
-
-  /* Autobrake — selected level cyan (armed); amber when actually decelerating (DECEL) */
-  const curAB     = S.autobrake ?? 'OFF';
-  const abEngaged = !!S.autobrakeActive;   // set by physics when the level is doing the braking
-  _el.querySelectorAll('.ped-autobrk-pos').forEach(btn => {
-    const isSel = btn.dataset.ab === curAB && curAB !== 'OFF';
-    btn.classList.toggle('ped-autobrk-sel',    isSel && !abEngaged);
-    btn.classList.toggle('ped-autobrk-active', isSel && abEngaged);
   });
 
   /* Engine master flip switches */
