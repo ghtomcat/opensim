@@ -356,6 +356,35 @@ export function drawRocketPlumesAndNozzles(rc) {
         [-_nzO, 0], [-_nzO7, -_nzO7], [0, -_nzO], [_nzO7, -_nzO7],
       ];
       _drawJ2Nozzles(rc, -0.016, _rf9, _mCenters, merlinOn, 'rp1', { rxR: 0.25, rtR: 0.10, lenR: 0.45 });
+
+      /* Stowed landing legs — 4 black 3D leg housings against the lower S1 (45° from the grid
+         fins). Each = a raised ridge (two shaded panels) standing off the body, so it reads as
+         a 3D structure, not a flat strip. They stay stowed until they deploy (drawBoosterEdges). */
+      const Ri = _rf9, Ro = _rf9 * 1.13, lwiB = Math.PI / 4, lwiT = 0.13, lvFb = -0.016, lvFt = -0.002;
+      const _legPanel = (bv, midA) => {
+        const ps = bv.map(p => project(p));
+        if (ps.some(p => !p)) return;
+        const q0 = ps[0], q1 = ps[1], q2 = ps[2];
+        if ((q1.x - q0.x) * (q2.y - q0.y) - (q1.y - q0.y) * (q2.x - q0.x) < 0) return;
+        const A = bv[0], B = bv[1], C = bv[3];
+        const e1 = [B[0] - A[0], B[1] - A[1], B[2] - A[2]];
+        const e2 = [C[0] - A[0], C[1] - A[1], C[2] - A[2]];
+        let n = [e1[1]*e2[2] - e1[2]*e2[1], e1[2]*e2[0] - e1[0]*e2[2], e1[0]*e2[1] - e1[1]*e2[0]];
+        if (n[1]*Math.cos(midA) + n[2]*Math.sin(midA) < 0) n = [-n[0], -n[1], -n[2]];
+        const l = Math.hypot(n[0], n[1], n[2]) || 1;
+        const [nF, nR, nU] = rotateNormal([n[0]/l, n[1]/l, n[2]/l]);
+        const avgD = ps.reduce((s, p) => s + p.d, 0) / 4;
+        faces.push({ ps, br: litBr(nF, nR, nU, 0.13), avgD, col: [14, 16, 22] });
+      };
+      for (const th of [Math.PI / 4, 3 * Math.PI / 4, 5 * Math.PI / 4, 7 * Math.PI / 4]) {
+        /* wider at the bottom (foot/hinge), tapering narrower at the top */
+        const a0t = th - lwiT, a1t = th + lwiT, a0b = th - lwiB, a1b = th + lwiB;
+        const iT0 = [lvFt, Ri*Math.cos(a0t), Ri*Math.sin(a0t)], iB0 = [lvFb, Ri*Math.cos(a0b), Ri*Math.sin(a0b)];
+        const iT1 = [lvFt, Ri*Math.cos(a1t), Ri*Math.sin(a1t)], iB1 = [lvFb, Ri*Math.cos(a1b), Ri*Math.sin(a1b)];
+        const rT  = [lvFt, Ro*Math.cos(th), Ro*Math.sin(th)],   rB  = [lvFb, Ro*Math.cos(th), Ro*Math.sin(th)];
+        _legPanel([iT0, iB0, rB, rT], th - lwiT * 0.5);   // panel toward a0
+        _legPanel([rT, rB, iB1, iT1], th + lwiT * 0.5);   // panel toward a1
+      }
     }
 
     /* S1 plume: ignition → MECO */
