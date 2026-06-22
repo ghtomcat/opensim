@@ -283,21 +283,25 @@ export const _COLORS_f9 = [
   [ 18,  20,  26],  // 2 Interstage — near-black (carbon lattice)
   [246, 247, 252],  // 3 Dragon capsule — warm white
   [ 60,  66,  78],  // 4 Grid fins — titanium
-  [ 52,  58,  72],  // 5 Trunk — dark structural / solar panels
+  [ 40,  44,  56],  // 5 Solar panels — dark blue (Crew Dragon trunk array)
 ];
 
 /* buildTube: 16-sided, 6 rings → rb=[0,16,32,48,64,80]; Dragon tip at v96; extras 97+ */
 export const { V_: _V_f9, F_: _F_f9, FC_: _FC_f9, E_: _E_f9 } = (() => {
   const N = 16;
   const { V_, F_, FC_, E_, rb } = buildTube(N, [
-    { vF: -0.016, r: _rf9,       col: 0 },  // Ring 0: S1 aft → mid
-    { vF: -0.004, r: _rf9,       col: 2 },  // Ring 1: S1 mid → top (interstage lower)
-    { vF:  0.004, r: _rf9,       col: 2 },  // Ring 2: S1 top → interstage
-    { vF:  0.006, r: _rf9,       col: 1 },  // Ring 3: interstage/S2 base (full Ø — F9 is constant 3.7 m)
-    { vF:  0.014, r: _rf9,       col: 5 },  // Ring 4: S2 top → Trunk (Dragon base)
+    { vF: -0.016, r: _rf9,       col: 2 },  // Ring 0: S1 aft — black engine/base band (narrow)
+    { vF: -0.014, r: _rf9,       col: 0 },  // Ring 1: S1 body — white (the bulk)
+    { vF:  0.003, r: _rf9,       col: 2 },  // Ring 2: interstage — black (belongs to S1, top of S1)
+    { vF:  0.006, r: _rf9,       col: 1 },  // Ring 3: S2 base — white (full Ø; F9 is constant 3.7 m)
+    { vF:  0.014, r: _rf9,       col: 1 },  // Ring 4: Trunk — white body (Crew Dragon)
     { vF:  0.020, r: _rf9               },  // Ring 5: Trunk/Dragon base (terminal)
   ]);
   // rb: [0,16,32,48,64,80]; Dragon tip=96; extras=97+
+
+  /* Trunk: white body with a dark solar-panel array on one side (Crew Dragon). The trunk band
+     is the ri=4 faces (one per side, index 4·N+si); recolour a ~120° arc dark. */
+  for (const si of [5, 6, 7, 8, 9, 10]) FC_[4 * N + si] = 5;
 
   V_.push(
     [ 0.024,  0,        0         ],  // 96 Dragon nosecone tip
