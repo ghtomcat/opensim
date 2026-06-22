@@ -921,24 +921,20 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
   }
   if (isF9) {
-    /* Grid fin fold: deploy during S1 coast (descent), stow during powered ascent */
+    /* Grid fin fold: stowed flat against the body during powered ascent, deploy during S1 coast
+       (descent). Stowed fins sit just proud of the body so they read as folded panels — not
+       hidden flush against it (which looked like they emerged from inside the body on deploy). */
     const finTarget = (S.rocketCoast ?? false) ? Math.PI / 2 : 0;
     _finAngle += (finTarget - _finAngle) * 0.025;  // ~2-3 s deployment
-    const arm = _gfS - _rf9;
+    const arm   = _gfS - _rf9;
     const sa = Math.sin(_finAngle), ca = Math.cos(_finAngle);
+    const rad   = _rf9 + arm * sa + _rf9 * 0.08 * ca;   // outer edge: stowed → proud; deployed → _gfS
+    const vFt = 0.005 - arm*ca, vFb = 0.002 - arm*ca;
     if (verts === V_) verts = _V_f9.map(v => v.slice());
-    /* Fin A (z+): outer verts 51, 52 */
-    verts[99] = [0.005 - arm*ca, 0,             _rf9 + arm*sa];
-    verts[100] = [0.002 - arm*ca, 0,             _rf9 + arm*sa];
-    /* Fin B (y+): outer verts 55, 56 */
-    verts[103] = [0.005 - arm*ca,  _rf9 + arm*sa, 0            ];
-    verts[104] = [0.002 - arm*ca,  _rf9 + arm*sa, 0            ];
-    /* Fin C (z-): outer verts 59, 60 */
-    verts[107] = [0.005 - arm*ca, 0,            -_rf9 - arm*sa ];
-    verts[108] = [0.002 - arm*ca, 0,            -_rf9 - arm*sa ];
-    /* Fin D (y-): outer verts 63, 64 */
-    verts[111] = [0.005 - arm*ca, -_rf9 - arm*sa, 0            ];
-    verts[112] = [0.002 - arm*ca, -_rf9 - arm*sa, 0            ];
+    verts[99]  = [vFt, 0,    rad ];  verts[100] = [vFb, 0,    rad ];   // Fin A (z+)
+    verts[103] = [vFt, rad,  0   ];  verts[104] = [vFb, rad,  0   ];   // Fin B (y+)
+    verts[107] = [vFt, 0,   -rad ];  verts[108] = [vFb, 0,   -rad ];   // Fin C (z-)
+    verts[111] = [vFt, -rad, 0   ];  verts[112] = [vFb, -rad, 0   ];   // Fin D (y-)
   }
   const pts = verts.map(project);
 

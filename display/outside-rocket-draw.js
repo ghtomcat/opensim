@@ -852,8 +852,8 @@ export function drawBoosterEdges(rc) {
 /* ── Launch pads — LC-39A MLP + LUT lattice (SV/F9), Starbase OLP +
    Mechazilla tower + catch arms (SS) ── */
 export function drawLaunchPads(rc) {
-  const { ctx, dpr, pts, project, camSide, cx, cy, focal, cosP, sinP,
-          cosCP, sinCP, orbitAzDeg, svRise: _svRise, ssGeo: _ssGeo,
+  const { ctx, dpr, pts, project, camSide, camBack, camUp, cx, cy, focal, cosP, sinP,
+          cosCP, sinCP, cosEl, sinEl, orbitAzDeg, orbitElDeg, svRise: _svRise, ssGeo: _ssGeo,
           isF9, isSV, isSS, altNm: alt_nm } = rc;
   /* ── Launch pad — MLP box + LUT lattice tower (LC-39A) ─────────── */
   if (isSV || isF9) {
