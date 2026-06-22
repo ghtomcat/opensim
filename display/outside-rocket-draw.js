@@ -75,7 +75,7 @@ const { project, camSide, rotateNormal, litBr, faces, H: _H } = rc;
 /* ── Booster faces — F9 S1 + SS Super Heavy, depth-sorted into rc.faces ── */
 export function drawBoosterFaces(rc) {
   const { faces, project, rotateNormal, litBr, rStage, isSS, ssGeo: _ssGeo,
-          bPts, ssBPts, cosdP, sindP, ssCosdP, ssSindP } = rc;
+          bPts, ssBPts, s2Pts, cosdP, sindP, ssCosdP, ssSindP } = rc;
   /* Starship stage sep: fill open bottom ring of Ship with a disc cap */
   if (isSS && rStage >= 2 && _ssGeo) {
     const _ssRg = S.aircraft?.rocketGeometry;
@@ -118,6 +118,33 @@ export function drawBoosterFaces(rc) {
     if (_capPts.length >= 3) {
       const _capD = _capPts.reduce((s,p)=>s+p.d,0)/_capPts.length;
       faces.push({ ps: _capPts, br: 0.55, avgD: _capD, col: [26, 26, 30] });
+    }
+  }
+
+  /* Falcon 9 Stage 2 — drifts away after Dragon separation (drawn at s2Pts, no roll).
+     S2 tank (faces 48-63) + MVac bell/exit cap (104-119) + the aft floor at ring 3. */
+  if (s2Pts) {
+    const s2Idx = [];
+    for (let k = 48;  k <= 63;  k++) s2Idx.push(k);
+    for (let k = 104; k <= 119; k++) s2Idx.push(k);
+    for (const i of s2Idx) {
+      const fi = _F_f9[i];
+      const ps = fi.map(vi => s2Pts[vi]);
+      if (ps.some(p => !p)) continue;
+      const p0=ps[0],p1=ps[1],p2=ps[2];
+      if ((p1.x-p0.x)*(p2.y-p0.y)-(p1.y-p0.y)*(p2.x-p0.x) < 0) continue;
+      const [nF,nR,nU] = _FN_f9[i];
+      const [wF,wR,wU] = rotateNormal([nF, nR, nU]);
+      const br   = litBr(wF, wR, wU, 0.18);
+      const avgD = ps.reduce((s,p)=>s+p.d,0)/ps.length;
+      faces.push({ ps, br, avgD, col: _COLORS_f9[_FC_f9[i]] });
+    }
+    /* S2 aft floor (ring 3 = verts 48-63) — the engine-bay floor drifts with the stage */
+    const _s2Cap = [];
+    for (let si = 0; si < 16; si++) { if (s2Pts[48+si]) _s2Cap.push(s2Pts[48+si]); }
+    if (_s2Cap.length >= 3) {
+      const _capD = _s2Cap.reduce((s,p)=>s+p.d,0)/_s2Cap.length;
+      faces.push({ ps: _s2Cap, br: 1.0, avgD: _capD, col: [26, 26, 30] });
     }
   }
 
@@ -520,9 +547,10 @@ export function drawRocketPlumesAndNozzles(rc) {
   /* ── Falcon 9 aft base caps — flat engine-bay floor where the nozzles attach.
      Same 3D-normal reasoning as the S-IC cap: always render (it's a floor).
        rStage 1 → ring 0, base  0 (vF _F9_vf0, octaweb floor under the 9 Merlins)
-       rStage ≥ 2 → ring 3, base 48 (vF _f9S2Base, S2 floor under the MVac — exposed after sep) */
+       rStage ≥ 2 → ring 3, base 48 (vF _f9S2Base, S2 floor under the MVac — exposed after sep)
+       after dragonSep → ring 4, base 64 (trunk floor; S2 has drifted away) */
   if (isF9) {
-    const capBase = rStage >= 2 ? 48 : 0;
+    const capBase = S.dragonSep ? 64 : rStage >= 2 ? 48 : 0;
     const capPts = [];
     for (let si = 0; si < 16; si++) { if (pts[capBase + si]) capPts.push(pts[capBase + si]); }
     if (capPts.length >= 3) {

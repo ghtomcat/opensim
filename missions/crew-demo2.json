@@ -19,7 +19,7 @@
   "fiction_note": "This mission is a faithful recreation of the real SpaceX Demo-2 launch on 30 May 2020. Bob Behnken and Doug Hurley are real NASA astronauts. The webcast audio is original SpaceX footage.",
   "aircraft": "falcon9-b5-demo2",
   "dragonSeats": ["CDR", "PLT"],
-  "dragonSepT": 1020,
+  "dragonSepT": 898,
   "timeOfDay": 0.75,
   "water": false,
   "weather": {
@@ -222,13 +222,25 @@
     },
     {
       "event": "orbit",
-      "text": "Nominal orbit insertion. Dragon separation in 22 minutes.",
+      "text": "Nominal orbit insertion. Dragon separation in three minutes.",
       "voice": "atc"
     },
     {
       "event": "booster_landing",
       "text": "Stage 1 landing burn. Touchdown confirmed. LZ-1.",
       "voice": "atc"
+    },
+    {
+      "event": "dragonsep",
+      "text": "Dragon separation confirmed. Endeavour is flying free.",
+      "voice": "atc"
+    },
+    {
+      "event": "dragonsep",
+      "_uid": "dsep-crew",
+      "text": "Copy separation. Dragon is on internal power, nominal.",
+      "voice": "crew",
+      "delay": 3000
     }
   ],
   "narrative": [

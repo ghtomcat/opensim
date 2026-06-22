@@ -56,6 +56,7 @@ let _prevActiveEngines = null;       // track engine count drops
 let _prevCECO          = false;      // track G-triggered CECO
 let _prevBoosterPhase   = null;   // track booster phase transitions
 let _prevBoosterLanded  = false;
+let _prevDragonSep      = false;
 let _prevDragonDeorbit  = false;
 let _prevDragonBlackout = false;
 let _prevDragonSignal   = false;
@@ -156,6 +157,7 @@ export function tickCrew(prevAlt, currAlt) {
     _prevCECO             = S.rocketCECO          ?? false;
     _prevBoosterPhase     = S.booster?.phase   ?? null;
     _prevBoosterLanded    = S.booster?.landed  ?? false;
+    _prevDragonSep        = S.dragonSep       ?? false;
     _prevDragonDeorbit    = S.dragonDeorbit   ?? false;
     _prevDragonBlackout   = S.dragonBlackout  ?? false;
     _prevDragonSignal     = S.dragonSignal    ?? false;
@@ -197,6 +199,7 @@ export function resetCrew() {
   _prevActiveEngines = null;
   _prevCECO = false;
   _prevBoosterPhase = null; _prevBoosterLanded = false;
+  _prevDragonSep = false;
   _prevDragonDeorbit = false; _prevDragonBlackout = false;
   _prevDragonSignal  = false; _prevDragonDrogue   = false;
   _prevDragonMains   = false; _prevDragonSplashdown = false;
@@ -1063,6 +1066,12 @@ function _checkRocketEvent(event, clr, prevAlt = 0, currAlt = 0) {
 
     case 'booster_landing':
       if ((S.booster?.landed ?? false) && !_prevBoosterLanded) {
+        _rocketFired.add(uid); return true;
+      }
+      break;
+
+    case 'dragonsep':
+      if ((S.dragonSep ?? false) && !_prevDragonSep) {
         _rocketFired.add(uid); return true;
       }
       break;

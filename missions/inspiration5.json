@@ -852,6 +852,11 @@
       "text": "Incredible. Stage 1 is back on the ground at Cape Canaveral."
     },
     {
+      "event": "dragonsep",
+      "voice": "narrator2",
+      "text": "Dragon separation. Inspiration5 is flying free on its own power, beginning three days in orbit."
+    },
+    {
       "t": 259120,
       "voice": "narrator2",
       "audio": "audio/inspiration5/nar2_3days.mp3",

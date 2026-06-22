@@ -152,7 +152,12 @@
     },
     {
       "event": "orbit",
-      "text": "Falcon 9 has reached orbit. Dragon separation in 22 minutes.",
+      "text": "Falcon 9 has reached orbit. Dragon separation shortly.",
+      "voice": "atc"
+    },
+    {
+      "event": "dragonsep",
+      "text": "Dragon separation confirmed. Spacecraft is on its way to the station.",
       "voice": "atc"
     },
     {

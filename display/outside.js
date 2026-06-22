@@ -1142,6 +1142,26 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     bPts = bVerts.map(project);
   }
 
+  /* Falcon 9 Stage 2 — drifts away after Dragon separation. The primary vehicle now
+     follows the Dragon (orbitVec), so S2 is offset by its own s2Lat/s2Lon/s2Alt,
+     camera-relative the same way as the booster. No flip — the spent stage just coasts. */
+  let s2Pts = null;
+  if (isF9 && S.dragonSep && S.s2Vec) {
+    const cosLat = Math.cos((S.lat ?? 0) * DEG);
+    const dN    = ((S.s2Lat ?? 0) - (S.lat ?? 0)) * 60;
+    const dE    = ((S.s2Lon ?? 0) - (S.lon ?? 0)) * 60 * cosLat;
+    const dUp   = ((S.s2Alt ?? 0) - (S.alt ?? 0)) * FT_NM;
+    const cosH  = Math.cos((S.hdg ?? 0) * DEG);
+    const sinH  = Math.sin((S.hdg ?? 0) * DEG);
+    const dFwdH = dN * cosH + dE * sinH;
+    const dRtH  = -dN * sinH + dE * cosH;
+    const oF = dFwdH * cosP + dUp * sinP;
+    const oR = dRtH;
+    const oU = -dFwdH * sinP + dUp * cosP;
+    const s2Verts = _V_f9.map(([vF, vR, vU]) => [vF + oF, vR + oR, vU + oU]);
+    s2Pts = s2Verts.map(project);
+  }
+
   /* Starship Super Heavy booster — fall-away / flip / recovery rendering */
   let ssBPts = null, ssCosdP = 1, ssSindP = 0;
   if (isSS && rStage >= 2 && S.booster?.active && _ssGeo?.V_) {
@@ -1198,6 +1218,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const faces = F_.map((fi, i) => {
     /* F9 stage sep: main vehicle = S2 + Dragon + MVac nozzle (faces 48-95 + 96-103) */
     if (isF9 && rStage >= 2 && (i < 48 || (i > 95 && i < 104) || (i >= 120 && i <= 159))) return null;  // S1 body + fins + hinge mounts + fin thickness stay with the booster
+    if (isF9 && S.dragonSep && ((i >= 48 && i <= 63) || (i >= 104 && i <= 119))) return null;  // S2 tank + MVac bell drift away with Stage 2 (drawn at s2Pts)
 
     /* Starship / Super Heavy stage sep: hide SH body faces + grid fins */
     if (isSS && rStage >= 2 && _ssGeo?.stageRanges?.[0]) {
@@ -1342,7 +1363,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     /* per-frame vertex/face data */
     verts, pts, faces, ptsCSM, projectCSM: _projectCSM, inTDSep: _inTDSep,
     /* staging + environment */
-    rStage, altNm: alt_nm, svRise: _svRise, hasLM, lmPts, bPts, ssBPts,
+    rStage, altNm: alt_nm, svRise: _svRise, hasLM, lmPts, bPts, ssBPts, s2Pts,
     trActive: _trActive, upStr: _upStr, UPCOL: _UPCOL, acDim: _acDim,
     /* shared closures */
     project, rotateNormal, litBr,

@@ -71,6 +71,10 @@ const MAINS_ALT     = 1_800;  // m
 const BLACKOUT_ALT  = 80_000; // m  comms blackout entry
 const BLACKOUT_EXIT = 35_000; // m  signal reacquired
 
+/* ── Dragon / Stage 2 separation ΔV (Draco departure + pushers) ── */
+const DRACO_SEP_DV  = 1.5;    // m/s  Dragon prograde departure (pusher + Draco)
+const S2_SEP_DV     = 0.3;    // m/s  Stage 2 retrograde (pusher reaction)
+
 /* ── Moon position in ECI (XY plane, z=0) ───────────────────── */
 export function moonECI(mT) {
   const refAngle = (S.mission?.moonRefAngle ?? 0) * DEG;
@@ -418,19 +422,31 @@ function _applyMCC1Burn(mT) { _applyMCC(mT, 'MCC-1', 'rocketMCC1'); }
 function _applyMCC2Burn(mT) { _applyMCC(mT, 'MCC-2', 'rocketMCC2'); }
 function _applyMCC4Burn(mT) { _applyMCC(mT, 'MCC-4', 'rocketMCC4'); }
 
-/* ── Deorbit burn — apply retrograde ΔV to orbitVec ─────────── */
+/* ── Draco RCS impulse — shared primitive ────────────────────────
+   Apply a ΔV (m/s) to an orbital state vector along a named direction.
+   One mechanism for every Draco use: separation, deorbit, and (later) the
+   ISS-approach phasing burns. Position is unchanged; only velocity is nudged.
+   dir: 'prograde' | 'retrograde' | 'radial-out' | 'radial-in'.               */
+function _applyDracoImpulse(vec, dir, dV) {
+  const { rx, ry, rz, vx, vy, vz } = vec;
+  let ux, uy, uz;
+  if (dir === 'radial-out' || dir === 'radial-in') {
+    const rm = Math.sqrt(rx*rx + ry*ry + rz*rz) || 1;
+    ux = rx / rm; uy = ry / rm; uz = rz / rm;
+    if (dir === 'radial-in') { ux = -ux; uy = -uy; uz = -uz; }
+  } else {
+    const sm = Math.sqrt(vx*vx + vy*vy + vz*vz) || 1;
+    ux = vx / sm; uy = vy / sm; uz = vz / sm;
+    if (dir === 'retrograde') { ux = -ux; uy = -uy; uz = -uz; }
+  }
+  return { rx, ry, rz, vx: vx + ux*dV, vy: vy + uy*dV, vz: vz + uz*dV };
+}
+
+/* ── Deorbit burn — retrograde Draco ΔV on the Dragon's orbitVec ── */
 function _applyDeorbitBurn(dv_ms) {
-  const v   = S.orbitVec;
-  const spd = Math.sqrt(v.vx*v.vx + v.vy*v.vy + v.vz*v.vz);
-  const f   = dv_ms / spd;                // fraction to subtract
   setState({
     dragonDeorbit: true,
-    orbitVec: {
-      ...v,
-      vx: v.vx * (1 - f),
-      vy: v.vy * (1 - f),
-      vz: v.vz * (1 - f),
-    },
+    orbitVec: _applyDracoImpulse(S.orbitVec, 'retrograde', dv_ms),
   });
 }
 
@@ -740,9 +756,13 @@ function _tickOrbit(dt) {
 function _captureDragonSep() {
   const v = S.orbitVec;
   if (!v) return;
+  /* Mechanical pushers + Dragon Draco departure burn: the Dragon gets a small prograde
+     nudge (rises, pulls ahead), Stage 2 the retrograde pusher reaction (falls behind,
+     lower). ~1.8 m/s relative → the two visibly drift apart over the following minutes. */
   setState({
     dragonSep: true,
-    s2Vec:     { ...v },
+    orbitVec:  _applyDracoImpulse(v, 'prograde',   DRACO_SEP_DV),
+    s2Vec:     _applyDracoImpulse(v, 'retrograde', S2_SEP_DV),
     s2Lat:     S.lat ?? 0,
     s2Lon:     S.lon ?? 0,
     s2Alt:     S.alt ?? 0,
