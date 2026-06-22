@@ -9,7 +9,7 @@ import {
   _sv1r, _sv3r, _svcr, _svFS, _svLT,
   _COLORS_sv, _V_sv, _F_sv, _FC_sv,
   _svSepAnims, _dir, _DIR_SHOTS,
-  _rf9, _nzO, _nzO7, _nzVac,
+  _rf9, _nzO, _nzO7, _nzVac, _f9S2Base,
   _COLORS_f9, _F_f9, _FC_f9, _E_f9, _FN_f9
 } from './outside-space.js';
 import { _drawSSReentryPlasma } from './outside-rocket.js';
@@ -111,6 +111,13 @@ export function drawBoosterFaces(rc) {
       const br  = litBr(wF, wR, wU, amb);
       const avgD = ps.reduce((s,p)=>s+p.d,0)/ps.length;
       faces.push({ ps, br, avgD, col: _COLORS_f9[_FC_f9[i]] });
+    }
+    /* Aft base cap (octaweb floor, ring 0 = verts 0-15) — plugs the open base on the spent booster */
+    const _capPts = [];
+    for (let si = 0; si < 16; si++) { if (bPts[si]) _capPts.push(bPts[si]); }
+    if (_capPts.length >= 3) {
+      const _capD = _capPts.reduce((s,p)=>s+p.d,0)/_capPts.length;
+      faces.push({ ps: _capPts, br: 0.55, avgD: _capD, col: [26, 26, 30] });
     }
   }
 
@@ -391,9 +398,11 @@ export function drawRocketPlumesAndNozzles(rc) {
     if (pastIgnition && rStage < 2 && !S.rocketCoast && !S.rocketMECO)
       _drawPlume(pts[113], _nzO, [-0.018, 0, 0], 0.030, 2.8 * _engFrac);
 
-    /* S2 plume: coast ends → SECO. One MVac → narrow exhaust, originating at the exit plane. */
-    if (rStage >= 2 && !S.rocketCoast && !S.rocketSECO)
-      _drawPlume(project([0.004, 0, 0]), _nzVac, [0.004, 0, 0], 0.032, 1.3 * _engFrac);
+    /* S2 plume: coast ends → SECO. One MVac → narrow exhaust, from the MVac exit plane. */
+    if (rStage >= 2 && !S.rocketCoast && !S.rocketSECO) {
+      const _ex = _f9S2Base - 0.0024;   // MVac exit (matches the geometry exit ring)
+      _drawPlume(project([_ex, 0, 0]), _nzVac, [_ex, 0, 0], 0.032, 1.3 * _engFrac);
+    }
   }
 
   if (isSS && _ssGeo && pastIgnition && !S.rocketCoast && !S.rocketSECO) {
@@ -511,6 +520,20 @@ export function drawRocketPlumesAndNozzles(rc) {
     }
   }
 
+
+  /* ── Falcon 9 aft base caps — flat engine-bay floor where the nozzles attach.
+     Same 3D-normal reasoning as the S-IC cap: always render (it's a floor).
+       rStage 1 → ring 0, base  0 (vF _F9_vf0, octaweb floor under the 9 Merlins)
+       rStage ≥ 2 → ring 3, base 48 (vF _f9S2Base, S2 floor under the MVac — exposed after sep) */
+  if (isF9) {
+    const capBase = rStage >= 2 ? 48 : 0;
+    const capPts = [];
+    for (let si = 0; si < 16; si++) { if (pts[capBase + si]) capPts.push(pts[capBase + si]); }
+    if (capPts.length >= 3) {
+      const avgD = capPts.reduce((s, p) => s + p.d, 0) / capPts.length;
+      faces.push({ ps: capPts, br: 1.0, avgD, col: _DBG_CULL ? [0, 80, 200] : [26, 26, 30] });
+    }
+  }
 
   const j2On = pastIgnition && !(S.rocketCoast ?? false) && !S.rocketSECO;
 

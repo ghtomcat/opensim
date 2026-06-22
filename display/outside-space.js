@@ -269,9 +269,21 @@ export function _dirBlend() {
    ══════════════════════════════════════════════════════════════ */
 
 export const _rf9  = 0.0020;          // body radius (≈ 3.7 m / 1852)
+
+/* Falcon 9 Block 5 axial layout — derived from the real segment lengths (m) so the stage
+   proportions are correct. Anchored: S1 base at -0.016, Dragon tip at 0.024 (total ≈ 70 m). */
+const _F9L = { eng: 4.0, s1: 38.6, is: 6.7, s2: 12.6, trunk: 3.7, dragon: 4.4 };   // sums to 70
+const _F9_vf0 = -0.016, _F9_vfTip = 0.024, _F9_tot = 70;
+const _f9vf = (m) => _F9_vf0 + (m / _F9_tot) * (_F9_vfTip - _F9_vf0);
+export const _f9EngTop   = _f9vf(_F9L.eng);                                              // white S1 start
+export const _f9S1Top    = _f9vf(_F9L.eng + _F9L.s1);                                    // interstage base
+export const _f9S2Base   = _f9vf(_F9L.eng + _F9L.s1 + _F9L.is);                          // S2 base
+export const _f9S2Top    = _f9vf(_F9L.eng + _F9L.s1 + _F9L.is + _F9L.s2);                // trunk base
+export const _f9TrunkTop = _f9vf(_F9L.eng + _F9L.s1 + _F9L.is + _F9L.s2 + _F9L.trunk);   // Dragon base
+
 export const _gfS  = 0.0048;          // grid fin outer half-span from CL
 export const _gfW  = 0.0011;          // grid fin tangential half-width (broad grid face is fore-aft)
-export const _gfMidVF = 0.0035;       // grid fin axial mount position (mid of the old chord)
+export const _gfMidVF = _f9S1Top + (_f9S2Base - _f9S1Top) * 0.65;   // grid fins mount ON the interstage (upper part)
 export const _gfHinge = 0.00030;      // hinge bracket stand-off: fin pivots on a fixed mount, not the skin
 export const _gfRH = _rf9 + _gfHinge; // fin hinge (inner edge) radius
 export const _gfDepth = 0.00040;      // grid fin fore-aft depth (lattice chord)
@@ -292,15 +304,15 @@ export const _COLORS_f9 = [
 ];
 
 /* buildTube: 16-sided, 6 rings → rb=[0,16,32,48,64,80]; Dragon tip at v96; extras 97+ */
-export const { V_: _V_f9, F_: _F_f9, FC_: _FC_f9, E_: _E_f9 } = (() => {
+export const { V_: _V_f9, F_: _F_f9, FC_: _FC_f9, E_: _E_f9, _thBase: _f9ThBase } = (() => {
   const N = 16;
   const { V_, F_, FC_, E_, rb } = buildTube(N, [
-    { vF: -0.016, r: _rf9,       col: 2 },  // Ring 0: S1 aft — black engine/base band (narrow)
-    { vF: -0.014, r: _rf9,       col: 0 },  // Ring 1: S1 body — white (the bulk)
-    { vF:  0.003, r: _rf9,       col: 2 },  // Ring 2: interstage — black (belongs to S1, top of S1)
-    { vF:  0.006, r: _rf9,       col: 1 },  // Ring 3: S2 base — white (full Ø; F9 is constant 3.7 m)
-    { vF:  0.014, r: _rf9,       col: 1 },  // Ring 4: Trunk — white body (Crew Dragon)
-    { vF:  0.020, r: _rf9               },  // Ring 5: Trunk/Dragon base (terminal)
+    { vF: _F9_vf0,      r: _rf9, col: 2 },  // Ring 0: S1 aft — black engine/base band (narrow)
+    { vF: _f9EngTop,    r: _rf9, col: 0 },  // Ring 1: S1 body — white (the bulk, 42.6 m stage)
+    { vF: _f9S1Top,     r: _rf9, col: 2 },  // Ring 2: interstage — black (belongs to S1, top of S1)
+    { vF: _f9S2Base,    r: _rf9, col: 1 },  // Ring 3: S2 base — white (full Ø; F9 is constant 3.7 m)
+    { vF: _f9S2Top,     r: _rf9, col: 1 },  // Ring 4: Trunk — white body (Crew Dragon)
+    { vF: _f9TrunkTop,  r: _rf9          },  // Ring 5: Trunk/Dragon base (terminal)
   ]);
   // rb: [0,16,32,48,64,80]; Dragon tip=96; extras=97+
 
@@ -308,8 +320,11 @@ export const { V_: _V_f9, F_: _F_f9, FC_: _FC_f9, E_: _E_f9 } = (() => {
      is the ri=4 faces (one per side, index 4·N+si); recolour a ~120° arc dark. */
   for (const si of [5, 6, 7, 8, 9, 10]) FC_[4 * N + si] = 5;
 
+  /* S2 MVac axial positions, hung off the S2 base */
+  const _mvSk = _f9S2Base, _mvEx = _f9S2Base - 0.0024, _mvTh = _f9S2Base - 0.0004;
+
   V_.push(
-    [ 0.024,  0,        0         ],  // 96 Dragon nosecone tip
+    [ _F9_vfTip, 0,      0         ],  // 96 Dragon nosecone tip
     /* Grid fins: broad grid face fore-aft (±vF), wide tangentially, span radial. Outer edge is
        animated (fold/deploy) in outside.js. inner = at body, outer = deployed radial extent. */
     [ _gfMidVF, -_gfW,  _gfRH ], [ _gfMidVF,  _gfW,  _gfRH ],  // 97-98  Fin A inner (radial +z, tang ±y)
@@ -325,19 +340,30 @@ export const { V_: _V_f9, F_: _F_f9, FC_: _FC_f9, E_: _E_f9 } = (() => {
     [-0.018,  _nzO,     0         ],[-0.018,  _nzO7, -_nzO7     ],  // 116-117
     [-0.018,  0,       -_nzO      ],[-0.018, -_nzO7, -_nzO7     ],  // 118-119
     [-0.018, -_nzO,     0         ],[-0.018, -_nzO7,  _nzO7     ],  // 120-121
-    [ 0.006,  0,        _nzSk  ],[ 0.006,  _nzSk7,  _nzSk7 ],  // 122-123 S2 MVac skirt
-    [ 0.006,  _nzSk,    0      ],[ 0.006,  _nzSk7, -_nzSk7 ],  // 124-125
-    [ 0.006,  0,       -_nzSk  ],[ 0.006, -_nzSk7, -_nzSk7 ],  // 126-127
-    [ 0.006, -_nzSk,    0      ],[ 0.006, -_nzSk7,  _nzSk7 ],  // 128-129
-    [ 0.004,  0,        _nzVac ],[ 0.004,  _nzVac7, _nzVac7 ],  // 130-131 S2 MVac exit
-    [ 0.004,  _nzVac,   0      ],[ 0.004,  _nzVac7,-_nzVac7 ],  // 132-133
-    [ 0.004,  0,       -_nzVac ],[ 0.004, -_nzVac7,-_nzVac7 ],  // 134-135
-    [ 0.004, -_nzVac,   0      ],[ 0.004, -_nzVac7, _nzVac7 ],  // 136-137
-    [ 0.0056, 0,        0      ],  // 138 nozzle throat centre — recessed INTO the bell (concave interior + glow ref)
+    [ _mvSk,  0,        _nzSk  ],[ _mvSk,  _nzSk7,  _nzSk7 ],  // 122-123 S2 MVac skirt (at S2 base)
+    [ _mvSk,  _nzSk,    0      ],[ _mvSk,  _nzSk7, -_nzSk7 ],  // 124-125
+    [ _mvSk,  0,       -_nzSk  ],[ _mvSk, -_nzSk7, -_nzSk7 ],  // 126-127
+    [ _mvSk, -_nzSk,    0      ],[ _mvSk, -_nzSk7,  _nzSk7 ],  // 128-129
+    [ _mvEx,  0,        _nzVac ],[ _mvEx,  _nzVac7, _nzVac7 ],  // 130-131 S2 MVac exit (bell mouth)
+    [ _mvEx,  _nzVac,   0      ],[ _mvEx,  _nzVac7,-_nzVac7 ],  // 132-133
+    [ _mvEx,  0,       -_nzVac ],[ _mvEx, -_nzVac7,-_nzVac7 ],  // 134-135
+    [ _mvEx, -_nzVac,   0      ],[ _mvEx, -_nzVac7, _nzVac7 ],  // 136-137
+    [ _mvTh,  0,        0      ],  // 138 nozzle throat centre — recessed INTO the bell (concave interior)
   );
 
-  /* Dragon nosecone: Ring 5 → tip (v48) */
-  for (let si = 0; si < N; si++) { F_.push([96, rb[5]+(si+1)%N, rb[5]+si]); FC_.push(3); }
+  /* Dragon capsule profile — 4 rings between the trunk top (Ring 5) and the tip (96): nearly
+     straight at the base, a sharper conical taper, then a strongly rounded nose cap.
+     D1-D4 verts appended here; the upper segments + tip cap are built after the trunk fins. */
+  const _drH = _F9_vfTip - _f9TrunkTop;
+  const _drBase = V_.length;
+  for (const [hf, rf] of [[0.30, 0.90], [0.58, 0.66], [0.80, 0.42], [0.93, 0.20]]) {
+    const vF = _f9TrunkTop + _drH * hf, r = _rf9 * rf;
+    for (let si = 0; si < N; si++) { const a = Math.PI / 2 - (si / N) * 2 * Math.PI; V_.push([vF, r * Math.cos(a), r * Math.sin(a)]); }
+  }
+  const _drD1 = _drBase, _drD2 = _drBase + 16, _drD3 = _drBase + 32, _drD4 = _drBase + 48;
+
+  /* Ring 5 → D1 (base segment) — kept at faces 80-95 so the later face indices stay stable */
+  for (let si = 0; si < N; si++) { const sj = (si + 1) % N; F_.push([rb[5] + si, rb[5] + sj, _drD1 + sj, _drD1 + si]); FC_.push(3); }
 
   /* Non-tube faces (indices unchanged) */
   F_.push(
@@ -371,7 +397,9 @@ export const { V_: _V_f9, F_: _F_f9, FC_: _FC_f9, E_: _E_f9 } = (() => {
   }
 
   /* Grid fin thickness — back grid face + 4 edge frames (faces 140-159). The back verts follow
-     the fold in outside.js (offset along the fin's rotating fore-aft normal). */
+     the fold in outside.js (offset along the fin's rotating fore-aft normal). Exported base so
+     the animation in outside.js stays decoupled from absolute indices (Dragon rings shift them). */
+  const _thBase = V_.length;
   for (const [a, b, c, d] of [[97,98,99,100], [101,102,103,104], [105,106,107,108], [109,110,111,112]]) {
     const base = V_.length;
     for (const vi of [a, b, c, d]) V_.push([V_[vi][0] + _gfDepth, V_[vi][1], V_[vi][2]]);  // deployed: +vF
@@ -380,10 +408,32 @@ export const { V_: _V_f9, F_: _F_f9, FC_: _FC_f9, E_: _E_f9 } = (() => {
     FC_.push(4, 4, 4, 4, 4);
   }
 
-  /* Longerons */
+  /* Crew Dragon trunk fins — 4 white swept stabiliser fins on the lower trunk: straight bottom
+     edge at the S2 interface (vF _tfBot), beveled top edge up to _tfTop. Flat tangential blades
+     (faces 160-167). Part of S2/Dragon, so they aren't in the booster face lists. */
+  const _tfH = _f9TrunkTop - _f9S2Top;   // trunk height
+  const _tfBot = _f9S2Top, _tfMidV = _f9S2Top + _tfH * 0.45, _tfTop = _f9S2Top + _tfH * 0.70, _tfTip = _rf9 * 1.40;
+  for (const [Ry, Rz] of [[0,1], [1,0], [0,-1], [-1,0]]) {
+    const base = V_.length;
+    V_.push([_tfBot,  _rf9 * Ry,   _rf9 * Rz  ],   // A root-bottom (trunk surface)
+            [_tfBot,  _tfTip * Ry, _tfTip * Rz],   // B tip-bottom  (straight bottom edge)
+            [_tfMidV, _tfTip * Ry, _tfTip * Rz],   // D tip-top     (straight vertical leading edge)
+            [_tfTop,  _rf9 * Ry,   _rf9 * Rz  ]);  // C root-top    (only the top is beveled)
+    F_.push([base, base+1, base+2, base+3], [base+3, base+2, base+1, base]);   // double-sided quad
+    FC_.push(1, 1);   // white
+  }
+
+  /* Dragon capsule upper segments (appended last → no shift of the culling face indices):
+     D1→D2 (taper), D2→D3 + D3→D4 (rounding), D4→tip (96) cap. All white-ish col 3. */
+  for (const [lo, hi] of [[_drD1, _drD2], [_drD2, _drD3], [_drD3, _drD4]]) {
+    for (let si = 0; si < N; si++) { const sj = (si + 1) % N; F_.push([lo + si, lo + sj, hi + sj, hi + si]); FC_.push(3); }
+  }
+  for (let si = 0; si < N; si++) { F_.push([_drD4 + si, _drD4 + (si + 1) % N, 96]); FC_.push(3); }
+
+  /* Longerons — routed up through the Dragon rings so the wireframe follows the capsule profile */
   for (const si of [0, 4, 8, 12]) {
     for (let ri = 0; ri < 5; ri++) E_.push([rb[ri]+si, rb[ri+1]+si]);
-    E_.push([rb[5]+si, 96]);
+    E_.push([rb[5]+si, _drD1+si], [_drD1+si, _drD2+si], [_drD2+si, _drD3+si], [_drD3+si, _drD4+si], [_drD4+si, 96]);
   }
   /* Non-tube edges */
   E_.push(
@@ -398,6 +448,6 @@ export const { V_: _V_f9, F_: _F_f9, FC_: _FC_f9, E_: _E_f9 } = (() => {
     [122,130],[124,132],[126,134],[128,136],                                   // MVac longerons
   );
 
-  return { V_, F_, FC_, E_ };
+  return { V_, F_, FC_, E_, _thBase };
 })();
 export const _FN_f9 = computeFaceNormals(_V_f9, _F_f9);
