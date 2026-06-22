@@ -270,6 +270,11 @@ export function _dirBlend() {
 
 export const _rf9  = 0.0020;          // body radius (≈ 3.7 m / 1852)
 export const _gfS  = 0.0048;          // grid fin outer half-span from CL
+export const _gfW  = 0.0011;          // grid fin tangential half-width (broad grid face is fore-aft)
+export const _gfMidVF = 0.0035;       // grid fin axial mount position (mid of the old chord)
+export const _gfHinge = 0.00030;      // hinge bracket stand-off: fin pivots on a fixed mount, not the skin
+export const _gfRH = _rf9 + _gfHinge; // fin hinge (inner edge) radius
+export const _gfDepth = 0.00040;      // grid fin fore-aft depth (lattice chord)
 export const _nzO  = 0.00140;         // outer engine ring radius (octaweb) — ~0.70·R, near the body edge like the real F9
 export const _nzO7 = _nzO * 0.7071;
 export const _nzVac  = 0.00148;       // S2 Merlin Vacuum nozzle exit radius
@@ -305,14 +310,16 @@ export const { V_: _V_f9, F_: _F_f9, FC_: _FC_f9, E_: _E_f9 } = (() => {
 
   V_.push(
     [ 0.024,  0,        0         ],  // 96 Dragon nosecone tip
-    [ 0.002,  0,        _rf9      ], [ 0.005,  0,        _rf9      ],  // 97-98 Fin A
-    [ 0.005,  0,        _gfS      ], [ 0.002,  0,        _gfS      ],  // 99-100
-    [ 0.002,  _rf9,     0         ], [ 0.005,  _rf9,     0         ],  // 101-102 Fin B
-    [ 0.005,  _gfS,     0         ], [ 0.002,  _gfS,     0         ],  // 103-104
-    [ 0.002,  0,       -_rf9      ], [ 0.005,  0,       -_rf9      ],  // 105-106 Fin C
-    [ 0.005,  0,       -_gfS      ], [ 0.002,  0,       -_gfS      ],  // 107-108
-    [ 0.002, -_rf9,     0         ], [ 0.005, -_rf9,     0         ],  // 109-110 Fin D
-    [ 0.005, -_gfS,     0         ], [ 0.002, -_gfS,     0         ],  // 111-112
+    /* Grid fins: broad grid face fore-aft (±vF), wide tangentially, span radial. Outer edge is
+       animated (fold/deploy) in outside.js. inner = at body, outer = deployed radial extent. */
+    [ _gfMidVF, -_gfW,  _gfRH ], [ _gfMidVF,  _gfW,  _gfRH ],  // 97-98  Fin A inner (radial +z, tang ±y)
+    [ _gfMidVF,  _gfW,  _gfS  ], [ _gfMidVF, -_gfW,  _gfS  ],  // 99-100 outer
+    [ _gfMidVF,  _gfRH, -_gfW ], [ _gfMidVF,  _gfRH,  _gfW ],  // 101-102 Fin B inner (radial +y, tang ±z)
+    [ _gfMidVF,  _gfS,   _gfW ], [ _gfMidVF,  _gfS,  -_gfW ],  // 103-104 outer
+    [ _gfMidVF, -_gfW, -_gfRH ], [ _gfMidVF,  _gfW, -_gfRH ],  // 105-106 Fin C inner (radial -z, tang ±y)
+    [ _gfMidVF,  _gfW, -_gfS  ], [ _gfMidVF, -_gfW, -_gfS  ],  // 107-108 outer
+    [ _gfMidVF, -_gfRH, -_gfW ], [ _gfMidVF, -_gfRH,  _gfW ],  // 109-110 Fin D inner (radial -y, tang ±z)
+    [ _gfMidVF, -_gfS,   _gfW ], [ _gfMidVF, -_gfS,  -_gfW ],  // 111-112 outer
     [-0.018,  0,        0         ],  // 113 centre Merlin
     [-0.018,  0,        _nzO      ],[-0.018,  _nzO7,  _nzO7     ],  // 114-115
     [-0.018,  _nzO,     0         ],[-0.018,  _nzO7, -_nzO7     ],  // 116-117
@@ -344,6 +351,34 @@ export const { V_: _V_f9, F_: _F_f9, FC_: _FC_f9, E_: _E_f9 } = (() => {
     [138,134,135],[138,135,136],[138,136,137],[138,137,130],
   );
   FC_.push(4,4,4,4,4,4,4,4, 4,4,4,4,4,4,4,4, 4,4,4,4,4,4,4,4);
+
+  /* Grid fin hinge mounts — a fixed bracket per fin (body _rf9 → hinge _gfRH); the fin pivots on
+     top. Appended at the end (faces 120-139); kept with stage 1 via the booster/sep face lists. */
+  const _mD = _rf9 * 0.12;   // mount axial half-depth
+  for (const [Ry, Rz, Ty, Tz] of [
+    [0,  1, 1, 0],   // Fin A: radial +z, tangential y
+    [1,  0, 0, 1],   // Fin B: radial +y, tangential z
+    [0, -1, 1, 0],   // Fin C: radial -z, tangential y
+    [-1, 0, 0, 1],   // Fin D: radial -y, tangential z
+  ]) {
+    const base = V_.length;
+    const mk = (rad, ts, as) => [_gfMidVF + as * _mD, rad * Ry + ts * _gfW * Ty, rad * Rz + ts * _gfW * Tz];
+    V_.push(mk(_rf9, -1, -1), mk(_rf9, 1, -1), mk(_rf9, 1, 1), mk(_rf9, -1, 1),       // base  b0-b3
+            mk(_gfRH, -1, -1), mk(_gfRH, 1, -1), mk(_gfRH, 1, 1), mk(_gfRH, -1, 1));  // top   t0-t3
+    const b0 = base, b1 = base+1, b2 = base+2, b3 = base+3, t0 = base+4, t1 = base+5, t2 = base+6, t3 = base+7;
+    F_.push([t0, t1, t2, t3], [b0, b1, t1, t0], [b1, b2, t2, t1], [b2, b3, t3, t2], [b3, b0, t0, t3]);
+    FC_.push(2, 2, 2, 2, 2);   // dark bracket
+  }
+
+  /* Grid fin thickness — back grid face + 4 edge frames (faces 140-159). The back verts follow
+     the fold in outside.js (offset along the fin's rotating fore-aft normal). */
+  for (const [a, b, c, d] of [[97,98,99,100], [101,102,103,104], [105,106,107,108], [109,110,111,112]]) {
+    const base = V_.length;
+    for (const vi of [a, b, c, d]) V_.push([V_[vi][0] + _gfDepth, V_[vi][1], V_[vi][2]]);  // deployed: +vF
+    const A = base, B = base+1, C = base+2, D = base+3;
+    F_.push([D, C, B, A], [a, b, B, A], [b, c, C, B], [c, d, D, C], [d, a, A, D]);
+    FC_.push(4, 4, 4, 4, 4);
+  }
 
   /* Longerons */
   for (const si of [0, 4, 8, 12]) {

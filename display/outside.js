@@ -31,7 +31,7 @@ import {
 } from './outside-mig15.js';
 import {
   _COLORS_sv, _V_sv, _F_sv, _FC_sv, _E_sv, _FN_sv, _COLORS_lm, _V_lm, _F_lm, _FC_lm,
-  _E_lm, _svSepAnims, _dir, _DIR_SHOTS, _dirBlend, _rf9, _gfS, _nzO, _COLORS_f9,
+  _E_lm, _svSepAnims, _dir, _DIR_SHOTS, _dirBlend, _rf9, _gfS, _gfW, _gfMidVF, _gfRH, _gfDepth, _nzO, _COLORS_f9,
   _V_f9, _F_f9, _FC_f9, _E_f9, _FN_f9
 } from './outside-space.js';
 import { _ssRocketCache_mut, _drawCSMOrbitDetail, _drawOrbitalClouds } from './outside-rocket.js';
@@ -921,20 +921,29 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
   }
   if (isF9) {
-    /* Grid fin fold: stowed flat against the body during powered ascent, deploy during S1 coast
-       (descent). Stowed fins sit just proud of the body so they read as folded panels — not
-       hidden flush against it (which looked like they emerged from inside the body on deploy). */
+    /* Grid fins — broad (grid) face fore-aft so the deployed fin stands across the airflow.
+       Stowed flat against the body during ascent (just proud, so they're visible), deploy
+       radially during the S1 coast. Only the outer edge animates; the inner edge is the hinge. */
     const finTarget = (S.rocketCoast ?? false) ? Math.PI / 2 : 0;
     _finAngle += (finTarget - _finAngle) * 0.025;  // ~2-3 s deployment
-    const arm   = _gfS - _rf9;
+    const arm = _gfS - _gfRH;                         // fin radial length (hinge → tip)
     const sa = Math.sin(_finAngle), ca = Math.cos(_finAngle);
-    const rad   = _rf9 + arm * sa + _rf9 * 0.08 * ca;   // outer edge: stowed → proud; deployed → _gfS
-    const vFt = 0.005 - arm*ca, vFb = 0.002 - arm*ca;
+    const rad = _gfRH + arm * sa;                     // outer edge radial: stowed at hinge → deployed _gfS
+    const vfo = _gfMidVF - arm * ca;                  // outer edge folds aft when stowed
+    const w   = _gfW;
     if (verts === V_) verts = _V_f9.map(v => v.slice());
-    verts[99]  = [vFt, 0,    rad ];  verts[100] = [vFb, 0,    rad ];   // Fin A (z+)
-    verts[103] = [vFt, rad,  0   ];  verts[104] = [vFb, rad,  0   ];   // Fin B (y+)
-    verts[107] = [vFt, 0,   -rad ];  verts[108] = [vFb, 0,   -rad ];   // Fin C (z-)
-    verts[111] = [vFt, -rad, 0   ];  verts[112] = [vFb, -rad, 0   ];   // Fin D (y-)
+    verts[99]  = [vfo,  w,    rad ];  verts[100] = [vfo, -w,    rad ];   // Fin A (radial +z, tang ±y)
+    verts[103] = [vfo,  rad,  w   ];  verts[104] = [vfo,  rad, -w   ];   // Fin B (radial +y, tang ±z)
+    verts[107] = [vfo,  w,   -rad ];  verts[108] = [vfo, -w,   -rad ];   // Fin C (radial -z)
+    verts[111] = [vfo, -rad,  w   ];  verts[112] = [vfo, -rad, -w   ];   // Fin D (radial -y)
+    /* thickness back face — offset each fin vert along its rotating fore-aft normal
+       (deployed → +vF axial; stowed → +radial). Back verts 171-186 mirror fronts 97-112. */
+    const dp = _gfDepth, da = dp * sa, dc = dp * ca;
+    const _bk = (bi, fi, nr, nu) => { const v = verts[fi]; verts[bi] = [v[0] + da, v[1] + nr * dc, v[2] + nu * dc]; };
+    _bk(171, 97, 0, 1); _bk(172, 98, 0, 1); _bk(173, 99, 0, 1); _bk(174, 100, 0, 1);   // Fin A (+z)
+    _bk(175,101, 1, 0); _bk(176,102, 1, 0); _bk(177,103, 1, 0); _bk(178,104, 1, 0);   // Fin B (+y)
+    _bk(179,105, 0,-1); _bk(180,106, 0,-1); _bk(181,107, 0,-1); _bk(182,108, 0,-1);   // Fin C (-z)
+    _bk(183,109,-1, 0); _bk(184,110,-1, 0); _bk(185,111,-1, 0); _bk(186,112,-1, 0);   // Fin D (-y)
   }
   const pts = verts.map(project);
 
@@ -1188,7 +1197,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   _prof.buildT0 = performance.now();   // profiler: aircraft geometry build starts here
   const faces = F_.map((fi, i) => {
     /* F9 stage sep: main vehicle = S2 + Dragon + MVac nozzle (faces 48-95 + 96-103) */
-    if (isF9 && rStage >= 2 && (i < 48 || (i > 95 && i < 104))) return null;
+    if (isF9 && rStage >= 2 && (i < 48 || (i > 95 && i < 104) || (i >= 120 && i <= 159))) return null;  // S1 body + fins + hinge mounts + fin thickness stay with the booster
 
     /* Starship / Super Heavy stage sep: hide SH body faces + grid fins */
     if (isSS && rStage >= 2 && _ssGeo?.stageRanges?.[0]) {

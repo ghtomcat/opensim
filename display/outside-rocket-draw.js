@@ -95,7 +95,7 @@ export function drawBoosterFaces(rc) {
 
   /* Booster faces — Stage 1 body + grid fins */
   if (bPts) {
-    const s1Idx = [...Array.from({length:48},(_,k)=>k), ...Array.from({length:8},(_,k)=>96+k)];
+    const s1Idx = [...Array.from({length:48},(_,k)=>k), ...Array.from({length:8},(_,k)=>96+k), ...Array.from({length:40},(_,k)=>120+k)];   // body + fins + hinge mounts + fin thickness
     for (const i of s1Idx) {
       const fi = _F_f9[i];
       const ps = fi.map(vi => bPts[vi]);
