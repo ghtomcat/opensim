@@ -5,6 +5,8 @@
   "description": "8 October 2012. Engine 1 fails at T+79s. Eight engines carry Dragon to orbit.",
   "author": "Markus Leutwyler",
   "aircraft": "falcon9-b1",
+  "dragonSepT": 700,
+  "dragonSeats": [],
   "timeOfDay": 0.6,
   "water": false,
   "weather": {

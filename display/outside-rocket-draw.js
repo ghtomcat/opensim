@@ -512,11 +512,7 @@ export function drawRocketPlumesAndNozzles(rc) {
     for (let si = 0; si < 16; si++) { if (pts[capBase + si]) capPts.push(pts[capBase + si]); }
     if (capPts.length >= 3) {
       const avgD = capPts.reduce((s, p) => s + p.d, 0) / capPts.length;
-      if (_DBG_CULL) {
-        faces.push({ ps: capPts, br: 1, avgD, col: [0, 80, 200] });
-      } else {
-        faces.push({ ps: capPts, br: 1.0, avgD, col: [42, 36, 30] });
-      }
+      faces.push({ ps: capPts, br: 1.0, avgD, col: [42, 36, 30] });
     }
   }
 
@@ -531,7 +527,7 @@ export function drawRocketPlumesAndNozzles(rc) {
     for (let si = 0; si < 16; si++) { if (pts[capBase + si]) capPts.push(pts[capBase + si]); }
     if (capPts.length >= 3) {
       const avgD = capPts.reduce((s, p) => s + p.d, 0) / capPts.length;
-      faces.push({ ps: capPts, br: 1.0, avgD, col: _DBG_CULL ? [0, 80, 200] : [26, 26, 30] });
+      faces.push({ ps: capPts, br: 1.0, avgD, col: [26, 26, 30] });
     }
   }
 

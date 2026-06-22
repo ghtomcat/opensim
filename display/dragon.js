@@ -9,6 +9,14 @@
 import { S } from '../core/state.js';
 
 const ROLES   = ['CDR', 'PLT', 'MO', 'MS', 'TELEM'];
+const SEATS   = ['CDR', 'PLT', 'MO', 'MS'];   // crew seats (TELEM is a view, not a seat)
+
+/* Visible tabs for the current mission: occupied seats + TELEM. A mission may set
+   dragonSeats to the seats actually flown (Demo-2 → ["CDR","PLT"], MO/MS hidden). */
+function _visibleRoles() {
+  const seats = S.mission?.dragonSeats ?? SEATS;
+  return [...SEATS.filter(s => seats.includes(s)), 'TELEM'];
+}
 const G0      = 9.80665;
 const R_EARTH = 6_371_000;
 const GM      = 3.986004418e14;
@@ -72,11 +80,12 @@ function _fmt(n, dec = 1) { return Number(n).toFixed(dec); }
 /* ── Role tabs ── */
 function _drawTabs(ctx, W, H) {
   _tabRects = [];
+  const roles = _visibleRoles();
   const tabH  = H * 0.072;
   const tabY  = H - tabH;
-  const tabW  = W / ROLES.length;
+  const tabW  = W / roles.length;
 
-  ROLES.forEach((r, i) => {
+  roles.forEach((r, i) => {
     const x      = i * tabW;
     const active = r === _role;
     const isTelem = r === 'TELEM';
@@ -502,6 +511,11 @@ export function renderDragon(canvas) {
     ctx.fillStyle = '#03060a';
     ctx.fillRect(0, 0, W, H);
   }
+
+  /* Guard against a role with no tab in this mission (left over from a prior mission, or a
+     cargo flight with no crew seats → falls back to TELEM, the first visible role) */
+  const _vis = _visibleRoles();
+  if (!_vis.includes(_role)) _role = _vis[0];
 
   const ac = S.aircraft;
   if (!ac) { _drawTabs(ctx, W, H); return; }
