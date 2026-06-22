@@ -292,8 +292,8 @@ export const { V_: _V_f9, F_: _F_f9, FC_: _FC_f9, E_: _E_f9 } = (() => {
   const { V_, F_, FC_, E_, rb } = buildTube(N, [
     { vF: -0.016, r: _rf9,       col: 0 },  // Ring 0: S1 aft → mid
     { vF: -0.004, r: _rf9,       col: 2 },  // Ring 1: S1 mid → top (interstage lower)
-    { vF:  0.004, r: _rf9,       col: 2 },  // Ring 2: S1 top → interstage taper
-    { vF:  0.006, r: _rf9*0.136,  col: 1 },  // Ring 3: interstage/S2 base → S2 top
+    { vF:  0.004, r: _rf9,       col: 2 },  // Ring 2: S1 top → interstage
+    { vF:  0.006, r: _rf9,       col: 1 },  // Ring 3: interstage/S2 base (full Ø — F9 is constant 3.7 m)
     { vF:  0.014, r: _rf9,       col: 5 },  // Ring 4: S2 top → Trunk (Dragon base)
     { vF:  0.020, r: _rf9               },  // Ring 5: Trunk/Dragon base (terminal)
   ]);
