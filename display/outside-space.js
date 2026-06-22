@@ -270,7 +270,7 @@ export function _dirBlend() {
 
 export const _rf9  = 0.0020;          // body radius (≈ 3.7 m / 1852)
 export const _gfS  = 0.0048;          // grid fin outer half-span from CL
-export const _nzO  = 0.00120;         // outer engine ring radius (octaweb)
+export const _nzO  = 0.00140;         // outer engine ring radius (octaweb) — ~0.70·R, near the body edge like the real F9
 export const _nzO7 = _nzO * 0.7071;
 export const _nzVac  = 0.00148;       // S2 Merlin Vacuum nozzle exit radius
 export const _nzVac7 = _nzVac * 0.7071;

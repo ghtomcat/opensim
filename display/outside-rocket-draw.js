@@ -32,12 +32,12 @@ const _PLUME_OFF  = { rp1: [ 22,  18,  15], lh2: [ 15,  18,  24], ch4: [ 20,  18
    j2On        true while engines are burning (gates glow colours)
    Renders: lateral bell faces (side cam only), exit disc + top cap.
    Colours coupled to _PLUME_HOT/OFF.lh2 — LH2/LOX blue-white.      */
-const _drawJ2Nozzles = (rc, baseVF, bodyR, engCenters, j2On, style = 'lh2') => {
+const _drawJ2Nozzles = (rc, baseVF, bodyR, engCenters, j2On, style = 'lh2', opts = {}) => {
 const { project, camSide, rotateNormal, litBr, faces, H: _H } = rc;
   const nNoz  = 8;
-  const nzLen = bodyR * 0.36;   // J-2 nozzle length  (≈ 1.78 m)
-  const nzRt  = bodyR * 0.12;   // radius at attachment
-  const nzRx  = bodyR * 0.28;   // radius at exit  (J-2 exit dia ≈ 2.74 m)
+  const nzLen = bodyR * (opts.lenR ?? 0.36);   // nozzle length  (J-2 ≈ 1.78 m)
+  const nzRt  = bodyR * (opts.rtR  ?? 0.12);   // radius at attachment
+  const nzRx  = bodyR * (opts.rxR  ?? 0.28);   // radius at exit  (J-2 exit dia ≈ 2.74 m)
   for (const [cR, cU] of engCenters) {
     const topR = [], botR = [];
     for (let i = 0; i < nNoz; i++) {
@@ -346,6 +346,18 @@ export function drawRocketPlumesAndNozzles(rc) {
   const _engFrac       = Math.sqrt(_plumeTotalEng > 0 ? _plumeActEng / _plumeTotalEng : 1);
 
   if (isF9) {
+    /* Stage 1 — 9× Merlin 1D octaweb (must push faces BEFORE the flush; the MVac glow stays
+       in drawF9Nozzles which draws directly, after the flush). */
+    if (rStage < 2) {
+      const merlinOn = pastIgnition && !(S.rocketCoast ?? false) && !S.rocketMECO;
+      const _mCenters = [
+        [0, 0],
+        [_nzO, 0], [_nzO7, _nzO7], [0, _nzO], [-_nzO7, _nzO7],
+        [-_nzO, 0], [-_nzO7, -_nzO7], [0, -_nzO], [_nzO7, -_nzO7],
+      ];
+      _drawJ2Nozzles(rc, -0.016, _rf9, _mCenters, merlinOn, 'rp1', { rxR: 0.25, rtR: 0.10, lenR: 0.45 });
+    }
+
     /* S1 plume: ignition → MECO */
     if (pastIgnition && rStage < 2 && !S.rocketCoast && !S.rocketMECO)
       _drawPlume(pts[113], _nzO, [-0.018, 0, 0], 0.030, 2.8 * _engFrac);
@@ -654,11 +666,9 @@ export function drawSVStageSepTumble(rc) {
   }
 }
 
-/* ── F9 nozzles post-painter — S2 MVac glow + S1 9× Merlin cluster ── */
+/* ── F9 nozzles post-painter — S2 MVac glow (drawn on top, after the face flush) ── */
 export function drawF9Nozzles(rc) {
-  const { ctx, pts, project, isF9, rStage } = rc;
-  const t0 = S.aircraft?.ignitionTime ?? 0;
-  const pastIgnition = (S.time ?? 0) >= t0;
+  const { ctx, pts, isF9, rStage } = rc;
   /* S2 Merlin Vacuum nozzle glow — after stage separation */
   if (isF9 && rStage >= 2) {
     const pNvac  = pts[138];
@@ -688,16 +698,8 @@ export function drawF9Nozzles(rc) {
     }
   }
 
-  /* Engine nozzle cluster — Falcon 9 Stage 1: 9× Merlin (RP-1/LOX) */
-  if (isF9 && rStage < 2) {
-    const merlinOn = pastIgnition && !(S.rocketCoast ?? false) && !S.rocketMECO;
-    const _mCenters = [
-      [0, 0],
-      [_nzO, 0], [_nzO7, _nzO7], [0, _nzO], [-_nzO7, _nzO7],
-      [-_nzO, 0], [-_nzO7, -_nzO7], [0, -_nzO], [_nzO7, -_nzO7],
-    ];
-    _drawJ2Nozzles(rc, -0.016, _rf9, _mCenters, merlinOn, 'rp1');
-  }
+  /* The Stage 1 Merlin octaweb (9 bells) is drawn in drawRocketPlumesAndNozzles — it pushes
+     depth-sorted faces, which must happen before the face flush (this function runs after it). */
 }
 
 /* ── F9 booster wireframe edges + plume + nozzles + landing legs ── */
