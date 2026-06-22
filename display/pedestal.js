@@ -1027,6 +1027,7 @@ export function renderPedestal() {
     const _com = document.getElementById('com-container');
     if (_com) _com.style.display = visible ? '' : 'none';
   }
-  /* Persistent parking-brake annunciator (any view) */
-  document.getElementById('parkbrk-ind')?.classList.toggle('pb-on', !!S.parkBrake);
+  /* Persistent parking-brake annunciator (any view) — not for rockets (no parking brake) */
+  const _hasParkBrake = S.aircraft?.vehicleType !== 'rocket';
+  document.getElementById('parkbrk-ind')?.classList.toggle('pb-on', _hasParkBrake && !!S.parkBrake);
 }
