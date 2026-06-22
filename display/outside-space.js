@@ -268,7 +268,8 @@ export function _dirBlend() {
    Units: NM. Origin ≈ centre of mass of full stack.
    ══════════════════════════════════════════════════════════════ */
 
-export const _rf9  = 0.0020;          // body radius (≈ 3.7 m / 1852)
+export const _rf9  = 0.00105;         // body radius: 1.83 m (Ø 3.66 m) at ~1750 m/unit. Was 0.0020,
+                                      // which used the *diameter* as a radius → ~1.9× too fat.
 
 /* Falcon 9 Block 5 axial layout — derived from the real segment lengths (m) so the stage
    proportions are correct. Anchored: S1 base at -0.016, Dragon tip at 0.024 (total ≈ 70 m). */
@@ -281,15 +282,17 @@ export const _f9S2Base   = _f9vf(_F9L.eng + _F9L.s1 + _F9L.is);                 
 export const _f9S2Top    = _f9vf(_F9L.eng + _F9L.s1 + _F9L.is + _F9L.s2);                // trunk base
 export const _f9TrunkTop = _f9vf(_F9L.eng + _F9L.s1 + _F9L.is + _F9L.s2 + _F9L.trunk);   // Dragon base
 
-export const _gfS  = 0.0048;          // grid fin outer half-span from CL
-export const _gfW  = 0.0011;          // grid fin tangential half-width (broad grid face is fore-aft)
+/* Radial dims expressed as multiples of _rf9 so the whole rocket stays to scale from one knob.
+   (Axial values like _gfDepth and all vF positions are unaffected — the length was already right.) */
+export const _gfS  = _rf9 * 2.4;      // grid fin outer half-span from CL
+export const _gfW  = _rf9 * 0.55;     // grid fin tangential half-width (broad grid face is fore-aft)
 export const _gfMidVF = _f9S1Top + (_f9S2Base - _f9S1Top) * 0.65;   // grid fins mount ON the interstage (upper part)
-export const _gfHinge = 0.00030;      // hinge bracket stand-off: fin pivots on a fixed mount, not the skin
+export const _gfHinge = _rf9 * 0.15;  // hinge bracket stand-off: fin pivots on a fixed mount, not the skin
 export const _gfRH = _rf9 + _gfHinge; // fin hinge (inner edge) radius
-export const _gfDepth = 0.00040;      // grid fin fore-aft depth (lattice chord)
-export const _nzO  = 0.00140;         // outer engine ring radius (octaweb) — ~0.70·R, near the body edge like the real F9
+export const _gfDepth = 0.00040;      // grid fin fore-aft depth (lattice chord) — axial, not scaled
+export const _nzO  = _rf9 * 0.70;     // outer engine ring radius (octaweb) — ~0.70·R, near the body edge like the real F9
 export const _nzO7 = _nzO * 0.7071;
-export const _nzVac  = 0.00148;       // S2 Merlin Vacuum nozzle exit radius
+export const _nzVac  = _rf9 * 0.74;   // S2 Merlin Vacuum nozzle exit radius
 export const _nzVac7 = _nzVac * 0.7071;
 export const _nzSk   = 0.00062;       // S2 nozzle skirt (throat) radius
 export const _nzSk7  = _nzSk  * 0.7071;

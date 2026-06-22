@@ -845,8 +845,9 @@ export function drawBoosterEdges(rc) {
       ? Math.min(1, ((S.time ?? 0) - (S.booster?.phaseStartT ?? 0)) / 5)
       : 0;
     if (bLegP > 0.001) {
-      const footXStow = -0.015, footRStow = 0.0024;
-      const footXDep  = -0.022, footRDep  = 0.0070;
+      const footXStow = -0.015,  footRStow = _rf9 * 1.2;
+      const footXDep  = -0.0192, footRDep  = _rf9 * 4.9;   // real F9 deployed: foot ~9 m from CL (span ~18 m),
+                                                            // ~5.6 m below the base → ~9 m main leg
       const fX   = footXStow + (footXDep - footXStow) * bLegP;
       const fRad = footRStow + (footRDep - footRStow) * bLegP;
       const strutRad = _nzO * 1.8;

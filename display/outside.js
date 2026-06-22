@@ -146,6 +146,35 @@ let _camMode   = 0;
 let _finAngle    = 0;            // F9 grid fin fold: 0 = stowed aft, Math.PI/2 = deployed
 let _ssFlapAngle = Math.PI / 2;  // Starship body flap: π/2 = extended (static geometry)
 
+/* ── F9 grid-fin deploy — shared by the chase/side render and the booster cam ──
+   The fins stay stowed through ascent AND the MECO coast; they only swing out AFTER stage
+   separation, on the booster's way down. Gate on rStage >= 2 (separation done), not
+   rocketCoast (that already trips at MECO). Call _advance once per frame in whichever F9
+   render path is active, then _applyFold to a mutable copy of _V_f9.                    */
+function _advanceF9FinAngle() {
+  const finTarget = ((S.rocketStage ?? 1) >= 2) ? Math.PI / 2 : 0;
+  _finAngle += (finTarget - _finAngle) * 0.025;   // ~2-3 s deployment
+}
+function _applyF9FinFold(v) {
+  const arm = _gfS - _gfRH;                         // fin radial length (hinge → tip)
+  const sa  = Math.sin(_finAngle), ca = Math.cos(_finAngle);
+  const rad = _gfRH + arm * sa;                     // outer edge radial: hinge → tip
+  const vfo = _gfMidVF - arm * ca;                  // outer edge folds aft when stowed
+  const w   = _gfW;
+  v[99]  = [vfo,  w,    rad ];  v[100] = [vfo, -w,    rad ];   // Fin A (radial +z, tang ±y)
+  v[103] = [vfo,  rad,  w   ];  v[104] = [vfo,  rad, -w   ];   // Fin B (radial +y, tang ±z)
+  v[107] = [vfo,  w,   -rad ];  v[108] = [vfo, -w,   -rad ];   // Fin C (radial -z)
+  v[111] = [vfo, -rad,  w   ];  v[112] = [vfo, -rad, -w   ];   // Fin D (radial -y)
+  /* thickness back face — offset each fin vert along its rotating fore-aft normal
+     (deployed → +vF axial; stowed → +radial). Back verts (_f9ThBase..+15) mirror fronts 97-112. */
+  const dp = _gfDepth, da = dp * sa, dc = dp * ca, B = _f9ThBase;
+  const _bk = (bi, fi, nr, nu) => { const p = v[fi]; v[bi] = [p[0] + da, p[1] + nr * dc, p[2] + nu * dc]; };
+  _bk(B+0,  97, 0, 1); _bk(B+1,  98, 0, 1); _bk(B+2,  99, 0, 1); _bk(B+3, 100, 0, 1);   // Fin A (+z)
+  _bk(B+4, 101, 1, 0); _bk(B+5, 102, 1, 0); _bk(B+6, 103, 1, 0); _bk(B+7, 104, 1, 0);   // Fin B (+y)
+  _bk(B+8, 105, 0,-1); _bk(B+9, 106, 0,-1); _bk(B+10,107, 0,-1); _bk(B+11,108, 0,-1);   // Fin C (-z)
+  _bk(B+12,109,-1, 0); _bk(B+13,110,-1, 0); _bk(B+14,111,-1, 0); _bk(B+15,112,-1, 0);   // Fin D (-y)
+}
+
 let _orbitAz    = 0;     // side-cam orbit azimuth (degrees, 0 = starboard)
 let _orbitEl    = 12;    // elevation above horizontal (degrees, +12 = slightly above)
 let _orbitZoom  = 1.0;   // side-cam zoom multiplier (1 = auto-fit; >1 = farther out)
@@ -921,29 +950,9 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     }
   }
   if (isF9) {
-    /* Grid fins — broad (grid) face fore-aft so the deployed fin stands across the airflow.
-       Stowed flat against the body during ascent (just proud, so they're visible), deploy
-       radially during the S1 coast. Only the outer edge animates; the inner edge is the hinge. */
-    const finTarget = (S.rocketCoast ?? false) ? Math.PI / 2 : 0;
-    _finAngle += (finTarget - _finAngle) * 0.025;  // ~2-3 s deployment
-    const arm = _gfS - _gfRH;                         // fin radial length (hinge → tip)
-    const sa = Math.sin(_finAngle), ca = Math.cos(_finAngle);
-    const rad = _gfRH + arm * sa;                     // outer edge radial: stowed at hinge → deployed _gfS
-    const vfo = _gfMidVF - arm * ca;                  // outer edge folds aft when stowed
-    const w   = _gfW;
+    _advanceF9FinAngle();
     if (verts === V_) verts = _V_f9.map(v => v.slice());
-    verts[99]  = [vfo,  w,    rad ];  verts[100] = [vfo, -w,    rad ];   // Fin A (radial +z, tang ±y)
-    verts[103] = [vfo,  rad,  w   ];  verts[104] = [vfo,  rad, -w   ];   // Fin B (radial +y, tang ±z)
-    verts[107] = [vfo,  w,   -rad ];  verts[108] = [vfo, -w,   -rad ];   // Fin C (radial -z)
-    verts[111] = [vfo, -rad,  w   ];  verts[112] = [vfo, -rad, -w   ];   // Fin D (radial -y)
-    /* thickness back face — offset each fin vert along its rotating fore-aft normal
-       (deployed → +vF axial; stowed → +radial). Back verts (_f9ThBase..+15) mirror fronts 97-112. */
-    const dp = _gfDepth, da = dp * sa, dc = dp * ca, B = _f9ThBase;
-    const _bk = (bi, fi, nr, nu) => { const v = verts[fi]; verts[bi] = [v[0] + da, v[1] + nr * dc, v[2] + nu * dc]; };
-    _bk(B+0,  97, 0, 1); _bk(B+1,  98, 0, 1); _bk(B+2,  99, 0, 1); _bk(B+3, 100, 0, 1);   // Fin A (+z)
-    _bk(B+4, 101, 1, 0); _bk(B+5, 102, 1, 0); _bk(B+6, 103, 1, 0); _bk(B+7, 104, 1, 0);   // Fin B (+y)
-    _bk(B+8, 105, 0,-1); _bk(B+9, 106, 0,-1); _bk(B+10,107, 0,-1); _bk(B+11,108, 0,-1);   // Fin C (-z)
-    _bk(B+12,109,-1, 0); _bk(B+13,110,-1, 0); _bk(B+14,111,-1, 0); _bk(B+15,112,-1, 0);   // Fin D (-y)
+    _applyF9FinFold(verts);
   }
   const pts = verts.map(project);
 
@@ -1134,7 +1143,9 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
       : latePhases.includes(b.phase) ? 180 : 0;
     const dP2 = dPDeg * DEG;
     cosdP = Math.cos(dP2); sindP = Math.sin(dP2);
-    const bVerts = _V_f9.map(([vF, vR, vU]) => {
+    /* Map over `verts` (the fin-animated copy built above), not raw _V_f9 — after separation
+       the grid fins belong to the booster, so it must show them deploying. */
+    const bVerts = verts.map(([vF, vR, vU]) => {
       const rvF = vF * cosdP - vU * sindP;
       const rvU = vF * sindP + vU * cosdP;
       return [rvF + bOffF, vR + bOffR, rvU + bOffU];
@@ -1998,61 +2009,32 @@ function _renderBoosterCam(canvas) {
     return { x: cx + vU / cf * focal, y: cy - (vF - S1_FOCUS) / cf * focal, d: cf };
   }
 
-  const pts = _V_f9.map(projB);
+  /* Fin-animated booster geometry — same deploy state as the chase/side cam (gridfins swing
+     out after stage sep). Advance the angle here since this is the active render path. */
+  _advanceF9FinAngle();
+  const _bv = _V_f9.map(v => v.slice());
+  _applyF9FinFold(_bv);
+  const pts = _bv.map(projB);
 
-  /* Shaded faces — S1 body (0–23) + grid fins (48–55) */
-  const s1Idx = [...Array.from({length:24},(_,k)=>k), ...Array.from({length:8},(_,k)=>48+k)];
-  const faces = [];
-  for (const i of s1Idx) {
-    const fi = _F_f9[i];
-    const ps = fi.map(vi => pts[vi]);
-    if (ps.some(p => !p)) continue;
-    const p0=ps[0], p1=ps[1], p2=ps[2];
-    if ((p1.x-p0.x)*(p2.y-p0.y) - (p1.y-p0.y)*(p2.x-p0.x) < 0) continue;
-    const [nF, nR, nU] = _FN_f9[i];
-    const dot = Math.max(0, nF*_LD[0] + nR*_LD[1] + nU*_LD[2]);
-    const amb = (_FC_f9[i] === 4) ? 0.55 : 0.28;
-    const br  = amb + (1-amb)*dot;
-    faces.push({ ps, br, avgD: ps.reduce((s,p)=>s+p.d,0)/ps.length, col: _COLORS_f9[_FC_f9[i]] });
-  }
-  faces.sort((a, b2) => b2.avgD - a.avgD);
+  /* Booster geometry — shared with the chase/side cam (drawBoosterFaces / drawBoosterEdges)
+     so the face + vertex indices live in ONE place. This view only supplies its own
+     projection (projB), flat side-lighting and a side-on edge cull (camera sits on body +y,
+     so faces with vR < 0 point away). No world offset, no flip, no Starship/S2 geometry. */
+  const rcB = {
+    ctx, faces: [],
+    project: projB,
+    rotateNormal: (n) => n,
+    litBr: (f, r, u, amb) => amb + (1 - amb) * Math.max(0, f*_LD[0] + r*_LD[1] + u*_LD[2]),
+    edgeCamDir: (vi) => -(_V_f9[vi]?.[1] ?? 0),
+    rStage: 2, isSS: false, ssGeo: null,
+    bPts: pts, ssBPts: null, s2Pts: null,
+    cosdP: 1, sindP: 0, bOffF: 0, bOffR: 0, bOffU: 0, ssCosdP: 1, ssSindP: 0,
+  };
 
-  /* Plume — before faces so body renders on top */
-  const boosterFiring = ['boostback','entry','landing'].includes(b.phase);
-  if (boosterFiring) {
-    const pN = pts[65], pEdge = pts[66];
-    const pEnd = projB([-0.018 - 0.030, 0, 0]);
-    if (pN && pEnd) {
-      const dx = pEnd.x - pN.x, dy = pEnd.y - pN.y;
-      const pLen = Math.hypot(dx, dy);
-      if (pLen > 2) {
-        const px = -dy/pLen, py = dx/pLen;
-        const nozR2 = (pN && pEdge)
-          ? Math.hypot(pEdge.x-pN.x, pEdge.y-pN.y) * 2.8
-          : 9 * dpr;
-        ctx.save();
-        const grad = ctx.createLinearGradient(pN.x, pN.y, pEnd.x, pEnd.y);
-        grad.addColorStop(0,    'rgba(255,240,160,0.80)');
-        grad.addColorStop(0.08, 'rgba(255,165, 60,0.65)');
-        grad.addColorStop(0.25, 'rgba(210, 80, 18,0.38)');
-        grad.addColorStop(0.55, 'rgba(130, 28,  5,0.15)');
-        grad.addColorStop(1.0,  'rgba(  0,  0,  0,0.00)');
-        ctx.fillStyle = grad;
-        const mx = (pN.x+pEnd.x)/2, my = (pN.y+pEnd.y)/2;
-        ctx.beginPath();
-        ctx.moveTo(pN.x+px*nozR2, pN.y+py*nozR2);
-        ctx.quadraticCurveTo(mx+px*nozR2*2.2, my+py*nozR2*2.2,
-                             pEnd.x+px*nozR2*3.8, pEnd.y+py*nozR2*3.8);
-        ctx.lineTo(pEnd.x-px*nozR2*3.8, pEnd.y-py*nozR2*3.8);
-        ctx.quadraticCurveTo(mx-px*nozR2*2.2, my-py*nozR2*2.2,
-                             pN.x-px*nozR2, pN.y-py*nozR2);
-        ctx.closePath(); ctx.fill(); ctx.restore();
-      }
-    }
-  }
-
-  /* Fill faces */
-  for (const { ps, br, col } of faces) {
+  /* S1 body + grid fins + hinge mounts + fin thickness + aft base cap */
+  drawBoosterFaces(rcB);
+  rcB.faces.sort((a, b2) => b2.avgD - a.avgD);
+  for (const { ps, br, col } of rcB.faces) {
     ctx.fillStyle = `rgb(${Math.round(col[0]*br)},${Math.round(col[1]*br)},${Math.round(col[2]*br)})`;
     ctx.beginPath();
     ctx.moveTo(ps[0].x, ps[0].y);
@@ -2060,76 +2042,8 @@ function _renderBoosterCam(canvas) {
     ctx.closePath(); ctx.fill();
   }
 
-  /* Wireframe edges — S1 body + nozzle ring */
-  ctx.save();
-  ctx.strokeStyle = 'rgba(175,195,215,0.65)';
-  ctx.lineWidth = Math.max(1, dpr);
-  ctx.beginPath();
-  for (const [ea, eb] of _E_f9) {
-    const inS1 = v => v <= 23 || (v >= 49 && v <= 73);
-    if (!inS1(ea) || !inS1(eb)) continue;
-    const pa = pts[ea], pb = pts[eb];
-    if (!pa || !pb) continue;
-    ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y);
-  }
-  ctx.stroke(); ctx.restore();
-
-  /* Engine nozzle cluster */
-  const pC = pts[65], pEdgeN = pts[66];
-  if (pC && pEdgeN) {
-    const nR = Math.hypot(pEdgeN.x-pC.x, pEdgeN.y-pC.y) * 0.46;
-    ctx.save();
-    ctx.fillStyle = 'rgba(20,22,28,0.95)';
-    const pRing = [66,67,68,69,70,71,72,73].map(vi => pts[vi]).filter(Boolean);
-    if (pRing.length === 8) {
-      ctx.beginPath();
-      ctx.arc(pC.x, pC.y, Math.hypot(pRing[0].x-pC.x, pRing[0].y-pC.y)+nR*1.2, 0, Math.PI*2);
-      ctx.fill();
-    }
-    for (const vi of [65,66,67,68,69,70,71,72,73]) {
-      const pt = pts[vi]; if (!pt) continue;
-      const r = vi === 65 ? nR*1.15 : nR;
-      const grad = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, r);
-      if (boosterFiring) {
-        grad.addColorStop(0,   'rgba(255,210,100,0.70)');
-        grad.addColorStop(0.5, 'rgba(180,130, 60,0.40)');
-        grad.addColorStop(1,   'rgba( 40, 40, 48,0.95)');
-      } else {
-        grad.addColorStop(0,   'rgba(60,65,80,0.80)');
-        grad.addColorStop(1,   'rgba(22,25,32,0.95)');
-      }
-      ctx.fillStyle = grad;
-      ctx.beginPath(); ctx.arc(pt.x, pt.y, r, 0, Math.PI*2); ctx.fill();
-      ctx.strokeStyle = 'rgba(140,150,165,0.80)';
-      ctx.lineWidth = Math.max(0.5, 0.7*dpr);
-      ctx.beginPath(); ctx.arc(pt.x, pt.y, r, 0, Math.PI*2); ctx.stroke();
-    }
-    ctx.restore();
-  }
-
-  /* Landing legs — deploy over 5 s from start of 'landing' phase */
-  const legP = b.phase === 'landing'
-    ? Math.min(1, ((S.time ?? 0) - (b.phaseStartT ?? 0)) / 5)
-    : 0;
-  if (legP > 0.001) {
-    const footXStow = -0.015, footRStow = 0.0024;
-    const footXDep  = -0.022, footRDep  = 0.0070;
-    const fX   = footXStow + (footXDep - footXStow) * legP;
-    const fRad = footRStow + (footRDep - footRStow) * legP;
-    const strutRad = _nzO * 1.8;
-    ctx.save();
-    ctx.strokeStyle = 'rgba(195,210,225,0.82)';
-    ctx.lineWidth = Math.max(1, 1.2 * dpr);
-    ctx.beginPath();
-    for (const [nR2, nU2] of [[0,1],[1,0],[0,-1],[-1,0]]) {
-      const pShoulder = projB([-0.016, nR2 * _rf9,   nU2 * _rf9]);
-      const pFoot     = projB([fX,     nR2 * fRad,   nU2 * fRad]);
-      const pStrut    = projB([-0.018, nR2 * strutRad, nU2 * strutRad]);
-      if (pShoulder && pFoot) { ctx.moveTo(pShoulder.x, pShoulder.y); ctx.lineTo(pFoot.x, pFoot.y); }
-      if (pStrut    && pFoot) { ctx.moveTo(pStrut.x,    pStrut.y);    ctx.lineTo(pFoot.x, pFoot.y); }
-    }
-    ctx.stroke(); ctx.restore();
-  }
+  /* Wireframe edges + octaweb nozzles + booster plume + landing legs (shared code) */
+  drawBoosterEdges(rcB);
 
   _drawLabel(canvas, 'BOOSTER CAM');
 }
