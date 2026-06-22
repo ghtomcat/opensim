@@ -333,7 +333,7 @@ export const { V_: _V_f9, F_: _F_f9, FC_: _FC_f9, E_: _E_f9 } = (() => {
     [ 0.004,  _nzVac,   0      ],[ 0.004,  _nzVac7,-_nzVac7 ],  // 132-133
     [ 0.004,  0,       -_nzVac ],[ 0.004, -_nzVac7,-_nzVac7 ],  // 134-135
     [ 0.004, -_nzVac,   0      ],[ 0.004, -_nzVac7, _nzVac7 ],  // 136-137
-    [ 0.003,  0,        0      ],  // 138 nozzle exit centre (glow ref)
+    [ 0.0056, 0,        0      ],  // 138 nozzle throat centre — recessed INTO the bell (concave interior + glow ref)
   );
 
   /* Dragon nosecone: Ring 5 → tip (v48) */
@@ -350,7 +350,7 @@ export const { V_: _V_f9, F_: _F_f9, FC_: _FC_f9, E_: _E_f9 } = (() => {
     [138,130,131],[138,131,132],[138,132,133],[138,133,134],               // nozzle exit cap
     [138,134,135],[138,135,136],[138,136,137],[138,137,130],
   );
-  FC_.push(4,4,4,4,4,4,4,4, 4,4,4,4,4,4,4,4, 4,4,4,4,4,4,4,4);
+  FC_.push(4,4,4,4,4,4,4,4, 4,4,4,4,4,4,4,4, 2,2,2,2,2,2,2,2);   // fins + MVac bell (titanium) · exit cap (dark interior)
 
   /* Grid fin hinge mounts — a fixed bracket per fin (body _rf9 → hinge _gfRH); the fin pivots on
      top. Appended at the end (faces 120-139); kept with stage 1 via the booster/sep face lists. */

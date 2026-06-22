@@ -391,9 +391,9 @@ export function drawRocketPlumesAndNozzles(rc) {
     if (pastIgnition && rStage < 2 && !S.rocketCoast && !S.rocketMECO)
       _drawPlume(pts[113], _nzO, [-0.018, 0, 0], 0.030, 2.8 * _engFrac);
 
-    /* S2 plume: coast ends → SECO */
+    /* S2 plume: coast ends → SECO. One MVac → narrow exhaust, originating at the exit plane. */
     if (rStage >= 2 && !S.rocketCoast && !S.rocketSECO)
-      _drawPlume(pts[138], _nzVac, [0.003, 0, 0], 0.032, 3.2 * _engFrac);
+      _drawPlume(project([0.004, 0, 0]), _nzVac, [0.004, 0, 0], 0.032, 1.3 * _engFrac);
   }
 
   if (isSS && _ssGeo && pastIgnition && !S.rocketCoast && !S.rocketSECO) {
@@ -698,34 +698,9 @@ export function drawSVStageSepTumble(rc) {
 /* ── F9 nozzles post-painter — S2 MVac glow (drawn on top, after the face flush) ── */
 export function drawF9Nozzles(rc) {
   const { ctx, pts, isF9, rStage } = rc;
-  /* S2 Merlin Vacuum nozzle glow — after stage separation */
-  if (isF9 && rStage >= 2) {
-    const pNvac  = pts[138];
-    const pEvac  = pts[130];
-    if (pNvac && pEvac) {
-      const bellR = Math.hypot(pEvac.x - pNvac.x, pEvac.y - pNvac.y);
-      const firing = !S.rocketCoast && !S.rocketSECO;
-      ctx.save();
-      ctx.fillStyle = 'rgba(16,18,24,0.96)';
-      ctx.beginPath(); ctx.arc(pNvac.x, pNvac.y, bellR * 1.15, 0, Math.PI * 2); ctx.fill();
-      const nR = bellR * 0.9;
-      const grad = ctx.createRadialGradient(pNvac.x, pNvac.y, 0, pNvac.x, pNvac.y, nR);
-      if (firing) {
-        grad.addColorStop(0,   'rgba(255,220,130,0.95)');
-        grad.addColorStop(0.4, 'rgba(200,140, 60,0.60)');
-        grad.addColorStop(1,   'rgba( 35, 35, 42,0.95)');
-      } else {
-        grad.addColorStop(0,   'rgba(60,65,80,0.90)');
-        grad.addColorStop(1,   'rgba(22,24,30,0.95)');
-      }
-      ctx.fillStyle = grad;
-      ctx.beginPath(); ctx.arc(pNvac.x, pNvac.y, nR, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = 'rgba(130,142,160,0.70)';
-      ctx.lineWidth = Math.max(0.8, devicePixelRatio);
-      ctx.beginPath(); ctx.arc(pNvac.x, pNvac.y, bellR, 0, Math.PI * 2); ctx.stroke();
-      ctx.restore();
-    }
-  }
+  /* The S2 MVac nozzle interior is geometry now (the dark recessed exit cap, 3D so it foreshortens
+     and the bell occludes it from the side). The firing flame is the depth-sorted plume in
+     drawRocketPlumesAndNozzles — no camera-facing billboard glow here. */
 
   /* The Stage 1 Merlin octaweb (9 bells) is drawn in drawRocketPlumesAndNozzles — it pushes
      depth-sorted faces, which must happen before the face flush (this function runs after it). */
