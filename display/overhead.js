@@ -13,6 +13,7 @@
 import { S, setState }                             from '../core/state.js';
 import { stopEngineLifecycle, startApuSound, stopApuSound } from '../core/sound.js';
 import { apuMasterSet, apuStartPress, apuFirePull, elecCfg } from '../core/electrical.js';
+import { pushButtonHTML, setPushButton }          from './pushbutton.js';
 
 /* ── DOM node ─────────────────────────────────────────────────── */
 let _el = null;
@@ -85,6 +86,9 @@ const _CSS = `
     font: 500 9px/1 monospace; letter-spacing: 0.08em;
     color: #60708c;
   }
+
+  /* Generic-pushbutton system control + placard */
+  .ohp-syspb { display: flex; flex-direction: column; align-items: center; gap: 5px; }
 
   /* APU FIRE section */
   .ohp-fire-group {
@@ -292,15 +296,9 @@ const _CSS = `
 `;
 
 /* ── Helpers ──────────────────────────────────────────────────── */
-function _pb(id, legend, sub = '') {
-  return `<div class="ohp-pb" id="${id}" tabindex="-1">
-    <div class="ohp-pb-body" id="${id}-body">
-      <div class="ohp-pb-led" id="${id}-led"></div>
-      <div class="ohp-pb-legend">${legend}</div>
-      ${sub !== '' ? `<div class="ohp-pb-sub" id="${id}-sub">${sub}</div>` : `<div class="ohp-pb-sub" id="${id}-sub"></div>`}
-    </div>
-    <div class="ohp-pb-label">${legend.replace('<br>', ' ')}</div>
-  </div>`;
+/* System pushbutton (generic Airbus pushbutton) + a name placard below. */
+function _sysPb(id, caption, opts = {}) {
+  return `<div class="ohp-syspb">${pushButtonHTML(id, opts)}<div class="ohp-pb-label">${caption}</div></div>`;
 }
 
 function _batPb(id, legend) {
@@ -335,7 +333,7 @@ function _idgPair(i) {
       <div class="ohp-idg-btn" id="ohp-idg-${i}">IDG ${i}</div>
       <div class="ohp-idg-guard" id="ohp-idg-guard-${i}"><span>DISC</span></div>
     </div>
-    ${_pb(`ohp-gen-${i}`, 'GEN', `${i}`)}
+    ${_sysPb(`gen-${i}`, `GEN ${i}`, { upper: 'FAULT' })}
   </div>`;
 }
 
@@ -355,16 +353,16 @@ function _buildHTML() {
       ${_batPb('ohp-bat2', 'BAT 2')}
       ${cfg.batCount >= 3 ? _batPb('ohp-bat3', 'APU BAT') : ''}
       <div class="ohp-divider"></div>
-      ${_pb('ohp-bus-tie', 'BUS<br>TIE', 'AUTO')}
+      ${_sysPb('bus-tie', 'BUS TIE', { upper: 'FAULT' })}
       <div class="ohp-divider"></div>
-      ${_pb('ohp-galley', 'GALLEY', '')}
+      ${_sysPb('galley', 'GALLEY', { upper: 'FAULT' })}
     </div>
     <div class="ohp-row" style="align-items:flex-start; gap:8px;">
       ${leftGenPairs}
       <div class="ohp-divider"></div>
-      ${_pb('ohp-apu-gen', 'APU<br>GEN', '')}
-      ${_pb('ohp-ext-pwr', 'EXT A', '')}
-      ${cfg.extPwrB ? _pb('ohp-ext-pwr-b', 'EXT B', '') : ''}
+      ${_sysPb('apu-gen', 'APU GEN', { upper: 'FAULT' })}
+      ${_sysPb('ext-a', 'EXT A', { upper: 'AVAIL', upperColor: '#4ad86a' })}
+      ${cfg.extPwrB ? _sysPb('ext-b', 'EXT B', { upper: 'AVAIL', upperColor: '#4ad86a' }) : ''}
       ${n >= 3 ? `<div class="ohp-divider"></div>${rightGenPairs}` : ''}
     </div>
   </div>` : '';
@@ -373,9 +371,9 @@ function _buildHTML() {
   const apuSection = `<div class="ohp-section">
     <div class="ohp-section-hdr">APU</div>
     <div class="ohp-row" style="align-items:flex-start; gap:10px;">
-      ${_pb('ohp-apu-master', 'MASTER', 'APU')}
-      ${_pb('ohp-apu-start',  'START',  'APU')}
-      ${_pb('ohp-apu-bleed',  'BLEED',  'APU')}
+      ${_sysPb('apu-master', 'MASTER SW', { upper: 'FAULT' })}
+      ${_sysPb('apu-start',  'START',     { upper: 'AVAIL', upperColor: '#40a0ff' })}
+      ${_sysPb('apu-bleed',  'BLEED',     { upper: 'FAULT' })}
       <div class="ohp-divider"></div>
       <div class="ohp-fire-group">
         <div class="ohp-fire-wrap">
@@ -394,12 +392,12 @@ function _buildHTML() {
 
   /* Fuel section */
   const fuelPumps = Array.from({ length: n }, (_, i) =>
-    _pb(`ohp-fuel-${i + 1}`, `PMP ${i + 1}`, 'FUEL')
+    _sysPb(`fuel-${i + 1}`, `PMP ${i + 1}`, { upper: 'FAULT' })
   ).join('');
   const fuelSection = `<div class="ohp-section">
     <div class="ohp-section-hdr">FUEL</div>
     <div class="ohp-row">
-      ${_pb('ohp-xfeed', 'X FEED', '')}
+      ${_sysPb('xfeed', 'X FEED', { upper: 'FAULT' })}
       <div class="ohp-divider"></div>
       ${fuelPumps}
     </div>
@@ -409,9 +407,9 @@ function _buildHTML() {
   const hydSection = turbofan ? `<div class="ohp-section">
     <div class="ohp-section-hdr">HYDRAULICS</div>
     <div class="ohp-row">
-      ${_pb('ohp-hyd-green-elec',  'GREEN',  'ELEC PMP')}
-      ${_pb('ohp-hyd-blue-elec',   'BLUE',   'ELEC PMP')}
-      ${_pb('ohp-hyd-yellow-elec', 'YELLOW', 'ELEC PMP')}
+      ${_sysPb('hyd-green',  'GREEN PMP',  { upper: 'FAULT' })}
+      ${_sysPb('hyd-blue',   'BLUE PMP',   { upper: 'FAULT' })}
+      ${_sysPb('hyd-yellow', 'YELLOW PMP', { upper: 'FAULT' })}
     </div>
   </div>` : '';
 
@@ -489,7 +487,7 @@ function _attachHandlers() {
   }
 
   /* APU MASTER — latching switch */
-  document.getElementById('ohp-apu-master')?.addEventListener('click', () => {
+  document.getElementById('pb-apu-master')?.addEventListener('click', () => {
     const wasOn = S.apuMasterOn ?? false;
     apuMasterSet(!wasOn);
     if (wasOn) stopApuSound();   // master off = shutdown
@@ -497,7 +495,7 @@ function _attachHandlers() {
   });
 
   /* APU START — momentary, triggers startup + sound */
-  document.getElementById('ohp-apu-start')?.addEventListener('click', () => {
+  document.getElementById('pb-apu-start')?.addEventListener('click', () => {
     const wasOff = (S.apuState ?? 'off') === 'off';
     apuStartPress();
     if (wasOff && (S.apuState ?? 'off') === 'starting') startApuSound();
@@ -505,7 +503,7 @@ function _attachHandlers() {
   });
 
   /* APU BLEED — only when APU running */
-  document.getElementById('ohp-apu-bleed')?.addEventListener('click', () => {
+  document.getElementById('pb-apu-bleed')?.addEventListener('click', () => {
     if (turbofan && (S.apuState ?? 'off') !== 'running') return;
     setState({ apuBleedOn: !(S.apuBleedOn ?? false) });
     _updateSwitches();
@@ -560,14 +558,14 @@ function _attachHandlers() {
   });
 
   /* X-feed */
-  document.getElementById('ohp-xfeed')?.addEventListener('click', () => {
+  document.getElementById('pb-xfeed')?.addEventListener('click', () => {
     setState({ xfeedOpen: !(S.xfeedOpen ?? false) });
     _updateSwitches();
   });
 
   /* Fuel pumps */
   for (let i = 1; i <= n; i++) {
-    document.getElementById(`ohp-fuel-${i}`)?.addEventListener('click', () => {
+    document.getElementById(`pb-fuel-${i}`)?.addEventListener('click', () => {
       const pumps = [...(S.fuelPumps ?? Array(n).fill(true))];
       pumps[i - 1] = !pumps[i - 1];
       setState({ fuelPumps: pumps });
@@ -577,9 +575,9 @@ function _attachHandlers() {
 
   /* Hydraulic electric pumps */
   for (const [id, key] of [
-    ['ohp-hyd-green-elec',  'hydGreenElecOn'],
-    ['ohp-hyd-blue-elec',   'hydBlueElecOn'],
-    ['ohp-hyd-yellow-elec', 'hydYellowElecOn'],
+    ['pb-hyd-green',  'hydGreenElecOn'],
+    ['pb-hyd-blue',   'hydBlueElecOn'],
+    ['pb-hyd-yellow', 'hydYellowElecOn'],
   ]) {
     document.getElementById(id)?.addEventListener('click', () => {
       setState({ [key]: !(S[key] ?? false) });
@@ -600,29 +598,29 @@ function _attachHandlers() {
   });
 
   /* External power — only available on ground */
-  document.getElementById('ohp-ext-pwr')?.addEventListener('click', () => {
+  document.getElementById('pb-ext-a')?.addEventListener('click', () => {
     if (!(S.wow ?? false)) return;
     setState({ extPwrOn: !(S.extPwrOn ?? false) });
     _updateSwitches();
   });
 
-  document.getElementById('ohp-ext-pwr-b')?.addEventListener('click', () => {
+  document.getElementById('pb-ext-b')?.addEventListener('click', () => {
     if (!(S.wow ?? false)) return;
     setState({ extPwrBOn: !(S.extPwrBOn ?? false) });
     _updateSwitches();
   });
 
-  document.getElementById('ohp-apu-gen')?.addEventListener('click', () => {
+  document.getElementById('pb-apu-gen')?.addEventListener('click', () => {
     setState({ apuGenSwitch: !(S.apuGenSwitch ?? true) });
     _updateSwitches();
   });
 
-  document.getElementById('ohp-bus-tie')?.addEventListener('click', () => {
+  document.getElementById('pb-bus-tie')?.addEventListener('click', () => {
     setState({ busTieAuto: !(S.busTieAuto ?? true) });
     _updateSwitches();
   });
 
-  document.getElementById('ohp-galley')?.addEventListener('click', () => {
+  document.getElementById('pb-galley')?.addEventListener('click', () => {
     setState({ galleyOn: !(S.galleyOn ?? true) });
     _updateSwitches();
   });
@@ -646,7 +644,7 @@ function _attachHandlers() {
       setState({ idgConnected: conn });
       _updateSwitches();
     });
-    document.getElementById(`ohp-gen-${i}`)?.addEventListener('click', () => {
+    document.getElementById(`pb-gen-${i}`)?.addEventListener('click', () => {
       const sw = [...(S.engGenSwitch?.length ? S.engGenSwitch : Array(n).fill(true))];
       sw[i - 1] = !sw[i - 1];
       setState({ engGenSwitch: sw });
@@ -666,10 +664,6 @@ function _led(id, on, amber = false, blue = false) {
 
 function _pbOn(id, on) {
   document.getElementById(`${id}-body`)?.classList.toggle('ohp-pb-on', !!on);
-}
-
-function _pbDisabled(id, disabled) {
-  document.getElementById(`${id}-body`)?.classList.toggle('ohp-pb-disabled', !!disabled);
 }
 
 function _sub(id, text) {
@@ -708,16 +702,14 @@ function _updateSwitches() {
   /* APU */
   const apuState    = S.apuState ?? 'off';
   const apuMasterOn = S.apuMasterOn ?? false;
-  /* MASTER — on when switch is latched, LED green when APU running */
-  _led('ohp-apu-master', apuState === 'running', false);
-  _pbOn('ohp-apu-master', apuMasterOn);
-  /* START — lit amber while starting, dims when running or off */
-  _led('ohp-apu-start', false, apuState === 'starting');
-  _pbDisabled('ohp-apu-start', !apuMasterOn || apuState !== 'off');
-  /* BLEED */
-  _led('ohp-apu-bleed',  S.apuBleedOn ?? false);
-  _pbOn('ohp-apu-bleed', S.apuBleedOn ?? false);
-  _pbDisabled('ohp-apu-bleed', turbofan && apuState !== 'running');
+  /* MASTER SW — ON lit when the switch is latched */
+  setPushButton('apu-master', { lower: apuMasterOn });
+  /* START — ON lit while starting, AVAIL (upper) when running; disabled unless ready to start */
+  setPushButton('apu-start', { lower: apuState === 'starting', upper: apuState === 'running',
+                               disabled: !apuMasterOn || apuState !== 'off' });
+  /* BLEED — ON lit; disabled until the APU is running (turbofan) */
+  setPushButton('apu-bleed', { lower: S.apuBleedOn ?? false,
+                               disabled: turbofan && apuState !== 'running' });
   /* FIRE */
   const fireArmed = S.apuFireArmed ?? false;
   document.getElementById('ohp-apu-fire')?.classList.toggle('armed', fireArmed);
@@ -725,20 +717,18 @@ function _updateSwitches() {
   if (fireLed) fireLed.classList.toggle('on', fireArmed || _testLitAPU);
 
   /* Fuel */
-  _led('ohp-xfeed', S.xfeedOpen ?? false);
+  setPushButton('xfeed', { lower: S.xfeedOpen ?? false });
   for (let i = 1; i <= n; i++) {
-    _led(`ohp-fuel-${i}`, fuelPumps[i - 1] ?? true);
-    _pbOn(`ohp-fuel-${i}`, fuelPumps[i - 1] ?? true);
+    setPushButton(`fuel-${i}`, { lower: fuelPumps[i - 1] ?? true });
   }
 
   /* Hydraulics */
   for (const [id, key] of [
-    ['ohp-hyd-green-elec',  'hydGreenElecOn'],
-    ['ohp-hyd-blue-elec',   'hydBlueElecOn'],
-    ['ohp-hyd-yellow-elec', 'hydYellowElecOn'],
+    ['hyd-green',  'hydGreenElecOn'],
+    ['hyd-blue',   'hydBlueElecOn'],
+    ['hyd-yellow', 'hydYellowElecOn'],
   ]) {
-    _led(id, S[key] ?? false);
-    _pbOn(id, S[key] ?? false);
+    setPushButton(id, { lower: S[key] ?? false });
   }
 
   if (!turbofan) return;
@@ -766,36 +756,21 @@ function _updateSwitches() {
     }
   }
 
-  /* External power A + B */
+  /* External power A + B — AVAIL (green) when ground power is connected & unused, ON when in use */
   const onGround = S.wow ?? false;
   const extOn    = S.extPwrOn  ?? false;
   const extBOn   = S.extPwrBOn ?? false;
-  _led('ohp-ext-pwr',   extOn,  false, false);
-  _pbOn('ohp-ext-pwr',  extOn);
-  _pbDisabled('ohp-ext-pwr', !onGround);
-  _sub('ohp-ext-pwr',   onGround ? (extOn  ? 'ON' : 'AVAIL') : '');
-  _led('ohp-ext-pwr-b', extBOn, false, false);
-  _pbOn('ohp-ext-pwr-b', extBOn);
-  _pbDisabled('ohp-ext-pwr-b', !onGround);
-  _sub('ohp-ext-pwr-b', onGround ? (extBOn ? 'ON' : 'AVAIL') : '');
+  setPushButton('ext-a', { upper: onGround && !extOn,  lower: extOn,  disabled: !onGround });
+  setPushButton('ext-b', { upper: onGround && !extBOn, lower: extBOn, disabled: !onGround });
 
-  /* APU GEN */
-  const apuGenSw = S.apuGenSwitch ?? true;
-  const apuGenOn = S.apuGenOn ?? false;
-  _led('ohp-apu-gen', apuGenOn);
-  _pbOn('ohp-apu-gen', apuGenSw);
-  _sub('ohp-apu-gen', apuGenOn ? 'ON' : ((S.apuRunning ?? false) && !apuGenSw) ? 'OFF' : '');
+  /* APU GEN — ON lit when selected */
+  setPushButton('apu-gen', { lower: S.apuGenSwitch ?? true });
 
-  /* BUS TIE */
-  const tieAuto = S.busTieAuto ?? true;
-  _led('ohp-bus-tie', tieAuto);
-  _pbOn('ohp-bus-tie', tieAuto);
-  _sub('ohp-bus-tie', tieAuto ? 'AUTO' : 'MAN');
+  /* BUS TIE — ON lit when AUTO (tie engaged) */
+  setPushButton('bus-tie', { lower: S.busTieAuto ?? true });
 
-  /* GALLEY */
-  const galleyOn = S.galleyOn ?? true;
-  _led('ohp-galley', galleyOn);
-  _pbOn('ohp-galley', galleyOn);
+  /* GALLEY — ON lit when on */
+  setPushButton('galley', { lower: S.galleyOn ?? true });
 
   /* APU BAT */
   const bat3on     = S.bat3On ?? false;
@@ -821,16 +796,12 @@ function _updateSwitches() {
   /* IDG + GEN per engine */
   const n2 = _engCount();
   const idgConn = S.idgConnected?.length === n2 ? S.idgConnected : Array(n2).fill(true);
-  const genSw   = S.engGenSwitch?.length  === n2 ? S.engGenSwitch : Array(n2).fill(true);
   const genOn   = S.engGenOn ?? [];
   for (let i = 1; i <= n2; i++) {
     const idg = document.getElementById(`ohp-idg-${i}`);
     if (idg) idg.classList.toggle('disconnected', !idgConn[i - 1]);
     const genOn_i = genOn[i - 1] ?? false;
-    const genSw_i = genSw[i - 1] ?? true;
-    _led(`ohp-gen-${i}`, genOn_i);
-    _pbOn(`ohp-gen-${i}`, genSw_i);
-    _sub(`ohp-gen-${i}`, genSw_i ? (genOn_i ? 'ON' : '') : 'OFF');
+    setPushButton(`gen-${i}`, { lower: genOn_i });   // ON lit when the generator is online
   }
 }
 
