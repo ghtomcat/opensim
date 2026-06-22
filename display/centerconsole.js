@@ -11,7 +11,10 @@
 
 import { S, setState }     from '../core/state.js';
 import { drawECAMUpper, drawECAMLower } from './pfd_instruments.js';
+import { pushButtonHTML, setPushButton } from './pushbutton.js';
 import { bbEvent }         from '../core/blackbox.js';
+
+const _AB_LEVELS = ['LO', 'MED', 'MAX'];
 
 let _el = null, _ecamCanvas = null;
 
@@ -73,17 +76,13 @@ const _CSS = `
   .ccon-gi.dn .ccon-gi-tri { border-top-color: #4ad86a; }
   .ccon-gi-lbl { font: 600 9px/1 monospace; letter-spacing: 0.06em; color: #5a6470; }
 
-  /* AUTO BRK — OFF / LO / MED / MAX. On the centre panel like the real Airbus. */
-  .ccon-ab-block { display: flex; flex-direction: column; align-items: center; gap: 9px; }
+  /* AUTO BRK — LO / MED / MAX pushbuttons (DECEL upper, ON lower). No OFF: press a level to
+     arm it, press again to disarm. On the centre panel like the real Airbus. */
+  .ccon-ab-block { display: flex; flex-direction: column; align-items: center; gap: 10px; }
   .ccon-ab-label { font: 600 9px/1 monospace; letter-spacing: 0.10em; color: #50607c; }
-  .ccon-ab-gate { display: flex; border: 1px solid #252c3c; border-radius: 3px; overflow: hidden; }
-  .ccon-ab-pos { padding: 8px 13px; background: #141820; font: 700 9px/1 monospace; letter-spacing: 0.05em;
-                 color: #3a4860; cursor: pointer; border-right: 1px solid #252c3c;
-                 transition: background 0.08s, color 0.08s; user-select: none; }
-  .ccon-ab-pos:last-child { border-right: none; }
-  .ccon-ab-pos:hover  { background: #1e2534; color: #6080a8; }
-  .ccon-ab-pos.sel    { background: #142231; color: #4ab0e0; box-shadow: inset 0 -2px 0 #2878a8; }   /* armed */
-  .ccon-ab-pos.active { background: #2a2410; color: #f0c050; box-shadow: inset 0 -2px 0 #c09020; }   /* DECEL */
+  .ccon-ab-row { display: flex; gap: 14px; }
+  .ccon-ab-btn { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .ccon-ab-cap { font: 600 9px/1 monospace; letter-spacing: 0.06em; color: #5a6470; }
 
   .ccon-hint { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
                font: 500 10px/1 monospace; color: #3a4450; letter-spacing: 0.10em; }
@@ -116,7 +115,11 @@ function _buildHTML() {
       </div>
       <div class="ccon-ab-block">
         <div class="ccon-ab-label">AUTO BRK</div>
-        <div class="ccon-ab-gate">${['OFF', 'LO', 'MED', 'MAX'].map(l => `<div class="ccon-ab-pos" data-ab="${l}">${l}</div>`).join('')}</div>
+        <div class="ccon-ab-row">${_AB_LEVELS.map(l => `
+          <div class="ccon-ab-btn">
+            ${pushButtonHTML(`ab-${l.toLowerCase()}`, { upper: 'DECEL', upperColor: '#4ad86a', lowerColor: '#4ab0e0' })}
+            <div class="ccon-ab-cap">${l}</div>
+          </div>`).join('')}</div>
       </div>
     </div>
     <div class="ccon-hint">M · close</div>
@@ -145,9 +148,11 @@ export function initCenterConsole() {
     }
   });
 
-  /* AUTO BRK level select */
-  _el.querySelectorAll('.ccon-ab-pos').forEach(btn => {
-    btn.addEventListener('click', () => setState({ autobrake: btn.dataset.ab }));
+  /* AUTO BRK — press a level to arm it (ON), press the armed level again to disarm. No OFF. */
+  _AB_LEVELS.forEach(lvl => {
+    _el.querySelector(`#pb-ab-${lvl.toLowerCase()}`)?.addEventListener('click', () => {
+      setState({ autobrake: S.autobrake === lvl ? 'OFF' : lvl });
+    });
   });
 
   /* Gear lever → toggle gear. Squat lock: no gear-up on the ground (matches the G key). */
@@ -193,15 +198,13 @@ export function renderCenterConsole() {
   const cls = _gearClass();
   _el.querySelectorAll('.ccon-gi').forEach(gi => { gi.className = cls; });
 
-  /* AUTO BRK — selected level cyan (armed); amber when actually decelerating (DECEL).
+  /* AUTO BRK — ON (lower) lit on the armed level; DECEL (upper) lit when it's actually braking.
      Hidden for aircraft without autobrake. */
   const abBlock = _el.querySelector('.ccon-ab-block');
   if (abBlock) abBlock.style.display = S.aircraft?.autobrake ? '' : 'none';
-  const curAB  = S.autobrake ?? 'OFF';
-  const abEng  = !!S.autobrakeActive;
-  _el.querySelectorAll('.ccon-ab-pos').forEach(btn => {
-    const isSel = btn.dataset.ab === curAB && curAB !== 'OFF';
-    btn.classList.toggle('sel',    isSel && !abEng);
-    btn.classList.toggle('active', isSel && abEng);
+  const curAB = S.autobrake ?? 'OFF';
+  const abEng = !!S.autobrakeActive;
+  _AB_LEVELS.forEach(lvl => {
+    setPushButton(`ab-${lvl.toLowerCase()}`, { lower: curAB === lvl, upper: abEng && curAB === lvl });
   });
 }
