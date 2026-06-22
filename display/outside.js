@@ -1431,7 +1431,13 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const _gSun   = Math.sin((_gH - 6) / 12 * Math.PI);
   const _gDay   = Math.max(0, Math.min(1, (_gSun + 0.15) / 0.25));   // 0=night 1=day
   const _gGold  = Math.max(0, 1 - Math.abs(_gSun) / 0.18);           // 1 at horizon, 0 at >10° up
-  const _goldStr = _gDay * _gGold;   // >0 only during golden hours with daylight
+  /* Atmospheric fade: the warm reddening is Rayleigh scattering along a long, dense air path.
+     A rocket climbing out of the atmosphere loses it — full below ~30 km (covers airliner
+     cruise), gone by ~80 km where the sky is already black. Otherwise the launch tint would
+     wrongly persist all the way to orbit. */
+  const _gAltKm = (S.alt ?? 0) * 0.0003048;
+  const _gAtmo  = Math.max(0, Math.min(1, (80 - _gAltKm) / 50));
+  const _goldStr = _gDay * _gGold * _gAtmo;   // >0 only during golden hours, in the atmosphere
 
   /* Returns an rgb() string with warm sun-color applied to brightness bv */
   const _wCol = (col, bv) => {
