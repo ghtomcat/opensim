@@ -75,7 +75,8 @@ const { project, camSide, rotateNormal, litBr, faces, H: _H } = rc;
 /* ── Booster faces — F9 S1 + SS Super Heavy, depth-sorted into rc.faces ── */
 export function drawBoosterFaces(rc) {
   const { faces, project, rotateNormal, litBr, rStage, isSS, ssGeo: _ssGeo,
-          bPts, ssBPts, s2Pts, cosdP, sindP, ssCosdP, ssSindP } = rc;
+          bPts, ssBPts, s2Pts, cosdP, sindP, ssCosdP, ssSindP,
+          bOffF = 0, bOffR = 0, bOffU = 0 } = rc;
   /* Starship stage sep: fill open bottom ring of Ship with a disc cap */
   if (isSS && rStage >= 2 && _ssGeo) {
     const _ssRg = S.aircraft?.rocketGeometry;
@@ -119,6 +120,21 @@ export function drawBoosterFaces(rc) {
       const _capD = _capPts.reduce((s,p)=>s+p.d,0)/_capPts.length;
       faces.push({ ps: _capPts, br: 0.55, avgD: _capD, col: [26, 26, 30] });
     }
+
+    /* 9-Merlin octaweb as 3D bells — aligned to the (flipped/offset) booster body, same as the
+       pre-sep nozzles. Replaces the flat camera-facing discs that drawBoosterEdges used to draw. */
+    const _bProj = ([vF, vR, vU]) => project([
+      vF * cosdP - vU * sindP + bOffF,
+      vR + bOffR,
+      vF * sindP + vU * cosdP + bOffU,
+    ]);
+    const _octa = [[0, 0],
+      [_nzO, 0], [_nzO7, _nzO7], [0, _nzO], [-_nzO7, _nzO7],
+      [-_nzO, 0], [-_nzO7, -_nzO7], [0, -_nzO], [_nzO7, -_nzO7]];
+    /* bells stay cold (false) — only the centre engine fires on descent, and the actual flame
+       is the depth-sorted plume in drawBoosterEdges, not a per-bell glow. */
+    _drawJ2Nozzles({ ...rc, project: _bProj }, -0.016, _rf9, _octa, false, 'rp1',
+                   { rxR: 0.25, rtR: 0.10, lenR: 0.45 });
   }
 
   /* Falcon 9 Stage 2 — drifts away after Dragon separation (drawn at s2Pts, no roll).
@@ -427,7 +443,7 @@ export function drawRocketPlumesAndNozzles(rc) {
 
     /* S2 plume: coast ends → SECO. One MVac → narrow exhaust, from the MVac exit plane. */
     if (rStage >= 2 && !S.rocketCoast && !S.rocketSECO) {
-      const _ex = _f9S2Base - 0.0024;   // MVac exit (matches the geometry exit ring)
+      const _ex = _f9S2Base - 0.0017;   // MVac exit (matches the geometry exit ring)
       _drawPlume(project([_ex, 0, 0]), _nzVac, [_ex, 0, 0], 0.032, 1.3 * _engFrac);
     }
   }
@@ -758,19 +774,23 @@ export function drawBoosterEdges(rc) {
   const { ctx, project, edgeCamDir, bPts, cosdP, sindP, bOffF, bOffR, bOffU } = rc;
   /* Booster wireframe edges + dark nozzles after stage separation */
   if (bPts) {
-    ctx.save();
-    ctx.strokeStyle = 'rgba(175,195,215,0.55)';
-    ctx.lineWidth   = Math.max(1, devicePixelRatio);
-    ctx.beginPath();
-    for (const [a, b] of _E_f9) {
-      const inB = v => v <= 47 || (v >= 97 && v <= 121);
-      if (!inB(a) || !inB(b)) continue;
-      const pa = bPts[a], pb = bPts[b];
-      if (!pa || !pb) continue;
-      if (edgeCamDir(a) > 0 && edgeCamDir(b) > 0) continue;
-      ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y);
+    /* Wireframe accent — drawn for the small distant booster in chase/side cam. A close-up
+       view (booster cam) sets boosterWire:false so the solid filled faces read clean. */
+    if (rc.boosterWire !== false) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(175,195,215,0.55)';
+      ctx.lineWidth   = Math.max(1, devicePixelRatio);
+      ctx.beginPath();
+      for (const [a, b] of _E_f9) {
+        const inB = v => v <= 47 || (v >= 97 && v <= 121);
+        if (!inB(a) || !inB(b)) continue;
+        const pa = bPts[a], pb = bPts[b];
+        if (!pa || !pb) continue;
+        if (edgeCamDir(a) > 0 && edgeCamDir(b) > 0) continue;
+        ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y);
+      }
+      ctx.stroke(); ctx.restore();
     }
-    ctx.stroke(); ctx.restore();
 
     /* Booster plume when powered (boostback / entry burn / landing burn) */
     const boosterFiring = ['boostback','entry','landing'].includes(S.booster?.phase);
@@ -820,25 +840,8 @@ export function drawBoosterEdges(rc) {
       }
     }
 
-    const bC = bPts[113], bEdge = bPts[114];
-    if (bC && bEdge) {
-      const nR = Math.hypot(bEdge.x-bC.x, bEdge.y-bC.y) * 0.46;
-      ctx.save();
-      ctx.fillStyle = 'rgba(20,22,28,0.95)';
-      ctx.beginPath();
-      ctx.arc(bC.x, bC.y, Math.hypot(bEdge.x-bC.x, bEdge.y-bC.y) + nR*1.2, 0, Math.PI*2);
-      ctx.fill();
-      for (const vi of [113,114,115,116,117,118,119,120,121]) {
-        const pt = bPts[vi]; if (!pt) continue;
-        const r = vi === 65 ? nR*1.15 : nR;
-        ctx.fillStyle = 'rgb(22,25,32)';
-        ctx.beginPath(); ctx.arc(pt.x, pt.y, r, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = 'rgba(90,100,115,0.65)';
-        ctx.lineWidth = Math.max(0.5, 0.6*devicePixelRatio);
-        ctx.beginPath(); ctx.arc(pt.x, pt.y, r, 0, Math.PI*2); ctx.stroke();
-      }
-      ctx.restore();
-    }
+    /* (Octaweb is now drawn as 3D bells in drawBoosterFaces — the old flat camera-facing
+       discs were removed so the engines stay aligned to the booster, not the camera.) */
 
     /* Landing legs — deploy during 'landing' phase */
     const bLegP = S.booster?.phase === 'landing'

@@ -1380,6 +1380,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     project, rotateNormal, litBr,
     /* rockets — booster sep projection + key/spec light dirs */
     cosdP, sindP, bOffF, bOffR, bOffU, ssCosdP, ssSindP, H: _H,
+    boosterWire: false,   // booster reads solid from filled faces + 3D bells; no wireframe accent
   };
 
   /* Booster faces — F9 S1 + SS Super Heavy (outside-rocket-draw.js) */
@@ -2009,26 +2010,37 @@ function _renderBoosterCam(canvas) {
     return { x: cx + vU / cf * focal, y: cy - (vF - S1_FOCUS) / cf * focal, d: cf };
   }
 
-  /* Fin-animated booster geometry — same deploy state as the chase/side cam (gridfins swing
-     out after stage sep). Advance the angle here since this is the active render path. */
+  /* Booster pitch flip — same as the chase/side cam: the spent booster tumbles 180° (engines
+     forward) for boostback/entry/landing. Match it here so the nozzles + legs sit at the same
+     end and the booster reads identically to the side view. */
+  const _bRec   = S.aircraft?.performance?.recovery ?? {};
+  const _bPhAge = (S.time ?? 0) - (b.phaseStartT ?? 0);
+  const _bLate  = ['boostback', 'coast', 'entry', 'glide', 'landing'];
+  const _bDeg   = b.phase === 'flip'
+    ? 180 * Math.min(1, _bPhAge / (_bRec.flipDuration ?? 20))
+    : _bLate.includes(b.phase) ? 180 : 0;
+  const _bcosdP = Math.cos(_bDeg * DEG), _bsindP = Math.sin(_bDeg * DEG);
+
+  /* Fin-animated + flipped booster geometry (gridfins swing out after stage sep). */
   _advanceF9FinAngle();
   const _bv = _V_f9.map(v => v.slice());
   _applyF9FinFold(_bv);
-  const pts = _bv.map(projB);
+  const pts = _bv.map(([vF, vR, vU]) => projB([vF * _bcosdP - vU * _bsindP, vR, vF * _bsindP + vU * _bcosdP]));
 
-  /* Booster geometry — shared with the chase/side cam (drawBoosterFaces / drawBoosterEdges)
-     so the face + vertex indices live in ONE place. This view only supplies its own
-     projection (projB), flat side-lighting and a side-on edge cull (camera sits on body +y,
-     so faces with vR < 0 point away). No world offset, no flip, no Starship/S2 geometry. */
+  /* Booster geometry — shared with the chase/side cam (drawBoosterFaces / drawBoosterEdges) so
+     the face + vertex indices live in ONE place. This view supplies its own projection (projB),
+     flat side-lighting, the same flip, and a side-on edge cull. boosterWire:false → no wireframe
+     accent (close-up reads clean from the solid faces, exactly like the zoomed side view). */
   const rcB = {
-    ctx, faces: [],
+    ctx, faces: [], boosterWire: false,
     project: projB,
     rotateNormal: (n) => n,
     litBr: (f, r, u, amb) => amb + (1 - amb) * Math.max(0, f*_LD[0] + r*_LD[1] + u*_LD[2]),
     edgeCamDir: (vi) => -(_V_f9[vi]?.[1] ?? 0),
     rStage: 2, isSS: false, ssGeo: null,
     bPts: pts, ssBPts: null, s2Pts: null,
-    cosdP: 1, sindP: 0, bOffF: 0, bOffR: 0, bOffU: 0, ssCosdP: 1, ssSindP: 0,
+    cosdP: _bcosdP, sindP: _bsindP, bOffF: 0, bOffR: 0, bOffU: 0, ssCosdP: 1, ssSindP: 0,
+    camSide: 1, H: _H,   // side-on view → _drawJ2Nozzles renders the octaweb bell walls
   };
 
   /* S1 body + grid fins + hinge mounts + fin thickness + aft base cap */
@@ -2042,7 +2054,7 @@ function _renderBoosterCam(canvas) {
     ctx.closePath(); ctx.fill();
   }
 
-  /* Wireframe edges + octaweb nozzles + booster plume + landing legs (shared code) */
+  /* Octaweb nozzles + booster plume + landing legs (shared code; wireframe suppressed above) */
   drawBoosterEdges(rcB);
 
   _drawLabel(canvas, 'BOOSTER CAM');

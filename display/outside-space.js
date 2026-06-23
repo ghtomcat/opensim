@@ -294,7 +294,7 @@ export const _nzO  = _rf9 * 0.70;     // outer engine ring radius (octaweb) — 
 export const _nzO7 = _nzO * 0.7071;
 export const _nzVac  = _rf9 * 0.74;   // S2 Merlin Vacuum nozzle exit radius
 export const _nzVac7 = _nzVac * 0.7071;
-export const _nzSk   = 0.00062;       // S2 nozzle skirt (throat) radius
+export const _nzSk   = _rf9 * 0.31;   // S2 nozzle skirt (throat) radius — radial, scales with body
 export const _nzSk7  = _nzSk  * 0.7071;
 
 export const _COLORS_f9 = [
@@ -324,7 +324,7 @@ export const { V_: _V_f9, F_: _F_f9, FC_: _FC_f9, E_: _E_f9, _thBase: _f9ThBase 
   for (const si of [5, 6, 7, 8, 9, 10]) FC_[4 * N + si] = 5;
 
   /* S2 MVac axial positions, hung off the S2 base */
-  const _mvSk = _f9S2Base, _mvEx = _f9S2Base - 0.0024, _mvTh = _f9S2Base - 0.0004;
+  const _mvSk = _f9S2Base, _mvEx = _f9S2Base - 0.0017, _mvTh = _f9S2Base - 0.00028;  // bell ~3 m long (real MVac)
 
   V_.push(
     [ _F9_vfTip, 0,      0         ],  // 96 Dragon nosecone tip
