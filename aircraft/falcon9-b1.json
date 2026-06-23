@@ -44,20 +44,20 @@
     "cegCutoffG": 3.8,
     "guidanceDuration": 9999,
 
+    "_fpaProfile_note": "Lofted (vs the old flat profile that inserted at only 114 km). Tuned in tools/booster-descent-sim.mjs to a ~306×1863 km ISS-bound orbit; the old one decayed.",
     "fpaProfile": [
       [60,   90],
-      [75,   89],
-      [90,   84],
-      [115,  72],
-      [140,  57],
-      [165,  40],
-      [190,  24],
-      [215,  14],
-      [235,   8],
-      [265,   4],
-      [370,   2],
-      [570,   1],
-      [760,   0]
+      [80,   88],
+      [110,  82],
+      [148,  72],
+      [185,  59],
+      [212,  42],
+      [235,  32],
+      [275,  24],
+      [345,  16],
+      [480,   9],
+      [660,   4],
+      [840,   1]
     ]
   },
 
