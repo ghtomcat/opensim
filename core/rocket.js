@@ -1280,9 +1280,24 @@ export function tickBooster(dt) {
   let thrustVert = 0, thrustDown = 0, mdot = 0;
   let newPhase = b.phase, newPhaseStartT = b.phaseStartT, newEntryV0 = b.entryV0;
 
+  /* Downrange offset from the landing target, measured along the booster heading. RTLS target =
+     the landing zone (recovery.landingLat/Lon) or, lacking that, the launch site. + = the booster
+     is still downrange of the target and must fly back. */
+  const _dep    = S.mission?.departure ?? {};
+  const tgtLat  = rec.landingLat ?? _dep.lat ?? (b.lat ?? 0);
+  const tgtLon  = rec.landingLon ?? _dep.lon ?? (b.lon ?? 0);
+  const _hdgR   = (b.hdg ?? 0) * DEG;
+  const _dN     = ((b.lat ?? 0) - tgtLat) * 60 * 1852;
+  const _dE     = ((b.lon ?? 0) - tgtLon) * 60 * 1852 * Math.cos(tgtLat * DEG);
+  const downrange = _dN * Math.cos(_hdgR) + _dE * Math.sin(_hdgR);   // m along heading from target
+
   if (b.phase === 'flip') {
-    /* Cold-gas flip — no thrust, just coast */
-    if (phaseAge >= (rec.flipDuration ?? 20)) {
+    /* Cold-gas flip — no thrust. Hold until the booster has actually rotated into the boostback
+       attitude (engines toward launch); only then light the burn, never mid-flip. flipDuration
+       is the floor. */
+    const _bbA = Math.atan2(-Math.sign(downrange || 1) * Math.cos(12 * DEG), Math.sin(12 * DEG)) / DEG;
+    const _err = Math.abs(((_bbA - (b.att ?? 0) + 540) % 360) - 180);
+    if (phaseAge >= (rec.flipDuration ?? 20) && _err < 12) {
       newPhase = 'boostback'; newPhaseStartT = mT;
     }
 
@@ -1292,14 +1307,18 @@ export function tickBooster(dt) {
     const T  = (thrustSL * atmFrac + thrustVac * (1 - atmFrac)) * (nB / nEng) * th;
     const tA = T / Math.max(1, mass);
     mdot = T / (isp * G0);
-    /* Retrograde burn — oppose full velocity vector to reverse downrange motion
-       and reduce apogee. Real RTLS apogee ~100-130 km. */
-    const vMag = Math.sqrt(vVert * vVert + vDown * vDown);
-    if (vMag > 0.5) {
-      thrustVert = -tA * (vVert / vMag);
-      thrustDown = -tA * (vDown / vMag);
-    }
-    if (vDown < -50 || phaseAge >= (rec.boostbackDuration ?? 60)) {
+    /* Closed-loop RTLS: thrust TOWARD the target (engines downrange) to build reverse velocity —
+       not just null it — until the predicted landing reaches the launch site. Pure-retrograde
+       (the old code) only cancels velocity and the booster never flies back. */
+    const tUp     = Math.max(0, vVert / g);
+    const apAlt   = alt_m + (vVert > 0 ? vVert * vVert / (2 * g) : 0);
+    const tToLand = tUp + Math.sqrt(2 * Math.max(0, apAlt) / g);
+    const predDownrange = downrange + vDown * tToLand;
+    if (predDownrange > 2000 && phaseAge < (rec.boostbackDuration ?? 70)) {
+      const bbP = 12 * DEG;                 // shallow climb — don't loft the apogee
+      thrustDown = -tA * Math.cos(bbP);     // toward launch (reduce downrange)
+      thrustVert =  tA * Math.sin(bbP);
+    } else {
       newPhase = 'coast'; newPhaseStartT = mT;
     }
 
@@ -1338,7 +1357,14 @@ export function tickBooster(dt) {
     const tA        = Math.min(tAMax, reqDecel + g);
     const T         = tA * mass;
     mdot            = T / (isp * G0);
-    thrustVert      = tA;   /* purely vertical — legs down, no horizontal thrust */
+    thrustVert      = tA;   /* vertical hoverslam; lateral handled by the guidance below */
+  }
+
+  /* Lateral guidance — grid fins (glide) + engine gimbal (landing) null the downrange position +
+     velocity error to the target, so the booster homes onto the pad instead of drifting. */
+  if (b.phase === 'glide' || b.phase === 'landing') {
+    const aMax = b.phase === 'landing' ? 6 : 2.5;
+    thrustDown += Math.max(-aMax, Math.min(aMax, -0.0008 * downrange - 0.20 * vDown));
   }
 
   /* Drag components (opposing velocity) */
@@ -1367,12 +1393,19 @@ export function tickBooster(dt) {
      aero limited in the atmosphere, cold-gas-ACS limited above it. Validated in the descent sim. */
   const _angOf = (x, z) => Math.atan2(x, z) / DEG;
   const _retro = _angOf(-newVDown, -newVVert);
+  /* Boostback points the engines toward the launch (thrust toward the target, ~12° above
+     horizontal) — not retrograde-to-velocity, which would swing the nose downrange once the
+     downrange velocity reverses. */
+  const _bbAtt = _angOf(-Math.sign(downrange || 1) * Math.cos(12 * DEG), Math.sin(12 * DEG));
   let _attTgt;
-  if (newPhase === 'flip' || newPhase === 'boostback')      _attTgt = _retro;
+  if (newPhase === 'flip' || newPhase === 'boostback')      _attTgt = _bbAtt;
+  else if (newPhase === 'landing')                          _attTgt = 0;   // pitch vertical → upright touchdown
   else if (newPhase === 'coast' || newPhase === 'entry' ||
-           newPhase === 'glide' || newPhase === 'landing')  _attTgt = newVVert < 0 ? _retro : 0;
+           newPhase === 'glide')                            _attTgt = newVVert < 0 ? _retro : 0;
   else                                                       _attTgt = _angOf(newVDown, newVVert);
-  const _slew   = (atmFrac > 0.02 ? 12 : 4) * dt;
+  /* Flip is an active cold-gas maneuver — fast enough to complete the ~180° within flipDuration,
+     so the boostback isn't delayed (which would otherwise raise the apogee). Else aero/ACS limited. */
+  const _slew   = (b.phase === 'flip' ? 12 : (atmFrac > 0.02 ? 12 : 4)) * dt;
   const _curAtt = b.att ?? _angOf(vDown, vVert);
   const _dAtt   = ((_attTgt - _curAtt + 540) % 360) - 180;
   const newAtt  = _curAtt + Math.sign(_dAtt) * Math.min(Math.abs(_dAtt), _slew);

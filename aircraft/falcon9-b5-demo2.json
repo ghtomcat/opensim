@@ -62,6 +62,8 @@
 
     "recovery": {
       "rtls":              true,
+      "landingLat":        28.485756,
+      "landingLon":        -80.542901,
       "flipDuration":      20,
       "boostbackEngines":  3,
       "boostbackThrottle": 1.00,
