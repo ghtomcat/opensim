@@ -1135,12 +1135,11 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     bOffF = dFwdH * cosP + dUp * sinP;
     bOffR = dRtH;
     bOffU = -dFwdH * sinP + dUp * cosP;
-    const rec   = S.aircraft?.performance?.recovery ?? {};
-    const phAge = (S.time ?? 0) - (b.phaseStartT ?? 0);
-    const latePhases = ['boostback','coast','entry','glide','landing'];
-    const dPDeg = b.phase === 'flip'
-      ? 180 * Math.min(1, phAge / (rec.flipDuration ?? 20))
-      : latePhases.includes(b.phase) ? 180 : 0;
+    /* Booster attitude (att = nose angle from local-up, deg) drives the geometry flip. project
+       already rotates the geometry by acPitchDeg, so cancel it → displayed pitch = 90 - att.
+       This is the physically-derived engine-first profile (flips out for boostback, back to
+       nose-up for entry → upright landing); replaces the old static 180° flip. */
+    const dPDeg = 90 - (b.att ?? 0) - acPitchDeg;
     const dP2 = dPDeg * DEG;
     cosdP = Math.cos(dP2); sindP = Math.sin(dP2);
     /* Map over `verts` (the fin-animated copy built above), not raw _V_f9 — after separation
@@ -2010,15 +2009,10 @@ function _renderBoosterCam(canvas) {
     return { x: cx + vU / cf * focal, y: cy - (vF - S1_FOCUS) / cf * focal, d: cf };
   }
 
-  /* Booster pitch flip — same as the chase/side cam: the spent booster tumbles 180° (engines
-     forward) for boostback/entry/landing. Match it here so the nozzles + legs sit at the same
-     end and the booster reads identically to the side view. */
-  const _bRec   = S.aircraft?.performance?.recovery ?? {};
-  const _bPhAge = (S.time ?? 0) - (b.phaseStartT ?? 0);
-  const _bLate  = ['boostback', 'coast', 'entry', 'glide', 'landing'];
-  const _bDeg   = b.phase === 'flip'
-    ? 180 * Math.min(1, _bPhAge / (_bRec.flipDuration ?? 20))
-    : _bLate.includes(b.phase) ? 180 : 0;
+  /* Booster attitude — projB shows the long axis vertical (no acPitchDeg to cancel), so the
+     world nose angle (att, from local-up) maps straight to the geometry rotation. att=0 → nose
+     up/upright, att=180 → nose down. Same physically-derived profile as the chase/side cam. */
+  const _bDeg   = b.att ?? 0;
   const _bcosdP = Math.cos(_bDeg * DEG), _bsindP = Math.sin(_bDeg * DEG);
 
   /* Fin-animated + flipped booster geometry (gridfins swing out after stage sep). */

@@ -1044,6 +1044,8 @@ export function tickRocket(dt) {
           alt:         S.alt ?? 0,
           vVert:       spd_ms * Math.sin(fpa_rad),
           vDown:       spd_ms * Math.cos(fpa_rad),
+          att:         Math.atan2(spd_ms * Math.cos(fpa_rad), spd_ms * Math.sin(fpa_rad)) / DEG,  // nose along velocity
+          entryV0:     0,
           lat:         S.lat ?? 0,
           lon:         S.lon ?? 0,
           hdg:         S.hdg ?? 0,
@@ -1276,7 +1278,7 @@ export function tickBooster(dt) {
     : 0;
 
   let thrustVert = 0, thrustDown = 0, mdot = 0;
-  let newPhase = b.phase, newPhaseStartT = b.phaseStartT;
+  let newPhase = b.phase, newPhaseStartT = b.phaseStartT, newEntryV0 = b.entryV0;
 
   if (b.phase === 'flip') {
     /* Cold-gas flip — no thrust, just coast */
@@ -1302,9 +1304,23 @@ export function tickBooster(dt) {
     }
 
   } else if (b.phase === 'coast') {
-    /* No dedicated entry burn — grid fins handle atmospheric deceleration.
-       Transition to glide when descending below 50 km. */
-    if (alt_m <= 50_000 && vVert < 0) {
+    /* Ballistic up to apogee and back down; the entry burn lights as it re-enters the
+       denser air near entryBurnAlt_m (descending). */
+    if (alt_m <= (rec.entryBurnAlt_m ?? 70_000) && vVert < 0) {
+      newPhase = 'entry'; newPhaseStartT = mT; newEntryV0 = spd;
+    }
+
+  } else if (b.phase === 'entry') {
+    /* Entry burn — 3 engines retrograde to shed the bulk of the re-entry velocity before
+       the dense atmosphere. Cut once ~45% is gone or the max duration is reached. */
+    const nE = rec.entryBurnEngines  ?? 3;
+    const th = rec.entryBurnThrottle ?? 0.4;
+    const T  = (thrustSL * atmFrac + thrustVac * (1 - atmFrac)) * (nE / nEng) * th;
+    const tA = T / Math.max(1, mass);
+    mdot = T / (isp * G0);
+    if (spd > 0.5) { thrustVert = -tA * (vVert / spd); thrustDown = -tA * (vDown / spd); }
+    const v0 = b.entryV0 ?? spd;
+    if (spd <= v0 * 0.55 || phaseAge >= (rec.entryBurnDuration ?? 22)) {
       newPhase = 'glide'; newPhaseStartT = mT;
     }
 
@@ -1344,12 +1360,29 @@ export function tickBooster(dt) {
   const newLat  = bLat + (dDown * Math.cos(hdg_rad)) / (R_EARTH * DEG);
   const newLon  = (b.lon ?? 0) + (dDown * Math.sin(hdg_rad)) / (R_EARTH * Math.cos(bLat * DEG) * DEG);
 
+  /* ── Attitude (nose angle φ, degrees, from local-up toward downrange) ──
+     The booster flies engine-first / retrograde: engines point along the velocity vector so
+     thrust is retrograde. During the post-boostback coast it reorients toward nose-up (engines
+     down) while still climbing, so it re-enters and lands UPRIGHT (φ≈0). Slew rate is grid-fin/
+     aero limited in the atmosphere, cold-gas-ACS limited above it. Validated in the descent sim. */
+  const _angOf = (x, z) => Math.atan2(x, z) / DEG;
+  const _retro = _angOf(-newVDown, -newVVert);
+  let _attTgt;
+  if (newPhase === 'flip' || newPhase === 'boostback')      _attTgt = _retro;
+  else if (newPhase === 'coast' || newPhase === 'entry' ||
+           newPhase === 'glide' || newPhase === 'landing')  _attTgt = newVVert < 0 ? _retro : 0;
+  else                                                       _attTgt = _angOf(newVDown, newVVert);
+  const _slew   = (atmFrac > 0.02 ? 12 : 4) * dt;
+  const _curAtt = b.att ?? _angOf(vDown, vVert);
+  const _dAtt   = ((_attTgt - _curAtt + 540) % 360) - 180;
+  const newAtt  = _curAtt + Math.sign(_dAtt) * Math.min(Math.abs(_dAtt), _slew);
+
   /* Touchdown */
   const padElev_m = (S.mission?.departure?.elevation ?? 0) * 0.3048;
   if (newAlt_m <= padElev_m + 3 && (newVVert < 0 || b.phase === 'landing')) {
     setState({ booster: { ...b,
       alt: (padElev_m + 2) / 0.3048, vVert: 0, vDown: 0,
-      mass: newMass, lat: newLat, lon: newLon,
+      mass: newMass, lat: newLat, lon: newLon, att: 0,
       phase: 'landed', landed: true, active: false,
     }});
     return;
@@ -1357,7 +1390,7 @@ export function tickBooster(dt) {
 
   setState({ booster: { ...b,
     alt: newAlt_ft, vVert: newVVert, vDown: newVDown,
-    lat: newLat, lon: newLon, mass: newMass,
+    lat: newLat, lon: newLon, mass: newMass, att: newAtt, entryV0: newEntryV0,
     phase: newPhase, phaseStartT: newPhaseStartT,
   }});
 }
