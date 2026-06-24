@@ -454,3 +454,112 @@ export const { V_: _V_f9, F_: _F_f9, FC_: _FC_f9, E_: _E_f9, _thBase: _f9ThBase 
   return { V_, F_, FC_, E_, _thBase };
 })();
 export const _FN_f9 = computeFaceNormals(_V_f9, _F_f9);
+
+/* ── Falcon 1 (Flight 4, F1-004 · 28 Sep 2008) ───────────────────────────────
+   SpaceX's first orbital rocket: 21.3 m tall, Ø 1.7 m, two stages, expendable.
+   Stage 1 = ONE Merlin 1C (SL), Stage 2 = ONE Kestrel (vacuum, long radiative bell).
+   No grid fins, no legs, no octaweb — a slender single-engine pencil with a payload
+   fairing on top. Same world scale as the F9 (~1750 m/unit) so it sits true-to-size. */
+export const _rf1 = _rf9 * 0.463;   // body radius 0.85 m (Ø 1.7 m)
+const _UPM_f1 = (_F9_vfTip - _F9_vf0) / _F9_tot;   // unit per metre, shared with the F9
+const _F1_vf0 = -0.016;                            // base on the pad (same datum as the F9)
+const _f1vf = (m) => _F1_vf0 + m * _UPM_f1;
+const _F1L = { eng: 1.3, s1: 12.0, is: 1.2, s2: 4.3, fairing: 2.5 };   // 21.3 m total
+const _f1EngTop = _f1vf(_F1L.eng);
+const _f1S1Top  = _f1vf(_F1L.eng + _F1L.s1);                        // interstage base
+const _f1S2Base = _f1vf(_F1L.eng + _F1L.s1 + _F1L.is);              // Stage 2 base
+const _f1S2Top  = _f1vf(_F1L.eng + _F1L.s1 + _F1L.is + _F1L.s2);    // fairing base
+const _f1Sum    = _F1L.eng + _F1L.s1 + _F1L.is + _F1L.s2;
+export const _F1_vfTip = _f1vf(_f1Sum + _F1L.fairing);
+
+export const _COLORS_f1 = [
+  [250, 250, 252],  // 0 Stage 1 — white
+  [244, 246, 250],  // 1 Stage 2 — white (cooler)
+  [ 22,  24,  30],  // 2 interstage / aft engine band — near-black
+  [248, 248, 250],  // 3 payload fairing — white
+  [ 40,  44,  54],  // 4 nozzle — dark metal
+];
+
+/* nozzle radii (exit / throat) as multiples of the body radius */
+const _f1MerlinExit = _rf1 * 0.72, _f1KestrelExit = _rf1 * 0.82;
+
+const _f1Build = (() => {
+  const N = 16;
+  const { V_, F_, FC_, E_, rb } = buildTube(N, [
+    { vF: _F1_vf0,    r: _rf1,        col: 0 },  // R0 aft — white (Falcon 1 is white to the base; only the Merlin bell is dark)
+    { vF: _f1EngTop,  r: _rf1,        col: 0 },  // R1 Stage 1 — white (the bulk)
+    { vF: _f1S1Top,   r: _rf1,        col: 2 },  // R2 interstage — black band (between the white S1 tank and white S2)
+    { vF: _f1S2Base,  r: _rf1,        col: 1 },  // R3 Stage 2 — white
+    { vF: _f1S2Top,   r: _rf1,        col: 3 },  // R4 fairing base — white
+    { vF: _f1vf(_f1Sum + _F1L.fairing * 0.45), r: _rf1 * 0.78, col: 3 },  // R5 fairing mid
+    { vF: _f1vf(_f1Sum + _F1L.fairing * 0.80), r: _rf1 * 0.40, col: 3 },  // R6 fairing upper
+  ]);
+  // rb: [0,16,32,48,64,80,96] → body faces 0-95 (6 gaps), fairing tip cap next.
+
+  /* Fairing nose cap: ring R6 → apex tip */
+  const _tip = V_.length;
+  V_.push([_F1_vfTip, 0, 0]);                                   // 112 tip
+  for (let si = 0; si < N; si++) { F_.push([rb[6] + si, rb[6] + (si + 1) % N, _tip]); FC_.push(3); }
+  // fairing cap faces 96-111.
+
+  /* Single-engine bells as 8-sided cones (apex = throat recessed up, ring = exit). The dark
+     open interior reads as the nozzle. Merlin (S1) stays with the booster on staging; Kestrel
+     (S2) hangs down inside the interstage and is revealed after separation. */
+  const _cone = (apexVF, exitVF, exitR, col) => {
+    const a0 = V_.length;
+    V_.push([apexVF, 0, 0]);
+    for (let si = 0; si < 8; si++) { const a = Math.PI / 2 - (si / 8) * 2 * Math.PI; V_.push([exitVF, exitR * Math.cos(a), exitR * Math.sin(a)]); }
+    for (let si = 0; si < 8; si++) { F_.push([a0, a0 + 1 + si, a0 + 1 + (si + 1) % 8]); FC_.push(col); }
+    for (let si = 0; si < 8; si++) E_.push([a0 + 1 + si, a0 + 1 + (si + 1) % 8]);
+    return a0;
+  };
+  const _merlinExitVF  = _F1_vf0 - 0.00210;    // bell mouth ~3.7 m below the base (engine hangs free)
+  const _kestrelExitVF = _f1S2Base - 0.00130;  // hangs ~2.3 m into the interstage
+
+  /* Exposed Merlin — the Falcon 1 aft was OPEN (no boattail): the whole engine (combustion
+     chamber → throat → nozzle) hangs on struts BELOW the tank end, with the turbopump + gas
+     generator alongside. Built from a few dark low-poly primitives. Part of stage 1. */
+  const _ring = (vF, cy, cz, r, n) => {        // push an n-vert ring; return first index
+    const b = V_.length;
+    for (let si = 0; si < n; si++) { const a = Math.PI / 2 - si / n * 2 * Math.PI; V_.push([vF, cy + r * Math.cos(a), cz + r * Math.sin(a)]); }
+    return b;
+  };
+  const _prism = (cVF, cy, cz, r, halfH, n) => {   // n-gon prism: side walls + top cap, dark metal
+    const bb = _ring(cVF - halfH, cy, cz, r, n), tt = _ring(cVF + halfH, cy, cz, r, n);
+    for (let si = 0; si < n; si++) { const sj = (si + 1) % n; F_.push([bb + si, bb + sj, tt + sj, tt + si]); FC_.push(4); }
+    F_.push(Array.from({ length: n }, (_, si) => tt + si)); FC_.push(4);   // top cap
+    return { bb, tt };
+  };
+  const _frustum = (vT, rT, vB, rB, cy, cz, n, col = 4) => {   // open n-gon frustum (no caps): nozzle bell / tapered tank end
+    const tt = _ring(vT, cy, cz, rT, n), bb = _ring(vB, cy, cz, rB, n);
+    for (let si = 0; si < n; si++) { const sj = (si + 1) % n; F_.push([bb + si, bb + sj, tt + sj, tt + si]); FC_.push(col); }
+  };
+
+  const _mF0 = F_.length, _mV0 = V_.length;     // Merlin assembly start
+  /* White tapered tank end — the F1 aft dome narrows to a near-point (col 0, stays white) */
+  const _tankEnd = _F1_vf0, _taperBot = _F1_vf0 - 0.00040;
+  _frustum(_tankEnd, _rf1, _taperBot, _rf1 * 0.30, 0, 0, 16, 0);
+  /* Engine hangs on struts BELOW the tapered tank end: chamber → throat → nozzle */
+  const _chTop = _taperBot - 0.00030, _throat = _chTop - 0.00045;
+  for (const [cy, cz] of [[0, _rf1 * 0.28], [-_rf1 * 0.24, -_rf1 * 0.14], [_rf1 * 0.24, -_rf1 * 0.14]])
+    _prism((_taperBot + _chTop) / 2, cy, cz, _rf1 * 0.05, (_taperBot - _chTop) / 2 + 0.00008, 4);   // suspension struts
+  _prism((_chTop + _throat) / 2, 0, 0, _rf1 * 0.22, (_chTop - _throat) / 2, 6);   // combustion chamber (+ injector cap)
+  _frustum(_throat, _rf1 * 0.20, _merlinExitVF, _f1MerlinExit, 0, 0, 8);          // throat → nozzle bell
+  const _off = _rf1 * 0.55;                                    // turbopump radial offset (+y, beside the chamber)
+  _prism(_throat + 0.00020, _off, 0, _rf1 * 0.24, 0.00050, 6);   // turbopump (hex can)
+  _prism(_chTop,            _off, 0, _rf1 * 0.12, 0.00030, 4);   // gas generator (box atop the pump)
+  const _mF1 = F_.length - 1, _mV1 = V_.length - 1;           // Merlin assembly end
+
+  _cone(_f1S2Base + 0.00070, _kestrelExitVF, _f1KestrelExit, 4);   // Kestrel bell (stays with S2)
+
+  return { V_, F_, FC_, E_, _mF0, _mF1, _mV0, _mV1 };
+})();
+export const _V_f1 = _f1Build.V_, _F_f1 = _f1Build.F_, _FC_f1 = _f1Build.FC_, _E_f1 = _f1Build.E_;
+/* Merlin assembly (bell + exposed turbopump/GG) face + vertex ranges — stage-1 hardware that
+   must hide on staging and drop out of the auto-fit once the booster separates. */
+export const _f1MerlinF0 = _f1Build._mF0, _f1MerlinF1 = _f1Build._mF1;
+export const _f1MerlinV0 = _f1Build._mV0, _f1MerlinV1 = _f1Build._mV1;
+export const _FN_f1 = computeFaceNormals(_V_f1, _F_f1);
+/* exit-plane vF anchors for the ascent plumes (centre engine, on the long axis) */
+export const _f1MerlinExitVF  = _F1_vf0 - 0.00210;
+export const _f1KestrelExitVF = _f1S2Base - 0.00130;

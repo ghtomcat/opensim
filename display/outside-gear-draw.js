@@ -290,7 +290,7 @@ export function drawActuatorRodCol(ctx, pa, pb, dpr, fill, stroke) {
    context `rc`; pushes depth-sorted faces into rc.faces. */
 export function drawLandingGear(rc) {
   const { ctx, dpr, faces, project, rotateNormal, litBr,
-          wbGeo: _wbGeo, ppGeo: _ppGeo, GV_, isF9, isSS, isSV, isPP } = rc;
+          wbGeo: _wbGeo, ppGeo: _ppGeo, GV_, isRocket, isPP } = rc;
   /* Gear struts and tires — pushed into face list so they depth-sort with fuselage.
      Gear behaviour is data-driven from the aircraft JSON "gear" block:
        gear.fixed  — never retracts, always drawn, no bay doors (C172/Bf109/F4U)
@@ -401,7 +401,7 @@ export function drawLandingGear(rc) {
   /* Closed bay-door panel seams — drawn when the gear is retracted so the door
      outlines stay visible on the belly (flush panels + dark border). When the gear
      is out, the animated bay below (cutout + opening doors) draws instead. */
-  if (!isF9 && !isSS && !isSV && !_gearFixed && _gearP <= 0.01) {
+  if (!isRocket && !_gearFixed && _gearP <= 0.01) {
     const _dCol = 'rgba(228,230,234,0.96)';
     if (_mBay) {
       const _wL = _mTR * 2.8, _yIn = _gwR * 0.16, _yStr = _gwR * 0.90;
@@ -413,7 +413,7 @@ export function drawLandingGear(rc) {
     _drawBayDoor(_nF, _nA,  0,  _gwR * 0.46, _dCol, _rt);
     _drawBayDoor(_nF, _nA,  0, -_gwR * 0.46, _dCol);
   }
-  if (!isF9 && !isSS && !isSV && (_gearFixed || _gearP > 0.01)) {
+  if (!isRocket && (_gearFixed || _gearP > 0.01)) {
     const _wbR   = _wbGeo?.r ?? _r;
     const _midV3 = (a, b) => [(a[0]+b[0])/2, (a[1]+b[1])/2, (a[2]+b[2])/2];
     for (const [a, b] of _GE) {

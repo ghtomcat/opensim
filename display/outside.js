@@ -32,7 +32,9 @@ import {
 import {
   _COLORS_sv, _V_sv, _F_sv, _FC_sv, _E_sv, _FN_sv, _COLORS_lm, _V_lm, _F_lm, _FC_lm,
   _E_lm, _svSepAnims, _dir, _DIR_SHOTS, _dirBlend, _rf9, _gfS, _gfW, _gfMidVF, _gfRH, _gfDepth, _nzO, _COLORS_f9, _f9ThBase,
-  _V_f9, _F_f9, _FC_f9, _E_f9, _FN_f9
+  _V_f9, _F_f9, _FC_f9, _E_f9, _FN_f9,
+  _V_f1, _F_f1, _FC_f1, _E_f1, _FN_f1, _COLORS_f1, _f1MerlinExitVF, _f1KestrelExitVF,
+  _f1MerlinF0, _f1MerlinF1, _f1MerlinV0, _f1MerlinV1
 } from './outside-space.js';
 import { _ssRocketCache_mut, _drawCSMOrbitDetail, _drawOrbitalClouds } from './outside-rocket.js';
 import { drawLandingGear } from './outside-gear-draw.js';
@@ -99,6 +101,7 @@ function _renderProfile(ac) {
   if (ac?.panel === 'g1000' || ac?.panel === 'dr400') return 'c172';
   if (ac?.id === 'saturn-v') return 'saturn-v';
   if (ac?.id === 'starship') return 'starship';
+  if (ac?.id === 'falcon1') return 'falcon1';
   if (ac?.id?.startsWith('falcon9') || ac?.vehicleType === 'rocket') return 'falcon9';
   if (ac?.id === 'bf109') return 'bf109';
   if (ac?.id === 'f4u1a') return 'f4u';
@@ -112,6 +115,7 @@ const _GEO_REGISTRY = {
   f4u:        { V_: _V_f4u,   F_: _F_f4u,   FC_: _FC_f4u,   FN_: _FN_f4u,   E_: _E_f4u,   COL_: _COLORS_f4u,   GV_: _GV_f4u,   prop: _PROP_f4u  },
   mig15:      { V_: _V_mig15, F_: _F_mig15, FC_: _FC_mig15, FN_: _FN_mig15, E_: _E_mig15, COL_: _COLORS_mig15, GV_: _GV_mig15 },
   falcon9:    { V_: _V_f9,    F_: _F_f9,    FC_: _FC_f9,    FN_: _FN_f9,    E_: _E_f9,    COL_: _COLORS_f9,    GV_: _GV       },
+  falcon1:    { V_: _V_f1,    F_: _F_f1,    FC_: _FC_f1,    FN_: _FN_f1,    E_: _E_f1,    COL_: _COLORS_f1,    GV_: _GV       },
   'saturn-v': { V_: _V_sv,    F_: _F_sv,    FC_: _FC_sv,    FN_: _FN_sv,    E_: _E_sv,    COL_: _COLORS_sv,    GV_: _GV       },
 };
 
@@ -544,10 +548,16 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const isSV    = profile === 'saturn-v';
   const isSS    = profile === 'starship';
   const isF9    = profile === 'falcon9';
+  const isF1    = profile === 'falcon1';
   const isBf109 = profile === 'bf109';
   const isF4U   = profile === 'f4u';
   const isMig15 = profile === 'mig15';
   const isPP    = profile === 'propplane';
+  /* Family flag — every launch vehicle (F9, F1, Saturn V, Starship, and future
+     Vostok/Mercury/…) carries vehicleType "rocket". Gate rocket-vs-aircraft passes
+     (no passenger windows/doors, no landing gear, no nav lights, body roll, stage
+     logic, …) on THIS, not on each submodel, so new rockets need no gate edits. */
+  const isRocket = S.aircraft?.vehicleType === 'rocket';
 
   /* Starship / Super Heavy — build from aircraft.rocketGeometry on first use */
   const _ssRocketCache = _ssRocketCache_mut;
@@ -571,7 +581,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     _geo2.FN_ = computeFaceNormals(_geo2.V_, _geo2.F_);
     _wbCache[_acId] = _geo2;
   }
-  const _wbGeo = (!isC172 && !isF9 && !isBf109 && !isF4U && !isMig15 && !isSV && !isSS && !isPP)
+  const _wbGeo = (!isC172 && !isRocket && !isBf109 && !isF4U && !isMig15 && !isPP)
     ? (_wbCache[S.aircraft?.id] ?? _wbCache.default) : null;
   const _b   = _wbGeo?.b ?? 162;  // base index of non-tube vertices; 162 for nNose=5, 194 for nNose=7
   /* Static geometry comes from the registry; Starship (_ssGeo), prop-plane (_ppGeo),
@@ -606,7 +616,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const sinAz = Math.sin(orbitAzDeg * DEG), cosAz = Math.cos(orbitAzDeg * DEG);
   /* Rockets spin around their longitudinal axis (pre-roll before pitch).
      Aircraft bank around the camera forward axis (post-pitch roll). */
-  const isBodyRoll = isSV || isF9 || isSS;
+  const isBodyRoll = isRocket;
 
   const W = canvas.width, H = canvas.height;
   const ctx   = canvas.getContext('2d');
@@ -625,7 +635,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     const hfV    = Math.atan(Math.tan(FOV_H / 2 * DEG) * H / W);
     const PAD    = 1.15;
     /* Stage-aware vertex filtering — only include vertices of currently-shown structure */
-    const _afStage      = (isF9 || isSV || isSS) ? (S.rocketStage ?? 1) : 0;
+    const _afStage      = isRocket ? (S.rocketStage ?? 1) : 0;
     const _afLesJett    = isSV && !!(S.lesJettisoned);
     const _afSivbSep    = isSV && !!(S.sivbSep);
     let minCR = Infinity, maxCR = -Infinity, minCU = Infinity, maxCU = -Infinity;
@@ -638,6 +648,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
         if (vF < -0.006 && _afStage >= 2) continue;               // S-IC aft separated
       }
       if (isF9 && _afStage >= 2 && _vi < 48) continue;            // F9 first stage separated
+      if (isF1 && _afStage >= 2 && (_vi < 48 || (_vi >= _f1MerlinV0 && _vi <= _f1MerlinV1))) continue;  // F1 stage 1 + Merlin assembly separated
       if (isSS && _afStage >= 2 && _ssGeo?.stageRanges?.[0]) {
         const _sepVF = _ssGeo.V_[_ssGeo.stageRanges[0].faceEnd]?.[0] ?? 0.013;
         if (vF < _sepVF) continue;                                // SS booster + grid fin verts
@@ -1012,7 +1023,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     });
     /* Ground level: rockets (vertical body) sit on their lowest vertex; a parked aircraft
        at its wheel-contact ride height (not MSL, or it would float); airborne, MSL. */
-    const groundUR = (isSV || isF9 || isSS)
+    const groundUR = isRocket
       ? Math.min(...rot.map(v => v.uR))
       : S.wow ? -_groundOffsetFt() * FT_NM : -agl_nm;
     /* Each vertex → ground along the light dir → orbit → screen. The orbit rotation must
@@ -1082,7 +1093,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   });
 
   /* Booster projection (F9 stage separation) */
-  const rStage = (isF9 || isSV || isSS) ? (S.rocketStage ?? 1) : 0;
+  const rStage = isRocket ? (S.rocketStage ?? 1) : 0;
 
   /* Detect Saturn V stage separation — tumble animation + director cut */
   if (isSV) {
@@ -1107,7 +1118,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   }
 
   /* Detect F9 / Starship stage separation — snap zoom to active stage */
-  if (isF9 || isSS) {
+  if (isF9 || isSS || isF1) {
     if (_rktSepLastAcId !== S.aircraft?.id) {
       _rktSepLastAcId  = S.aircraft?.id;
       _rktSepPrevStage = rStage;
@@ -1206,7 +1217,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
 
   const _DBG_CULL   = false;  // ← set true to paint front=blue, back=red
 
-  const _trActive = !isF9 && !isSS && !isSV && !isC172 && !isPP && !isBf109 && !isF4U && !isMig15 && !!(S.thrustReverser);
+  const _trActive = !isRocket && !isC172 && !isPP && !isBf109 && !isF4U && !isMig15 && !!(S.thrustReverser);
 
   /* Build shaded face list with average depth */
   /* Night apron uplight — when parked/taxiing at night the airport surface lights the
@@ -1220,7 +1231,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   /* Day/night dim — the airframe should go dark at night (lit mainly by the apron
      uplight + its own nav/strobe lights), not stay noon-bright. 1 in daylight, floor
      at night; held at 1 for rockets/space where timeOfDay isn't a ground sun height. */
-  const _acDay = (isF9 || isSS || isSV || S.rocketOrbit) ? 1
+  const _acDay = (isRocket || S.rocketOrbit) ? 1
                : Math.max(0, Math.min(1, (_sunUp + 0.15) / 0.25));
   _acDim = 0.25 + 0.75 * _acDay;
 
@@ -1230,6 +1241,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     if (isF9 && rStage >= 2 && (i < 48 || (i > 95 && i < 104) || (i >= 120 && i <= 159))) return null;  // S1 body + fins + hinge mounts + fin thickness stay with the booster
     if (isF9 && S.dragonSep && ((i >= 48 && i <= 63) || (i >= 104 && i <= 119))) return null;  // S2 tank + MVac bell drift away with Stage 2 (drawn at s2Pts)
     if (isF9 && S.aircraft?.gridFins === false && ((i > 95 && i < 104) || (i >= 120 && i <= 159))) return null;  // expendable v1.0 (CRS-1): no grid fins / hinge mounts / fin thickness
+    if (isF1 && rStage >= 2 && (i < 48 || (i >= _f1MerlinF0 && i <= _f1MerlinF1))) return null;  // F1 stage 1 body + interstage + Merlin assembly separated
 
     /* Starship / Super Heavy stage sep: hide SH body faces + grid fins */
     if (isSS && rStage >= 2 && _ssGeo?.stageRanges?.[0]) {
@@ -1367,7 +1379,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     /* attitude */
     cosP, sinP, cosR, sinR, isBodyRoll,
     /* render profile */
-    profile, isC172, isSV, isSS, isF9, isBf109, isF4U, isMig15, isPP,
+    profile, isC172, isSV, isSS, isF9, isF1, isRocket, isBf109, isF4U, isMig15, isPP,
     /* geometry tables */
     V_, F_, FC_, FN_, E_, SE_, SL_, COL_, GV_, VN_,
     b: _b, reg: _reg, wbGeo: _wbGeo, ssGeo: _ssGeo, ppGeo: _ppGeo,
@@ -1727,7 +1739,7 @@ ctx.save();
   /* Aircraft lights — WB tip positions derived from wing geometry */
   const _lightList = isC172 ? (S.masterBat ? _LIGHTS_c172 : null)
     : isPP ? (S.masterBat ? (_ppGeo?.LIGHTS_ ?? null) : null)
-    : (!isF9 && !isSS && !isBf109 && !isF4U && !isMig15 && !isSV) ? (() => {
+    : (!isRocket && !isBf109 && !isF4U && !isMig15) ? (() => {
         if (!_wbGeo) return _LIGHTS_wb;
         const _lwg = S.aircraft?.wing ?? _WB_WING_DEFAULT;
         const _ltY = _lwg.span;

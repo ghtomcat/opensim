@@ -10,7 +10,8 @@ import {
   _COLORS_sv, _V_sv, _F_sv, _FC_sv,
   _svSepAnims, _dir, _DIR_SHOTS,
   _rf9, _nzO, _nzO7, _nzVac, _f9S2Base,
-  _COLORS_f9, _F_f9, _FC_f9, _E_f9, _FN_f9
+  _COLORS_f9, _F_f9, _FC_f9, _E_f9, _FN_f9,
+  _rf1, _f1MerlinExitVF, _f1KestrelExitVF
 } from './outside-space.js';
 import { _drawSSReentryPlasma } from './outside-rocket.js';
 
@@ -275,7 +276,7 @@ export function drawRocketPlumesAndNozzles(rc) {
   const { canvas, ctx, dpr, pts, faces, project, projectCSM: _projectCSM,
           inTDSep: _inTDSep, camSide, camBack, cx, cy, focal, cosCP, sinCP,
           cosEl, sinEl, orbitElDeg, rotateNormal, litBr, rStage,
-          svRise: _svRise, ssGeo: _ssGeo, isF9, isSS, isSV, H: _H } = rc;
+          svRise: _svRise, ssGeo: _ssGeo, isF9, isF1, isSS, isSV, H: _H } = rc;
   /* Cryogenic effects — LOX vent + tank vapor (ground gas closeout phase).
      Venting represents strongback/GSE line disconnects before ignition.   */
   if (isF9 && (S.spd ?? 0) < 5) {
@@ -479,6 +480,15 @@ export function drawRocketPlumesAndNozzles(rc) {
       const _ex = _f9S2Base - 0.0017;   // MVac exit (matches the geometry exit ring)
       _drawPlume(project([_ex, 0, 0]), _nzVac, [_ex, 0, 0], 0.032, 1.3 * _engFrac);
     }
+  }
+
+  if (isF1) {
+    /* Stage 1 — single Merlin 1C (SL), ignition → MECO */
+    if (pastIgnition && rStage < 2 && !S.rocketCoast && !S.rocketMECO)
+      _drawPlume(project([_f1MerlinExitVF, 0, 0]), _rf1 * 0.72, [_f1MerlinExitVF, 0, 0], 0.018, 2.2 * _engFrac);
+    /* Stage 2 — single Kestrel (vacuum), staging → SECO. Faint, diffuse exhaust. */
+    if (rStage >= 2 && !S.rocketCoast && !S.rocketSECO)
+      _drawPlume(project([_f1KestrelExitVF, 0, 0]), _rf1 * 0.82, [_f1KestrelExitVF, 0, 0], 0.022, 0.9 * _engFrac);
   }
 
   if (isSS && _ssGeo && pastIgnition && !S.rocketCoast && !S.rocketSECO) {

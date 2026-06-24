@@ -835,9 +835,9 @@ export function drawCabinEdges(rc) {
    perspective-projected with wing occlusion; post-painter. ── */
 export function drawPassengerWindows(rc) {
   const { ctx, pts, project, F_, FC_, wbGeo: _wbGeo,
-          isF9, isSV, isSS, isC172, isPP, isBf109, isF4U, isMig15 } = rc;
+          isRocket, isC172, isPP, isBf109, isF4U, isMig15 } = rc;
   /* Passenger windows + door outlines — wide-body only, properly perspective-projected */
-  if (!isF9 && !isSV && !isSS && !isC172 && !isPP && !isBf109 && !isF4U && !isMig15) {
+  if (!isRocket && !isC172 && !isPP && !isBf109 && !isF4U && !isMig15) {
     const _fr = _wbGeo?.r ?? _r;
     /* Wing occlusion (no depth buffer): the windows/doors are a post-painter pass, so
        the near wing can't hide the fuselage rows behind it. Collect the visible

@@ -270,9 +270,9 @@ function _outerEngineStation(_wbGeo) {
 /* ── Engine pylons + TR/chevron overlays — pre-painter, pushes into rc.faces ── */
 export function drawEnginePylons(rc) {
   const { pts, faces, b: _b, wbGeo: _wbGeo, wingView, project, COL_,
-          isF9, isSS, isSV, isC172, isPP, isBf109, isF4U, isMig15 } = rc;
+          isRocket, isC172, isPP, isBf109, isF4U, isMig15 } = rc;
   /* Engine overlays: thrust-reverser cascade + chevrons */
-  if (!isF9 && !isSS && !isSV && !isC172 && !isPP && !isBf109 && !isF4U && !isMig15) _engineOverlays(pts, faces, S.aircraft?.engine, _b);
+  if (!isRocket && !isC172 && !isPP && !isBf109 && !isF4U && !isMig15) _engineOverlays(pts, faces, S.aircraft?.engine, _b);
 
   /* Outer-engine cowls are now built into the wireframe geometry (the 16-vert nacelle
      skin in outside-wb.js loops over all four engines), so they render identically to the
@@ -575,9 +575,9 @@ export function drawPropDisk(rc, _propAngle) {
 /* ── Turbofan fan faces — WB inlets (inner pair + A340 outer pair); post-painter ── */
 export function drawFanFaces(rc) {
   const { ctx, dpr, pts, b: _b, COL_, project, wbGeo: _wbGeo, cpCamF: _cpCamF,
-          isC172, isPP, isF9, isSS, isBf109, isF4U, isMig15, isSV } = rc;
+          isC172, isPP, isRocket, isBf109, isF4U, isMig15 } = rc;
   /* Turbofan fan face — wide-body (WB) aircraft only */
-  if (!isC172 && !isPP && !isF9 && !isSS && !isBf109 && !isF4U && !isMig15 && !isSV) {
+  if (!isC172 && !isPP && !isRocket && !isBf109 && !isF4U && !isMig15) {
     const ePow = (S.engineState === 'off' || S.engineState === 'shutdown') ? 0 : (S.enginePower ?? 0);
     {   // always draw the inlet — static blades when off (ePow 0), spinning when running
       /* Draw one engine inlet: dark bore + black strip + recessed fan (fitted to
