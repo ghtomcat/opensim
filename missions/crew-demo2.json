@@ -19,6 +19,7 @@
   "fiction_note": "This mission is a faithful recreation of the real SpaceX Demo-2 launch on 30 May 2020. Bob Behnken and Doug Hurley are real NASA astronauts. The webcast audio is original SpaceX footage.",
   "aircraft": "falcon9-b5-demo2",
   "dragonSeats": ["CDR", "PLT"],
+  "targetOrbitKm": 200,
   "dragonSepT": 898,
   "timeOfDay": 0.75,
   "water": false,
@@ -162,42 +163,53 @@
       "delay": 6000
     },
     {
-      "t": 622,
+      "_uid": "ab2b",
+      "trigger": { "type": "velocity", "min": 4500 },
       "text": "Abort mode 2-Bravo.",
       "voice": "atc"
     },
     {
-      "t": 623,
+      "_uid": "ab2b-c",
+      "trigger": { "type": "velocity", "min": 4500 },
+      "delay": 1500,
       "text": "Copy. 2-Bravo.",
       "voice": "crew"
     },
     {
-      "t": 655,
+      "_uid": "go-ins",
+      "trigger": { "type": "velocity", "min": 5200 },
       "text": "Stage 2 nominal. Dragon, you are go for orbit insertion.",
       "voice": "atc"
     },
     {
-      "t": 689,
+      "_uid": "ab2c",
+      "trigger": { "type": "velocity", "min": 6000 },
       "text": "Abort mode 2-Charlie.",
       "voice": "atc"
     },
     {
-      "t": 690,
+      "_uid": "ab2c-c",
+      "trigger": { "type": "velocity", "min": 6000 },
+      "delay": 1500,
       "text": "Copy. 2-Charlie.",
       "voice": "crew"
     },
     {
-      "t": 769,
+      "_uid": "ab2d",
+      "trigger": { "type": "velocity", "min": 6900 },
       "text": "Abort mode 2-Delta.",
       "voice": "atc"
     },
     {
-      "t": 770,
+      "_uid": "ab2d-c",
+      "trigger": { "type": "velocity", "min": 6900 },
+      "delay": 1500,
       "text": "Copy. 2-Delta.",
       "voice": "crew"
     },
     {
-      "t": 808,
+      "_uid": "secowarn",
+      "trigger": { "type": "velocity", "min": 7400 },
       "text": "30 seconds to SECO.",
       "voice": "atc"
     },

@@ -27,13 +27,14 @@
         "massDry":     25600
       },
       {
-        "name":        "Stage 2 — Merlin Vacuum",
-        "engineCount": 1,
-        "thrustSL":    0,
-        "thrustVac":   934000,
-        "isp":         348,
-        "massWet":     111400,
-        "massDry":     4000
+        "name":           "Stage 2 — Merlin Vacuum",
+        "engineCount":    1,
+        "thrustSL":       0,
+        "thrustVac":      934000,
+        "isp":            348,
+        "massWet":        111400,
+        "massDry":        4000,
+        "orbitTargetSECO": true
       }
     ],
 
