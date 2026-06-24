@@ -60,6 +60,23 @@ function _programmedFPA(t, profile) {
   return 90;
 }
 
+/* ── Osculating orbit from a vertical-plane state (apoapsis/periapsis altitudes, m) ──
+   Used by the orbit-targeting upper-stage guidance: steer to raise the apoapsis to the target,
+   cut off (SECO) when the periapsis reaches it. The closed-loop insertion guidance of every
+   crewed program (Saturn V's IGM, Mercury/Vostok radio guidance) in one simple law. */
+function _oscOrbit(alt_m, vH, vV) {
+  const r = R_EARTH + alt_m, v2 = vH * vH + vV * vV;
+  const energy = v2 / 2 - GM / r, sma = -GM / (2 * energy);
+  const L = r * vH;                                          // angular momentum (tangential = horizontal)
+  const e = Math.sqrt(Math.max(0, 1 + 2 * energy * L * L / (GM * GM)));
+  return energy < 0 ? { apo: sma * (1 + e) - R_EARTH, peri: sma * (1 - e) - R_EARTH }
+                    : { apo: Infinity, peri: -Infinity };
+}
+/* Target orbit altitude (m) for the active guidance — mission overrides aircraft. */
+function _orbitTargetM() {
+  return (S.mission?.targetOrbitKm ?? S.aircraft?.targetOrbitKm ?? 200) * 1000;
+}
+
 /* ── Dragon reentry constants ────────────────────────────────── */
 const REENTRY_CD    = 1.4;    // blunt-body heat shield
 const REENTRY_AREA  = 10.2;   // m²  (3.6 m diameter)
@@ -1094,6 +1111,19 @@ export function tickRocket(dt) {
           T    = (thrustSL * atmFrac + thrustVac * (1 - atmFrac)) * engineFrac;
           mdot = T / ((stg.isp ?? 300) * G0);
         }
+      } else if (stg.orbitTargetSECO && stage >= stages.length) {
+        /* Orbit-targeting insertion — cut off when the osculating periapsis reaches the target
+           orbit (the apoapsis is steered there by the guidance below). IGM/PEG-style. */
+        const spd_ms = (S.spd ?? 0) * 0.5144, fr = (S.pitch ?? 90) * DEG;
+        const ob = _oscOrbit(alt_m, spd_ms * Math.cos(fr), spd_ms * Math.sin(fr));
+        if (ob.peri >= _orbitTargetM() - 5000) {
+          if (!S.rocketSECO) setState({ rocketSECO: true });
+        } else {
+          const thrustSL  = stg.thrustSL  ?? 0;
+          const thrustVac = stg.thrustVac ?? stg.thrustSL ?? 0;
+          T    = (thrustSL * atmFrac + thrustVac * (1 - atmFrac)) * engineFrac;
+          mdot = T / ((stg.isp ?? 300) * G0);
+        }
       } else {
         /* Standard — scale thrust by active engine fraction */
         const thrustSL  = stg.thrustSL  ?? 0;
@@ -1183,7 +1213,16 @@ export function tickRocket(dt) {
      pure gravity-turn (velocity vector tracking). Tunable per vehicle. */
   const guidanceDur  = perf.guidanceDuration ?? 120;
   const guidanceFrac = Math.max(0, 1 - timeSinceLiftoff / guidanceDur);
-  const fpaCmd     = fpaTarget * guidanceFrac + fpaActual * (1 - guidanceFrac);
+  let   fpaCmd     = fpaTarget * guidanceFrac + fpaActual * (1 - guidanceFrac);
+  /* Orbit-targeting override (last stage, powered): steer the pitch to raise the apoapsis to the
+     target orbit — pitch up when below, down when above so it converges instead of overshooting.
+     SECO (above) cuts when the periapsis arrives. Replaces the fpaProfile for the insertion. */
+  if (stg.orbitTargetSECO && stage >= stages.length && !coasting && S.engineState === 'running') {
+    const ob  = _oscOrbit(alt_m, newVHoriz, newVVert);
+    const tgt = _orbitTargetM();
+    const apo = ob.apo > 0 && isFinite(ob.apo) ? ob.apo : 1e12;
+    fpaCmd = Math.max(-30, Math.min(35, 90 * (tgt - apo) / tgt));
+  }
   /* Attitude rate limited — rocket can't spin instantly */
   const dFPA = Math.max(-3, Math.min(3, (fpaCmd - fpa) * 0.5)) * dt;
   /* Allow negative FPA for ballistic descent — clamp at ±85° */

@@ -608,6 +608,8 @@ function _evalTrigger(tr) {
       return (S.alt ?? 0) * 0.0003048 >= tr.min;
     case 'gload':
       return (S.rocketG ?? 0) >= tr.min;
+    case 'velocity':
+      return (S.spd ?? 0) * 0.5144 >= tr.min;   // m/s threshold — abort-mode transitions, SECO approach (robust to timing)
     case 'meco':
       return !!(S.rocketMECO);
     case 'meco_s2':
