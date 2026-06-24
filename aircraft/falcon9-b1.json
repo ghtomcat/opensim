@@ -7,6 +7,8 @@
   "model": "falcon-9-v1.0",
   "clock":       "met",
   "vehicleType": "rocket",
+  "gridFins":    false,
+  "landingLegs": false,
   "ignitionTime": 60,
   "manualControl": false,
   "crewLang":    "en-US",

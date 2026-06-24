@@ -144,7 +144,10 @@ export function drawBoosterFaces(rc) {
 
   /* Booster faces — Stage 1 body + grid fins */
   if (bPts) {
-    const s1Idx = [...Array.from({length:48},(_,k)=>k), ...Array.from({length:8},(_,k)=>96+k), ...Array.from({length:40},(_,k)=>120+k)];   // body + fins + hinge mounts + fin thickness
+    const _noFins = S.aircraft?.gridFins === false;   // expendable v1.0: body only, no grid fins / hinges
+    const s1Idx = _noFins
+      ? Array.from({length:48},(_,k)=>k)
+      : [...Array.from({length:48},(_,k)=>k), ...Array.from({length:8},(_,k)=>96+k), ...Array.from({length:40},(_,k)=>120+k)];   // body + fins + hinge mounts + fin thickness
     for (const i of s1Idx) {
       const fi = _F_f9[i];
       const ps = fi.map(vi => bPts[vi]);
@@ -189,7 +192,7 @@ export function drawBoosterFaces(rc) {
     const _legDep = S.booster?.landed ? 1
       : S.booster?.phase === 'landing'
         ? Math.min(1, ((S.time ?? 0) - (S.booster?.phaseStartT ?? 0)) / 5) : 0;
-    _drawF9Legs(faces, _bProj, _legDep);
+    if (S.aircraft?.landingLegs !== false) _drawF9Legs(faces, _bProj, _legDep);
   }
 
   /* Falcon 9 Stage 2 — drifts away after Dragon separation (drawn at s2Pts, no roll).
@@ -463,8 +466,8 @@ export function drawRocketPlumesAndNozzles(rc) {
       _drawJ2Nozzles(rc, -0.016, _rf9, _mCenters, merlinOn, 'rp1', { rxR: 0.25, rtR: 0.10, lenR: 0.45 });
 
       /* Stowed landing legs — same shared 3D leg geometry as the descending booster (deployFrac 0),
-         so launch and landing show the identical leg, just folded. */
-      _drawF9Legs(faces, project, 0);
+         so launch and landing show the identical leg, just folded. Expendable v1.0 has none. */
+      if (S.aircraft?.landingLegs !== false) _drawF9Legs(faces, project, 0);
     }
 
     /* S1 plume: ignition → MECO */

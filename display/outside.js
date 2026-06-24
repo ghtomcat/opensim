@@ -1229,6 +1229,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     /* F9 stage sep: main vehicle = S2 + Dragon + MVac nozzle (faces 48-95 + 96-103) */
     if (isF9 && rStage >= 2 && (i < 48 || (i > 95 && i < 104) || (i >= 120 && i <= 159))) return null;  // S1 body + fins + hinge mounts + fin thickness stay with the booster
     if (isF9 && S.dragonSep && ((i >= 48 && i <= 63) || (i >= 104 && i <= 119))) return null;  // S2 tank + MVac bell drift away with Stage 2 (drawn at s2Pts)
+    if (isF9 && S.aircraft?.gridFins === false && ((i > 95 && i < 104) || (i >= 120 && i <= 159))) return null;  // expendable v1.0 (CRS-1): no grid fins / hinge mounts / fin thickness
 
     /* Starship / Super Heavy stage sep: hide SH body faces + grid fins */
     if (isSS && rStage >= 2 && _ssGeo?.stageRanges?.[0]) {
