@@ -72,6 +72,54 @@ const { project, camSide, rotateNormal, litBr, faces, H: _H } = rc;
   }
 };
 
+/* ── F9 landing legs — 4 two-panel raised-ridge struts hinged at the base, shared by the pre-sep
+   stack (stowed, deployFrac 0) and the descending booster (deploy over the landing phase). Pushes
+   depth-sorted faces; `proj` maps body coords → screen (main projection on the pad, booster
+   projection in flight). ~9 m leg; φ rotates 8°(stowed)→134°(deployed). ── */
+function _drawF9Legs(faces, proj, deployFrac) {
+  const _lHb = -0.016, _lHt = -0.0104, _lRi = _rf9, _lRo = _rf9 * 1.3;   // hinge→tip, body edge→ridge peak
+  const _lwiB = 0.34, _lwiT = 0.10;                                       // azimuthal half-width: wide hinge, narrow tip
+  const _lPhi = (115 * deployFrac) * Math.PI / 180;   // 0° = stowed flush along the body, 115° = deployed (foot ~4.2 m below base, ~21.7 m span)
+  const _lcp = Math.cos(_lPhi), _lsp = Math.sin(_lPhi);
+  const _legRot = (vF, r, a) => {                       // rotate about the hinge in its axial-radial plane
+    const da = vF - _lHb, dr = r - _lRi;
+    const a2 = _lHb + da * _lcp - dr * _lsp, r2 = _lRi + da * _lsp + dr * _lcp;
+    return [a2, r2 * Math.cos(a), r2 * Math.sin(a)];
+  };
+  const _panel = (pts, br) => {
+    const ps = pts.map(proj);
+    if (ps.some(p => !p)) return;
+    faces.push({ ps, br, avgD: ps.reduce((s, p) => s + p.d, 0) / ps.length, col: [20, 22, 28] });
+  };
+  for (const th of [Math.PI / 4, 3 * Math.PI / 4, 5 * Math.PI / 4, 7 * Math.PI / 4]) {
+    const iT0 = _legRot(_lHt, _lRi, th - _lwiT), iB0 = _legRot(_lHb, _lRi, th - _lwiB);
+    const iT1 = _legRot(_lHt, _lRi, th + _lwiT), iB1 = _legRot(_lHb, _lRi, th + _lwiB);
+    const rT  = _legRot(_lHt, _lRo, th),         rB  = _legRot(_lHb, _lRo, th);
+    _panel([iT0, iB0, rB, rT], 0.55);   // lit side
+    _panel([rT, rB, iB1, iT1], 0.38);   // shadow side
+
+    /* Telescoping deployment strut (pusher): upper body attach → mid-leg. Extends as the leg swings
+       out; 4 segments of decreasing width read as the nested telescoping cylinders. Stowed, it
+       collapses along the body behind the folded leg. */
+    const tx = -Math.sin(th), ty = Math.cos(th);
+    const Au = [-0.0132, _lRi * Math.cos(th), _lRi * Math.sin(th)];  // body attach — ~half the leg height
+    const Al = _legRot(-0.0118, _lRi, th);                           // leg attach (~70% down, rotates with leg)
+    const ax = [Al[0] - Au[0], Al[1] - Au[1], Al[2] - Au[2]];
+    for (let s = 0; s < 4; s++) {
+      const f0 = s / 4, f1 = (s + 1) / 4;
+      const w0 = _rf9 * (0.17 - 0.026 * s), w1 = _rf9 * (0.17 - 0.026 * (s + 1));   // each segment narrower
+      const C0 = [Au[0] + ax[0] * f0, Au[1] + ax[1] * f0, Au[2] + ax[2] * f0];
+      const C1 = [Au[0] + ax[0] * f1, Au[1] + ax[1] * f1, Au[2] + ax[2] * f1];
+      _panel([
+        [C0[0], C0[1] + w0 * tx, C0[2] + w0 * ty],
+        [C0[0], C0[1] - w0 * tx, C0[2] - w0 * ty],
+        [C1[0], C1[1] - w1 * tx, C1[2] - w1 * ty],
+        [C1[0], C1[1] + w1 * tx, C1[2] + w1 * ty],
+      ], 0.5 + 0.04 * s);   // brighter toward the body end (metallic piston)
+    }
+  }
+}
+
 /* ── Booster faces — F9 S1 + SS Super Heavy, depth-sorted into rc.faces ── */
 export function drawBoosterFaces(rc) {
   const { faces, project, rotateNormal, litBr, rStage, isSS, ssGeo: _ssGeo,
@@ -135,6 +183,13 @@ export function drawBoosterFaces(rc) {
        is the depth-sorted plume in drawBoosterEdges, not a per-bell glow. */
     _drawJ2Nozzles({ ...rc, project: _bProj }, -0.016, _rf9, _octa, false, 'rp1',
                    { rxR: 0.25, rtR: 0.10, lenR: 0.45 });
+
+    /* 3D landing legs — stowed during descent, deploy over the landing phase, stay deployed once
+       landed (the touchdown switches the phase to 'landed'). */
+    const _legDep = S.booster?.landed ? 1
+      : S.booster?.phase === 'landing'
+        ? Math.min(1, ((S.time ?? 0) - (S.booster?.phaseStartT ?? 0)) / 5) : 0;
+    _drawF9Legs(faces, _bProj, _legDep);
   }
 
   /* Falcon 9 Stage 2 — drifts away after Dragon separation (drawn at s2Pts, no roll).
@@ -407,34 +462,9 @@ export function drawRocketPlumesAndNozzles(rc) {
       ];
       _drawJ2Nozzles(rc, -0.016, _rf9, _mCenters, merlinOn, 'rp1', { rxR: 0.25, rtR: 0.10, lenR: 0.45 });
 
-      /* Stowed landing legs — 4 black 3D leg housings against the lower S1 (45° from the grid
-         fins). Each = a raised ridge (two shaded panels) standing off the body, so it reads as
-         a 3D structure, not a flat strip. They stay stowed until they deploy (drawBoosterEdges). */
-      const Ri = _rf9, Ro = _rf9 * 1.13, lwiB = Math.PI / 4, lwiT = 0.13, lvFb = -0.016, lvFt = -0.002;
-      const _legPanel = (bv, midA) => {
-        const ps = bv.map(p => project(p));
-        if (ps.some(p => !p)) return;
-        const q0 = ps[0], q1 = ps[1], q2 = ps[2];
-        if ((q1.x - q0.x) * (q2.y - q0.y) - (q1.y - q0.y) * (q2.x - q0.x) < 0) return;
-        const A = bv[0], B = bv[1], C = bv[3];
-        const e1 = [B[0] - A[0], B[1] - A[1], B[2] - A[2]];
-        const e2 = [C[0] - A[0], C[1] - A[1], C[2] - A[2]];
-        let n = [e1[1]*e2[2] - e1[2]*e2[1], e1[2]*e2[0] - e1[0]*e2[2], e1[0]*e2[1] - e1[1]*e2[0]];
-        if (n[1]*Math.cos(midA) + n[2]*Math.sin(midA) < 0) n = [-n[0], -n[1], -n[2]];
-        const l = Math.hypot(n[0], n[1], n[2]) || 1;
-        const [nF, nR, nU] = rotateNormal([n[0]/l, n[1]/l, n[2]/l]);
-        const avgD = ps.reduce((s, p) => s + p.d, 0) / 4;
-        faces.push({ ps, br: litBr(nF, nR, nU, 0.13), avgD, col: [14, 16, 22] });
-      };
-      for (const th of [Math.PI / 4, 3 * Math.PI / 4, 5 * Math.PI / 4, 7 * Math.PI / 4]) {
-        /* wider at the bottom (foot/hinge), tapering narrower at the top */
-        const a0t = th - lwiT, a1t = th + lwiT, a0b = th - lwiB, a1b = th + lwiB;
-        const iT0 = [lvFt, Ri*Math.cos(a0t), Ri*Math.sin(a0t)], iB0 = [lvFb, Ri*Math.cos(a0b), Ri*Math.sin(a0b)];
-        const iT1 = [lvFt, Ri*Math.cos(a1t), Ri*Math.sin(a1t)], iB1 = [lvFb, Ri*Math.cos(a1b), Ri*Math.sin(a1b)];
-        const rT  = [lvFt, Ro*Math.cos(th), Ro*Math.sin(th)],   rB  = [lvFb, Ro*Math.cos(th), Ro*Math.sin(th)];
-        _legPanel([iT0, iB0, rB, rT], th - lwiT * 0.5);   // panel toward a0
-        _legPanel([rT, rB, iB1, iT1], th + lwiT * 0.5);   // panel toward a1
-      }
+      /* Stowed landing legs — same shared 3D leg geometry as the descending booster (deployFrac 0),
+         so launch and landing show the identical leg, just folded. */
+      _drawF9Legs(faces, project, 0);
     }
 
     /* S1 plume: ignition → MECO */
@@ -792,86 +822,51 @@ export function drawBoosterEdges(rc) {
       ctx.stroke(); ctx.restore();
     }
 
-    /* Booster plume when powered (boostback / entry burn / landing burn) */
-    const boosterFiring = ['boostback','entry','landing'].includes(S.booster?.phase);
-    if (boosterFiring) {
-      const bpN = bPts[113];
-      const bpEdge = bPts[114];
-      const boostNozzleWorld = (() => {
-        const vF = -0.018, vR = 0, vU = 0;
-        const rvF = vF * cosdP - vU * sindP;
-        const rvU = vF * sindP + vU * cosdP;
+    /* Booster plume(s) — one per firing engine: 3 for boostback/entry, 1 (centre) for the landing
+       burn. The engine count comes from the recovery config. */
+    const _bphase = S.booster?.phase;
+    if (['boostback', 'entry', 'landing'].includes(_bphase)) {
+      const bpN = bPts[113], bpEdge = bPts[114];
+      const _rec = S.aircraft?.performance?.recovery ?? {};
+      const nEng = _bphase === 'landing' ? (_rec.landingBurnEngines ?? 1)
+                 : _bphase === 'entry'   ? (_rec.entryBurnEngines   ?? 3)
+                 :                         (_rec.boostbackEngines    ?? 3);
+      /* firing-engine octaweb positions: 1 = centre; 3 = centre + two opposite ring engines */
+      const eng = nEng <= 1 ? [[0, 0]] : [[0, 0], [_nzO, 0], [-_nzO, 0]];
+      const wScale = nEng <= 1 ? 1.0 : 0.62;          // each of the 3 is narrower
+      const pLen   = nEng <= 1 ? 0.020 : 0.026;
+      const _bxf = (vF, vR, vU) => {
+        const rvF = vF * cosdP - vU * sindP, rvU = vF * sindP + vU * cosdP;
         return project([rvF + bOffF, vR + bOffR, rvU + bOffU]);
-      })();
-      const boostPlumeTip = (() => {
-        const vF = -0.018 - 0.025, vR = 0, vU = 0;
-        const rvF = vF * cosdP - vU * sindP;
-        const rvU = vF * sindP + vU * cosdP;
-        return project([rvF + bOffF, vR + bOffR, rvU + bOffU]);
-      })();
-      if (boostNozzleWorld && boostPlumeTip) {
-        const dx = boostPlumeTip.x - boostNozzleWorld.x;
-        const dy = boostPlumeTip.y - boostNozzleWorld.y;
-        const len = Math.hypot(dx, dy);
-        if (len > 2) {
-          const px = -dy/len, py = dx/len;
-          const nozR2 = bpN && bpEdge
-            ? Math.hypot(bpEdge.x-bpN.x, bpEdge.y-bpN.y) * 2.8
-            : 7 * devicePixelRatio;
-          ctx.save();
-          const g2 = ctx.createLinearGradient(
-            boostNozzleWorld.x, boostNozzleWorld.y, boostPlumeTip.x, boostPlumeTip.y);
-          g2.addColorStop(0,    'rgba(255,240,160,0.75)');
-          g2.addColorStop(0.10, 'rgba(255,165, 60,0.55)');
-          g2.addColorStop(0.35, 'rgba(200, 70, 15,0.28)');
-          g2.addColorStop(1.0,  'rgba(  0,  0,  0,0.00)');
-          ctx.fillStyle = g2;
-          const mx2 = (boostNozzleWorld.x+boostPlumeTip.x)/2;
-          const my2 = (boostNozzleWorld.y+boostPlumeTip.y)/2;
-          ctx.beginPath();
-          ctx.moveTo(boostNozzleWorld.x+px*nozR2, boostNozzleWorld.y+py*nozR2);
-          ctx.quadraticCurveTo(mx2+px*nozR2*2, my2+py*nozR2*2,
-                               boostPlumeTip.x+px*nozR2*3.5, boostPlumeTip.y+py*nozR2*3.5);
-          ctx.lineTo(boostPlumeTip.x-px*nozR2*3.5, boostPlumeTip.y-py*nozR2*3.5);
-          ctx.quadraticCurveTo(mx2-px*nozR2*2, my2-py*nozR2*2,
-                               boostNozzleWorld.x-px*nozR2, boostNozzleWorld.y-py*nozR2);
-          ctx.closePath(); ctx.fill(); ctx.restore();
-        }
+      };
+      for (const [vR, vU] of eng) {
+        const nW = _bxf(-0.018, vR, vU), tip = _bxf(-0.018 - pLen, vR, vU);
+        if (!nW || !tip) continue;
+        const dx = tip.x - nW.x, dy = tip.y - nW.y, len = Math.hypot(dx, dy);
+        if (len <= 2) continue;
+        const px = -dy / len, py = dx / len;
+        const nozR2 = (bpN && bpEdge ? Math.hypot(bpEdge.x - bpN.x, bpEdge.y - bpN.y) * 2.8 : 7 * devicePixelRatio) * wScale;
+        ctx.save();
+        const g2 = ctx.createLinearGradient(nW.x, nW.y, tip.x, tip.y);
+        g2.addColorStop(0,    'rgba(255,240,160,0.75)');
+        g2.addColorStop(0.10, 'rgba(255,165, 60,0.55)');
+        g2.addColorStop(0.35, 'rgba(200, 70, 15,0.28)');
+        g2.addColorStop(1.0,  'rgba(  0,  0,  0,0.00)');
+        ctx.fillStyle = g2;
+        const mx2 = (nW.x + tip.x) / 2, my2 = (nW.y + tip.y) / 2;
+        ctx.beginPath();
+        ctx.moveTo(nW.x + px * nozR2, nW.y + py * nozR2);
+        ctx.quadraticCurveTo(mx2 + px * nozR2 * 2, my2 + py * nozR2 * 2, tip.x + px * nozR2 * 3.5, tip.y + py * nozR2 * 3.5);
+        ctx.lineTo(tip.x - px * nozR2 * 3.5, tip.y - py * nozR2 * 3.5);
+        ctx.quadraticCurveTo(mx2 - px * nozR2 * 2, my2 - py * nozR2 * 2, nW.x - px * nozR2, nW.y - py * nozR2);
+        ctx.closePath(); ctx.fill(); ctx.restore();
       }
     }
 
     /* (Octaweb is now drawn as 3D bells in drawBoosterFaces — the old flat camera-facing
        discs were removed so the engines stay aligned to the booster, not the camera.) */
 
-    /* Landing legs — deploy during 'landing' phase */
-    const bLegP = S.booster?.phase === 'landing'
-      ? Math.min(1, ((S.time ?? 0) - (S.booster?.phaseStartT ?? 0)) / 5)
-      : 0;
-    if (bLegP > 0.001) {
-      const footXStow = -0.015,  footRStow = _rf9 * 1.2;
-      const footXDep  = -0.0192, footRDep  = _rf9 * 4.9;   // real F9 deployed: foot ~9 m from CL (span ~18 m),
-                                                            // ~5.6 m below the base → ~9 m main leg
-      const fX   = footXStow + (footXDep - footXStow) * bLegP;
-      const fRad = footRStow + (footRDep - footRStow) * bLegP;
-      const strutRad = _nzO * 1.8;
-      ctx.save();
-      ctx.strokeStyle = 'rgba(190,205,220,0.78)';
-      ctx.lineWidth = Math.max(1, devicePixelRatio);
-      ctx.beginPath();
-      for (const [nR2, nU2] of [[0, 1], [1, 0], [0, -1], [-1, 0]]) {
-        const bxf = (vF, vRv, vUv) => {
-          const rvF = vF * cosdP - vUv * sindP;
-          const rvU = vF * sindP + vUv * cosdP;
-          return project([rvF + bOffF, vRv + bOffR, rvU + bOffU]);
-        };
-        const pShoulder = bxf(-0.016, nR2 * _rf9,   nU2 * _rf9);
-        const pFoot     = bxf(fX,     nR2 * fRad,   nU2 * fRad);
-        const pStrut    = bxf(-0.018, nR2 * strutRad, nU2 * strutRad);
-        if (pShoulder && pFoot) { ctx.moveTo(pShoulder.x, pShoulder.y); ctx.lineTo(pFoot.x, pFoot.y); }
-        if (pStrut    && pFoot) { ctx.moveTo(pStrut.x,    pStrut.y);    ctx.lineTo(pFoot.x, pFoot.y); }
-      }
-      ctx.stroke(); ctx.restore();
-    }
+    /* (Landing legs are now 3D struts in drawBoosterFaces — the old white line struts were removed.) */
   }
 }
 

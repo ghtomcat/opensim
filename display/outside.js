@@ -1991,7 +1991,7 @@ function _renderBoosterCam(canvas) {
   renderTerrain(canvas, { outsideView: true });
   S.lat=sL; S.lon=sLo; S.alt=sA; S.hdg=sH; S.pitch=sP; S.roll=sR;
 
-  if (!b?.active) { _drawLabel(canvas, 'BOOSTER CAM'); return; }
+  if (!b?.active && !b?.landed) { _drawLabel(canvas, 'BOOSTER CAM'); return; }
 
   const W = canvas.width, H = canvas.height;
   const ctx = canvas.getContext('2d');
@@ -2036,6 +2036,44 @@ function _renderBoosterCam(canvas) {
     cosdP: _bcosdP, sindP: _bsindP, bOffF: 0, bOffR: 0, bOffU: 0, ssCosdP: 1, ssSindP: 0,
     camSide: 1, H: _H,   // side-on view → _drawJ2Nozzles renders the octaweb bell walls
   };
+
+  /* Ground shadow — once landed, project the upright booster's geometry onto the pad
+     along the key-light direction (the same _LD that shades the faces) and fill the
+     convex hull as one blurred silhouette. Mirrors the aircraft silhouette shadow.
+     vF (long axis) = up off the pad; lateral spread from _LD so the shadow falls
+     opposite the lit (+vU) side. Deployed-leg feet widen the base of the footprint. */
+  if (b?.landed) {
+    const _fl = ([vF, vR, vU]) => [vF*_bcosdP - vU*_bsindP, vR, vF*_bsindP + vU*_bcosdP];
+    const _flv = _bv.map(_fl);
+    let _vFbase = Infinity;
+    for (const v of _flv) if (v[0] < _vFbase) _vFbase = v[0];
+    const _rFoot = _rf9 * 5.3;
+    for (const [c, s] of [[1,0],[-1,0],[0,1],[0,-1]]) _flv.push([_vFbase, c*_rFoot, s*_rFoot]);
+    const _sLD = [1.0, _LD[1]*0.45, _LD[2]*0.45];
+    const _shP = [];
+    for (const [vF, vR, vU] of _flv) {
+      const t = (vF - _vFbase) / _sLD[0];
+      const p = projB([_vFbase, vR - t*_sLD[1], vU - t*_sLD[2]]);
+      if (p) _shP.push(p);
+    }
+    if (_shP.length > 2) {
+      _shP.sort((a, b2) => a.x - b2.x || a.y - b2.y);
+      const _cr = (o, a, c) => (a.x-o.x)*(c.y-o.y) - (a.y-o.y)*(c.x-o.x);
+      const lo = [], up = [];
+      for (const p of _shP) { while (lo.length>=2 && _cr(lo[lo.length-2],lo[lo.length-1],p)<=0) lo.pop(); lo.push(p); }
+      for (let i=_shP.length-1;i>=0;i--){ const p=_shP[i]; while (up.length>=2 && _cr(up[up.length-2],up[up.length-1],p)<=0) up.pop(); up.push(p); }
+      const hull = lo.slice(0,-1).concat(up.slice(0,-1));
+      ctx.save();
+      ctx.filter = 'blur(6px)';
+      ctx.fillStyle = 'rgba(0,0,0,0.34)';
+      ctx.beginPath();
+      ctx.moveTo(hull[0].x, hull[0].y);
+      for (let i=1;i<hull.length;i++) ctx.lineTo(hull[i].x, hull[i].y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+  }
 
   /* S1 body + grid fins + hinge mounts + fin thickness + aft base cap */
   drawBoosterFaces(rcB);

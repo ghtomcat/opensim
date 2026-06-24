@@ -4375,11 +4375,14 @@
         }
       },
       () => {
-        /* Auto-switch to booster cam during boostback / entry / landing phases */
+        /* Auto-switch to booster cam during boostback / entry / landing — and linger a few
+           seconds on the landed booster (standing on its legs) before cutting back. */
         const _bPhase = S.booster?.phase;
+        const _landedDwell = S.booster?.landed
+          && (S.time ?? 0) - (S.booster?.phaseStartT ?? 0) < 8;
         const _wantBoosterCam = S.aircraft?.vehicleType === 'rocket'
-          && S.booster?.active && !S.booster?.landed
-          && ['boostback','entry','landing'].includes(_bPhase);
+          && (( S.booster?.active && ['boostback','entry','landing'].includes(_bPhase) )
+              || _landedDwell);
         if (_wantBoosterCam && !_boosterCamAuto) {
           _camBeforeBooster = _outsideCamMode;
           _outsideCamMode = 5;

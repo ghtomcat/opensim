@@ -1455,7 +1455,7 @@ export function tickBooster(dt) {
     setState({ booster: { ...b,
       alt: (padElev_m + 2) / 0.3048, vVert: 0, vDown: 0,
       mass: newMass, lat: newLat, lon: newLon, att: 0,
-      phase: 'landed', landed: true, active: false,
+      phase: 'landed', landed: true, active: false, phaseStartT: mT,
     }});
     return;
   }
