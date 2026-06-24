@@ -244,8 +244,8 @@ function check(name, file, payload, reserve, targetKm, fpaOverride) {
   const s2 = s2Ascent(meco, scn);
   const tag = s2.orbit ? `✓ reached (Δv margin ${s2.dvLeft.toFixed(0)} m/s)`
                        : `✗ SHORT — apo ${(s2.apo/1000).toFixed(0)}km, peri ${(s2.peri/1000).toFixed(0)}km`;
-  console.log(`${name.padEnd(15)} tgt ${String(targetKm).padStart(3)}km | MECO ${(meco.alt/1000).toFixed(0)}km/${Math.hypot(meco.vVert,meco.vDown).toFixed(0)}m/s `
-    + `→ orbit ${(s2.peri/1000).toFixed(0)}×${(s2.apo/1000).toFixed(0)}km | ${tag}`);
+  console.log(`${name.padEnd(15)} tgt ${String(targetKm).padStart(3)}km | MECO T+${(meco.t-scn.ignition).toFixed(0)}s ${(meco.alt/1000).toFixed(0)}km `
+    + `→ SECO T+${(s2.secoT-scn.ignition).toFixed(0)}s ${(s2.peri/1000).toFixed(0)}×${(s2.apo/1000).toFixed(0)}km | ${tag}`);
 }
 
 console.log('=== Orbit-targeting S2 guidance — reachability per mission ===');
