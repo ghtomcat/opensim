@@ -2079,22 +2079,30 @@ function _renderBoosterCam(canvas) {
     camSide: 1, H: _H,   // side-on view → _drawJ2Nozzles renders the octaweb bell walls
   };
 
-  /* ── Droneship deck — ASDS landing platform under the booster (at sea level) ──
-     Drawn before the shadow + booster so they sit on top. The deck rides up from below as
-     the booster descends (height above the deck → geometry units), settling at the feet on
-     touchdown: dark deck, yellow hazard border, white landing bullseye + crosshair, hull skirt. */
+  /* ── Droneship deck — ASDS landing platform at the REAL droneship point (at sea level) ──
+     Drawn before the shadow + booster so they sit on top. Placed at the recovery target: the
+     horizontal booster→droneship offset is mapped into the body frame (downrange = vU, crossrange
+     = vR), so during the approach the deck reads off to the side and centres under the booster only
+     when it actually lands on it. Vertically it rides up from below, settling at the feet. */
   if ((S.aircraft?.performance?.recovery?.asds) && (b?.landed || b?.phase === 'landing')) {
     const _UPM = 1762;                                            // metres per geometry unit (matches _rf9 scale)
+    const _rec = S.aircraft.performance.recovery;
     const _hM  = Math.max(0, ((b.alt ?? 0) - (S.mission?.departure?.elevation ?? 0))) * 0.3048;
     const _deckVF = -0.019 - _hM / _UPM;                          // sits at the booster's feet when landed
+    /* horizontal offset booster → droneship, rotated into the body frame */
+    const _dN = ((_rec.landingLat ?? b.lat ?? 0) - (b.lat ?? 0)) * 60 * 1852;
+    const _dE = ((_rec.landingLon ?? b.lon ?? 0) - (b.lon ?? 0)) * 60 * 1852 * Math.cos((b.lat ?? 0) * DEG);
+    const _hR = (b.hdg ?? 0) * DEG, _ch = Math.cos(_hR), _sh = Math.sin(_hR);
+    const _dDown  = (_dN * _ch + _dE * _sh) / _UPM;               // vU (downrange) offset to the droneship
+    const _dCross = (-_dN * _sh + _dE * _ch) / _UPM;             // vR (crossrange) offset
     const _hw = 0.016, _hl = 0.024;                               // half-extent ≈ 56 m × 85 m droneship
-    const _P  = (vR, vU) => projB([_deckVF, vR, vU]);
+    const _P  = (vR, vU) => projB([_deckVF, _dCross + vR, _dDown + vU]);
     const _c  = [_P(-_hw,-_hl), _P(_hw,-_hl), _P(_hw,_hl), _P(-_hw,_hl)];
     if (!_c.some(p => !p)) {
       ctx.save();
       /* hull skirt — dark wall below the near (camera-side) edge */
       const _hb = [_P(_hw,-_hl), _P(_hw,_hl)].map(p => p);
-      const _hbL = projB([_deckVF - 0.005, _hw, -_hl]), _hbR = projB([_deckVF - 0.005, _hw, _hl]);
+      const _hbL = projB([_deckVF - 0.005, _dCross + _hw, _dDown - _hl]), _hbR = projB([_deckVF - 0.005, _dCross + _hw, _dDown + _hl]);
       if (_hbL && _hbR) {
         ctx.fillStyle = 'rgb(26,28,33)';
         ctx.beginPath(); ctx.moveTo(_hb[0].x,_hb[0].y); ctx.lineTo(_hb[1].x,_hb[1].y);
