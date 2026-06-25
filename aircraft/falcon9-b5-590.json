@@ -1,7 +1,7 @@
 {
   "id": "falcon9-b5-590",
   "render": "falcon9",
-  "name": "Falcon 9 Block 5 — 590 km",
+  "name": "Falcon 9 Block 5 \u2014 590 km",
   "manufacturer": "spacex",
   "family": "falcon-9",
   "model": "falcon-9-block-5",
@@ -16,16 +16,17 @@
     "area": 10.75,
     "stages": [
       {
-        "name": "Stage 1 — 9× Merlin 1D+",
+        "name": "Stage 1 \u2014 9\u00d7 Merlin 1D+",
         "engineCount": 9,
         "thrustSL": 7607000,
         "thrustVac": 8227000,
         "isp": 282,
         "massWet": 425054,
-        "massDry": 25600
+        "massDry": 25600,
+        "burnDuration": 131
       },
       {
-        "name": "Stage 2 — Merlin Vacuum",
+        "name": "Stage 2 \u2014 Merlin Vacuum",
         "engineCount": 1,
         "thrustSL": 0,
         "thrustVac": 934000,
@@ -49,57 +50,48 @@
         89
       ],
       [
-        210,
+        220,
         84
       ],
       [
-        235,
-        72
+        241,
+        68
       ],
       [
-        260,
-        57
-      ],
-      [
-        285,
-        40
-      ],
-      [
-        310,
-        62
-      ],
-      [
-        390,
+        277,
         52
       ],
       [
-        500,
-        35
+        315,
+        40
       ],
       [
-        595,
-        15
+        380,
+        26
       ],
       [
-        657,
-        0
+        470,
+        12
       ],
       [
-        820,
+        580,
+        3
+      ],
+      [
+        720,
         0
       ]
     ],
     "recovery": {
-      "rtls": true,
+      "asds": true,
+      "landingLat": 31.7223,
+      "landingLon": -75.9691,
       "flipDuration": 20,
-      "boostbackEngines": 3,
-      "boostbackThrottle": 1,
-      "boostbackDuration": 60,
       "entryBurnAlt_m": 70000,
       "entryBurnEngines": 3,
       "entryBurnThrottle": 0.4,
       "entryBurnDuration": 22,
-      "landingBurnAlt_m": 600,
+      "landingBurnAlt_m": 1200,
       "landingBurnEngines": 1
     }
   },
@@ -108,15 +100,15 @@
   },
   "kneeboard": [
     {
-      "title": "FALCON 9 BLOCK 5 — 590 KM",
+      "title": "FALCON 9 BLOCK 5 \u2014 590 KM",
       "type": "briefing",
       "items": [
         "Direct insertion to 590 km circular orbit",
-        "Stage 1: 9× Merlin 1D+ · 7607 kN SL · Isp 282s",
-        "Stage 2: Merlin Vacuum · 934 kN · Isp 348s",
+        "Stage 1: 9\u00d7 Merlin 1D+ \u00b7 7607 kN SL \u00b7 Isp 282s",
+        "Stage 2: Merlin Vacuum \u00b7 934 kN \u00b7 Isp 348s",
         "T/W at liftoff: 1.41",
         "RTLS: Boostback + Entry + Landing burns",
-        "Stage 1 lands at LZ-1 — 6 min after liftoff"
+        "Stage 1 lands at LZ-1 \u2014 6 min after liftoff"
       ]
     }
   ]

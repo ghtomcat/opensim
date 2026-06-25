@@ -2041,10 +2041,14 @@ function _renderBoosterCam(canvas) {
      Screen horizontal = body-z, screen vertical = body-x (rocket long axis).
      Engine end (x<0) appears at screen bottom; Dragon stub (x>0) at top. */
   const S1_FOCUS = -0.006;  // centre view on S1 mid-body
+  /* Camera side: RTLS returns toward the launch site, ASDS flies on downrange — mirror the
+     view for ASDS so the engine-first booster reads with the engines toward its travel/thrust
+     direction (nose trailing), matching the RTLS-validated orientation. */
+  const _bMir = (S.aircraft?.performance?.recovery?.asds) ? -1 : 1;
   function projB([vF, vR, vU]) {
     const cf = BCAM_SIDE - vR;
     if (cf < 0.0004) return null;
-    return { x: cx + vU / cf * focal, y: cy - (vF - S1_FOCUS) / cf * focal, d: cf };
+    return { x: cx + _bMir * vU / cf * focal, y: cy - (vF - S1_FOCUS) / cf * focal, d: cf };
   }
 
   /* Booster attitude — projB shows the long axis vertical (no acPitchDeg to cancel), so the

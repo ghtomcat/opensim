@@ -1049,8 +1049,8 @@ export function tickRocket(dt) {
   if (coasting) {
     /* Stage separation coast — no thrust, count 6 s */
     if (mT - coastT >= 6 && stage < stages.length) {
-      /* Capture booster state for RTLS or catch recovery */
-      if (!S.booster?.active && !S.booster?.landed && (perf.recovery?.rtls || perf.recovery?.catch)) {
+      /* Capture booster state for RTLS / ASDS (droneship) / catch recovery */
+      if (!S.booster?.active && !S.booster?.landed && (perf.recovery?.rtls || perf.recovery?.asds || perf.recovery?.catch)) {
         const spd_ms  = (S.spd ?? 0) * 0.5144;
         const fpa_rad = (S.pitch ?? 0) * DEG;
         setState({ booster: {
@@ -1293,6 +1293,7 @@ export function tickBooster(dt) {
   const perf     = ac?.performance ?? {};
   const stg1     = perf.stages?.[0] ?? {};
   const rec      = perf.recovery   ?? {};
+  const _asds    = !!rec.asds;   // droneship: no boostback — the booster lands downrange under the launch track
 
   const alt_m   = (b.alt ?? 0) * 0.3048;
   const rho     = rhoAtAlt(alt_m);
@@ -1331,13 +1332,17 @@ export function tickBooster(dt) {
   const downrange = _dN * Math.cos(_hdgR) + _dE * Math.sin(_hdgR);   // m along heading from target
 
   if (b.phase === 'flip') {
-    /* Cold-gas flip — no thrust. Hold until the booster has actually rotated into the boostback
-       attitude (engines toward launch); only then light the burn, never mid-flip. flipDuration
-       is the floor. */
-    const _bbA = Math.atan2(-Math.sign(downrange || 1) * Math.cos(12 * DEG), Math.sin(12 * DEG)) / DEG;
-    const _err = Math.abs(((_bbA - (b.att ?? 0) + 540) % 360) - 180);
-    if (phaseAge >= (rec.flipDuration ?? 20) && _err < 12) {
-      newPhase = 'boostback'; newPhaseStartT = mT;
+    /* Cold-gas flip — no thrust. RTLS: hold until rotated into the boostback attitude (engines
+       toward launch), only then light the burn. ASDS: no boostback — just complete the flip to
+       engine-first and coast on downrange to the droneship. flipDuration is the floor. */
+    if (_asds) {
+      if (phaseAge >= (rec.flipDuration ?? 20)) { newPhase = 'coast'; newPhaseStartT = mT; }
+    } else {
+      const _bbA = Math.atan2(-Math.sign(downrange || 1) * Math.cos(12 * DEG), Math.sin(12 * DEG)) / DEG;
+      const _err = Math.abs(((_bbA - (b.att ?? 0) + 540) % 360) - 180);
+      if (phaseAge >= (rec.flipDuration ?? 20) && _err < 12) {
+        newPhase = 'boostback'; newPhaseStartT = mT;
+      }
     }
 
   } else if (b.phase === 'boostback') {
@@ -1437,7 +1442,8 @@ export function tickBooster(dt) {
      downrange velocity reverses. */
   const _bbAtt = _angOf(-Math.sign(downrange || 1) * Math.cos(12 * DEG), Math.sin(12 * DEG));
   let _attTgt;
-  if (newPhase === 'flip' || newPhase === 'boostback')      _attTgt = _bbAtt;
+  if (newPhase === 'flip')                                  _attTgt = _asds ? (newVVert < 0 ? _retro : 0) : _bbAtt;
+  else if (newPhase === 'boostback')                        _attTgt = _bbAtt;
   else if (newPhase === 'landing')                          _attTgt = 0;   // pitch vertical → upright touchdown
   else if (newPhase === 'coast' || newPhase === 'entry' ||
            newPhase === 'glide')                            _attTgt = newVVert < 0 ? _retro : 0;
