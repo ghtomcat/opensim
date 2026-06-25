@@ -1095,6 +1095,22 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   /* Booster projection (F9 stage separation) */
   const rStage = isRocket ? (S.rocketStage ?? 1) : 0;
 
+  /* Stage-separation gap — during the inter-stage coast (after MECO, before jettison) the
+     pneumatic pushers shove the spent stage aft. Render it as a growing gap: stage-1 faces are
+     projected with an aft (−vF) offset so the interstage opens up BEFORE S2 ignition / recovery.
+     Purely visual (the stack is one rigid body in physics); generalises via isRocket. The gap
+     reaches max early in the coast and holds, so the booster hands off continuously at jettison. */
+  const _SEP_GAP_MAX = 0.0028;                                    // ~5 m gap at jettison
+  const _SEP_COAST_DUR = 6;                                       // matches the physics coast (core/rocket.js)
+  const _stagesN = S.aircraft?.performance?.stages?.length ?? 1;
+  let _sepGap = 0;
+  if (isRocket && S.rocketCoast && rStage < _stagesN)
+    _sepGap = _SEP_GAP_MAX * Math.min(1, ((S.time ?? 0) - (S.rocketCoastT ?? 0)) / _SEP_COAST_DUR);  // grow linearly through the whole coast → no hold/pause
+  const ptsSep = _sepGap > 0 ? verts.map(([vF, vR, vU]) => project([vF - _sepGap, vR, vU])) : null;
+  const _isStg1Face = (i) => isF1
+    ? (i < 48 || (i >= _f1MerlinF0 && i <= _f1MerlinF1))
+    : (i < 48 || (i > 95 && i < 104) || (i >= 120 && i <= 159));   // F9: body + grid fins + hinge/thickness
+
   /* Detect Saturn V stage separation — tumble animation + director cut */
   if (isSV) {
     if (_svSepLastAcId !== S.aircraft?.id) {
@@ -1143,7 +1159,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     const sinH  = Math.sin((S.hdg ?? 0) * DEG);
     const dFwdH = dN * cosH + dE * sinH;
     const dRtH  = -dN * sinH + dE * cosH;
-    bOffF = dFwdH * cosP + dUp * sinP;
+    bOffF = dFwdH * cosP + dUp * sinP - _SEP_GAP_MAX;   // carry the pusher gap → continuous with the coast (no snap)
     bOffR = dRtH;
     bOffU = -dFwdH * sinP + dUp * cosP;
     /* Booster attitude (att = nose angle from local-up, deg) drives the geometry flip. project
@@ -1267,7 +1283,9 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
        CSM faces (112+) render via ptsCSM at the offset position. */
     if (isSV && _inTDSep && i >= 96 && i <= 111) return null;
 
-    const psSrc = (isSV && _inTDSep && ptsCSM && i >= 112) ? ptsCSM : pts;
+    const psSrc = (isSV && _inTDSep && ptsCSM && i >= 112) ? ptsCSM
+                : (ptsSep && _isStg1Face(i)) ? ptsSep   // coast: spent stage 1 pushed aft (gap opens)
+                : pts;
     const ps = fi.map(vi => psSrc[vi]);
     if (ps.some(p => !p)) return null;
 
@@ -1392,6 +1410,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
     project, rotateNormal, litBr,
     /* rockets — booster sep projection + key/spec light dirs */
     cosdP, sindP, bOffF, bOffR, bOffU, ssCosdP, ssSindP, H: _H,
+    sepGap: _sepGap,      // coast separation gap → S1 octaweb/legs move aft with the spent stage
     boosterWire: false,   // booster reads solid from filled faces + 3D bells; no wireframe accent
   };
 

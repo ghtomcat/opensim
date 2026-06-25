@@ -464,11 +464,14 @@ export function drawRocketPlumesAndNozzles(rc) {
         [_nzO, 0], [_nzO7, _nzO7], [0, _nzO], [-_nzO7, _nzO7],
         [-_nzO, 0], [-_nzO7, -_nzO7], [0, -_nzO], [_nzO7, -_nzO7],
       ];
-      _drawJ2Nozzles(rc, -0.016, _rf9, _mCenters, merlinOn, 'rp1', { rxR: 0.25, rtR: 0.10, lenR: 0.45 });
+      /* Coast separation: the S1 octaweb + legs ride the spent stage aft with the body faces */
+      const _sg = rc.sepGap ?? 0;
+      const _rcS1 = _sg > 0 ? { ...rc, project: ([vF, vR, vU]) => project([vF - _sg, vR, vU]) } : rc;
+      _drawJ2Nozzles(_rcS1, -0.016, _rf9, _mCenters, merlinOn, 'rp1', { rxR: 0.25, rtR: 0.10, lenR: 0.45 });
 
       /* Stowed landing legs — same shared 3D leg geometry as the descending booster (deployFrac 0),
          so launch and landing show the identical leg, just folded. Expendable v1.0 has none. */
-      if (S.aircraft?.landingLegs !== false) _drawF9Legs(faces, project, 0);
+      if (S.aircraft?.landingLegs !== false) _drawF9Legs(faces, _rcS1.project, 0);
     }
 
     /* S1 plume: ignition → MECO */
