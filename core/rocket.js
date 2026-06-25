@@ -1084,6 +1084,9 @@ export function tickRocket(dt) {
   } else if (mass > burnoutThreshold && S.engineState === 'running') {
     /* Check time-based burnout — caps burn to historical duration */
     const stgIgnT    = S.rocketStageIgnitionT ?? ignitionTime;
+    /* Upper-stage thrust ramps up over ~2.5 s after ignition (MVac spool-up) so the spent booster
+       separates gently instead of the second stage snapping away at full thrust. Stage 1 unaffected. */
+    const _spool     = stage > 1 ? Math.min(1, (mT - stgIgnT) / 2.5) : 1;
     const burnDur    = stg.burnDuration;
     const timeCutoff = burnDur && (mT - stgIgnT) >= burnDur + totalBurnExt;
 
@@ -1108,7 +1111,7 @@ export function tickRocket(dt) {
         } else {
           const thrustSL  = stg.thrustSL  ?? 0;
           const thrustVac = stg.thrustVac ?? stg.thrustSL ?? 0;
-          T    = (thrustSL * atmFrac + thrustVac * (1 - atmFrac)) * engineFrac;
+          T    = (thrustSL * atmFrac + thrustVac * (1 - atmFrac)) * engineFrac * _spool;
           mdot = T / ((stg.isp ?? 300) * G0);
         }
       } else if (stg.orbitTargetSECO && stage >= stages.length) {
@@ -1121,14 +1124,14 @@ export function tickRocket(dt) {
         } else {
           const thrustSL  = stg.thrustSL  ?? 0;
           const thrustVac = stg.thrustVac ?? stg.thrustSL ?? 0;
-          T    = (thrustSL * atmFrac + thrustVac * (1 - atmFrac)) * engineFrac;
+          T    = (thrustSL * atmFrac + thrustVac * (1 - atmFrac)) * engineFrac * _spool;
           mdot = T / ((stg.isp ?? 300) * G0);
         }
       } else {
         /* Standard — scale thrust by active engine fraction */
         const thrustSL  = stg.thrustSL  ?? 0;
         const thrustVac = stg.thrustVac ?? stg.thrustSL ?? 0;
-        T    = (thrustSL * atmFrac + thrustVac * (1 - atmFrac)) * engineFrac;
+        T    = (thrustSL * atmFrac + thrustVac * (1 - atmFrac)) * engineFrac * _spool;
         mdot = T / ((stg.isp ?? 300) * G0);
       }
     }

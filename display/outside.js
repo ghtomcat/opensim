@@ -1100,7 +1100,7 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
      projected with an aft (−vF) offset so the interstage opens up BEFORE S2 ignition / recovery.
      Purely visual (the stack is one rigid body in physics); generalises via isRocket. The gap
      reaches max early in the coast and holds, so the booster hands off continuously at jettison. */
-  const _SEP_GAP_MAX = 0.0028;                                    // ~5 m gap at jettison
+  const _SEP_GAP_MAX = 0.0056;                                    // gap at jettison — opens at ~1.6 m/s (matches the webcast, ~2× the first cut)
   const _SEP_COAST_DUR = 6;                                       // matches the physics coast (core/rocket.js)
   const _stagesN = S.aircraft?.performance?.stages?.length ?? 1;
   /* Cold-staging pusher gap only. Hot-staging vehicles (Starship, Soyuz) ignite the upper
