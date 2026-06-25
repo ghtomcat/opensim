@@ -6,6 +6,7 @@
   "family": "starship",
   "model": "starship",
   "vehicleType": "rocket",
+  "staging": "hot",
   "clock": "met",
   "ignitionTime": 60,
   "manualControl": false,

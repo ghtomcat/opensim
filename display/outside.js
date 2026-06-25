@@ -1103,13 +1103,19 @@ function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, 
   const _SEP_GAP_MAX = 0.0028;                                    // ~5 m gap at jettison
   const _SEP_COAST_DUR = 6;                                       // matches the physics coast (core/rocket.js)
   const _stagesN = S.aircraft?.performance?.stages?.length ?? 1;
+  /* Cold-staging pusher gap only. Hot-staging vehicles (Starship, Soyuz) ignite the upper
+     stage while still mated and push apart under thrust → no quiet gap; they opt out with
+     "staging":"hot". Only models with a known stage-1 face range qualify (Saturn V runs its
+     own tumble animation, so it isn't listed). */
+  const _stg1Faces = (S.aircraft?.staging === 'hot') ? null
+    : isF1 ? [[0, 47], [_f1MerlinF0, _f1MerlinF1]]
+    : isF9 ? [[0, 47], [96, 103], [120, 159]]                     // body + grid fins + hinge/thickness
+    : null;
   let _sepGap = 0;
-  if (isRocket && S.rocketCoast && rStage < _stagesN)
+  if (_stg1Faces && S.rocketCoast && rStage < _stagesN)
     _sepGap = _SEP_GAP_MAX * Math.min(1, ((S.time ?? 0) - (S.rocketCoastT ?? 0)) / _SEP_COAST_DUR);  // grow linearly through the whole coast → no hold/pause
   const ptsSep = _sepGap > 0 ? verts.map(([vF, vR, vU]) => project([vF - _sepGap, vR, vU])) : null;
-  const _isStg1Face = (i) => isF1
-    ? (i < 48 || (i >= _f1MerlinF0 && i <= _f1MerlinF1))
-    : (i < 48 || (i > 95 && i < 104) || (i >= 120 && i <= 159));   // F9: body + grid fins + hinge/thickness
+  const _isStg1Face = (i) => !!_stg1Faces && _stg1Faces.some(([a, b]) => i >= a && i <= b);
 
   /* Detect Saturn V stage separation — tumble animation + director cut */
   if (isSV) {
