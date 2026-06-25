@@ -84,8 +84,8 @@
     ],
     "recovery": {
       "asds": true,
-      "landingLat": 31.7223,
-      "landingLon": -75.9691,
+      "landingLat": 31.5762,
+      "landingLon": -76.3668,
       "flipDuration": 20,
       "entryBurnAlt_m": 70000,
       "entryBurnEngines": 3,

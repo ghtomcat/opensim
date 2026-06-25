@@ -2189,28 +2189,41 @@ const _SCAM_CLOUDS = [
 ];
 
 function _renderShipCam(canvas) {
+  /* ASDS booster recovery → stand on the droneship and follow the booster down. Otherwise the
+     Starship reentry/splashdown camera (reentryGuidance target). Camera math, ocean, clouds and
+     the data tag are shared; only the camera anchor, the tracked vehicle, and the vehicle's own
+     rendering differ. */
+  const _rec = S.aircraft?.performance?.recovery;
+  const _b   = S.booster;
+  const _asdsCam = !!(_rec?.asds && _rec.landingLat != null && _b && (_b.active || _b.landed));
   const rg = S.mission?.reentryGuidance;
-  if (!rg) { renderTerrain(canvas, { outsideView: true }); _drawLabel(canvas, 'SHIP CAM'); return; }
+  if (!_asdsCam && !rg) { renderTerrain(canvas, { outsideView: true }); _drawLabel(canvas, 'SHIP CAM'); return; }
 
-  const cLat   = rg.targetLat ?? -22;
-  const cLon   = rg.targetLon ?? 115;
+  /* Stand off ~120 m to the side of the droneship so the booster descends in front of the
+     camera and doesn't fill the frame at touchdown (it lands right at the landing point). */
+  const cLat   = _asdsCam ? _rec.landingLat - 0.00175 : (rg.targetLat ?? -22);
+  const cLon   = _asdsCam ? _rec.landingLon + 0.00165 : (rg.targetLon ?? 115);
+  const _vLat  = _asdsCam ? (_b.lat ?? cLat) : (S.lat ?? cLat);
+  const _vLon  = _asdsCam ? (_b.lon ?? cLon) : (S.lon ?? cLon);
+  const _vAlt  = _asdsCam ? (_b.alt ?? 0)    : (S.alt ?? 0);
   const cosLat = Math.cos(cLat * DEG);
 
-  /* Ship vector from camera (NM) */
-  const dN       = ((S.lat ?? cLat) - cLat) * 60;
-  const dE       = ((S.lon ?? cLon) - cLon) * 60 * cosLat;
-  const shipAltNm = (S.alt ?? 0) * FT_NM;
-  const camAltNm  = SCAM_HFT * FT_NM;
+  /* Vehicle vector from camera (NM) */
+  const dN       = (_vLat - cLat) * 60;
+  const dE       = (_vLon - cLon) * 60 * cosLat;
+  const _camHFt   = _asdsCam ? 80 : SCAM_HFT;   // ASDS: ~24 m eye height so the deck is seen from above, not edge-on
+  const shipAltNm = _vAlt * FT_NM;
+  const camAltNm  = _camHFt * FT_NM;
   const horizDist  = Math.hypot(dN, dE) || 0.001;
   const bearingToShip = (Math.atan2(dE, dN) / DEG + 360) % 360;
   const elevToShip    = Math.atan2(shipAltNm - camAltNm, horizDist) / DEG;
-  const camPitch      = Math.max(2, elevToShip);
+  const camPitch      = _asdsCam ? Math.max(-12, elevToShip) : Math.max(2, elevToShip);   // ASDS may look down onto the deck at touchdown
 
   /* Render ocean terrain — force water=true so fallback color is blue, not green */
   const _savedWater = S.mission?.water;
   if (S.mission) S.mission.water = true;
   const sL=S.lat, sLo=S.lon, sA=S.alt, sH=S.hdg, sP=S.pitch, sR=S.roll;
-  S.lat = cLat; S.lon = cLon; S.alt = SCAM_HFT;
+  S.lat = cLat; S.lon = cLon; S.alt = _camHFt;
   S.hdg = bearingToShip; S.pitch = camPitch; S.roll = 0;
   renderTerrain(canvas, { outsideView: true });
   S.lat=sL; S.lon=sLo; S.alt=sA; S.hdg=sH; S.pitch=sP; S.roll=sR;
@@ -2259,12 +2272,100 @@ function _renderShipCam(canvas) {
     }
   }
 
-  /* ── Approaching Starship ── */
+  /* ── Approaching vehicle ── */
   const rangeNm  = Math.hypot(horizDist, shipAltNm);
   const rangeKm  = rangeNm * 1.852;
   const shipAltKm = shipAltNm * 1.852;
 
-  if (rangeKm < 12000 && shipAltNm > 0) {
+  if (_asdsCam) {
+    /* Descending Falcon 9 booster — slender vertical silhouette that grows on approach,
+       with a retro plume during the entry (3 engines) and landing (1 engine) burns. */
+    /* Full booster — reuse the booster-cam render path (drawBoosterFaces/Edges) with a ship-cam
+       WORLD projection: each geometry vertex is att-flipped, scaled to metres, placed at the
+       booster's world lat/lon/alt, then projected through the same camera as the ocean. */
+    const _UPM = 1762, _UPMnm = 1762 / 1852;             // metres / NM per geometry unit
+    const _att = _b.att ?? 0, _ca = Math.cos(_att * DEG), _sa = Math.sin(_att * DEG);
+    const _hR = (_b.hdg ?? 0) * DEG, _chh = Math.cos(_hR), _shh = Math.sin(_hR);
+    const _bAltM = (_b.alt ?? 0) * 0.3048;
+    const _camHR = bearingToShip * DEG, _camPR = camPitch * DEG;
+    const _cch = Math.cos(_camHR), _csh = Math.sin(_camHR), _ccp = Math.cos(_camPR), _csp = Math.sin(_camPR);
+    const _projW = (latP, lonP, altM) => {                // world point → ship-cam screen
+      const ddN = (latP - cLat) * 60, ddE = (lonP - cLon) * 60 * cosLat, ddU = altM / 1852 - _camHFt * FT_NM;
+      const f = ddN * _cch + ddE * _csh, r = -ddN * _csh + ddE * _cch;
+      const f2 = f * _ccp + ddU * _csp, u2 = -f * _csp + ddU * _ccp;
+      if (f2 < 0.0002) return null;
+      return { x: cx + r / f2 * focal, y: cy - u2 / f2 * focal, d: f2 };
+    };
+    /* ── Droneship deck at the real landing point (sea level), drawn before the booster ── */
+    const _dAltM = (S.mission?.departure?.elevation ?? 0) * 0.3048;
+    const _deckPt = (aM, cM) => {                          // along-heading / cross metres on deck → screen
+      const dNm = aM * _chh - cM * _shh, dEm = aM * _shh + cM * _chh;
+      return _projW(_rec.landingLat + dNm / 111120, _rec.landingLon + dEm / (111120 * cosLat), _dAltM);
+    };
+    {
+      const _wM = 28, _lM = 45;                            // half-extent: 56 × 90 m droneship
+      const _dc = [_deckPt(-_lM, -_wM), _deckPt(_lM, -_wM), _deckPt(_lM, _wM), _deckPt(-_lM, _wM)];
+      if (!_dc.some(p => !p)) {
+        ctx.save();
+        ctx.fillStyle = 'rgb(44,46,52)';
+        ctx.beginPath(); ctx.moveTo(_dc[0].x, _dc[0].y);
+        for (let k = 1; k < 4; k++) ctx.lineTo(_dc[k].x, _dc[k].y);
+        ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = 'rgba(196,172,44,0.85)'; ctx.lineWidth = Math.max(1, 1.6 * dpr); ctx.stroke();
+        /* landing bullseye — rings + crosshair */
+        ctx.strokeStyle = 'rgba(228,228,232,0.7)'; ctx.lineWidth = Math.max(1, 1.2 * dpr);
+        for (const rr of [22, 14, 7]) {
+          const ring = [];
+          for (let k = 0; k < 32; k++) { const a = k / 32 * 2 * Math.PI; const p = _deckPt(rr * Math.cos(a), rr * Math.sin(a)); if (p) ring.push(p); }
+          if (ring.length > 3) { ctx.beginPath(); ctx.moveTo(ring[0].x, ring[0].y); for (let k = 1; k < ring.length; k++) ctx.lineTo(ring[k].x, ring[k].y); ctx.closePath(); ctx.stroke(); }
+        }
+        const _xa = _deckPt(-22, 0), _xb = _deckPt(22, 0), _ya = _deckPt(0, -22), _yb = _deckPt(0, 22);
+        if (_xa && _xb) { ctx.beginPath(); ctx.moveTo(_xa.x, _xa.y); ctx.lineTo(_xb.x, _xb.y); ctx.stroke(); }
+        if (_ya && _yb) { ctx.beginPath(); ctx.moveTo(_ya.x, _ya.y); ctx.lineTo(_yb.x, _yb.y); ctx.stroke(); }
+        ctx.restore();
+      }
+    }
+
+    const _vfBase = -0.016 * _ca;                         // flipped base centreline → anchor at b.alt
+    const _projBV = ([vF2, vR, vU2]) => {                 // flipped geometry vert → screen
+      const altM = _bAltM + (vF2 - _vfBase) * _UPM;
+      const drM = vU2 * _UPMnm, crM = vR * _UPMnm;        // downrange (along hdg) / crossrange (NM)
+      const latP = (_b.lat ?? cLat) + (drM * _chh - crM * _shh) / 60;
+      const lonP = (_b.lon ?? cLon) + (drM * _shh + crM * _chh) / (60 * cosLat);
+      return _projW(latP, lonP, altM);
+    };
+    _advanceF9FinAngle();
+    const _bvS = _V_f9.map(v => v.slice());
+    _applyF9FinFold(_bvS);
+    const _flip = ([vF, vR, vU]) => [vF * _ca - vU * _sa, vR, vF * _sa + vU * _ca];
+    const _rcS = {
+      ctx, faces: [], boosterWire: false, project: _projBV, rotateNormal: (n) => n,
+      litBr: (f, r, u, amb) => amb + (1 - amb) * Math.max(0, f * _LD[0] + r * _LD[1] + u * _LD[2]),
+      edgeCamDir: () => -1, rStage: 2, isSS: false, ssGeo: null,
+      bPts: _bvS.map(v => _projBV(_flip(v))), ssBPts: null, s2Pts: null,
+      cosdP: _ca, sindP: _sa, bOffF: 0, bOffR: 0, bOffU: 0, ssCosdP: 1, ssSindP: 0,
+      camSide: 1, H: _H,
+    };
+    drawBoosterFaces(_rcS);
+    _rcS.faces.sort((a, b2) => b2.avgD - a.avgD);
+    for (const { ps, br, col } of _rcS.faces) {
+      ctx.fillStyle = `rgb(${Math.round(col[0]*br)},${Math.round(col[1]*br)},${Math.round(col[2]*br)})`;
+      ctx.beginPath(); ctx.moveTo(ps[0].x, ps[0].y);
+      for (let k = 1; k < ps.length; k++) ctx.lineTo(ps[k].x, ps[k].y);
+      ctx.closePath(); ctx.fill();
+    }
+    drawBoosterEdges(_rcS);
+    /* data tag */
+    const _tagY = cy - Math.tan((elevToShip - camPitch) * DEG) * focal;
+    ctx.save();
+    ctx.font = `${Math.round(10 * dpr)}px "IBM Plex Mono", monospace`;
+    ctx.fillStyle = 'rgba(140,195,225,0.88)';
+    ctx.textAlign = 'left';
+    const _altTxt = shipAltKm >= 1 ? `${shipAltKm.toFixed(0)} km` : `${Math.round(_vAlt * 0.3048)} m`;
+    ctx.fillText(`B1062  ${(_b.phase ?? '').toUpperCase()}  ALT ${_altTxt}  RNG ${rangeKm.toFixed(rangeKm < 10 ? 1 : 0)} km`,
+                 cx + 28 * dpr, _tagY);
+    ctx.restore();
+  } else if (rangeKm < 12000 && shipAltNm > 0) {
     const shipY = cy - Math.tan((elevToShip - camPitch) * DEG) * focal;
     const shipX = cx;
 

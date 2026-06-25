@@ -1404,11 +1404,22 @@ export function tickBooster(dt) {
     thrustVert      = tA;   /* vertical hoverslam; lateral handled by the guidance below */
   }
 
-  /* Lateral guidance — grid fins (glide) + engine gimbal (landing) null the downrange position +
-     velocity error to the target, so the booster homes onto the pad instead of drifting. */
+  /* Lateral guidance — engine gimbal (entry/landing burns) + grid fins (glide) null the downrange
+     position + velocity error to the target so the booster homes onto the droneship. Active from
+     the entry burn on (atmospheric / powered) — a short glide-only correction can't close the
+     km-scale ballistic dispersion, so the steering needs the longer entry baseline. */
   if (b.phase === 'glide' || b.phase === 'landing') {
-    const aMax = b.phase === 'landing' ? 6 : 2.5;
-    thrustDown += Math.max(-aMax, Math.min(aMax, -0.0008 * downrange - 0.20 * vDown));
+    const aMax = b.phase === 'landing' ? 6 : 4.5;
+    /* Predictive terminal guidance — null the PREDICTED touchdown miss (current downrange +
+       where the downrange velocity carries it over the remaining fall time), not just the
+       instantaneous position. A plain PD law leaves a steady-state undershoot; this lands on
+       the droneship. */
+    const _deckM = (S.mission?.departure?.elevation ?? 0) * 0.3048;
+    const _altA  = Math.max(0, alt_m - _deckM);
+    const _vv    = Math.max(1, -vVert);
+    const _tGo   = (Math.sqrt(_vv * _vv + 2 * g * _altA) - _vv) / g;   // ballistic time to the deck
+    const _predDR = downrange + vDown * _tGo;                          // predicted downrange vs target at touchdown
+    thrustDown += Math.max(-aMax, Math.min(aMax, -0.006 * _predDR));
   }
 
   /* Drag components (opposing velocity) */

@@ -4167,8 +4167,10 @@
         if (S.aircraft?.vehicleType === 'rocket') {
           /* Saturn V has no booster cam (mode 5 uses F9 geometry).
              Starship mode 5 = body cam (IFT-style side mount).
-             Starship adds ship cam (mode 6) when mission has reentryGuidance. */
-          const _hasShipCam = S.aircraft?.id === 'starship' && S.mission?.reentryGuidance;
+             Ship cam (mode 6): Starship reentry (reentryGuidance) or an ASDS
+             booster recovery (droneship) — stands at the vessel, follows it down. */
+          const _hasShipCam = (S.aircraft?.id === 'starship' && S.mission?.reentryGuidance)
+                           || (S.aircraft?.performance?.recovery?.asds && S.booster);
           const rocketModes = S.aircraft?.id === 'saturn-v' ? [0, 1, 2, 4]
                             : _hasShipCam                   ? [0, 1, 2, 4, 5, 6]
                             :                                 [0, 1, 2, 4, 5];
