@@ -2079,6 +2079,47 @@ function _renderBoosterCam(canvas) {
     camSide: 1, H: _H,   // side-on view → _drawJ2Nozzles renders the octaweb bell walls
   };
 
+  /* ── Droneship deck — ASDS landing platform under the booster (at sea level) ──
+     Drawn before the shadow + booster so they sit on top. The deck rides up from below as
+     the booster descends (height above the deck → geometry units), settling at the feet on
+     touchdown: dark deck, yellow hazard border, white landing bullseye + crosshair, hull skirt. */
+  if ((S.aircraft?.performance?.recovery?.asds) && (b?.landed || b?.phase === 'landing')) {
+    const _UPM = 1762;                                            // metres per geometry unit (matches _rf9 scale)
+    const _hM  = Math.max(0, ((b.alt ?? 0) - (S.mission?.departure?.elevation ?? 0))) * 0.3048;
+    const _deckVF = -0.019 - _hM / _UPM;                          // sits at the booster's feet when landed
+    const _hw = 0.016, _hl = 0.024;                               // half-extent ≈ 56 m × 85 m droneship
+    const _P  = (vR, vU) => projB([_deckVF, vR, vU]);
+    const _c  = [_P(-_hw,-_hl), _P(_hw,-_hl), _P(_hw,_hl), _P(-_hw,_hl)];
+    if (!_c.some(p => !p)) {
+      ctx.save();
+      /* hull skirt — dark wall below the near (camera-side) edge */
+      const _hb = [_P(_hw,-_hl), _P(_hw,_hl)].map(p => p);
+      const _hbL = projB([_deckVF - 0.005, _hw, -_hl]), _hbR = projB([_deckVF - 0.005, _hw, _hl]);
+      if (_hbL && _hbR) {
+        ctx.fillStyle = 'rgb(26,28,33)';
+        ctx.beginPath(); ctx.moveTo(_hb[0].x,_hb[0].y); ctx.lineTo(_hb[1].x,_hb[1].y);
+        ctx.lineTo(_hbR.x,_hbR.y); ctx.lineTo(_hbL.x,_hbL.y); ctx.closePath(); ctx.fill();
+      }
+      /* deck */
+      ctx.fillStyle = 'rgb(46,48,54)';
+      ctx.beginPath(); ctx.moveTo(_c[0].x,_c[0].y);
+      for (let i = 1; i < 4; i++) ctx.lineTo(_c[i].x,_c[i].y);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(196,172,44,0.85)'; ctx.lineWidth = Math.max(1, 1.6*dpr); ctx.stroke();
+      /* landing bullseye — concentric rings + crosshair on the centre (booster axis) */
+      ctx.strokeStyle = 'rgba(228,228,232,0.7)'; ctx.lineWidth = Math.max(1, 1.2*dpr);
+      for (const rr of [0.013, 0.008, 0.004]) {
+        const ring = [];
+        for (let k = 0; k < 28; k++) { const a = k/28*2*Math.PI; const p = _P(rr*Math.cos(a), rr*Math.sin(a)); if (p) ring.push(p); }
+        if (ring.length > 3) { ctx.beginPath(); ctx.moveTo(ring[0].x,ring[0].y); for (let k = 1; k < ring.length; k++) ctx.lineTo(ring[k].x,ring[k].y); ctx.closePath(); ctx.stroke(); }
+      }
+      const _xa = _P(-0.013,0), _xb = _P(0.013,0), _ya = _P(0,-0.013), _yb = _P(0,0.013);
+      if (_xa && _xb) { ctx.beginPath(); ctx.moveTo(_xa.x,_xa.y); ctx.lineTo(_xb.x,_xb.y); ctx.stroke(); }
+      if (_ya && _yb) { ctx.beginPath(); ctx.moveTo(_ya.x,_ya.y); ctx.lineTo(_yb.x,_yb.y); ctx.stroke(); }
+      ctx.restore();
+    }
+  }
+
   /* Ground shadow — once landed, project the upright booster's geometry onto the pad
      along the key-light direction (the same _LD that shades the faces) and fill the
      convex hull as one blurred silhouette. Mirrors the aircraft silhouette shadow.
