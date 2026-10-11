@@ -99,6 +99,8 @@ Load a mission with `/?mission=<id>&test=1` and wait for `window.simReady === tr
 | `simLoad(missionId)` | Load another mission (returns a promise) |
 | `simGetRpm()` · `simEngineState()` | Engine RPM string · engine state |
 
+To try something without writing a test, `tools/probe.mjs` loads a mission in test mode and prints what a snippet returns — see [issues.md → Reproducing](issues.md#reproducing).
+
 `simStep` runs `tickFailures → tickFuel → tickPhysics` (or `tickRocket + tickBooster`, or `tickHovercraft`) `→ tickCrew`. It does **not** run the electrical, battery, hydraulics or telemetry ticks that the real loop (`core/loop.js`) runs, and it never applies time-warp sub-stepping.
 
 ---
@@ -131,11 +133,11 @@ Load a mission with `/?mission=<id>&test=1` and wait for `window.simReady === tr
 
 ## Known failures
 
-Open as of 2026-10-11 — remove a line when its group is fixed.
+Open as of 2026-10-11 — remove a line when its group is fixed. Causes and planned fixes: [issues.md](issues.md).
 
 | Group | File | Tests | Why |
 |-------|------|-------|-----|
 | DB 601 engine-off start | `db601-sound.spec.js` | 2 | Uses Wolfskopf, which starts airborne with the engine running |
 | Temporary EGLL mission | `physics.test.js` | 2 | `egll-approach` is temporarily the 737 MAX 9 into Madrid |
-| ILS tracking | `physics.test.js` | 1 | LSZH: 2.09 dots vs a 1.6 limit — open: tolerance or tracking |
+| ILS tracking (flaky) | `physics.test.js` | 1 | LSZH: passes ~3 of 4 runs — non-deterministic test runs (live weather, game loop ticking in test mode) |
 | Rocket coarse steps | `rocket.spec.js`, `check_alt.spec.js` | 8 | Ascent breaks at `dt = 1.0` (also affects time warp ≥ 100×); Demo-2 timings predate its 178 s countdown; Inspiration5 inserts at ~283 × 897 km instead of 590 km circular |
