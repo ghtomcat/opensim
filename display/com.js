@@ -175,7 +175,7 @@ function _html() {
         <div class="com-station" id="com-station">LSZH GROUND</div>
       </div>
 
-      <button class="com-xfer" id="com-xfer" title="Transfer (T)">⇄</button>
+      <button class="com-xfer" id="com-xfer" title="Transfer (Z)">⇄</button>
 
       <div class="com-freq-block">
         <div class="com-freq-label">STANDBY</div>
@@ -386,9 +386,9 @@ function _bindEvents(container) {
     _nudgeStandby(Number(btn.dataset.dir));
   });
 
-  /* Keyboard */
+  /* Keyboard — Z swaps active ↔ standby (t/T is pitch trim) */
   window.addEventListener('keydown', (e) => {
-    if (e.key === 't' || e.key === 'T') _transfer();
+    if ((e.key === 'z' || e.key === 'Z') && !e.ctrlKey && !e.metaKey) _transfer();
   });
 
   /* PTT */

@@ -76,8 +76,8 @@ test.describe('COM transfer', () => {
     const activeBefore  = (await getActiveFreq(page)).trim();
     const standbyBefore = (await getStandbyFreq(page)).trim();
 
-    /* T key triggers transfer via window keydown listener */
-    await page.keyboard.press('t');
+    /* Z key triggers transfer via window keydown listener */
+    await page.keyboard.press('z');
 
     const activeAfter  = (await getActiveFreq(page)).trim();
     const standbyAfter = (await getStandbyFreq(page)).trim();

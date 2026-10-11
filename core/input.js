@@ -205,7 +205,8 @@ function _onKeyDown(e) {
   }
 
   /* Time warp — w steps forward, W steps backward through 1×→2×→5×→10×→100×→next event */
-  if ((e.key === 'x' || e.key === 'X') && !e.ctrlKey && (S.aircraft?.vehicleType === 'rocket' || S.aircraft?.panel)) {
+  /* J — jump: warp straight to the next mission event (press again to cancel) */
+  if ((e.key === 'j' || e.key === 'J') && !e.ctrlKey && (S.aircraft?.vehicleType === 'rocket' || S.aircraft?.panel)) {
     const ev = _nextEvent();
     if (ev) {
       const dist = ev.t - 60 - (S.time ?? 0);

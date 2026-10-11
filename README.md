@@ -81,6 +81,7 @@ No build step. No framework. No dependencies. Open `index.html` and fly.
 | `←` / `→` | Roll left/right (manual) · Heading target ±5° (AP) |
 | `+` / `−` | Throttle — thrust lever ±10% on turbofans, ±5 kt otherwise |
 | `t` / `T` | Trim nose up / nose down |
+| `z` | COM swap: active ↔ standby |
 | `E` | Engine start (cold-start aircraft) |
 | `Q` | Engine cutoff · fuel selector cycle (manual aircraft) |
 | `H` | Carburettor heat toggle |
@@ -97,7 +98,8 @@ No build step. No framework. No dependencies. Open `index.html` and fly.
 | `o` · `l` · `m` · `r` · `d` | Cockpit views: overhead · left · centre · right · pedestal (where the aircraft has them) |
 | `Tab` | Cycle display mode |
 | `p` | Pause |
-| `x` | Audio on/off · rockets: warp straight to the next mission event |
+| `x` | Audio on/off |
+| `j` | Jump — warp straight to the next mission event |
 | `r` | Cycle role: PF → PM → INSTRUCTOR (aircraft without a right console) |
 | `Space` | PTT (push to talk) |
 | `w` / `W` | Time warp — rockets + glass cockpits: 1× → 2× → 5× → 10× → 100× → next event (`W` steps back) |
@@ -305,7 +307,7 @@ Point-mass gravity turn, programmed FPA profile, extended ISA through 140 km. Th
 
 The booster cam (mode 5) auto-activates during boostback, entry burn, landing burn, and landing, then restores the previous camera.
 
-**Time warp** — `w` steps 1× → 2× → 5× → 10× → 100× → next mission event; `x` jumps straight to the next event. A 3-day Inspiration5 orbit passes in minutes.
+**Time warp** — `w` steps 1× → 2× → 5× → 10× → 100× → next mission event; `j` jumps straight to the next event. A 3-day Inspiration5 orbit passes in minutes.
 
 ---
 
