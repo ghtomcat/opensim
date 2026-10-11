@@ -514,7 +514,7 @@ audio/           — voice assets (not in git — generate locally, see docs/aud
 
 docs/
   architecture.md       — how the pieces fit together
-  navigation.md         — route, LNAV/VNAV, procedures
+  url-routing.md        — mission URLs, deep links, browser history
   panel-system.md       — panel JSON + renderer
   creating-missions.md  — writing a mission
   keybindings.md        — full key reference

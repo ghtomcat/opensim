@@ -2,57 +2,196 @@
 
 ## Overview
 
-Each aircraft in OpenSim has an instrument panel rendered on a `<canvas>` element. The panel is selected via a `"panel"` field in the aircraft JSON. Adding a new aircraft with a custom panel requires two things: a JSON entry and a display module.
+The cockpit is drawn on `<canvas>` elements. There are three kinds of cockpit display:
+
+| Kind | What | Defined by |
+|---|---|---|
+| **Data-driven panels** | Glass airliner screens (PFD, ND, ECAM/EICAS) and GA panels (G1000, DR400) | JSON layout specs in `panels/` + styles in `panels/styles/`, drawn by `display/panel_renderer.js` |
+| **Hand-drawn panels** | Steam-gauge warbirds and the Velis Electro | One JS module per panel (`display/bf109.js`, `f4u1a.js`, `velis_epsi.js`) |
+| **Cockpit zones** | Overhead, pedestal, left/right console, centre panel — slide-in views around the main panel | The aircraft's `views` list + per-zone modules (`display/overhead.js`, …) |
+
+Rockets, hovercraft and robots have their own displays and are not part of the panel
+system.
 
 ---
 
-## How it works
+## How the main panel is chosen
 
-In `index.html`, the render loop reads `S.aircraft.panel` and dispatches to the correct renderer:
+The render loop in `index.html` (search for `renderYertleQuadruped(canvas)`) picks one
+renderer per frame. Vehicle type is checked first, then the aircraft's `panel` field:
 
 ```js
-const panel = S.aircraft?.panel ?? 'pfd';
-
-if      (panel === 'g1000')      renderG1000(canvas);
-else if (panel === 'bf109')      renderBf109(canvas);
-else if (panel === 'f4u')        renderF4U1A(canvas);
-else if (panel === 'velis-epsi') renderVelisEpsi(canvas);
-else                             renderPFD(canvas);   // default
+if      (isDog)                       renderYertleQuadruped(canvas);
+else if (isArm)                       renderRobotArm(canvas);
+else if (isHover)                     renderHovercraft(canvas);
+else if (isRocket && dragonSepT)      renderDragon(canvas);          // + rocket telemetry
+else if (isRocket && id==='saturn-v') renderApollo(canvas);          // / renderLM()
+else if (isRocket)                    renderRocket(canvas);
+else if (panel === 'dr400')           renderCockpit(canvas);         // data-driven GA
+else if (panel === 'g1000')           renderCockpit(canvas);         // data-driven GA
+else if (panel === 'bf109')           renderBf109(canvas);           // hand-drawn
+else if (panel === 'f4u')             renderF4U1A(canvas);           // hand-drawn
+else if (panel === 'velis-epsi')      renderVelisEpsi(canvas);       // hand-drawn
+else if (panel === 'airbus' || panel === 'e190') {                   // data-driven glass
+  renderPanel(canvas,   0, _currentSpec(0));                         // left screen
+  renderPanel(ndCanvas, 1, _currentSpec(1));                         // right screen
+  if (displays has screen 1) renderFCU(fcuCanvas);
+}
+else if (ecam)                        renderECAM(ecamCanvas);
+else                                  renderPFD(canvas);             // default glass PFD
 ```
 
-Rockets and hovercrafts bypass this dispatch entirely (handled by `vehicleType` and `type` fields).
+## Panels in use
+
+| `panel` | Kind | Renderer | Aircraft |
+|---|---|---|---|
+| `airbus` | data-driven glass | `renderPanel()` — specs `airbus-pfd`, `airbus-nd`, `airbus-ecam` | A220, A340, A350; also B737, B737 MAX 9, B777-300ER (the `ecam_ewd` widget draws a Boeing EICAS when `manufacturer` is `boeing`) |
+| `e190` | data-driven glass | `renderPanel()` — specs `e190-pfd`, `e190-nd` (+ `airbus-ecam` page) | E190-E2 |
+| `g1000` | data-driven GA | `renderCockpit()` — spec `g1000` (draws via `display/g1000.js`) | C172 |
+| `dr400` | data-driven GA | `renderCockpit()` — spec `dr400` | Robin DR400 |
+| `bf109` | hand-drawn | `display/bf109.js` | Bf 109 G-4, MiG-15 |
+| `f4u` | hand-drawn | `display/f4u1a.js` | F4U-1A Corsair |
+| `velis-epsi` | hand-drawn | `display/velis_epsi.js` | Pipistrel Velis Electro |
+| *(none)* | default | `display/pfd.js` (`renderPFD`); ECAM mode `display/ecam.js` | AN-225, Avro 504, Tu-95MS, DC-8 |
 
 ---
 
-## Existing panels
+## Data-driven panels
 
-| Panel ID      | Display module          | Aircraft          | Notes                        |
-|---------------|-------------------------|-------------------|------------------------------|
-| `pfd`         | `display/pfd.js`        | Default fallback  | Glass PFD, airline style     |
-| `g1000`       | `display/g1000.js`      | Cessna 172S       | Garmin G1000 inspired        |
-| `bf109`       | `display/bf109.js`      | Bf 109 G-4        | WWII German, analog gauges   |
-| `f4u`         | `display/f4u1a.js`      | F4U-1A Corsair    | WWII US Navy, analog gauges  |
-| `velis-epsi`  | `display/velis_epsi.js` | Velis Electro     | Electric, SOC bar, EPSI-inspired |
+A data-driven panel needs no new code as long as the widgets it uses exist. Three
+files work together:
 
----
+```
+aircraft/<id>.json   "panel": "airbus",  "displays": [...]     which style, which specs on which screen
+panels/<spec>.json   layout: rows → columns → widget + config  what goes where
+panels/styles/<panel>.json   colors, font                      how it looks
+```
 
-## Adding a new panel
+### Aircraft: `panel` and `displays`
 
-### 1. Aircraft JSON
+`panel` selects the style file (`panels/styles/<panel>.json`). For glass panels,
+`displays` places specs on screens:
 
-Add `"panel": "your-panel-id"` to the aircraft JSON:
+```json
+"displays": [
+  { "id": "pfd", "spec": "e190-pfd", "screen": 0 },
+  { "id": "nd",  "spec": "e190-nd",  "screen": 1, "pages": ["e190-nd", "airbus-ecam"] }
+]
+```
+
+- `screen` — `0` = left canvas (`#pfd`), `1` = right canvas (`#nd`). The FCU is drawn when a screen 1 exists.
+- `pages` — specs that screen can cycle through. **Tab** cycles the right screen (on
+  the ECAM page it first steps through the sub-pages STATUS → ELEC → HYD, then back to
+  the ND); **Shift+Tab** cycles the left screen. In the centre view (**M**), Tab
+  switches the lower ECAM between ELEC and HYD. Page indices are meant to reset on the
+  `opensim:aircraft-loaded` event, but nothing dispatches it yet, so the selection
+  carries over to the next aircraft.
+
+GA panels (`renderCockpit()`) don't use `displays`. They load `panels/<panel>.json`
+directly and draw onto the main canvas.
+
+### Spec format
+
+A spec is a grid of rows, each split into columns. Sizes are **fractions** of the
+canvas (rows: of the height; columns: of the width), so a spec is resolution-independent.
 
 ```json
 {
-  "id": "my-aircraft",
-  "panel": "my-panel",
-  ...
+  "id": "airbus-pfd",
+  "layout": [
+    { "h": 0.09, "cols": [ { "id": "fma", "widget": "fma", "w": 1.0 } ] },
+    { "h": 0.76, "cols": [
+        { "id": "spd", "widget": "speed_tape", "w": 0.165 },
+        { "id": "ai",  "widget": "ai", "w": 0.610,
+          "config": { "fpv": true, "ils": true, "bank_arc": true } },
+        { "id": "alt", "widget": "alt_tape", "w": 0.155 },
+        { "id": "vsi", "widget": "vsi", "w": 0.070 } ] }
+  ]
 }
+```
+
+Each column calls `widget(ctx, box, style, config)` with its pixel box. The `grid`
+widget nests a further `layout` inside its box (the G1000 uses this for screen +
+standby gauges).
+
+Glass specs also carry `version`, `style`, `physical` (mm), `screen` (px) and `hil`.
+None of these is read by the renderer today; the style comes from the aircraft's `panel`.
+
+### Widgets
+
+Registered in `_WIDGETS` in `display/panel_renderer.js`. To add one, write the draw
+function and register it there.
+
+| Group | Widgets |
+|---|---|
+| Glass (from `pfd_instruments.js`) | `fma`, `ai`, `speed_tape`, `alt_tape`, `vsi`, `hdg_tape`, `nd_map`, `ecam_ewd` (ECAM, or EICAS for Boeing), `spacer` |
+| GA | `grid`, `analog_asi`, `analog_ai`, `analog_alt`, `rocker_strip`, `bottom_switches`, `g1000_screen`, `garmin_gtn`, `magneto_knob`, `fuel_selector`, `radio_stack`, `aircraft_tag` |
+
+When the panel is squished (the outside view halves its height), `renderPanel()`
+enlarges the fonts while the geometry stays. The ECAM schematic is scaled as a whole
+instead.
+
+### Styles
+
+`panels/styles/<panel>.json` holds `id`, `colors` (`bg`, `sky`, `ground`, `engaged`,
+`selected`, `managed`, `caution`, …) and `font`. Widgets read their colours from
+here, not from constants. GA panels without a style file fall back to a default.
+
+### Clickable switches (GA panels)
+
+GA widgets register **hit regions** each frame; `handleCockpitClick()` (wired in
+`index.html`) runs the region's action. Switch widgets bind to state by key:
+
+```json
+{ "label": "BAT", "state": "masterBat", "color": "red", "guarded": true },
+{ "label": "NAV", "state": "lights.nav", "color": "green" }
+```
+
+- `state` — a key in `S`; a dot-path (`lights.nav`) toggles a field inside an object.
+- `guarded` — the first click lifts the guard, the second throws the switch; switching
+  off closes the guard again.
+- `fuelPump` and `magnetos` have side effects (pump sound; engine start/stop), wired
+  in `_toggleSwitch()`.
+
+---
+
+## Cockpit zones (`views`)
+
+Around the main panel, an aircraft can declare slide-in zones in its JSON:
+
+```json
+"views": ["overhead", "left", "center", "right", "pedestal"]
+```
+
+| Zone | Key | Module | Content |
+|---|---|---|---|
+| `overhead` | O | `display/overhead.js` | Electrical, APU, fuel, engine start |
+| `pedestal` | D | `display/pedestal.js` | Thrust levers, flaps, speed brake; GA controls from `aircraft.pedestal` (list of tokens) |
+| `left` | L | `display/leftconsole.js` | Controls from `aircraft.left` (e.g. Bf 109: throttle, trim, fuel cock) |
+| `right` | R | `display/rightconsole.js` | Controls from `aircraft.right` (radio, oxygen, breakers) |
+| `center` | M | `display/centerconsole.js` | Airbus centre panel: both ECAM screens, gear lever |
+
+A key does nothing unless the aircraft lists its zone, and the key help hides it too.
+(Without a right console, **R** cycles the crew role instead.) The
+open zone is `S.cockpitView` (`'forward'` when none). Zones are interactive and write
+state through `setState()`.
+
+---
+
+## Hand-drawn panels
+
+For a cockpit that no widget set covers (vintage gauges, unusual layouts), write a
+display module.
+
+### 1. Aircraft JSON
+
+```json
+{ "id": "my-aircraft", "panel": "my-panel" }
 ```
 
 ### 2. Display module
 
-Create `display/my-panel.js` and export a single render function:
+Create `display/my-panel.js` and export a render function:
 
 ```js
 import { S } from '../core/state.js';
@@ -61,45 +200,42 @@ export function renderMyPanel(canvas) {
   const ctx = canvas.getContext('2d');
   const W = canvas.width;
   const H = canvas.height;
-
-  // draw your panel here
-  // read flight state from S.*
+  // draw your panel here, reading flight state from S.*
 }
 ```
 
-Key state values available in `S`:
+Commonly used state:
 
 | Field             | Type    | Description                        |
 |-------------------|---------|------------------------------------|
-| `S.alt`           | number  | Altitude (ft)                      |
+| `S.alt`           | number  | Altitude (ft, true MSL)            |
 | `S.spd`           | number  | Airspeed (kt)                      |
 | `S.hdg`           | number  | Heading (°)                        |
 | `S.vs`            | number  | Vertical speed (ft/min)            |
 | `S.pitch`         | number  | Pitch angle (°)                    |
-| `S.bank`          | number  | Bank angle (°)                     |
+| `S.roll`          | number  | Bank angle (°)                     |
 | `S.enginePower`   | number  | Engine power 0–1                   |
-| `S.fuelL`         | number  | Left tank fuel (L)                 |
-| `S.fuelR`         | number  | Right tank fuel (L)                |
+| `S.engineState`   | string  | `'off'` \| `'starting'` \| `'running'` … |
+| `S.fuelLeft`      | number\|null | Left tank (L); `null` = no fuel system |
+| `S.fuelRight`     | number\|null | Right tank (L)               |
 | `S.batteryCharge` | number\|null | Battery SOC % (electric only) |
-| `S.carbIceLevel`  | number  | Carb ice 0–1 (piston only)        |
-| `S.coolantState`  | string  | `'ok'` \| `'leaking'` \| `'failed'`|
+| `S.carbIceLevel`  | number  | Carb ice 0–1 (piston only)         |
+| `S.coolantState`  | string  | `'ok'` \| `'leaking'` \| `'failed'` |
+| `S.coolantTemp`   | number  | Coolant / CHT (°C)                 |
 | `S.gear`          | boolean | Gear down                          |
 | `S.flaps`         | number  | Flap index                         |
 | `S.aircraft`      | object  | Full aircraft JSON                 |
 
 ### 3. Register in index.html
 
-Add the import and dispatch case:
+Import the module and add a branch to the render dispatch (see *How the main panel is
+chosen*):
 
 ```js
-// top of <script type="module">
 import { renderMyPanel } from './display/my-panel.js';
-
-// in the render loop dispatch block
+// …
 else if (panel === 'my-panel') renderMyPanel(canvas);
 ```
-
----
 
 ## Canvas sizing
 
@@ -109,10 +245,12 @@ The panel canvas is sized by the browser. Always use `canvas.width` and `canvas.
 
 ## Conventions
 
-- Read state only — never write to `S` from a display module
-- Keep all drawing logic inside the render function or private helpers in the same file
-- Use `requestAnimationFrame` is handled by the main loop — do not start your own loop
-- Name the export `render[PanelName](canvas)`
+- Instrument displays read state and don't write it. Interactive parts (switches,
+  levers, knobs in GA panels and cockpit zones) write through `setState()`, never by
+  assigning to `S` directly.
+- Keep drawing logic inside the render function or private helpers in the same file.
+- `requestAnimationFrame` is handled by the main loop; don't start your own loop.
+- Name the export `render[PanelName](canvas)`.
 
 ---
 

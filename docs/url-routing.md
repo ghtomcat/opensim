@@ -1,4 +1,7 @@
-# Navigation & Browser History
+# URL Routing & Browser History
+
+*How the app's URL selects a mission, and how back/forward work. For aircraft navigation
+(route, LNAV/VNAV, procedures), see [architecture.md §10](architecture.md).*
 
 ## Aircraft vs. Mission
 
