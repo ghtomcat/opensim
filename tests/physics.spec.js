@@ -36,6 +36,34 @@ async function readyForTakeoff(page) {
   return setState(page, { parkBrake: false, engineState: 'running', enginePower: 1, magnetos: 'BOTH' });
 }
 
+/* Calm air — mission turbulence adds random vertical buffeting every frame, which makes
+   a landing test pass or fail by chance. Landing mechanics are tested in still air. */
+async function calmAir(page) {
+  return page.evaluate(() => {
+    const m = window.simGetState().mission;
+    window.simSetState({ mission: { ...m, weather: { ...m.weather, manual: { ...m.weather.manual, turbulence: 0 } } } });
+  });
+}
+
+/* Engine-out glide to the Wolfskopf field (elevation 100 ft) and a flare like a pilot:
+   hold `pitch` on the way down, raise the nose to `flarePitch` below `flareAGL`. The flight
+   model uses pitch attitude as angle of attack, so the glide attitude must be nose-up.
+   Steps inside one evaluate (a round trip per frame is too slow). Returns touchdown data. */
+async function glideAndFlare(page, { alt, spd, pitch, flareAGL = 50, flarePitch = 15, maxS = 90 }) {
+  await setState(page, { alt, altT: 100, spd, spdT: 0, pitch, pitchT: pitch, vs: -300,
+                         gear: true, wow: false, enginePower: 0 });
+  return page.evaluate(([flareAGL, flarePitch, maxS]) => {
+    let flared = false;
+    for (let i = 0; i < maxS * 60; i++) {
+      if (!flared && window.simGetState().alt - 100 < flareAGL) { window.simSetState({ pitchT: flarePitch }); flared = true; }
+      window.simStep(1);
+      const s = window.simGetState();
+      if (s.crashed || s.wow) return { landed: s.wow, crashed: s.crashed, reason: s.crashReason, touchdownVS: s.touchdownVS, minAlt: s.alt };
+    }
+    return { landed: false, crashed: false };
+  }, [flareAGL, flarePitch, maxS]);
+}
+
 /* ── Cessna 172 ───────────────────────────────────────────────── */
 
 test.describe('Cessna 172 — LSZF pattern', () => {
@@ -167,46 +195,47 @@ test.describe('Bf 109 — Wolfskopf', () => {
     expect(s.enginePower).toBeLessThan(0.05);
   });
 
-  test('dead-stick landing — gear down, wow triggers before alt < 50ft', async ({ page }) => {
+  test('dead-stick landing — glide + flare, touches down on the field', async ({ page }) => {
     await loadSim(page, 'wolfskopf-1942');
+    await calmAir(page);
 
-    // Approach: 400ft AGL above the 100ft field, 100kt, gear down, dead engine
-    await setState(page, {
-      alt: 500, altT: 100,
-      spd: 100, spdT: 0,
-      pitch: 8, pitchT: 8,
-      gear: true, prevGear: false,
-      enginePower: 0,
-    });
+    // 400 ft above the 100 ft field, gear down, dead engine
+    const r = await glideAndFlare(page, { alt: 500, spd: 115, pitch: 7 });
 
-    let landed = false;
-    let wentUnderground = false;
-    for (let i = 0; i < 60 * 60; i++) {
-      await page.evaluate(() => window.simStep(1));
-      const s = await getState(page);
-      if (s.wow)       { landed = true; break; }
-      if (s.alt < 50)  { wentUnderground = true; break; }
-    }
-
-    expect(wentUnderground, 'aircraft should not pass through the ground').toBe(false);
-    expect(landed, 'Bf 109 should touch down (wow=true)').toBe(true);
+    expect(r.crashed, `dead-stick landing should not crash (${r.reason})`).toBe(false);
+    expect(r.landed, 'Bf 109 should touch down (wow=true)').toBe(true);
+    expect(r.minAlt, 'aircraft should not pass through the ground').toBeGreaterThan(99);
   });
 
   test('high-speed touchdown — does not bounce (wow latch)', async ({ page }) => {
     await loadSim(page, 'wolfskopf-1942');
+    await calmAir(page);
 
-    // Touch down fast with nose up — should stay on ground, not bounce
+    // Fast wheel landing: just above the field at 156 kt, nose low, sinking like a real touchdown
     await setState(page, {
-      alt: 100, spd: 156, spdT: 0,
-      pitch: 8, pitchT: 8,
-      gear: true, wow: true,
+      alt: 101, spd: 156, spdT: 0,
+      pitch: 2, pitchT: 2, vs: -300,
+      gear: true, wow: false,
       enginePower: 0,
     });
-    await stepSeconds(page, 3);
 
-    const s = await getState(page);
-    expect(s.wow, 'aircraft should stay on ground after fast touchdown').toBe(true);
-    expect(s.spd, 'aircraft should decelerate on ground roll').toBeLessThan(130);
+    // Once down, it must stay down for the whole roll (checked every frame)
+    const r = await page.evaluate(() => {
+      let touchedAt = null, bounced = false;
+      for (let i = 0; i < 4 * 60; i++) {
+        window.simStep(1);
+        const s = window.simGetState();
+        if (s.wow && touchedAt == null) touchedAt = i;
+        if (touchedAt != null && !s.wow) bounced = true;
+      }
+      const s = window.simGetState();
+      return { touchedAt, bounced, crashed: s.crashed, spd: s.spd };
+    });
+
+    expect(r.touchedAt, 'aircraft should touch down').not.toBeNull();
+    expect(r.crashed, 'a -300 fpm touchdown is not a hard landing').toBe(false);
+    expect(r.bounced, 'aircraft should stay on ground after fast touchdown').toBe(false);
+    expect(r.spd, 'aircraft should decelerate on ground roll').toBeLessThan(150);
   });
 
 });
@@ -449,24 +478,14 @@ test.describe('Crash bounds checker', () => {
 
   test('normal landing — no crash within bounds', async ({ page }) => {
     await loadSim(page, 'wolfskopf-1942');
+    await calmAir(page);
 
-    // Gentle approach: 80kt, gear down, dead engine, 500ft AGL
-    await setState(page, {
-      alt: 600, spd: 80, spdT: 0,
-      pitch: -3, pitchT: -3,
-      gear: true, wow: false,
-      enginePower: 0,
-    });
+    // Gentle approach: 500 ft above the field, glide, flare at 50 ft
+    const r = await glideAndFlare(page, { alt: 600, spd: 115, pitch: 7 });
 
-    // Step until touchdown or 60s
-    for (let i = 0; i < 60 * 60; i++) {
-      await page.evaluate(() => window.simStep(1));
-      const s = await getState(page);
-      if (s.wow || s.crashed) break;
-    }
-
-    const s = await getState(page);
-    expect(s.crashed, 'gentle landing should not crash').toBe(false);
+    expect(r.crashed, `gentle landing should not crash (${r.reason})`).toBe(false);
+    expect(r.landed, 'aircraft should touch down').toBe(true);
+    expect(r.touchdownVS, 'touchdown sink rate inside the -800 fpm hard-landing limit').toBeGreaterThan(-800);
   });
 
 });

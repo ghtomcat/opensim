@@ -116,6 +116,8 @@ Load a mission with `/?mission=<id>&test=1` and wait for `window.simReady === tr
 - The flight model uses **pitch attitude as angle of attack**. A nose-down attitude at low speed means negative lift, not a gentle glide.
 - A touchdown has a **sink rate**. The ground latch only holds when the aircraft is descending (`vs < -50`); a test that sets `wow: true` with no sink rate sees the aircraft fly away.
 - A fuel cut is not instant: the engine runs on line fuel for **4 s** (`STARVE_RUNDOWN_S` in `core/fuel.js`).
+- **Turbulence is random.** A mission's `turbulence` adds random vertical buffeting every frame, so a landing can pass or fail by chance. Test landing mechanics in still air — `calmAir()` in `tests/physics.spec.js`.
+- **Land like a pilot.** An engine-out glide sinks 1 000–1 700 fpm; held to the ground it is a hard landing (limit −800 fpm). Flare: raise the nose near the ground — `glideAndFlare()` glides at a nose-up attitude and flares at 50 ft.
 
 **Step size matters.** Aircraft run at `dt = 1/60`. Rocket specs step at `dt = 1.0` for speed — coarse steps change the ascent, so compare against a fine-step run before trusting a rocket result.
 
@@ -133,7 +135,6 @@ Open as of 2026-10-11 — remove a line when its group is fixed.
 
 | Group | File | Tests | Why |
 |-------|------|-------|-----|
-| Bf 109 landing setups | `physics.spec.js` | 3 | Setups don't fit the flight model (nose-down attitude, no sink rate at touchdown) |
 | DB 601 engine-off start | `db601-sound.spec.js` | 2 | Uses Wolfskopf, which starts airborne with the engine running |
 | Temporary EGLL mission | `physics.test.js` | 2 | `egll-approach` is temporarily the 737 MAX 9 into Madrid |
 | ILS tracking | `physics.test.js` | 1 | LSZH: 2.09 dots vs a 1.6 limit — open: tolerance or tracking |
