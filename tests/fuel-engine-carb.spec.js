@@ -7,7 +7,12 @@
  *
  * Aircraft under test:
  *   - Cessna 172     (lycoming-o360, hasCarbHeat, dual tanks) — lszf-pattern
- *   - Bf 109 G-6     (v12-supercharged, single 400L left tank) — wolfskopf-1942
+ *   - Bf 109 E-4     (v12-supercharged, single 400L left tank) — wolfskopf-1942
+ *
+ * Fuel cut: the selector is BOTH / LEFT / RIGHT only — OFF is the separate shutoff
+ * valve (fuelShutoff; C172 pedestal, Bf 109 Brandhahn). A cut (valve closed or the
+ * selected tank empty) runs the engine on line fuel for STARVE_RUNDOWN_S = 4 s
+ * (core/fuel.js), then it quits — off, restartable.
  *   - A350 / An-225  (no fuel system, fuelLeft=null)          — lszh-approach / hostomel-2022
  *
  * simStep is synchronous — all physics runs in-process, no rAF.
@@ -39,6 +44,9 @@ async function getRpm(page) {
   return page.evaluate(() => window.simGetRpm());
 }
 
+/* Fuel cut → engine quits after the 4 s line-fuel run-down; step a little past it */
+const RUNDOWN_S = 5;
+
 /* ═══════════════════════════════════════════
    FUEL — Initialization
    ═══════════════════════════════════════════ */
@@ -69,7 +77,7 @@ test.describe('Fuel — initialization', () => {
    FUEL SELECTOR — Cycling
    ═══════════════════════════════════════════ */
 
-test.describe('Fuel selector — Q key cycles BOTH → LEFT → RIGHT → OFF → BOTH', () => {
+test.describe('Fuel selector — Q key cycles BOTH → LEFT → RIGHT → BOTH', () => {
   test('BOTH → LEFT', async ({ page }) => {
     await loadSim(page);
     await page.keyboard.press('q');
@@ -83,60 +91,60 @@ test.describe('Fuel selector — Q key cycles BOTH → LEFT → RIGHT → OFF �
     expect((await getState(page)).fuelSelector).toBe('RIGHT');
   });
 
-  test('RIGHT → OFF', async ({ page }) => {
+  test('RIGHT → BOTH (no OFF position — that is the shutoff valve)', async ({ page }) => {
     await loadSim(page);
     await setState(page, { fuelSelector: 'RIGHT' });
-    await page.keyboard.press('q');
-    expect((await getState(page)).fuelSelector).toBe('OFF');
-  });
-
-  test('OFF → BOTH', async ({ page }) => {
-    await loadSim(page);
-    await setState(page, { fuelSelector: 'OFF' });
     await page.keyboard.press('q');
     expect((await getState(page)).fuelSelector).toBe('BOTH');
   });
 });
 
 /* ═══════════════════════════════════════════
-   FUEL SELECTOR OFF — Engine cut
+   FUEL SHUTOFF VALVE — Engine cut
    ═══════════════════════════════════════════ */
 
-test.describe('Fuel selector OFF — engine starvation', () => {
-  test('selector OFF kills engine within 2 sim-seconds', async ({ page }) => {
+test.describe('Fuel shutoff valve — engine starvation', () => {
+  test('valve closed — engine runs on line fuel for a few seconds', async ({ page }) => {
     await loadSim(page);
-    await setState(page, { enginePower: 1.0, engineState: 'running', fuelSelector: 'OFF' });
+    await setState(page, { enginePower: 1.0, engineState: 'running', fuelShutoff: true });
     await step(page, 2);
+    expect((await getState(page)).enginePower).toBeGreaterThan(0.5);
+  });
+
+  test('valve closed — engine quits after the run-down', async ({ page }) => {
+    await loadSim(page);
+    await setState(page, { enginePower: 1.0, engineState: 'running', fuelShutoff: true });
+    await step(page, RUNDOWN_S);
     expect((await getState(page)).enginePower).toBe(0);
   });
 
-  test('selector OFF sets engineState to off (restartable)', async ({ page }) => {
+  test('valve closed sets engineState to off (restartable)', async ({ page }) => {
     await loadSim(page);
-    await setState(page, { enginePower: 1.0, engineState: 'running', fuelSelector: 'OFF' });
-    await step(page, 2);
+    await setState(page, { enginePower: 1.0, engineState: 'running', fuelShutoff: true });
+    await step(page, RUNDOWN_S);
     expect((await getState(page)).engineState).toBe('off');
   });
 
-  test('FUEL_SEL_OFF warning active when selector is OFF', async ({ page }) => {
+  test('FUEL_SHUTOFF warning active when the valve is closed', async ({ page }) => {
     await loadSim(page);
-    await setState(page, { fuelSelector: 'OFF' });
+    await setState(page, { fuelShutoff: true });
     await step(page, 0.1);
-    expect((await getState(page)).warnings?.FUEL_SEL_OFF).toBe(true);
+    expect((await getState(page)).warnings?.FUEL_SHUTOFF).toBe(true);
   });
 
-  test('FUEL_SEL_OFF warning clears when selector returns to BOTH', async ({ page }) => {
+  test('FUEL_SHUTOFF warning clears when the valve is opened', async ({ page }) => {
     await loadSim(page);
-    await setState(page, { fuelSelector: 'OFF' });
+    await setState(page, { fuelShutoff: true });
     await step(page, 0.1);
-    await setState(page, { fuelSelector: 'BOTH' });
+    await setState(page, { fuelShutoff: false });
     await step(page, 0.1);
-    expect((await getState(page)).warnings?.FUEL_SEL_OFF).toBe(false);
+    expect((await getState(page)).warnings?.FUEL_SHUTOFF).toBe(false);
   });
 
   test('RPM shows --- when engine is dead', async ({ page }) => {
     await loadSim(page);
-    await setState(page, { fuelSelector: 'OFF' });
-    await step(page, 2);
+    await setState(page, { enginePower: 1.0, engineState: 'running', fuelShutoff: true });
+    await step(page, RUNDOWN_S);
     const rpm = await getRpm(page);
     expect(rpm).toBe('---');
   });
@@ -154,7 +162,7 @@ test.describe('Fuel — tank depletion', () => {
       fuelLeft: 0.001, fuelRight: 95,
       fuelSelector: 'LEFT',
     });
-    await step(page, 2);
+    await step(page, RUNDOWN_S);
     const s = await getState(page);
     expect(s.enginePower).toBe(0);
     expect(s.engineState).toBe('off');
@@ -167,7 +175,7 @@ test.describe('Fuel — tank depletion', () => {
       fuelLeft: 95, fuelRight: 0.001,
       fuelSelector: 'RIGHT',
     });
-    await step(page, 2);
+    await step(page, RUNDOWN_S);
     const s = await getState(page);
     expect(s.enginePower).toBe(0);
     expect(s.engineState).toBe('off');
@@ -191,7 +199,7 @@ test.describe('Fuel — tank depletion', () => {
       fuelLeft: 0.001, fuelRight: 0.001,
       fuelSelector: 'BOTH',
     });
-    await step(page, 2);
+    await step(page, RUNDOWN_S);
     expect((await getState(page)).enginePower).toBe(0);
   });
 
@@ -201,7 +209,7 @@ test.describe('Fuel — tank depletion', () => {
       enginePower: 1.0, engineState: 'running',
       fuelLeft: 0, fuelRight: 0, fuelSelector: 'BOTH',
     });
-    await step(page, 2);
+    await step(page, RUNDOWN_S);
     expect((await getState(page)).engineState).toBe('off');
   });
 });
@@ -381,23 +389,28 @@ test.describe('Engine lifecycle — Lycoming start and restart', () => {
     expect(rpm).not.toBe('7 RPM');
   });
 
-  test('full cycle: start → fuel OFF → fuel BOTH → restart', async ({ page }) => {
+  test('E does not start the engine with the shutoff valve closed', async ({ page }) => {
+    await loadSim(page);
+    await setState(page, { engineState: 'off', enginePower: 0, fuelShutoff: true });
+    await page.keyboard.press('e');
+    await page.waitForTimeout(3_000);   // the start lifecycle runs on real time
+    expect((await getState(page)).engineState).not.toBe('running');
+  });
+
+  test('full cycle: start → shutoff closed → valve open → restart', async ({ page }) => {
     await loadSim(page);
 
     // First start
     await startEngine(page);
     expect((await getState(page)).engineState).toBe('running');
 
-    // Cut fuel: BOTH → LEFT → RIGHT → OFF
-    await page.keyboard.press('q');
-    await page.keyboard.press('q');
-    await page.keyboard.press('q');
-    await step(page, 2);
+    // Cut fuel at the shutoff valve
+    await setState(page, { fuelShutoff: true });
+    await step(page, RUNDOWN_S);
     expect((await getState(page)).engineState).toBe('off');
 
-    // Restore fuel: OFF → BOTH
-    await page.keyboard.press('q');
-    expect((await getState(page)).fuelSelector).toBe('BOTH');
+    // Open the valve again
+    await setState(page, { fuelShutoff: false });
 
     // Restart
     await startEngine(page);
@@ -409,13 +422,11 @@ test.describe('Engine lifecycle — Lycoming start and restart', () => {
   test('RPM after restart is ~700, not 7 (enginePower not stuck at 0.01)', async ({ page }) => {
     await loadSim(page);
 
-    // Start, cut, restart
+    // Start, cut at the shutoff valve, open it, restart
     await startEngine(page);
-    await page.keyboard.press('q');
-    await page.keyboard.press('q');
-    await page.keyboard.press('q');  // OFF
-    await step(page, 2);
-    await page.keyboard.press('q');  // BOTH
+    await setState(page, { fuelShutoff: true });
+    await step(page, RUNDOWN_S);
+    await setState(page, { fuelShutoff: false });
     await startEngine(page);
 
     const rpm = parseInt(await getRpm(page));
@@ -531,18 +542,19 @@ test.describe('Carb ice — recovery with carb heat', () => {
     expect((await getState(page)).carbIceLevel).toBeLessThan(0.1);
   });
 
-  test('C key toggles carb heat on C172', async ({ page }) => {
+  test('H key toggles carb heat on C172', async ({ page }) => {
     await loadSim(page);
     const before = (await getState(page)).carbHeat;
-    await page.keyboard.press('c');
+    await page.keyboard.press('h');
     const after = (await getState(page)).carbHeat;
     expect(after).toBe(!before);
   });
 
-  test('C key toggles carb heat off again', async ({ page }) => {
+  test('H key toggles carb heat off again', async ({ page }) => {
     await loadSim(page);
-    await page.keyboard.press('c');   // ON
-    await page.keyboard.press('c');   // OFF
+    await page.keyboard.press('h');   // ON
+    expect((await getState(page)).carbHeat).toBe(true);
+    await page.keyboard.press('h');   // OFF
     expect((await getState(page)).carbHeat).toBe(false);
   });
 });
@@ -586,7 +598,7 @@ test.describe('Bf 109 — single left tank (V12)', () => {
       fuelLeft: 0.001, fuelRight: 0,
       fuelSelector: 'BOTH',
     });
-    await step(page, 2);
+    await step(page, RUNDOWN_S);
     expect((await getState(page)).enginePower).toBe(0);
   });
 
@@ -625,7 +637,7 @@ test.describe('Bf 109 — single left tank (V12)', () => {
 /* ═══════════════════════════════════════════
    NO-TANK AIRCRAFT — fuelLeft === null
    A350 (lszh-approach), An-225 (hostomel-2022)
-   OIL_PRESS still fires; LOW_FUEL / FUEL_SEL_OFF do not.
+   OIL_PRESS still fires; LOW_FUEL / FUEL_SHUTOFF do not.
    ═══════════════════════════════════════════ */
 
 test.describe('No-tank aircraft — A350 (no fuel system)', () => {
@@ -658,11 +670,11 @@ test.describe('No-tank aircraft — A350 (no fuel system)', () => {
     expect((await getState(page)).warnings?.LOW_FUEL).toBeFalsy();
   });
 
-  test('FUEL_SEL_OFF warning is not set (no fuel selector)', async ({ page }) => {
+  test('FUEL_SHUTOFF warning is not set (no fuel system)', async ({ page }) => {
     await page.goto('/?mission=lszh-approach&test=1');
     await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
     await step(page, 0.5);
-    expect((await getState(page)).warnings?.FUEL_SEL_OFF).toBeFalsy();
+    expect((await getState(page)).warnings?.FUEL_SHUTOFF).toBeFalsy();
   });
 });
 

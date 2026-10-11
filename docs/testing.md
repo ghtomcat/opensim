@@ -133,8 +133,6 @@ Open as of 2026-10-11 — remove a line when its group is fixed.
 
 | Group | File | Tests | Why |
 |-------|------|-------|-----|
-| Fuel system redesign | `fuel-engine-carb.spec.js` | 11 | Selector is BOTH/LEFT/RIGHT (OFF moved to a shutoff valve, warning `FUEL_SHUTOFF`); 4 s run-down after a fuel cut |
-| Carb heat key | `fuel-engine-carb.spec.js` | 1 | Test presses `C`; carb heat is `H` |
 | Bf 109 landing setups | `physics.spec.js` | 3 | Setups don't fit the flight model (nose-down attitude, no sink rate at touchdown) |
 | DB 601 engine-off start | `db601-sound.spec.js` | 2 | Uses Wolfskopf, which starts airborne with the engine running |
 | Temporary EGLL mission | `physics.test.js` | 2 | `egll-approach` is temporarily the 737 MAX 9 into Madrid |
