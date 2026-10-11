@@ -71,14 +71,16 @@ open http://localhost:8080
 
 No build step. No framework. No dependencies. Open `index.html` and fly.
 
+**First time?** → [docs/quickstart.md](docs/quickstart.md) — the screens you'll see, a first flight to watch, a first takeoff of your own.
+
 ---
 
 ## Controls
 
 | Key | Action |
 |-----|--------|
-| `↑` / `↓` | Pitch up/down (manual) · Altitude target ±500ft (AP) |
-| `←` / `→` | Roll left/right (manual) · Heading target ±5° (AP) |
+| `↑` / `↓` | Pitch up / down (ignored while the autopilot is engaged) |
+| `←` / `→` | Roll left / right · nosewheel steering on the ground |
 | `+` / `−` | Throttle — thrust lever ±10% on turbofans, ±5 kt otherwise |
 | `t` / `T` | Trim nose up / nose down |
 | `z` | COM swap: active ↔ standby |

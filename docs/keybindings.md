@@ -20,15 +20,17 @@
 
 ## Flight controls
 
-| Key | Autopilot OFF (manual) | Autopilot ON |
-|-----|------------------------|--------------|
-| `↑` | Pitch up | Altitude target +500 ft |
-| `↓` | Pitch down | Altitude target −500 ft |
-| `←` | Roll left | Heading target −5° |
-| `→` | Roll right | Heading target +5° |
+| Key | In flight | On the ground |
+|-----|-----------|---------------|
+| `↑` | Pitch up | Pitch up (rotate at Vr) |
+| `↓` | Pitch down | Pitch down |
+| `←` | Roll left (wings spring back to level when released) | Nosewheel steering left |
+| `→` | Roll right | Nosewheel steering right |
 | `t` | Trim nose up | Trim nose up |
 | `T` | Trim nose down | Trim nose down |
 | `B` (hold) | Brakes | Brakes |
+
+**With the autopilot engaged the arrow keys do nothing** — the autopilot flies pitch and roll. Disconnect it first (airliners: click **AP1** on the FCU), or change its targets on the FCU knobs.
 
 Manual braking disarms the autobrake.
 
@@ -44,7 +46,7 @@ Manual braking disarms the autobrake.
 | `f` | Flaps extend one stage |
 | `F` | Flaps retract one stage |
 | `g` | Gear toggle (retractable gear only; squat switch — no gear-up on the ground) |
-| `s` | Speed brake: RET → ARM → FULL → RET |
+| `s` | Speed brake: RET → ARM → FULL → RET. Armed spoilers deploy on touchdown and stow when you advance the thrust lever (ground: toward CLB · air: TOGA) |
 | `E` | Engine start (cold-start aircraft) |
 | `Q` | Engine cutoff (V12, radial, turbofan, VK-1) · fuel selector cycle (other manual aircraft with a fuel system) |
 | `H` | Carburettor heat toggle (aircraft with carb heat) |
@@ -152,7 +154,6 @@ Next-event warp stops 60 seconds before the event.
 
 ## Notes
 
-- Arrow keys control attitude in manual mode, targets in autopilot mode.
 - `Space` (PTT) triggers the currently active voice role (PF, PM, or INSTRUCTOR).
 - Situation presets (`1`–`5`) are locked during active missions to prevent jumping out of the scenario.
 - `F1`–`F4` map to aircraft thrust profiles (e.g. IDLE / CRUISE / COMBAT / EMERGENCY on the F4U-1A).
