@@ -549,7 +549,9 @@ npx playwright install chromium
 npm test
 ```
 
-`npm test` runs the Node unit tests first (`tests/*.test.mjs`), then the Playwright browser specs. About 200 tests across 24 files, all headless: physics, fuel/engine/carb heat, thrust, sound synthesis and state machines, COM radio, FMA, managed speed, route building, VNAV, aircraft data, hovercraft, rocket staging, orbital mechanics, and Apollo lunar trajectory calibration.
+`npm test` runs the Node unit tests first (`tests/*.test.mjs`, 67 tests), then the Playwright browser specs (175 tests in 14 files), all headless: physics, fuel/engine/carb heat, thrust, sound synthesis and state machines, COM radio, FMA, managed speed, route building, VNAV, aircraft data, hovercraft, rocket staging and orbital mechanics. Calibration specs run separately with `npm run calibrate`.
+
+Running subsets, reading the output, the `?test=1` API, writing tests and the current known failures → [docs/testing.md](docs/testing.md).
 
 ---
 
