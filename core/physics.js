@@ -473,7 +473,7 @@ export function tickPhysics(dt) {
       /* Energy stall: L < W at low speed — gentle progressive sink, no snap */
       const liftDeficit = Math.max(0, W - L) / W;              // 0 = flying, 1 = no lift
       if (liftDeficit > 0.05) {
-        vs -= liftDeficit * 120;                                // gentle fpm nudge per frame
+        vs -= liftDeficit * 120 * 60 * dt;                      // gentle fpm nudge — 120/frame at 60 fps, frame-rate independent
       }
 
       /* Liftoff: bump clear of ground to release WoW next frame */
