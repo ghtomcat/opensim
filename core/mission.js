@@ -149,9 +149,13 @@ export async function loadMission(missionPath, aircraftPath) {
     setState({ lights: { nav: true, beacon: true, strobe: true, landing: false } });
   }
 
-  /* Live METAR */
+  /* Live METAR — seed S.metar with the mission's fallback (a recorded METAR, same fields) so
+     wind, QNH, OAT, clouds and ATIS have real values while the fetch runs, or if it fails
+     (offline, service down); a successful fetch replaces it. Test mode never fetches:
+     the same weather on every run. */
   if (mission.weather?.source === 'live' && mission.weather.icao) {
-    fetchMetar(mission.weather.icao).catch(() => {});
+    if (mission.weather.fallback) setState({ metar: { ...mission.weather.fallback } });
+    if (_liveWeather) fetchMetar(mission.weather.icao).catch(() => {});
   }
 
   /* Rocket-specific state init */
@@ -218,6 +222,10 @@ export async function loadMission(missionPath, aircraftPath) {
   setCrewLang(aircraft.crewLang ?? null);
   return { mission, aircraft };
 }
+
+/* Live weather on/off — off in test mode (?test=1) so runs are reproducible */
+let _liveWeather = true;
+export function setLiveWeather(on) { _liveWeather = on; }
 
 export async function fetchMetar(icao) {
   /* Try direct first, fall back to CORS proxy for static hosting (e.g. GitHub Pages) */

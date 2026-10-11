@@ -36,6 +36,20 @@ async function readyForTakeoff(page) {
   return setState(page, { parkBrake: false, engineState: 'running', enginePower: 1, magnetos: 'BOTH' });
 }
 
+/* Step until the aircraft is off the ground and above `aboveFt`, up to `maxS` sim seconds.
+   Runs inside one evaluate — a browser round trip per frame is too slow for a long roll.
+   Returns the lift-off speed (kt) or null. */
+async function stepUntilAirborne(page, aboveFt, maxS) {
+  return page.evaluate(([aboveFt, maxS]) => {
+    for (let i = 0; i < maxS * 60; i++) {
+      window.simStep(1);
+      const s = window.simGetState();
+      if (!s.wow && s.alt > aboveFt) return s.spd;
+    }
+    return null;
+  }, [aboveFt, maxS]);
+}
+
 /* Calm air — mission turbulence adds random vertical buffeting every frame, which makes
    a landing test pass or fail by chance. Landing mechanics are tested in still air. */
 async function calmAir(page) {
@@ -80,15 +94,7 @@ test.describe('Cessna 172 — LSZF pattern', () => {
     await setState(page, { pitchT: 8 });
 
     // Step until airborne or 60s timeout
-    let liftoffSpd = null;
-    for (let i = 0; i < 60 * 60; i++) {
-      await page.evaluate(() => window.simStep(1));
-      const s = await getState(page);
-      if (!s.wow && s.alt > 1789) {
-        liftoffSpd = s.spd;
-        break;
-      }
-    }
+    const liftoffSpd = await stepUntilAirborne(page, 1789, 60);
 
     expect(liftoffSpd, 'C172 should lift off').not.toBeNull();
     expect(liftoffSpd).toBeGreaterThan(50);
@@ -134,15 +140,7 @@ test.describe('Robin DR400 — Grenchen circuit', () => {
     await stepSeconds(page, 5);
     await setState(page, { pitchT: 8 });
 
-    let liftoffSpd = null;
-    for (let i = 0; i < 60 * 60; i++) {
-      await page.evaluate(() => window.simStep(1));
-      const s = await getState(page);
-      if (!s.wow && s.alt > 1412) {
-        liftoffSpd = s.spd;
-        break;
-      }
-    }
+    const liftoffSpd = await stepUntilAirborne(page, 1412, 60);
 
     expect(liftoffSpd, 'Robin should lift off').not.toBeNull();
     expect(liftoffSpd).toBeGreaterThan(60);
@@ -252,15 +250,7 @@ test.describe('An-225 Mriya — Hostomel 2022', () => {
     await stepSeconds(page, 5);
     await setState(page, { pitchT: 8 });
 
-    let liftoffSpd = null;
-    for (let i = 0; i < 150 * 60; i++) {
-      await page.evaluate(() => window.simStep(1));
-      const s = await getState(page);
-      if (!s.wow && s.alt > 395) {
-        liftoffSpd = s.spd;
-        break;
-      }
-    }
+    const liftoffSpd = await stepUntilAirborne(page, 395, 150);
 
     expect(liftoffSpd, 'An-225 should lift off').not.toBeNull();
     expect(liftoffSpd).toBeGreaterThan(165);
@@ -402,15 +392,7 @@ test.describe('Tu-95MS — Nordmeer 1956', () => {
     // Rotate
     await setState(page, { pitchT: 8 });
 
-    let liftoffSpd = null;
-    for (let i = 0; i < 120 * 60; i++) {
-      await page.evaluate(() => window.simStep(1));
-      const s = await getState(page);
-      if (!s.wow && s.alt > 493) {
-        liftoffSpd = s.spd;
-        break;
-      }
-    }
+    const liftoffSpd = await stepUntilAirborne(page, 493, 120);
 
     expect(liftoffSpd, 'Tu-95MS should lift off').not.toBeNull();
     expect(liftoffSpd).toBeGreaterThan(180);

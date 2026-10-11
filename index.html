@@ -2213,7 +2213,7 @@
 
 <script type="module">
   import { S, setState }  from './core/state.js';
-  import { loadMission }  from './core/mission.js';
+  import { loadMission, setLiveWeather } from './core/mission.js';
   import { COAST }        from './display/coastlines.js';
   import { RUNWAYS }      from './display/runways-data.js';
   import { AIRPORT_FREQS } from './display/navdata.js';
@@ -5154,6 +5154,7 @@
   /* Capture test flag NOW — before init() calls history.pushState which strips &test=1 */
   const _urlParams  = new URLSearchParams(location.search);
   const _isTestMode = _urlParams.get('test') === '1';
+  if (_isTestMode) setLiveWeather(false);   // tests never fetch METAR — mission fallback weather, same every run
 
   /* Show selection screen, or load directly if ?mission= param set */
   const _urlMission = _urlParams.get('mission');

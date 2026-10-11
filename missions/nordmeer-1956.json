@@ -19,8 +19,7 @@
       "wdir": 320,
       "wspd": 25,
       "visibility": 6000,
-      "altim": 1002,
-      "turbulence": 0.3
+      "altim": 1002
     }
   },
   "initialState": {
