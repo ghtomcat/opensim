@@ -499,6 +499,94 @@ The Velis's `sound.engineType` is `"electric"`, but `ENGINES` has no `electric` 
 
 ## Architecture
 
+### Overview: strong data architecture, weak runtime architecture
+*Found 2026-10-11 · high-level review of `docs/architecture.md`*
+
+The data side is disciplined: vehicles, missions, panels and world data are JSON or generated modules, with a config cascade. The runtime side grew feature by feature; each feature reached across whatever layers it needed. Most single entries in this file are symptoms of five patterns, filed below as their own entries:
+
+1. **No owners for state:** *`S` has no field ownership*.
+2. **Shared products are recomputed by each consumer:** *Shared products are computed per consumer, not owned once*.
+3. **"Vehicle" is a file format, not an interface:** *No vehicle contract*.
+4. **A mission has no single start, stop and tick:** *No mission lifecycle and no single tick*.
+5. **Model depth is uneven where training needs it:** *The runtime has no seam for training-grade systems*.
+
+The declared layering (data → simulation → presentation → shell) is also not the real one. Dependencies run both ways (*`core/` depends on `display/`*; display modules do simulation work, see `architecture.md` §13.6), and there is an unnamed fourth layer: the **application** (session, briefing, scoring, live flight), which lives in `index.html` (*`index.html` carries most of the application wiring*).
+
+**Suggested order.**
+1. One tick and one mission lifecycle — fixes test determinism and the stacked wiring together.
+2. Owned products in `core/` (route, taxi route, elevation) and generated data out of `display/`.
+3. Schema check at load + a test that loads every aircraft and mission (*No contract between the JSON data and the code*).
+4. Vehicle contract and per-engine state — when the training work needs them.
+
+### `S` has no field ownership
+*Found 2026-10-11 · architecture review (`docs/architecture.md` §6.1, §9.2)*
+
+**Symptom.** `S` is one mutable object with ~170 fields. `setState` is `Object.assign` (~280 calls), and ~110 direct writes sit beside it. No field has a declared owner, so several modules write the same field and the last writer in the frame wins. The comment at the top of `state.js` (only physics, input, mission write) is out of date. On top of that, modules keep private state between frames (fired entries, ramps, caches), cleared by hand-written `reset*()` functions.
+
+**Evidence.** *`enginePower` has many writers and no composition*; *Engine start completes when the start-up sound finishes* (`sound.js` writes `engineState`); *The outside view borrows the flight state for its camera*; *LNAV writes `S.fmsActive` directly*; `display/map.js` writes `S.taxiRoute`, `display/terrain.js` writes `S.terrainElevFt`.
+
+**Why it matters.** Correctness depends on the order of the frame loop and of the ~30 closures in the renderer list. A new feature can't tell whose field it is about to overwrite.
+
+**Fix.** Give each field group one owning module (documented in `state.js`, next to the defaults). Others request changes through that owner (e.g. `enginePower` composed from contributions: failure × carb ice × fuel × battery). Displays read only. Optional dev-mode guard: a `Proxy` on `S` in test mode that logs writes from non-owners.
+
+**Done when.** Every field group in `state.js` names its owner; no display module writes `S` except through an owner's API; a test-mode write check passes.
+
+### Shared products are computed per consumer, not owned once
+*Found 2026-10-11 · architecture review (`docs/architecture.md` §7.4, §10.1, §10.5)*
+
+**Symptom.** Products that several modules need are rebuilt by whoever needs them instead of being computed once and stored:
+- the flight plan: five consumers call `buildFullRoute()` (*No flight-plan state — the route is recomputed per consumer*);
+- the taxi route: once in `map.js` (only while the map is visible), once in `com.js` (*Taxi route and pushback depend on the map being visible*);
+- "ground": the field elevation of the nearer airport, recomputed each tick (*The ground is flat*), and the DEM elevation produced by a renderer (*`core/` depends on `display/`*).
+
+**Why it matters.** Copies can disagree, nothing can be amended (no route to re-clear in flight), and a product disappears when the consumer that happens to produce it isn't running.
+
+**Fix.** One rule for new work: a product used by more than one module gets an owning `core/` module that computes it when its inputs change and stores it; consumers read. The single entries above are the instances.
+
+**Done when.** The three instances are closed, and the rule is written in `architecture.md`.
+
+### No vehicle contract
+*Found 2026-10-11 · architecture review (`docs/architecture.md` §3.1, §8)*
+
+**Symptom.** One JSON shape and one `S` cover aircraft, rockets, hovercraft and robots, and each vehicle type is handled by `if` branches spread across modules:
+- rockets reuse fields with different meanings (`S.pitch` = flight-path angle, `S.spd` = total velocity);
+- the hovercraft has its own prefixed fields and advances no position or time;
+- selectors are inconsistent: `vehicleType` vs `type`, `panel: "airbus"` on the Boeings and `"bf109"` on the MiG-15, `engine` as object or string;
+- specific ids are checked in generic modules (*Vehicle- and mission-specific special cases in generic core modules*).
+
+**Why it matters.** Each new vehicle kind adds branches in the loop, mission load, sound, displays and crew. The hovercraft's removal (*Hovercraft — to be removed*) is partly this cost.
+
+**Fix.** A small contract per vehicle kind, registered by `vehicleType`: `{ initState(aircraft, mission), tick(dt), reset(), fields, display, sound }`. The loop and `loadMission()` dispatch through the registry instead of branching. One selector field (`vehicleType`), required. Rocket-specific quantities get their own names instead of reusing `pitch`/`spd`.
+
+**Done when.** `core/loop.js` and `core/mission.js` have no per-vehicle branches; `vehicleType` is the only physics selector.
+
+### No mission lifecycle and no single tick
+*Found 2026-10-11 · architecture review (`docs/architecture.md` §6.4, §14.4)*
+
+**Symptom.** A mission has no single start, stop and tick:
+- `init()` runs again for every mission and adds listeners and DOM without removing the old ones (*Each mission start stacks another copy of the page wiring*);
+- each module's leftover state is cleared by a hand-maintained list of `reset*()` calls in `loadMission()`;
+- the AudioContext is replaced mid-mission (*The AudioContext is recreated on every engine (re)start*);
+- tests step a different sequence from the game loop while the real loop keeps running (*Tests step a different tick from the game loop*, *Test runs are not deterministic*).
+
+**Fix.**
+1. **One `tick(dt)`** in `core/loop.js`, used by both the `requestAnimationFrame` loop and `simStep`. In test mode the rAF loop doesn't step the simulation.
+2. **A mission session object**: `start(mission)` registers listeners, DOM and timers through it; `stop()` removes them all. `init()` = `stop()` the old session, `start()` the new one.
+3. Modules with per-mission state register their `reset` with the session instead of being listed by hand.
+
+**Done when.** Loading three missions in a row leaves one copy of every listener and element; `simStep` and the game loop run the same function; the same test run twice gives the same state.
+
+### The runtime has no seam for training-grade systems
+*Found 2026-10-11 · architecture review (`docs/architecture.md` §7, §9)*
+
+**Symptom.** Model depth is uneven. Sound synthesis, rocket trajectories and airliner geometry are deep; the parts the training roadmap needs are shallow: one engine value per aircraft (*One engine per aircraft*), airliner electrical and hydraulics that only feed displays (*Airliner electrical and hydraulics are display-only*), a point-mass flight model on flat ground.
+
+**Why it matters.** The training procedures backlog (engine-out / EOSID, V1 cut, failure injection, hydraulic loss) needs per-engine state and systems that affect the flight. These aren't missing features to bolt on; there is no place in the runtime where a system's output reaches physics.
+
+**Fix.** Design the seam before the first training procedure that needs it: per-engine state arrays (`engines[i].{state, n1, power}`), and a defined path by which systems produce effects that physics reads (thrust per engine, control authority, gear/flap availability). Builds on *`S` has no field ownership* and the engine-model fix in *Engine start completes when the start-up sound finishes*.
+
+**Done when.** An engine can fail on its own on a twin, and the aircraft yaws and loses thrust accordingly; one hydraulic loss removes one function.
+
 ### No contract between the JSON data and the code
 *Found 2026-10-11 · architecture review (`docs/architecture.md` §2)*
 
