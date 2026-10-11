@@ -57,11 +57,11 @@ test.describe('Fuel — initialization', () => {
     expect(s.fuelSelector).toBe('BOTH');
   });
 
-  test('C172 starts with engine running', async ({ page }) => {
+  test('C172 starts cold and dark — engine off, parking brake set', async ({ page }) => {
     await loadSim(page);
     const s = await getState(page);
-    expect(s.engineState).toBe('running');
-    expect(s.enginePower).toBeGreaterThan(0.5);
+    expect(s.engineState).toBe('off');
+    expect(s.parkBrake).toBe(true);
   });
 });
 

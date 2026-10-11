@@ -29,12 +29,20 @@ async function setState(page, patch) {
   return page.evaluate((p) => window.simSetState(p), patch);
 }
 
+/* Ground starts are parked: parking brake set, and cold-start aircraft (C172, DR400)
+   have the engine off. Release the brake and put the engine at running — the startup
+   lifecycle itself is not what these tests are about. */
+async function readyForTakeoff(page) {
+  return setState(page, { parkBrake: false, engineState: 'running', enginePower: 1, magnetos: 'BOTH' });
+}
+
 /* ── Cessna 172 ───────────────────────────────────────────────── */
 
 test.describe('Cessna 172 — LSZF pattern', () => {
 
   test('rotates between 50–75 kt', async ({ page }) => {
     await loadSim(page, 'lszf-pattern');
+    await readyForTakeoff(page);
 
     // Full throttle, hold pitch neutral for ground roll
     await setState(page, { spdT: 163 });
@@ -61,6 +69,7 @@ test.describe('Cessna 172 — LSZF pattern', () => {
 
   test('climbs at >300 fpm after liftoff', async ({ page }) => {
     await loadSim(page, 'lszf-pattern');
+    await readyForTakeoff(page);
 
     await setState(page, { spdT: 163, pitchT: 8 });
     await stepSeconds(page, 60);
@@ -91,6 +100,7 @@ test.describe('Robin DR400 — Grenchen circuit', () => {
 
   test('rotates between 60–75 kt', async ({ page }) => {
     await loadSim(page, 'grenchen-circuit');
+    await readyForTakeoff(page);
 
     await setState(page, { spdT: 120 });
     await stepSeconds(page, 5);
@@ -113,6 +123,7 @@ test.describe('Robin DR400 — Grenchen circuit', () => {
 
   test('climbs at >300 fpm at Vy', async ({ page }) => {
     await loadSim(page, 'grenchen-circuit');
+    await readyForTakeoff(page);
 
     await setState(page, { spdT: 120, pitchT: 8 });
     await stepSeconds(page, 60);
@@ -206,6 +217,7 @@ test.describe('An-225 Mriya — Hostomel 2022', () => {
 
   test('rotates between 165–215 kt (flaps 15°)', async ({ page }) => {
     await loadSim(page, 'hostomel-2022');
+    await readyForTakeoff(page);
 
     await setState(page, { spdT: 460, flaps: 1 });
     await stepSeconds(page, 5);
@@ -228,6 +240,7 @@ test.describe('An-225 Mriya — Hostomel 2022', () => {
 
   test('climbs at >500 fpm after liftoff', async ({ page }) => {
     await loadSim(page, 'hostomel-2022');
+    await readyForTakeoff(page);
 
     await setState(page, { spdT: 460, pitchT: 8 });
     await stepSeconds(page, 120);
@@ -238,6 +251,7 @@ test.describe('An-225 Mriya — Hostomel 2022', () => {
 
   test('gear retracts after liftoff', async ({ page }) => {
     await loadSim(page, 'hostomel-2022');
+    await readyForTakeoff(page);
 
     await setState(page, { spdT: 460, pitchT: 8 });
     await stepSeconds(page, 120);
@@ -292,6 +306,7 @@ test.describe('Fixed gear — C172 and Robin', () => {
   for (const { id, name } of FIXED_GEAR) {
     test(`${name} — gear stays true after liftoff`, async ({ page }) => {
       await loadSim(page, id);
+      await readyForTakeoff(page);
 
       // Get airborne
       await setState(page, { spdT: 163, pitchT: 8 });
@@ -320,6 +335,7 @@ test.describe('Retractable gear — Tu-95MS', () => {
 
   test('gear retracts after liftoff', async ({ page }) => {
     await loadSim(page, 'nordmeer-1956');
+    await readyForTakeoff(page);
 
     // Get airborne, then retract via simSetState (simulates G key path)
     await setState(page, { spdT: 310, pitchT: 8 });
@@ -348,6 +364,7 @@ test.describe('Tu-95MS — Nordmeer 1956', () => {
 
   test('lifts off from ground roll — WoW latch does not block takeoff', async ({ page }) => {
     await loadSim(page, 'nordmeer-1956');
+    await readyForTakeoff(page);
 
     // Max thrust, flaps 20°, neutral pitch during ground roll
     await setState(page, { spdT: 310, flaps: 1 });
@@ -373,6 +390,7 @@ test.describe('Tu-95MS — Nordmeer 1956', () => {
 
   test('climbs at >500 fpm after liftoff', async ({ page }) => {
     await loadSim(page, 'nordmeer-1956');
+    await readyForTakeoff(page);
 
     await setState(page, { spdT: 310, pitchT: 8 });
     await stepSeconds(page, 90);
