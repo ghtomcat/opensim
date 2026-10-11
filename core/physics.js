@@ -660,10 +660,17 @@ export function tickPhysics(dt) {
      idle by then (the flare RETARD), so don't gate on the manual lever — A/THR holds the CL
      detent, which isn't "idle lever". */
   const justTouched = !S.wow && newWow;
+  /* Auto-retract: deployed spoilers stow to RET (disarmed) when the thrust lever is advanced —
+     on the ground toward CLB (touch-and-go, rejected landing; taxi thrust stays below), in the
+     air only at TOGA (go-around after a bounce — A/THR holds the lever at CLB in normal flight,
+     so a lower threshold would stow an in-flight speed brake). Stowing also ends the autobrake. */
+  const _lever     = S.thrustLever ?? 0;
+  const _sbRetract = ac.engine?.type === 'turbofan' && (S.speedBrake ?? 0) === 2
+                  && _lever >= (newWow ? 0.4 : 0.95);
   const _sbPatch = justTouched
     ? { thrustLever: 0,                                     // levers to idle on touchdown (no spool-up to hold speed)
         ...((S.speedBrake ?? 0) === 1 ? { speedBrake: 2 } : {}) }
-    : {};
+    : _sbRetract ? { speedBrake: 0 } : {};
 
   /* Gear animation — 12-second transit (not for fixed-gear aircraft) */
   const GEAR_TIME = 12;
