@@ -4049,7 +4049,8 @@
     const obEl = document.getElementById('onboarding');
     const _isRobotArm = S.aircraft?.vehicleType === 'robot-arm' || S.aircraft?.vehicleType === 'robot-dog';
     const _noKeys = S.aircraft?.vehicleType === 'rocket' || S.aircraft?.type === 'hovercraft' || _isRobotArm;
-    if (!_noKeys) { obEl.classList.add('visible'); setState({ paused: true }); }
+    /* Test mode (?test=1) skips it: nobody dismisses the overlay, and a paused sim never ticks */
+    if (!_noKeys && !_isTestMode) { obEl.classList.add('visible'); setState({ paused: true }); }
     /* Init sound with default engine type from aircraft JSON */
     const engineType = S.aircraft?.sound?.engineType ?? 'geared-turbofan';
     if (engineType !== 'none') initSound(engineType);
