@@ -93,6 +93,16 @@ return r;
 
 Both apply per frame, not per second — their strength depends on the frame rate. Scale by `dt` like the energy stall. Turbulence also makes tests random (see *Test runs are not deterministic*).
 
+### Turbulence: mission-level and from METAR gusts — enhancement
+*Noted 2026-10-11 · `_getWind()` in `core/physics.js`*
+
+Turbulence is read from the active weather source: the `manual` block (15 missions set it, e.g. Wolfskopf 0.4), or `S.metar` for live missions — but a real METAR has no turbulence field, so live missions are always smooth. A value in a live mission's `fallback` would only apply when the fetch fails, which is why `nordmeer-1956`'s fallback `turbulence: 0.3` was removed (2026-10-11).
+
+Ideas:
+- **Mission-level turbulence** — `weather.turbulence`, independent of the source, so the author's intent ("a rough Arctic flight") holds whether the weather is live, fallback or manual.
+- **Derive it from the METAR** — gusts (`wgst` vs `wspd`) are a reasonable measure; live missions get realistic turbulence on gusty days.
+- Keep it reproducible in tests (see *Test runs are not deterministic*).
+
 ---
 
 ## Rockets
@@ -172,7 +182,7 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 ### Test runs are not deterministic
 *Found 2026-10-11*
 
-**Symptom.** The same test passes or fails between runs — LSZH ILS tracking passes ~3 of 4 runs; landing tests failed by chance before `calmAir()`.
+**Symptom.** The same test passes or fails between runs — LSZH ILS tracking passed ~3 of 4 runs (5 of 5 since live weather was removed from tests); landing tests failed by chance before `calmAir()`.
 
 **Three sources:**
 
@@ -182,10 +192,10 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
    return new Promise(r => setTimeout(() => r({ t0, after2s: window.simGetState().time }), 2000));
    ```
    `node tools/probe.mjs lszf-pattern` → `{ t0: 0.017, after2s: 2.03 }` — two seconds of sim time without a single `simStep`.
-2. **Live weather — verified.** `weather.source: "live"` fetches the METAR (`fetchMetar()` in `core/mission.js`) from aviationweather.gov, then a CORS proxy. From `localhost` in a test it usually fails → `S.metar` stays `null` → `_getWind()` in `core/physics.js` returns **zero wind and ignores the mission's `fallback`**. When a fetch does succeed, the test flies in today's real wind. (The ignored fallback is also a bug for players offline.)
+2. ~~**Live weather.**~~ **Fixed 2026-10-11:** test mode never fetches METAR (`setLiveWeather(false)`); live missions fly their `fallback`. For players, the fallback now seeds `S.metar` until a fetch succeeds — before, a failed fetch meant zero wind, standard QNH and 15 °C.
 3. **Turbulence — verified.** Random vertical speed every frame (see above). Landing tests use `calmAir()`.
 
-**Fix.** In `?test=1`: don't let the rAF loop tick physics (`simStep` is the only clock); don't fetch live weather — use the mission's `fallback`; let tests opt into turbulence explicitly. Separately: make `_getWind()` use `fallback` when the live METAR is missing.
+**Fix.** In `?test=1`: don't let the rAF loop tick physics (`simStep` is the only clock); let tests opt into turbulence explicitly (or seed the random generator in test mode).
 
 **Done when.** `npx playwright test tests/physics.test.js --repeat-each=5` passes 5/5 (or fails 5/5); two runs of the full airplane suite give identical results.
 

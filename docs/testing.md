@@ -89,6 +89,7 @@ for s in json.load(open('/tmp/run.json'))['suites']: walk(s, s['title'])
 Load a mission with `/?mission=<id>&test=1` and wait for `window.simReady === true`. Test mode:
 
 - **skips the key overview overlay and its pause** — a paused sim never ticks
+- **never fetches live weather** — missions with `weather.source: "live"` fly their recorded `fallback` METAR, the same on every run
 - exposes the test API on `window`
 
 | Function | What |
@@ -112,6 +113,8 @@ To try something without writing a test, `tools/probe.mjs` loads a mission in te
 - Ground starts are **parked**: parking brake set. Cold-start aircraft (C172, DR400, Velis, warbirds, the modern airliners) have the **engine off**; the An-225 and Tu-95 start with engines running. Release the brake and start the engine before a takeoff — see `readyForTakeoff()` in `tests/physics.spec.js`.
 - Story missions may start **airborne** (Wolfskopf: 2 000 ft, engine running). Use a ground mission when the test is about the engine start.
 - Approach missions start on the autopilot. With the AP engaged, `pitchT` / `rollT` have no effect.
+
+**Weather is fixed.** Tests never use live METAR — today's weather would make a test pass or fail by the day. Live-weather missions use their `fallback` block; a test that needs specific weather (crosswind, low QNH) sets it explicitly.
 
 **Set up physically meaningful states.**
 
@@ -139,5 +142,4 @@ Open as of 2026-10-11 — remove a line when its group is fixed. Causes and plan
 |-------|------|-------|-----|
 | DB 601 engine-off start | `db601-sound.spec.js` | 2 | Uses Wolfskopf, which starts airborne with the engine running |
 | Temporary EGLL mission | `physics.test.js` | 2 | `egll-approach` is temporarily the 737 MAX 9 into Madrid |
-| ILS tracking (flaky) | `physics.test.js` | 1 | LSZH: passes ~3 of 4 runs — non-deterministic test runs (live weather, game loop ticking in test mode) |
 | Rocket coarse steps | `rocket.spec.js`, `check_alt.spec.js` | 8 | Ascent breaks at `dt = 1.0` (also affects time warp ≥ 100×); Demo-2 timings predate its 178 s countdown; Inspiration5 inserts at ~283 × 897 km instead of 590 km circular |
