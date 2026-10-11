@@ -6,6 +6,7 @@
   "scripts": {
     "hub":  "node server/hub.js",
     "test": "node --test tests/*.test.mjs && playwright test",
+    "calibrate": "CALIBRATE=1 playwright test calibrate_",
     "version": "git add index.html"
   },
   "dependencies": {
