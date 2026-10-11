@@ -25,11 +25,13 @@ We do not take sides in history. A nineteen-year-old climbing into a Zero over t
 
 **Historians** — load a mission from 1918, 1942, or 1956. Read the classified briefing document. Hear the crew in the right language. Fly the aircraft with the right physics.
 
-**Warbird buffs** — the R-2800 Double Wasp fires 18 cylinders in two rows. The DB 601 startup takes 71 seconds from cold. Every number came from a POH or technical manual. If you've stood next to a running radial at an airshow, you'll know immediately whether it's right.
+**Warbird buffs** — the R-2800 Double Wasp fires 18 cylinders in two rows. The DB 601 startup takes 71 seconds from cold. Open the radiator flap too late and the coolant boils; spring a coolant leak and the engine seizes. Every number came from a POH or technical manual. If you've stood next to a running radial at an airshow, you'll know immediately whether it's right.
 
-**Space nerds** — fly the Falcon 9 Demo-2 from T-3:00 with real webcast audio. Watch stage separation. Track the booster back to LZ-1. Fly a 590 km orbit. Deorbit, reentry, splashdown. The physics are real. SpaceX, Apollo, V-2, Vostok, H3 — every program that ever put something into orbit deserves a mission here. Scott Manley would check the Isp. Everyday Astronaut would check the fairing. Check them.
+**Space nerds** — fly the Falcon 9 Demo-2 from T-3:00 with real webcast audio. Watch stage separation. Track the booster back to LZ-1, or out to the droneship. Fly a 590 km orbit. Deorbit, reentry, splashdown. Apollo 8 to the Moon, Apollo 13 home again, Starship IFT-12 and IFT-13. The physics are real. SpaceX, Apollo, V-2, Vostok, H3 — every program that ever put something into orbit deserves a mission here. Scott Manley would check the Isp. Everyday Astronaut would check the fairing. Check them.
 
 **PPL students** — circuits at LSZF and LSZG. Full checklists. GPWS callouts. Emergency procedures. Scored debrief: alignment, speed, touchdown point. Engine failure scenarios with virtual ATC Mayday acknowledgement. Real weather via live METAR. No instructor needed to run a session.
+
+**Airline pilots-to-be** — gate to gate on real SIDs, STARs and approaches. LNAV and VNAV fly the route, the ND draws it, the MCDU and kneeboard brief it — including the missed approach. EGPWS watches the terrain.
 
 **Makers** — build a Dragon capsule mockup with a table saw, a Bambu A1, and four screens. Wire an ESP32 to a physical altimeter. Add a 6-DOF motion platform. The WebSocket data stream is open.
 
@@ -50,6 +52,10 @@ OpenSim is not a game. It is a modular simulation engine that runs entirely in t
 - **Any mission** — weather, ATC clearances, classified briefing documents, scripted failures, crew voices in one JSON file
 - **Data-driven airports** — runways, taxiways, gates and terminals derived from OSM + OurAirports. Fly an approach into an airport the sim has never seen and the ground environment is already there.
 - **Gate-to-gate** — pushback, ATC taxi clearances over the taxiway graph, vacate detection, gate assignment, and VDGS docking guidance — both directions of the ground phase.
+- **Real navigation** — SIDs, STARs and approaches from FAA CIFP / X-Plane nav data, airways, navaids. One route (`core/route.js`) feeds the briefing, the ND, the MCDU and the LNAV/VNAV autopilot.
+- **EGPWS + CFIT** — terrain collision from the Mapbox DEM, reactive and predictive terrain warnings, sink-rate callouts, terrain display on the ND.
+- **Data-driven cockpit views** — each aircraft JSON lists the zones it has: overhead, left, centre, right, pedestal. An airliner has all five; a fighter has its two side consoles; a light aircraft has the pedestal.
+- **Aircraft systems** — fuel, electrical, hydraulics, battery state of charge, a generic engine-cooling heat balance (liquid or air-cooled, driven by real outside-air temperature), autobrake, speed brakes, parking brake.
 - **Live radar** — real flights via OpenSky Network, color-coded by destination, route lines to arrival airport, 150/400/1000nm range
 - **Runs anywhere** — laptop, tablet, Raspberry Pi, custom cockpit panels
 
@@ -73,27 +79,31 @@ No build step. No framework. No dependencies. Open `index.html` and fly.
 |-----|--------|
 | `↑` / `↓` | Pitch up/down (manual) · Altitude target ±500ft (AP) |
 | `←` / `→` | Roll left/right (manual) · Heading target ±5° (AP) |
-| `+` / `−` | Throttle ±5 kt |
+| `+` / `−` | Throttle — thrust lever ±10% on turbofans, ±5 kt otherwise |
 | `t` / `T` | Trim nose up / nose down |
-| `E` | Engine start (Lycoming / V12 / Radial — cold-start aircraft) |
-| `Q` | Engine cutoff / fuel selector off (cold-start aircraft) |
-| `C` | Carburettor heat toggle |
+| `E` | Engine start (cold-start aircraft) |
+| `Q` | Engine cutoff · fuel selector cycle (manual aircraft) |
+| `H` | Carburettor heat toggle |
 | `B` | Brakes (hold) |
+| `s` | Speed brake: RET → ARM → FULL |
 | `f` / `F` | Flaps extend / retract |
-| `g` | Gear toggle |
+| `g` | Gear toggle (squat switch: no gear-up on the ground) |
 | `1`–`5` | Situation presets (disabled during active missions) |
 | `F1`–`F4` | Thrust detents (aircraft-specific) |
 | `k` | Kneeboard (briefings + checklists) |
 | `n` | Mini map (heading, track made good, wind) |
 | `v` | Cycle view: instruments / combined / outside |
-| `c` | Cycle outside camera: cockpit fwd → chase → side → plume cam → booster cam |
+| `c` | Cycle outside camera: cockpit fwd → chase → side → plume cam → booster cam → ship cam |
+| `o` · `l` · `m` · `r` · `d` | Cockpit views: overhead · left · centre · right · pedestal (where the aircraft has them) |
 | `Tab` | Cycle display mode |
 | `p` | Pause |
-| `m` | Audio on/off |
-| `r` | Cycle role: PF → PM → INSTRUCTOR |
+| `x` | Audio on/off · rockets: warp straight to the next mission event |
+| `r` | Cycle role: PF → PM → INSTRUCTOR (aircraft without a right console) |
 | `Space` | PTT (push to talk) |
-| `W` | Time warp — rocket missions only (1× → 10× → 100× → 1000×) |
-| `Ctrl+Shift+T` | Download flight telemetry as JSONL |
+| `w` / `W` | Time warp — rockets + glass cockpits: 1× → 2× → 5× → 10× → 100× → next event (`W` steps back) |
+| `Esc` | Back to the mission selector |
+| `Ctrl+Shift+L` | Download flight telemetry (JSONL; CSV for rockets) |
+| `Ctrl+Shift+B` | Download the black box |
 
 **G1000 (C172):** Click any switch in the left panel to toggle it. Click the COM1 frequency in the PFD top bar to show/hide the COM panel.
 
@@ -119,23 +129,31 @@ axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1
 | Robin DR400/140B Dauphin | Lycoming O-320 · 160hp | Flugschule Grenchen checklists |
 | Pipistrel Velis Electro HB-SYC | Pipistrel E-811 · 57.6 kW | EPSI panel, battery SOC management, Grenchen |
 | Vought F4U-1A Corsair | Pratt & Whitney R-2800 · 2000hp | Bent-wing bird, Pacific theatre |
-| Messerschmitt Bf 109 G-4 | Daimler-Benz DB 601 · 1175hp | AudioWorklet 12-cylinder impulse model |
+| Messerschmitt Bf 109 E-4 | Daimler-Benz DB 601 · 1175hp | AudioWorklet 12-cylinder impulse model, radiator flap + coolant temp |
 | MiG-15 'Fagot' | Klimov VK-1 | Centrifugal compressor intake, splitter vane |
 | Avro 504K | Le Rhône 9J · 110hp | Gyroscopic precession, rotary blip switch |
 | Tupolev Tu-95MS Bear H | Kuznetsov NK-12MV × 4 · 44740kW | Russian crew voices, contra-rotation LFO |
 | Antonov An-225 Mriya | ZMKB Progress D-18T × 6 · 1 377 kN | Ukrainian crew voices, 500 t, Hostomel 2022 |
-| Timo's Hovercraft | EDF lift + thrust | VotingTriad 3-node autonomy, multi-vehicle |
 
 ### Orbit
 
 | Vehicle | Notes |
 |---------|-------|
 | Falcon 1 | 27 000 kg, 2-stage, RatSat payload, Omelek Island |
-| Falcon 9 Block 1 | 333 400 kg, 9 Merlins, no recovery |
-| Falcon 9 Block 5 | 549 054 kg, RTLS booster recovery, MECO→SECO→Keplerian orbit |
-| Falcon 9 Block 5 (590 km) | Tuned for 590 km near-circular insertion — Inspiration5 |
+| Falcon 9 v1.0 | 333 400 kg, 9 Merlins, expendable — no grid fins, no landing legs |
+| Falcon 9 Block 5 | 549 054 kg, RTLS booster recovery, grid fins, landing legs, MECO→SECO→Keplerian orbit |
+| Falcon 9 Block 5 (590 km) | Tuned for 590 km near-circular insertion, droneship (ASDS) booster recovery — Inspiration5 |
 | Starship / Super Heavy | Full stack, Raptor sea-level + vacuum, engine skirt |
-| Saturn V | Apollo lunar stack, F-1 first stage |
+| Saturn V | Apollo lunar stack, F-1 first stage, translunar injection, LM |
+
+### Lab
+
+| Vehicle | Notes |
+|---------|-------|
+| Timo's Hovercraft | EDF lift + thrust, plenum physics, VotingTriad 3-node autonomy, multi-vehicle |
+| Markus' Demonstrator | Hovercraft, GPS autonomy test |
+| SO-101 Robot Arm | 6-DOF arm visualisation |
+| Yertle Quadruped Dog | 12-joint quadruped visualisation |
 
 ---
 
@@ -178,7 +196,7 @@ One taxiway graph powers the entire ground phase, in both directions.
 
 **Arrival** — after touchdown, **vacate detection** latches once you turn off the runway and slow to taxi speed. That unlocks the **REQUEST → Taxi to gate** call. Ground assigns a **gate from the arrival dock** (random within the dock, or a fixed stand) and reads the full clearance — *"taxi to stand E27 via Foxtrot, Delta"* — which lands on the **kneeboard** scratchpad while the green route leads you in. At the stand a **VDGS** shows your aircraft type, an azimuth dot tracking your offset from the lead-in centreline, the closing distance, and **STOP** at the parking line. **ENG MASTER OFF** and the turbofan coasts down by inertia to a descending spool-down whine.
 
-Autobrake (LO/MED/MAX), Brake-to-Vacate, the jet-bridge connect and brake-temperature are the next links in the chain.
+Autobrake (LO/MED/MAX) is armed from pushbuttons on the centre panel and disarms when you touch the brakes. Brake-to-Vacate, the jet-bridge connect and brake temperature are the next links in the chain.
 
 ---
 
@@ -188,31 +206,50 @@ Autobrake (LO/MED/MAX), Brake-to-Vacate, the jet-bridge connect and brake-temper
 
 | Mission | Aircraft | Era | What |
 |---------|----------|-----|------|
-| ILS Approach RWY 28 | A350 | Modern | Live METAR, ATC clearances, approach brief |
-| ILS Approach LSGG RWY 23 | A220 | Modern | Geneva, live METAR, full crew loop |
-| ILS Approach EVRA RWY 36 | E190 | Modern | Rīga, live METAR, Air Baltic crew voices |
-| Genève → München RWY 26L | E190 | Modern | First arrival at a brand-new airport — data-driven gate-to-gate, VDGS docking |
+| ILS Approach LSZH RWY 28 | A350 | Modern | San Francisco → Zürich, live METAR, ATC clearances, approach brief |
+| Takeoff · Genève → München | E190 | Modern | Cold start at gate 10, pushback, taxi to RWY 22 — then the first arrival at a brand-new airport: gate-to-gate into EDDM, VDGS docking |
+| Cruise · Warsaw → Rīga | A220 | Modern | FL350 inbound EVRA, live METAR, Air Baltic crew voices |
+| Dock E · Zürich | A340 | Modern | Edelweiss at a Dock E gate, engine start, pushback off the midfield satellite, taxi out |
+| ILS Approach LEMD RWY 32L | 737 MAX 9 | Modern | Final into Madrid Barajas, data-driven gate-to-gate (temporary — the EGLL 27L approach returns) |
+| Bozeman → Anchorage | 737 MAX 9 | Modern | Alaska, cold start at gate B7, depart over the Bridgers and the Rockies (temporary ILS 15 approach) |
+| Singapore → London | 777-300ER | Modern | Singapore Airlines at Changi, evening departure out over the Strait |
 | Cross-Country LSZG→LSGN | C172 | PPL | Cold-dark startup, Schnupperflug route, live METAR |
 | VFR Pattern LSZF | C172 | PPL | Grass strip Speck-Fehraltorf, circuits, kneeboard |
 | VFR Circuit LSZG | Robin DR400 | PPL | Grenchen, Flugschule checklists, live METAR |
 | Electric Circuit HB-SYC | Velis Electro | PPL/Electric | EPSI panel, battery SOC, no magnetos |
-| Airshow Ground Run | Bf 109 G-4 | 2025 | DB 601 startup, D-FEML at Hahnweide |
+| Airshow Ground Run | Bf 109 E-4 | 2025 | DB 601 startup, D-FEML at Hahnweide |
 | Patrol — Marne 1918 | Avro 504K | 1918 | WWI rotary engine, Le Rhône blip switch |
-| Operation Wolfskopf | Bf 109 G-4 | 1942 | Arctic, scripted engine failure, NIFLHEIM |
+| Operation Wolfskopf | Bf 109 E-4 | 1942 | Arctic, scripted engine failure, NIFLHEIM |
 | The Wasp · Bougainville | F4U-1A Corsair | 1943 | Pacific patrol, R-2800, ARC-5 radio |
 | No Bomber Lost · Rabaul | F4U-1A Corsair | 1943 | Ground attack, Rabaul harbour |
+| Przechwycenie · Dęblin | MiG-15 | 1955 | Polish interceptor. Twelve years ago a Spitfire. Today a red fifteen |
 | Aufklärungsflug Nordmeer | Tu-95MS Bear H | 1956 | Olenya AB, Soviet ATC, Cold War dossier |
 | Mriya — Die letzte Reise | An-225 | 2022 | Hostomel, Ukrainian ATC, 3 February 2022 |
-| Hovercraft Demo | Timo's Hovercraft | 2026 | VotingTriad lift/thrust, multi-vehicle |
+
+Story missions (Wolfskopf) run with a fixed scenario and skip the scenario chooser.
 
 ### Orbit tab
 
 | Mission | Vehicle | Year | What |
 |---------|---------|------|------|
+| Apollo 8 — First to the Moon | Saturn V | 1968 | Borman, Lovell, Anders. TLI, first crewed lunar orbit, Earthrise |
+| Apollo 13 — Houston, We've Had a Problem | Saturn V | 1970 | Oxygen tank explosion at 56 h. The LM becomes a lifeboat, free return home |
 | Falcon 1 — Omelek Island | Falcon 1 | 2008 | First privately funded orbital rocket. 2-stage gravity turn, RatSat to LEO |
-| CRS-1 — Engine Out | Falcon 9 Block 1 | 2012 | Engine failure at T+79s. Vehicle reaches orbit on 8 engines |
-| Crew Dragon Demo-2 | Falcon 9 Block 5 | 2020 | Behnken + Hurley. First crewed Dragon. Stage 1 RTLS to LZ-1. Full webcast audio |
-| Inspiration5 — Commander Leutwyler | Falcon 9 Block 5 | 2030 | Four civilians. 590 km orbit. RTLS. 3-day mission. Deorbit → reentry → splashdown |
+| CRS-1 — Engine Out | Falcon 9 v1.0 | 2012 | Engine failure at T+79s. Vehicle reaches orbit on 8 engines. Lofted ascent, no recovery |
+| Crew Dragon Demo-2 | Falcon 9 Block 5 | 2020 | Behnken + Hurley. First crewed Dragon. Orbit-targeting guidance, boostback to LZ-1. Full webcast audio |
+| IFT-12 — Starship V3 Debut | Starship | 2026 | S39 / B19. One Raptor out on the ship, guidance extends the burn. Indian Ocean splashdown |
+| IFT-13 — First Mechazilla Ship Catch | Starship | 2026 | S40 / B20. Booster catch at Starbase, one orbit, reentry, ship catch attempt |
+| Inspiration5 — Commander Leutwyler | Falcon 9 Block 5 | 2030 | Four civilians. 590 km orbit. Booster lands on the droneship. 3-day mission. Deorbit → reentry → splashdown |
+
+### Lab tab
+
+| Mission | Vehicle | What |
+|---------|---------|------|
+| Plenum Physics · First Hover | Timo's Hovercraft | Single-vehicle plenum physics |
+| Dual Vehicle · Plenum Comparison | Timo's Hovercraft | Two vehicles side by side, VotingTriad lift/thrust |
+| H2D · GPS Autonomy Test | Markus' Demonstrator | GPS autonomy |
+| Workspace · Familiarisation | SO-101 Robot Arm | Arm visualisation, hardware-in-the-loop to an ESP32 via `server/robot_bridge.js` |
+| Dog Lab · Visualisation | Yertle Quadruped Dog | Joint-by-joint visualisation |
 
 ---
 
@@ -253,13 +290,22 @@ ISA density: `ρ = 1.225 × (1 − 2.2558e⁻⁵ × alt_m)^4.2559`
 
 Point-mass gravity turn, programmed FPA profile, extended ISA through 140 km. Thrust interpolated sea-level ↔ vacuum.
 
+**Orbit-targeting guidance** — the upper stage steers to a target orbit and cuts off on velocity, not on a clock. Callouts fire on events, not timestamps. `tools/booster-descent-sim.mjs` simulates ascent and booster descent offline and reports each mission's reachability.
+
+**Staging** — cold-staged vehicles show a visible separation gap during the coast (hot-stagers and the Saturn V don't). Upper-stage thrust spools up. Dragon separates from Stage 2 with drift and a Draco ΔV.
+
 **Orbital propagation** — Velocity Verlet integrator in ECEF. Energy conserved < 0.01% over 30 minutes. Dragon / Stage 2 propagate independently after separation.
 
 **Deorbit + reentry** — retrograde ΔV at `deorbitT`, drag below 140 km, drogue at 5 500 m, mains at 1 800 m, terminal ~6 m/s.
 
-**Booster RTLS** — flip → boostback → coast → entry → glide → landing. Single engine proportional throttle `v²/2h`. Landing legs deploy over 5 s from start of landing phase. Booster cam (mode 5) auto-activates during boostback, entry burn, landing burn, and landing, then restores the previous camera.
+**Booster recovery** — flip → boostback → coast → entry burn → glide → landing burn, engine-first. Single engine proportional throttle `v²/2h`. Grid fins deploy after separation; 3D landing legs deploy over 5 s and cast a ground shadow. Two recovery modes, set per vehicle in the JSON:
 
-**Time warp** — `W` key cycles 1× → 10× → 100× → 1000×. A 3-day Inspiration5 orbit takes ~4 minutes real time at 1000×.
+- **RTLS** — boostback to the landing zone (Demo-2 → LZ-1).
+- **ASDS** — no boostback; the booster lands on a droneship at the real landing point (Inspiration5). Predictive landing guidance, and a ship cam (mode 6) that shows the full booster coming down onto the deck.
+
+The booster cam (mode 5) auto-activates during boostback, entry burn, landing burn, and landing, then restores the previous camera.
+
+**Time warp** — `w` steps 1× → 2× → 5× → 10× → 100× → next mission event; `x` jumps straight to the next event. A 3-day Inspiration5 orbit passes in minutes.
 
 ---
 
@@ -405,57 +451,88 @@ The software is the platform. The hardware is the expression. MIT open source me
 ```
 core/
   state.js                    — single source of truth, all sim state
-  physics.js                  — aerodynamic force balance, wind drift, turbulence
-  rocket.js                   — gravity turn, staging, RTLS, Keplerian propagator, reentry
-  crew.js                     — five voices, rocket events, language-aware, radio dispatch
-  radio.js                    — commProfile chain: createRadioChain(), playThroughChain()
-  radio-crackle-processor.js  — AudioWorklet: crackle, static bursts, squelch tail
-  sound.js                    — procedural engine audio, startup lifecycle, engine bleed tap
-  mission.js                  — loads aircraft + mission JSON, live METAR fetch
-  failures.js                 — scripted failure event processor
-  fuel.js                     — fuel system: consumption, tank selection, starvation
-  input.js                    — keyboard · mouse · Gamepad API
   loop.js                     — rAF loop: tickFailures → tickPhysics → tickCrew → renders
-  telemetry.js                — flight recorder: 2Hz JSONL
+  physics.js                  — aerodynamic force balance, ground roll, brakes/autobrake, CFIT, cooling
+  thrust.js                   — engine thrust models
+  rocket.js                   — gravity turn, orbit-targeting guidance, staging, RTLS/ASDS, propagator, reentry
+  hovercraft_physics.js       — plenum lift + thrust for the Lab hovercraft
+  mission.js                  — loads aircraft + mission JSON, live METAR fetch
+  mission-start.js            — named mission start positions (gates, runways)
+  catalog.js                  — mission picker catalogue, loaded from missions/catalog.json
+  aircraft-config.js          — aircraft JSON → derived config
+  route.js                    — buildFullRoute: SID + airways + STAR + approach — one route for every consumer
+  airway-graph.js             — en-route airway network
+  lnav.js · vnav.js           — lateral + vertical navigation, leg sequencing
+  managed-speed.js · fma.js   — managed speed targets, flight-mode annunciation logic
+  baro.js                     — barometric altimeter / QNH
+  taxi-graph.js               — taxiway network graph + routing, derived from OSM
+  pushback.js                 — pushback path
+  fuel.js · electrical.js · hydraulics.js · battery.js — aircraft systems
+  failures.js                 — scripted failure event processor
+  crew.js                     — five voices, rocket events, GPWS/EGPWS, language-aware, radio dispatch
+  radio.js                    — commProfile chain: createRadioChain(), playThroughChain()
+  sound.js                    — procedural engine audio, startup lifecycle, engine bleed tap
+  *-processor.js              — AudioWorklets: DB 605, Le Rhône, Lycoming, R-2800, radio crackle
+  input.js                    — keyboard · mouse · Gamepad API
+  liveflight.js               — live radar (OpenSky) → spawn into a real flight
+  hil.js                      — hardware-in-the-loop bridge
+  telemetry.js · blackbox.js  — flight recorder (2 Hz JSONL) + black box
 
 display/
-  g1000.js          — Garmin G1000 glass cockpit: PFD, MFD, engine strip, switch panel, backup gauges
-  panel_renderer.js — generic panel renderer: drives Airbus PFD/ND/ECAM and E190 PFD from panel JSON
-  pfd_instruments.js — reusable PFD instrument primitives (attitude, tape, HSI, FMA)
-  bf109.js          — Bf 109 instrument panel
-  dragon.js         — Dragon capsule crew seat displays (CDR / PLT / MO / MS)
-  rocket_display.js — SpaceX-style telemetry, split panel for RTLS
-  map.js            — world map (rocket) + local mini-map + vehicle silhouette panels
-  terrain.js        — 3D outside view: Terrain-RGB elevation, day/night sky, stars, water, space
-  outside.js        — 3D wireframe aircraft: painter's algorithm, flat shading, 60 fps Canvas 2D
-  com.js            — COM radio + transponder
-  robot_arm.js      — SO-101 6-DOF arm visualisation
-  svg/              — vehicle silhouettes: dragon.svg, trunk.svg, stage2.svg, stage1.svg
+  pfd.js · pfd_instruments.js — PFD + reusable instrument primitives (attitude, tape, HSI, FMA)
+  panel_renderer.js           — drives Airbus PFD/ND/ECAM and E190 PFD/ND from panel JSON
+  ecam.js · fma.js            — ECAM pages, FMA
+  overhead.js · leftconsole.js · centerconsole.js · rightconsole.js · pedestal.js
+                              — data-driven cockpit views (O / L / M / R / D)
+  pushbutton.js               — generic Airbus pushbutton
+  smooth.js                   — shared display-lag smoother (per-quantity time constant)
+  g1000.js                    — Garmin G1000: PFD, MFD, engine strip, switch panel, backup gauges
+  bf109.js · f4u1a.js · velis_epsi.js · clock.js — steam-gauge panels, EPSI, cockpit clock
+  dragon.js · rocket_display.js · dsky.js · lm_display.js
+                              — Dragon crew seats, SpaceX telemetry, Apollo DSKY + LM
+  cislunar.js · earthrise.js  — cislunar trajectory view, Earthrise
+  kneeboard.js                — briefings, checklists, scratchpad, approach + missed approach
+  map.js                      — world map (rocket) + local mini-map + vehicle silhouettes
+  terrain.js                  — 3D outside view: Terrain-RGB, day/night sky, stars, water, space
+  terrain-color.js · night-lights.js — Blue Marble day colour, VIIRS night glow
+  outside.js                  — 3D wireframe renderer: painter's algorithm, flat shading, Canvas 2D
+  outside-*.js                — per-family geometry (warbirds, widebody, rocket, space) + draw helpers
+  com.js                      — COM radio + transponder
+  robot_arm.js · yertle_quadruped.js · hovercraft_display.js — Lab visualisations
+  *-data.js                   — bundled data: runways, taxiways, stands, terminals, towers, navaids,
+                                airways, procedures, satellites, windsocks
+  svg/                        — vehicle silhouettes
 
-panels/            — aircraft panel layout JSON: airbus-pfd, airbus-nd, airbus-ecam, e190-pfd
-
+panels/          — panel layout JSON: airbus-pfd/nd/ecam, e190-pfd/nd, g1000, dr400
 aircraft/        — JSON vehicle definitions
-missions/        — JSON mission definitions
+missions/        — JSON mission definitions + catalog.json
 audio/           — voice assets (not in git — generate locally, see docs/audio-chain.md)
 
 docs/
-  db601-synthesis.md  — DB 601 physical impulse model, all parameters
-  audio-chain.md      — radio chain architecture, commProfile presets, pipeline
+  architecture.md       — how the pieces fit together
+  navigation.md         — route, LNAV/VNAV, procedures
+  panel-system.md       — panel JSON + renderer
+  creating-missions.md  — writing a mission
+  keybindings.md        — full key reference
+  db601-synthesis.md    — DB 601 physical impulse model, all parameters
+  sound-calibration.md  — engine sound calibration
+  audio-chain.md        — radio chain architecture, commProfile presets, pipeline
 
 scripts/
-  render-startup.mjs   — offline DB 601 startup synthesis → startup.wav
-  analyze-startup.py   — DB 601 spectrogram + phase annotation
-  analyze-radio.py     — radio chain: clean vs processed spectrogram comparison
+  build-*.py            — bundle open data: runways, taxiways, stands, terminals, towers,
+                          navaids, navdata, airways, CIFP procedures, satellites
+  rescale-aircraft.py   — rescale aircraft geometry to real dimensions
+  render-*.mjs          — offline engine synthesis (DB 601, R-2800) → WAV
+  analyze-*.py          — spectrograms: DB 601 startup, R-2800, radio chain
 
-tests/
-  db601-synth.test.mjs  — 13 synthesis math tests (Node, ~0.2s)
-  db601-sound.spec.js   — 9 sound state machine tests (Playwright)
-  physics.spec.js       — 10 physics tests (Playwright, ~45s)
-  rocket.spec.js        — 25 rocket tests: pad, liftoff, staging, orbit, RTLS, Dragon sep
-  check_alt.spec.js     — 30 Inspiration5 orbit tests: perigee 560–630 km, e < 0.05
+tools/
+  booster-descent-sim.mjs — ascent + booster descent simulation, guidance + reachability
+
+tests/           — Node unit tests (*.test.mjs / *.test.js) + Playwright specs (*.spec.js)
 
 server/
-  hub.js   — WebSocket hub (Node.js, runs on Raspberry Pi)
+  hub.js          — WebSocket hub (Node.js, runs on Raspberry Pi)
+  robot_bridge.js — hub ↔ SO-101 ESP32 bridge
 ```
 
 ---
@@ -468,7 +545,7 @@ npx playwright install chromium
 npm test
 ```
 
-Physics, engine lifecycle, sound parameters, rocket staging, orbital mechanics — all tested headless. 55+ tests across 5 suites.
+`npm test` runs the Node unit tests first (`tests/*.test.mjs`), then the Playwright browser specs. About 200 tests across 24 files, all headless: physics, fuel/engine/carb heat, thrust, sound synthesis and state machines, COM radio, FMA, managed speed, route building, VNAV, aircraft data, hovercraft, rocket staging, orbital mechanics, and Apollo lunar trajectory calibration.
 
 ---
 
@@ -514,7 +591,7 @@ Physics, engine lifecycle, sound parameters, rocket staging, orbital mechanics �
 
 ## Telemetry
 
-Every flight recorded automatically. `Ctrl+Shift+T` downloads JSONL.
+Every flight recorded automatically. `Ctrl+Shift+L` downloads JSONL (CSV for rockets); `Ctrl+Shift+B` downloads the black box.
 
 ```json
 {"t":48.6,"alt":1789,"spd":68.7,"vs":11,"pitch":9.06,"roll":0,"hdg":260,
@@ -634,8 +711,11 @@ Because somewhere in the permafrost near Titovka, a man is still waiting to be f
 Geographic data, fetched live or bundled from open datasets:
 
 - **[OurAirports](https://ourairports.com)** — runway thresholds, dimensions and designations (public domain). Bundled for mission airports in `display/runways-data.js`; regenerate with `scripts/build-runways.py`.
-- **[OpenStreetMap](https://www.openstreetmap.org)** — runways, taxiways, aprons and holding positions via the Overpass API (© OpenStreetMap contributors, ODbL).
+  Also navaids and airport frequencies (`scripts/build-navaids.py`, `scripts/build-navdata.py`).
+- **[OpenStreetMap](https://www.openstreetmap.org)** — runways, taxiways, aprons, holding positions, parking stands, terminal footprints and control towers via the Overpass API (© OpenStreetMap contributors, ODbL).
+- **FAA CIFP** and **X-Plane nav data** — SIDs, STARs, approaches and airways for the mission airports (`scripts/build-cifp.py`, `scripts/build-airways.py`).
 - **[Mapbox](https://www.mapbox.com)** — terrain elevation (Terrain-RGB / Copernicus DEM) and water polygons.
+- **NASA Blue Marble** (day ground colour) and **VIIRS / Black Marble 2016** (night lights) — public domain.
 
 ---
 
