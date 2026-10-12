@@ -5,14 +5,9 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState }   from './state.js';
-import { resetFailures }  from './failures.js';
-import { resetFuel }      from './fuel.js';
-import { resetBattery }   from './battery.js';
-import { resetElectrical } from './electrical.js';
-import { resetHydraulics } from './hydraulics.js';
+import { runMissionResets } from './lifecycle.js';
 import { setCrewLang }    from './crew.js';
 import { resolveStart }   from './mission-start.js';
-import { resetSmooth }    from '../display/smooth.js';
 import { resolveAircraftConfig } from './aircraft-config.js';
 
 /**
@@ -207,12 +202,7 @@ export async function loadMission(missionPath, aircraftPath) {
     });
   }
 
-  resetFailures();
-  resetFuel();
-  resetBattery();
-  resetElectrical();
-  resetHydraulics();
-  resetSmooth();           // drop display lag so the new panel snaps, not glides from the last flight
+  runMissionResets();      // failures, fuel, battery, electrical, hydraulics, display lag — each module registers its own
 
   /* Reset cockpit switches — all off at mission start */
   S.switches.master   = false;

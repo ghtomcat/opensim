@@ -20,6 +20,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from './state.js';
+import { onMissionReset } from './lifecycle.js';
 
 const BAT_DRAIN_PCT_S  = 0.30 / 60;
 const BAT_CHARGE_PCT_S = 3.0  / 60;
@@ -74,6 +75,7 @@ export function resetElectrical() {
     essentialBusPowered: false, acBusPowered: false, dcBusPowered: false,
   });
 }
+onMissionReset(resetElectrical);
 
 /* ── Read electrical config from aircraft JSON, with engine-count defaults ── */
 export function elecCfg() {

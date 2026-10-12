@@ -14,6 +14,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from './state.js';
+import { onMissionReset } from './lifecycle.js';
 
 const PSI_NOM   = 3000;    // normal system pressure
 const RISE_RATE = 600;     // psi/s when source active
@@ -34,6 +35,7 @@ export function resetHydraulics() {
     hydYellowEdp:   false,
   });
 }
+onMissionReset(resetHydraulics);
 
 export function tickHydraulics(dt) {
   const ac = S.aircraft;

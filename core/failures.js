@@ -12,6 +12,7 @@
 import { S, setState } from './state.js';
 import { engineBang, engineGunfire, coolantHiss, stopEngineLifecycle } from './sound.js';
 import { bbEvent } from './blackbox.js';
+import { onMissionReset } from './lifecycle.js';
 
 let _fired    = new Set();   // indices of already-fired failures
 let _ramps    = [];          // active power ramps
@@ -21,6 +22,7 @@ export function resetFailures() {
   _ramps = [];
   setState({ enginePower: 1.0, emergLog: [], carbHeat: false, carbIceLevel: 0, carbIceActive: false, coolantState: 'ok' });
 }
+onMissionReset(resetFailures);
 
 export function tickFailures(dt) {
   const failures = S.mission?.failures;

@@ -12,6 +12,7 @@
 import { S, setState } from './state.js';
 import { bbEvent } from './blackbox.js';
 import { stopEngineLifecycle } from './sound.js';
+import { onMissionReset } from './lifecycle.js';
 
 /* Default fuel burn rates litres/hour at full power */
 const BURN_DEFAULTS = {
@@ -40,6 +41,7 @@ export function initFuel() {
 export function resetFuel() {
   initFuel();
 }
+onMissionReset(resetFuel);
 
 export function cycleFuelSelector() {
   const order = ['BOTH', 'LEFT', 'RIGHT'];

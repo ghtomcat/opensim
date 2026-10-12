@@ -16,6 +16,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from './state.js';
+import { onMissionReset } from './lifecycle.js';
 
 export function initBattery() {
   if (!S.aircraft?.battery) {
@@ -28,6 +29,7 @@ export function initBattery() {
 export function resetBattery() {
   initBattery();
 }
+onMissionReset(resetBattery);
 
 export function tickBattery(dt) {
   const bat = S.aircraft?.battery;
