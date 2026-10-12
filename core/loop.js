@@ -52,57 +52,64 @@ function _tick(now) {
   tickHIL();
   if (!S.paused) tickControls(dt);
 
-  if (!S.paused) {
-    const isRocket = S.aircraft?.vehicleType === 'rocket';
-    const warp     = isRocket ? (S.warpFactor ?? 1) : 1;
-    const warpDt   = dt * warp;
-    const prevAlt  = S.alt;
-    tickFailures(warpDt);
-    tickFuel(dt);
-    tickBattery(dt);
-    tickElectrical(dt);
-    tickHydraulics(dt);
-    if (isRocket) {
-      /* Fixed-dt rocket physics.
-         When warpDt < PHYS_DT (real-time / low warp): one step with the
-         actual frame dt so the launch display stays smooth.
-         When warpDt >= PHYS_DT (high warp): accumulate and drain in
-         exact PHYS_DT increments — every tickRocket call sees the same
-         dt regardless of warp factor.  This decouples trajectory from
-         warp setting: the Moon-proximity cap (1000x→100x) no longer
-         changes the physics dt and cannot shift the cislunar trajectory. */
-      let nSteps, stepDt;
-      if (warpDt < PHYS_DT) {
-        nSteps     = 1;
-        stepDt     = warpDt;
-        _physAccum = 0;
-      } else {
-        _physAccum += warpDt;
-        nSteps      = Math.floor(_physAccum / PHYS_DT);
-        _physAccum -= nSteps * PHYS_DT;
-        stepDt      = PHYS_DT;
-      }
-      const warpBefore = S.warpFactor ?? 1;
-      for (let i = 0; i < nSteps; i++) {
-        tickRocket(stepDt);
-        tickBooster(stepDt);
-        if ((S.warpFactor ?? 1) < warpBefore) { _physAccum = 0; break; }
-      }
-    } else if (S.aircraft?.vehicleType === 'robot-arm') {
-      /* arm kinematics — no physics tick */
-    } else {
-      tickPhysics(warpDt);
-    }
-    tickCrew(prevAlt, S.alt);
-    tickTelemetry(warpDt);
-    bbTick(dt);
-
-    /* Warp target: auto-drop when we reach the target time */
-    const wT = S.warpTarget;
-    if (wT != null && (S.time ?? 0) >= wT) {
-      setState({ warpFactor: 1, warpTarget: null, warpTargetLabel: null });
-    }
-  }
+  if (!S.paused) tickSim(dt);
 
   for (const render of _renderers) render();
+}
+
+/**
+ * One simulation step of dt seconds: systems, vehicle physics, crew, recorders.
+ * Everything between input and the renderers. The animation loop calls it once
+ * per frame (unless paused); the test API (window.simStep) calls it n times.
+ */
+export function tickSim(dt) {
+  const isRocket = S.aircraft?.vehicleType === 'rocket';
+  const warp     = isRocket ? (S.warpFactor ?? 1) : 1;
+  const warpDt   = dt * warp;
+  const prevAlt  = S.alt;
+  tickFailures(warpDt);
+  tickFuel(dt);
+  tickBattery(dt);
+  tickElectrical(dt);
+  tickHydraulics(dt);
+  if (isRocket) {
+    /* Fixed-dt rocket physics.
+       When warpDt < PHYS_DT (real-time / low warp): one step with the
+       actual frame dt so the launch display stays smooth.
+       When warpDt >= PHYS_DT (high warp): accumulate and drain in
+       exact PHYS_DT increments — every tickRocket call sees the same
+       dt regardless of warp factor.  This decouples trajectory from
+       warp setting: the Moon-proximity cap (1000x→100x) no longer
+       changes the physics dt and cannot shift the cislunar trajectory. */
+    let nSteps, stepDt;
+    if (warpDt < PHYS_DT) {
+      nSteps     = 1;
+      stepDt     = warpDt;
+      _physAccum = 0;
+    } else {
+      _physAccum += warpDt;
+      nSteps      = Math.floor(_physAccum / PHYS_DT);
+      _physAccum -= nSteps * PHYS_DT;
+      stepDt      = PHYS_DT;
+    }
+    const warpBefore = S.warpFactor ?? 1;
+    for (let i = 0; i < nSteps; i++) {
+      tickRocket(stepDt);
+      tickBooster(stepDt);
+      if ((S.warpFactor ?? 1) < warpBefore) { _physAccum = 0; break; }
+    }
+  } else if (S.aircraft?.vehicleType === 'robot-arm') {
+    /* arm kinematics — no physics tick */
+  } else {
+    tickPhysics(warpDt);
+  }
+  tickCrew(prevAlt, S.alt);
+  tickTelemetry(warpDt);
+  bbTick(dt);
+
+  /* Warp target: auto-drop when we reach the target time */
+  const wT = S.warpTarget;
+  if (wT != null && (S.time ?? 0) >= wT) {
+    setState({ warpFactor: 1, warpTarget: null, warpTargetLabel: null });
+  }
 }

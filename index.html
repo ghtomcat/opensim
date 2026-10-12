@@ -2080,13 +2080,10 @@
            approachLegs as _approachLegs, missedApproachText as _missedApproachText, airportCentre as _airportCentre,
            spdParse as _spdParse, spdLabel as _spdLabel,
            SEG_COL as _SEG_COL } from './core/route.js';
-  import { tickPhysics }     from './core/physics.js?v=6';
-  import { tickRocket, tickBooster } from './core/rocket.js';
-  import { tickFailures }    from './core/failures.js';
-  import { cycleFuelSelector, tickFuel } from './core/fuel.js';
-  import { initCrew, tickCrew, resetCrew } from './core/crew.js';
+  import { cycleFuelSelector } from './core/fuel.js';
+  import { initCrew, resetCrew } from './core/crew.js';
   import { initInput, isPTTActive }        from './core/input.js';
-  import { startLoop }    from './core/loop.js';
+  import { startLoop, tickSim } from './core/loop.js';
   import { hilInit }      from './core/hil.js';
   import { startTelemetry, downloadTelemetry, downloadTelemetryCSV } from './core/telemetry.js';
   import { initBlackbox, bbEvent, downloadBlackbox } from './core/blackbox.js';
@@ -3713,7 +3710,7 @@
     resetYertleQuadruped();
     resetCislunar();
     await loadMission(inlineMission ?? `missions/${missionId}.json`, `aircraft/${aircraftId}.json`);
-    initBlackbox();
+    if (!_isTestMode) initBlackbox();   // tests don't record: bbTick is a no-op without a session
 
     /* Merge scenario failures injected from the scenario setup overlay */
     const mData2 = MISSIONS.find(m => m.id === missionId);
@@ -3765,7 +3762,7 @@
     if (S.aircraft?.map === false) { hideMap(); hideVelisMap(); hideG1000Map(); }
     else { showMap(); hideVelisMap(); hideG1000Map(); }
 
-    startTelemetry();
+    if (!_isTestMode) startTelemetry();   // tests don't record: tickTelemetry is a no-op until started
 
     loadBar.style.width = '60%';
     loadStatus.textContent = 'loading voices…';
@@ -4855,15 +4852,7 @@
     window.simGetRpm      = () => getCurrentRpm();
     window.simEngineState = () => S.engineState ?? 'off';
     window.simStep     = (n = 1, dt = 1/60) => {
-      const isRocket = S.aircraft?.vehicleType  === 'rocket';
-      for (let i = 0; i < n; i++) {
-        const prevAlt = S.alt;
-        tickFailures(dt);
-        tickFuel(dt);
-        if      (isRocket) { tickRocket(dt); tickBooster(dt); }
-        else               tickPhysics(dt);
-        tickCrew(prevAlt, S.alt);
-      }
+      for (let i = 0; i < n; i++) tickSim(dt);   // the game loop's own step
     };
     window.simLoad     = (missionId) => {
       const m = MISSIONS.find(m => m.id === missionId);

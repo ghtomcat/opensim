@@ -258,7 +258,7 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 
 **Why it matters.** Anything depending on the electrical or hydraulic state (bus power, COM power, pumps) behaves differently under test; rocket tests can't reproduce the warp stepping (see *Ascent fails with 1-second physics steps*); every future system added to the loop silently stays untested.
 
-**Fix.** One exported `tickSim(dt)` in `core/loop.js` holding the simulation step (everything between input and renderers). The rAF loop calls it per frame; `simStep()` calls it n times. Input stays outside (tests set state directly). Do it together with *Test runs are not deterministic* (in test mode, `simStep` becomes the only clock).
+**Fix.** One exported `tickSim(dt)` in `core/loop.js` holding the simulation step (everything between input and renderers). The rAF loop calls it per frame; `simStep()` calls it n times. Input stays outside (tests set state directly). The recorders tick in `tickSim` but aren't started in test mode — no test reads them, and they grow with sim time (see *Telemetry buffer grows without limit in sim time*). Do it together with *Test runs are not deterministic* (in test mode, `simStep` becomes the only clock).
 
 **Done when.** `simStep` and the loop share one tick function; the test suite passes (re-tuned only where a test relied on the missing systems).
 
@@ -409,6 +409,11 @@ When it's taken up, decide: who owns the simulation (one authoritative browser �
 *Found 2026-10-11 · `downloadBlackbox()` in `core/blackbox.js`*
 
 The header describes the recorder as "tamper-evident". The download appends `{ type: 'sha256', hash }` computed over the content in the browser with `crypto.subtle.digest` — no key, no signature. Anyone can edit a recording and recompute the hash; the hash only detects accidental corruption. Records are also kept in `localStorage`, editable from the console. **Why it matters:** once recordings are used for training scoring, debriefs or certification evidence, they need to be trustworthy. **Fix (when needed):** sign on a server (HMAC or a signature with a server-held key), or stream events to a server as they happen. Until then, change the header to say "fingerprinted" rather than "tamper-evident". **Done when:** the doc comment matches what the code guarantees; if signing is added, an edited file fails verification.
+
+### Telemetry buffer grows without limit in sim time
+*Found 2026-10-12 · `tickTelemetry()` in `core/telemetry.js`; `_persist()` in `core/blackbox.js`*
+
+`tickTelemetry(warpDt)` appends a row to `_buf` every 0.5 s of **sim** time and never drops one. A long warped mission fills memory: Apollo 8 (~147 h) → ~1 million rows of ~40 fields. **Cause — verified (code); seen under test:** during stage 1 of the tick refactor, three headless Chromium tabs running rocket specs to t ≈ 330 000 s grew to 7.8 / 7.3 / 3.4 GB on a 16 GB Mac; macOS swapped until WindowServer's watchdog killed the login session (`WindowServer_2026-10-12-201641….userspace_watchdog_timeout.spin`). Tests no longer start either recorder (`_isTestMode` gate in `init()`), so this is now a player-only issue. **Related:** the black box `_persist()` re-serialises the whole record list into `localStorage` on every 5 s snapshot — quadratic in session length. In the game it ticks in real time, so it stays small; under sim-time stepping it was measured at +15 ms per 2 000 sim-s chunk per 1 000 s already elapsed. **Fix:** cap `_buf` (ring buffer of the last N hours, or decimate older rows); persist the black box at most every few real seconds, or append-only. **Done when:** a full Apollo 8 flight at warp keeps the page under a fixed memory bound, and `downloadTelemetry` still exports the recent trace.
 
 ### No single key map
 *Found 2026-10-11*
