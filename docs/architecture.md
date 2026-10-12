@@ -44,6 +44,8 @@ OpenSim/
 │   ── SHELL: the application entry point ───────────────────────────
 ├── index.html         The single page: HTML/CSS layout, mission picker, and the
 │                      module script that imports core/ + display/ and wires them
+├── app/               Application layer pulled out of index.html: the mission
+│                      session (session.js)
 │
 │   ── MEDIA: binary assets loaded at runtime ───────────────────────
 ├── assets/            GPWS callouts, archival mission audio (Apollo), terrain-colour
@@ -90,7 +92,7 @@ not draw. Grouped by role:
 
 | Group | Modules |
 |---|---|
-| State & loop | `state.js` (single source of truth `S` + `setState`), `loop.js` (requestAnimationFrame loop, dispatches physics and renderers), `mission.js` / `mission-start.js` (load JSON, set initial state, weather), `catalog.js` (mission list) |
+| State & loop | `state.js` (single source of truth `S` + `setState`), `loop.js` (requestAnimationFrame loop; `tickSim(dt)`, the one simulation step), `lifecycle.js` (mission reset registry), `random.js` (simulation random numbers, seeded in test mode), `mission.js` / `mission-start.js` (load JSON, set initial state, weather), `catalog.js` (mission list) |
 | Physics | `physics.js` (fixed-wing), `rocket.js` (launch, staging, orbit, booster recovery), `thrust.js`, `pushback.js` |
 | Aircraft systems | `fuel.js`, `electrical.js`, `battery.js`, `hydraulics.js`, `baro.js`, `failures.js`, `aircraft-config.js` |
 | Navigation & automation | `route.js` (full route: SID/airways/STAR/approach), `lnav.js`, `vnav.js`, `managed-speed.js`, `fma.js`, `airway-graph.js`, `taxi-graph.js` |
@@ -166,8 +168,10 @@ picker click / ?mission=<id>
                  altimeter subscale → field QNH, or STD above transitionAlt
             6. setState({...})  — S.mission and S.aircraft now hold the full JSON
             7. seed S.metar from weather.fallback; fetch live METAR unless ?test=1
-            8. reset per-mission systems: failures, fuel, battery, electrical,
-               hydraulics, display smoothing
+            8. runMissionResets()                    (core/lifecycle.js)
+                 each module with per-mission state registered its reset once
+                 (onMissionReset): failures, fuel, battery, electrical,
+                 hydraulics; the shell registers display smoothing
 ```
 
 After loading, nothing copies mission data any further: modules read `S.mission.*`
@@ -486,16 +490,21 @@ their next read, and the loop reads everything every frame. Consequences:
 
 **Not everything is in `S`.** Many modules keep private module-level state (fired
 ATC entries in `crew.js`, active ramps in `failures.js`, caches in renderers).
-`loadMission()` clears it through each module's `reset*()` function (§2.2).
+`loadMission()` clears it through the reset registry: each module registers its
+`reset*()` with `onMissionReset()` (§2.2). Not every module does yet — crew, the robot
+arm, the cislunar view and others are still reset by hand in the shell.
 
 ### 6.2 The frame loop (`core/loop.js`)
 
-`startLoop(renderers)` starts one `requestAnimationFrame` loop. Each frame:
+`startLoop(renderers, { manualClock })` starts one `requestAnimationFrame` loop. Each
+frame:
 
 ```
 dt = time since last frame, capped at 0.1 s
-1. input        tickGamepad(), tickHIL(); tickControls(dt) unless paused
-2. simulation   (skipped while S.paused)
+(nothing at all while suspended — see below)
+1. input        tickGamepad(), tickHIL()
+2. simulation   tickSim(dt) — skipped while S.paused, and always in test mode
+     tickControls(dt)                held keys; roll/steer spring back when released
      tickFailures(warpDt)
      tickFuel(dt), tickBattery(dt), tickElectrical(dt), tickHydraulics(dt)
      vehicle physics, chosen per frame (§3.1):
@@ -518,6 +527,10 @@ dt = time since last frame, capped at 0.1 s
 - **Frame-rate dependence.** All tickers take `dt`, so the simulation is meant to be
   frame-rate independent. Places that apply a change per frame instead of per second
   are bugs (see `issues.md`).
+- **One step for everyone.** `tickSim(dt)` is exported: the frame loop calls it once per
+  frame, the test API's `simStep` calls it n times (§6.4).
+- **Suspended between missions.** `suspendLoop()` stops ticks and renders while the
+  mission selector is up (leaving a mission, §14.2); the next `startLoop()` resumes.
 
 ### 6.3 The renderer list
 
@@ -537,11 +550,17 @@ draw phase for these.
 
 In test mode (`?test=1`), `index.html` exposes `window.simStep(n, dt)`,
 `simGetState()`, `simSetState()` and `simLoad()` ([testing.md](testing.md)).
-`simStep` does **not** call the loop's tick. It runs its own, shorter sequence:
-failures → fuel → physics (rocket / aircraft) → crew. It skips input,
-battery, electrical, hydraulics, telemetry, the rocket fixed-step accumulator and the
-warp target. Meanwhile the real `requestAnimationFrame` loop keeps running (known
-issue: *Test runs are not deterministic*).
+
+- **`simStep(n, dt)` is `tickSim(dt)` n times** — the same step the game runs, including
+  the systems and the rocket fixed-step accumulator (a `dt` of 10 s is ten 1 s rocket
+  steps).
+- **`simStep` is the only clock.** The loop starts with `manualClock: true`: frames
+  still render (screenshots work), but never call `tickSim`.
+- **Turbulence is seeded.** Simulation code draws from `random()` in `core/random.js`;
+  `init()` calls `seedRandom(1)` on every mission load in test mode, so a run repeats
+  to the last digit. Players get `Math.random`.
+- **No recorders.** Telemetry and the black box aren't started in test mode: no test
+  reads them, and both grow with sim time (a rocket spec runs to t ≈ 330 000 s).
 
 ### 6.5 Observations
 
@@ -551,12 +570,8 @@ issue: *Test runs are not deterministic*).
   such writes). This works because JavaScript is single-threaded. But an exception
   between write and restore would leave the camera pose in the flight state, and the
   terrain renderer can only take its viewpoint from `S`.
-- **`opensim:aircraft-loaded` is never dispatched.** `index.html` listens for it to
-  reset the glass-cockpit page selection, but nothing sends it, so the selected
-  pages carry over to the next aircraft.
 
-Both are tracked in `issues.md`, as is the `simStep` divergence from 6.4 (*Tests step a
-different tick from the game loop*).
+Tracked in `issues.md` (*The outside view borrows the flight state for its camera*).
 
 ---
 
@@ -749,7 +764,8 @@ their displays (`display/robot_arm.js`, `display/yertle_quadruped.js`), driven b
 ## 9. Aircraft Systems
 
 Systems tick every frame between input and physics (§6.2). Each is a small module
-with `reset*()` (called by `loadMission()`) and `tick*(dt)`. Each applies only to
+with `reset*()` (registered with `onMissionReset()`, run by `loadMission()`) and
+`tick*(dt)`. Each applies only to
 aircraft that declare the matching data.
 
 ### 9.1 Overview
@@ -1026,7 +1042,9 @@ several displays. There's no single key map.
 | Telemetry | `core/telemetry.js` | 2 Hz (sim time) | flight state, targets, engine; rocket fields | download as JSONL (aircraft) or CSV (rockets), **Ctrl+Shift+L** |
 | Black box | `core/blackbox.js` | snapshot every 5 s + events | state snapshot; `bbEvent()` records from anywhere (failures, crashes, flaps, gear, fuel starvation, …) | JSONL, persisted in `localStorage` (last 5 sessions), downloaded with a SHA-256 line appended |
 
-The black box starts per mission (`initBlackbox()` in `init()`). Its SHA-256
+The black box starts per mission (`initBlackbox()` in `init()`), telemetry likewise
+(`startTelemetry()`); neither starts in test mode (§6.4). Telemetry keeps every row in
+memory — unbounded on long warped missions (`issues.md`). The black box's SHA-256
 fingerprint is computed in the browser with no secret, so it detects accidental
 corruption, not deliberate edits.
 
@@ -1204,27 +1222,44 @@ The single page that ties everything together. It's the top of the stack: it imp
 
 ```
 page load
-  ?test=1     → test mode: no live METAR, onboarding skipped, test API exposed (§6.4)
+  ?test=1     → test mode: no live METAR, onboarding skipped, test API exposed,
+                manual clock, seeded turbulence, no recorders (§6.4)
   ?mission=id → straight to init(id)            otherwise → showSelect() (picker)
-  popstate    → back: picker; forward: init(that mission)   (url-routing.md)
+  popstate    → back: stop the mission session, picker
+                forward: init(that mission)                 (url-routing.md)
 
 picker card → showBriefing → [showRoleSelect] → [showScenarioSetup] → [showFlightBriefing (jets)]
             → init(missionId, aircraftId)
 
 init()
+  _session?.stop(); _session = newSession()        (app/session.js)
+     onStop: suspendLoop, hide the maps, close the kneeboard,
+             stopSound, stopCOM, resetCrew
   history.pushState(?mission=id)
   loadMission()                         (§2.2)
-  initBlackbox(); merge scenario-setup failures into S.mission.failures
+  test mode: seedRandom(1) · otherwise: initBlackbox()
+  merge scenario-setup failures into S.mission.failures
   init displays: COM, overhead, ECAM, crew, input, FMA, outside view, kneeboard, map, …
   initSound(engineType); onboarding overlay (pauses the sim until dismissed)
   keyboard listener for shell keys (K, O, D, N, E, Q, H, X, V, C, M, L, Esc, Ctrl+Shift+L/B)
   view mode (cockpit / combined / outside); rockets start combined
+  dispatch opensim:aircraft-loaded       (glass-cockpit screens back to page 1)
   window.simReady = true (test harness); HIL if ?hil
-  startLoop([...renderers])             (§6.3)
+  startLoop([...renderers], { manualClock: test mode })   (§6.3)
 ```
 
 `init()` is called again for each mission in the same page session (picker,
-back/forward, `simLoad`). There's no page reload between missions.
+back/forward, `simLoad`). There's no page reload between missions, so what a mission
+sets up must not pile up:
+
+- **Per-mission wiring goes through the session.** Listeners and timers that close over
+  the mission (the shell key handler, ND click, onboarding) are registered with
+  `_session.on()` / `_session.timeout()`; `stop()` removes them. The next `init()` and
+  the Back button both stop the session.
+- **Page-lifetime setup is create-once.** Display `init*()` functions build their DOM and
+  window listeners on the first call and only reset on later ones (kneeboard, maps,
+  outside view, ECAM, input). Panels that rebuild remove their old element first
+  (overhead, pedestal, consoles).
 
 ### 14.3 What else lives in the shell
 
@@ -1245,18 +1280,7 @@ Beyond wiring, the module script holds application features (see `issues.md` →
 
 ### 14.4 Observations
 
-- **Each mission start stacks another copy of the page wiring** (reproduced
-  2026-10-11 with `tools/probe.mjs`). `init()` adds its `keydown` listener and the ND
-  click listener again on every call, without removing the old ones, and several
-  `init*()` functions append their DOM again.
-  - After a second mission in the same session there are two `#kneeboard` elements,
-    and pressing K toggles twice (the board stays closed).
-  - After three missions, three copies of the kneeboard, the Leaflet minimap, the
-    rocket silhouettes and the G1000/Velis map overlays.
-  - Old listeners keep the previous mission's closures (e.g. its `engineType`).
-  - The overhead and pedestal are guarded and aren't duplicated.
 - **Training logic lives in the shell:** approach and emergency scoring and the
   debrief are `index.html` functions, out of reach of unit tests.
 
-Both are tracked in `issues.md`: *Each mission start stacks another copy of the page
-wiring* (Mission loading) and *`index.html` carries most of the application wiring*.
+Tracked in `issues.md`: *`index.html` carries most of the application wiring*.

@@ -90,11 +90,16 @@ Load a mission with `/?mission=<id>&test=1` and wait for `window.simReady === tr
 
 - **skips the key overview overlay and its pause** — a paused sim never ticks
 - **never fetches live weather** — missions with `weather.source: "live"` fly their recorded `fallback` METAR, the same on every run
+- **`simStep` is the only clock** — the page keeps rendering, but the game loop never advances the sim on its own; waiting between calls changes nothing
+- **seeds turbulence** on every mission load — the same random sequence every run
+- **doesn't record** — telemetry and the black box aren't started (they grow with sim time)
 - exposes the test API on `window`
+
+Together: the same test gives the same numbers on every run, to the last digit.
 
 | Function | What |
 |----------|------|
-| `simStep(n = 1, dt = 1/60)` | Advance `n` steps of `dt` seconds, synchronously, no rAF |
+| `simStep(n = 1, dt = 1/60)` | Advance `n` steps of `dt` seconds, synchronously — the game's own step (`tickSim`) |
 | `simGetState()` | Shallow copy of the whole state `S` |
 | `simSetState(patch)` | Merge a patch into `S` |
 | `simLoad(missionId)` | Load another mission (returns a promise) |
@@ -102,7 +107,7 @@ Load a mission with `/?mission=<id>&test=1` and wait for `window.simReady === tr
 
 To try something without writing a test, `tools/probe.mjs` loads a mission in test mode and prints what a snippet returns — see [issues.md → Reproducing](issues.md#reproducing).
 
-`simStep` runs `tickFailures → tickFuel → tickPhysics` (or `tickRocket + tickBooster`) `→ tickCrew`. It does **not** run the electrical, battery, hydraulics or telemetry ticks that the real loop (`core/loop.js`) runs, and it never applies time-warp sub-stepping.
+`simStep` calls `tickSim(dt)` from `core/loop.js` — the same step the game loop runs each frame: control easing, failures, fuel, battery, electrical, hydraulics, vehicle physics, crew, warp target. Keyboard input is the only part outside it; tests set state directly or press real keys.
 
 ---
 
@@ -121,10 +126,10 @@ To try something without writing a test, `tools/probe.mjs` loads a mission in te
 - The flight model uses **pitch attitude as angle of attack**. A nose-down attitude at low speed means negative lift, not a gentle glide.
 - A touchdown has a **sink rate**. The ground latch only holds when the aircraft is descending (`vs < -50`); a test that sets `wow: true` with no sink rate sees the aircraft fly away.
 - A fuel cut is not instant: the engine runs on line fuel for **4 s** (`STARVE_RUNDOWN_S` in `core/fuel.js`).
-- **Turbulence is random.** A mission's `turbulence` adds random vertical buffeting every frame, so a landing can pass or fail by chance. Test landing mechanics in still air — `calmAir()` in `tests/physics.spec.js`.
+- **Turbulence is on.** A mission's `turbulence` adds random vertical buffeting every frame. It's seeded in test mode, so a run repeats — but a test that passes only for this one gust sequence is fragile. Test landing mechanics in still air — `calmAir()` in `tests/physics.spec.js`.
 - **Land like a pilot.** An engine-out glide sinks 1 000–1 700 fpm; held to the ground it is a hard landing (limit −800 fpm). Flare: raise the nose near the ground — `glideAndFlare()` glides at a nose-up attitude and flares at 50 ft.
 
-**Step size matters.** Aircraft run at `dt = 1/60`. Rocket specs step at `dt = 1.0` for speed — coarse steps change the ascent, so compare against a fine-step run before trusting a rocket result.
+**Step size matters.** Aircraft run at `dt = 1/60`. Rocket specs step at `dt = 1.0` for speed — coarse steps change the ascent, so compare against a fine-step run before trusting a rocket result. Rockets go through the fixed-step accumulator like in time warp: any `dt` ≥ 1 s is split into 1 s steps (`dt = 10` → ten steps).
 
 **Keep loops cheap.** The default timeout is 30 s. A loop of `page.evaluate(() => simStep(1))` per frame costs a round trip each time; for long runs, step inside one `evaluate` and return what you need.
 
@@ -136,7 +141,7 @@ To try something without writing a test, `tools/probe.mjs` loads a mission in te
 
 ## Known failures
 
-Open as of 2026-10-11 — remove a line when its group is fixed. Causes and planned fixes: [issues.md](issues.md).
+Open as of 2026-10-12 — remove a line when its group is fixed. Failing values are deterministic: two runs give the same numbers. Causes and planned fixes: [issues.md](issues.md).
 
 | Group | File | Tests | Why |
 |-------|------|-------|-----|

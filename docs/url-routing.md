@@ -64,9 +64,9 @@ The state object stores both IDs so the forward button can restore the correct m
 
 ## Back Button
 
-Pressing back when inside the sim returns to the mission selector:
+Pressing back (or Esc) when inside the sim returns to the mission selector and stops the mission:
 
-- Audio stops (`stopSound()`)
+- The mission session stops (`_session.stop()`, see `architecture.md` §14.2): the loop is suspended (no ticks, no renders), the minimap and panel maps are hidden, the kneeboard closes, and all audio stops — engine, COM, crew
 - The briefing overlay is hidden
 - The mission selector is shown
 - The document title resets to `OpenSim`
@@ -80,7 +80,7 @@ The selector state has no `?mission=` param, so `e.state` is `null` — this is 
 Pressing forward after going back restores the previous mission:
 
 - Audio from any currently running sim stops
-- `init()` is called with the `missionId` and `aircraftId` stored in `e.state`
+- `init()` is called with the `missionId` and `aircraftId` stored in `e.state` — it stops the previous session and resumes the loop
 - The mission loads fresh, including briefing bypass (no briefing on forward navigation)
 
 ```js
@@ -90,7 +90,9 @@ window.addEventListener('popstate', (e) => {
     // forward — restore mission
     init(e.state.missionId, e.state.aircraftId);
   } else {
-    // back — return to selector
+    // back — stop the mission, return to selector
+    _session?.stop();
+    _session = null;
     document.getElementById('mission-select').classList.remove('hidden');
     document.title = 'OpenSim';
   }

@@ -18,7 +18,7 @@ return window.simGetState().alt;               // whatever you return is printed
 EOF
 ```
 
-Many snippets start from still air — mission turbulence is random:
+`simStep` runs the game loop's own tick (`tickSim` in `core/loop.js`), and in test mode nothing else advances the sim — the page only renders between calls. Turbulence is seeded per mission load, so a snippet gives the same result every run. Many snippets still start from still air:
 
 ```js
 const m = window.simGetState().mission;
@@ -91,7 +91,7 @@ return r;
 ### High-alpha stall and turbulence are per frame
 *Found 2026-10-11 · `tickPhysics()` in `core/physics.js`: `vs -= sf * 800` and `vs += (Math.random() - 0.5) * turb * 300`*
 
-Both apply per frame, not per second — their strength depends on the frame rate. Scale by `dt` like the energy stall. Turbulence also makes tests random (see *Test runs are not deterministic*).
+Both apply per frame, not per second — their strength depends on the frame rate. Scale by `dt` like the energy stall. (Turbulence draws from `random()` in `core/random.js`, seeded in test mode, so tests repeat.)
 
 ### The ground is flat: the nearer airport's field elevation everywhere
 *Found 2026-10-11 · `tickPhysics()` in `core/physics.js` (`_grdElev`)*
@@ -126,7 +126,7 @@ Turbulence is read from the active weather source: the `manual` block (15 missio
 Ideas:
 - **Mission-level turbulence** — `weather.turbulence`, independent of the source, so the author's intent ("a rough Arctic flight") holds whether the weather is live, fallback or manual.
 - **Derive it from the METAR** — gusts (`wgst` vs `wspd`) are a reasonable measure; live missions get realistic turbulence on gusty days.
-- Keep it reproducible in tests (see *Test runs are not deterministic*).
+- Keep it reproducible in tests: draw from `random()` (`core/random.js`, seeded in test mode), not `Math.random`.
 
 ---
 
@@ -217,103 +217,15 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 
 ## Tests
 
-### Test runs are not deterministic
-*Found 2026-10-11*
-
-**Symptom.** The same test passes or fails between runs — LSZH ILS tracking passed ~3 of 4 runs (5 of 5 since live weather was removed from tests); landing tests failed by chance before `calmAir()`.
-
-**Three sources:**
-
-1. **The real game loop keeps running in test mode — verified.** `core/loop.js` ticks on `requestAnimationFrame` while the test waits between `simStep` calls, so physics also advances in wall-clock time, by an amount that depends on the machine.
-   ```js
-   const t0 = window.simGetState().time;
-   return new Promise(r => setTimeout(() => r({ t0, after2s: window.simGetState().time }), 2000));
-   ```
-   `node tools/probe.mjs lszf-pattern` → `{ t0: 0.017, after2s: 2.03 }` — two seconds of sim time without a single `simStep`.
-2. ~~**Live weather.**~~ **Fixed 2026-10-11:** test mode never fetches METAR (`setLiveWeather(false)`); live missions fly their `fallback`. For players, the fallback now seeds `S.metar` until a fetch succeeds — before, a failed fetch meant zero wind, standard QNH and 15 °C.
-3. **Turbulence — verified.** Random vertical speed every frame (see above). Landing tests use `calmAir()`.
-
-**Fix.** In `?test=1`: don't let the rAF loop tick physics (`simStep` is the only clock); let tests opt into turbulence explicitly (or seed the random generator in test mode).
-
-**Done when.** `npx playwright test tests/physics.test.js --repeat-each=5` passes 5/5 (or fails 5/5); two runs of the full airplane suite give identical results.
-
-**Affects.** Every Playwright spec; most visibly the ILS and AP tests in `physics.test.js`.
-
-### Tests step a different tick from the game loop
-*Found 2026-10-11 · `window.simStep` in `index.html` (test API) vs `_tick()` in `core/loop.js`*
-
-**Symptom.** Tests advance the sim with `simStep()`, which runs its own sequence instead of the loop's tick. Tests check a simulation players never run.
-
-| Step | `core/loop.js` `_tick()` | `simStep()` |
-|---|---|---|
-| Input: `tickGamepad`, `tickHIL`, `tickControls` | ✓ | — |
-| `tickFailures`, `tickFuel` | ✓ | ✓ |
-| `tickBattery`, `tickElectrical`, `tickHydraulics` | ✓ | — |
-| Rocket fixed-step accumulator (`PHYS_DT = 1.0` at high warp) | ✓ | — (one step of the given `dt`) |
-| Robot arm: no physics | ✓ | — (runs `tickPhysics`) |
-| `tickCrew` | ✓ | ✓ |
-| `tickTelemetry`, `bbTick`, warp-target drop | ✓ | — |
-
-**Cause — verified (code).** Two hand-written copies of the tick order; the loop gained systems (battery, electrical, hydraulics) and the rocket accumulator, `simStep` didn't.
-
-**Why it matters.** Anything depending on the electrical or hydraulic state (bus power, COM power, pumps) behaves differently under test; rocket tests can't reproduce the warp stepping (see *Ascent fails with 1-second physics steps*); every future system added to the loop silently stays untested.
-
-**Fix.** One exported `tickSim(dt)` in `core/loop.js` holding the simulation step (everything between input and renderers). The rAF loop calls it per frame; `simStep()` calls it n times. Input stays outside (tests set state directly). The recorders tick in `tickSim` but aren't started in test mode — no test reads them, and they grow with sim time (see *Telemetry buffer grows without limit in sim time*). Do it together with *Test runs are not deterministic* (in test mode, `simStep` becomes the only clock).
-
-**Done when.** `simStep` and the loop share one tick function; the test suite passes (re-tuned only where a test relied on the missing systems).
-
 ### DB 601 engine-off tests use an airborne mission
 *`tests/db601-sound.spec.js`* — "starts in off state" and "lader gain is zero at engine off" load Wolfskopf, which starts at 2 000 ft with the engine running. Use a ground start (`hahnweide-1944`).
 
 ### `egll-approach` is temporarily the 737 MAX 9 into Madrid
-*`missions/egll-approach.json`, `tests/physics.test.js`* — two tests expect the EGLL 737-800 ("loads a stable airborne state", "autopilot holds altitude": 711–723 ft off vs < 300). Restore the mission, then re-check the altitude hold.
+*`missions/egll-approach.json`, `tests/physics.test.js`* — two tests expect the EGLL 737-800 ("loads a stable airborne state", "autopilot holds altitude": 726.5 ft off vs < 300, the same every run since 2026-10-12). Restore the mission, then re-check the altitude hold.
 
 ---
 
 ## Mission loading
-
-### Each mission start stacks another copy of the page wiring
-*Found 2026-10-11 · `init()` in `index.html`; `initKneeboard()`, `initMap()`, `initOutside()` and others*
-
-**Symptom.** `init()` runs again for every mission in the same page session (picker, back/forward, `simLoad`) — there's no reload. Each run adds its `keydown` listener and the ND click listener again without removing the old ones, and several `init*()` functions append their DOM again. After a second mission, pressing K toggles the kneeboard twice (it stays closed); old listeners act with the previous mission's closures (e.g. E/Q use its `engineType`).
-
-**Reproduce.** Load missions in one session and count duplicated element ids:
-
-```js
-const dups = () => { const c = {}; for (const e of document.querySelectorAll('[id]')) c[e.id] = (c[e.id] || 0) + 1;
-  return Object.fromEntries(Object.entries(c).filter(([k, v]) => v > 1)); };
-const a = dups();
-await window.simLoad('lszf-pattern');  await new Promise(r => setTimeout(r, 1500)); const b = dups();
-await window.simLoad('egll-approach'); await new Promise(r => setTimeout(r, 1500));
-return { after1: a, after2: b, after3: dups() };
-```
-`node tools/probe.mjs lszh-approach` (wrap the snippet in `return (async () => { … })();` — `probe.mjs` doesn't accept top-level `await`).
-
-**Baseline (2026-10-11).** after1: none. after2: `kneeboard`, `kb-prev`, `kb-next`, `minimap`, `vehicle-silhouette`, `booster-silhouette`, `velis-map-overlay`, `g1000-map-overlay` ×2. after3: the same ×3, plus `kb-clear` ×2. Kneeboard: one K press opens it after the first mission; after the second, one press leaves it closed. The overhead and pedestal are guarded and not duplicated.
-
-**Cause — verified.** Per-session setup (listeners, DOM creation) is mixed into the per-mission `init()`.
-
-**Fix.** Split `init()` into a one-time `setupApp()` (DOM, listeners — reading the current mission from `S` when they fire) and a per-mission `startMission()`; make each display's `init*()` idempotent (create once, reset per mission). Part of *`index.html` carries most of the application wiring*, but worth fixing first — it's a user-visible bug.
-
-**Done when.** The reproduce snippet returns no duplicates after three loads; K opens the kneeboard with one press after any number of mission changes.
-
-### Glass-cockpit page selection carries over to the next aircraft
-*Found 2026-10-11 · `index.html`, `window.addEventListener('opensim:aircraft-loaded', …)`*
-
-`index.html` resets the page index of both glass screens (`_screenPage`) when `opensim:aircraft-loaded` fires — but nothing dispatches that event. **Cause — verified (code).** So after paging the right screen to ECAM (Tab) and loading another airliner mission, the new aircraft starts on page 2, or on a page index past its own page list (taken modulo the length). **Fix:** dispatch the event at the end of `init()` after `loadMission()` (or reset `_screenPage` there directly). **Done when:** a newly loaded airliner always starts on its first page of each screen.
-
-### Leaving a mission doesn't stop it
-*Found 2026-10-12 · `popstate` handler in `index.html`; `stopSound()` in `core/sound.js`*
-
-**Symptom.** Esc or browser Back returns to the mission selector, but the mission keeps going behind it: the sim keeps ticking, the top-left minimap stays on screen and keeps moving, and audio keeps playing.
-
-**Reproduce.** Open `/?mission=lszh-approach`, dismiss the onboarding, press Esc. `#minimap` stays `display: block` at z-index 8000 over the selector (z-index 300), and its aircraft marker keeps moving. Same on `9d91dec` (before the tick/lifecycle refactor) — not a regression.
-
-**Cause — verified (code).** There is no "leave mission" step. The Back branch of `popstate` only calls `stopSound()`, which tears down the engine synth; the loop, the overlays, and the other audio sources (APU, fuel pump, engine start lifecycle, crew/ATC radio, COM streams, mission audio) are untouched. Because the sim keeps running, state-driven sound can restart.
-
-**Fix.** Leaving = `_session.stop()` (the mission session from `app/session.js`) plus pausing the sim; the session's `onStop` cleanups hide the mission overlays (minimap, panel maps) and stop every audio source.
-
-**Done when.** After Esc: the sim is paused, no mission overlay is visible over the selector, and no audio plays; starting a mission from the selector still works.
 
 ### Live flight always loads the A350
 *Found 2026-10-11 · `flyWithFlight()` in `index.html` (`const liveMission = { … aircraft: 'a350' … }`)*
@@ -416,7 +328,7 @@ The browser always joins room `hil-corsair` (`index.html` calls `hilInit(hubUrl)
 
 The pieces exist but aren't connected: the hub supports rooms and relays `STATE_PATCH` / `CREW_EVENT`; `S.role` (PF / PM / INSTRUCTOR, cycled with R) and `S.roomId` exist; catalog entries list roles. But the only WebSocket client in the browser is `core/hil.js` (hardware). No state is shared between two browsers, nothing sends `CREW_EVENT`, and `S.role` only changes what the PFD label shows. **Status: not implemented yet** (training roadmap: PF/PM/instructor).
 
-When it's taken up, decide: who owns the simulation (one authoritative browser — likely the PF or the instructor — others mirror), which state is shared (controls per role vs. full state), how crew audio and ATC are synchronised (`CREW_EVENT`), and what the instructor can inject (failures, weather, ATC). Builds on *Tests step a different tick from the game loop* (one tick function) and the flight-plan state (*No flight-plan state*).
+When it's taken up, decide: who owns the simulation (one authoritative browser — likely the PF or the instructor — others mirror), which state is shared (controls per role vs. full state), how crew audio and ATC are synchronised (`CREW_EVENT`), and what the instructor can inject (failures, weather, ATC). Builds on the one shared tick (`tickSim` in `core/loop.js`) and the flight-plan state (*No flight-plan state*).
 
 ### The black box is not tamper-evident
 *Found 2026-10-11 · `downloadBlackbox()` in `core/blackbox.js`*
@@ -512,13 +424,13 @@ The data side is disciplined: vehicles, missions, panels and world data are JSON
 1. **No owners for state:** *`S` has no field ownership*.
 2. **Shared products are recomputed by each consumer:** *Shared products are computed per consumer, not owned once*.
 3. **"Vehicle" is a file format, not an interface:** *No vehicle contract*.
-4. **A mission has no single start, stop and tick:** *No mission lifecycle and no single tick*.
+4. ~~**A mission has no single start, stop and tick.**~~ **Fixed 2026-10-12:** one `tickSim(dt)` for the loop and `simStep`, a manual clock + seeded turbulence in test mode, a mission session (`app/session.js`) that `init()` and Back stop, and a reset registry (`core/lifecycle.js`).
 5. **Model depth is uneven where training needs it:** *The runtime has no seam for training-grade systems*.
 
 The declared layering (data → simulation → presentation → shell) is also not the real one. Dependencies run both ways (*`core/` depends on `display/`*; display modules do simulation work, see `architecture.md` §13.6), and there is an unnamed fourth layer: the **application** (session, briefing, scoring, live flight), which lives in `index.html` (*`index.html` carries most of the application wiring*).
 
 **Suggested order.**
-1. One tick and one mission lifecycle — fixes test determinism and the stacked wiring together.
+1. ~~One tick and one mission lifecycle~~ — done 2026-10-12.
 2. Owned products in `core/` (route, taxi route, elevation) and generated data out of `display/`.
 3. Schema check at load + a test that loads every aircraft and mission (*No contract between the JSON data and the code*).
 4. Vehicle contract and per-engine state — when the training work needs them.
@@ -563,22 +475,6 @@ The declared layering (data → simulation → presentation → shell) is also n
 **Fix.** A small contract per vehicle kind, registered by `vehicleType`: `{ initState(aircraft, mission), tick(dt), reset(), fields, display, sound }`. The loop and `loadMission()` dispatch through the registry instead of branching. One selector field (`vehicleType`), required. Rocket-specific quantities get their own names instead of reusing `pitch`/`spd`.
 
 **Done when.** `core/loop.js` and `core/mission.js` have no per-vehicle branches; `vehicleType` is the only physics selector.
-
-### No mission lifecycle and no single tick
-*Found 2026-10-11 · architecture review (`docs/architecture.md` §6.4, §14.4)*
-
-**Symptom.** A mission has no single start, stop and tick:
-- `init()` runs again for every mission and adds listeners and DOM without removing the old ones (*Each mission start stacks another copy of the page wiring*);
-- each module's leftover state is cleared by a hand-maintained list of `reset*()` calls in `loadMission()`;
-- the AudioContext is replaced mid-mission (*The AudioContext is recreated on every engine (re)start*);
-- tests step a different sequence from the game loop while the real loop keeps running (*Tests step a different tick from the game loop*, *Test runs are not deterministic*).
-
-**Fix.**
-1. **One `tick(dt)`** in `core/loop.js`, used by both the `requestAnimationFrame` loop and `simStep`. In test mode the rAF loop doesn't step the simulation.
-2. **A mission session object**: `start(mission)` registers listeners, DOM and timers through it; `stop()` removes them all. `init()` = `stop()` the old session, `start()` the new one.
-3. Modules with per-mission state register their `reset` with the session instead of being listed by hand.
-
-**Done when.** Loading three missions in a row leaves one copy of every listener and element; `simStep` and the game loop run the same function; the same test run twice gives the same state.
 
 ### The runtime has no seam for training-grade systems
 *Found 2026-10-11 · architecture review (`docs/architecture.md` §7, §9)*
@@ -657,7 +553,7 @@ Also in `display/` (`outside.js` 4×, `terrain.js`, `cislunar.js`) — less of a
 ### `core/` depends on `display/`
 *Found 2026-10-11 · architecture review (`docs/architecture.md` §4.3)*
 
-The simulation layer should not depend on the presentation layer, but six `core/` modules import from `display/`:
+The simulation layer should not depend on the presentation layer, but five `core/` modules import from `display/`:
 
 | Importer | Imports | Kind |
 |---|---|---|
@@ -666,18 +562,15 @@ The simulation layer should not depend on the presentation layer, but six `core/
 | `core/airway-graph.js` | `display/airways-data.js` | generated data |
 | `core/taxi-graph.js` | `display/taxi-data.js` | generated data |
 | `core/crew.js` | `terrainElevM()` from `display/terrain.js?v=2` (EGPWS look-ahead) | terrain elevation |
-| `core/mission.js` | `resetSmooth()` from `display/smooth.js` | display reset on mission load |
 | `core/physics.js`, `core/crew.js`, `core/blackbox.js` | `S.terrainElevFt` — not an import: `display/terrain.js` writes the DEM elevation under the aircraft into `S` while it renders | terrain elevation, via state |
 
 **Why it matters.**
 - **Data in the wrong place.** The generated modules are shared reference data, not display code; their location hides that `core/` needs them.
 - **Elevation is owned by a renderer.** The DEM tile cache (Mapbox `terrain-rgb`) lives in `display/terrain.js`, which touches browser APIs at import time (`localStorage` for the token; `terrain-color.js` loads an image). So `core/crew.js` can't be unit-tested with `node --test`, and the import URL must match `outside.js`'s exactly (`?v=2`) or the two get separate tile caches — a silent failure.
-- **Mission load reaches into the display.** `loadMission()` resets display smoothing; a display concern in the simulation's load path.
 
 **Fix.**
 1. **Move the generated data to `data/`** (or `world/`): change the output paths in the ten `scripts/build-*.py`, the imports, the `display/procedures-data-xp.js` line in `.gitignore`, and the paths in `README.md`, `docs/creating-missions.md` and `docs/architecture.md`. `windsocks-data.js` and `coastlines.js` move too.
 2. **Move elevation sampling into `core/`** (e.g. `core/elevation.js`: tile fetch, cache, `elevM(lat, lon)`), with no DOM work at import. `display/terrain.js` and `core/crew.js` both import it — one cache, no URL coupling. Physics samples the elevation under the aircraft itself instead of reading `S.terrainElevFt` written by the renderer — then CFIT and EGPWS no longer depend on the terrain view running (still on a Mapbox token).
-3. **Reset display state from the shell**, not from `loadMission()`: `index.html` calls `resetSmooth()` after loading (or displays reset on a mission-loaded event).
 
 **Done when.** `grep -rn "display/" core/` finds nothing; `core/crew.js` imports in Node without browser globals; the outside view and EGPWS still share one elevation cache.
 
@@ -728,7 +621,7 @@ To draw the terrain from the camera, `outside.js` saves the aircraft pose, write
 
 **Why it matters.** Every feature passes through it, and none of it can be unit-tested with `node --test` — only through Playwright. Bugs hide there: *Live flight always loads the A350* went unnoticed for four months.
 
-**Fix — a structured rewrite, not piecemeal.** Plan it as its own piece of work: CSS into stylesheet(s); application logic into modules (e.g. `app/init.js`, `app/routing.js`, `app/liveflight.js`, `app/debrief.js`, `app/test-hooks.js`); `index.html` left as markup plus a short bootstrap. Moved logic gets unit tests where it is pure. The Playwright suite is the safety net — it must pass before and after.
+**Fix — a structured rewrite, not piecemeal.** Plan it as its own piece of work: CSS into stylesheet(s); application logic into modules next to `app/session.js` (the mission session, 2026-10-12) — e.g. `app/init.js`, `app/routing.js`, `app/liveflight.js`, `app/debrief.js`, `app/test-hooks.js`); `index.html` left as markup plus a short bootstrap. Moved logic gets unit tests where it is pure. The Playwright suite is the safety net — it must pass before and after.
 
 **Done when.** `index.html` holds markup and a bootstrap only; no application logic in inline script; the test suite passes unchanged.
 
