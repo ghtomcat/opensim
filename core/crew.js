@@ -870,8 +870,8 @@ function _isInOrbit() {
 function _checkRocketEvent(event, clr, prevAlt = 0, currAlt = 0) {
   /* Each named event fires at most once per mission.
      For events reused with different delays (e.g. two 'stagesep' entries),
-     use clr._uid as a tie-breaker set by the caller. */
-  const uid = clr._uid ?? event;
+     the clearance's "uid" (mission JSON) tells them apart. */
+  const uid = clr.uid ?? event;
   if (_rocketFired.has(uid)) return false;
 
   const alt_m  = (S.alt ?? 0) * 0.3048;

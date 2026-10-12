@@ -294,7 +294,7 @@
       "text": "Engines at full thrust."
     },
     {
-      "_uid": "ambient_launch",
+      "uid": "ambient_launch",
       "trigger": {
         "type": "time",
         "t": 180
@@ -477,7 +477,7 @@
       "text": "Stage 1, go at throttle up."
     },
     {
-      "_uid": "throttleup",
+      "uid": "throttleup",
       "voice": "narrator",
       "audio": "audio/inspiration5/nar_throttleup.mp3",
       "text": "Go at throttle up.",
@@ -488,7 +488,7 @@
       }
     },
     {
-      "_uid": "throttleupc",
+      "uid": "throttleupc",
       "voice": "crew",
       "audio": "audio/inspiration5/crew_throttleup.mp3",
       "text": "Copy, go at throttle up.",
@@ -499,7 +499,7 @@
       }
     },
     {
-      "_uid": "throttleuppm",
+      "uid": "throttleuppm",
       "voice": "pm",
       "audio": "audio/inspiration5/pm_throttleup.mp3",
       "text": "Throttle up. Vehicle nominal.",
@@ -511,7 +511,7 @@
     },
     {
       "event": "alt",
-      "_uid": "nar_15km",
+      "uid": "nar_15km",
       "alt_km": 15,
       "voice": "narrator",
       "audio": "audio/inspiration5/nar_15km.mp3",
@@ -519,7 +519,7 @@
     },
     {
       "event": "alt",
-      "_uid": "nar_55km",
+      "uid": "nar_55km",
       "alt_km": 55,
       "voice": "narrator2",
       "audio": "audio/inspiration5/nar2_s1nominal.mp3",
@@ -589,7 +589,7 @@
     },
     {
       "event": "ceco",
-      "_uid": "cecopm",
+      "uid": "cecopm",
       "voice": "pm",
       "delay": 1500,
       "audio": "audio/inspiration5/pm_8engines.mp3",
@@ -603,7 +603,7 @@
     },
     {
       "event": "meco",
-      "_uid": "mecopm",
+      "uid": "mecopm",
       "voice": "pm",
       "delay": 1500,
       "audio": "audio/inspiration5/pm_s2ready.mp3",
@@ -611,7 +611,7 @@
     },
     {
       "event": "stagesep",
-      "_uid": "sep",
+      "uid": "sep",
       "voice": "narrator",
       "delay": 200,
       "audio": "audio/inspiration5/nar_stagesep.mp3",
@@ -619,7 +619,7 @@
     },
     {
       "event": "stagesep",
-      "_uid": "2a",
+      "uid": "2a",
       "voice": "atc",
       "delay": 4500,
       "audio": "audio/inspiration5/mc_2alpha.mp3",
@@ -627,7 +627,7 @@
     },
     {
       "event": "stagesep",
-      "_uid": "2ac",
+      "uid": "2ac",
       "voice": "crew",
       "delay": 5500,
       "audio": "audio/inspiration5/crew_2alpha.mp3",
@@ -635,7 +635,7 @@
     },
     {
       "event": "stagesep",
-      "_uid": "mvac",
+      "uid": "mvac",
       "voice": "narrator",
       "delay": 6000,
       "audio": "audio/inspiration5/nar_mvac.mp3",
@@ -643,7 +643,7 @@
     },
     {
       "event": "stagesep",
-      "_uid": "mvacpm",
+      "uid": "mvacpm",
       "voice": "pm",
       "delay": 8000,
       "audio": "audio/inspiration5/pm_mvac.mp3",
@@ -651,42 +651,42 @@
     },
     {
       "event": "booster_flip",
-      "_uid": "nar_flip",
+      "uid": "nar_flip",
       "voice": "narrator2",
       "audio": "audio/inspiration5/nar2_flip.mp3",
       "text": "Stage 1 beginning its flip maneuver, targeting Landing Zone 1 at Cape Canaveral."
     },
     {
       "event": "booster_boostback",
-      "_uid": "nar_boostback",
+      "uid": "nar_boostback",
       "voice": "narrator",
       "audio": "audio/inspiration5/nar_boostback.mp3",
       "text": "Boostback burn in progress. Three engines pushing Stage 1 back toward the coast."
     },
     {
       "event": "booster_coast",
-      "_uid": "nar_coast",
+      "uid": "nar_coast",
       "voice": "narrator2",
       "audio": "audio/inspiration5/nar2_coast.mp3",
       "text": "Boostback burn complete. Stage 1 now coasting back toward the Cape, grid fins deploying."
     },
     {
       "event": "booster_entry",
-      "_uid": "nar_entry",
+      "uid": "nar_entry",
       "voice": "narrator",
       "audio": "audio/inspiration5/nar_entry.mp3",
       "text": "Stage 1 entering the atmosphere. Grid fins active, bleeding off velocity."
     },
     {
       "event": "booster_landing_burn",
-      "_uid": "nar_lburn",
+      "uid": "nar_lburn",
       "voice": "narrator2",
       "audio": "audio/inspiration5/nar2_landingburn.mp3",
       "text": "Stage 1 landing burn ignition!"
     },
     {
       "event": "alt",
-      "_uid": "karman",
+      "uid": "karman",
       "alt_km": 80,
       "voice": "narrator",
       "audio": "audio/inspiration5/nar_karman.mp3",
@@ -694,7 +694,7 @@
     },
     {
       "event": "alt",
-      "_uid": "nar_160km",
+      "uid": "nar_160km",
       "alt_km": 160,
       "voice": "narrator2",
       "audio": "audio/inspiration5/nar2_160km.mp3",
@@ -730,7 +730,7 @@
     },
     {
       "event": "alt",
-      "_uid": "nar_400km",
+      "uid": "nar_400km",
       "alt_km": 400,
       "voice": "narrator2",
       "audio": "audio/inspiration5/nar2_400km.mp3",
@@ -757,7 +757,7 @@
     },
     {
       "event": "alt",
-      "_uid": "nar_500km",
+      "uid": "nar_500km",
       "alt_km": 500,
       "voice": "narrator",
       "audio": "audio/inspiration5/nar_500km.mp3",
@@ -809,7 +809,7 @@
     },
     {
       "event": "seco",
-      "_uid": "secopm",
+      "uid": "secopm",
       "voice": "pm",
       "delay": 1000,
       "audio": "audio/inspiration5/pm_cutoff.mp3",
@@ -817,7 +817,7 @@
     },
     {
       "event": "seco",
-      "_uid": "ato",
+      "uid": "ato",
       "voice": "atc",
       "delay": 3000,
       "audio": "audio/inspiration5/mc_2echo.mp3",
@@ -825,7 +825,7 @@
     },
     {
       "event": "seco",
-      "_uid": "atoc",
+      "uid": "atoc",
       "voice": "crew",
       "delay": 4500,
       "audio": "audio/inspiration5/crew_2echo.mp3",
@@ -845,7 +845,7 @@
     },
     {
       "event": "booster_landing",
-      "_uid": "nar_land2",
+      "uid": "nar_land2",
       "voice": "narrator",
       "delay": 3500,
       "audio": "audio/inspiration5/nar_land2.mp3",
@@ -918,7 +918,7 @@
     },
     {
       "event": "deorbit",
-      "_uid": "deorbit_mc",
+      "uid": "deorbit_mc",
       "voice": "atc",
       "delay": 1500,
       "audio": "audio/inspiration5/mc_perigee.mp3",
@@ -926,7 +926,7 @@
     },
     {
       "event": "deorbit",
-      "_uid": "deorbit_crew",
+      "uid": "deorbit_crew",
       "voice": "crew",
       "delay": 4500,
       "audio": "audio/inspiration5/crew_home.mp3",
@@ -934,7 +934,7 @@
     },
     {
       "event": "deorbit",
-      "_uid": "deorbit_nar",
+      "uid": "deorbit_nar",
       "voice": "narrator",
       "delay": 8000,
       "audio": "audio/inspiration5/nar_deorbit.mp3",
@@ -942,7 +942,7 @@
     },
     {
       "event": "deorbit",
-      "_uid": "deorbit_pm",
+      "uid": "deorbit_pm",
       "voice": "pm",
       "delay": 14000,
       "audio": "audio/inspiration5/pm_reentry.mp3",
@@ -950,7 +950,7 @@
     },
     {
       "event": "deorbit",
-      "_uid": "deorbit_trunk",
+      "uid": "deorbit_trunk",
       "voice": "narrator2",
       "delay": 22000,
       "audio": "audio/inspiration5/nar2_trunk.mp3",
@@ -958,7 +958,7 @@
     },
     {
       "event": "blackout",
-      "_uid": "nar_losig",
+      "uid": "nar_losig",
       "voice": "narrator",
       "delay": 200,
       "audio": "audio/inspiration5/nar_blackout.mp3",
@@ -966,7 +966,7 @@
     },
     {
       "event": "blackout",
-      "_uid": "reentry_intf",
+      "uid": "reentry_intf",
       "voice": "pm",
       "delay": 3000,
       "audio": "audio/inspiration5/pm_heatshield.mp3",
@@ -974,7 +974,7 @@
     },
     {
       "event": "blackout",
-      "_uid": "g_nominal",
+      "uid": "g_nominal",
       "voice": "pm",
       "delay": 12000,
       "audio": "audio/inspiration5/pm_6g.mp3",
@@ -982,7 +982,7 @@
     },
     {
       "event": "blackout",
-      "_uid": "nar_heating",
+      "uid": "nar_heating",
       "voice": "narrator2",
       "delay": 18000,
       "audio": "audio/inspiration5/nar2_heating.mp3",
@@ -990,7 +990,7 @@
     },
     {
       "event": "blackout",
-      "_uid": "through_fire",
+      "uid": "through_fire",
       "voice": "pm",
       "delay": 30000,
       "audio": "audio/inspiration5/pm_fire.mp3",
@@ -998,7 +998,7 @@
     },
     {
       "event": "signal",
-      "_uid": "nar_signal",
+      "uid": "nar_signal",
       "voice": "narrator2",
       "delay": 200,
       "audio": "audio/inspiration5/nar2_signal.mp3",
@@ -1006,7 +1006,7 @@
     },
     {
       "event": "signal",
-      "_uid": "signal_mc",
+      "uid": "signal_mc",
       "voice": "atc",
       "delay": 2500,
       "audio": "audio/inspiration5/mc_doread.mp3",
@@ -1014,7 +1014,7 @@
     },
     {
       "event": "signal",
-      "_uid": "signal_crew",
+      "uid": "signal_crew",
       "voice": "crew",
       "delay": 5500,
       "audio": "audio/inspiration5/crew_loud.mp3",
@@ -1022,7 +1022,7 @@
     },
     {
       "event": "signal",
-      "_uid": "nar_signal2",
+      "uid": "nar_signal2",
       "voice": "narrator",
       "delay": 9000,
       "audio": "audio/inspiration5/nar_3crew.mp3",
@@ -1030,7 +1030,7 @@
     },
     {
       "event": "drogue",
-      "_uid": "drogue_pm",
+      "uid": "drogue_pm",
       "voice": "pm",
       "delay": 500,
       "audio": "audio/inspiration5/pm_drogues.mp3",
@@ -1038,7 +1038,7 @@
     },
     {
       "event": "drogue",
-      "_uid": "drogue_mc",
+      "uid": "drogue_mc",
       "voice": "narrator",
       "delay": 3000,
       "audio": "audio/inspiration5/nar_drogues.mp3",
@@ -1046,7 +1046,7 @@
     },
     {
       "event": "mains",
-      "_uid": "mains_pm",
+      "uid": "mains_pm",
       "voice": "pm",
       "delay": 500,
       "audio": "audio/inspiration5/pm_mains.mp3",
@@ -1054,7 +1054,7 @@
     },
     {
       "event": "mains",
-      "_uid": "mains_mc",
+      "uid": "mains_mc",
       "voice": "narrator2",
       "delay": 3000,
       "audio": "audio/inspiration5/nar2_mains.mp3",
@@ -1062,7 +1062,7 @@
     },
     {
       "event": "alt_desc",
-      "_uid": "chute_800",
+      "uid": "chute_800",
       "alt_ft": 800,
       "voice": "narrator2",
       "audio": "audio/inspiration5/nar2_800ft.mp3",
@@ -1070,7 +1070,7 @@
     },
     {
       "event": "alt_desc",
-      "_uid": "chute_800pm",
+      "uid": "chute_800pm",
       "alt_ft": 800,
       "voice": "pm",
       "delay": 1500,
@@ -1079,7 +1079,7 @@
     },
     {
       "event": "alt_desc",
-      "_uid": "chute_600",
+      "uid": "chute_600",
       "alt_ft": 600,
       "voice": "narrator2",
       "audio": "audio/inspiration5/nar2_600ft.mp3",
@@ -1087,7 +1087,7 @@
     },
     {
       "event": "alt_desc",
-      "_uid": "chute_600pm",
+      "uid": "chute_600pm",
       "alt_ft": 600,
       "voice": "pm",
       "delay": 1500,
@@ -1096,7 +1096,7 @@
     },
     {
       "event": "alt_desc",
-      "_uid": "chute_400",
+      "uid": "chute_400",
       "alt_ft": 400,
       "voice": "narrator2",
       "audio": "audio/inspiration5/nar2_400ft.mp3",
@@ -1104,7 +1104,7 @@
     },
     {
       "event": "alt_desc",
-      "_uid": "chute_400pm",
+      "uid": "chute_400pm",
       "alt_ft": 400,
       "voice": "pm",
       "delay": 1500,
@@ -1113,7 +1113,7 @@
     },
     {
       "event": "alt_desc",
-      "_uid": "chute_200",
+      "uid": "chute_200",
       "alt_ft": 200,
       "voice": "narrator2",
       "audio": "audio/inspiration5/nar2_200ft.mp3",
@@ -1121,7 +1121,7 @@
     },
     {
       "event": "alt_desc",
-      "_uid": "chute_200pm",
+      "uid": "chute_200pm",
       "alt_ft": 200,
       "voice": "pm",
       "delay": 1500,
@@ -1130,7 +1130,7 @@
     },
     {
       "event": "alt_desc",
-      "_uid": "chute_brace",
+      "uid": "chute_brace",
       "alt_ft": 50,
       "voice": "pm",
       "audio": "audio/inspiration5/pm_brace.mp3",
@@ -1138,7 +1138,7 @@
     },
     {
       "event": "splashdown",
-      "_uid": "splash_mc",
+      "uid": "splash_mc",
       "voice": "narrator",
       "delay": 1000,
       "audio": "audio/inspiration5/nar_splash.mp3",
@@ -1146,7 +1146,7 @@
     },
     {
       "event": "splashdown",
-      "_uid": "splash_stable",
+      "uid": "splash_stable",
       "voice": "pm",
       "delay": 5000,
       "audio": "audio/inspiration5/pm_stable.mp3",
@@ -1154,7 +1154,7 @@
     },
     {
       "event": "splashdown",
-      "_uid": "fast_boats",
+      "uid": "fast_boats",
       "voice": "narrator2",
       "delay": 12000,
       "audio": "audio/inspiration5/nar2_fastboats.mp3",
@@ -1162,7 +1162,7 @@
     },
     {
       "event": "splashdown",
-      "_uid": "sniff",
+      "uid": "sniff",
       "voice": "narrator",
       "delay": 28000,
       "audio": "audio/inspiration5/nar_sniff.mp3",
@@ -1170,7 +1170,7 @@
     },
     {
       "event": "splashdown",
-      "_uid": "diver",
+      "uid": "diver",
       "voice": "narrator2",
       "delay": 50000,
       "audio": "audio/inspiration5/nar2_diver.mp3",
@@ -1178,7 +1178,7 @@
     },
     {
       "event": "splashdown",
-      "_uid": "hatch",
+      "uid": "hatch",
       "voice": "narrator2",
       "delay": 75000,
       "audio": "audio/inspiration5/nar2_hatch.mp3",
@@ -1186,7 +1186,7 @@
     },
     {
       "event": "splashdown",
-      "_uid": "thankyou",
+      "uid": "thankyou",
       "voice": "narrator",
       "delay": 82000,
       "audio": "audio/inspiration5/nar_thankyou.mp3",
@@ -1194,7 +1194,7 @@
     },
     {
       "event": "splashdown",
-      "_uid": "markus_final",
+      "uid": "markus_final",
       "voice": "crew",
       "delay": 88000,
       "audio": "audio/inspiration5/crew_ride.mp3",

@@ -109,28 +109,28 @@
     },
     {
       "event": "stagesep",
-      "_uid": "stagesep",
+      "uid": "stagesep",
       "text": "Stage separation confirmed.",
       "voice": "atc",
       "delay": 200
     },
     {
       "event": "stagesep",
-      "_uid": "kestrel",
+      "uid": "kestrel",
       "text": "Kestrel ignition confirmed. Stage 2 is go.",
       "voice": "atc",
       "delay": 6000
     },
     {
       "event": "alt",
-      "_uid": "alt200",
+      "uid": "alt200",
       "alt_km": 200,
       "text": "Altitude 200 kilometers.",
       "voice": "atc"
     },
     {
       "event": "alt",
-      "_uid": "alt450",
+      "uid": "alt450",
       "alt_km": 450,
       "text": "Altitude 450 kilometers. Approaching apogee.",
       "voice": "atc"

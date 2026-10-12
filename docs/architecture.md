@@ -211,7 +211,7 @@ fires it **once** when its trigger is met:
 |---|---|
 | `t: <s>` | mission time ≥ t |
 | `alt: <ft>` | descending through the altitude |
-| `event: "<name>"` | named rocket event (supersonic, maxq, stagesep, …); `_uid` separates repeated events |
+| `event: "<name>"` | named rocket event (supersonic, maxq, stagesep, …); `uid` separates repeated events |
 | `trigger: {type, …}` | structured: `time`, `after` (n s after another entry finished), `airborne`, `alt_ft`, `alt_km`, `velocity`, `gload`, `com_active` (radio just powered), and rocket milestones `meco`, `meco_s2`, `s2_ignition`, `s3_ignition`, `seco`, `ceco`, `tli`, `loi`, `tei` |
 
 What plays is chosen by the entry's shape:

@@ -85,14 +85,14 @@
     },
     {
       "event": "maxq",
-      "_uid": "throttleup",
+      "uid": "throttleup",
       "text": "Go at throttle up.",
       "voice": "atc",
       "delay": 4000
     },
     {
       "event": "maxq",
-      "_uid": "throttleupc",
+      "uid": "throttleupc",
       "text": "Copy, go at throttle up.",
       "voice": "crew",
       "delay": 5500
@@ -129,86 +129,86 @@
     },
     {
       "event": "stagesep",
-      "_uid": "sep",
+      "uid": "sep",
       "text": "Stage separation confirmed.",
       "voice": "atc",
       "delay": 200
     },
     {
       "event": "stagesep",
-      "_uid": "las",
+      "uid": "las",
       "text": "LAS jettison confirmed.",
       "voice": "atc",
       "delay": 3000
     },
     {
       "event": "stagesep",
-      "_uid": "2a",
+      "uid": "2a",
       "text": "Abort mode 2-Alpha.",
       "voice": "atc",
       "delay": 4500
     },
     {
       "event": "stagesep",
-      "_uid": "2ac",
+      "uid": "2ac",
       "text": "Copy. 2-Alpha.",
       "voice": "crew",
       "delay": 5500
     },
     {
       "event": "stagesep",
-      "_uid": "mvac",
+      "uid": "mvac",
       "text": "MVac ignition. Stage 2 go.",
       "voice": "atc",
       "delay": 6000
     },
     {
-      "_uid": "ab2b",
+      "uid": "ab2b",
       "trigger": { "type": "velocity", "min": 4500 },
       "text": "Abort mode 2-Bravo.",
       "voice": "atc"
     },
     {
-      "_uid": "ab2b-c",
+      "uid": "ab2b-c",
       "trigger": { "type": "velocity", "min": 4500 },
       "delay": 1500,
       "text": "Copy. 2-Bravo.",
       "voice": "crew"
     },
     {
-      "_uid": "go-ins",
+      "uid": "go-ins",
       "trigger": { "type": "velocity", "min": 5200 },
       "text": "Stage 2 nominal. Dragon, you are go for orbit insertion.",
       "voice": "atc"
     },
     {
-      "_uid": "ab2c",
+      "uid": "ab2c",
       "trigger": { "type": "velocity", "min": 6000 },
       "text": "Abort mode 2-Charlie.",
       "voice": "atc"
     },
     {
-      "_uid": "ab2c-c",
+      "uid": "ab2c-c",
       "trigger": { "type": "velocity", "min": 6000 },
       "delay": 1500,
       "text": "Copy. 2-Charlie.",
       "voice": "crew"
     },
     {
-      "_uid": "ab2d",
+      "uid": "ab2d",
       "trigger": { "type": "velocity", "min": 6900 },
       "text": "Abort mode 2-Delta.",
       "voice": "atc"
     },
     {
-      "_uid": "ab2d-c",
+      "uid": "ab2d-c",
       "trigger": { "type": "velocity", "min": 6900 },
       "delay": 1500,
       "text": "Copy. 2-Delta.",
       "voice": "crew"
     },
     {
-      "_uid": "secowarn",
+      "uid": "secowarn",
       "trigger": { "type": "velocity", "min": 7400 },
       "text": "30 seconds to SECO.",
       "voice": "atc"
@@ -220,14 +220,14 @@
     },
     {
       "event": "seco",
-      "_uid": "ato",
+      "uid": "ato",
       "text": "Abort mode 2-Echo.",
       "voice": "atc",
       "delay": 2000
     },
     {
       "event": "seco",
-      "_uid": "atoc",
+      "uid": "atoc",
       "text": "Copy. 2-Echo. Dragon is go for orbit ops.",
       "voice": "crew",
       "delay": 3500
@@ -249,7 +249,7 @@
     },
     {
       "event": "dragonsep",
-      "_uid": "dsep-crew",
+      "uid": "dsep-crew",
       "text": "Copy separation. Dragon is on internal power, nominal.",
       "voice": "crew",
       "delay": 3000

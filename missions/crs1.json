@@ -126,21 +126,21 @@
     },
     {
       "event": "stagesep",
-      "_uid": "stagesep",
+      "uid": "stagesep",
       "text": "Stage separation confirmed.",
       "voice": "atc",
       "delay": 200
     },
     {
       "event": "stagesep",
-      "_uid": "mvac",
+      "uid": "mvac",
       "text": "MVac ignition confirmed. Stage 2 is go.",
       "voice": "atc",
       "delay": 6000
     },
     {
       "event": "alt",
-      "_uid": "alt200",
+      "uid": "alt200",
       "alt_km": 200,
       "text": "Altitude 200 kilometers.",
       "voice": "atc"
