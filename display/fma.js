@@ -14,6 +14,7 @@ let _boxes     = [];
 export function initFMA(container) {
   _container = container;
   _container.innerHTML = '';
+  _boxes = [];
 
   for (let i = 0; i < 5; i++) {
     const box = document.createElement('div');

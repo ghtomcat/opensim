@@ -189,8 +189,11 @@ let _orbitDragX = null;  // non-null while drag is active
 let _orbitDragY = null;
 let _panDragX   = null;  // non-null while right-click pan drag is active
 
+let _outsideBound = false;
 export function initOutside() {
   _canvas = document.getElementById('outside-canvas');
+  if (_outsideBound) return;   // window listeners — bind once per page
+  _outsideBound = true;
 
   /* Left-drag: orbit (Az/El).  Right-drag (chase cam only): pan camera laterally. */
   window.addEventListener('mousedown', e => {

@@ -28,7 +28,10 @@ const C = {
 const FONT = '"IBM Plex Mono", "Courier New", monospace';
 
 /* ── Init — attach click handler for page switching ── */
+let _ecamBound = false;
 export function initECAM(canvas) {
+  if (_ecamBound) return;   // the canvas outlives missions — bind once
+  _ecamBound = true;
   canvas.addEventListener('click', (e) => {
     const rect = canvas.getBoundingClientRect();
     handleECAMClick(

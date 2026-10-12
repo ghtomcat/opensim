@@ -145,6 +145,7 @@ let _dispLonSpan = 20;
 
 
 export function initMap() {
+  if (_el) return;   // one Leaflet map per page — renderMap redraws per mission
   _el = document.createElement('div');
   _el.id = 'minimap';
   _applySize('local');
@@ -383,7 +384,7 @@ function _updatePanelMap(pm, canvas, devX, devY, devW, devH) {
 
 /* ── Velis EPSI panel map ── */
 let _velisPanel = null;
-export function initVelisMap()  { _velisPanel = _createPanelMap('velis-map-overlay'); }
+export function initVelisMap()  { _velisPanel ??= _createPanelMap('velis-map-overlay'); }
 export function updateVelisMapOverlay(canvas, devX, devY, devW, devH) {
   _updatePanelMap(_velisPanel, canvas, devX, devY, devW, devH);
 }
@@ -391,7 +392,7 @@ export function hideVelisMap()  { if (_velisPanel) _velisPanel.el.style.display 
 
 /* ── G1000 MFD panel map ── */
 let _g1000Panel = null;
-export function initG1000Map()  { _g1000Panel = _createPanelMap('g1000-map-overlay'); }
+export function initG1000Map()  { _g1000Panel ??= _createPanelMap('g1000-map-overlay'); }
 export function updateG1000MapOverlay(canvas, devX, devY, devW, devH) {
   _updatePanelMap(_g1000Panel, canvas, devX, devY, devW, devH);
 }

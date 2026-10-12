@@ -54,7 +54,10 @@ const GP = {
 let _gpPrevButtons = [];
 let _gpPrevThrottle = null;   // last applied throttle-axis value — only re-assert thrust on real movement
 
+let _inputBound = false;
 export function initInput() {
+  if (_inputBound) return;   // window listeners — bind once per page
+  _inputBound = true;
   window.addEventListener('keydown',   _onKeyDown);
   window.addEventListener('keyup',     _onKeyUp);
   window.addEventListener('mousemove', _onMouseMove);

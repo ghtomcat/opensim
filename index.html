@@ -2085,6 +2085,7 @@
   import { initInput, isPTTActive }        from './core/input.js';
   import { startLoop, tickSim } from './core/loop.js';
   import { seedRandom }   from './core/random.js';
+  import { newSession }   from './app/session.js';
   import { hilInit }      from './core/hil.js';
   import { startTelemetry, downloadTelemetry, downloadTelemetryCSV } from './core/telemetry.js';
   import { initBlackbox, bbEvent, downloadBlackbox } from './core/blackbox.js';
@@ -3690,7 +3691,11 @@
   }
 
   /* ── Init ── */
+  let _session = null;   // the running mission's listeners/timers — stopped before the next init()
   async function init(missionId, aircraftId, inlineMission = null) {
+    _session?.stop();
+    _session = newSession();
+
     /* Push a history entry with mission data so back/forward work correctly */
     const _hilParam = new URLSearchParams(window.location.search).has('hil') ? '&hil' : '';
     history.pushState({ missionId, aircraftId }, '', `?mission=${missionId}${_hilParam}`);
@@ -3737,7 +3742,7 @@
     initOverhead();
     initECAM(ecamCanvas);
     /* Route ndCanvas clicks to ECAM handler when airbus-ecam is the active spec */
-    ndCanvas.addEventListener('click', (e) => {
+    _session.on(ndCanvas, 'click', (e) => {
       if (_currentSpec(1) !== 'airbus-ecam') return;
       const rect = ndCanvas.getBoundingClientRect();
       handleECAMClick(
@@ -3866,7 +3871,7 @@
 
     const dismissOnboarding = () => {
       obEl.classList.remove('visible');
-      setTimeout(() => { obEl.style.display = 'none'; }, 500);
+      _session.timeout(() => { obEl.style.display = 'none'; }, 500);
       window.removeEventListener('keydown', dismissOnboarding);
       obEl.removeEventListener('click', dismissOnboarding);
       setState({ paused: false });
@@ -3886,10 +3891,10 @@
         startSound(engineType);   /* AudioContext must start on user gesture */
       }
     };
-    window.addEventListener('keydown', dismissOnboarding);
-    obEl.addEventListener('click', dismissOnboarding);
+    _session.on(window, 'keydown', dismissOnboarding);
+    _session.on(obEl, 'click', dismissOnboarding);
 
-    window.addEventListener('keydown', (e) => {
+    _session.on(window, 'keydown', (e) => {
       if (e.ctrlKey && e.shiftKey && e.key === 'L') {
         e.preventDefault();
         if (S.aircraft?.vehicleType === 'rocket') downloadTelemetryCSV();
@@ -4047,6 +4052,9 @@
 
     /* Expose view switcher for flyWithFlight */
     _setViewMode = (mode) => { _viewMode = mode; _applyViewMode(mode); };
+
+    /* New aircraft: glass-cockpit screens start on their first page */
+    window.dispatchEvent(new Event('opensim:aircraft-loaded'));
 
     /* Notify test harness that sim is ready */
     if (window.simReady !== undefined) {

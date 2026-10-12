@@ -14,6 +14,12 @@ let _page     = 0;
 let _checked  = {};   // { "pageIndex-itemIndex": true }
 
 export function initKneeboard() {
+  if (_el) {   // later missions: reuse the element, start closed
+    _visible = false;
+    _el.style.transform = '';
+    _render();
+    return;
+  }
   _el = document.createElement('div');
   _el.id = 'kneeboard';
   document.body.appendChild(_el);
