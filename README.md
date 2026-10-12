@@ -451,11 +451,13 @@ The software is the platform. The hardware is the expression. MIT open source me
 ```
 core/
   state.js                    — single source of truth, all sim state
-  loop.js                     — rAF loop: tickFailures → tickPhysics → tickCrew → renders
+  loop.js                     — rAF loop + tickSim(dt), the one simulation step (the test API's simStep runs it too)
   physics.js                  — aerodynamic force balance, ground roll, brakes/autobrake, CFIT, cooling
   thrust.js                   — engine thrust models
   rocket.js                   — gravity turn, orbit-targeting guidance, staging, RTLS/ASDS, propagator, reentry
   mission.js                  — loads aircraft + mission JSON, live METAR fetch
+  lifecycle.js                — mission reset registry: modules register their reset, loadMission runs them
+  random.js                   — simulation random numbers (turbulence), seeded in test mode
   mission-start.js            — named mission start positions (gates, runways)
   catalog.js                  — mission picker catalogue, loaded from missions/catalog.json
   aircraft-config.js          — aircraft JSON → derived config
@@ -476,6 +478,9 @@ core/
   liveflight.js               — live radar (OpenSky) → spawn into a real flight
   hil.js                      — hardware-in-the-loop bridge
   telemetry.js · blackbox.js  — flight recorder (2 Hz JSONL) + black box
+
+app/
+  session.js                  — mission session: listeners/timers a mission registers; stop() removes them (next mission, Esc/Back)
 
 display/
   pfd.js · pfd_instruments.js — PFD + reusable instrument primitives (attitude, tape, HSI, FMA)
@@ -544,7 +549,7 @@ npx playwright install chromium
 npm test
 ```
 
-`npm test` runs the Node unit tests first (`tests/*.test.mjs`, 64 tests), then the Playwright browser specs (165 tests in 13 files), all headless: physics, fuel/engine/carb heat, thrust, sound synthesis and state machines, COM radio, FMA, managed speed, route building, VNAV, aircraft data, rocket staging and orbital mechanics. Calibration specs run separately with `npm run calibrate`.
+`npm test` runs the Node unit tests first (`tests/*.test.mjs`, 64 tests), then the Playwright browser specs (165 tests in 13 files), all headless: physics, fuel/engine/carb heat, thrust, sound synthesis and state machines, COM radio, FMA, managed speed, route building, VNAV, aircraft data, rocket staging and orbital mechanics. Runs are repeatable: in test mode `simStep` is the only clock and turbulence is seeded. Calibration specs run separately with `npm run calibrate`.
 
 Running subsets, reading the output, the `?test=1` API, writing tests and the current known failures → [docs/testing.md](docs/testing.md).
 
