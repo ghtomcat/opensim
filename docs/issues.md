@@ -403,6 +403,19 @@ The Velis's `sound.engineType` is `"electric"`, but `ENGINES` has no `electric` 
 
 **Done when.** Every `commProfile` value in missions/aircraft is a key of `PROFILES`; unknown names fail validation.
 
+### A missing audio clip can stop the `after` chain
+*Found 2026-10-12 · `atcClearances` dispatch in `core/crew.js` (the `clr.audio` branch, `_safeSpeak()`)*
+
+**Symptom.** A clearance with `trigger: { type: "after", idx: N }` fires only once clearance N has *ended*. When N's `audio:` clip is missing, the follow-up line never fires. The README promises "If an `audio:` file is missing, the mission falls back to TTS automatically" — the line itself does fall back, but the chain behind it stops.
+
+**Reproduce.** In a checkout without the gitignored `audio/` folder (e.g. a fresh clone or `git worktree add`), run Inspiration5 in test mode for 1 200 s and log `[crew] ATC fire idx=`: 64 clearances fire, against 70 with the clips present. The six missing ones (idx 13, 17, 40, 55, 57, 75) are all `after` triggers whose predecessor has a missing clip (`gl_startup`, `mc_ldgo`, `gl_meco`, `mc_1bravo`, `mc_staging`, `mc_2bravo`).
+
+**Cause — verified in headless Chromium; not yet checked in a real browser.** `_atcEndedAt[idx]` — what `after` waits for — is set by the clip's `onEnded`, or in the fallback by the utterance's `u.onend`. If the utterance never ends normally, nothing sets it: `_safeSpeak()` returns silently when `speechSynthesis` is undefined, there's no `u.onerror` handler, and there's no time-based fallback. Headless Chromium's speech doesn't complete, so the chain stops there; in a real browser it could stop the same way on a speech error or on Chrome's known long-utterance `onend` bug.
+
+**Why it matters.** Anyone who clones the repo has no `audio/` folder, so mission scripts that chain with `after` lose lines silently. Tests can't see the chain either.
+
+**Fix.** Mark the clearance ended on every way speech can finish: `onend`, `onerror`, no `speechSynthesis` (immediately), and a fallback timer from the text length and rate (whichever comes first, once). **Done when.** Inspiration5 without `audio/` fires the same clearances as with it (70), in test mode.
+
 ### The AudioContext is recreated on every engine (re)start
 *Found 2026-10-11 · `startSound()` / `_teardown()` in `core/sound.js`*
 
