@@ -100,6 +100,7 @@ const XPDR = {
 
 let _squelchCtx  = null;
 let _streamAudio = null;   // currently playing LiveATC stream
+let _tuneAudio   = null;   // one-shot audio played on tuning a frequency (greeting, ATIS clip)
 let _bound       = false;  // event listeners registered once only
 
 /* ── Loop mode (rocket/mission audio) ── */
@@ -462,7 +463,8 @@ function _onTune(freq) {
 
   /* Play audio file if defined */
   if (info.audio) {
-    const a = new Audio(info.audio);
+    _tuneAudio?.pause();
+    const a = _tuneAudio = new Audio(info.audio);
     a.volume = 0.9;
     a.play().catch(() => {});
   }
@@ -608,6 +610,13 @@ function _ident() {
 }
 
 /* ── LiveATC stream ── */
+/** Stop COM audio (live stream or mission loop) — leaving a mission. */
+export function stopCOM() {
+  _stopStream();
+  _stopLoop();
+  if (_tuneAudio) { _tuneAudio.pause(); _tuneAudio.src = ''; _tuneAudio = null; }
+}
+
 function _stopStream() {
   if (_streamAudio) {
     _streamAudio.pause();

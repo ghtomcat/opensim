@@ -2528,6 +2528,11 @@ function _teardown() {
   _teardownEngine();
   try { _windNoise?.stop();  } catch {}
   try { _flapNoise?.stop();  } catch {}
+  /* These nodes die with the context: drop the refs so APU/pump can start again,
+     and so a start buffer's onended can't restart the engine after we've closed. */
+  if (_lifecycleSrc) { _lifecycleSrc.onended = null; _lifecycleSrc = null; }
+  _apuIdleNodes = null;
+  _pumpNodes    = null;
   _ctx.close();
   clearTimeout(_flapMotorTimer); _flapMotorTimer = null; _flapStep = null;
   _ctx = null; _master = null; _waveshaper = null; _oscs = [];

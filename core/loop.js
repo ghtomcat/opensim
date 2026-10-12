@@ -32,6 +32,7 @@ let _renderers = [];
 let _running   = false;
 let _physAccum = 0;   // fractional physics time not yet consumed
 let _manualClock = false;   // true: frames render only, tickSim runs from simStep
+let _suspended   = false;   // true: no mission running (selector) — no ticks, no renders
 
 /**
  * renderers: array of functions called each frame with no arguments.
@@ -41,13 +42,20 @@ let _manualClock = false;   // true: frames render only, tickSim runs from simSt
 export function startLoop(renderers = [], { manualClock = false } = {}) {
   _renderers   = renderers;
   _manualClock = manualClock;
+  _suspended   = false;
   if (_running) return;   // already ticking — just swap renderers
   _running = true;
   requestAnimationFrame(_tick);
 }
 
+/** Stop ticking and rendering until the next startLoop() — leaving a mission. */
+export function suspendLoop() {
+  _suspended = true;
+}
+
 function _tick(now) {
   requestAnimationFrame(_tick);
+  if (_suspended) { _prevTime = null; return; }   // resume without a stale dt
 
   if (!_prevTime) { _prevTime = now; return; }
   const dt = Math.min((now - _prevTime) / 1000, 0.1);   // cap at 100ms

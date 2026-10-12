@@ -35,6 +35,8 @@ export function toggleKneeboard() {
 
 export function isKneeboardVisible() { return _visible; }
 
+export function closeKneeboard() { if (_visible) toggleKneeboard(); }
+
 let _lastAircraftId = null, _lastVia = '';
 export function tickKneeboard() {
   const id = S.aircraft?.id ?? null;

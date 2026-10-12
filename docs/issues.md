@@ -302,6 +302,19 @@ return { after1: a, after2: b, after3: dups() };
 
 `index.html` resets the page index of both glass screens (`_screenPage`) when `opensim:aircraft-loaded` fires — but nothing dispatches that event. **Cause — verified (code).** So after paging the right screen to ECAM (Tab) and loading another airliner mission, the new aircraft starts on page 2, or on a page index past its own page list (taken modulo the length). **Fix:** dispatch the event at the end of `init()` after `loadMission()` (or reset `_screenPage` there directly). **Done when:** a newly loaded airliner always starts on its first page of each screen.
 
+### Leaving a mission doesn't stop it
+*Found 2026-10-12 · `popstate` handler in `index.html`; `stopSound()` in `core/sound.js`*
+
+**Symptom.** Esc or browser Back returns to the mission selector, but the mission keeps going behind it: the sim keeps ticking, the top-left minimap stays on screen and keeps moving, and audio keeps playing.
+
+**Reproduce.** Open `/?mission=lszh-approach`, dismiss the onboarding, press Esc. `#minimap` stays `display: block` at z-index 8000 over the selector (z-index 300), and its aircraft marker keeps moving. Same on `9d91dec` (before the tick/lifecycle refactor) — not a regression.
+
+**Cause — verified (code).** There is no "leave mission" step. The Back branch of `popstate` only calls `stopSound()`, which tears down the engine synth; the loop, the overlays, and the other audio sources (APU, fuel pump, engine start lifecycle, crew/ATC radio, COM streams, mission audio) are untouched. Because the sim keeps running, state-driven sound can restart.
+
+**Fix.** Leaving = `_session.stop()` (the mission session from `app/session.js`) plus pausing the sim; the session's `onStop` cleanups hide the mission overlays (minimap, panel maps) and stop every audio source.
+
+**Done when.** After Esc: the sim is paused, no mission overlay is visible over the selector, and no audio plays; starting a mission from the selector still works.
+
 ### Live flight always loads the A350
 *Found 2026-10-11 · `flyWithFlight()` in `index.html` (`const liveMission = { … aircraft: 'a350' … }`)*
 

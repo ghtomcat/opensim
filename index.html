@@ -2083,7 +2083,7 @@
   import { cycleFuelSelector } from './core/fuel.js';
   import { initCrew, resetCrew } from './core/crew.js';
   import { initInput, isPTTActive }        from './core/input.js';
-  import { startLoop, tickSim } from './core/loop.js';
+  import { startLoop, suspendLoop, tickSim } from './core/loop.js';
   import { seedRandom }   from './core/random.js';
   import { newSession }   from './app/session.js';
   import { onMissionReset } from './core/lifecycle.js';
@@ -2106,7 +2106,7 @@
   import { renderYertleQuadruped, resetYertleQuadruped } from './display/yertle_quadruped.js';
   import { renderVelisEpsi, handleVelisClick } from './display/velis_epsi.js';
   import { initFMA, renderFMA } from './display/fma.js';
-  import { initCOM }           from './display/com.js';
+  import { initCOM, stopCOM }  from './display/com.js';
   import { initOverhead, toggleOverhead, renderOverhead } from './display/overhead.js';
   import { initPedestal, togglePedestal, renderPedestal } from './display/pedestal.js';
   import { initLeftConsole, toggleLeftConsole, renderLeftConsole } from './display/leftconsole.js';
@@ -2114,7 +2114,7 @@
   import { initCenterConsole, toggleCenter, renderCenterConsole } from './display/centerconsole.js';
   import { initSound, startSound, stopSound, startEngineLifecycle, stopEngineLifecycle, switchEngine, tickSound, getCurrentRpm, silenceAll, apDisconnectChime } from './core/sound.js';
   import { initOutside, tickOutside, outsideInvalidate, setOutsideCamMode } from './display/outside.js?v=6';
-  import { initKneeboard, toggleKneeboard, tickKneeboard } from './display/kneeboard.js';
+  import { initKneeboard, toggleKneeboard, closeKneeboard, tickKneeboard } from './display/kneeboard.js';
   import { initMap, renderMap, toggleMap, showMap, hideMap, initVelisMap, hideVelisMap, initG1000Map, hideG1000Map } from './display/map.js';
   import { renderCislunar, renderMoonMap, resetCislunar } from './display/cislunar.js';
   import { renderEarthrise }              from './display/earthrise.js';
@@ -3700,6 +3700,13 @@
   async function init(missionId, aircraftId, inlineMission = null) {
     _session?.stop();
     _session = newSession();
+    /* Leaving this mission (Back to the selector, or the next init) — stop what it started */
+    _session.onStop(() => {
+      suspendLoop();   // no ticks or renders behind the selector; the next startLoop resumes
+      hideMap(); hideVelisMap(); hideG1000Map(); closeKneeboard();
+      stopSound();     // closes the AudioContext: engine, APU, fuel pump, start/shutdown buffers
+      stopCOM(); resetCrew();
+    });
 
     /* Push a history entry with mission data so back/forward work correctly */
     const _hilParam = new URLSearchParams(window.location.search).has('hil') ? '&hil' : '';
@@ -4852,7 +4859,9 @@
       document.getElementById('mission-briefing').classList.remove('visible');
       init(e.state.missionId, e.state.aircraftId).catch(console.error);
     } else {
-      /* Back: return to mission selector */
+      /* Back: return to mission selector — stop the running mission */
+      _session?.stop();
+      _session = null;
       document.getElementById('mission-briefing').classList.remove('visible');
       document.getElementById('mission-select').classList.remove('hidden');
       document.title = 'OpenSim';
