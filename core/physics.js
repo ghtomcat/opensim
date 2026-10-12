@@ -14,6 +14,7 @@ import { activeDetent } from './thrust.js';
 import { managedSpeed } from './managed-speed.js';
 import { runwayThreshold } from './mission-start.js';
 import { indicatedAlt } from './baro.js';
+import { random } from './random.js';
 
 const _DEG = Math.PI / 180;
 const _gcNm = (aLat, aLon, bLat, bLon) => {
@@ -568,7 +569,7 @@ export function tickPhysics(dt) {
   /* ── Turbulence — vertical buffeting only; roll noise causes terrain jitter ── */
   const turb = wx.turbulence ?? 0;
   if (turb > 0 && !newWow) {
-    vs += (Math.random() - 0.5) * turb * 300;
+    vs += (random() - 0.5) * turb * 300;
   }
 
   /* ── Dead reckoning — ground velocity = TAS vector + wind. On the ground the wheels

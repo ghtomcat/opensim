@@ -2084,6 +2084,7 @@
   import { initCrew, resetCrew } from './core/crew.js';
   import { initInput, isPTTActive }        from './core/input.js';
   import { startLoop, tickSim } from './core/loop.js';
+  import { seedRandom }   from './core/random.js';
   import { hilInit }      from './core/hil.js';
   import { startTelemetry, downloadTelemetry, downloadTelemetryCSV } from './core/telemetry.js';
   import { initBlackbox, bbEvent, downloadBlackbox } from './core/blackbox.js';
@@ -3710,6 +3711,7 @@
     resetYertleQuadruped();
     resetCislunar();
     await loadMission(inlineMission ?? `missions/${missionId}.json`, `aircraft/${aircraftId}.json`);
+    if (_isTestMode) seedRandom(1);       // tests: same turbulence sequence every run
     if (!_isTestMode) initBlackbox();   // tests don't record: bbTick is a no-op without a session
 
     /* Merge scenario failures injected from the scenario setup overlay */
@@ -4183,7 +4185,7 @@
       () => { if (S.rocketTLI) hideMap(); renderMap(); },
       () => { if (document.getElementById('cislunar')?.classList.contains('visible'))  (S.inLM && S.mission?.hasLM) ? renderMoonMap() : renderCislunar(); },
       () => { if (document.getElementById('earthrise')?.classList.contains('visible')) renderEarthrise(); },
-    ]);
+    ], { manualClock: _isTestMode });   // tests: only simStep advances the sim
   }
 
   /* ── FPS tracking ── */

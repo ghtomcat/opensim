@@ -2,6 +2,8 @@
    OpenSim — core/loop.js
    Animation loop. Ticks physics, then all renders.
    Call startLoop(renderers) once after init.
+   Manual clock (test mode): the loop only renders; simStep → tickSim
+   is the only thing that advances the simulation.
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from './state.js';
@@ -29,13 +31,16 @@ let _prevTime  = null;
 let _renderers = [];
 let _running   = false;
 let _physAccum = 0;   // fractional physics time not yet consumed
+let _manualClock = false;   // true: frames render only, tickSim runs from simStep
 
 /**
  * renderers: array of functions called each frame with no arguments.
  * They should read directly from S.
+ * manualClock: frames never call tickSim — the test API steps the sim.
  */
-export function startLoop(renderers = []) {
-  _renderers = renderers;
+export function startLoop(renderers = [], { manualClock = false } = {}) {
+  _renderers   = renderers;
+  _manualClock = manualClock;
   if (_running) return;   // already ticking — just swap renderers
   _running = true;
   requestAnimationFrame(_tick);
@@ -50,19 +55,19 @@ function _tick(now) {
 
   tickGamepad();
   tickHIL();
-  if (!S.paused) tickControls(dt);
-
-  if (!S.paused) tickSim(dt);
+  if (!S.paused && !_manualClock) tickSim(dt);
 
   for (const render of _renderers) render();
 }
 
 /**
- * One simulation step of dt seconds: systems, vehicle physics, crew, recorders.
- * Everything between input and the renderers. The animation loop calls it once
- * per frame (unless paused); the test API (window.simStep) calls it n times.
+ * One simulation step of dt seconds: control easing, systems, vehicle physics,
+ * crew, recorders. Everything between input polling and the renderers. The
+ * animation loop calls it once per frame (unless paused or on a manual clock);
+ * the test API (window.simStep) calls it n times.
  */
 export function tickSim(dt) {
+  tickControls(dt);   // held keys + spring-back to centre — changes state with no keys held
   const isRocket = S.aircraft?.vehicleType === 'rocket';
   const warp     = isRocket ? (S.warpFactor ?? 1) : 1;
   const warpDt   = dt * warp;
