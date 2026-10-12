@@ -32,7 +32,6 @@ export function tickTelemetry(dt) {
   _acc += dt;
   if (_acc < INTERVAL) return;
   _acc = 0;
-  const isHover = S.aircraft?.type === 'hovercraft';
   const row = {
     t:           +S.time.toFixed(1),
     alt:         +S.alt.toFixed(0),
@@ -93,14 +92,6 @@ export function tickTelemetry(dt) {
       row.moon_dist_km  = +(Math.sqrt(dx*dx + dy*dy + dz*dz) / 1000).toFixed(0);
       row.moon_relspd   = +(Math.sqrt(rvx*rvx + rvy*rvy + rvz*rvz)).toFixed(1);
     }
-  } else if (isHover) {
-    const pfx = S.hcActive === 'markus' ? 'hcM' : 'hc';
-    row.hcLiftAct  = +(S[pfx+'LiftAct']  ?? 0).toFixed(3);
-    row.hcPressure = +(S[pfx+'Pressure'] ?? 0).toFixed(1);
-    row.hcSpeed    = +(S[pfx+'Speed']    ?? 0).toFixed(2);
-    row.hcHeading  = +(S[pfx+'Heading']  ?? 0).toFixed(1);
-    row.hcHovering = S[pfx+'Hovering'] ? 1 : 0;
-    row.hcAutonomy = S.hcMAutonomy ?? 'MANUAL';
   }
   _buf.push(row);
 }

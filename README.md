@@ -154,8 +154,6 @@ axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1
 
 | Vehicle | Notes |
 |---------|-------|
-| Timo's Hovercraft | EDF lift + thrust, plenum physics, VotingTriad 3-node autonomy, multi-vehicle |
-| Markus' Demonstrator | Hovercraft, GPS autonomy test |
 | SO-101 Robot Arm | 6-DOF arm visualisation |
 | Yertle Quadruped Dog | 12-joint quadruped visualisation |
 
@@ -249,8 +247,6 @@ Story missions (Wolfskopf) run with a fixed scenario and skip the scenario choos
 
 | Mission | Vehicle | What |
 |---------|---------|------|
-| Plenum Physics · First Hover | Timo's Hovercraft | Single-vehicle plenum physics |
-| Dual Vehicle · Plenum Comparison | Timo's Hovercraft | Two vehicles side by side, VotingTriad lift/thrust |
 | H2D · GPS Autonomy Test | Markus' Demonstrator | GPS autonomy |
 | Workspace · Familiarisation | SO-101 Robot Arm | Arm visualisation, hardware-in-the-loop to an ESP32 via `server/robot_bridge.js` |
 | Dog Lab · Visualisation | Yertle Quadruped Dog | Joint-by-joint visualisation |
@@ -459,7 +455,6 @@ core/
   physics.js                  — aerodynamic force balance, ground roll, brakes/autobrake, CFIT, cooling
   thrust.js                   — engine thrust models
   rocket.js                   — gravity turn, orbit-targeting guidance, staging, RTLS/ASDS, propagator, reentry
-  hovercraft_physics.js       — plenum lift + thrust for the Lab hovercraft
   mission.js                  — loads aircraft + mission JSON, live METAR fetch
   mission-start.js            — named mission start positions (gates, runways)
   catalog.js                  — mission picker catalogue, loaded from missions/catalog.json
@@ -502,7 +497,7 @@ display/
   outside.js                  — 3D wireframe renderer: painter's algorithm, flat shading, Canvas 2D
   outside-*.js                — per-family geometry (warbirds, widebody, rocket, space) + draw helpers
   com.js                      — COM radio + transponder
-  robot_arm.js · yertle_quadruped.js · hovercraft_display.js — Lab visualisations
+  robot_arm.js · yertle_quadruped.js — Lab visualisations
   *-data.js                   — bundled data: runways, taxiways, stands, terminals, towers, navaids,
                                 airways, procedures, satellites, windsocks
   svg/                        — vehicle silhouettes
@@ -549,7 +544,7 @@ npx playwright install chromium
 npm test
 ```
 
-`npm test` runs the Node unit tests first (`tests/*.test.mjs`, 67 tests), then the Playwright browser specs (175 tests in 14 files), all headless: physics, fuel/engine/carb heat, thrust, sound synthesis and state machines, COM radio, FMA, managed speed, route building, VNAV, aircraft data, hovercraft, rocket staging and orbital mechanics. Calibration specs run separately with `npm run calibrate`.
+`npm test` runs the Node unit tests first (`tests/*.test.mjs`, 64 tests), then the Playwright browser specs (165 tests in 13 files), all headless: physics, fuel/engine/carb heat, thrust, sound synthesis and state machines, COM radio, FMA, managed speed, route building, VNAV, aircraft data, rocket staging and orbital mechanics. Calibration specs run separately with `npm run calibrate`.
 
 Running subsets, reading the output, the `?test=1` API, writing tests and the current known failures → [docs/testing.md](docs/testing.md).
 

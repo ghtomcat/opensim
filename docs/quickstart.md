@@ -21,7 +21,7 @@ Starting a mission walks you through a few screens. Each one waits for you.
 
 | Screen | What to do |
 |--------|------------|
-| **Mission selector** | Three tabs: **Fly** (aircraft), **Orbit** (rockets), **Lab** (robots and hovercraft). Click a card. |
+| **Mission selector** | Three tabs: **Fly** (aircraft), **Orbit** (rockets), **Lab** (robots). Click a card. |
 | **Briefing** | The mission orders and the story. Read it, then click anywhere. |
 | **Scenario setup** | Pick **Weather** (Live METAR or a preset), **Crew** (your role), **Failures** (start with *No failure*). Click **Fly**. Story missions and rocket launches skip this screen. |
 | **Flight briefing** | Airliners only: route, airport, departure, arrival, nav log, weather, frequencies. Click **Fly →**. |

@@ -376,60 +376,6 @@
     }
   },
   {
-    "id": "hovercraft-test",
-    "aircraft": "hovercraft_timo",
-    "acName": "Timo's Hovercraft",
-    "engine": "Freewing DF-80 (Lift) · FMS 90mm (Thrust)",
-    "location": "Workshop / School",
-    "title": "Plenum Physics · First Hover",
-    "era": "LAB",
-    "accent": "#39d0d0",
-    "briefing": {
-      "date": "Workshop · Schüler Physikprojekt",
-      "pilot": "Timo",
-      "unit": "OpenSim Hovercraft Lab",
-      "aircraft": "Timo's Hovercraft · 600×400mm · 3.4 kg · Plenum 0.24 m²",
-      "orders": "Lift EDF: Freewing DF-80-12B @ 6S — 3300g Freiluft.\nESC-Limit: 80% = 2640g effektiv.\nSchwebedruck: 3.4 kg × 9.81 / 0.24 m² = 139 Pa.\nSchiebregler: Gewicht · Drosselklappe · Schürzendichtheit.",
-      "atmosphere": "Theorie trifft Realität.\nDieser Simulator läuft neben dem echten Hovercraft.\nWenn der Hovercraft schwebt, zeigt die Telemetrie dieselben Werte."
-    }
-  },
-  {
-    "id": "hovercraft-demo",
-    "aircraft": "hovercraft_timo",
-    "acName": "Hovercraft Demo — Timo & Markus",
-    "engine": "Freewing DF-80 · FMS 90mm · HobbyKing 64mm · FMS 50mm",
-    "location": "Faigle3D Workshop",
-    "title": "Dual Vehicle · Plenum Comparison",
-    "era": "LAB",
-    "accent": "#f85149",
-    "briefing": {
-      "date": "Faigle3D Workshop · Hovercraft Demonstrator",
-      "pilot": "Timo + Markus",
-      "unit": "OpenSim Hovercraft Lab",
-      "aircraft": "Timo: 600×400mm · 3.4 kg · Plenum 0.24 m²\nMarkus (H2D): 320×280mm · 0.8 kg · GPS-Autonomie",
-      "orders": "Zwei Fahrzeuge. Ein Simulator.\nTimo: Manuelle Steuerung · Lift + Thrust Regler.\nMarkus: MANUAL / HOVER / TRACK (GPS-Autopilot).\nVehicle-Selector: TIMO · BEIDE · MARKUS.",
-      "atmosphere": "Faigle3D H2D — Hovercraft Demonstrator.\nDieselbe Physik. Zwei Maßstäbe.\nVergleich: Plenumdruck · Schwebekraft · Wirkungsgrad."
-    }
-  },
-  {
-    "id": "hovercraft-markus",
-    "aircraft": "hovercraft_markus",
-    "acName": "Markus' Demonstrator",
-    "engine": "HobbyKing 64mm (Lift) · FMS 50mm (Thrust)",
-    "location": "Faigle3D Workshop",
-    "title": "H2D · GPS Autonomy Test",
-    "era": "LAB",
-    "accent": "#f85149",
-    "briefing": {
-      "date": "Faigle3D Workshop · H2D Demonstrator",
-      "pilot": "Markus",
-      "unit": "Faigle3D Hovercraft Lab",
-      "aircraft": "Markus' Demonstrator · 320×280mm · 0.8 kg · Plenum 0.0896 m²",
-      "orders": "Lift EDF: HobbyKing 64mm @ 4S.\nSchwebedruck: 0.8 kg × 9.81 / 0.0896 m² = 87.6 Pa.\nAutonomie: MANUAL · HOVER · TRACK.\nTRACK: Zielpeilung mit Schieberegler setzen.",
-      "atmosphere": "Faigle3D H2D — Hovercraft Demonstrator.\nKleiner. Schneller. Autonom.\nGPS-Tracking im Testlauf."
-    }
-  },
-  {
     "id": "so101-workspace",
     "aircraft": "so101",
     "acName": "SO-101 Robot Arm",

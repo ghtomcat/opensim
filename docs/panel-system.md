@@ -10,7 +10,7 @@ The cockpit is drawn on `<canvas>` elements. There are three kinds of cockpit di
 | **Hand-drawn panels** | Steam-gauge warbirds and the Velis Electro | One JS module per panel (`display/bf109.js`, `f4u1a.js`, `velis_epsi.js`) |
 | **Cockpit zones** | Overhead, pedestal, left/right console, centre panel — slide-in views around the main panel | The aircraft's `views` list + per-zone modules (`display/overhead.js`, …) |
 
-Rockets, hovercraft and robots have their own displays and are not part of the panel
+Rockets and robots have their own displays and are not part of the panel
 system.
 
 ---
@@ -23,7 +23,6 @@ renderer per frame. Vehicle type is checked first, then the aircraft's `panel` f
 ```js
 if      (isDog)                       renderYertleQuadruped(canvas);
 else if (isArm)                       renderRobotArm(canvas);
-else if (isHover)                     renderHovercraft(canvas);
 else if (isRocket && dragonSepT)      renderDragon(canvas);          // + rocket telemetry
 else if (isRocket && id==='saturn-v') renderApollo(canvas);          // / renderLM()
 else if (isRocket)                    renderRocket(canvas);

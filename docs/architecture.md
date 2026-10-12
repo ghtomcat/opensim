@@ -26,7 +26,7 @@ data → simulation → presentation → shell → tooling.
 OpenSim/
 │
 │   ── DATA: what to simulate (no code) ─────────────────────────────
-├── aircraft/          One JSON per vehicle: aircraft, rockets, hovercraft, robots
+├── aircraft/          One JSON per vehicle: aircraft, rockets, robots
 ├── missions/          One JSON per mission + catalog.json (the mission picker list)
 ├── config/            Cockpit-config cascade: defaults.json → manufacturers/*.json
 ├── panels/            Data-driven glass-panel layouts (PFD/ND/ECAM/G1000/DR400/E190)
@@ -78,7 +78,7 @@ OpenSim/
 
 | Directory | Contents | Read by |
 |---|---|---|
-| `aircraft/` | Vehicle definitions: identity, envelope, performance/aero, handling, engines, fuel, gear, cooling, sound, cockpit views, checklists. `vehicleType`/`type` select the physics model (aircraft, rocket, hovercraft, robot). | `core/mission.js` at mission load |
+| `aircraft/` | Vehicle definitions: identity, envelope, performance/aero, handling, engines, fuel, gear, cooling, sound, cockpit views, checklists. `vehicleType` selects the physics model (aircraft, rocket, robot). | `core/mission.js` at mission load |
 | `missions/` | Scenario definitions: aircraft reference, departure/arrival, initial state, weather, ATC/narrative timeline, failures, debrief. `catalog.json` is the mission-picker list (titles, briefings, roles). | `core/mission.js`, `core/catalog.js` |
 | `config/` | Cockpit configuration cascade. `defaults.json` is the base layer; `manufacturers/{airbus,boeing,embraer}.json` override it; the aircraft's own `cockpit` block overrides last. | `core/aircraft-config.js` |
 | `panels/` | Layout specs for the data-driven glass displays (`airbus-pfd/nd/ecam`, `e190-pfd/nd`, `g1000`, `dr400`); `styles/` holds the per-family look. | `display/panel_renderer.js` |
@@ -91,7 +91,7 @@ not draw. Grouped by role:
 | Group | Modules |
 |---|---|
 | State & loop | `state.js` (single source of truth `S` + `setState`), `loop.js` (requestAnimationFrame loop, dispatches physics and renderers), `mission.js` / `mission-start.js` (load JSON, set initial state, weather), `catalog.js` (mission list) |
-| Physics | `physics.js` (fixed-wing), `rocket.js` (launch, staging, orbit, booster recovery), `hovercraft_physics.js`, `thrust.js`, `pushback.js` |
+| Physics | `physics.js` (fixed-wing), `rocket.js` (launch, staging, orbit, booster recovery), `thrust.js`, `pushback.js` |
 | Aircraft systems | `fuel.js`, `electrical.js`, `battery.js`, `hydraulics.js`, `baro.js`, `failures.js`, `aircraft-config.js` |
 | Navigation & automation | `route.js` (full route: SID/airways/STAR/approach), `lnav.js`, `vnav.js`, `managed-speed.js`, `fma.js`, `airway-graph.js`, `taxi-graph.js` |
 | Crew, radio, sound | `crew.js` (PF/PM/ATC/GPWS voice dispatch), `radio.js` (comm-chain filtering), `sound.js` (Web Audio engine synthesis), `*-processor.js` (AudioWorklet engine/crackle synthesizers: DB 605, Le Rhône 9J, Lycoming, R-2800) |
@@ -103,7 +103,7 @@ Everything that draws. Three kinds of files live here:
 
 | Kind | Files |
 |---|---|
-| Instruments & cockpit panels | `pfd.js`, `pfd_instruments.js`, `panel_renderer.js` (data-driven, reads `panels/`), `ecam.js`, `g1000.js`, `fma.js`, `com.js`, `clock.js`, `smooth.js` (display-lag smoothing); type-specific panels `bf109.js`, `f4u1a.js`, `velis_epsi.js`, `rocket_display.js`, `dragon.js`, `lm_display.js`, `dsky.js`, `hovercraft_display.js`; cockpit zones `overhead.js`, `pedestal.js`, `leftconsole.js`, `rightconsole.js`, `centerconsole.js`, `pushbutton.js` |
+| Instruments & cockpit panels | `pfd.js`, `pfd_instruments.js`, `panel_renderer.js` (data-driven, reads `panels/`), `ecam.js`, `g1000.js`, `fma.js`, `com.js`, `clock.js`, `smooth.js` (display-lag smoothing); type-specific panels `bf109.js`, `f4u1a.js`, `velis_epsi.js`, `rocket_display.js`, `dragon.js`, `lm_display.js`, `dsky.js`; cockpit zones `overhead.js`, `pedestal.js`, `leftconsole.js`, `rightconsole.js`, `centerconsole.js`, `pushbutton.js` |
 | World & views | `outside.js` (3D outside view entry) with `outside-*.js` (per-type airframes, engines, gear, livery, rockets, space), `terrain.js`, `terrain-color.js`, `night-lights.js`, `map.js`, `cislunar.js`, `earthrise.js`, `coastlines.js`, `kneeboard.js`, `robot_arm.js`, `yertle_quadruped.js` |
 | Generated reference data | `runways-data.js`, `navdata.js`, `navaids-data.js`, `airways-data.js`, `taxi-data.js`, `stands-data.js`, `terminals-data.js`, `satellites-data.js`, `towers-data.js`, `procedures-data-xp.js` (gitignored, optional) — all produced by `scripts/build-*.py`; `windsocks-data.js` is hand-maintained; `stands-util.js` is helper code |
 
@@ -191,7 +191,7 @@ Grouped by what each field controls. "Consumer" is the module that reads it at r
 | **Radio & voice** | `com {title, active, standby, freqs, loops, xpdrLabel}`, `commProfile`, `characters {<speaker>: {commProfile}}`, `atcClearances [...]`, `approachBrief [...]` | `display/com.js`, `core/crew.js`, `core/radio.js` |
 | **Scripted events** | `failures [...]`, `engineFailures [...]` (rockets), `events [{t, label}]` (timeline markers) | `core/failures.js`, `core/rocket.js`, rocket displays |
 | **Crew aids** | `kneeboard [...]`, `waypoints [...]`, `debrief [...]` | `display/kneeboard.js`, `display/map.js` / `pfd_instruments.js`, `index.html` (post-flight) |
-| **Vehicle-specific** | Spaceflight: `dragonSepT`, `dragonSeats`, `targetOrbitKm`, `deorbitT/Dv`, `tliT/Dv/Duration`, `sivbSepT`, `mcc*T`, `loiT/Dv`, `teiT/Dv`, `pc2T/Dv`, `noLOI`, `hasLM`, `moonRefAngle`, `crew`, `reentryGuidance`. Others: `vehicles` (multi-vehicle hovercraft), `arm` (robot-arm targets) | `core/rocket.js`, rocket/Dragon/Apollo displays; `index.html`, `core/state.js` |
+| **Vehicle-specific** | Spaceflight: `dragonSepT`, `dragonSeats`, `targetOrbitKm`, `deorbitT/Dv`, `tliT/Dv/Duration`, `sivbSepT`, `mcc*T`, `loiT/Dv`, `teiT/Dv`, `pc2T/Dv`, `noLOI`, `hasLM`, `moonRefAngle`, `crew`, `reentryGuidance`. Others: `arm` (robot-arm targets) | `core/rocket.js`, rocket/Dragon/Apollo displays; `index.html` |
 
 Units follow the aviation convention used throughout `S`: feet, knots, degrees,
 hPa, seconds of mission time. `timeOfDay` is in hours (0–24); values below 1 are
@@ -245,7 +245,7 @@ etc.), not the mission file.
 
 An **aircraft file** describes one vehicle: what it is, how it flies, what its cockpit
 looks like, how it sounds, and what it looks like from outside. "Aircraft" is used
-loosely. The same format covers rockets, hovercraft and robots. The file is pulled in
+loosely. The same format covers rockets and robots. The file is pulled in
 by the mission's `aircraft` field (§2.2) and lives in `S.aircraft` for the whole flight.
 
 ### 3.1 Selector fields: which code runs
@@ -255,13 +255,13 @@ that simulates and draws it. Read these first when opening an unfamiliar aircraf
 
 | Field | Chooses | Values in use | Read by |
 |---|---|---|---|
-| `vehicleType` / `type` | Physics model | `vehicleType: "rocket"` → `tickRocket()`; `type: "hovercraft"` → `tickHovercraft()`; `vehicleType: "robot-arm"` → no physics (kinematics in the display); anything else → `tickPhysics()` | `core/loop.js` |
+| `vehicleType` | Physics model | `vehicleType: "rocket"` → `tickRocket()`; `vehicleType: "robot-arm"` → no physics (kinematics in the display); anything else → `tickPhysics()` | `core/loop.js` |
 | `manualControl` | Inside `tickPhysics()`: the force-based flight model (`true`), or a simple kinematic model that converges on the autopilot targets (absent) | `true` on every flyable aircraft; absent only on `dc8` (stub) | `core/physics.js` |
 | `panel` | Cockpit instrument panel | `airbus` (also used by the Boeings), `e190`, `g1000`, `dr400`, `bf109` (also MiG-15), `f4u`, `velis-epsi`; absent → default PFD | `index.html`, `display/panel_renderer.js`, many `core/` modules (see issues) |
 | `displays` | Glass screens and their page specs from `panels/` | Airbus-family aircraft | `display/panel_renderer.js` |
 | `views` | Which cockpit zones exist and which keys toggle them | `overhead`, `left`, `center`, `right`, `pedestal` | `index.html`, `display/*console.js`, `overhead.js`, `pedestal.js` |
 | `render` | 3D outside model builder, when not the generic airliner builder | `bf109`, `f4u`, `mig15`, `propplane` (C172), `c172` (DR400), `falcon1`, `falcon9`, `saturn-v`, `starship` | `display/outside.js` |
-| `sound.engineType` | Engine sound synthesizer | `v12-supercharged`, `radial-2000hp`, `lycoming-o360`, `rotary-9`, `turbojet-vk1`, `nk12-turboprop`, `high-bypass`, `geared-turbofan` (default when absent), `edf-hovercraft`, `electric`, `none` | `index.html` → `core/sound.js` |
+| `sound.engineType` | Engine sound synthesizer | `v12-supercharged`, `radial-2000hp`, `lycoming-o360`, `rotary-9`, `turbojet-vk1`, `nk12-turboprop`, `high-bypass`, `geared-turbofan` (default when absent), `electric`, `none` | `index.html` → `core/sound.js` |
 | `engine.type` | Turbofan systems (N1 spool, start sequence, reversers, ECAM) | `"turbofan"`; on other aircraft `engine` is a descriptive **string** | `core/physics.js`, `thrust.js`, `sound.js`, `electrical.js`, `mission.js`, displays |
 | `manufacturer`, `family` | Config cascade layers (§3.3) | `airbus`, `boeing`, `embraer` have layer files | `core/aircraft-config.js` |
 
@@ -272,7 +272,7 @@ that simulates and draws it. Read these first when opening an unfamiliar aircraf
 | **Identity** | `id`, `name`, `manufacturer`, `family`, `model`, `subtype`, `registration`, `callsign`, `icaoType`, `crewLang` | picker, COM/ATC (`callsign`), `core/crew.js` (`crewLang`) |
 | **Flight model** | `performance {mass, wingArea, thrustMax, CL_0, CL_alpha, CL_max, CD_0, …}`, `envelope {cruiseAlt, maxAlt, cruiseSpd, maxSpd, spdProfile}`, `handling {rollRate, pitchRate, maxBank, maxPitch}`, `flaps [{label, dCL_0, dCL_max, dCD_0}]`, `thrustProfiles`, `approachSpeed`, `autobrake`, `rotaryEngine` | `core/physics.js`, `thrust.js`, `managed-speed.js`, `vnav.js`, `input.js`, pedestal/levers |
 | **Rocket model** | `performance {massWet, stages[], payload, fpaProfile[], recovery{}, …}`, `ignitionTime`, `staging`, `gridFins`, `landingLegs` | `core/rocket.js`, rocket displays |
-| **Other vehicle models** | `specs` (hovercraft, robot), `joints`, `links` (robot arm/dog) | `core/hovercraft_physics.js`, `display/robot_arm.js`, `display/yertle_quadruped.js` |
+| **Other vehicle models** | `specs` (robot), `joints`, `links` (robot arm/dog) | `display/robot_arm.js`, `display/yertle_quadruped.js` |
 | **Systems** | `tanks`, `fuelBurn`, `hasCarbHeat`; `cooling {type, ambient, normal, redline, …}` + `coolingSystem`; `electrical`; `battery` | `core/fuel.js`, `core/physics.js` (heat balance), `core/failures.js`, `core/electrical.js`, `core/battery.js` |
 | **Cockpit** | `panel`, `displays`, `views`, `clock`, `left` / `right` / `pedestal` (control lists per zone), `com`, `cockpit` (config override, §3.3), `map` | `display/*`, `index.html` |
 | **Crew & procedures** | `pmCallouts`, `takeoffCallouts`, `gpws`, `checklist` (flap schedule callouts), `fmaPhases`, `kneeboard`, `situations` (quick-start states), `onboarding` (key help) | `core/crew.js`, `display/kneeboard.js`, `core/physics.js`, `index.html` |
@@ -438,7 +438,7 @@ display/panel_renderer.js   _WIDGETS registry: widget name → draw function
 existing widgets needs only JSON: `panel`, `displays`, and if necessary a new spec or
 style. A new kind of instrument needs a new widget (code). Cockpits that don't fit the
 widget model (the warbirds, the Velis) are hand-drawn modules selected by `panel`
-(§3.1), and so are the vehicle displays (rockets, hovercraft, robots).
+(§3.1), and so are the vehicle displays (rockets, robots).
 
 The slide-in **cockpit zones** (overhead, pedestal, consoles, centre) are configured
 by the aircraft's `views` list and per-zone token lists (`left`, `right`,
@@ -500,7 +500,6 @@ dt = time since last frame, capped at 0.1 s
      tickFuel(dt), tickBattery(dt), tickElectrical(dt), tickHydraulics(dt)
      vehicle physics, chosen per frame (§3.1):
         rocket      → tickRocket + tickBooster   (time warp, fixed steps; see below)
-        hovercraft  → tickHovercraft(warpDt)
         robot-arm   → nothing (kinematics live in the display)
         otherwise   → tickPhysics(warpDt)
      tickCrew(prevAlt, S.alt)        ATC script, callouts, GPWS
@@ -509,8 +508,8 @@ dt = time since last frame, capped at 0.1 s
 3. renderers    every function in the list, every frame (also while paused)
 ```
 
-- **Mission time.** `S.time` is advanced inside `tickPhysics()` and `tickRocket()`. The
-  hovercraft and robot tickers don't advance it.
+- **Mission time.** `S.time` is advanced inside `tickPhysics()` and `tickRocket()`. Robots
+  don't advance it.
 - **Time warp exists only for rockets** (`warpFactor` 1/10/100/1000). Below 1 s of sim
   time per frame, the rocket steps once with the frame's `dt`. At or above it, an
   accumulator steps in fixed `PHYS_DT = 1.0 s` increments, so the trajectory doesn't
@@ -539,7 +538,7 @@ draw phase for these.
 In test mode (`?test=1`), `index.html` exposes `window.simStep(n, dt)`,
 `simGetState()`, `simSetState()` and `simLoad()` ([testing.md](testing.md)).
 `simStep` does **not** call the loop's tick. It runs its own, shorter sequence:
-failures → fuel → physics (rocket / hovercraft / aircraft) → crew. It skips input,
+failures → fuel → physics (rocket / aircraft) → crew. It skips input,
 battery, electrical, hydraulics, telemetry, the rocket fixed-step accumulator and the
 warp target. Meanwhile the real `requestAnimationFrame` loop keeps running (known
 issue: *Test runs are not deterministic*).
@@ -565,8 +564,8 @@ different tick from the game loop*).
 
 `tickPhysics(dt)` simulates every winged aircraft, once per frame (§6.2). It's one
 function of about 680 lines that reads `S` and the aircraft JSON and ends in a single
-`setState()` with the new state. Rockets (`core/rocket.js`) and hovercraft
-(`core/hovercraft_physics.js`) have their own tickers and are described separately.
+`setState()` with the new state. Rockets (`core/rocket.js`) have their own
+ticker and are described separately.
 
 ### 7.1 One tick, in order
 
@@ -660,11 +659,11 @@ turbulence applied per frame instead of per second.
 
 ---
 
-## 8. Rocket and Hovercraft Physics
+## 8. Rocket and Robot Physics
 
-Two more vehicle tickers, chosen by the loop from `vehicleType` / `type` (§3.1, §6.2).
-Both write into `S` like the aircraft model. Rockets reuse the aircraft fields with
-different meanings, and the hovercraft uses its own prefixed fields.
+The other vehicle kinds, chosen by the loop from `vehicleType` (§3.1, §6.2). Rockets
+write into `S` like the aircraft model, reusing the aircraft fields with different
+meanings; robots have no physics ticker.
 
 ### 8.1 Rockets (`core/rocket.js`)
 
@@ -730,37 +729,13 @@ The booster returns to the launch site (RTLS) or flies to a droneship downrange
 (`performance.recovery.asds`, no boostback). It uses its own vertical-plane
 integration, with guidance derived and validated in `tools/booster-descent-sim.mjs`.
 
-### 8.3 Hovercraft (`core/hovercraft_physics.js`)
-
-> **To be removed** (decided 2026-10-11, see `issues.md` → *Hovercraft — to be removed*).
-
-A **plenum-pressure model** for small EDF hovercraft. It's tuned from the aircraft
-`specs` (plenum area, mass, skirt leakage, fan data) and `envelope` (max lift
-throttle, minimum hover pressure):
-
-- **Lift:** fan pressure with a back-pressure term, minus skirt leakage. The craft
-  hovers when plenum pressure × area ≥ weight, and is self-calibrated to hover
-  exactly at the maximum lift throttle.
-- **Thrust and yaw:** only while hovering; friction-damped speed and yaw rate.
-- **ESC temperatures:** heating with throttle², cooling toward ambient, derating
-  from 85 °C and cut-off at 100 °C.
-- **Voting triad:** three flight-computer nodes. One failed → `DEGRADED` (60 % yaw
-  authority), two → `DIRECT`. The thrust-acceleration limiter is active only in
-  `NORMAL`.
-- **Autonomy modes:** `MANUAL`, `HOVER`, `TRACK`. Emergency landing deflates over
-  ~2.5 s.
-
-It ticks **two named vehicles** (Timo → `hc*` fields, Markus → `hcM*` fields), selected
-by `S.hcActive`. It computes speed and heading but **no position**. `S.lat/lon/time`
-aren't advanced.
-
-### 8.4 Robots
+### 8.3 Robots
 
 `robot-arm` and `robot-dog` vehicles have no physics ticker. Joint kinematics live in
 their displays (`display/robot_arm.js`, `display/yertle_quadruped.js`), driven by
 `S.armJoints` / `S.dogJoints`.
 
-### 8.5 Modelling notes
+### 8.4 Modelling notes
 
 - **The Earth doesn't rotate.** No rotation rate appears in the model: the launch gets
   no eastward velocity from the Earth, and the orbit vector is converted to lat/lon as
@@ -995,7 +970,7 @@ Procedural synthesis. Nothing is a looped recording except the start-up sequence
 
 | Kind | Engine types | Technique |
 |---|---|---|
-| Oscillator engines | `geared-turbofan` (default), `high-bypass`, `low-bypass-military`, `turbojet-vk1`, `nk12-turboprop`, `edf-hovercraft` | sawtooth harmonics + filtered noise, pitch follows RPM/N1 |
+| Oscillator engines | `geared-turbofan` (default), `high-bypass`, `low-bypass-military`, `turbojet-vk1`, `nk12-turboprop` | sawtooth harmonics + filtered noise, pitch follows RPM/N1 |
 | Impulse engines | `v12-supercharged` (DB 605), `radial-2000hp` (R-2800), `lycoming-o360`, `rotary-9` (Le Rhône) | AudioWorklet cylinder-firing synthesis (`*-processor.js`), one per engine family |
 | Start-up / shut-down | turbofan (CFM56), DB 605, R-2800, Lycoming, VK-1 | assembled buffers played once; **they drive `engineState`** (§9.2) |
 | Effects | — | engine bang, gunfire, coolant hiss, AP-disconnect chime, APU, fuel pump, GPWS whoop |
@@ -1189,7 +1164,7 @@ It also publishes `S.terrainElevFt` (the DEM elevation under the aircraft) and
   `pfd_instruments.js` uses it.
 - **Vehicle displays:** `rocket_display.js` (launch telemetry, Apollo),
   `dragon.js`, `lm_display.js`, `dsky.js`, `cislunar.js`, `earthrise.js`,
-  `hovercraft_display.js`, `robot_arm.js`, `yertle_quadruped.js`.
+  `robot_arm.js`, `yertle_quadruped.js`.
 - **Map** (`display/map.js`): local north-up mini-map for aircraft (runways, navaids,
   route, taxi route); world map with the ground track for rockets. Also embedded maps
   in the G1000 and Velis panels.
@@ -1263,7 +1238,7 @@ Beyond wiring, the module script holds application features (see `issues.md` →
 | Live flight: radar picker, ADS-B tracking that drives the sim | `flyWithFlight`, `renderRadarMap`, `_startTracking`, `_pollTracking` |
 | Panel text updates, mission clock, METAR display | `updatePanel` (~175 lines), `renderMissionClock`, `updateMetar` |
 | Approach tracking and **scoring**, debrief, crash overlay | `_trackApproach`, `_computeApproachScore`, `_computeEmergScore`, `showDebrief`, `checkCrash` |
-| Mission-specific UI | Wolfskopf diary debrief, hovercraft control panel |
+| Mission-specific UI | Wolfskopf diary debrief |
 | Time-warp buttons, on-screen keyboard | `_getNextEvent`, `_initOsk` |
 | FCU and glass-panel interaction, page cycling | `_fcuGeometry`, `_currentSpec`, Tab handler |
 | Test API | `window.simStep`, `simGetState`, `simSetState`, `simLoad` |

@@ -62,7 +62,7 @@ return { vs };
 
 **Done when.** No lift-deficit term outside the force balance; glide sinks are steady (no oscillation) and plausible — C172 ~700 fpm at 68 kt; `physics.spec.js`, `physics.test.js` (AP altitude hold, ILS tracking) and the landing tests pass, re-tuned where the old behaviour was baked in.
 
-**Affects.** Every aircraft with the full flight model (`manualControl`): all Fly-tab aircraft, also with the AP engaged (applies after the AP pitch command). Not rockets, hovercraft, DC-8. Active only above a 5 % lift deficit: slow flight, engine-out glides, under-pitched approaches, the flare.
+**Affects.** Every aircraft with the full flight model (`manualControl`): all Fly-tab aircraft, also with the AP engaged (applies after the AP pitch command). Not rockets, DC-8. Active only above a 5 % lift deficit: slow flight, engine-out glides, under-pitched approaches, the flare.
 
 ### Angle of attack = pitch attitude
 *Found 2026-10-11 · `tickPhysics()` in `core/physics.js`, `const alpha = newPitch * DEG`*
@@ -451,19 +451,6 @@ Leaflet 1.9.4 (JS + CSS) and Three.js r134 (+ `STLLoader`, `OrbitControls`) load
 
 ---
 
-## Hovercraft — to be removed
-
-*Decided 2026-10-11:* the hovercraft vehicles will be removed. The two findings below are recorded for completeness; they will be solved by the removal, not fixed.
-
-- **Two named vehicles are hard-coded.** `core/hovercraft_physics.js` ticks "Timo" (`hc*` state fields) and "Markus" (`hcM*`) by name, selected with `S.hcActive === 'markus'`; `index.html` checks `S.aircraft?.id === 'hovercraft_markus'`. A third hovercraft would need code changes.
-- **No mission time and no position.** The hovercraft ticker advances neither `S.time` nor `S.lat/lon` — mission-time triggers (`atcClearances` with `t:`), failures by time and telemetry time don't work in hovercraft missions.
-
-**Removal scope** (as of 2026-10-11): `core/hovercraft_physics.js`, `display/hovercraft_display.js`, `aircraft/hovercraft*.json` (3), `missions/hovercraft-*.json` (3) + their `catalog.json` entries, `tests/hovercraft.test.js`; hovercraft branches in `core/loop.js`, `core/state.js` (`hc*` fields), `core/sound.js` (`edf-hovercraft`), `core/telemetry.js`, `index.html`; mentions in `README.md`, `docs/architecture.md`, `docs/panel-system.md`, `docs/testing.md`, `docs/quickstart.md`.
-
-**Done when.** `grep -rni hovercraft core display index.html aircraft missions tests` finds nothing; the test suite passes.
-
----
-
 ## Sound
 
 ### F4U Corsair starts up with the DB 605 start-up sound
@@ -475,7 +462,7 @@ The check compares against `'radial-2800hp'`, but the F4U's engine type (and eve
 ### Velis electric motor plays the geared-turbofan sound
 *Found 2026-10-11 · `ENGINES` in `core/sound.js`; `startSound('electric')` in `display/velis_epsi.js`*
 
-The Velis's `sound.engineType` is `"electric"`, but `ENGINES` has no `electric` preset; `initSound()` / `startSound()` fall back to `ENGINES['geared-turbofan']` (`ENGINES[type] ?? ENGINES['geared-turbofan']`). **Cause — verified (code), not yet heard in the sim.** **Fix:** an `electric` preset (motor whine + prop, no combustion — `edf-hovercraft`'s fast `slewTime` is a starting point), calibrated against a Velis recording (`docs/sound-calibration.md`). **Done when:** the Velis sounds like an electric motor; an unknown `engineType` is a validation error (see *No contract between the JSON data and the code*), not a silent turbofan.
+The Velis's `sound.engineType` is `"electric"`, but `ENGINES` has no `electric` preset; `initSound()` / `startSound()` fall back to `ENGINES['geared-turbofan']` (`ENGINES[type] ?? ENGINES['geared-turbofan']`). **Cause — verified (code), not yet heard in the sim.** **Fix:** an `electric` preset (motor whine + prop, no combustion — the removed `edf-hovercraft` preset used `slewTime: 0.04`, "electric motors spool almost instantly"), calibrated against a Velis recording (`docs/sound-calibration.md`). **Done when:** the Velis sounds like an electric motor; an unknown `engineType` is a validation error (see *No contract between the JSON data and the code*), not a silent turbofan.
 
 ### Comm profile names outside the profile table
 *Found 2026-10-11 · `PROFILES` in `core/radio.js`; `missions/crew-demo2.json`*
@@ -548,13 +535,12 @@ The declared layering (data → simulation → presentation → shell) is also n
 ### No vehicle contract
 *Found 2026-10-11 · architecture review (`docs/architecture.md` §3.1, §8)*
 
-**Symptom.** One JSON shape and one `S` cover aircraft, rockets, hovercraft and robots, and each vehicle type is handled by `if` branches spread across modules:
+**Symptom.** One JSON shape and one `S` cover aircraft, rockets and robots, and each vehicle type is handled by `if` branches spread across modules:
 - rockets reuse fields with different meanings (`S.pitch` = flight-path angle, `S.spd` = total velocity);
-- the hovercraft has its own prefixed fields and advances no position or time;
-- selectors are inconsistent: `vehicleType` vs `type`, `panel: "airbus"` on the Boeings and `"bf109"` on the MiG-15, `engine` as object or string;
+- selectors are inconsistent: `so101.json` and `yertle.json` still carry a top-level `type` no code reads (since the hovercraft removal, `vehicleType` is the only physics selector), `panel: "airbus"` on the Boeings and `"bf109"` on the MiG-15, `engine` as object or string;
 - specific ids are checked in generic modules (*Vehicle- and mission-specific special cases in generic core modules*).
 
-**Why it matters.** Each new vehicle kind adds branches in the loop, mission load, sound, displays and crew. The hovercraft's removal (*Hovercraft — to be removed*) is partly this cost.
+**Why it matters.** Each new vehicle kind adds branches in the loop, mission load, sound, displays and crew. The hovercraft's removal (2026-10-12) was partly this cost.
 
 **Fix.** A small contract per vehicle kind, registered by `vehicleType`: `{ initState(aircraft, mission), tick(dt), reset(), fields, display, sound }`. The loop and `loadMission()` dispatch through the registry instead of branching. One selector field (`vehicleType`), required. Rocket-specific quantities get their own names instead of reusing `pitch`/`spd`.
 

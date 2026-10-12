@@ -6,7 +6,6 @@
 
 import { S, setState } from './state.js';
 import { tickPhysics }     from './physics.js?v=6';
-import { tickHovercraft }  from './hovercraft_physics.js';
 import { tickRocket, tickBooster } from './rocket.js';
 import { tickCrew }        from './crew.js';
 import { tickGamepad, tickControls } from './input.js';
@@ -89,8 +88,6 @@ function _tick(now) {
         tickBooster(stepDt);
         if ((S.warpFactor ?? 1) < warpBefore) { _physAccum = 0; break; }
       }
-    } else if (S.aircraft?.type       === 'hovercraft') {
-      tickHovercraft(warpDt);
     } else if (S.aircraft?.vehicleType === 'robot-arm') {
       /* arm kinematics — no physics tick */
     } else {

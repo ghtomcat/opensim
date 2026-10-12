@@ -4,8 +4,8 @@ Two runners, no build step:
 
 | Runner | Files | Count | Time | What |
 |--------|-------|-------|------|------|
-| **Node** (`node --test`) | `tests/*.test.mjs` | 67 | < 1 s | Pure logic: aircraft data, DB 601 synthesis, FMA, managed speed, route building, thrust, VNAV |
-| **Playwright** (headless Chromium) | `tests/*.spec.js`, `tests/*.test.js` | 175 in 14 files | ~6 min (4 workers) | The real sim in a browser page: physics, fuel/engine/carb, sound state machines, COM, rockets, orbits, hovercraft, outside profiles |
+| **Node** (`node --test`) | `tests/*.test.mjs` | 64 | < 1 s | Pure logic: aircraft data, DB 601 synthesis, FMA, managed speed, route building, thrust, VNAV |
+| **Playwright** (headless Chromium) | `tests/*.spec.js`, `tests/*.test.js` | 165 in 13 files | ~6 min (4 workers) | The real sim in a browser page: physics, fuel/engine/carb, sound state machines, COM, rockets, orbits, outside profiles |
 
 ---
 
@@ -102,7 +102,7 @@ Load a mission with `/?mission=<id>&test=1` and wait for `window.simReady === tr
 
 To try something without writing a test, `tools/probe.mjs` loads a mission in test mode and prints what a snippet returns — see [issues.md → Reproducing](issues.md#reproducing).
 
-`simStep` runs `tickFailures → tickFuel → tickPhysics` (or `tickRocket + tickBooster`, or `tickHovercraft`) `→ tickCrew`. It does **not** run the electrical, battery, hydraulics or telemetry ticks that the real loop (`core/loop.js`) runs, and it never applies time-warp sub-stepping.
+`simStep` runs `tickFailures → tickFuel → tickPhysics` (or `tickRocket + tickBooster`) `→ tickCrew`. It does **not** run the electrical, battery, hydraulics or telemetry ticks that the real loop (`core/loop.js`) runs, and it never applies time-warp sub-stepping.
 
 ---
 

@@ -660,61 +660,6 @@
     .score-partial { color: #e8a838; }
     .score-fail  { color: #ff4444; }
 
-    /* ── Hovercraft control panel ── */
-    #hc-panel {
-      position: fixed; bottom: 0; left: 0; right: 0;
-      z-index: 50;
-      background: rgba(13,17,23,0.97);
-      border-top: 1px solid #30363d;
-      display: none;
-      flex-wrap: wrap;
-      gap: 0;
-      align-items: stretch;
-      touch-action: manipulation;
-    }
-    .hc-group {
-      display: flex; flex-direction: column; gap: 4px;
-      padding: 10px 16px;
-      border-right: 1px solid #30363d;
-      min-width: 140px;
-    }
-    .hc-group:last-child { border-right: none; }
-    .hc-label {
-      font-family: "Helvetica Neue", sans-serif;
-      font-size: 9px; font-weight: 700;
-      letter-spacing: 0.08em; text-transform: uppercase;
-      color: #8b949e;
-    }
-    .hc-val {
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 11px; color: #39d0d0;
-      margin-bottom: 2px;
-    }
-    .hc-slider {
-      -webkit-appearance: none;
-      width: 100%; height: 6px;
-      border-radius: 3px;
-      background: #30363d;
-      outline: none; cursor: pointer;
-    }
-    .hc-slider::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 20px; height: 20px;
-      border-radius: 50%;
-      background: #39d0d0;
-      cursor: pointer;
-    }
-    .hc-nodes { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
-    .hc-node-btn {
-      flex: 1; padding: 8px 4px;
-      border: 1px solid #30363d; border-radius: 4px;
-      background: #1c2128; color: #e6edf3;
-      font-size: 10px; font-family: "Helvetica Neue", sans-serif;
-      cursor: pointer; text-align: center; touch-action: manipulation;
-    }
-    .hc-node-btn.ok     { border-color: #3fb950; color: #3fb950; background: #3fb95018; }
-    .hc-node-btn.fail   { border-color: #f85149; color: #f85149; background: #f8514918; }
-
     /* ── Crash overlay ── */
     #crash-overlay {
       position: fixed; inset: 0;
@@ -2064,95 +2009,6 @@
   </div>
 </div>
 
-<!-- Hovercraft control panel -->
-<div id="hc-panel">
-
-  <!-- Vehicle selector (only shown in demo mission) -->
-  <div class="hc-group" id="hc-vehicle-group" style="display:none">
-    <div class="hc-label">Vehicle</div>
-    <div class="hc-nodes" id="hc-vehicle-btns">
-      <button class="hc-node-btn ok"  id="hc-sel-timo"   data-vehicle="timo">TIMO</button>
-      <button class="hc-node-btn"     id="hc-sel-both"   data-vehicle="both">BEIDE</button>
-      <button class="hc-node-btn"     id="hc-sel-markus" data-vehicle="markus">MARKUS</button>
-    </div>
-  </div>
-
-  <!-- Timo controls (hidden for Markus-only mission) -->
-  <div class="hc-group" id="hc-timo-lift-group">
-    <div class="hc-label" style="color:#39d0d0">Timo — Lift EDF</div>
-    <div class="hc-val" id="hc-lift-val">0%</div>
-    <input class="hc-slider" type="range" min="0" max="100" value="0" id="hc-lift-slider">
-    <div style="display:flex;justify-content:space-between;margin-top:2px">
-      <div class="hc-label" style="color:#d29922">ESC limit: 80%</div>
-      <div class="hc-label">Lift ESC: <span id="hc-lift-esc-temp" style="color:#3fb950">25°C</span></div>
-    </div>
-  </div>
-  <div class="hc-group" id="hc-timo-thrust-group">
-    <div class="hc-label" style="color:#39d0d0">Timo — Thrust</div>
-    <div class="hc-val" id="hc-thrust-val">0%</div>
-    <input class="hc-slider" type="range" min="0" max="100" value="0" id="hc-thrust-slider">
-    <div class="hc-label" style="margin-top:2px">Thr ESC: <span id="hc-thr-esc-temp" style="color:#3fb950">25°C</span></div>
-  </div>
-  <div class="hc-group" id="hc-timo-emerg-group">
-    <button id="hc-emerg-btn" style="width:100%;padding:6px;background:rgba(248,81,73,0.15);border:1px solid #f85149;color:#f85149;font-family:inherit;font-size:11px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase">⬇ EMERG LAND</button>
-  </div>
-  <div class="hc-group" id="hc-mass-group">
-    <div class="hc-label">Gesamtgewicht (kg)</div>
-    <div class="hc-val" id="hc-mass-val">3.4 kg</div>
-    <input class="hc-slider" type="range" min="20" max="50" value="34" id="hc-mass-slider">
-    <div class="hc-label" style="margin-top:2px">Ziel: 3.4 kg · Reprint: 2.5 kg</div>
-  </div>
-  <div class="hc-group" id="hc-leak-group">
-    <div class="hc-label">Schürzendichtheit</div>
-    <div class="hc-val" id="hc-leak-val">15%</div>
-    <input class="hc-slider" type="range" min="0" max="60" value="15" id="hc-leak-slider">
-    <div class="hc-label" style="margin-top:2px">0% = dicht · 60% = undicht</div>
-  </div>
-  <div class="hc-group" id="hc-nodes-group">
-    <div class="hc-label">BNO055 Voting Triad</div>
-    <div class="hc-nodes" id="hc-nodes">
-      <button class="hc-node-btn ok" data-node="0">Node 1</button>
-      <button class="hc-node-btn ok" data-node="1">Node 2</button>
-      <button class="hc-node-btn ok" data-node="2">Node 3</button>
-    </div>
-    <div class="hc-label" id="hc-mode-label" style="margin-top:4px;color:#3fb950">NORMAL</div>
-  </div>
-
-  <!-- Markus controls -->
-  <div class="hc-group" id="hcm-group" style="display:none">
-    <div class="hc-label" style="color:#f85149">Markus — Autonomy</div>
-    <div class="hc-nodes" id="hcm-auto-btns">
-      <button class="hc-node-btn ok" id="hcm-manual" data-auto="MANUAL">MANUAL</button>
-      <button class="hc-node-btn"    id="hcm-hover"  data-auto="HOVER">HOVER</button>
-      <button class="hc-node-btn"    id="hcm-track"  data-auto="TRACK">TRACK</button>
-    </div>
-  </div>
-  <div class="hc-group" id="hcm-manual-group" style="display:none">
-    <div class="hc-label" style="color:#f85149">Markus — Lift EDF</div>
-    <div class="hc-val" id="hcm-lift-val">0%</div>
-    <input class="hc-slider" type="range" min="0" max="100" value="0" id="hcm-lift-slider">
-    <div style="display:flex;justify-content:space-between;margin-top:2px">
-      <div class="hc-label" style="color:#d29922">ESC limit: 80%</div>
-      <div class="hc-label">Lift ESC: <span id="hcm-lift-esc-temp" style="color:#3fb950">25°C</span></div>
-    </div>
-  </div>
-  <div class="hc-group" id="hcm-thrust-group" style="display:none">
-    <div class="hc-label" style="color:#f85149">Markus — Thrust</div>
-    <div class="hc-val" id="hcm-thrust-val">0%</div>
-    <input class="hc-slider" type="range" min="0" max="100" value="0" id="hcm-thrust-slider">
-    <div class="hc-label" style="margin-top:2px">Thr ESC: <span id="hcm-thr-esc-temp" style="color:#3fb950">25°C</span></div>
-  </div>
-  <div class="hc-group" id="hcm-emerg-group" style="display:none">
-    <button id="hcm-emerg-btn" style="width:100%;padding:6px;background:rgba(248,81,73,0.15);border:1px solid #f85149;color:#f85149;font-family:inherit;font-size:11px;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase">⬇ EMERG LAND</button>
-  </div>
-  <div class="hc-group" id="hcm-track-group" style="display:none">
-    <div class="hc-label" style="color:#f85149">Markus — Target HDG</div>
-    <div class="hc-val" id="hcm-target-val">000°</div>
-    <input class="hc-slider" type="range" min="0" max="359" value="0" id="hcm-target-slider">
-  </div>
-
-</div>
-
 <!-- On-screen keyboard (touch devices only) -->
 <div id="osk">
   <!-- Autopilot aircraft (A350, Tu-95, An-225…) -->
@@ -2225,7 +2081,6 @@
            spdParse as _spdParse, spdLabel as _spdLabel,
            SEG_COL as _SEG_COL } from './core/route.js';
   import { tickPhysics }     from './core/physics.js?v=6';
-  import { tickHovercraft }  from './core/hovercraft_physics.js';
   import { tickRocket, tickBooster } from './core/rocket.js';
   import { tickFailures }    from './core/failures.js';
   import { cycleFuelSelector, tickFuel } from './core/fuel.js';
@@ -2246,7 +2101,6 @@
   import { renderECAM, initECAM, handleECAMClick } from './display/ecam.js';
   import { renderBf109 }       from './display/bf109.js';
   import { renderF4U1A }       from './display/f4u1a.js';
-  import { renderHovercraft }  from './display/hovercraft_display.js';
   import { initRobotArm, renderRobotArm, resetRobotArm } from './display/robot_arm.js';
   import { renderYertleQuadruped, resetYertleQuadruped } from './display/yertle_quadruped.js';
   import { renderVelisEpsi, handleVelisClick } from './display/velis_epsi.js';
@@ -3242,7 +3096,6 @@
   /* ── Scenario setup ── */
   function _hasScenarioSetup(m) {
     return m.phase !== 'launch'
-      && !m.id.includes('hovercraft')
       && m.id !== 'live-flight'
       && !m.fixedScenario;   // scripted story missions (fixed weather + scripted failures) skip the chooser
   }
@@ -3912,72 +3765,6 @@
     if (S.aircraft?.map === false) { hideMap(); hideVelisMap(); hideG1000Map(); }
     else { showMap(); hideVelisMap(); hideG1000Map(); }
 
-    /* Reset hovercraft panel sliders on mission load */
-    if (S.aircraft?.type === 'hovercraft') {
-      const isMarkusOnly = S.aircraft?.id === 'hovercraft_markus';
-      setState({
-        hcLiftT: 0, hcThrustT: 0, hcRudder: 0, hcHeading: 0,
-        hcSpeed: 0, hcYawRate: 0, hcNodes: [1, 1, 1],
-        hcActive: isMarkusOnly ? 'markus' : 'timo', hcVehicles: null,
-        hcMLiftT: 0, hcMThrustT: 0, hcMRudder: 0, hcMHeading: 0,
-        hcMSpeed: 0, hcMYawRate: 0, hcMNodes: [1, 1, 1],
-        hcMAutonomy: 'MANUAL', hcMTargetHdg: 0,
-        hcLiftEscTemp: 25, hcThrEscTemp: 25, hcEmergency: false,
-        hcMLiftEscTemp: 25, hcMThrEscTemp: 25, hcMEmergency: false,
-      });
-      ['hc-lift-slider','hc-thrust-slider','hcm-lift-slider','hcm-thrust-slider'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.value = 0;
-      });
-      const massEl = document.getElementById('hc-mass-slider');
-      if (massEl) { massEl.value = 34; document.getElementById('hc-mass-val').textContent = '3.4 kg'; }
-      const leakEl = document.getElementById('hc-leak-slider');
-      if (leakEl) { leakEl.value = 15; document.getElementById('hc-leak-val').textContent = '15%'; }
-      document.getElementById('hc-lift-val').textContent   = '0%';
-      document.getElementById('hc-thrust-val').textContent = '0%';
-      if (document.getElementById('hcm-lift-val'))
-        document.getElementById('hcm-lift-val').textContent = '0%';
-      if (document.getElementById('hcm-thrust-val'))
-        document.getElementById('hcm-thrust-val').textContent = '0%';
-      document.querySelectorAll('#hc-nodes .hc-node-btn').forEach(btn => {
-        btn.classList.add('ok'); btn.classList.remove('fail');
-      });
-      document.getElementById('hc-mode-label').textContent = 'NORMAL';
-      document.getElementById('hc-mode-label').style.color = '#3fb950';
-
-      /* Load dual vehicles if mission defines them */
-      const vehicles = S.mission?.vehicles;
-      if (vehicles?.length >= 2) {
-        Promise.all(vehicles.map(v => fetch(`aircraft/${v}.json`).then(r => r.json())))
-          .then(([timoAc, markusAc]) => {
-            setState({ hcVehicles: { timo: timoAc, markus: markusAc } });
-            document.getElementById('hc-vehicle-group').style.display = '';
-            /* Markus controls only visible once user switches to Markus/Both */
-          })
-          .catch(e => console.warn('hcVehicles load failed', e));
-      } else if (isMarkusOnly) {
-        /* Single Markus mission — hide Timo controls, show Markus controls */
-        ['hc-timo-lift-group','hc-timo-thrust-group','hc-mass-group',
-         'hc-leak-group','hc-nodes-group','hc-vehicle-group'].forEach(id => {
-          document.getElementById(id).style.display = 'none';
-        });
-        document.getElementById('hcm-group').style.display        = '';
-        document.getElementById('hcm-manual-group').style.display = '';  /* MANUAL by default */
-        document.getElementById('hcm-thrust-group').style.display = '';
-        document.getElementById('hcm-track-group').style.display  = 'none';
-      } else {
-        /* Timo-only mission — show Timo controls, hide Markus controls */
-        ['hc-timo-lift-group','hc-timo-thrust-group','hc-mass-group',
-         'hc-leak-group','hc-nodes-group'].forEach(id => {
-          document.getElementById(id).style.display = '';
-        });
-        ['hc-vehicle-group','hcm-group','hcm-manual-group',
-         'hcm-thrust-group','hcm-track-group'].forEach(id => {
-          document.getElementById(id).style.display = 'none';
-        });
-      }
-    }
-
     startTelemetry();
 
     loadBar.style.width = '60%';
@@ -4048,7 +3835,7 @@
     /* Show onboarding — skip for autonomous/slider-controlled vehicles */
     const obEl = document.getElementById('onboarding');
     const _isRobotArm = S.aircraft?.vehicleType === 'robot-arm' || S.aircraft?.vehicleType === 'robot-dog';
-    const _noKeys = S.aircraft?.vehicleType === 'rocket' || S.aircraft?.type === 'hovercraft' || _isRobotArm;
+    const _noKeys = S.aircraft?.vehicleType === 'rocket' || _isRobotArm;
     /* Test mode (?test=1) skips it: nobody dismisses the overlay, and a paused sim never ticks */
     if (!_noKeys && !_isTestMode) { obEl.classList.add('visible'); setState({ paused: true }); }
     /* Init sound with default engine type from aircraft JSON */
@@ -4287,13 +4074,11 @@
         canvas.style.display     = ecam ? 'none' : '';
         ecamCanvas.style.display = ecam ? '' : 'none';
         const panel    = S.aircraft?.panel ?? 'pfd';
-        const isHover  = S.aircraft?.type === 'hovercraft';
         const isRocket = S.aircraft?.vehicleType === 'rocket';
         const isDog    = S.aircraft?.vehicleType === 'robot-dog';
         const isArm    = S.aircraft?.vehicleType === 'robot-arm' || isDog;
         if      (isDog)              renderYertleQuadruped(canvas);
         else if (isArm)              renderRobotArm(canvas);
-        else if (isHover)            renderHovercraft(canvas);
         else if (isRocket && S.mission?.dragonSepT) {
           if (isDragonTelemetry()) renderRocket(canvas);
           renderDragon(canvas);
@@ -4320,7 +4105,7 @@
         if (_prevAp && !S.ap) apDisconnectChime();
         _prevAp = S.ap;
 
-        /* Show/hide hovercraft control panel; hide COM for hovercraft only (rockets get loop selector) */
+        /* Hide COM where the panel has its own (rockets get loop selector) */
         const isVelis  = panel === 'velis-epsi';
         const isG1000  = panel === 'g1000';
         const isPanel  = panel === 'airbus' || panel === 'e190';
@@ -4334,9 +4119,8 @@
         document.body.classList.toggle('g1000-active',  isG1000);
         document.body.classList.toggle('velis-active',  isVelis);
         document.body.classList.toggle('panel-dual',    hasDual);
-        document.getElementById('hc-panel').style.display      = isHover ? 'flex' : 'none';
         document.getElementById('com-container').style.display  =
-          (isHover || isVelis || isArm || isPanel || isDR400) ? 'none' : (isG1000 ? (S.comPanelVisible ? '' : 'none') : '');
+          (isVelis || isArm || isPanel || isDR400) ? 'none' : (isG1000 ? (S.comPanelVisible ? '' : 'none') : '');
         /* Comm-panel placement from the resolved cockpit config (manufacturer/family/model
            cascade) — the pedestal offset now comes from data, not the CSS hack. */
         const _com = S.aircraft?.cockpitCfg?.comPanel;
@@ -4349,7 +4133,7 @@
         document.getElementById('fma').style.display            = (isRocket || hasOwnUI || isArm || isPanel || isVintage) ? 'none' : '';
         document.getElementById('warning-lights').style.display = (hasOwnUI || isPanel || isArm) ? 'none' : '';
         document.getElementById('metar-strip').style.display    = (hasOwnUI || isPanel || isArm || isVintage) ? 'none' : '';
-        _oskUpdate(isHover, S.aircraft?.manualControl);
+        _oskUpdate(S.aircraft?.manualControl);
       },
       () => renderFMA(),
       () => renderOverhead(),
@@ -4358,7 +4142,6 @@
       () => renderRightConsole(),
       () => renderCenterConsole(),
       () => updatePanel(),
-      () => updateEscTemps(),
       () => updateMetar(),
       () => _trackApproach(),
       () => checkDebrief(),
@@ -4874,108 +4657,6 @@
 
   window.downloadBlackbox = downloadBlackbox;
 
-  /* ── Hovercraft control panel ── */
-  (function _initHcPanel() {
-    const lift  = document.getElementById('hc-lift-slider');
-    const thr   = document.getElementById('hc-thrust-slider');
-    const mass  = document.getElementById('hc-mass-slider');
-    const leak  = document.getElementById('hc-leak-slider');
-
-    lift.addEventListener('input', () => {
-      document.getElementById('hc-lift-val').textContent = `${lift.value}%`;
-      setState({ hcLiftT: lift.value / 100 });
-    });
-    thr.addEventListener('input', () => {
-      document.getElementById('hc-thrust-val').textContent = `${thr.value}%`;
-      setState({ hcThrustT: thr.value / 100 });
-    });
-    mass.addEventListener('input', () => {
-      const v = mass.value / 10;
-      document.getElementById('hc-mass-val').textContent = `${v.toFixed(1)} kg`;
-      setState({ hcMass: v });
-    });
-    leak.addEventListener('input', () => {
-      document.getElementById('hc-leak-val').textContent = `${leak.value}%`;
-      setState({ hcLeakage: leak.value / 100 });
-    });
-
-    /* Timo node failure buttons */
-    document.getElementById('hc-nodes').addEventListener('click', e => {
-      const btn = e.target.closest('.hc-node-btn');
-      if (!btn) return;
-      const i   = parseInt(btn.dataset.node);
-      const cur = [...(S.hcNodes ?? [1, 1, 1])];
-      cur[i]    = cur[i] >= 0.9 ? 0 : 1;
-      setState({ hcNodes: cur });
-      btn.classList.toggle('ok',   cur[i] >= 0.9);
-      btn.classList.toggle('fail', cur[i] < 0.5);
-      const nFail  = cur.filter(n => n < 0.5).length;
-      const modeEl = document.getElementById('hc-mode-label');
-      modeEl.textContent = nFail >= 2 ? 'DIRECT' : nFail >= 1 ? 'DEGRADED' : 'NORMAL';
-      modeEl.style.color = nFail >= 2 ? '#f85149' : nFail >= 1 ? '#d29922' : '#3fb950';
-    });
-
-    /* ── Vehicle selector ── */
-    document.getElementById('hc-vehicle-btns').addEventListener('click', e => {
-      const btn = e.target.closest('[data-vehicle]');
-      if (!btn) return;
-      const v = btn.dataset.vehicle;
-      /* Only allow both/markus when vehicles are loaded */
-      if (v !== 'timo' && !S.hcVehicles?.markus) return;
-      setState({ hcActive: v });
-      document.querySelectorAll('#hc-vehicle-btns [data-vehicle]').forEach(b => {
-        b.classList.toggle('ok', b.dataset.vehicle === v);
-      });
-      /* Show Markus controls when Markus is active */
-      const showMarkus = v === 'markus' || v === 'both';
-      document.getElementById('hcm-group').style.display       = showMarkus ? '' : 'none';
-      document.getElementById('hcm-manual-group').style.display = showMarkus && S.hcMAutonomy === 'MANUAL' ? '' : 'none';
-      document.getElementById('hcm-thrust-group').style.display = showMarkus && S.hcMAutonomy === 'MANUAL' ? '' : 'none';
-      document.getElementById('hcm-track-group').style.display  = showMarkus && S.hcMAutonomy === 'TRACK'  ? '' : 'none';
-    });
-
-    /* ── Markus autonomy selector ── */
-    document.getElementById('hcm-auto-btns').addEventListener('click', e => {
-      const btn = e.target.closest('[data-auto]');
-      if (!btn) return;
-      const a = btn.dataset.auto;
-      setState({ hcMAutonomy: a });
-      document.querySelectorAll('#hcm-auto-btns [data-auto]').forEach(b => {
-        b.classList.toggle('ok', b.dataset.auto === a);
-      });
-      document.getElementById('hcm-manual-group').style.display = a === 'MANUAL' ? '' : 'none';
-      document.getElementById('hcm-thrust-group').style.display = a === 'MANUAL' ? '' : 'none';
-      document.getElementById('hcm-track-group').style.display  = a === 'TRACK'  ? '' : 'none';
-    });
-
-    /* ── Markus manual lift slider ── */
-    document.getElementById('hcm-lift-slider').addEventListener('input', e => {
-      document.getElementById('hcm-lift-val').textContent = `${e.target.value}%`;
-      setState({ hcMLiftT: e.target.value / 100 });
-    });
-
-    /* ── Markus manual thrust slider ── */
-    document.getElementById('hcm-thrust-slider').addEventListener('input', e => {
-      document.getElementById('hcm-thrust-val').textContent = `${e.target.value}%`;
-      setState({ hcMThrustT: e.target.value / 100 });
-    });
-
-    /* ── Markus target heading slider ── */
-    document.getElementById('hcm-target-slider').addEventListener('input', e => {
-      const hdg = parseInt(e.target.value);
-      document.getElementById('hcm-target-val').textContent = `${String(hdg).padStart(3,'0')}°`;
-      setState({ hcMTargetHdg: hdg });
-    });
-
-    /* ── Emergency landing buttons ── */
-    document.getElementById('hc-emerg-btn').addEventListener('click', () => {
-      setState({ hcEmergency: true });
-    });
-    document.getElementById('hcm-emerg-btn').addEventListener('click', () => {
-      setState({ hcMEmergency: true });
-    });
-  })();
-
   /* ── Time controls — warp buttons ── */
   document.querySelectorAll('.warp-btn[data-warp]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -5052,9 +4733,9 @@
     });
   }
 
-  function _oskUpdate(isHover, isManual) {
+  function _oskUpdate(isManual) {
     const osk = document.getElementById('osk');
-    if (!_isTouchDevice || isHover) {
+    if (!_isTouchDevice) {
       osk.classList.remove('visible');
       return;
     }
@@ -5064,26 +4745,6 @@
   }
 
   _initOsk();
-
-  /* ── ESC temperature panel updates (runs in the display loop) ── */
-  function _tempColor(t) {
-    return t >= 85 ? '#f85149' : t >= 70 ? '#d29922' : '#3fb950';
-  }
-  function updateEscTemps() {
-    if (S.aircraft?.type !== 'hovercraft') return;
-    const liftEl  = document.getElementById('hc-lift-esc-temp');
-    const thrEl   = document.getElementById('hc-thr-esc-temp');
-    const mliftEl = document.getElementById('hcm-lift-esc-temp');
-    const mthrEl  = document.getElementById('hcm-thr-esc-temp');
-    if (liftEl)  { liftEl.textContent  = `${S.hcLiftEscTemp ?? 25}°C`;  liftEl.style.color  = _tempColor(S.hcLiftEscTemp ?? 25); }
-    if (thrEl)   { thrEl.textContent   = `${S.hcThrEscTemp  ?? 25}°C`;  thrEl.style.color   = _tempColor(S.hcThrEscTemp  ?? 25); }
-    if (mliftEl) { mliftEl.textContent = `${S.hcMLiftEscTemp ?? 25}°C`; mliftEl.style.color = _tempColor(S.hcMLiftEscTemp ?? 25); }
-    if (mthrEl)  { mthrEl.textContent  = `${S.hcMThrEscTemp  ?? 25}°C`; mthrEl.style.color  = _tempColor(S.hcMThrEscTemp  ?? 25); }
-    /* Show/hide emerg groups */
-    const isMarkusOnly = S.aircraft?.id === 'hovercraft_markus';
-    document.getElementById('hc-timo-emerg-group').style.display  = isMarkusOnly ? 'none' : '';
-    document.getElementById('hcm-emerg-group').style.display       = isMarkusOnly ? '' : 'none';
-  }
 
   /* ── Crash overlay ── */
   let _crashShown = false;
@@ -5194,14 +4855,12 @@
     window.simGetRpm      = () => getCurrentRpm();
     window.simEngineState = () => S.engineState ?? 'off';
     window.simStep     = (n = 1, dt = 1/60) => {
-      const isHC     = S.aircraft?.type         === 'hovercraft';
       const isRocket = S.aircraft?.vehicleType  === 'rocket';
       for (let i = 0; i < n; i++) {
         const prevAlt = S.alt;
         tickFailures(dt);
         tickFuel(dt);
         if      (isRocket) { tickRocket(dt); tickBooster(dt); }
-        else if (isHC)     tickHovercraft(dt);
         else               tickPhysics(dt);
         tickCrew(prevAlt, S.alt);
       }
