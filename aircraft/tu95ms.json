@@ -48,7 +48,6 @@
   "handling": {
     "rollRate":   6,
     "pitchRate":  2,
-    "spdRate":    1,
     "maxBank":    30,
     "maxPitch":   12
   },
