@@ -21,7 +21,7 @@
       "temp": 28,
       "wdir": 120,
       "wspd": 12,
-      "visibility": 9999,
+      "visib": "6+",
       "altim": 1013,
       "turbulence": 0.1
     }

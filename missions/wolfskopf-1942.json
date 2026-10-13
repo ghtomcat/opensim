@@ -18,7 +18,7 @@
       "temp": -22,
       "wdir": 45,
       "wspd": 0,
-      "visibility": 3000,
+      "visib": "2",
       "snow": true,
       "altim": 1013,
       "turbulence": 0.4
