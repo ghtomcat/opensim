@@ -2,6 +2,7 @@
   "id": "so101-workspace",
   "title": "SO-101 · Workspace Familiarisation",
   "phase": "ground",
+  "aircraft": "so101",
 
   "initialState": {
     "alt": 0, "spd": 0, "hdg": 0,

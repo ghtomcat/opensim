@@ -110,7 +110,7 @@ export const mission = object(
     ),
   },
   {
-    required: ['id', 'title', 'initialState', 'weather'],
+    required: ['id', 'title', 'aircraft', 'initialState', 'weather'],
     doc: { author: str, description: str, narrative: arrayOf(str), fiction_note: str, book: str },
     planned: { scoring: object({ timeLimit: num, penaltyPerViolation: num }) },
     check: (m) => {

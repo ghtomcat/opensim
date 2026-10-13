@@ -2,6 +2,7 @@
   "id": "yertle-lab",
   "title": "Yertle · Dog Lab",
   "phase": "ground",
+  "aircraft": "yertle",
 
   "initialState": {
     "alt": 0, "spd": 0, "hdg": 0,

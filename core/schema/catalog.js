@@ -3,6 +3,12 @@
    Schema for missions/catalog.json — the mission picker list.
    One entry per mission card; read by index.html (picker, briefing,
    role select). See core/schema/check.js for the rules.
+
+   The card holds labels, the mission file holds the facts: title,
+   acName, location and engine are short card texts and may differ
+   from the mission ("ILS Approach · RWY 28" vs "ILS Approach — Zürich
+   LSZH"). The one fact both carry — `aircraft` — must match; checked
+   in tests/data-schema.test.mjs.
    ═══════════════════════════════════════════════════════════════ */
 
 import { str, bool, arrayOf, object } from './check.js';

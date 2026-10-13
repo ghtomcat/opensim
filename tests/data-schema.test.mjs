@@ -45,6 +45,35 @@ for (const f of jsonIn('missions')) test(`missions/${f}`, () => expectValid(`mis
 test('missions/catalog.json', () => expectValid('missions/catalog.json', catalog));
 for (const f of jsonIn('aircraft')) test(`aircraft/${f}`, () => expectValid(`aircraft/${f}`, aircraft));
 
+/* ── Catalog ↔ mission files ── The card's labels may differ from the mission (short vs full title);
+   the facts may not. */
+const NOT_IN_PICKER = {
+  'live-flight': 'built at runtime from an ADS-B position (flyWithFlight() in index.html)',
+};
+const KNOWN_AIRCRAFT_MISMATCH = {
+  'egll-approach': 'egll-approach is temporarily the 737 MAX 9 into Madrid',
+};
+const acId = (s) => String(s).replace(/^aircraft\//, '').replace(/\.json$/, '');
+const missionIds = jsonIn('missions').map(f => f.replace(/\.json$/, ''));
+const cards = load('missions/catalog.json');
+
+test('every catalog card has a mission file', () => {
+  assert.deepEqual(cards.map(c => c.id).filter(id => !missionIds.includes(id)), []);
+});
+test('every mission is in the catalog, or explained in NOT_IN_PICKER', () => {
+  assert.deepEqual(missionIds.filter(id => !cards.some(c => c.id === id) && !NOT_IN_PICKER[id]), []);
+});
+test('every mission flies an aircraft that exists', () => {
+  const have = jsonIn('aircraft').map(f => f.replace(/\.json$/, ''));
+  assert.deepEqual(missionIds.filter(id => !have.includes(acId(load(`missions/${id}.json`).aircraft))), []);
+});
+test("the catalog's aircraft is the mission's aircraft", () => {
+  const mismatch = cards.filter(c => acId(load(`missions/${c.id}.json`).aircraft) !== c.aircraft).map(c => c.id);
+  assert.deepEqual(mismatch.filter(id => !KNOWN_AIRCRAFT_MISMATCH[id]), [], 'card and mission name different aircraft');
+  const fixed = Object.keys(KNOWN_AIRCRAFT_MISMATCH).filter(id => !mismatch.includes(id));
+  assert.deepEqual(fixed, [], `fixed — remove from KNOWN_AIRCRAFT_MISMATCH (and close "${KNOWN_AIRCRAFT_MISMATCH[fixed[0]]}")`);
+});
+
 /* ── The schemas catch what they're for: typical mistakes injected into real files ── */
 const errorsAfter = (file, schema, edit) => { const j = load(file); edit(j); return check(j, schema); };
 
