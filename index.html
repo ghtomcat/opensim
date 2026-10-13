@@ -2233,7 +2233,7 @@
   fcuCanvas.addEventListener('click', evt => {
     const panel = S.aircraft?.panel;
     if (panel !== 'airbus' && panel !== 'e190') return;
-    const { qnhX, spdX, hdgX, hdgW, apX, apW, altX, altW } = _fcuGeometry();
+    const { qnhX, spdX, hdgX, hdgW, apX, apW, altX, altW, vsX } = _fcuGeometry();
     const rect    = fcuCanvas.getBoundingClientRect();
     const mx      = evt.clientX - rect.left;
     if (mx >= qnhX && mx < spdX) {
