@@ -100,7 +100,7 @@ not draw. Grouped by role:
 | Data contract | `vocab.js` (the names data and code share — vehicle types, panels, engine sounds, triggers, rocket events, failures, comm profiles; a misspelled name throws), `schema/` (`check.js` validator; `mission.js`, `catalog.js`, `aircraft.js` schemas; `known.js`: logged violations) |
 | Physics | `physics.js` (fixed-wing), `rocket.js` (launch, staging, orbit, booster recovery), `thrust.js`, `pushback.js` |
 | Aircraft systems | `fuel.js`, `electrical.js`, `battery.js`, `hydraulics.js`, `baro.js`, `failures.js`, `aircraft-config.js` |
-| Navigation & automation | `route.js` (full route: SID/airways/STAR/approach), `lnav.js`, `vnav.js`, `managed-speed.js`, `fma.js`, `airway-graph.js`, `taxi-graph.js` |
+| Navigation & automation | `route.js` (full route: SID/airways/STAR/approach), `lnav.js`, `vnav.js`, `managed-speed.js`, `fma.js`, `airway-graph.js`, `taxi-graph.js`, `taxi.js` (the active taxi route + clearance) |
 | Crew, radio, sound | `crew.js` (PF/PM/ATC/GPWS voice dispatch), `radio.js` (comm-chain filtering), `sound.js` (Web Audio engine synthesis), `*-processor.js` (AudioWorklet engine/crackle synthesizers: DB 605, Le Rhône 9J, Lycoming, R-2800) |
 | I/O | `input.js` (keyboard/mouse/gamepad), `telemetry.js` + `blackbox.js` (recording/export), `hil.js` (hardware-in-the-loop), `liveflight.js` (live ADS-B lookup) |
 
@@ -909,18 +909,13 @@ altitude vs target, gear) is translated into each manufacturer's words:
 | Piece | Module | What |
 |---|---|---|
 | Taxi graph | `core/taxi-graph.js` | Builds a graph from bundled OSM taxiways (`TAXI_WAYS`), or fetches them live from Overpass for airports not bundled. Stand lead-in lines are stitched on as edges. Dijkstra gives a route; collapsing edges by `ref` gives the clearance text ("T5, A, A5"). |
-| Taxi route (the green line) | `display/map.js` | Departure: stand → departure runway. Arrival: after Ground's taxi-in clearance, vacate point → assigned gate (`S.arrivalGate`). Published to `S.taxiRoute`. |
-| Taxi clearance | `display/com.js` | Computes its own route for the ATC phrase and assigns the arrival gate from `arrival.dock`. |
+| Taxi route + clearance | `core/taxi.js` | Owns the active route, ticked with the sim (map open or not). Departure: stand → departure runway. Arrival: vacate point → assigned gate (`S.arrivalGate`), routed when Ground clears the taxi-in (`clearTaxiIn()`), published once `S.taxiCleared` is set. Recomputed after 80 m of movement or a new goal. Publishes `S.taxiRoute` and `S.taxiClearance` (`via` = the route's taxiway sequence). |
+| Taxi display and phrasing | `display/map.js`, `display/com.js` | The map draws `S.taxiRoute` as the green line; com.js phrases `S.taxiClearance` and assigns the arrival gate from `arrival.dock`. |
 | Runway vacate | `core/physics.js` | Latches `S.vacated` once the aircraft is slow and clear of the runway edge, which unlocks the taxi-in request. |
 | Pushback | `core/pushback.js` + `physics.js` | A main-gear path from the stand backwards onto the taxiway (straight back, then a fillet arc), derived from `S.taxiRoute`; physics overrides the pose while the push runs. |
 
 ### 10.5 Observations
 
-- **The taxi route only exists while the map is visible.** `S.taxiRoute` is
-  computed in `_updateTaxiRoute()`, which `renderMap()` calls after returning early if
-  the map is hidden (and only when the Leaflet layer exists). Pushback reads
-  `S.taxiRoute`, so with the map hidden it would have no path (inferred from code).
-  `display/com.js` computes a second taxi route of its own for the clearance.
 - **No flight-plan state.** See 10.1: five consumers recompute the route (a Dijkstra
   over the airway graph each time), and there is no plan to amend in flight.
 - **LNAV writes `S.fmsActive` directly** rather than through `setState`.
@@ -1207,7 +1202,7 @@ the EGPWS read (§7.4).
 
 - **`renderTerrain()` is one function of about 2,840 lines** (`terrain.js` lines
   653–~3,490), drawing every layer in 13.4 and sharing local state across them.
-- **Display modules do simulation work:** the taxi route (`map.js`, §10.5), the Velis motor's engine state
+- **Display modules do simulation work:** the Velis motor's engine state
   (`velis_epsi.js`, §9.2), and the camera pose written into `S` (`outside.js`, §6.5).
 - **Prop and warbird geometry is code, not data.** Airliners are data-driven (§3.4),
   but the C172, Bf 109, F4U and MiG-15 are vertex arrays inside JS modules.

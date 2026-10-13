@@ -252,15 +252,6 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 
 ## Navigation
 
-### Taxi route and pushback depend on the map being visible
-*Found 2026-10-11 · `_updateTaxiRoute()` / `renderMap()` in `display/map.js`; `capturePushback()` call in `core/physics.js`*
-
-**Symptom.** The taxi route (the green line) is computed in `_updateTaxiRoute()`, called from `renderMap()` — which returns early when the map is hidden, and `_updateTaxiRoute()` itself returns if the Leaflet layer doesn't exist. The result is published by direct assignment to `S.taxiRoute`. Physics captures the pushback path from `S.taxiRoute` on the first push frame.
-
-**Cause — verified (code); the pushback effect is inferred, not yet seen in the browser.** With the map closed (or Leaflet not loaded), `S.taxiRoute` stays null or stale → pushback has no path (or the wrong one). Separately, `display/com.js` computes its **own** taxi route for the clearance phrase (`getTaxiGraph` + `routeTaxi`), so the spoken clearance and the green line are two computations that can disagree.
-
-**Fix.** A core taxi module owns the active taxi route: computed from the aircraft position + goal (departure runway / assigned gate) when the goal or clearance changes, stored in `S` via `setState`. The map draws it; com.js phrases it; pushback uses it. **Done when.** `display/map.js` doesn't write `S`; the taxi route exists with the map hidden; the clearance text and the green line come from the same route.
-
 ### No flight-plan state — the route is recomputed per consumer
 *Found 2026-10-11 · `buildFullRoute()` in `core/route.js`*
 
@@ -465,7 +456,7 @@ The declared layering (data → simulation → presentation → shell) is also n
 
 **Suggested order.**
 1. ~~One tick and one mission lifecycle~~ — done 2026-10-12.
-2. Owned products in `core/` (route, taxi route, elevation); `core/` no longer depends on `display/` — done 2026-10-13 (`data/`, `core/elevation.js`); left: route, taxi route, flat ground.
+2. Owned products in `core/` (route, taxi route, elevation); `core/` no longer depends on `display/` — done 2026-10-13 (`data/`, `core/elevation.js`); taxi route — done 2026-10-13 (`core/taxi.js`); left: route, flat ground.
 3. ~~Schema check at load + a test that loads every aircraft and mission~~ — done 2026-10-13 (`core/schema/`, `core/vocab.js`); left: *Overloaded fields in the JSON data*, *Name comparisons still spelled out by hand*.
 4. Vehicle contract and per-engine state — when the training work needs them.
 
@@ -474,7 +465,7 @@ The declared layering (data → simulation → presentation → shell) is also n
 
 **Symptom.** `S` is one mutable object with ~170 fields. `setState` is `Object.assign` (~280 calls), and ~110 direct writes sit beside it. No field has a declared owner, so several modules write the same field and the last writer in the frame wins. The comment at the top of `state.js` (only physics, input, mission write) is out of date. On top of that, modules keep private state between frames (fired entries, ramps, caches), cleared by hand-written `reset*()` functions.
 
-**Evidence.** *`enginePower` has many writers and no composition*; *Engine start completes when the start-up sound finishes* (`sound.js` writes `engineState`); *The outside view borrows the flight state for its camera*; *LNAV writes `S.fmsActive` directly*; `display/map.js` writes `S.taxiRoute`.
+**Evidence.** *`enginePower` has many writers and no composition*; *Engine start completes when the start-up sound finishes* (`sound.js` writes `engineState`); *The outside view borrows the flight state for its camera*; *LNAV writes `S.fmsActive` directly*.
 
 **Why it matters.** Correctness depends on the order of the frame loop and of the ~30 closures in the renderer list. A new feature can't tell whose field it is about to overwrite.
 
@@ -487,7 +478,7 @@ The declared layering (data → simulation → presentation → shell) is also n
 
 **Symptom.** Products that several modules need are rebuilt by whoever needs them instead of being computed once and stored:
 - the flight plan: five consumers call `buildFullRoute()` (*No flight-plan state — the route is recomputed per consumer*);
-- the taxi route: once in `map.js` (only while the map is visible), once in `com.js` (*Taxi route and pushback depend on the map being visible*);
+- ~~the taxi route~~ — done 2026-10-13: `core/taxi.js` owns it; the map draws it, com.js phrases it, pushback follows it;
 - "ground": the field elevation of the nearer airport, recomputed each tick (*The ground is flat*). (The DEM elevation now has an owner: `core/elevation.js`, sampled once per tick — done 2026-10-13.)
 
 **Why it matters.** Copies can disagree, nothing can be amended (no route to re-clear in flight), and a product disappears when the consumer that happens to produce it isn't running.

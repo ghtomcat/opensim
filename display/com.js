@@ -9,7 +9,7 @@ import { speakATC, speakPM } from '../core/crew.js';
 import { bbEvent } from '../core/blackbox.js';
 import { RUNWAYS } from '../data/runways-data.js';
 import { gatesFor } from './stands-util.js';
-import { getTaxiGraph, routeTaxi } from '../core/taxi-graph.js';
+import { clearTaxiIn } from '../core/taxi.js';
 
 /* Nearest runway whose centreline is within `maxNm` (perpendicular distance, clamped to
    the thresholds) — on it, lined up, or holding short. Drives the takeoff and the
@@ -312,17 +312,13 @@ const _REQUESTS = [
     when: () => S.vacated && !S.taxiCleared,
     prep: () => {                                            // assign the gate, route to it → ATC + kneeboard read gate + via
       if (!S.arrivalGate) S.arrivalGate = _assignArrivalGate();
-      const g = S.arrivalGate, icao = S.mission?.arrival?.icao;
-      if (!g || !icao) return;
-      const graph = getTaxiGraph(icao, S.lat, S.lon);
-      const rt = graph && routeTaxi(graph, { lat: S.lat, lon: S.lon }, { lat: g.lat, lon: g.lon });
-      S.taxiClearance = { icao, arr: true, gate: g.ref, via: rt?.seq ?? [], distM: rt?.distM };
+      clearTaxiIn(S.arrivalGate);
     },
     pm:   cs => `Ground, ${cs}, runway ${S.mission?.arrival?.runway ?? ''} vacated, request taxi to stand`,
     atc:  cs => { const via = S.taxiClearance?.via ?? [];
                   const viaStr = via.length ? ` via ${via.join(', ')}` : '';
                   return `${cs}, Ground, taxi to stand ${S.arrivalGate?.ref ?? ''}${viaStr}`.replace(/\s+/g, ' ').trim(); },
-    run:  () => { S.taxiCleared = true; } },                 // → map.js reveals/updates the route to S.arrivalGate                 // → map.js reveals the route to S.arrivalGate
+    run:  () => { S.taxiCleared = true; } },                 // → core/taxi.js publishes the route to S.arrivalGate
 ];
 
 /* Assign an arrival gate from mission.arrival.dock, against the airport's bundled stands:

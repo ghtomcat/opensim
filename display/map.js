@@ -10,7 +10,6 @@ import { S }     from '../core/state.js';
 import { COAST, SPACE_SITES } from '../data/coastlines.js';
 import { NAVAIDS } from '../data/navdata.js';
 import { RUNWAYS } from '../data/runways-data.js';
-import { getTaxiGraph, routeTaxi, nearestStand } from '../core/taxi-graph.js';
 import { routeAirway } from '../core/airway-graph.js';
 
 const DEG = Math.PI / 180;
@@ -39,58 +38,9 @@ let _lrouteLine = null;   /* route polyline connecting waypoints */
 let _lairwayLine = null;  /* en-route airway flight plan (departure → destination) */
 let _ltaxiLine  = null;   /* taxi route polyline (gate ↔ runway, from the taxiway graph) */
 
-/* ── Taxi route over the OSM taxiway graph — drawn when on the ground at a mission
-   airport: departure → route to the runway, arrival → route to the nearest gate. ── */
-let _taxiFrom = null, _taxiKey = null, _taxiRoute = null;
-const _nmd = (la1, lo1, la2, lo2) => {
-  const dN = (la1 - la2) * 60, dE = (lo1 - lo2) * 60 * Math.cos(la1 * Math.PI / 180);
-  return Math.hypot(dN, dE);
-};
-function _updateTaxiRoute(lat, lon) {
-  if (!_ltaxiLine) return;
-  if (!S.wow) { _ltaxiLine.setLatLngs([]); _taxiRoute = null; _taxiKey = null; S.taxiRoute = null; return; }  // airborne → no taxi routing
-  const m = S.mission;
-  let icao = null, ctr = null, bd = 1e9;
-  for (const ic of [m?.departure?.icao, m?.arrival?.icao]) {
-    const rw = ic && RUNWAYS[ic]; if (!rw) continue;
-    const pts = rw.flatMap(r => [r.a, r.b]);
-    const c = [pts.reduce((s, p) => s + p[0], 0) / pts.length, pts.reduce((s, p) => s + p[1], 0) / pts.length];
-    const d = _nmd(lat, lon, c[0], c[1]); if (d < bd) { bd = d; icao = ic; ctr = c; }
-  }
-  if (!icao || bd > 6) { _ltaxiLine.setLatLngs([]); _taxiRoute = null; _taxiKey = null; return; }
-  const graph = getTaxiGraph(icao, ctr[0], ctr[1]);
-  if (!graph) return;                                  // still loading
-
-  const isArr = m?.arrival?.icao === icao && m?.departure?.icao !== icao;
-  if (isArr && !S.taxiCleared) {                          // arrival: no taxi route until Ground clears the taxi-in
-    _ltaxiLine.setLatLngs([]); _taxiRoute = null; _taxiKey = null; S.taxiRoute = null; return;
-  }
-  let goal = null, depRwy = null;
-  if (isArr) { const g = S.arrivalGate || nearestStand(graph, lat, lon); if (g) goal = { lat: g.lat, lon: g.lon }; }
-  if (!goal) {                                         // departure: the mission's runway, else nearest threshold
-    const want = String(m?.departure?.runway || '').toUpperCase();
-    if (want) for (const r of RUNWAYS[icao]) {
-      if ((r.leId || '').toUpperCase() === want) { goal = { lat: r.a[0], lon: r.a[1] }; depRwy = r.leId; break; }
-      if ((r.heId || '').toUpperCase() === want) { goal = { lat: r.b[0], lon: r.b[1] }; depRwy = r.heId; break; }
-    }
-    if (!goal) {                                       // fallback: nearest runway threshold
-      let best = null, bdd = 1e9;
-      for (const r of RUNWAYS[icao]) for (const [e, id] of [[r.a, r.leId], [r.b, r.heId]]) {
-        const d = _nmd(lat, lon, e[0], e[1]); if (d < bdd) { bdd = d; best = { lat: e[0], lon: e[1] }; depRwy = id; }
-      }
-      goal = best;
-    }
-  }
-  if (!goal) { _ltaxiLine.setLatLngs([]); return; }
-
-  const moved = !_taxiFrom || _nmd(lat, lon, _taxiFrom[0], _taxiFrom[1]) * 1852 > 80;
-  if (moved || _taxiKey !== icao) {
-    _taxiRoute = routeTaxi(graph, { lat, lon }, goal);
-    _taxiFrom = [lat, lon]; _taxiKey = icao;
-    if (_taxiRoute?.seq?.length) S.taxiClearance = { icao, via: _taxiRoute.seq, distM: _taxiRoute.distM, arr: isArr, rwy: isArr ? null : depRwy, gate: isArr ? (S.arrivalGate?.ref ?? null) : null };
-  }
-  S.taxiRoute = _taxiRoute;                              // expose the green line for pushback routing
-  _ltaxiLine.setLatLngs(_taxiRoute?.pts ?? []);
+/* ── Taxi route (core/taxi.js owns it) — drawn as the green line. ── */
+function _updateTaxiRoute() {
+  if (_ltaxiLine) _ltaxiLine.setLatLngs(S.taxiRoute?.pts ?? []);
 }
 
 /* Aviation-chart navaid symbol (VOR hexagon / NDB dotted circle / DME square) + label. */
@@ -574,7 +524,7 @@ function _renderLeafletLocal() {
     _updateWaypoints();
   }
 
-  _updateTaxiRoute(lat, lon);   // taxi route over the OSM taxiway graph
+  _updateTaxiRoute();   // taxi route over the OSM taxiway graph
 }
 
 /* Airport centre = mean of its runway thresholds (route endpoints). */
@@ -601,7 +551,6 @@ function _updateWaypoints() {
       try { r = routeAirway(dep[0], dep[1], arr[0], arr[1]); } catch { r = null; }
     }
     _lairwayLine.setLatLngs(r?.pts?.length ? [dep, ...r.pts, arr] : []);
-    S.airwayRoute = r;
   }
 
   const waypoints = S.mission?.waypoints ?? [];
