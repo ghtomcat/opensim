@@ -2076,10 +2076,11 @@
   import { TAXI_WAYS }    from './data/taxi-data.js';
   import { STANDS }       from './data/stands-data.js';
   import { TERMINALS, APRONS } from './data/terminals-data.js';
-  import { buildFullRoute as _buildFullRoute, arrStarOptions as _arrStarOptions,
+  import { arrStarOptions as _arrStarOptions,
            approachLegs as _approachLegs, missedApproachText as _missedApproachText, airportCentre as _airportCentre,
            spdParse as _spdParse, spdLabel as _spdLabel,
            SEG_COL as _SEG_COL } from './core/route.js';
+  import { planFor as _planFor } from './core/flightplan.js';
   import { cycleFuelSelector } from './core/fuel.js';
   import { initCrew, resetCrew } from './core/crew.js';
   import { initInput, isPTTActive }        from './core/input.js';
@@ -3250,9 +3251,9 @@
   let _PROCEDURES = {};
   import('./data/procedures-data-xp.js').then(m => { _PROCEDURES = m.PROCEDURES || {}; }).catch(() => {});
 
-  /* Airport centre, the procedure assemblers, and buildFullRoute now live in core/route.js
-     (shared with the in-flight ND in display/map.js); imported at the top as _airportCentre,
-     _arrStarOptions, _approachLegs, _buildFullRoute, _SEG_COL. */
+  /* Airport centre and the procedure assemblers live in core/route.js, imported at the top as
+     _airportCentre, _arrStarOptions, _approachLegs, _SEG_COL. The briefing's route is
+     _planFor() from core/flightplan.js — the same route the loaded mission's flight plan has. */
 
   /* Route-overview chart: coastline backdrop + the full gate-to-gate route, fit-to-route
      on a simple equirectangular projection. Segments coloured SID→en-route→STAR. */
@@ -3266,7 +3267,7 @@
     ctx.fillStyle = '#070b11'; ctx.fillRect(0, 0, W, H);
 
     const depLL = _airportCentre(dep?.icao), arrLL = _airportCentre(arr?.icao);
-    const route = _buildFullRoute(dep, arr);
+    const route = _planFor(dep, arr);
     const pts = route ? route.legs.map(l => [l.lat, l.lon]) : [];
     if (depLL && !pts.length) pts.push(depLL);
     if (!pts.length) return;
@@ -3431,7 +3432,7 @@
     /* default to the procedure the route actually flies; the tab opens on it and clicks
        cycle the alternatives. Departure = SID records (one per name on this runway);
        arrival = full assembled STARs (enroute + common + runway transition), one per name. */
-    const route = _buildFullRoute(md?.departure, md?.arrival);
+    const route = _planFor(md?.departure, md?.arrival);
     let list, chosen;
     if (isDep) {
       list = proc.sids.filter(s => !rwy || s.trans === rwy);
@@ -3557,7 +3558,7 @@
 
   /* Nav log — the route as a table: fix · leg distance · track · cumulative. */
   function _navLogHtml(dep, arr) {
-    const r = _buildFullRoute(dep, arr);
+    const r = _planFor(dep, arr);
     if (!r?.legs?.length) return `<div class="fb-empty">No en-route plan (local departure).</div>`;
     const segLbl = { dep: 'DEP', sid: 'SID', awy: 'AWY', star: 'STAR', app: 'APPR', arr: 'ARR' };
     let cum = 0, rows = '';
