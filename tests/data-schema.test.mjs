@@ -1,0 +1,88 @@
+/**
+ * Data schema — every mission, catalog entry and aircraft against its schema (core/schema/).
+ * Pure JSON checks, no browser. A misspelled key or an unknown enum value fails here instead of
+ * being silently ignored by the sim.
+ *
+ * KNOWN lists the violations that are logged in docs/issues.md and not fixed yet. The test fails on
+ * any other error — and on a KNOWN entry that no longer occurs, so the list can't go stale.
+ *
+ * Run:  node --test tests/data-schema.test.mjs
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import { check } from '../core/schema/check.js';
+import { mission } from '../core/schema/mission.js';
+import { catalog } from '../core/schema/catalog.js';
+import { aircraft } from '../core/schema/aircraft.js';
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const load = (rel) => JSON.parse(readFileSync(join(root, rel), 'utf8'));
+const jsonIn = (dir) => readdirSync(join(root, dir)).filter(f => f.endsWith('.json') && f !== 'catalog.json').sort();
+
+/* file → errors that are known and logged (issue title in docs/issues.md) */
+const KNOWN = {
+  'missions/crew-demo2.json': [
+    { error: 'characters.crew.commProfile: "sband-crew" is not one of', issue: 'Comm profile names outside the profile table' },
+  ],
+  'aircraft/so101.json':  [{ error: 'type: unknown key', issue: 'No vehicle contract' }],
+  'aircraft/yertle.json': [{ error: 'type: unknown key', issue: 'No vehicle contract' }],
+};
+
+function expectValid(file, schema) {
+  const errors = check(load(file), schema);
+  const known  = KNOWN[file] ?? [];
+  const isKnown = (e) => known.some(k => e.startsWith(k.error));
+  const unexpected = errors.filter(e => !isKnown(e));
+  const gone = known.filter(k => !errors.some(e => e.startsWith(k.error)));
+  assert.deepEqual(unexpected, [], `${file}:\n  ${unexpected.join('\n  ')}`);
+  assert.deepEqual(gone.map(k => k.error), [], `${file}: fixed — remove from KNOWN (and close "${gone[0]?.issue}")`);
+}
+
+for (const f of jsonIn('missions')) test(`missions/${f}`, () => expectValid(`missions/${f}`, mission));
+test('missions/catalog.json', () => expectValid('missions/catalog.json', catalog));
+for (const f of jsonIn('aircraft')) test(`aircraft/${f}`, () => expectValid(`aircraft/${f}`, aircraft));
+
+/* ── The schemas catch what they're for: typical mistakes injected into real files ── */
+const errorsAfter = (file, schema, edit) => { const j = load(file); edit(j); return check(j, schema); };
+
+test('schema catches a misspelled key', () => {
+  const errs = errorsAfter('aircraft/c172.json', aircraft, a => { a.vehicletype = a.vehicleType; });
+  assert.ok(errs.some(e => e === 'vehicletype: unknown key'), errs.join('\n'));
+});
+test('schema catches an unknown engine sound', () => {
+  const errs = errorsAfter('aircraft/c172.json', aircraft, a => { a.sound.engineType = 'lycoming-0360'; });
+  assert.ok(errs.some(e => e.startsWith('sound.engineType: "lycoming-0360" is not one of')), errs.join('\n'));
+});
+test('schema catches an unknown trigger type', () => {
+  const errs = errorsAfter('missions/inspiration5.json', mission, m => { m.atcClearances[0].trigger.type = 'tmie'; });
+  assert.ok(errs.some(e => e.startsWith('atcClearances[0].trigger.type: "tmie"')), errs.join('\n'));
+});
+test('schema catches an "after" trigger pointing nowhere', () => {
+  const errs = errorsAfter('missions/inspiration5.json', mission, m => {
+    m.atcClearances[13].trigger.idx = m.atcClearances.length;
+  });
+  assert.ok(errs.some(e => e.includes('atcClearances[13]: "after" trigger needs idx')), errs.join('\n'));
+});
+test('schema catches a misspelled documentation key', () => {
+  const errs = errorsAfter('missions/wolfskopf-1942.json', mission, m => { m.narative = m.narrative; });
+  assert.ok(errs.some(e => e === 'narative: unknown key'), errs.join('\n'));
+});
+test('schema catches a misspelled weather field', () => {
+  const errs = errorsAfter('missions/nordmeer-1956.json', mission, m => { m.weather.fallback.visibility = 6000; });
+  assert.ok(errs.some(e => e === 'weather.fallback.visibility: unknown key'), errs.join('\n'));
+});
+test('schema catches a misspelled catalog briefing field', () => {
+  const errs = errorsAfter('missions/catalog.json', catalog, c => { c[0].briefing.oders = 'x'; });
+  assert.ok(errs.some(e => e === '[0].briefing.oders: unknown key'), errs.join('\n'));
+});
+test('comment keys (_note) are allowed anywhere', () => {
+  const errs = errorsAfter('aircraft/c172.json', aircraft, a => { a._note = 'x'; a.handling._note = 'y'; });
+  assert.deepEqual(errs, []);
+});
+test('glass jets still need a turbofan (rule from the old aircraft-data lint)', () => {
+  const errs = errorsAfter('aircraft/a350.json', aircraft, a => { a.engine = 'two Rolls-Royce Trent XWB'; });
+  assert.ok(errs.some(e => e.includes('needs engine.type "turbofan"')), errs.join('\n'));
+});
