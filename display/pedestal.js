@@ -311,7 +311,7 @@ const _CSS = `
   /* ── Parking-brake annunciator (visible in any view when set) ── */
   #parkbrk-ind {
     position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
-    z-index: 170; display: none;
+    z-index: 170; display: none; pointer-events: none;   /* annunciator only — clicks reach the FCU below */
     padding: 4px 12px; border-radius: 4px;
     background: rgba(58,10,10,0.86); border: 1px solid #c02020;
     font: 700 12px/1 monospace; letter-spacing: 0.14em; color: #ff5a4a;
