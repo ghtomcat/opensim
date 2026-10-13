@@ -5,6 +5,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from './state.js';
+import { ENGINE, assertCovers, warnUnknown } from './vocab.js';
 
 /* ── Engine type presets ── */
 const ENGINES = {
@@ -173,6 +174,14 @@ const ENGINES = {
     superchargerGain:     0.018,    // barely-there — 1500 Hz sits in hearing sensitivity peak; must be very low
   },
 };
+/* Every engine sound in the vocabulary has a preset here — except 'none' (silent) and 'electric'
+   (no preset yet: issues.md "Velis electric motor plays the geared-turbofan sound") */
+assertCovers(ENGINES, ENGINE, 'core/sound.js ENGINES', { except: [ENGINE.NONE, ENGINE.ELECTRIC] });
+
+/** The preset for an engine type; an unknown type warns once and falls back to the geared turbofan. */
+function _preset(type) {
+  return ENGINES[type] ?? (warnUnknown('engine sound', type, ENGINE.GEARED_TURBOFAN), ENGINES[ENGINE.GEARED_TURBOFAN]);
+}
 
 export const ENGINE_TYPES = Object.keys(ENGINES);
 
@@ -340,8 +349,8 @@ let _niflheimOn   = false;
 /* ── Public API ── */
 
 export function initSound(engineType) {
-  _engineType = engineType ?? 'geared-turbofan';
-  _cfg = ENGINES[_engineType] ?? ENGINES['geared-turbofan'];
+  _engineType = engineType ?? ENGINE.GEARED_TURBOFAN;
+  _cfg = _preset(_engineType);
 }
 
 export function engineGunfire() {
@@ -670,12 +679,12 @@ function _niflheimStop() {
 }
 
 export function startSound(engineType) {
-  if (engineType === 'none') {
+  if (engineType === ENGINE.NONE) {
     if (!_ctx) _ctx = new AudioContext();
     return;
   }
-  if (engineType) _cfg = ENGINES[engineType] ?? ENGINES['geared-turbofan'];
-  if (!_cfg) _cfg = ENGINES['geared-turbofan'];
+  if (engineType) _cfg = _preset(engineType);
+  if (!_cfg) _cfg = _preset(ENGINE.GEARED_TURBOFAN);
   if (_started) _teardown();
 
   _ctx    = new AudioContext();
@@ -732,7 +741,7 @@ export function silenceAll() {
 export function switchEngine(type) {
   const wasRunning = _started;
   _teardown();
-  _cfg = ENGINES[type] ?? ENGINES['geared-turbofan'];
+  _cfg = _preset(type);
   if (wasRunning) startSound();
 }
 

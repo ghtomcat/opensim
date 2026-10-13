@@ -13,6 +13,7 @@ import { S, setState } from './state.js';
 import { engineBang, engineGunfire, coolantHiss, stopEngineLifecycle } from './sound.js';
 import { bbEvent } from './blackbox.js';
 import { onMissionReset } from './lifecycle.js';
+import { FAILURE, FAILURE_TRIGGER, assertCovers, warnUnknown } from './vocab.js';
 
 let _fired    = new Set();   // indices of already-fired failures
 let _ramps    = [];          // active power ramps
@@ -23,6 +24,26 @@ export function resetFailures() {
   setState({ enginePower: 1.0, emergLog: [], carbHeat: false, carbIceLevel: 0, carbIceActive: false, coolantState: 'ok' });
 }
 onMissionReset(resetFailures);
+
+/* What each scripted failure does. scored: logged for the emergency debrief score. */
+const _FAILURES = {
+  [FAILURE.ENGINE_GUNFIRE]: { scored: false, fire: () => engineGunfire() },
+  [FAILURE.ENGINE_BANG]:    { scored: true,  fire: () => engineBang() },
+  [FAILURE.ENGINE_POWER]:   { scored: true,  fire: (f) => _ramps.push({
+    target:   f.value   ?? 0,
+    rampTime: f.rampTime ?? 10,
+    elapsed:  0,
+    from:     S.enginePower ?? 1.0,
+  }) },
+  [FAILURE.CARB_ICE]:       { scored: true,  fire: () => { if (S.aircraft?.hasCarbHeat) setState({ carbIceActive: true }); } },
+  [FAILURE.COOLANT_LEAK]:   { scored: true,  fire: () => {
+    if (S.aircraft?.coolingSystem === 'liquid') {
+      setState({ coolantState: 'leaking' });
+      coolantHiss();
+    }
+  } },
+};
+assertCovers(_FAILURES, FAILURE, 'core/failures.js _FAILURES');
 
 export function tickFailures(dt) {
   const failures = S.mission?.failures;
@@ -41,47 +62,21 @@ export function tickFailures(dt) {
       const tr = f.trigger;
       if (!tr) return;   // rocket-system failures (affects/masterAlarm) handled by rocket.js
       const triggered =
-        (tr.type === 'time' && t >= tr.t) ||
-        (tr.type === 'alt'  && alt <= tr.alt);
+        (tr.type === FAILURE_TRIGGER.TIME && t >= tr.t) ||
+        (tr.type === FAILURE_TRIGGER.ALT  && alt <= tr.alt);
 
       if (!triggered) return;
       _fired.add(i);
 
+      const kind = _FAILURES[f.type];
+      if (!kind) { warnUnknown('failure type', f.type); return; }
+
       /* Log failure event for emergency scoring */
-      if (['engine_power', 'engine_bang', 'carb_ice', 'coolant_leak'].includes(f.type)) {
+      if (kind.scored) {
         S.emergLog.push({ t, type: 'failure', failureType: f.type, value: f.value ?? 0 });
         bbEvent({ type: 'failure', failureType: f.type, value: f.value ?? 0 });
       }
-
-      switch (f.type) {
-        case 'engine_gunfire':
-          engineGunfire();
-          break;
-
-        case 'engine_bang':
-          engineBang();
-          break;
-
-        case 'engine_power':
-          _ramps.push({
-            target:   f.value   ?? 0,
-            rampTime: f.rampTime ?? 10,
-            elapsed:  0,
-            from:     S.enginePower ?? 1.0,
-          });
-          break;
-
-        case 'carb_ice':
-          if (S.aircraft?.hasCarbHeat) setState({ carbIceActive: true });
-          break;
-
-        case 'coolant_leak':
-          if (S.aircraft?.coolingSystem === 'liquid') {
-            setState({ coolantState: 'leaking' });
-            coolantHiss();
-          }
-          break;
-      }
+      kind.fire(f);
     });
 
     /* Process ramps */

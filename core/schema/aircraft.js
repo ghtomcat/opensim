@@ -12,17 +12,9 @@
 
 import { str, num, bool, open, oneOf, arrayOf, mapOf, anyOf, object } from './check.js';
 import { com } from './mission.js';
+import { ENGINE, PANEL, VEHICLE, valuesOf } from '../vocab.js';
 
-/* ENGINES in core/sound.js, plus 'electric' (lifecycle without a synth preset) and 'none' */
-export const ENGINE_SOUNDS = ['geared-turbofan', 'high-bypass', 'low-bypass-military', 'turbojet-vk1', 'rotary-9',
-  'lycoming-o360', 'nk12-turboprop', 'v12-supercharged', 'radial-2000hp', 'electric', 'none'];
-
-/* Panel routing in index.html; 'f9' is a label only — rockets pick their display by vehicleType */
-export const PANELS = ['airbus', 'e190', 'g1000', 'dr400', 'bf109', 'f4u', 'velis-epsi', 'f9'];
-
-export const VEHICLE_TYPES = ['rocket', 'robot-arm', 'robot-dog'];   // absent = fixed-wing aircraft
-
-const GLASS_JET = ['airbus', 'e190'];   // panels that drive the turbofan A/THR + N1 system
+const GLASS_JET = [PANEL.AIRBUS, PANEL.E190];   // panels that drive the turbofan A/THR + N1 system
 
 /* ── Engine, thrust, envelope ── */
 const engine = anyOf(
@@ -87,8 +79,8 @@ const VIEW_ZONES = ['overhead', 'left', 'center', 'right', 'pedestal'];
 export const aircraft = object(
   {
     id: str, name: str, manufacturer: str, family: str, icaoType: str, registration: str, callsign: str,
-    vehicleType: oneOf(...VEHICLE_TYPES), manualControl: bool, panel: oneOf(...PANELS),
-    engine, sound: object({ engineType: oneOf(...ENGINE_SOUNDS) }), ignitionTime: num, staging: oneOf('hot'),
+    vehicleType: oneOf(...valuesOf(VEHICLE)), manualControl: bool, panel: oneOf(...valuesOf(PANEL)),
+    engine, sound: object({ engineType: oneOf(...valuesOf(ENGINE)) }), ignitionTime: num, staging: oneOf('hot'),
     envelope, performance, handling: object({ rollRate: num, pitchRate: num, maxBank: num, maxPitch: num }),
     flaps: arrayOf(flapSetting), thrustProfiles: arrayOf(thrustProfile), approachSpeed: num,
     autobrake: bool, fixedGear: bool, gridFins: bool, landingLegs: bool,

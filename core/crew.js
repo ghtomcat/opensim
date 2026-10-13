@@ -7,6 +7,7 @@
 import { S, setState } from './state.js';
 import { playThroughChain, createRadioChain } from './radio.js';
 import { getAudioContext, getEngineBleedNode } from './sound.js';
+import { TRIGGER, ROCKET_EVENT, assertCovers, warnUnknown } from './vocab.js';
 import { terrainElevM } from '../display/terrain.js?v=2';   // EGPWS look-ahead (3b) — MUST match outside.js's URL (shared tile cache)
 
 /* ── Voice handles ── */
@@ -595,48 +596,35 @@ function _isComPowered() {
 }
 
 /* ── Evaluate a structured trigger object ── */
+const _TRIGGERS = {
+  [TRIGGER.TIME]:        (tr) => (S.time ?? 0) >= tr.t,
+  [TRIGGER.AIRBORNE]:    ()   => !(S.wow ?? false)
+                               && (S.alt ?? 0) > ((S.mission?.departure?.elevation ?? 0) + 150),
+  [TRIGGER.ALT_FT]:      (tr) => (S.alt ?? 0) >= tr.min,
+  [TRIGGER.ALT_KM]:      (tr) => (S.alt ?? 0) * 0.0003048 >= tr.min,
+  [TRIGGER.GLOAD]:       (tr) => (S.rocketG ?? 0) >= tr.min,
+  [TRIGGER.VELOCITY]:    (tr) => (S.spd ?? 0) * 0.5144 >= tr.min,   // m/s threshold — abort-mode transitions, SECO approach (robust to timing)
+  [TRIGGER.MECO]:        ()   => !!(S.rocketMECO),
+  [TRIGGER.MECO_S2]:     ()   => !!(S.rocketMECO2),
+  [TRIGGER.S2_IGNITION]: ()   => !!(S.rocketS2Ignition),
+  [TRIGGER.S3_IGNITION]: ()   => !!(S.rocketS3Ignition),
+  [TRIGGER.SECO]:        ()   => !!(S.rocketSECO),
+  [TRIGGER.CECO]:        ()   => !!(S.rocketCECO),
+  [TRIGGER.TLI]:         ()   => !!(S.rocketTLI),
+  [TRIGGER.LOI]:         ()   => !!(S.rocketLOI),
+  [TRIGGER.TEI]:         ()   => !!(S.rocketTEI),
+  [TRIGGER.COM_ACTIVE]:  ()   => _isComPowered() && !_prevComPowered,
+  [TRIGGER.AFTER]:       (tr) => {
+    const endT = _atcEndedAt[tr.idx];
+    return endT !== undefined && (S.time ?? 0) >= endT + (tr.delay ?? 1);
+  },
+};
+assertCovers(_TRIGGERS, TRIGGER, 'core/crew.js _TRIGGERS');
+
 function _evalTrigger(tr) {
-  switch (tr.type) {
-    case 'time':
-      return (S.time ?? 0) >= tr.t;
-    case 'airborne':
-      return !(S.wow ?? false)
-          && (S.alt ?? 0) > ((S.mission?.departure?.elevation ?? 0) + 150);
-    case 'alt_ft':
-      return (S.alt ?? 0) >= tr.min;
-    case 'alt_km':
-      return (S.alt ?? 0) * 0.0003048 >= tr.min;
-    case 'gload':
-      return (S.rocketG ?? 0) >= tr.min;
-    case 'velocity':
-      return (S.spd ?? 0) * 0.5144 >= tr.min;   // m/s threshold — abort-mode transitions, SECO approach (robust to timing)
-    case 'meco':
-      return !!(S.rocketMECO);
-    case 'meco_s2':
-      return !!(S.rocketMECO2);
-    case 's2_ignition':
-      return !!(S.rocketS2Ignition);
-    case 's3_ignition':
-      return !!(S.rocketS3Ignition);
-    case 'seco':
-      return !!(S.rocketSECO);
-    case 'ceco':
-      return !!(S.rocketCECO);
-    case 'tli':
-      return !!(S.rocketTLI);
-    case 'loi':
-      return !!(S.rocketLOI);
-    case 'tei':
-      return !!(S.rocketTEI);
-    case 'com_active':
-      return _isComPowered() && !_prevComPowered;
-    case 'after': {
-      const endT = _atcEndedAt[tr.idx];
-      return endT !== undefined && (S.time ?? 0) >= endT + (tr.delay ?? 1);
-    }
-    default:
-      return false;
-  }
+  const fn = _TRIGGERS[tr.type];
+  if (!fn) { warnUnknown('trigger type', tr.type); return false; }
+  return fn(tr);
 }
 
 function _checkATC(prev, curr, ms) {
@@ -867,6 +855,120 @@ function _isInOrbit() {
   return (S.rocketSECO ?? false) && vel_ms >= vOrb * 0.99 && Math.abs(S.pitch ?? 90) < 8;
 }
 
+/* Rocket events: name → condition. c = { clr, prevAlt, currAlt, alt_m, vel_ms, dynQ }.
+   slow: drop time warp to real time when the event fires (engine and staging events). */
+const _ROCKET_EVENTS = {
+  [ROCKET_EVENT.SUPERSONIC]: { when: (c) => c.vel_ms > 340 && _prevVelMs <= 340 },
+
+  /* Q has peaked: currently falling and was above 10 kPa (well past transonic) */
+  [ROCKET_EVENT.MAXQ]: { when: (c) => _prevDynQ > 10000 && c.dynQ < _prevDynQ * 0.985 },
+
+  /* Fires when stage 1 has burned ~40% of its propellant */
+  [ROCKET_EVENT.STAGE1_NOMINAL]: { when: () => {
+    if ((S.rocketStage ?? 1) !== 1) return false;
+    const perf  = S.aircraft?.performance ?? {};
+    const s1    = perf.stages?.[0] ?? {};
+    const s2    = perf.stages?.[1] ?? {};
+    const mWet  = perf.massWet ?? 28000;
+    const b1    = (s1.massDry ?? 0) + (s2.massWet ?? 0) + (perf.payload ?? 0) + 5;
+    const prop1 = mWet - b1;
+    return (S.rocketMass ?? mWet) <= mWet - prop1 * 0.4;
+  } },
+
+  /* Stage 1 just started coasting (burnout) */
+  [ROCKET_EVENT.MECO]: { slow: true,
+    when: () => (S.rocketCoast ?? false) && !_prevRocketCoast && (S.rocketStage ?? 1) === 1 },
+
+  /* Coast just started (booster falls away) — same tick as meco, separate uid tracking */
+  [ROCKET_EVENT.STAGESEP]: { slow: true,
+    when: () => (S.rocketCoast ?? false) && !_prevRocketCoast && (S.rocketStage ?? 1) === 1 },
+
+  /* S-II burnout — coast starts while stage index is 2 */
+  [ROCKET_EVENT.MECO_S2]: { slow: true,
+    when: () => (S.rocketCoast ?? false) && !_prevRocketCoast && (S.rocketStage ?? 1) === 2 },
+
+  /* S-II lights up — stage just advanced from 1 to 2, no longer coasting */
+  [ROCKET_EVENT.S2_IGNITION]: { slow: true,
+    when: () => (S.rocketStage ?? 1) === 2 && _prevRocketStage === 1 && !(S.rocketCoast ?? false) },
+
+  /* S-IVB lights up — stage just advanced from 2 to 3, no longer coasting */
+  [ROCKET_EVENT.S3_IGNITION]: { slow: true,
+    when: () => (S.rocketStage ?? 1) === 3 && _prevRocketStage === 2 && !(S.rocketCoast ?? false) },
+
+  [ROCKET_EVENT.SECO]: { slow: true, when: () => (S.rocketSECO ?? false) && !_prevRocketSECO },
+
+  [ROCKET_EVENT.ORBIT]: { when: () => _isInOrbit() && !_prevOrbit },
+
+  /* Unplanned engine loss — active count dropped, NOT triggered by auto-CECO */
+  [ROCKET_EVENT.ENGINE_OUT]: { when: () => {
+    const stgCfg  = (S.aircraft?.performance?.stages ?? [])[(S.rocketStage ?? 1) - 1] ?? {};
+    const total   = stgCfg.engineCount ?? 1;
+    const active  = S.rocketActiveEngines ?? total;
+    const prevAct = _prevActiveEngines ?? total;
+    return active < prevAct && !S.rocketCECO && !_prevCECO;
+  } },
+
+  /* G-triggered center engine cutoff — planned, not a failure */
+  [ROCKET_EVENT.CECO]: { when: () => (S.rocketCECO ?? false) && !_prevCECO },
+
+  /* Stage 1 engine failure at low altitude — vehicle falling back (F1 Flight 1: T+25s fire) */
+  [ROCKET_EVENT.ENGINE_FAILURE_ASCENT]: { when: () => (S.rocketStage ?? 1) === 1
+      && !(S.rocketCoast ?? false)
+      && !(S.rocketSECO ?? false)
+      && (S.time ?? 0) > 65
+      && (S.alt ?? 0) < 164000   /* below 50 km */
+      && (S.vs  ?? 0) < -2000 }, /* descending > 10 m/s */
+
+  /* Stage 2 vehicle tumbling / separation collision — strong nose-down (F1 Flight 3) */
+  [ROCKET_EVENT.STAGE2_ANOMALY]: { when: () => (S.rocketStage ?? 1) >= 2
+      && !(S.rocketCoast ?? false)
+      && !(S.rocketSECO ?? false)
+      && (S.pitch ?? 90) < -25 }, /* FPA < -25°: clearly falling away */
+
+  /* G-load or dynamic pressure exceeds design limit */
+  [ROCKET_EVENT.STRUCTURAL_FAILURE]: { when: () => {
+    const gLim = S.aircraft?.performance?.gLimit ?? 8;
+    const qLim = S.aircraft?.performance?.qLimit ?? 50000;
+    return (S.rocketG ?? 0) > gLim || (S.rocketDynQ ?? 0) > qLim;
+  } },
+
+  /* Fires if SECO occurred but orbital velocity was never achieved after 60 s */
+  [ROCKET_EVENT.ORBIT_ANOMALY]: { when: () => _secoTime >= 0
+      && !_rocketFired.has(ROCKET_EVENT.ORBIT)
+      && !_isInOrbit()
+      && (S.time ?? 0) - _secoTime > 60 },
+
+  /* Only fire on the ascending pass through the threshold (km) */
+  [ROCKET_EVENT.ALT]: { when: (c) => {
+    const altKm = c.alt_m / 1000;
+    const tgt   = c.clr.alt_km ?? 0;
+    return altKm >= tgt && (c.alt_m - c.vel_ms * 0.1) / 1000 < tgt;
+  } },
+
+  /* Fires on the descending pass through a threshold (ft) */
+  [ROCKET_EVENT.ALT_DESC]: { when: (c) => {
+    const tgt_ft = c.clr.alt_ft ?? 0;
+    return c.currAlt <= tgt_ft && c.prevAlt > tgt_ft;
+  } },
+
+  [ROCKET_EVENT.BOOSTER_FLIP]:      { when: () => S.booster?.active && S.booster?.phase === 'flip' && _prevBoosterPhase === null },
+  [ROCKET_EVENT.BOOSTER_BOOSTBACK]: { when: () => S.booster?.phase === 'boostback' && _prevBoosterPhase === 'flip' },
+  [ROCKET_EVENT.BOOSTER_COAST]:     { when: () => S.booster?.phase === 'coast' && _prevBoosterPhase === 'boostback' },
+  /* 'glide' phase = grid fins deployed, entering atmosphere */
+  [ROCKET_EVENT.BOOSTER_ENTRY]:     { when: () => S.booster?.phase === 'glide' && _prevBoosterPhase === 'coast' },
+  [ROCKET_EVENT.BOOSTER_LANDING_BURN]: { when: () => S.booster?.phase === 'landing' && _prevBoosterPhase === 'glide' },
+  [ROCKET_EVENT.BOOSTER_LANDING]:   { when: () => (S.booster?.landed ?? false) && !_prevBoosterLanded },
+
+  [ROCKET_EVENT.DRAGONSEP]:  { when: () => (S.dragonSep ?? false) && !_prevDragonSep },
+  [ROCKET_EVENT.DEORBIT]:    { when: () => (S.dragonDeorbit ?? false) && !_prevDragonDeorbit },
+  [ROCKET_EVENT.BLACKOUT]:   { when: () => (S.dragonBlackout ?? false) && !_prevDragonBlackout },
+  [ROCKET_EVENT.SIGNAL]:     { when: () => (S.dragonSignal ?? false) && !_prevDragonSignal },
+  [ROCKET_EVENT.DROGUE]:     { when: () => (S.dragonDrogue ?? false) && !_prevDragonDrogue },
+  [ROCKET_EVENT.MAINS]:      { when: () => (S.dragonMains ?? false) && !_prevDragonMains },
+  [ROCKET_EVENT.SPLASHDOWN]: { when: () => (S.dragonSplashdown ?? false) && !_prevDragonSplashdown },
+};
+assertCovers(_ROCKET_EVENTS, ROCKET_EVENT, 'core/crew.js _ROCKET_EVENTS');
+
 function _checkRocketEvent(event, clr, prevAlt = 0, currAlt = 0) {
   /* Each named event fires at most once per mission.
      For events reused with different delays (e.g. two 'stagesep' entries),
@@ -874,247 +976,18 @@ function _checkRocketEvent(event, clr, prevAlt = 0, currAlt = 0) {
   const uid = clr.uid ?? event;
   if (_rocketFired.has(uid)) return false;
 
+  const ev = _ROCKET_EVENTS[event];
+  if (!ev) { warnUnknown('rocket event', event); return false; }
+
   const alt_m  = (S.alt ?? 0) * 0.3048;
   const vel_ms = (S.spd ?? 0) * 0.5144;
   const rho    = _rhoSimple(alt_m);
   const dynQ   = 0.5 * rho * vel_ms * vel_ms;
 
-  switch (event) {
-    case 'supersonic':
-      if (vel_ms > 340 && _prevVelMs <= 340) {
-        _rocketFired.add(uid); return true;
-      }
-      break;
-
-    case 'maxq':
-      /* Q has peaked: currently falling and was above 10 kPa (well past transonic) */
-      if (_prevDynQ > 10000 && dynQ < _prevDynQ * 0.985) {
-        _rocketFired.add(uid); return true;
-      }
-      break;
-
-    case 'stage1_nominal': {
-      /* Fires when stage 1 has burned ~40% of its propellant */
-      if ((S.rocketStage ?? 1) !== 1) break;
-      const perf  = S.aircraft?.performance ?? {};
-      const s1    = perf.stages?.[0] ?? {};
-      const s2    = perf.stages?.[1] ?? {};
-      const mWet  = perf.massWet ?? 28000;
-      const b1    = (s1.massDry ?? 0) + (s2.massWet ?? 0) + (perf.payload ?? 0) + 5;
-      const prop1 = mWet - b1;
-      if ((S.rocketMass ?? mWet) <= mWet - prop1 * 0.4) {
-        _rocketFired.add(uid); return true;
-      }
-      break;
-    }
-
-    case 'meco':
-      /* Stage 1 just started coasting (burnout) */
-      if ((S.rocketCoast ?? false) && !_prevRocketCoast && (S.rocketStage ?? 1) === 1) {
-        _rocketFired.add(uid); _slowToRealtime(); return true;
-      }
-      break;
-
-    case 'stagesep':
-      /* Coast just started (booster falls away) — same tick as meco, separate uid tracking */
-      if ((S.rocketCoast ?? false) && !_prevRocketCoast && (S.rocketStage ?? 1) === 1) {
-        _rocketFired.add(uid); _slowToRealtime(); return true;
-      }
-      break;
-
-    case 'meco_s2':
-      /* S-II burnout — coast starts while stage index is 2 */
-      if ((S.rocketCoast ?? false) && !_prevRocketCoast && (S.rocketStage ?? 1) === 2) {
-        _rocketFired.add(uid); _slowToRealtime(); return true;
-      }
-      break;
-
-    case 's2_ignition':
-      /* S-II lights up — stage just advanced from 1 to 2, no longer coasting */
-      if ((S.rocketStage ?? 1) === 2 && _prevRocketStage === 1 && !(S.rocketCoast ?? false)) {
-        _rocketFired.add(uid); _slowToRealtime(); return true;
-      }
-      break;
-
-    case 's3_ignition':
-      /* S-IVB lights up — stage just advanced from 2 to 3, no longer coasting */
-      if ((S.rocketStage ?? 1) === 3 && _prevRocketStage === 2 && !(S.rocketCoast ?? false)) {
-        _rocketFired.add(uid); _slowToRealtime(); return true;
-      }
-      break;
-
-    case 'seco':
-      if ((S.rocketSECO ?? false) && !_prevRocketSECO) {
-        _rocketFired.add(uid); _slowToRealtime(); return true;
-      }
-      break;
-
-    case 'orbit':
-      if (_isInOrbit() && !_prevOrbit) {
-        _rocketFired.add(uid); return true;
-      }
-      break;
-
-    case 'engine_out': {
-      /* Unplanned engine loss — active count dropped, NOT triggered by auto-CECO */
-      const stgCfg  = (S.aircraft?.performance?.stages ?? [])[(S.rocketStage ?? 1) - 1] ?? {};
-      const total   = stgCfg.engineCount ?? 1;
-      const active  = S.rocketActiveEngines ?? total;
-      const prevAct = _prevActiveEngines ?? total;
-      if (active < prevAct && !S.rocketCECO && !_prevCECO) {
-        _rocketFired.add(uid); return true;
-      }
-      break;
-    }
-
-    case 'ceco':
-      /* G-triggered center engine cutoff — planned, not a failure */
-      if ((S.rocketCECO ?? false) && !_prevCECO) {
-        _rocketFired.add(uid); return true;
-      }
-      break;
-
-    case 'engine_failure_ascent':
-      /* Stage 1 engine failure at low altitude — vehicle falling back (F1 Flight 1: T+25s fire) */
-      if ((S.rocketStage ?? 1) === 1
-          && !(S.rocketCoast ?? false)
-          && !(S.rocketSECO ?? false)
-          && (S.time ?? 0) > 65
-          && (S.alt ?? 0) < 164000   /* below 50 km */
-          && (S.vs  ?? 0) < -2000) { /* descending > 10 m/s */
-        _rocketFired.add(uid); return true;
-      }
-      break;
-
-    case 'stage2_anomaly':
-      /* Stage 2 vehicle tumbling / separation collision — strong nose-down (F1 Flight 3) */
-      if ((S.rocketStage ?? 1) >= 2
-          && !(S.rocketCoast ?? false)
-          && !(S.rocketSECO ?? false)
-          && (S.pitch ?? 90) < -25) { /* FPA < -25°: clearly falling away */
-        _rocketFired.add(uid); return true;
-      }
-      break;
-
-    case 'structural_failure': {
-      /* G-load or dynamic pressure exceeds design limit */
-      const gLim = S.aircraft?.performance?.gLimit ?? 8;
-      const qLim = S.aircraft?.performance?.qLimit ?? 50000;
-      if ((S.rocketG ?? 0) > gLim || (S.rocketDynQ ?? 0) > qLim) {
-        _rocketFired.add(uid); return true;
-      }
-      break;
-    }
-
-    case 'orbit_anomaly':
-      /* Fires if SECO occurred but orbital velocity was never achieved after 60 s */
-      if (_secoTime >= 0
-          && !_rocketFired.has('orbit')
-          && !_isInOrbit()
-          && (S.time ?? 0) - _secoTime > 60) {
-        _rocketFired.add(uid); return true;
-      }
-      break;
-
-    case 'alt': {
-      const altKm = alt_m / 1000;
-      const tgt   = clr.alt_km ?? 0;
-      if (altKm >= tgt && (alt_m - vel_ms * 0.1) / 1000 < tgt) {
-        /* Only fire on the ascending pass through the threshold */
-        _rocketFired.add(uid); return true;
-      }
-      break;
-    }
-
-    case 'alt_desc': {
-      /* Fires on the descending pass through a threshold (ft) */
-      const tgt_ft = clr.alt_ft ?? 0;
-      if (currAlt <= tgt_ft && prevAlt > tgt_ft) {
-        _rocketFired.add(uid); return true;
-      }
-      break;
-    }
-
-    case 'booster_flip':
-      if (S.booster?.active && S.booster?.phase === 'flip' && _prevBoosterPhase === null) {
-        _rocketFired.add(uid); return true;
-      }
-      break;
-
-    case 'booster_boostback':
-      if (S.booster?.phase === 'boostback' && _prevBoosterPhase === 'flip') {
-        _rocketFired.add(uid); return true;
-      }
-      break;
-
-    case 'booster_coast':
-      if (S.booster?.phase === 'coast' && _prevBoosterPhase === 'boostback') {
-        _rocketFired.add(uid); return true;
-      }
-      break;
-
-    case 'booster_entry':
-      /* 'glide' phase = grid fins deployed, entering atmosphere */
-      if (S.booster?.phase === 'glide' && _prevBoosterPhase === 'coast') {
-        _rocketFired.add(uid); return true;
-      }
-      break;
-
-    case 'booster_landing_burn':
-      if (S.booster?.phase === 'landing' && _prevBoosterPhase === 'glide') {
-        _rocketFired.add(uid); return true;
-      }
-      break;
-
-    case 'booster_landing':
-      if ((S.booster?.landed ?? false) && !_prevBoosterLanded) {
-        _rocketFired.add(uid); return true;
-      }
-      break;
-
-    case 'dragonsep':
-      if ((S.dragonSep ?? false) && !_prevDragonSep) {
-        _rocketFired.add(uid); return true;
-      }
-      break;
-
-    case 'deorbit':
-      if ((S.dragonDeorbit ?? false) && !_prevDragonDeorbit) {
-        _rocketFired.add(uid); return true;
-      }
-      break;
-
-    case 'blackout':
-      if ((S.dragonBlackout ?? false) && !_prevDragonBlackout) {
-        _rocketFired.add(uid); return true;
-      }
-      break;
-
-    case 'signal':
-      if ((S.dragonSignal ?? false) && !_prevDragonSignal) {
-        _rocketFired.add(uid); return true;
-      }
-      break;
-
-    case 'drogue':
-      if ((S.dragonDrogue ?? false) && !_prevDragonDrogue) {
-        _rocketFired.add(uid); return true;
-      }
-      break;
-
-    case 'mains':
-      if ((S.dragonMains ?? false) && !_prevDragonMains) {
-        _rocketFired.add(uid); return true;
-      }
-      break;
-
-    case 'splashdown':
-      if ((S.dragonSplashdown ?? false) && !_prevDragonSplashdown) {
-        _rocketFired.add(uid); return true;
-      }
-      break;
-  }
-  return false;
+  if (!ev.when({ clr, prevAlt, currAlt, alt_m, vel_ms, dynQ })) return false;
+  _rocketFired.add(uid);
+  if (ev.slow) _slowToRealtime();
+  return true;
 }
 
 function _checkApproachBrief(prev, curr, ms) {

@@ -9,8 +9,10 @@
      chain.squelchTail();   // call when transmission ends
      chain.destroy();       // clean up when done
 
-   Profiles: vhf-aviation, tower-quiet, sband-apollo, vhf-vostok, ip-spacex
+   Profiles: the names in COMM_PROFILE (core/vocab.js) — checked below.
    ═══════════════════════════════════════════════════════════════ */
+
+import { COMM_PROFILE, assertCovers, warnUnknown } from './vocab.js';
 
 /* ── Comm profile presets ── */
 const PROFILES = {
@@ -235,6 +237,13 @@ const PROFILES = {
   },
 
 };
+/* Every comm profile in the vocabulary has a chain here ('broadcast' plays dry, no chain) */
+assertCovers(PROFILES, COMM_PROFILE, 'core/radio.js PROFILES', { except: [COMM_PROFILE.BROADCAST] });
+
+/** The chain for a profile name; an unknown name warns once and falls back to VHF. */
+function _profile(name) {
+  return PROFILES[name] ?? (warnUnknown('commProfile', name, COMM_PROFILE.VHF_AVIATION), PROFILES[COMM_PROFILE.VHF_AVIATION]);
+}
 
 /* ── Worklet registration guard — tracked per AudioContext ── */
 const _workletContexts = new WeakSet();
@@ -250,7 +259,7 @@ async function _ensureWorklet(ctx) {
    Caller connects: source → chain.input, chain.output → destination
    ─────────────────────────────────────────────────────────────── */
 export async function createRadioChain(ctx, profileName = 'vhf-aviation') {
-  const p = PROFILES[profileName] ?? PROFILES['vhf-aviation'];
+  const p = _profile(profileName);
 
   await _ensureWorklet(ctx);
 
@@ -398,7 +407,7 @@ export async function playThroughChain(ctx, url, {
 } = {}) {
 
   /* Broadcast bypass — narrators play completely dry, no chain */
-  if (profileName === 'broadcast') {
+  if (profileName === COMM_PROFILE.BROADCAST) {
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`404: ${url}`);
     const audioBuf = await ctx.decodeAudioData(await resp.arrayBuffer());
@@ -437,7 +446,7 @@ export async function playThroughChain(ctx, url, {
   chain.output.connect(destination);
 
   /* Comm beep — short PTT tone through the same radio chain before the voice */
-  const p = PROFILES[profileName] ?? PROFILES['vhf-aviation'];
+  const p = _profile(profileName);
   let voiceOffset = 0;
   if (p.commBeep) {
     const b       = p.commBeep;

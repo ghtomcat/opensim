@@ -1,32 +1,14 @@
 /* ═══════════════════════════════════════════════════════════════
    OpenSim — core/schema/mission.js
    Schema for missions/<id>.json. See core/schema/check.js for the rules.
-   Enum lists mirror what the code knows (core/crew.js, core/failures.js,
-   core/radio.js); a value outside them is silently ignored by the sim.
+   The names come from core/vocab.js — the same lists the code checks
+   its dispatch tables against.
    ═══════════════════════════════════════════════════════════════ */
 
 import { str, num, bool, open, oneOf, arrayOf, mapOf, anyOf, nullable, object } from './check.js';
+import { TRIGGER, ROCKET_EVENT, FAILURE, FAILURE_TRIGGER, COMM_PROFILE, valuesOf } from '../vocab.js';
 
-/* _evalTrigger() in core/crew.js */
-export const TRIGGER_TYPES = ['time', 'airborne', 'alt_ft', 'alt_km', 'gload', 'velocity', 'meco', 'meco_s2',
-  's2_ignition', 's3_ignition', 'seco', 'ceco', 'tli', 'loi', 'tei', 'com_active', 'after'];
-
-/* _checkRocketEvent() in core/crew.js */
-export const ROCKET_EVENTS = ['supersonic', 'maxq', 'stage1_nominal', 'meco', 'stagesep', 'meco_s2', 's2_ignition',
-  's3_ignition', 'seco', 'orbit', 'engine_out', 'ceco', 'engine_failure_ascent', 'stage2_anomaly',
-  'structural_failure', 'orbit_anomaly', 'alt', 'alt_desc', 'booster_flip', 'booster_boostback', 'booster_coast',
-  'booster_entry', 'booster_landing_burn', 'booster_landing', 'dragonsep', 'deorbit', 'blackout', 'signal',
-  'drogue', 'mains', 'splashdown'];
-
-/* PROFILES in core/radio.js, plus 'broadcast' (handled separately in radio.js) */
-export const COMM_PROFILES = ['vhf-aviation', 'tower-quiet', 'sband-apollo', 'vhf-vostok', 'capsule-dragon',
-  'ip-spacex-crew', 'ip-spacex-narrate', 'ip-spacex', 'launch-control', 'cockpit-bf109', 'arc-5', 'rsiu-3',
-  'broadcast'];
-
-/* tickFailures() in core/failures.js */
-export const FAILURE_TYPES = ['engine_gunfire', 'engine_bang', 'engine_power', 'carb_ice', 'coolant_leak'];
-
-const commProfile = oneOf(...COMM_PROFILES);
+const commProfile = oneOf(...valuesOf(COMM_PROFILE));
 
 /* ── Weather: manual block, and the fallback METAR (same field names as a live METAR) ── */
 const cloud = object({ cover: str, base: num });
@@ -69,11 +51,11 @@ export const com = object({
 
 /* ── Mission script (atcClearances) ── */
 const trigger = object(
-  { type: oneOf(...TRIGGER_TYPES), t: num, min: num, idx: num, delay: num },
+  { type: oneOf(...valuesOf(TRIGGER)), t: num, min: num, idx: num, delay: num },
   { required: ['type'] },
 );
 const clearance = object({
-  /* when */   t: num, trigger, event: oneOf(...ROCKET_EVENTS), uid: str, delay: num,
+  /* when */   t: num, trigger, event: oneOf(...valuesOf(ROCKET_EVENT)), uid: str, delay: num,
                alt: num, alt_ft: num, alt_km: num,
   /* who */    voice: str, speaker: str, commProfile,
   /* what */   text: str, audio: str, volume: num, startTime: num, duration: num,
@@ -82,8 +64,8 @@ const clearance = object({
 
 /* ── Failures: scripted (core/failures.js) or a rocket anomaly (core/rocket.js) ── */
 const scriptedFailure = object(
-  { type: oneOf(...FAILURE_TYPES), value: num,
-    trigger: object({ type: oneOf('time', 'alt'), t: num, alt: num }, { required: ['type'] }) },
+  { type: oneOf(...valuesOf(FAILURE)), value: num,
+    trigger: object({ type: oneOf(...valuesOf(FAILURE_TRIGGER)), t: num, alt: num }, { required: ['type'] }) },
   { required: ['type', 'trigger'] },
 );
 const rocketFailure = object(
