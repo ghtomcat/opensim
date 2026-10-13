@@ -13,7 +13,7 @@ import { indicatedAlt, baroSubscale } from '../core/baro.js';
 import { smooth, smoothAngle } from './smooth.js';
 import { buildFullRoute, getProcedures } from '../core/route.js';
 import { buildDescentPath } from '../core/vnav.js';
-import { terrainElevM } from './terrain.js?v=2';   // ND terrain (brick 4) — SAME URL as outside.js/crew.js (shared tile cache)
+import { elevM as terrainElevM } from '../core/elevation.js';   // ND terrain (brick 4)
 
 /* The in-flight flight plan — the same gate-to-gate route the briefing draws, cached per
    mission (buildFullRoute does a Dijkstra over the airway graph, too heavy for every frame).

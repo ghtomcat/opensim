@@ -607,7 +607,7 @@ export function tickPhysics(dt) {
       bbEvent({ type: 'crash', reason: `OVERSPEED ${Math.round(newSpd)} kt` });
       return;
     }
-    // CFIT — flew into terrain (Mapbox DEM under the aircraft, set by terrain.js). Gated to
+    // CFIT — flew into terrain (Mapbox DEM under the aircraft, core/elevation.js). Gated to
     // terrain meaningfully above the destination field so a normal landing on the runway
     // (terrain ≈ field) goes through the WoW/touchdown path, not a terrain hit.
     const _terrFt = S.terrainElevFt;

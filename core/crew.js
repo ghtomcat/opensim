@@ -8,7 +8,7 @@ import { S, setState } from './state.js';
 import { playThroughChain, createRadioChain } from './radio.js';
 import { getAudioContext, getEngineBleedNode } from './sound.js';
 import { TRIGGER, ROCKET_EVENT, assertCovers, warnUnknown } from './vocab.js';
-import { terrainElevM } from '../display/terrain.js?v=2';   // EGPWS look-ahead (3b) — MUST match outside.js's URL (shared tile cache)
+import { elevM as terrainElevM } from './elevation.js';   // EGPWS look-ahead (3b) — same tile cache as the ND and the outside view
 
 /* ── Voice handles ── */
 let _pfVoice        = null;

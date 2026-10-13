@@ -105,7 +105,7 @@ Both apply per frame, not per second — their strength depends on the frame rat
 - Terrain within 100 ft of field elevation is invisible to physics: the aircraft can fly through low hills near an airport.
 - Midway between two fields of different elevation the ground jumps from one elevation to the other.
 
-**Fix.** Use the DEM elevation under the aircraft as the ground (via the core elevation module from *`core/` depends on `display/`*); near a runway, use the runway elevation (the DEM is too coarse for a landing surface — blend within the airport boundary). Keep the airport-elevation fallback when no DEM tile is loaded.
+**Fix.** Use the DEM elevation under the aircraft as the ground (`core/elevation.js`); near a runway, use the runway elevation (the DEM is too coarse for a landing surface — blend within the airport boundary). Keep the airport-elevation fallback when no DEM tile is loaded.
 
 **Done when.** An engine-out glide over terrain below the field elevation touches down on the terrain; a low pass over hills near an airport crashes on the hill; airport takeoffs and landings are unchanged; the landing tests pass.
 
@@ -373,11 +373,11 @@ Keys are handled in about six places: `core/input.js` (flight controls, AP, warp
 ### `renderTerrain()` is one 2,840-line function
 *Found 2026-10-11 · `display/terrain.js`, `renderTerrain()` (line 653 to ~3,490)*
 
-`renderTerrain(canvas, options)` draws the whole world for every camera in one function: sky, twilight, stars, sun and moon, the Earth globe, the DEM ground grid, water, city lights and roads, every airport element (runways, taxiways, aprons, lights, holding points, signs, stands, terminals, jet bridges, satellites, towers, windsocks), clouds, haze, mission effects, the cockpit frame and overlays — sharing local projection state across all of it. It also publishes `S.terrainElevFt` for physics.
+`renderTerrain(canvas, options)` draws the whole world for every camera in one function: sky, twilight, stars, sun and moon, the Earth globe, the DEM ground grid, water, city lights and roads, every airport element (runways, taxiways, aprons, lights, holding points, signs, stands, terminals, jet bridges, satellites, towers, windsocks), clouds, haze, mission effects, the cockpit frame and overlays — sharing local projection state across all of it.
 
-**Why it matters.** It's the largest function in the project; every scenery change lands in it; nothing in it can be tested or profiled per layer; and the elevation it publishes for physics is buried in the middle (see *`core/` depends on `display/`*).
+**Why it matters.** It's the largest function in the project; every scenery change lands in it; nothing in it can be tested or profiled per layer.
 
-**Fix.** Keep `renderTerrain()` as an orchestrator over a shared view object (projection, pose, time of day, DPR) and move each layer into its own function/module: `sky`, `celestial`, `globe`, `ground`, `water`, `nightLights`, `airport/*` (runways, lights, signs, buildings), `weather` (clouds, haze), `cockpitOverlay`. Behaviour-preserving first, checked with before/after screenshots per camera mode. Elevation sampling moves to `core/` per the *`core/` depends on `display/`* entry. **Done when.** No function in `terrain.js` above ~300 lines; the outside views match the pre-split screenshots.
+**Fix.** Keep `renderTerrain()` as an orchestrator over a shared view object (projection, pose, time of day, DPR) and move each layer into its own function/module: `sky`, `celestial`, `globe`, `ground`, `water`, `nightLights`, `airport/*` (runways, lights, signs, buildings), `weather` (clouds, haze), `cockpitOverlay`. Behaviour-preserving first, checked with before/after screenshots per camera mode. **Done when.** No function in `terrain.js` above ~300 lines; the outside views match the pre-split screenshots.
 
 ### Prop and warbird 3D models are code, not data
 *Found 2026-10-11 · `display/outside-c172.js`, `outside-b109.js`, `outside-f4u.js`, `outside-mig15.js` (+ `outside-pp.js`)*
@@ -461,11 +461,11 @@ The data side is disciplined: vehicles, missions, panels and world data are JSON
 4. ~~**A mission has no single start, stop and tick.**~~ **Fixed 2026-10-12:** one `tickSim(dt)` for the loop and `simStep`, a manual clock + seeded turbulence in test mode, a mission session (`app/session.js`) that `init()` and Back stop, and a reset registry (`core/lifecycle.js`).
 5. **Model depth is uneven where training needs it:** *The runtime has no seam for training-grade systems*.
 
-The declared layering (data → simulation → presentation → shell) is also not the real one. Dependencies run both ways (*`core/` depends on `display/`*; display modules do simulation work, see `architecture.md` §13.6), and there is an unnamed fourth layer: the **application** (session, briefing, scoring, live flight), which lives in `index.html` (*`index.html` carries most of the application wiring*).
+The declared layering (data → simulation → presentation → shell) is also not the real one. Display modules do simulation work (see `architecture.md` §13.6), and there is an unnamed fourth layer: the **application** (session, briefing, scoring, live flight), which lives in `index.html` (*`index.html` carries most of the application wiring*).
 
 **Suggested order.**
 1. ~~One tick and one mission lifecycle~~ — done 2026-10-12.
-2. Owned products in `core/` (route, taxi route, elevation); generated data out of `display/` — done 2026-10-13 (`data/`).
+2. Owned products in `core/` (route, taxi route, elevation); `core/` no longer depends on `display/` — done 2026-10-13 (`data/`, `core/elevation.js`); left: route, taxi route, flat ground.
 3. ~~Schema check at load + a test that loads every aircraft and mission~~ — done 2026-10-13 (`core/schema/`, `core/vocab.js`); left: *Overloaded fields in the JSON data*, *Name comparisons still spelled out by hand*.
 4. Vehicle contract and per-engine state — when the training work needs them.
 
@@ -474,7 +474,7 @@ The declared layering (data → simulation → presentation → shell) is also n
 
 **Symptom.** `S` is one mutable object with ~170 fields. `setState` is `Object.assign` (~280 calls), and ~110 direct writes sit beside it. No field has a declared owner, so several modules write the same field and the last writer in the frame wins. The comment at the top of `state.js` (only physics, input, mission write) is out of date. On top of that, modules keep private state between frames (fired entries, ramps, caches), cleared by hand-written `reset*()` functions.
 
-**Evidence.** *`enginePower` has many writers and no composition*; *Engine start completes when the start-up sound finishes* (`sound.js` writes `engineState`); *The outside view borrows the flight state for its camera*; *LNAV writes `S.fmsActive` directly*; `display/map.js` writes `S.taxiRoute`, `display/terrain.js` writes `S.terrainElevFt`.
+**Evidence.** *`enginePower` has many writers and no composition*; *Engine start completes when the start-up sound finishes* (`sound.js` writes `engineState`); *The outside view borrows the flight state for its camera*; *LNAV writes `S.fmsActive` directly*; `display/map.js` writes `S.taxiRoute`.
 
 **Why it matters.** Correctness depends on the order of the frame loop and of the ~30 closures in the renderer list. A new feature can't tell whose field it is about to overwrite.
 
@@ -488,7 +488,7 @@ The declared layering (data → simulation → presentation → shell) is also n
 **Symptom.** Products that several modules need are rebuilt by whoever needs them instead of being computed once and stored:
 - the flight plan: five consumers call `buildFullRoute()` (*No flight-plan state — the route is recomputed per consumer*);
 - the taxi route: once in `map.js` (only while the map is visible), once in `com.js` (*Taxi route and pushback depend on the map being visible*);
-- "ground": the field elevation of the nearer airport, recomputed each tick (*The ground is flat*), and the DEM elevation produced by a renderer (*`core/` depends on `display/`*).
+- "ground": the field elevation of the nearer airport, recomputed each tick (*The ground is flat*). (The DEM elevation now has an owner: `core/elevation.js`, sampled once per tick — done 2026-10-13.)
 
 **Why it matters.** Copies can disagree, nothing can be amended (no route to re-clear in flight), and a product disappears when the consumer that happens to produce it isn't running.
 
@@ -578,24 +578,6 @@ Also in `display/` (`outside.js` 4×, `terrain.js`, `cislunar.js`) — less of a
 **Done when.** For the data-driven aircraft the JSON holds no absolute model-unit geometry; editing a value in `dimensions` changes the model on reload; `rescale-aircraft.py` is gone; the outside views match the pre-migration screenshots.
 
 **Affects.** The four data-driven airliners now; every airliner rolled out to the method later. Props/warbirds keep their scaled hand-authored geometry until they get a data-driven build.
-
-### `core/` depends on `display/`
-*Found 2026-10-11 · architecture review (`docs/architecture.md` §4.3)*
-
-The simulation layer should not depend on the presentation layer. The generated reference data moved from `display/` to `data/` on 2026-10-13; what is left is terrain elevation:
-
-| Importer | Imports | Kind |
-|---|---|---|
-| `core/crew.js` | `terrainElevM()` from `display/terrain.js?v=2` (EGPWS look-ahead) | terrain elevation |
-| `core/physics.js`, `core/crew.js`, `core/blackbox.js` | `S.terrainElevFt` — not an import: `display/terrain.js` writes the DEM elevation under the aircraft into `S` while it renders | terrain elevation, via state |
-
-**Why it matters.** **Elevation is owned by a renderer.** The DEM tile cache (Mapbox `terrain-rgb`) lives in `display/terrain.js`, which touches browser APIs at import time (`localStorage` for the token; `terrain-color.js` loads an image). So `core/crew.js` can't be unit-tested with `node --test`, and the import URL must match `outside.js`'s exactly (`?v=2`) or the two get separate tile caches — a silent failure.
-
-**Fix.**
-1. ~~**Move the generated data to `data/`**~~ — done 2026-10-13.
-2. **Move elevation sampling into `core/`** (e.g. `core/elevation.js`: tile fetch, cache, `elevM(lat, lon)`), with no DOM work at import. `display/terrain.js` and `core/crew.js` both import it — one cache, no URL coupling. Physics samples the elevation under the aircraft itself instead of reading `S.terrainElevFt` written by the renderer — then CFIT and EGPWS no longer depend on the terrain view running (still on a Mapbox token).
-
-**Done when.** `grep -rn "display/" core/` finds nothing; `core/crew.js` imports in Node without browser globals; the outside view and EGPWS still share one elevation cache.
 
 ### Gauge helpers copied between the hand-drawn panels
 *Found 2026-10-11 · `display/bf109.js`, `display/f4u1a.js`, `display/velis_epsi.js`*

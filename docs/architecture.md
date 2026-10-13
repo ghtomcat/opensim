@@ -96,6 +96,7 @@ not draw. Grouped by role:
 | Group | Modules |
 |---|---|
 | State & loop | `state.js` (single source of truth `S` + `setState`), `loop.js` (requestAnimationFrame loop; `tickSim(dt)`, the one simulation step), `lifecycle.js` (mission reset registry), `random.js` (simulation random numbers, seeded in test mode), `mission.js` / `mission-start.js` (load JSON, set initial state, weather), `catalog.js` (mission list) |
+| World | `elevation.js` (Mapbox Terrain-RGB DEM: one tile cache, `elevM(lat, lon)`, and `tickElevation()` → `S.terrainElevFt`) |
 | Data contract | `vocab.js` (the names data and code share — vehicle types, panels, engine sounds, triggers, rocket events, failures, comm profiles; a misspelled name throws), `schema/` (`check.js` validator; `mission.js`, `catalog.js`, `aircraft.js` schemas; `known.js`: logged violations) |
 | Physics | `physics.js` (fixed-wing), `rocket.js` (launch, staging, orbit, booster recovery), `thrust.js`, `pushback.js` |
 | Aircraft systems | `fuel.js`, `electrical.js`, `battery.js`, `hydraulics.js`, `baro.js`, `failures.js`, `aircraft-config.js` |
@@ -412,7 +413,7 @@ edited by hand.
 
 | Service | What | Used by | Without it |
 |---|---|---|---|
-| Mapbox `terrain-rgb` tiles | Terrain elevation (DEM) | `display/terrain.js`; the EGPWS look-ahead in `core/crew.js` via `terrainElevM()` | Needs a token in `localStorage.mapboxToken`; without one, elevation lookups return `null` |
+| Mapbox `terrain-rgb` tiles | Terrain elevation (DEM) | `core/elevation.js` — one tile cache for physics, the EGPWS look-ahead, the ND terrain and `display/terrain.js` | Needs a token in `localStorage.mapboxToken`; without one, elevation lookups return `null` |
 | Mapbox Streets v8 tiles | Water polygons | `display/terrain.js` | same token |
 | Overpass API (OSM) | Aeroway detail around the aircraft (runways, taxiways, aprons, holding points, windsocks) and major roads for night lighting | `display/terrain.js` | retried with back-off; scenery is thinner |
 | ArcGIS World Topo tiles | Map background | `display/map.js` | no background |
@@ -421,11 +422,9 @@ edited by hand.
 
 ### 4.3 Layering notes
 
-- **Terrain elevation is owned by a display module.** The EGPWS (`core/crew.js`)
-  imports `terrainElevM()` from `display/terrain.js`, and must use the same import URL
-  (`?v=2`) so both share one tile cache.
-
-Tracked, with a fix plan, in `issues.md` → *`core/` depends on `display/`*.
+`core/` imports nothing from `display/` (checked by `tests/elevation.test.mjs`).
+Reference data shared by both layers lives in `data/`; terrain elevation is a
+`core/` module (`elevation.js`) that the renderer imports, not the other way round.
 
 ---
 
@@ -660,8 +659,9 @@ uses it today.
 - **"Ground" is the field elevation of the nearer airport**, a flat plane at
   `departure.elevation` or `arrival.elevation`, whichever threshold is closer. Takeoff,
   landing, weight on wheels and the autopilot's ground logic all use it.
-- **Real terrain only enters as a crash check.** `display/terrain.js` writes the DEM
-  elevation under the aircraft into `S.terrainElevFt` while it renders. Physics
+- **Real terrain only enters as a crash check.** Each sim tick, `core/elevation.js`
+  writes the DEM elevation under the aircraft into `S.terrainElevFt` (whether or not
+  the outside view is drawing). Physics
   declares CFIT when the aircraft is below it, but only where terrain is more than
   100 ft above the field. The EGPWS (`core/crew.js`) and the black box read the same
   value. Without a Mapbox token (§4.2) it stays `null`, and there is no CFIT and no
@@ -1186,8 +1186,8 @@ mission effects (e.g. Niflheim, Wolfskopf)
 cockpit frame, heading tape, clock and moon-phase overlay, FPS
 ```
 
-It also publishes `S.terrainElevFt` (the DEM elevation under the aircraft) and
-`terrainElevM()` for the EGPWS (§7.4).
+Its DEM elevation comes from `core/elevation.js`, the same tile cache the physics and
+the EGPWS read (§7.4).
 
 ### 13.5 Other displays
 
@@ -1207,8 +1207,7 @@ It also publishes `S.terrainElevFt` (the DEM elevation under the aircraft) and
 
 - **`renderTerrain()` is one function of about 2,840 lines** (`terrain.js` lines
   653–~3,490), drawing every layer in 13.4 and sharing local state across them.
-- **Display modules do simulation work:** the taxi route (`map.js`, §10.5), terrain
-  elevation for physics (`terrain.js`, §7.4), the Velis motor's engine state
+- **Display modules do simulation work:** the taxi route (`map.js`, §10.5), the Velis motor's engine state
   (`velis_epsi.js`, §9.2), and the camera pose written into `S` (`outside.js`, §6.5).
 - **Prop and warbird geometry is code, not data.** Airliners are data-driven (§3.4),
   but the C172, Bf 109, F4U and MiG-15 are vertex arrays inside JS modules.

@@ -12,7 +12,7 @@
      roll  rotates in right/up plane (right bank → right side drops)
    ═══════════════════════════════════════════════════════════════ */
 
-import { S, setState } from '../core/state.js';
+import { S } from '../core/state.js';
 import { RUNWAYS } from '../data/runways-data.js';
 import { TAXI_WAYS } from '../data/taxi-data.js';   // named taxiways → runway-exit signs
 import { TOWERS } from '../data/towers-data.js';
@@ -25,6 +25,7 @@ import { SATELLITES }   from '../data/satellites-data.js';
 import { TERMINALS, APRONS } from '../data/terminals-data.js';   // APRONS → derived apron flood masts
 import { computeTugPath, tugPose, pushbackDist } from '../core/pushback.js';
 import { getTaxiGraph } from '../core/taxi-graph.js';
+import { elevM as _sampleElev } from '../core/elevation.js';
 
 /* Soft radial-gradient sprite, reused (additively) for the night city-light glow. */
 let _glowSprite = null, _coreSprite = null;
@@ -121,47 +122,8 @@ let _fpsLast = 0, _fpsCount = 0, _fpsDisplay = 0;
 const _MOON_REF_MS    = new Date('2000-01-06T18:14:00Z').getTime();  // reference new moon
 const _MOON_SYNODIC   = 29.530589 * 86400000;                        // ms per synodic month
 
-/* ── Mapbox Terrain-RGB elevation tiles ── */
+/* ── Mapbox token (vector street tiles; the DEM tiles live in core/elevation.js) ── */
 const _TK = localStorage.getItem('mapboxToken') ?? '';  // set once: localStorage.setItem('mapboxToken','pk.eyJ1...')
-const _TZ = 12;
-const _tcache = new Map();  /* 'x/y' → ImageData | 'loading' | 'error' */
-
-function _fetchTile(x, y) {
-  const k = `${x}/${y}`;
-  if (_tcache.has(k)) return;
-  _tcache.set(k, 'loading');
-  const img = new Image();
-  img.crossOrigin = 'anonymous';
-  img.onload = () => {
-    const c = document.createElement('canvas');
-    c.width = c.height = 256;
-    const tc = c.getContext('2d');
-    tc.drawImage(img, 0, 0);
-    _tcache.set(k, tc.getImageData(0, 0, 256, 256));
-  };
-  img.onerror = () => _tcache.set(k, 'error');
-  img.src = `https://api.mapbox.com/v4/mapbox.terrain-rgb/${_TZ}/${x}/${y}.pngraw?access_token=${_TK}`;
-}
-
-function _sampleElev(lat, lon) {
-  const n  = 1 << _TZ;
-  const lr = lat * DEG;
-  const tx = (lon + 180) / 360 * n;
-  const ty = (1 - Math.log(Math.tan(lr) + 1 / Math.cos(lr)) / Math.PI) / 2 * n;
-  const xi = tx | 0, yi = ty | 0;
-  if (xi < 0 || xi >= n || yi < 0 || yi >= n) return null;
-  _fetchTile(xi, yi);
-  const t = _tcache.get(`${xi}/${yi}`);
-  if (!t || typeof t === 'string') return null;
-  const px = Math.min(255, (tx - xi) * 256 | 0);
-  const py = Math.min(255, (ty - yi) * 256 | 0);
-  const i  = (py * 256 + px) * 4;
-  return -10000 + (t.data[i] * 65536 + t.data[i + 1] * 256 + t.data[i + 2]) * 0.1;
-}
-
-/* Look-ahead terrain query for the EGPWS (crew.js) — DEM elevation in metres at any lat/lon,
-   or null if that tile isn't decoded yet (the call also queues the fetch). */
-export function terrainElevM(lat, lon) { return _sampleElev(lat, lon); }
 
 function _terrainColor(elevM, dayFrac, depth, shade) {
   let r, g, b;
@@ -670,7 +632,6 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
      doesn't float by that gap. (Altimeter still reads S.alt; only the visual ground changes.) */
   const _fieldFt  = S.mission?.departure?.elevation ?? S.mission?.arrival?.elevation ?? null;
   const _mapFt    = _acSampM !== null ? _acSampM / 0.3048 : null;
-  if (_mapFt !== S.terrainElevFt) setState({ terrainElevFt: _mapFt });   // Mapbox DEM under the aircraft → physics CFIT check (brick 1)
   /* Reference the *published* field elevation when on/near the field — the Mapbox sample
      can sit tens of feet off the real apron, which made the runway draw high (aircraft
      sank in) on the flare and pop on touchdown. Blend from the Mapbox horizon to the field
