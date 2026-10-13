@@ -213,6 +213,22 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 ### Rocket test timings predate the countdowns
 *`tests/rocket.spec.js`* — Demo-2 has a 178 s countdown (`ignitionTime`, since 11 Apr); the booster and Dragon-separation tests check too early (separation is at t ≈ 898 s, the test expects it by 850).
 
+### Demo-2 flies RTLS, but the real booster landed on a droneship — and no mission is left for RTLS
+*Found 2026-10-13 · `aircraft/falcon9-b5-demo2.json` (`performance.recovery`), `missions/crew-demo2.json`, `missions/catalog.json`, `tests/rocket.spec.js`*
+
+**Symptom.** Demo-2 is described as "a faithful recreation of the real SpaceX Demo-2 launch" (`fiction_note`), but its booster does a boostback and lands at LZ-1. The real B1058 landed downrange on the droneship *Of Course I Still Love You*, with no boostback. The catalog briefing was updated on 2026-10-13 to the real flight (droneship landing); the mission itself still flies RTLS, so briefing and sim disagree until this is fixed.
+
+**Fix — the mission.**
+- `falcon9-b5-demo2.json` → `recovery`: `rtls` → `asds`, with the droneship's real position (`landingLat` / `landingLon`) and entry/landing burns. The sim already supports this — Inspiration5's vehicle uses `asds`. Source the position and the event times (press kit, webcast) instead of estimating them.
+- `crew-demo2.json`: clearance #30 ("Stage 1 landing burn. Touchdown confirmed. LZ-1.") → droneship; `description` and `narrative` ("Stage 1 returns / comes home to LZ-1").
+- `catalog.json`: title "Crew Dragon Demo-2 · RTLS" → drop "· RTLS". Re-measure the briefing's flight sequence in the sim and give the landing line a time (it reads "T+08:36+" now).
+- Check the webcast audio timing against the sim's landing.
+- `tests/rocket.spec.js` → *Falcon 9 Block 5 — RTLS booster recovery* (4 tests, already known failures) uses `crew-demo2`: rewrite as droneship tests (booster lands within a set distance of the droneship).
+
+**Fix — a mission for RTLS.** After the switch, no mission flies RTLS: `aircraft/falcon9-b5.json` has `rtls: true` but no mission uses it, and the RTLS model (boostback, LZ-1 landing) would lose its only test. Define a new mission with a real LZ-1 landing (e.g. Orbcomm OG2 Flight 2, December 2015 — the first Falcon 9 landing, or a later CRS flight that returned to LZ-1), and move the RTLS test block to it.
+
+**Done when.** Demo-2's booster lands on the droneship in the sim, its briefing, title and script agree, and an RTLS mission with its own tests exists.
+
 ---
 
 ## Tests
@@ -646,7 +662,7 @@ To draw the terrain from the camera, `outside.js` saves the aircraft pose, write
 *`missions/catalog.json`* — `egll-approach` (catalog: 737-800 into EGLL; file: 737 MAX 9 into Madrid) and `fimp-takeoff` (catalog: Mauritius takeoff; file: Zürich Dock E).
 
 ### Inspiration5 description says "Stage 1 returns to LZ-1"
-*`missions/inspiration5.json`* — the booster now lands on the droneship (ASDS).
+*`missions/inspiration5.json`* — the booster now lands on the droneship (ASDS). Its catalog briefing still says so too: `orders` lists "T+02:53 Boostback burn" and "T+08:45+ Stage 1 RTLS · LZ-1".
 
 ### Cold-and-dark start leaves `enginePower` at 1
 *Found 2026-10-11* — after loading `lszf-pattern`, `engineState` is `'off'` but `enginePower` reads 1. `core/mission.js` sets 0 for an engine-off start, so something after mission load sets it back — start by searching for `enginePower: 1` in `index.html` / `core/sound.js` init paths. No effect on thrust (needs `'running'`), but inconsistent.
