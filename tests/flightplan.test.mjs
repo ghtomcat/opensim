@@ -9,18 +9,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { S, setState } from '../core/state.js';
-import { resetFlightPlan, tickFlightPlan, setActiveLeg, setArrivalRunway, planFor } from '../core/flightplan.js';
+import { resetFlightPlan, tickFlightPlan, setActiveLeg, setArrivalRunway, planFor, legAt } from '../core/flightplan.js';
 import { buildFullRoute, getProcedures } from '../core/route.js';
 
 const DEP = { icao: 'LSZH', runway: '28' };
 const ARR = { icao: 'LSGG', runway: '04' };
 
-function load(departure = DEP, arrival = ARR) {
-  setState({ mission: { departure, arrival } });
+/* Loads on the ground at the departure (the first fix is active), unless a pose is given. */
+function load(departure = DEP, arrival = ARR, pose = { wow: true, lat: 47.46, lon: 8.55, hdg: 280 }) {
+  setState({ mission: { departure, arrival }, ...pose });
   resetFlightPlan();
 }
 
-test('built from the mission on load, targeting the first fix', () => {
+test('built from the mission on load; on the ground the first fix is active', () => {
   load();
   const fp = S.flightPlan, r = buildFullRoute(DEP, ARR);
   assert.ok(fp?.legs?.length >= 2, 'plan has legs');
@@ -45,7 +46,7 @@ test('setActiveLeg moves the active waypoint, clamped to the plan', () => {
 });
 
 test('a changed mission departure/arrival rebuilds the plan on the next tick', () => {
-  load();
+  load();                                                  // still on the ground
   setState({ mission: { departure: DEP, arrival: { icao: 'EDDM', runway: '26R' } } });
   tickFlightPlan();
   assert.equal(S.flightPlan.legs.at(-1).id, 'EDDM');
@@ -98,4 +99,38 @@ test('with the procedures, a new arrival runway re-routes the approach', async (
   setArrivalRunway('22');
   assert.equal(S.flightPlan.appr, 'I22');
   assert.notDeepEqual(S.flightPlan.legs.at(-1), end04, 'ends at the other threshold');
+});
+
+/* ── Airborne start: the leg being flown (legAt) ──
+   A synthetic route along the equator, east then back west a little north:
+     0 (0,0) → 1 (0,1) → 2 (0,2) → 3 (0.1,2) → 4 (0.1,1) → 5 (0.1,0)
+   Legs 1–2 (eastbound) and 4–5 (westbound) run 6 nm apart, flown in opposite directions. */
+const P = [[0, 0], [0, 1], [0, 2], [0.1, 2], [0.1, 1], [0.1, 0]].map(([lat, lon], i) => ({ lat, lon, id: 'F' + i }));
+
+test('legAt: mid-leg, heading along it → the end of that leg', () => {
+  assert.equal(legAt(P, 0.0, 0.5, 90), 1);
+  assert.equal(legAt(P, 0.0, 1.5, 90), 2);
+});
+
+test('legAt: between two legs flown opposite ways, the heading decides', () => {
+  assert.equal(legAt(P, 0.05, 0.5, 90), 1, 'eastbound → the eastbound leg');
+  assert.equal(legAt(P, 0.05, 0.5, 270), 5, 'westbound → the westbound leg');
+});
+
+test('legAt: just before a leg starts, that leg', () => {
+  assert.equal(legAt(P, 0.0, -0.05, 90), 1);              // 3 nm before F0, heading east
+});
+
+test('legAt: off every leg → the nearest fix ahead', () => {
+  assert.equal(legAt(P, 1.0, 1.9, 180), 3);                // ~54 nm north of F3, heading south: F3 is the nearest fix ahead
+  assert.equal(legAt(P, 1.0, 1.9, 0), 1, 'nothing ahead → the first fix');
+});
+
+test('airborne mission start: the plan begins at the leg being flown', () => {
+  const fp0 = (load(), S.flightPlan);                      // reference plan on the ground
+  const k = Math.floor(fp0.legs.length / 2), a = fp0.legs[k - 1], b = fp0.legs[k];
+  const lat = (a.lat + b.lat) / 2, lon = (a.lon + b.lon) / 2;
+  const hdg = (Math.atan2((b.lon - a.lon) * Math.cos(lat * Math.PI / 180), b.lat - a.lat) * 180 / Math.PI + 360) % 360;
+  load(DEP, ARR, { wow: false, lat, lon, hdg });
+  assert.equal(S.flightPlan.activeIdx, k);
 });

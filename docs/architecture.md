@@ -873,10 +873,10 @@ waypoint LNAV flies to). The module is the only caller of `buildFullRoute()`.
 
 | When | What |
 |---|---|
-| Mission load (`onMissionReset`) | built from the mission's `departure` / `arrival`; `activeIdx` = 1 (the first fix) |
+| Mission load (`onMissionReset`) | built from the mission's `departure` / `arrival`. `activeIdx`: on the ground, 1 (the first fix); airborne (a mid-route or approach start), the end of the leg being flown — `legAt()`: along the leg or ≤ 5 nm before it, ≤ 15 nm off its line, best score of distance off + heading difference (30° ≈ 10 nm); off every leg, the nearest fix ahead |
 | Tick (`tickFlightPlan()`) | rebuilt when the lazy CIFP import lands, or when the mission's `departure` / `arrival` change |
 | `setActiveLeg(i)` | the LNAV sequencer moves the active waypoint |
-| `setArrivalRunway(rwy)` | amendment: rebuilt from the amended inputs (STAR and approach follow the runway); the active waypoint is kept if the new plan has it. The mission itself isn't changed; the next mission load drops amendments |
+| `setArrivalRunway(rwy)` | amendment: rebuilt from the amended inputs (STAR and approach follow the runway); the active waypoint is kept if the new plan has it, else picked as on load. The mission itself isn't changed; the next mission load drops amendments |
 
 | Consumer | Reads |
 |---|---|
@@ -924,10 +924,7 @@ altitude vs target, gear) is translated into each manufacturer's words:
 
 ### 10.5 Observations
 
-- **LNAV starts at the first fix, wherever the aircraft is.** A mission that starts
-  mid-route turns back toward the departure (see `issues.md`).
-
-Tracked in `issues.md` → *Navigation*.
+None open (2026-10-13): the flight-plan and LNAV entries are closed.
 
 ---
 

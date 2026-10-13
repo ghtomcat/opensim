@@ -1,7 +1,8 @@
 /**
  * Flight plan in the browser — one plan for the ND, the MCDU and LNAV: changing the arrival
- * runway in flight (setArrivalRunway) re-routes all of them together.
- * Needs the CIFP procedure bundle (gitignored); skipped without it.
+ * runway in flight (setArrivalRunway) re-routes all of them together (needs the gitignored
+ * CIFP procedure bundle; skipped without it), and a mission that starts mid-route joins the
+ * leg being flown.
  */
 
 import { test, expect } from '@playwright/test';
@@ -34,4 +35,19 @@ test('a new arrival runway in flight reaches the MCDU and LNAV', async ({ page }
   });
   expect(lnav).toContain('FI18');                          // LNAV flies the amended approach
   expect(await page.evaluate(() => window.simGetState().mission.arrival.runway)).toBe('36');
+});
+
+/* A mission that starts mid-route: LNAV joins the leg being flown instead of turning back to the
+   first fix. evra-approach starts at FL350 inbound Riga, ~55.0 N 21.1 E, heading 045°. */
+test('mid-route start: managed NAV flies on toward the destination', async ({ page }) => {
+  await page.goto('/?mission=evra-approach&test=1');
+  await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+  expect(await page.evaluate(() => window.simGetState().flightPlan.activeIdx)).toBeGreaterThan(1);
+
+  await page.evaluate(() => window.simSetState({ ap: true, navManaged: true }));
+  for (let k = 0; k < 4; k++) {
+    await page.evaluate(() => window.simStep(60 * 30));   // 30 s
+    const hdg = await page.evaluate(() => window.simGetState().hdg);
+    expect(hdg, 'still heading for Riga (north-east), not back to Warsaw').toBeLessThan(90);
+  }
 });

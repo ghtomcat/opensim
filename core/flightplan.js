@@ -13,6 +13,10 @@
    Amendments (setArrivalRunway) rebuild the plan from amended inputs;
    the active waypoint is kept if the new plan still has it.
 
+   The active waypoint on a fresh plan: on the ground, the first fix;
+   airborne (a mission that starts mid-route or on approach), the end
+   of the leg the aircraft is flying (legAt).
+
    planFor(dep, arr) is the same route for a mission that isn't loaded
    (the pre-flight briefing). This module is the only caller of
    buildFullRoute().
@@ -29,6 +33,43 @@ let _srcKey = null;             // mission departure/arrival the inputs came fro
 const _key = (dep, arr) =>
   `${dep?.icao}/${dep?.runway}/${dep?.sid}|${arr?.icao}/${arr?.runway}/${arr?.star}`;
 
+const DEG = Math.PI / 180;
+const BEFORE_NM   = 5;    // a leg can be joined up to this far before its start fix
+const MAX_OFF_NM  = 15;   // … and up to this far off its line; further off, the aircraft isn't on it
+const NM_PER_DEG  = 1/3;  // heading penalty: 30° off the leg's track counts like 10 nm off its line
+
+/** The active waypoint for an aircraft at lat/lon on heading hdg (true °): the end fix of the
+    leg it is flying — along the leg (or just before it), near and closest to its line, heading most
+    nearly along it (so a leg flown the other way nearby doesn't win). Off every leg: the
+    nearest fix ahead; else 1. Flat-earth around the aircraft, nm. */
+export function legAt(legs, lat, lon, hdg) {
+  if (!legs || legs.length < 2) return 0;
+  const cos = Math.cos(lat * DEG);
+  const xy  = (l) => [(l.lon - lon) * 60 * cos, (l.lat - lat) * 60];   // east, north of the aircraft
+  const dHdg = (trk) => Math.abs(((hdg - trk + 540) % 360) - 180);
+  let best = null;
+  for (let i = 1; i < legs.length; i++) {
+    const [ax, ay] = xy(legs[i - 1]), [bx, by] = xy(legs[i]);
+    const ex = bx - ax, ey = by - ay, len = Math.hypot(ex, ey);
+    if (len < 0.01) continue;
+    const along = (-ax * ex - ay * ey) / len;                // aircraft's position along the leg from its start
+    if (along < -BEFORE_NM || along > len) continue;
+    const off = Math.abs(-ax * ey + ay * ex) / len;          // distance off the leg's line
+    if (off > MAX_OFF_NM) continue;
+    const trk = (Math.atan2(ex, ey) / DEG + 360) % 360;
+    const score = off + dHdg(trk) * NM_PER_DEG;
+    if (!best || score < best.score) best = { i, score };
+  }
+  if (best) return best.i;
+  let ahead = null;
+  for (let i = 1; i < legs.length; i++) {
+    const [x, y] = xy(legs[i]), d = Math.hypot(x, y);
+    const brg = (Math.atan2(x, y) / DEG + 360) % 360;
+    if (dHdg(brg) < 90 && (!ahead || d < ahead.d)) ahead = { i, d };
+  }
+  return ahead ? ahead.i : 1;
+}
+
 function _route(dep, arr) {
   try { return buildFullRoute(dep, arr); } catch { return null; }
 }
@@ -38,13 +79,15 @@ function _build(keep) {
   _procs = getProcedures();
   const r = _route(_dep, _arr);
   if (!r?.legs?.length) { setState({ flightPlan: null }); return; }
-  let idx = 1;                                             // first fix, not the departure airport
+  let idx = -1;
   const prev = keep && S.flightPlan;
-  if (prev) {
+  if (prev) {                                              // keep the active waypoint if it survives
     const id = prev.legs[prev.activeIdx]?.id;
-    const j  = id ? r.legs.findIndex((l, k) => k >= 1 && l.id === id) : -1;
-    if (j >= 1) idx = j;
+    if (id) idx = r.legs.findIndex((l, k) => k >= 1 && l.id === id);
   }
+  if (idx < 1) idx = (S.wow || S.lat == null || S.lon == null)
+    ? 1                                                    // on the ground: the first fix
+    : legAt(r.legs, S.lat, S.lon, S.hdg ?? 0);              // airborne: the leg being flown
   setState({ flightPlan: { ...r, dep: _dep, arr: _arr, activeIdx: Math.min(idx, r.legs.length - 1) } });
 }
 

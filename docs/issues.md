@@ -252,11 +252,6 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 
 ## Navigation
 
-### LNAV starts at the first fix, wherever the aircraft is
-*Found 2026-10-13 · `core/flightplan.js` (`activeIdx` = 1 on build), `lnavTargetHeading()` in `core/lnav.js`*
-
-The flight plan targets the first fix after the departure runway on mission load. The sequencer only advances past fixes the aircraft has flown beyond along their inbound leg, so a mission that starts mid-route flies back to the start. Seen on `evra-approach` (FL350 near 55.0 N 21.2 E, inbound Riga): with AP + managed NAV the aircraft turns from 069° to 186°, toward WA602 near Warsaw, and `activeIdx` stays 1. Same trace before the flight-plan refactor, so not a regression. **Fix:** on build (and on engaging NAV), set `activeIdx` to the leg the aircraft is on, e.g. the first leg whose along-track position is still ahead. **Done when:** on `evra-approach`, engaging managed NAV flies on toward Riga (roughly north) instead of turning back toward Warsaw.
-
 ### Engine start completes when the start-up sound finishes
 *Found 2026-10-11 · `startEngineLifecycle()` in `core/sound.js`*
 
