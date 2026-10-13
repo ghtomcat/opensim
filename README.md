@@ -458,6 +458,8 @@ core/
   mission.js                  — loads aircraft + mission JSON, live METAR fetch
   lifecycle.js                — mission reset registry: modules register their reset, loadMission runs them
   random.js                   — simulation random numbers (turbulence), seeded in test mode
+  vocab.js                    — the names data and code share (triggers, panels, engine sounds, …); typos throw
+  schema/                     — data schemas for missions, catalog, aircraft; checked by npm test and at load
   mission-start.js            — named mission start positions (gates, runways)
   catalog.js                  — mission picker catalogue, loaded from missions/catalog.json
   aircraft-config.js          — aircraft JSON → derived config
@@ -549,7 +551,7 @@ npx playwright install chromium
 npm test
 ```
 
-`npm test` runs the Node unit tests first (`tests/*.test.mjs`, 64 tests), then the Playwright browser specs (165 tests in 13 files), all headless: physics, fuel/engine/carb heat, thrust, sound synthesis and state machines, COM radio, FMA, managed speed, route building, VNAV, aircraft data, rocket staging and orbital mechanics. Runs are repeatable: in test mode `simStep` is the only clock and turbulence is seeded. Calibration specs run separately with `npm run calibrate`.
+`npm test` runs the Node unit tests first (`tests/*.test.mjs`, 113 tests, including a schema check of every mission, catalog entry and aircraft), then the Playwright browser specs (165 tests in 13 files), all headless: physics, fuel/engine/carb heat, thrust, sound synthesis and state machines, COM radio, FMA, managed speed, route building, VNAV, aircraft data, rocket staging and orbital mechanics. Runs are repeatable: in test mode `simStep` is the only clock and turbulence is seeded. Calibration specs run separately with `npm run calibrate`.
 
 Running subsets, reading the output, the `?test=1` API, writing tests and the current known failures → [docs/testing.md](docs/testing.md).
 

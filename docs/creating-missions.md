@@ -131,8 +131,8 @@ only spans the bundled navaids — but the SID, STAR, approach, and constraints 
 
 `"aircraft"` is an `aircraft/<id>.json` id. Match the type to the route: wide-bodies
 (a350) for long-haul, narrow-bodies (a220/b737/e190) for shorter legs. Turbofans need a
-valid `engine.type: "turbofan"` + `count` and a `thrustProfiles` block — `npm test`
-lints this (`tests/aircraft-data.test.mjs`).
+valid `engine.type: "turbofan"` + `count` and a `thrustProfiles` block — the aircraft
+schema checks this (§7).
 
 ---
 
@@ -146,3 +146,43 @@ npm test                                         # full suite (node + playwright
 ```
 
 Or open `?mission=<id>` in the browser and fly it.
+
+---
+
+## 7. The schema
+
+Every mission, catalog entry and aircraft is checked against a schema in `core/schema/`
+(`mission.js`, `catalog.js`, `aircraft.js`):
+
+- **by `npm test`** — `tests/data-schema.test.mjs` validates every file;
+- **at load** — players get a console warning (`[data] missions/<id>.json doesn't match
+  its schema: …`); in test mode (`?test=1`) the load fails.
+
+An **unknown key** fails, and so does an **unknown name** in an enum-like field: trigger
+type, rocket event, failure type, engine sound, panel, vehicle type, comm profile. The
+names live in `core/vocab.js` — the same lists the code checks itself against, so the
+data can't use a name the code doesn't know.
+
+**Adding a field.** Put it in the schema where it belongs:
+
+| The field is … | Schema option | Example |
+|---|---|---|
+| read by the sim | `fields` (with its type) | `approachBriefAlt: num` |
+| for people only | `doc` | `narrative`, `fiction_note`, `book` |
+| data for a feature not built yet | `planned` | `landSurfaces`, `gearRuggedness` |
+
+A **new name** (a trigger type, a comm profile, …) goes into `core/vocab.js`, and the code
+that handles it into the matching table — the table checks on load that it covers every
+name in the vocabulary.
+
+**Comments.** Keys starting with `_` (`_note`, `_doc`, `_status`) are allowed anywhere and
+never read — JSON has no other comment syntax.
+
+**The catalog card holds labels, the mission file the facts.** `title`, `acName`,
+`location` and `engine` on the card may differ from the mission (a short card title);
+`aircraft` must match.
+
+**Known violations.** A problem that's logged in `docs/issues.md` but not fixed yet goes
+on `core/schema/known.js`, so it passes. The test fails once it no longer occurs —
+remove it there and close the issue.
+

@@ -4,7 +4,7 @@ Two runners, no build step:
 
 | Runner | Files | Count | Time | What |
 |--------|-------|-------|------|------|
-| **Node** (`node --test`) | `tests/*.test.mjs` | 64 | < 1 s | Pure logic: aircraft data, DB 601 synthesis, FMA, managed speed, route building, thrust, VNAV |
+| **Node** (`node --test`) | `tests/*.test.mjs` | 113 | < 1 s | Data schema (every mission, catalog entry, aircraft), shared vocabulary, DB 601 synthesis, FMA, managed speed, route building, thrust, VNAV |
 | **Playwright** (headless Chromium) | `tests/*.spec.js`, `tests/*.test.js` | 165 in 13 files | ~6 min (4 workers) | The real sim in a browser page: physics, fuel/engine/carb, sound state machines, COM, rockets, orbits, outside profiles |
 
 ---
@@ -93,6 +93,7 @@ Load a mission with `/?mission=<id>&test=1` and wait for `window.simReady === tr
 - **`simStep` is the only clock** — the page keeps rendering, but the game loop never advances the sim on its own; waiting between calls changes nothing
 - **seeds turbulence** on every mission load — the same random sequence every run
 - **doesn't record** — telemetry and the black box aren't started (they grow with sim time)
+- **checks data strictly** — a mission or aircraft that doesn't match its schema (`core/schema/`) fails the load instead of only warning
 - exposes the test API on `window`
 
 Together: the same test gives the same numbers on every run, to the last digit.
@@ -134,6 +135,8 @@ To try something without writing a test, `tools/probe.mjs` loads a mission in te
 **Keep loops cheap.** The default timeout is 30 s. A loop of `page.evaluate(() => simStep(1))` per frame costs a round trip each time; for long runs, step inside one `evaluate` and return what you need.
 
 **Keys are real keys.** `page.keyboard.press('h')` goes through the same handlers as a player — check [keybindings.md](keybindings.md) when a test presses a key.
+
+**Data files have a schema.** `tests/data-schema.test.mjs` checks every mission, catalog entry and aircraft against `core/schema/`; an unknown key or name fails. A new field needs a schema entry — see [creating-missions.md → The schema](creating-missions.md#7-the-schema). A violation that's logged in `issues.md` but not fixed yet goes on `core/schema/known.js`; the test fails when it no longer occurs, so the list stays current.
 
 **One file per area, one test per behaviour.** Add a test when you add an aircraft (`tests/physics.spec.js`). Name the test after the behaviour: *"rotates between 50–75 kt"*.
 

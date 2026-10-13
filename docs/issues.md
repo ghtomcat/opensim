@@ -407,19 +407,19 @@ Leaflet 1.9.4 (JS + CSS) and Three.js r134 (+ `STLLoader`, `OrbitControls`) load
 ### F4U Corsair starts up with the DB 605 start-up sound
 *Found 2026-10-11 · `core/sound.js`, start-up buffer selection (`const startupBuf = _engineType === 'radial-2800hp'`)*
 
-The check compares against `'radial-2800hp'`, but the F4U's engine type (and every other check in the code) is `'radial-2000hp'`. It never matches, so the Corsair falls through to `_assembleStartup()`, the DB 605 sequence; `_assembleR2800Startup()` is never called. **Cause — verified (code + history).** `21d56de` (14 Apr, Lycoming start-up) changed `'radial-2000hp'` to `'radial-2800hp'` on that line — most likely a typo. **Fix:** `'radial-2000hp'`. **Done when:** an F4U cold start (E key, `bougainville-1943` or another ground start) plays the R-2800 start-up. An example of *No contract between the JSON data and the code* below.
+The check compares against `'radial-2800hp'`, but the F4U's engine type (and every other check in the code) is `'radial-2000hp'`. It never matches, so the Corsair falls through to `_assembleStartup()`, the DB 605 sequence; `_assembleR2800Startup()` is never called. **Cause — verified (code + history).** `21d56de` (14 Apr, Lycoming start-up) changed `'radial-2000hp'` to `'radial-2800hp'` on that line — most likely a typo. **Fix:** `'radial-2000hp'`. **Done when:** an F4U cold start (E key, `bougainville-1943` or another ground start) plays the R-2800 start-up. One of the hand-spelled comparisons in *Name comparisons still spelled out by hand*.
 
 
 ### Velis electric motor plays the geared-turbofan sound
 *Found 2026-10-11 · `ENGINES` in `core/sound.js`; `startSound('electric')` in `display/velis_epsi.js`*
 
-The Velis's `sound.engineType` is `"electric"`, but `ENGINES` has no `electric` preset; `initSound()` / `startSound()` fall back to `ENGINES['geared-turbofan']` (`ENGINES[type] ?? ENGINES['geared-turbofan']`). **Cause — verified (code), not yet heard in the sim.** **Fix:** an `electric` preset (motor whine + prop, no combustion — the removed `edf-hovercraft` preset used `slewTime: 0.04`, "electric motors spool almost instantly"), calibrated against a Velis recording (`docs/sound-calibration.md`). **Done when:** the Velis sounds like an electric motor; an unknown `engineType` is a validation error (see *No contract between the JSON data and the code*), not a silent turbofan.
+The Velis's `sound.engineType` is `"electric"`, but `ENGINES` has no `electric` preset; `initSound()` / `startSound()` fall back to the geared-turbofan preset (`_preset()` in `core/sound.js`). **Cause — verified (code), not yet heard in the sim.** **Fix:** an `electric` preset (motor whine + prop, no combustion — the removed `edf-hovercraft` preset used `slewTime: 0.04`, "electric motors spool almost instantly"), calibrated against a Velis recording (`docs/sound-calibration.md`). Since 2026-10-13 the fallback is visible: the console warns `[vocab] unknown engine sound "electric"`, and the sound coverage check in `core/sound.js` exempts `electric` with a pointer to this entry. **Done when:** the Velis sounds like an electric motor, and `electric` is no longer exempt from the `ENGINES` coverage check. (An unknown `engineType` already fails the data schema.)
 
 ### Comm profile names outside the profile table
 *Found 2026-10-11 · `PROFILES` in `core/radio.js`; `missions/crew-demo2.json`*
 
-- **`sband-crew` is planned but not defined yet.** `crew-demo2` sets `characters.crew.commProfile: "sband-crew"`; `docs/audio-chain.md` lists it as *"add when H4n recordings land"*. No effect today — the crew lines are TTS, and TTS ignores profiles — but until it's defined, recordings for the crew would silently play as `vhf-aviation` (`createRadioChain()` falls back). Fix: define it together with the recordings.
-- **`broadcast` is valid but special-cased.** It's a dry bypass for narrators, handled by `if (profileName === 'broadcast')` in `playThroughChain()` instead of being an entry in `PROFILES` — so the list of valid names isn't in one place. Fix: a `PROFILES` entry with a `bypass: true` flag.
+- **`sband-crew` is planned but not defined yet.** `crew-demo2` sets `characters.crew.commProfile: "sband-crew"`; `docs/audio-chain.md` lists it as *"add when H4n recordings land"*. No effect today — the crew lines are TTS, and TTS ignores profiles — but until it's defined, recordings for the crew would play as `vhf-aviation` (`createRadioChain()` falls back, with a console warning since 2026-10-13). It's on the schema's known list (`core/schema/known.js`). Fix: define it together with the recordings, then remove it from the known list.
+- **`broadcast` is valid but special-cased.** It's a dry bypass for narrators, handled by `profileName === COMM_PROFILE.BROADCAST` in `playThroughChain()` instead of being an entry in `PROFILES`. The valid names are in one place now (`COMM_PROFILE` in `core/vocab.js`; the `PROFILES` coverage check exempts `broadcast`). Optional: a `PROFILES` entry with a `bypass: true` flag would remove the exemption.
 - **`COCKPIT_PROFILES` in `core/crew.js` lists `cockpit-c172`**, which isn't a radio profile.
 
 **Done when.** Every `commProfile` value in missions/aircraft is a key of `PROFILES`; unknown names fail validation.
@@ -466,7 +466,7 @@ The declared layering (data → simulation → presentation → shell) is also n
 **Suggested order.**
 1. ~~One tick and one mission lifecycle~~ — done 2026-10-12.
 2. Owned products in `core/` (route, taxi route, elevation) and generated data out of `display/`.
-3. Schema check at load + a test that loads every aircraft and mission (*No contract between the JSON data and the code*).
+3. ~~Schema check at load + a test that loads every aircraft and mission~~ — done 2026-10-13 (`core/schema/`, `core/vocab.js`); left: *Overloaded fields in the JSON data*, *Name comparisons still spelled out by hand*.
 4. Vehicle contract and per-engine state — when the training work needs them.
 
 ### `S` has no field ownership
@@ -521,25 +521,15 @@ The declared layering (data → simulation → presentation → shell) is also n
 
 **Done when.** An engine can fail on its own on a twin, and the aircraft yaws and loses thrust accordingly; one hydraulic loss removes one function.
 
-### No contract between the JSON data and the code
-*Found 2026-10-11 · architecture review (`docs/architecture.md` §2)*
+### Overloaded fields in the JSON data
+*Found 2026-10-11 · `aircraft/*.json`, `missions/*.json`; left over from the data-contract work (2026-10-13)*
 
-**Symptom.** Mistakes in mission and aircraft JSON fail silently, as do the string keys the code compares them against. Evidence so far:
-- **Fields no code reads.** `narrative`, `atmosphere`, `fiction_note`, `notes`, `book`, `scoring`, `approachBriefAlt` appear in mission files; authors expect them to do something. In aircraft files: `model`, `era`, `landSurfaces`, `ambient`, `gearRuggedness`, `raCallouts` (a340), `crewCallouts` and `externalSensor` (avro504).
-- **`engine` has two shapes.** An object `{type: "turbofan", …}` on the jets, a descriptive string on the others (`"Lycoming IO-360, 180hp"`); code reads `engine?.type`.
-- **Unknown trigger types never fire, without a warning.** `_evalTrigger()` in `core/crew.js` returns `false` for an unknown `trigger.type`; `tickFailures()` in `core/failures.js` only knows `time` and `alt`. A typo in a clearance or failure means it never happens.
-- **One fact, two sources.** `catalog.json` vs mission files (see *`catalog.json` and mission files disagree*); the live-flight `aircraft` (see *Live flight always loads the A350*).
-- **Overloaded fields.** `timeOfDay` is hours, or a day fraction when < 1 (`display/terrain.js`). A `failures` entry goes to `core/failures.js` or `core/rocket.js` depending on whether it has a `trigger` key.
-- **Mistyped string keys in code.** See *F4U Corsair starts up with the DB 605 start-up sound* above.
-- **Unknown names fall back silently.** `engineType: "electric"` → turbofan sound (*Velis electric motor plays the geared-turbofan sound*); `commProfile: "sband-crew"` → `vhf-aviation` (*Comm profile names outside the profile table*).
+The data now has a schema (`core/schema/`, checked by `npm test` and at load), but three fields still have two meanings, and the schema has to accept both:
+- **`engine`** is an object `{ type: "turbofan", count, … }` on the jets and a descriptive string (`"Lycoming IO-360, 180hp"`) on the others; code reads `engine?.type`.
+- **`timeOfDay`** is hours, or a day fraction when < 1 (`display/terrain.js`).
+- **A `failures` entry** goes to `core/failures.js` or `core/rocket.js` depending on whether it has a `trigger` key.
 
-**Cause — verified.** The JSON files have no schema, and the loaders accept any shape; every consumer reads `S.mission.*` / `S.aircraft.*` with `?.` and a default.
-
-**Fix.** A schema per file type (mission, catalog entry, aircraft) — fields, types, allowed enum values (trigger types, failure types, `engineType`, `panel`, `commProfile`) — and a Node test that validates every file in `missions/` and `aircraft/` against it: unknown keys and unknown enum values fail. Engine types and trigger types as shared constants rather than repeated string literals. Then decide for each unread field: implement it or remove it.
-
-**Done when.** `npm test` validates all mission, catalog and aircraft files; a misspelled field or trigger type in any of them fails the test.
-
-**Affects.** Every mission and aircraft, and every new one added.
+**Fix:** one shape each — e.g. `engine` always an object (the description as `engine.model` / documentation), `timeOfDay` always hours, rocket anomalies under their own key. One field at a time; the schema then drops the second shape. **Done when:** none of the three needs an `anyOf` in `core/schema/`.
 
 ### Name comparisons still spelled out by hand (data-contract stage 3b)
 *Noted 2026-10-13 · `core/vocab.js`; comparisons in `core/`, `display/`, `index.html`*
@@ -581,7 +571,7 @@ Also in `display/` (`outside.js` 4×, `terrain.js`, `cislunar.js`) — less of a
 **Fix — outline.**
 1. **Split size from shape.** Size = `dimensions` (mm). Shape = stored as proportions — X stations as fractions of `length`, radial values as fractions of the fuselage radius (or as named measurements where one exists: gear stations, wing root, engine gap, fairing).
 2. **One load-time resolver** (next to `resolveAircraftConfig()` in `loadMission()`) computes the model-space geometry from `dimensions` × proportions at 1 mm = 1/1 852 000 NM. The renderer reads only the resolved geometry.
-3. **A `dimensions` schema.** The keys differ today: `a350` has `mainGearHalfTrack`, `b777-300er` has `mainGearTrack`; `b737max9` nests `engine` / `gear` sub-blocks and has no `length`. Part of *No contract between the JSON data and the code*.
+3. **A `dimensions` schema.** The keys differ today: `a350` has `mainGearHalfTrack`, `b777-300er` has `mainGearTrack`; `b737max9` nests `engine` / `gear` sub-blocks and has no `length`. The aircraft schema (`core/schema/aircraft.js`) accepts the 3D-model blocks as `open` until then.
 4. **Migrate per aircraft, `a340` first** (the reference build). Compare outside-view screenshots before and after; the model must not move.
 5. Retire `rescale-aircraft.py`.
 

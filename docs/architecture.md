@@ -93,6 +93,7 @@ not draw. Grouped by role:
 | Group | Modules |
 |---|---|
 | State & loop | `state.js` (single source of truth `S` + `setState`), `loop.js` (requestAnimationFrame loop; `tickSim(dt)`, the one simulation step), `lifecycle.js` (mission reset registry), `random.js` (simulation random numbers, seeded in test mode), `mission.js` / `mission-start.js` (load JSON, set initial state, weather), `catalog.js` (mission list) |
+| Data contract | `vocab.js` (the names data and code share — vehicle types, panels, engine sounds, triggers, rocket events, failures, comm profiles; a misspelled name throws), `schema/` (`check.js` validator; `mission.js`, `catalog.js`, `aircraft.js` schemas; `known.js`: logged violations) |
 | Physics | `physics.js` (fixed-wing), `rocket.js` (launch, staging, orbit, booster recovery), `thrust.js`, `pushback.js` |
 | Aircraft systems | `fuel.js`, `electrical.js`, `battery.js`, `hydraulics.js`, `baro.js`, `failures.js`, `aircraft-config.js` |
 | Navigation & automation | `route.js` (full route: SID/airways/STAR/approach), `lnav.js`, `vnav.js`, `managed-speed.js`, `fma.js`, `airway-graph.js`, `taxi-graph.js` |
@@ -157,6 +158,8 @@ picker click / ?mission=<id>
        └─ core/mission.js  loadMission("missions/<id>.json", fallbackAircraftPath)
             1. fetch mission JSON
             2. fetch aircraft/<mission.aircraft>.json
+               check both against their schemas (core/schema/) — a console
+               warning for players; in test mode the load fails (§6.4)
             3. resolve cockpit config cascade        (core/aircraft-config.js)
             4. resolve start position                (core/mission-start.js)
                  "start": {runway, at} | {stand}  → exact lat/lon/hdg from bundled
@@ -236,12 +239,25 @@ aircraft), `coolant_leak` (needs a liquid cooling system). Entries **without** a
 `trigger` are spacecraft system failures (`{t, id, affects[], masterAlarm}`), handled
 by `core/rocket.js`; they light warnings rather than change engine power.
 
-### 2.6 Fields present but not read
+### 2.6 The schema: what a file may contain
 
-Some mission files contain fields that no code reads: `narrative`, `atmosphere`,
-`fiction_note`, `notes`, `book`, `scoring`, `approachBriefAlt`. Narrative and
-briefing text that the user sees comes from `catalog.json` (`briefing.atmosphere`,
-etc.), not the mission file.
+Every mission, catalog entry and aircraft has a schema in `core/schema/`, checked by
+`npm test` (`tests/data-schema.test.mjs`) and again at load (§2.2). An unknown key or
+an unknown name (trigger type, rocket event, engine sound, panel, comm profile, …)
+fails. Two kinds of fields are allowed although the sim doesn't read them:
+
+- **Documentation only** — for people: mission `author`, `description`, `narrative`,
+  `fiction_note`, `book`; aircraft `model`, `era`, `subtype`, `specs`, `links`,
+  `envelope.maxAlt`, and `dimensions` (the DWG measurement record). Keys starting
+  with `_` are comments, allowed anywhere.
+- **Planned** — data for a feature that isn't built yet, listed so it stays visible:
+  e.g. `landSurfaces`, `gearRuggedness`, `ambient`, the robot arm's `scoring`, manual
+  weather `visib` and `snow`.
+
+The briefing text the user sees comes from `catalog.json` (`briefing.*`), not the
+mission file. The catalog card holds labels (short titles); the one fact it shares
+with the mission, `aircraft`, must match. The aircraft's 3D-model blocks are accepted
+as `open` until the geometry work gives them a schema.
 
 ---
 
@@ -561,6 +577,8 @@ In test mode (`?test=1`), `index.html` exposes `window.simStep(n, dt)`,
   to the last digit. Players get `Math.random`.
 - **No recorders.** Telemetry and the black box aren't started in test mode: no test
   reads them, and both grow with sim time (a rocket spec runs to t ≈ 330 000 s).
+- **Strict data.** A mission or aircraft that doesn't match its schema fails the load
+  (`setStrictData(true)`); players only get a console warning (§2.6).
 
 ### 6.5 Observations
 
@@ -971,8 +989,9 @@ noise (`radio-crackle-processor.js` AudioWorklet), and a squelch tail.
   `ip-spacex-narrate`, `launch-control`, `cockpit-bf109`, `arc-5`, `rsiu-3`; plus
   `broadcast`, a dry bypass (no chain) for narrators, special-cased in `playThroughChain()`.
 - **Choosing a profile:** entry `commProfile` → `characters[speaker]` → mission
-  `commProfile` → `vhf-aviation` (§2.4). An **unknown name silently falls back to
-  `vhf-aviation`**.
+  `commProfile` → `vhf-aviation` (§2.4). An unknown name falls back to `vhf-aviation`
+  with a console warning; in data files the schema rejects it (§2.6). The names are
+  `COMM_PROFILE` in `core/vocab.js`, and `PROFILES` checks itself against them on load.
 - **Engine bleed:** for cockpit profiles, `playRadio()` (in `crew.js`) mixes the live
   engine sound under the received voice (`COCKPIT_PROFILES`, 2.5–9 %), taken from
   `sound.js` via `getEngineBleedNode()`.
@@ -997,14 +1016,14 @@ new one** on every (re)start, and re-adds the worklet modules.
 
 ### 11.4 Observations
 
-- **Unknown names fall back silently.**
+- **Unknown names fall back — with a warning.**
   - `crew-demo2` gives its crew `commProfile: "sband-crew"`, which is planned (with
-    the crew recordings, per `audio-chain.md`) but not defined yet. No effect today
-    (the crew lines are TTS, and TTS ignores profiles); until it's defined, recordings
-    would play as `vhf-aviation`. (`broadcast`, used by `inspiration5`'s narrators, is
+    the crew recordings, per `audio-chain.md`) but not defined yet — on the schema's
+    known list. No effect today (the crew lines are TTS, and TTS ignores profiles);
+    until it's defined, recordings would play as `vhf-aviation`. (`broadcast`, used by `inspiration5`'s narrators, is
     valid: a dry bypass handled in `playThroughChain()` rather than in `PROFILES`.)
   - The Velis's `engineType: "electric"` has no `ENGINES` entry, so the electric motor
-    gets the **geared-turbofan** preset.
+    gets the **geared-turbofan** preset (the console says so).
   - `COCKPIT_PROFILES` lists `cockpit-c172`, which isn't a radio profile.
 - **One AudioContext, re-created.** The radio chain and engine bleed use the context
   from `sound.js`. That context is closed and replaced whenever an engine sound
@@ -1223,7 +1242,7 @@ The single page that ties everything together. It's the top of the stack: it imp
 ```
 page load
   ?test=1     → test mode: no live METAR, onboarding skipped, test API exposed,
-                manual clock, seeded turbulence, no recorders (§6.4)
+                manual clock, seeded turbulence, no recorders, strict data (§6.4)
   ?mission=id → straight to init(id)            otherwise → showSelect() (picker)
   popstate    → back: stop the mission session, picker
                 forward: init(that mission)                 (url-routing.md)
