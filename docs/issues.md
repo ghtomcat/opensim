@@ -541,6 +541,11 @@ The declared layering (data → simulation → presentation → shell) is also n
 
 **Affects.** Every mission and aircraft, and every new one added.
 
+### Name comparisons still spelled out by hand (data-contract stage 3b)
+*Noted 2026-10-13 · `core/vocab.js`; comparisons in `core/`, `display/`, `index.html`*
+
+Stage 3a put the shared names in `core/vocab.js` and made the five dispatch points (triggers, rocket events, failures, comm profiles, engine sounds) check themselves against it. The plain comparisons were left for later: about 180 literals like `panel === 'airbus'` (53, in 8 files), `vehicleType === 'rocket'` (48, in 13 files) and `engineType === 'lycoming-o360'` (31, in 3 files), much of it in `index.html`. Each is a place where a typo compares silently false — two are already logged: *Velis COM ignores its power switches* (`'velis'` for `'velis-epsi'`) and *F4U Corsair starts up with the DB 605 start-up sound* (`'radial-2800hp'` for `'radial-2000hp'`). **Fix:** replace them with `PANEL.X` / `VEHICLE.X` / `ENGINE.X` from `core/vocab.js` (a misspelled name throws). The two known typos change behaviour when fixed, so each gets its own commit, not hidden in the bulk change. Can go together with the `index.html` rewrite. **Done when:** `grep -nE "(panel|vehicleType|engineType)\s*[!=]==\s*'" core display index.html` finds nothing.
+
 ### Vehicle- and mission-specific special cases in generic core modules
 *Found 2026-10-11 · architecture review*
 
