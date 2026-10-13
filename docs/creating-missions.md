@@ -96,18 +96,18 @@ use a new airport, name it in a mission's `departure`/`arrival`, then regenerate
 
 ```bash
 # 1. Runways + airport tiers (public domain, OurAirports — committable)
-python3 scripts/build-runways.py        # → display/runways-data.js
+python3 scripts/build-runways.py        # → data/runways-data.js
 
 # 2. SID/STAR/approach procedures (X-Plane CIFP — PROPRIETARY, gitignored)
-python3 scripts/build-cifp.py           # → display/procedures-data-xp.js
+python3 scripts/build-cifp.py           # → data/procedures-data-xp.js
 ```
 
 Both scripts read `missions/*.json` and auto-include any new departure/arrival ICAO.
 `build-runways.py` downloads OurAirports CSVs; `build-cifp.py` slices a local X-Plane 12
 install (`--xplane <path>` to override).
 
-**Licensing:** `display/runways-data.js` and the navaids are public-domain (OurAirports,
-CC0) — committable. `display/procedures-data-xp.js` is Navigraph/Jeppesen via X-Plane —
+**Licensing:** `data/runways-data.js` and the navaids are public-domain (OurAirports,
+CC0) — committable. `data/procedures-data-xp.js` is Navigraph/Jeppesen via X-Plane —
 **proprietary, gitignored, never redistributed.** The scripts contain no data and are
 fine to commit.
 

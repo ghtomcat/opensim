@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   display/coastlines.js
+   data/coastlines.js
    Simplified world coastlines — ~5° resolution.
    Each entry: [[lon, lat], ...] polyline (not closed).
    Approximate geometry, not for navigation.

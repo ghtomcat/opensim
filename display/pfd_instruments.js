@@ -63,7 +63,7 @@ function _ndTerrainGrid(lat0, lon0, rangeNm) {
    optional). Auto-tuned to the two nearest stations for now (raw-data nav / pilot tuning
    later); each gives bearing (true) and DME (slant-range ≈ ground distance). */
 let _VORS = [];
-import('../display/navaids-data.js').then(m => { _VORS = m.VORS || []; }).catch(() => {});
+import('../data/navaids-data.js').then(m => { _VORS = m.VORS || []; }).catch(() => {});
 function _tunedVORs() {
   if (!_VORS.length || S.lat == null) return [];
   const la = S.lat, lo = S.lon, cos = Math.cos(la * Math.PI / 180);

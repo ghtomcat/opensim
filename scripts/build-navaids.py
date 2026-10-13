@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Regenerate display/navaids-data.js: VOR / VOR-DME / VORTAC stations near the mission
+"""Regenerate data/navaids-data.js: VOR / VOR-DME / VORTAC stations near the mission
 airports, from OurAirports' navaids.csv, for the ND's VOR1 / VOR2 radio-navigation display.
 
 OurAirports data is PUBLIC DOMAIN (David Megginson / OurAirports — "all of OurAirports' data
 into the public domain"), so unlike the X-Plane / Navigraph nav data the bundle this writes
-(display/navaids-data.js) is committable and reproducible without any proprietary source.
+(data/navaids-data.js) is committable and reproducible without any proprietary source.
 
 The CSV is fetched once to scripts/ourairports/navaids.csv (gitignored) and reused. We keep
 VOR-azimuth stations (VOR / VOR-DME / VORTAC; pure TACAN / DME / NDB dropped) within a box
@@ -42,9 +42,9 @@ def mission_airports():
 
 
 def airport_centres(icaos):
-    """Mean of each airport's runway thresholds, from display/runways-data.js."""
+    """Mean of each airport's runway thresholds, from data/runways-data.js."""
     runways = {}
-    for ln in open(os.path.join(ROOT, "display", "runways-data.js")):
+    for ln in open(os.path.join(ROOT, "data", "runways-data.js")):
         if ln.lstrip().startswith("export const RUNWAYS"):
             runways = json.loads(ln.split("=", 1)[1].strip().rstrip(";").rstrip())
             break
@@ -70,7 +70,7 @@ def main():
     fetch_csv()
     centres = airport_centres(mission_airports())
     if not centres:
-        sys.exit("no mission-airport coordinates (need display/runways-data.js)")
+        sys.exit("no mission-airport coordinates (need data/runways-data.js)")
     cs = list(centres.values())
 
     def near(la, lo):
@@ -98,7 +98,7 @@ def main():
           "   navaids.csv (PUBLIC DOMAIN — OurAirports). Regenerate: scripts/build-navaids.py.\n"
           "   VORS = [{ id, freq(MHz), lat, lon, name }]. */\n"
           "export const VORS = " + json.dumps(out, separators=(",", ":")) + ";\n")
-    path = os.path.join(ROOT, "display", "navaids-data.js")
+    path = os.path.join(ROOT, "data", "navaids-data.js")
     open(path, "w").write(js)
     print(f"wrote {os.path.relpath(path, ROOT)}: {len(out)} VORs across {len(centres)} airports "
           f"({os.path.getsize(path)//1024} KB)")

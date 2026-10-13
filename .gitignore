@@ -9,6 +9,6 @@ startup_spectrogram.png
 scripts/xplane-nav/
 __pycache__/
 scripts/faa-cifp/
-display/procedures-data-xp.js
+data/procedures-data-xp.js
 scripts/ourairports/
 test-results/

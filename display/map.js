@@ -7,9 +7,9 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S }     from '../core/state.js';
-import { COAST, SPACE_SITES } from './coastlines.js';
-import { NAVAIDS } from './navdata.js';
-import { RUNWAYS } from './runways-data.js';
+import { COAST, SPACE_SITES } from '../data/coastlines.js';
+import { NAVAIDS } from '../data/navdata.js';
+import { RUNWAYS } from '../data/runways-data.js';
 import { getTaxiGraph, routeTaxi, nearestStand } from '../core/taxi-graph.js';
 import { routeAirway } from '../core/airway-graph.js';
 

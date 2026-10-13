@@ -7,7 +7,7 @@
 import { S } from '../core/state.js';
 import { speakATC, speakPM } from '../core/crew.js';
 import { bbEvent } from '../core/blackbox.js';
-import { RUNWAYS } from './runways-data.js';
+import { RUNWAYS } from '../data/runways-data.js';
 import { gatesFor } from './stands-util.js';
 import { getTaxiGraph, routeTaxi } from '../core/taxi-graph.js';
 

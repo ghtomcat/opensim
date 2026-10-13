@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate display/terminals-data.js: real terminal building footprints and apron
+"""Regenerate data/terminals-data.js: real terminal building footprints and apron
 surfaces for the mission airports, from OpenStreetMap via Overpass.
 
 Where OSM maps the actual buildings we don't need to *derive* a terminal by clustering
@@ -37,7 +37,7 @@ def _obj_after(src, name):
 
 
 def airport_centres():
-    src = open(os.path.join(ROOT, "display", "runways-data.js")).read()
+    src = open(os.path.join(ROOT, "data", "runways-data.js")).read()
     runways = _obj_after(src, "RUNWAYS")
     out = {}
     for ic, rws in runways.items():
@@ -47,7 +47,7 @@ def airport_centres():
 
 
 def existing(name):
-    path = os.path.join(ROOT, "display", "terminals-data.js")
+    path = os.path.join(ROOT, "data", "terminals-data.js")
     if not os.path.exists(path):
         return {}
     src = open(path).read()
@@ -206,7 +206,7 @@ def main():
           "   renderer draws these real footprints instead of the derived gate-cluster mass. */\n"
           "export const TERMINALS = " + json.dumps(terms, separators=(",", ":")) + ";\n"
           "export const APRONS = " + json.dumps(aprons, separators=(",", ":")) + ";\n")
-    path = os.path.join(ROOT, "display", "terminals-data.js")
+    path = os.path.join(ROOT, "data", "terminals-data.js")
     open(path, "w").write(js)
     print(f"wrote {os.path.relpath(path, ROOT)}: "
           f"{sum(len(v) for v in terms.values())} terminals, "

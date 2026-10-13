@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Regenerate display/towers-data.js: real control-tower positions (and heights
+"""Regenerate data/towers-data.js: real control-tower positions (and heights
 where tagged) for the mission airports, from OpenStreetMap via Overpass.
 
-Airport centres are taken from display/runways-data.js (mean of the runway
+Airport centres are taken from data/runways-data.js (mean of the runway
 thresholds), so no extra airport download is needed. For each centre we ask
 Overpass for the nearest aircraft-control tower (tower:type=aircraft_control or
 aeroway=tower) and keep the closest one.
@@ -26,7 +26,7 @@ GAP_S    = 4             # pause between requests
 
 def airport_centres():
     """ICAO -> (lat, lon), the mean of all runway thresholds."""
-    src = open(os.path.join(ROOT, "display", "runways-data.js")).read()
+    src = open(os.path.join(ROOT, "data", "runways-data.js")).read()
     runways = json.loads(src[src.index("{"): src.rindex("}") + 1])
     out = {}
     for ic, rws in runways.items():
@@ -73,7 +73,7 @@ def existing_records():
     """Parse the current towers-data.js -> {ICAO: record}, so we can preserve hand-curated
     data across regeneration: the 'style' flag for every airport, and the FULL record for
     'manual': true entries (towers OSM doesn't tag properly, e.g. FIMP)."""
-    path = os.path.join(ROOT, "display", "towers-data.js")
+    path = os.path.join(ROOT, "data", "towers-data.js")
     if not os.path.exists(path):
         return {}
     src = open(path).read()
@@ -134,7 +134,7 @@ def main():
           "   Regenerate with scripts/build-towers.py. lat/lon = degrees,\n"
           "   heightM = tower height in metres where OSM tags it. */\n"
           "export const TOWERS = " + json.dumps(out, separators=(",", ":")) + ";\n")
-    path = os.path.join(ROOT, "display", "towers-data.js")
+    path = os.path.join(ROOT, "data", "towers-data.js")
     open(path, "w").write(js)
     print(f"wrote {os.path.relpath(path, ROOT)}: {len(out)} towers")
     for ic, r in out.items():

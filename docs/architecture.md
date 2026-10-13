@@ -11,7 +11,7 @@ before opening any code.
 `display/` (instruments, 3D outside view, maps). Everything that varies between
 vehicles or missions is JSON data (`aircraft/`, `missions/`, `config/`, `panels/`).
 Real-world reference data (runways, taxiways, navaids, procedures …) is pre-baked by
-Python scripts in `scripts/` into JS modules under `display/*-data.js`. Serve the repo
+Python scripts in `scripts/` into JS modules under `data/`. Serve the repo
 root with any static web server (`python3 -m http.server 8080`) and open it in a browser.
 An optional Node WebSocket hub in `server/` connects multiple browsers or hardware.
 
@@ -31,6 +31,8 @@ OpenSim/
 ├── config/            Cockpit-config cascade: defaults.json → manufacturers/*.json
 ├── panels/            Data-driven glass-panel layouts (PFD/ND/ECAM/G1000/DR400/E190)
 │   └── styles/        Per-family visual styles (colours, fonts) for those panels
+├── data/              Generated reference data as JS modules: runways, navaids,
+│                      airways, procedures, taxiways, stands, terminals, towers …
 │
 │   ── SIMULATION: the engine (no DOM drawing) ──────────────────────
 ├── core/              State, main loop, physics, aircraft systems, navigation,
@@ -38,7 +40,7 @@ OpenSim/
 │
 │   ── PRESENTATION: everything the user sees ───────────────────────
 ├── display/           Canvas instruments, cockpit panels, 3D outside view, maps,
-│   │                  kneeboard — plus the generated reference-data modules
+│   │                  kneeboard
 │   └── svg/           Vector art (Falcon 9 stages, Dragon) used by rocket displays
 │
 │   ── SHELL: the application entry point ───────────────────────────
@@ -58,7 +60,7 @@ OpenSim/
 ├── server/            Node WebSocket hub (multi-crew rooms) + hardware bridge
 │
 │   ── TOOLING: never loaded by the sim ─────────────────────────────
-├── scripts/           Python data builders (→ display/*-data.js) and audio analysis
+├── scripts/           Python data builders (→ data/*.js) and audio analysis
 ├── tools/             Node dev tools: headless state probe, scratch simulations
 ├── tests/             Unit tests (node --test, *.test.mjs) + Playwright specs (*.spec.js)
 ├── test/              Standalone diagnostics (no browser)
@@ -84,6 +86,7 @@ OpenSim/
 | `missions/` | Scenario definitions: aircraft reference, departure/arrival, initial state, weather, ATC/narrative timeline, failures, debrief. `catalog.json` is the mission-picker list (titles, briefings, roles). | `core/mission.js`, `core/catalog.js` |
 | `config/` | Cockpit configuration cascade. `defaults.json` is the base layer; `manufacturers/{airbus,boeing,embraer}.json` override it; the aircraft's own `cockpit` block overrides last. | `core/aircraft-config.js` |
 | `panels/` | Layout specs for the data-driven glass displays (`airbus-pfd/nd/ecam`, `e190-pfd/nd`, `g1000`, `dr400`); `styles/` holds the per-family look. | `display/panel_renderer.js` |
+| `data/` | Real-world reference data as plain ES modules: `runways-data.js`, `navdata.js`, `navaids-data.js`, `airways-data.js`, `taxi-data.js`, `stands-data.js`, `terminals-data.js`, `satellites-data.js`, `towers-data.js`, `procedures-data-xp.js` (gitignored, optional) — all produced by `scripts/build-*.py`; `windsocks-data.js` and `coastlines.js` are hand-maintained. Generated files are not edited by hand; each names its source script in its header comment. They are scoped to the airports referenced in `missions/`, so adding a mission airport means re-running the relevant builders. See §4.1. | `core/` and `display/` |
 
 ### 1.2 `core/` — simulation
 
@@ -107,18 +110,14 @@ Everything that draws. Three kinds of files live here:
 | Kind | Files |
 |---|---|
 | Instruments & cockpit panels | `pfd.js`, `pfd_instruments.js`, `panel_renderer.js` (data-driven, reads `panels/`), `ecam.js`, `g1000.js`, `fma.js`, `com.js`, `clock.js`, `smooth.js` (display-lag smoothing); type-specific panels `bf109.js`, `f4u1a.js`, `velis_epsi.js`, `rocket_display.js`, `dragon.js`, `lm_display.js`, `dsky.js`; cockpit zones `overhead.js`, `pedestal.js`, `leftconsole.js`, `rightconsole.js`, `centerconsole.js`, `pushbutton.js` |
-| World & views | `outside.js` (3D outside view entry) with `outside-*.js` (per-type airframes, engines, gear, livery, rockets, space), `terrain.js`, `terrain-color.js`, `night-lights.js`, `map.js`, `cislunar.js`, `earthrise.js`, `coastlines.js`, `kneeboard.js`, `robot_arm.js`, `yertle_quadruped.js` |
-| Generated reference data | `runways-data.js`, `navdata.js`, `navaids-data.js`, `airways-data.js`, `taxi-data.js`, `stands-data.js`, `terminals-data.js`, `satellites-data.js`, `towers-data.js`, `procedures-data-xp.js` (gitignored, optional) — all produced by `scripts/build-*.py`; `windsocks-data.js` is hand-maintained; `stands-util.js` is helper code |
-
-**Generated files are not edited by hand.** Each one names its source script in its
-header comment. They are scoped to the airports referenced in `missions/`, so adding a
-mission airport means re-running the relevant builders.
+| World & views | `outside.js` (3D outside view entry) with `outside-*.js` (per-type airframes, engines, gear, livery, rockets, space), `terrain.js`, `terrain-color.js`, `night-lights.js`, `map.js`, `cislunar.js`, `earthrise.js`, `kneeboard.js`, `robot_arm.js`, `yertle_quadruped.js` |
+| Helpers | `stands-util.js` (stand lookups over `data/stands-data.js`) |
 
 ### 1.4 Tooling
 
 | Directory | Contents |
 |---|---|
-| `scripts/` | `build-*.py`: download OurAirports / OpenStreetMap / X-Plane / FAA CIFP data and write `display/*-data.js`. Download caches (`ourairports/`, `xplane-nav/`, `faa-cifp/`) are gitignored. `analyze-*.py` / `render-*.mjs`: engine and radio audio analysis. `rescale-aircraft.py`: geometry rescaling. |
+| `scripts/` | `build-*.py`: download OurAirports / OpenStreetMap / X-Plane / FAA CIFP data and write `data/*.js`. Download caches (`ourairports/`, `xplane-nav/`, `faa-cifp/`) are gitignored. `analyze-*.py` / `render-*.mjs`: engine and radio audio analysis. `rescale-aircraft.py`: geometry rescaling. |
 | `tools/` | `probe.mjs` runs a snippet inside the sim in headless Chromium (used to reproduce issues in `docs/issues.md`); `booster-descent-sim.mjs` is a scratch guidance simulation. |
 | `tests/` | `*.test.mjs` — Node unit tests on pure modules. `*.spec.js` — Playwright tests against the running page. `calibrate_*.spec.js` tune JSON data and only run via `npm run calibrate`. See `docs/testing.md`. |
 | `test/` | Self-contained diagnostics run with plain `node` (e.g. cislunar trajectory). |
@@ -126,7 +125,7 @@ mission airport means re-running the relevant builders.
 ### 1.5 Not in the repository
 
 Gitignored and created locally: `node_modules/`, `test-results/` (Playwright output),
-`audio/` (mission clips), the `scripts/` download caches, `display/procedures-data-xp.js`
+`audio/` (mission clips), the `scripts/` download caches, `data/procedures-data-xp.js`
 (proprietary-licensed source), and `posts/private/`. `index.html` imports
 `procedures-data-xp.js` dynamically and carries on without it if the file is absent.
 
@@ -376,7 +375,7 @@ web services while the sim runs.
 ### 4.1 Bundled data (built offline)
 
 Python scripts in `scripts/` download public data, keep only what the missions need,
-and write a plain ES module under `display/`. The sim imports these like any other
+and write a plain ES module under `data/`. The sim imports these like any other
 module. There's no database and no build step at load.
 
 | Module | Exports | Source (licence) | Builder | Read by |
@@ -422,15 +421,11 @@ edited by hand.
 
 ### 4.3 Layering notes
 
-- **Generated data lives in `display/`, but `core/` depends on it.** `mission-start.js`,
-  `route.js`, `airway-graph.js` and `taxi-graph.js` import from `display/*-data.js`. The
-  data is shared by both layers. The folder is a historical location, not a statement
-  that the data is display-only.
 - **Terrain elevation is owned by a display module.** The EGPWS (`core/crew.js`)
   imports `terrainElevM()` from `display/terrain.js`, and must use the same import URL
   (`?v=2`) so both share one tile cache.
 
-Both are tracked, with a fix plan, in `issues.md` → *`core/` depends on `display/`*.
+Tracked, with a fix plan, in `issues.md` → *`core/` depends on `display/`*.
 
 ---
 

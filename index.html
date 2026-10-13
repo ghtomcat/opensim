@@ -2070,12 +2070,12 @@
 <script type="module">
   import { S, setState }  from './core/state.js';
   import { loadMission, setLiveWeather, setStrictData } from './core/mission.js';
-  import { COAST }        from './display/coastlines.js';
-  import { RUNWAYS }      from './display/runways-data.js';
-  import { AIRPORT_FREQS } from './display/navdata.js';
-  import { TAXI_WAYS }    from './display/taxi-data.js';
-  import { STANDS }       from './display/stands-data.js';
-  import { TERMINALS, APRONS } from './display/terminals-data.js';
+  import { COAST }        from './data/coastlines.js';
+  import { RUNWAYS }      from './data/runways-data.js';
+  import { AIRPORT_FREQS } from './data/navdata.js';
+  import { TAXI_WAYS }    from './data/taxi-data.js';
+  import { STANDS }       from './data/stands-data.js';
+  import { TERMINALS, APRONS } from './data/terminals-data.js';
   import { buildFullRoute as _buildFullRoute, arrStarOptions as _arrStarOptions,
            approachLegs as _approachLegs, missedApproachText as _missedApproachText, airportCentre as _airportCentre,
            spdParse as _spdParse, spdLabel as _spdLabel,
@@ -3248,7 +3248,7 @@
   /* SID/STAR/approach procedures — loaded from the (gitignored, local) X-Plane build if
      present; absent on the public site, where the Departure tab just says so. */
   let _PROCEDURES = {};
-  import('./display/procedures-data-xp.js').then(m => { _PROCEDURES = m.PROCEDURES || {}; }).catch(() => {});
+  import('./data/procedures-data-xp.js').then(m => { _PROCEDURES = m.PROCEDURES || {}; }).catch(() => {});
 
   /* Airport centre, the procedure assemblers, and buildFullRoute now live in core/route.js
      (shared with the in-flight ND in display/map.js); imported at the top as _airportCentre,

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate display/taxi-data.js: the taxiway network (and stand lead-in lines) for
+"""Regenerate data/taxi-data.js: the taxiway network (and stand lead-in lines) for
 the mission airports, from OpenStreetMap via Overpass.
 
 The browser builds a routing graph from these ways (core/taxi-graph.js) to draw the
@@ -42,7 +42,7 @@ def _obj_after(src, name):
 
 def airport_centres():
     """ICAO -> (lat, lon), the mean of all runway thresholds."""
-    src = open(os.path.join(ROOT, "display", "runways-data.js")).read()
+    src = open(os.path.join(ROOT, "data", "runways-data.js")).read()
     runways = _obj_after(src, "RUNWAYS")
     out = {}
     for ic, rws in runways.items():
@@ -70,7 +70,7 @@ def _run(q):
 
 def _existing():
     """Parse TAXI_WAYS from the current taxi-data.js (so un-fetched airports persist)."""
-    path = os.path.join(ROOT, "display", "taxi-data.js")
+    path = os.path.join(ROOT, "data", "taxi-data.js")
     if not os.path.exists(path):
         return {}
     m = re.search(r"TAXI_WAYS = (\{.*?\});", open(path).read())
@@ -116,7 +116,7 @@ def main():
           "   k = 't' taxiway / 'p' parking_position lead-in, r = taxiway ref, g = [[lat,lon]…].\n"
           "   Regenerate with scripts/build-taxi.py. */\n"
           "export const TAXI_WAYS = " + json.dumps(out, separators=(",", ":")) + ";\n")
-    path = os.path.join(ROOT, "display", "taxi-data.js")
+    path = os.path.join(ROOT, "data", "taxi-data.js")
     open(path, "w").write(js)
     total = sum(len(v) for v in out.values())
     print(f"wrote {os.path.relpath(path, ROOT)}: {total} ways at {len(out)} airports")

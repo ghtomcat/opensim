@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate display/satellites-data.js: round satellite terminals for the mission
+"""Regenerate data/satellites-data.js: round satellite terminals for the mission
 airports, detected from OpenStreetMap aeroway=gate nodes via Overpass.
 
 A satellite (e.g. Genève B31-B34, B41-B44) is a round building with a handful of
@@ -41,7 +41,7 @@ def _obj_after(src, name):
 
 
 def airport_centres():
-    src = open(os.path.join(ROOT, "display", "runways-data.js")).read()
+    src = open(os.path.join(ROOT, "data", "runways-data.js")).read()
     runways = _obj_after(src, "RUNWAYS")
     out = {}
     for ic, rws in runways.items():
@@ -140,7 +140,7 @@ def main():
           "   with scripts/build-satellites.py. Each satellite: lat/lon = building centre,\n"
           "   r = gate-ring radius (m), gates = bearing from centre to each gate (deg). */\n"
           "export const SATELLITES = " + json.dumps(out, separators=(",", ":")) + ";\n")
-    path = os.path.join(ROOT, "display", "satellites-data.js")
+    path = os.path.join(ROOT, "data", "satellites-data.js")
     open(path, "w").write(js)
     total = sum(len(v) for v in out.values())
     print(f"wrote {os.path.relpath(path, ROOT)}: {total} satellites at {len(out)} airports")

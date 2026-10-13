@@ -465,7 +465,7 @@ The declared layering (data → simulation → presentation → shell) is also n
 
 **Suggested order.**
 1. ~~One tick and one mission lifecycle~~ — done 2026-10-12.
-2. Owned products in `core/` (route, taxi route, elevation) and generated data out of `display/`.
+2. Owned products in `core/` (route, taxi route, elevation); generated data out of `display/` — done 2026-10-13 (`data/`).
 3. ~~Schema check at load + a test that loads every aircraft and mission~~ — done 2026-10-13 (`core/schema/`, `core/vocab.js`); left: *Overloaded fields in the JSON data*, *Name comparisons still spelled out by hand*.
 4. Vehicle contract and per-engine state — when the training work needs them.
 
@@ -582,23 +582,17 @@ Also in `display/` (`outside.js` 4×, `terrain.js`, `cislunar.js`) — less of a
 ### `core/` depends on `display/`
 *Found 2026-10-11 · architecture review (`docs/architecture.md` §4.3)*
 
-The simulation layer should not depend on the presentation layer, but five `core/` modules import from `display/`:
+The simulation layer should not depend on the presentation layer. The generated reference data moved from `display/` to `data/` on 2026-10-13; what is left is terrain elevation:
 
 | Importer | Imports | Kind |
 |---|---|---|
-| `core/mission-start.js` | `display/runways-data.js`, `display/stands-data.js` | generated data |
-| `core/route.js` | `display/runways-data.js`, `display/procedures-data-xp.js` (dynamic) | generated data |
-| `core/airway-graph.js` | `display/airways-data.js` | generated data |
-| `core/taxi-graph.js` | `display/taxi-data.js` | generated data |
 | `core/crew.js` | `terrainElevM()` from `display/terrain.js?v=2` (EGPWS look-ahead) | terrain elevation |
 | `core/physics.js`, `core/crew.js`, `core/blackbox.js` | `S.terrainElevFt` — not an import: `display/terrain.js` writes the DEM elevation under the aircraft into `S` while it renders | terrain elevation, via state |
 
-**Why it matters.**
-- **Data in the wrong place.** The generated modules are shared reference data, not display code; their location hides that `core/` needs them.
-- **Elevation is owned by a renderer.** The DEM tile cache (Mapbox `terrain-rgb`) lives in `display/terrain.js`, which touches browser APIs at import time (`localStorage` for the token; `terrain-color.js` loads an image). So `core/crew.js` can't be unit-tested with `node --test`, and the import URL must match `outside.js`'s exactly (`?v=2`) or the two get separate tile caches — a silent failure.
+**Why it matters.** **Elevation is owned by a renderer.** The DEM tile cache (Mapbox `terrain-rgb`) lives in `display/terrain.js`, which touches browser APIs at import time (`localStorage` for the token; `terrain-color.js` loads an image). So `core/crew.js` can't be unit-tested with `node --test`, and the import URL must match `outside.js`'s exactly (`?v=2`) or the two get separate tile caches — a silent failure.
 
 **Fix.**
-1. **Move the generated data to `data/`** (or `world/`): change the output paths in the ten `scripts/build-*.py`, the imports, the `display/procedures-data-xp.js` line in `.gitignore`, and the paths in `README.md`, `docs/creating-missions.md` and `docs/architecture.md`. `windsocks-data.js` and `coastlines.js` move too.
+1. ~~**Move the generated data to `data/`**~~ — done 2026-10-13.
 2. **Move elevation sampling into `core/`** (e.g. `core/elevation.js`: tile fetch, cache, `elevM(lat, lon)`), with no DOM work at import. `display/terrain.js` and `core/crew.js` both import it — one cache, no URL coupling. Physics samples the elevation under the aircraft itself instead of reading `S.terrainElevFt` written by the renderer — then CFIT and EGPWS no longer depend on the terrain view running (still on a Mapbox token).
 
 **Done when.** `grep -rn "display/" core/` finds nothing; `core/crew.js` imports in Node without browser globals; the outside view and EGPWS still share one elevation cache.

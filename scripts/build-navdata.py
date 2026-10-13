@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Regenerate display/navdata.js: navaids (VOR/NDB/DME/TACAN) near the mission airports,
+"""Regenerate data/navdata.js: navaids (VOR/NDB/DME/TACAN) near the mission airports,
 and each mission airport's radio frequencies — from OurAirports (public domain).
 
-Airport centres come from display/runways-data.js (mean of the runway thresholds), so no
+Airport centres come from data/runways-data.js (mean of the runway thresholds), so no
 extra airport download. Re-run when adding mission airports:
 
     python3 scripts/build-navdata.py
@@ -32,7 +32,7 @@ def mission_icaos():
 
 
 def airport_centres():
-    src = open(os.path.join(ROOT, "display", "runways-data.js")).read()
+    src = open(os.path.join(ROOT, "data", "runways-data.js")).read()
     runways = json.loads(src[src.index("{"): src.rindex("}") + 1])
     out = {}
     for ic, rws in runways.items():
@@ -100,7 +100,7 @@ def main():
           "   mission airport (khz = frequency); AIRPORT_FREQS keyed by ICAO (mhz). */\n"
           "export const NAVAIDS = " + json.dumps(navs, separators=(",", ":")) + ";\n"
           "export const AIRPORT_FREQS = " + json.dumps(freqs, separators=(",", ":")) + ";\n")
-    path = os.path.join(ROOT, "display", "navdata.js")
+    path = os.path.join(ROOT, "data", "navdata.js")
     open(path, "w").write(js)
     print(f"wrote {os.path.relpath(path, ROOT)}: {len(navs)} navaids, "
           f"{len(freqs)} airport freq sets, {os.path.getsize(path)} bytes")

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate display/airways-data.js: the en-route airway network for the mission
+"""Regenerate data/airways-data.js: the en-route airway network for the mission
 city-pairs, sliced out of the X-Plane nav data (earth_awy.dat).
 
 The airway file already IS the graph — every line is an edge: a fix → a fix, with the
@@ -33,7 +33,7 @@ def _obj_after(src, name):
 
 
 def airport_centres():
-    src = open(os.path.join(ROOT, "display", "runways-data.js")).read()
+    src = open(os.path.join(ROOT, "data", "runways-data.js")).read()
     runways = _obj_after(src, "RUNWAYS")
     out = {}
     for ic, rws in runways.items():
@@ -135,7 +135,7 @@ def main():
           "   [aLat,aLon,bLat,bLon, aId,bId, name, baseFL, topFL]. FIXES[id]=[lat,lon] for labels. */\n"
           "export const AIRWAYS = " + json.dumps(kept, separators=(",", ":")) + ";\n"
           "export const FIXES = " + json.dumps(fixes, separators=(",", ":")) + ";\n")
-    out = os.path.join(ROOT, "display", "airways-data.js")
+    out = os.path.join(ROOT, "data", "airways-data.js")
     open(out, "w").write(js)
     print(f"wrote {os.path.relpath(out, ROOT)}: {len(kept)} edges, {len(fixes)} fixes")
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate display/runways-data.js from OurAirports (public domain, ourairports.com),
+"""Regenerate data/runways-data.js from OurAirports (public domain, ourairports.com),
 scoped to the airports referenced in missions/*.json (departure/arrival ICAO).
 
 Bundles per runway: thresholds, width, surface, the official per-end designators
@@ -87,7 +87,7 @@ def main():
           "   name, elevM. */\n"
           "export const RUNWAYS = "  + json.dumps(runways,  separators=(",", ":")) + ";\n"
           "export const AIRPORTS = " + json.dumps(airports, separators=(",", ":")) + ";\n")
-    path = os.path.join(ROOT, "display", "runways-data.js")
+    path = os.path.join(ROOT, "data", "runways-data.js")
     open(path, "w").write(js)
     print(f"wrote {os.path.relpath(path, ROOT)}: {len(runways)} airports, "
           f"{sum(len(v) for v in runways.values())} runways, {os.path.getsize(path)} bytes")

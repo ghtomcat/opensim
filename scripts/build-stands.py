@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate display/stands-data.js: named parking stands (gates) for the mission
+"""Regenerate data/stands-data.js: named parking stands (gates) for the mission
 airports, from OpenStreetMap via Overpass.
 
 aeroway=parking_position is a LINE — the painted lead-in line the nosewheel follows.
@@ -8,7 +8,7 @@ bearing is the nose-in heading. So one stand gives position + heading for free, 
 is exactly what a mission "start": {"stand": "B7"} needs.
 
 Only stands with a ref (or name) are kept — those are the ones a mission can address.
-Airport centres come from display/runways-data.js (mean of the runway thresholds).
+Airport centres come from data/runways-data.js (mean of the runway thresholds).
 
 OSM data is ODbL (openstreetmap.org/copyright) — already credited in README.
 Runs rarely; re-run when adding mission airports or to refresh:
@@ -42,7 +42,7 @@ def _obj_after(src, name):
 
 def airport_centres():
     """ICAO -> (lat, lon), the mean of all runway thresholds."""
-    src = open(os.path.join(ROOT, "display", "runways-data.js")).read()
+    src = open(os.path.join(ROOT, "data", "runways-data.js")).read()
     runways = _obj_after(src, "RUNWAYS")
     out = {}
     for ic, rws in runways.items():
@@ -84,7 +84,7 @@ def dist_m(a, b):
 
 def _existing(name):
     """Parse a named export (STANDS / BRIDGE_COVERAGE) from the current stands-data.js."""
-    path = os.path.join(ROOT, "display", "stands-data.js")
+    path = os.path.join(ROOT, "data", "stands-data.js")
     if not os.path.exists(path):
         return {}
     m = re.search(name + r" = (\{.*?\});", open(path).read())
@@ -168,7 +168,7 @@ def main():
           "   renderer falls back to a clustering heuristic. */\n"
           "export const STANDS = " + json.dumps(out, separators=(",", ":")) + ";\n"
           "export const BRIDGE_COVERAGE = " + json.dumps(cov, separators=(",", ":")) + ";\n")
-    path = os.path.join(ROOT, "display", "stands-data.js")
+    path = os.path.join(ROOT, "data", "stands-data.js")
     open(path, "w").write(js)
     total = sum(len(v) for v in out.values() if isinstance(v, list))
     print(f"wrote {os.path.relpath(path, ROOT)}: {total} stands at {len(out)} airports")

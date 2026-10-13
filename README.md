@@ -718,7 +718,7 @@ Because somewhere in the permafrost near Titovka, a man is still waiting to be f
 
 Geographic data, fetched live or bundled from open datasets:
 
-- **[OurAirports](https://ourairports.com)** — runway thresholds, dimensions and designations (public domain). Bundled for mission airports in `display/runways-data.js`; regenerate with `scripts/build-runways.py`.
+- **[OurAirports](https://ourairports.com)** — runway thresholds, dimensions and designations (public domain). Bundled for mission airports in `data/runways-data.js`; regenerate with `scripts/build-runways.py`.
   Also navaids and airport frequencies (`scripts/build-navaids.py`, `scripts/build-navdata.py`).
 - **[OpenStreetMap](https://www.openstreetmap.org)** — runways, taxiways, aprons, holding positions, parking stands, terminal footprints and control towers via the Overpass API (© OpenStreetMap contributors, ODbL).
 - **FAA CIFP** and **X-Plane nav data** — SIDs, STARs, approaches and airways for the mission airports (`scripts/build-cifp.py`, `scripts/build-airways.py`).

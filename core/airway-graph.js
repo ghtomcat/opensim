@@ -2,13 +2,13 @@
    OpenSim — core/airway-graph.js
    En-route routing over the real airway network (the air analogue of the taxiway graph).
 
-   AIRWAYS (display/airways-data.js, sliced from X-Plane nav data) is already the graph —
+   AIRWAYS (data/airways-data.js, sliced from X-Plane nav data) is already the graph —
    each entry is an edge between two fixes. We reconstruct the topology (nodes keyed by
    coordinate) and Dijkstra over great-circle leg lengths gives the departure → destination
    route: snap each airport to its nearest fix, shortest-path between them.
    ═══════════════════════════════════════════════════════════════ */
 
-import { AIRWAYS } from '../display/airways-data.js';
+import { AIRWAYS } from '../data/airways-data.js';
 
 const DEG = Math.PI / 180;
 const _key = (lat, lon) => `${lat.toFixed(4)},${lon.toFixed(4)}`;

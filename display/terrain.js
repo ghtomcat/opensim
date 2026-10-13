@@ -13,16 +13,16 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from '../core/state.js';
-import { RUNWAYS } from './runways-data.js';
-import { TAXI_WAYS } from './taxi-data.js';   // named taxiways → runway-exit signs
-import { TOWERS } from './towers-data.js';
+import { RUNWAYS } from '../data/runways-data.js';
+import { TAXI_WAYS } from '../data/taxi-data.js';   // named taxiways → runway-exit signs
+import { TOWERS } from '../data/towers-data.js';
 import { nightDensity } from './night-lights.js';
 import { landColor }    from './terrain-color.js';
-import { WINDSOCKS }    from './windsocks-data.js';
-import { STANDS, BRIDGE_COVERAGE } from './stands-data.js';
+import { WINDSOCKS }    from '../data/windsocks-data.js';
+import { STANDS, BRIDGE_COVERAGE } from '../data/stands-data.js';
 import { gatesFor } from './stands-util.js';
-import { SATELLITES }   from './satellites-data.js';
-import { TERMINALS, APRONS } from './terminals-data.js';   // APRONS → derived apron flood masts
+import { SATELLITES }   from '../data/satellites-data.js';
+import { TERMINALS, APRONS } from '../data/terminals-data.js';   // APRONS → derived apron flood masts
 import { computeTugPath, tugPose, pushbackDist } from '../core/pushback.js';
 import { getTaxiGraph } from '../core/taxi-graph.js';
 

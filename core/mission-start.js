@@ -9,8 +9,8 @@
 
    Returns { lat, lon, hdg } or null — the caller falls back to initialState. */
 
-import { RUNWAYS } from '../display/runways-data.js';
-import { STANDS }  from '../display/stands-data.js';
+import { RUNWAYS } from '../data/runways-data.js';
+import { STANDS }  from '../data/stands-data.js';
 
 const _bearing = (a, b) =>
   ((Math.atan2((b[1] - a[1]) * Math.cos(a[0] * Math.PI / 180), b[0] - a[0]) * 180 / Math.PI) + 360) % 360;

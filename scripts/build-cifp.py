@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate display/procedures-data-xp.js: SID / STAR / approach procedures for the
+"""Regenerate data/procedures-data-xp.js: SID / STAR / approach procedures for the
 mission airports, sliced from an X-Plane 11/12 install's CIFP data.
 
 The CIFP per-airport files (Resources/default data/CIFP/<ICAO>.dat) are already a clean
@@ -8,7 +8,7 @@ altitude constraint. We resolve each fix id to coordinates via earth_fix.dat (te
 en-route waypoints), keep the mission airports, and bundle the lateral path + constraints.
 
 LICENSING: X-Plane's default nav data is "Copyright Navigraph, Datasource Jeppesen" —
-PROPRIETARY. The bundle this writes is therefore gitignored (display/procedures-data-xp.js)
+PROPRIETARY. The bundle this writes is therefore gitignored (data/procedures-data-xp.js)
 and must not be redistributed. The script itself contains no data and is fine to commit.
 For a public, redistributable build use the FAA CIFP (public domain, US airports) instead.
 
@@ -158,7 +158,7 @@ def main():
           "   PROCEDURES[ic] = { rwys:{id:[lat,lon]}, sids/stars/apprs:[{name,trans,legs:[\n"
           "     {fix,t(legtype),alt,spd?,lat,lon}]}] }. */\n"
           "export const PROCEDURES = " + json.dumps(procs, separators=(",", ":")) + ";\n")
-    out = os.path.join(ROOT, "display", "procedures-data-xp.js")
+    out = os.path.join(ROOT, "data", "procedures-data-xp.js")
     open(out, "w").write(js)
     tot = sum(len(d["sids"]) + len(d["stars"]) + len(d["apprs"]) for d in procs.values())
     print(f"wrote {os.path.relpath(out, ROOT)}: {tot} procedures across {len(procs)} airports "

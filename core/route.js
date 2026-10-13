@@ -8,17 +8,17 @@
    exact same route you fly. buildFullRoute(dep, arr) returns the ordered legs; the briefing
    renders them as charts, the ND draws them around the aircraft.
 
-   Procedures (display/procedures-data-xp.js) are X-Plane CIFP — PROPRIETARY (Navigraph /
+   Procedures (data/procedures-data-xp.js) are X-Plane CIFP — PROPRIETARY (Navigraph /
    Jeppesen), gitignored, optional. With no procedures loaded the route degrades to the old
    airport → airport airway plan.
    ═══════════════════════════════════════════════════════════════ */
 
 import { routeAirway } from './airway-graph.js';
-import { RUNWAYS }     from '../display/runways-data.js';
+import { RUNWAYS }     from '../data/runways-data.js';
 
 /* SID/STAR/approach procedures — loaded lazily (the bundle is gitignored and may be absent). */
 let PROCEDURES = {};
-import('../display/procedures-data-xp.js').then(m => { PROCEDURES = m.PROCEDURES || {}; }).catch(() => {});
+import('../data/procedures-data-xp.js').then(m => { PROCEDURES = m.PROCEDURES || {}; }).catch(() => {});
 export function getProcedures() { return PROCEDURES; }
 
 const DEG = Math.PI / 180;

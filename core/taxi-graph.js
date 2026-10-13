@@ -6,7 +6,7 @@
    This is the foundation for ground operations: routing, ATC taxi clearances,
    junction direction signs, and route/incursion grading. Fetched once per airport. */
 
-import { TAXI_WAYS } from '../display/taxi-data.js';
+import { TAXI_WAYS } from '../data/taxi-data.js';
 
 const _graphs = new Map();   // icao -> graph | 'loading' | 'error'
 

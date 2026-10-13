@@ -4,7 +4,7 @@
    lives here, not in stands-data.js).
    ═══════════════════════════════════════════════════════════════ */
 
-import { STANDS } from './stands-data.js';
+import { STANDS } from '../data/stands-data.js';
 
 const _cache = new Map();
 
