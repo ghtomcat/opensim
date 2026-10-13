@@ -11,14 +11,8 @@ import { S } from '../core/state.js';
 import { managedSpeed } from '../core/managed-speed.js';
 import { indicatedAlt, baroSubscale } from '../core/baro.js';
 import { smooth, smoothAngle } from './smooth.js';
-import { buildFullRoute, getProcedures } from '../core/route.js';
 import { buildDescentPath } from '../core/vnav.js';
 import { elevM as terrainElevM } from '../core/elevation.js';   // ND terrain (brick 4)
-
-/* The in-flight flight plan — the same gate-to-gate route the briefing draws, cached per
-   mission (buildFullRoute does a Dijkstra over the airway graph, too heavy for every frame).
-   The procedure-count is in the key so the route refreshes once the lazy CIFP import lands. */
-let _ndRoute = { key: null, r: null };
 
 /* QNH/baro window hit region (device px), refreshed each frame by drawAltTape so the
    PFD canvas handlers can scroll to set the subscale / click to toggle STD. */
@@ -29,13 +23,6 @@ export function qnhHitRegion() { return _qnhHit; }
    target matches the (now narrow) visual buttons. Each: { x, y, w, h, idx }. */
 let _fcuBtnHits = [];
 export function fcuButtonRegions() { return _fcuBtnHits; }
-function _ndGetRoute() {
-  const dep = S.mission?.departure, arr = S.mission?.arrival;
-  const np  = Object.keys(getProcedures()).length;
-  const key = `${np}|${dep?.icao}/${dep?.runway}/${dep?.sid}|${arr?.icao}/${arr?.runway}/${arr?.star}`;
-  if (key !== _ndRoute.key) { _ndRoute.key = key; try { _ndRoute.r = buildFullRoute(dep, arr); } catch { _ndRoute.r = null; } }
-  return _ndRoute.r;
-}
 
 /* ── ND terrain grid (brick 4) — sample the Mapbox DEM in a NORTH-up disc around the aircraft.
    Heading-independent + altitude-independent (we cache the elevation, colour at paint time), so
@@ -935,7 +922,7 @@ function _drawNDArc(ctx, box, style, config = {}) {
   ctx.beginPath(); ctx.moveTo(ox, oy - R); ctx.lineTo(ox - 6, oy - R - 9); ctx.lineTo(ox + 6, oy - R - 9); ctx.closePath(); ctx.fill();
 
   /* ── flight plan (green F-PLN) ── */
-  const route = _ndGetRoute();
+  const route = S.flightPlan;                          // owned by core/flightplan.js
   let toWp = null;                                     // active "TO" waypoint = nearest fix ahead
   if (route?.legs?.length) {
     const P = route.legs.map(l => proj(l.lat, l.lon));

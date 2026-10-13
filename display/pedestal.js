@@ -7,7 +7,7 @@
 
 import { S, setState } from '../core/state.js';
 import { startEngineLifecycle, stopEngineLifecycle, startFuelPump, stopFuelPump } from '../core/sound.js';
-import { buildFullRoute, altLabel } from '../core/route.js';
+import { altLabel } from '../core/route.js';
 import { buildDescentPath } from '../core/vnav.js';
 
 let _el = null;
@@ -479,15 +479,17 @@ function _activeProfileIdx() {
 }
 
 /* ── MCDU — Airbus F-PLN page (read-only) ─────────────────────────
-   The text twin of the ND: the same buildFullRoute flight plan as a scrollable list, one
+   The text twin of the ND: the same flight plan (S.flightPlan) as a scrollable list, one
    row per waypoint with track/distance and the altitude constraint, grouped by segment. */
+let _mcduLegs = null;   // the plan legs the F-PLN page was rendered from
 function _mcduHTML() {
-  const dep = S.mission?.departure, arr = S.mission?.arrival;
+  const route = S.flightPlan;
+  _mcduLegs = route?.legs ?? null;
+  const dep = route?.dep ?? S.mission?.departure, arr = route?.arr ?? S.mission?.arrival;   // amended runway shows
   const tag = (d) => d?.icao ? d.icao + (d.runway ? d.runway : '') : '----';
   const from = tag(dep), to = tag(arr);
   const hdr = `<div class="mcdu-hdr"><span>F-PLN</span><span class="mcdu-dim">${from} → ${to}</span></div>`;
 
-  let route = null; try { route = buildFullRoute(dep, arr); } catch {}
   if (!route?.legs?.length) {
     const why = (!dep?.icao || !arr?.icao) ? 'needs departure + arrival' : 'procedures not loaded';
     return hdr + `<div class="mcdu-empty">NO FLIGHT PLAN<br><span class="mcdu-dim">${why}</span></div>`;
@@ -883,6 +885,12 @@ function _attachHandlers() {
 
 function _update() {
   if (!_el || !_el.classList.contains('ped-visible')) return;
+
+  /* F-PLN page: re-render when the plan is rebuilt or amended (not on waypoint sequencing) */
+  if ((S.flightPlan?.legs ?? null) !== _mcduLegs) {
+    const mcdu = _el.querySelector('.ped-mcdu');
+    if (mcdu) mcdu.innerHTML = _mcduHTML();
+  }
 
   const engCount   = S.aircraft?.engine?.count ?? 2;
   const frac       = _leverFrac();
