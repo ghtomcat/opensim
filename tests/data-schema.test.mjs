@@ -3,8 +3,9 @@
  * Pure JSON checks, no browser. A misspelled key or an unknown enum value fails here instead of
  * being silently ignored by the sim.
  *
- * KNOWN lists the violations that are logged in docs/issues.md and not fixed yet. The test fails on
- * any other error — and on a KNOWN entry that no longer occurs, so the list can't go stale.
+ * KNOWN (core/schema/known.js) lists the violations that are logged in docs/issues.md and not fixed
+ * yet — the same list the load-time check in core/mission.js lets through. The test fails on any
+ * other error — and on a KNOWN entry that no longer occurs, so the list can't go stale.
  *
  * Run:  node --test tests/data-schema.test.mjs
  */
@@ -17,26 +18,16 @@ import { check } from '../core/schema/check.js';
 import { mission } from '../core/schema/mission.js';
 import { catalog } from '../core/schema/catalog.js';
 import { aircraft } from '../core/schema/aircraft.js';
+import { KNOWN, unknownErrors } from '../core/schema/known.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const load = (rel) => JSON.parse(readFileSync(join(root, rel), 'utf8'));
 const jsonIn = (dir) => readdirSync(join(root, dir)).filter(f => f.endsWith('.json') && f !== 'catalog.json').sort();
 
-/* file → errors that are known and logged (issue title in docs/issues.md) */
-const KNOWN = {
-  'missions/crew-demo2.json': [
-    { error: 'characters.crew.commProfile: "sband-crew" is not one of', issue: 'Comm profile names outside the profile table' },
-  ],
-  'aircraft/so101.json':  [{ error: 'type: unknown key', issue: 'No vehicle contract' }],
-  'aircraft/yertle.json': [{ error: 'type: unknown key', issue: 'No vehicle contract' }],
-};
-
 function expectValid(file, schema) {
   const errors = check(load(file), schema);
-  const known  = KNOWN[file] ?? [];
-  const isKnown = (e) => known.some(k => e.startsWith(k.error));
-  const unexpected = errors.filter(e => !isKnown(e));
-  const gone = known.filter(k => !errors.some(e => e.startsWith(k.error)));
+  const unexpected = unknownErrors(file, errors);
+  const gone = (KNOWN[file] ?? []).filter(k => !errors.some(e => e.startsWith(k.error)));
   assert.deepEqual(unexpected, [], `${file}:\n  ${unexpected.join('\n  ')}`);
   assert.deepEqual(gone.map(k => k.error), [], `${file}: fixed — remove from KNOWN (and close "${gone[0]?.issue}")`);
 }

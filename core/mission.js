@@ -9,6 +9,10 @@ import { runMissionResets } from './lifecycle.js';
 import { setCrewLang }    from './crew.js';
 import { resolveStart }   from './mission-start.js';
 import { resolveAircraftConfig } from './aircraft-config.js';
+import { check }          from './schema/check.js';
+import { mission as missionSchema }   from './schema/mission.js';
+import { aircraft as aircraftSchema } from './schema/aircraft.js';
+import { unknownErrors }  from './schema/known.js';
 
 /**
  * loadMission(missionPath, aircraftPath)
@@ -17,6 +21,9 @@ import { resolveAircraftConfig } from './aircraft-config.js';
 export async function loadMission(missionPath, aircraftPath) {
   const _fetch = (p) => fetch(`${p}?v=${Date.now()}`).then(r => r.json());
   const mission = typeof missionPath === 'object' ? missionPath : await _fetch(missionPath);
+  /* Check the data against its schema — fresh loads and inline missions (live flight); a restart
+     passes the already-checked S.mission / S.aircraft again (which by then carry runtime additions). */
+  if (mission !== S.mission) _checkData(`missions/${mission.id}.json`, mission, missionSchema);
   /* The mission JSON is the source of truth for the aircraft: its "aircraft" field wins over
      the caller's path (the catalog's aircraftId, which is only the picker label + a fallback).
      So changing a mission's aircraft actually swaps the model — no catalog edit needed. */
@@ -24,6 +31,7 @@ export async function loadMission(missionPath, aircraftPath) {
   const _acId   = mission.aircraft ? String(mission.aircraft).replace(/^aircraft\//, '').replace(/\.json$/, '') : null;
   const _acPath = _acId ? `aircraft/${_acId}.json` : aircraftPath;
   const aircraft = typeof _acPath === 'object' ? _acPath : await _fetch(_acPath);
+  if (aircraft !== S.aircraft) _checkData(`aircraft/${aircraft.id}.json`, aircraft, aircraftSchema);   // before cockpitCfg is added
 
   aircraft.cockpitCfg = await resolveAircraftConfig(aircraft);   // deep-merged lineage config (comm placement, …)
 
@@ -216,6 +224,20 @@ export async function loadMission(missionPath, aircraftPath) {
 /* Live weather on/off — off in test mode (?test=1) so runs are reproducible */
 let _liveWeather = true;
 export function setLiveWeather(on) { _liveWeather = on; }
+
+/* Data that doesn't match its schema (core/schema/): players get a console warning and the mission
+   still loads; with strict data on (test mode) the load fails, so a broken file can't pass a test.
+   Violations logged in issues.md (core/schema/known.js) pass in both modes. */
+let _strictData = false;
+export function setStrictData(on) { _strictData = on; }
+
+function _checkData(file, value, schema) {
+  const errors = unknownErrors(file, check(value, schema));
+  if (!errors.length) return;
+  const msg = `[data] ${file} doesn't match its schema (core/schema/):\n  ${errors.join('\n  ')}`;
+  if (_strictData) throw new Error(msg);
+  console.warn(msg);
+}
 
 export async function fetchMetar(icao) {
   /* Try direct first, fall back to CORS proxy for static hosting (e.g. GitHub Pages) */

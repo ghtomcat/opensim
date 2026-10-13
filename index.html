@@ -2069,7 +2069,7 @@
 
 <script type="module">
   import { S, setState }  from './core/state.js';
-  import { loadMission, setLiveWeather } from './core/mission.js';
+  import { loadMission, setLiveWeather, setStrictData } from './core/mission.js';
   import { COAST }        from './display/coastlines.js';
   import { RUNWAYS }      from './display/runways-data.js';
   import { AIRPORT_FREQS } from './display/navdata.js';
@@ -4835,6 +4835,7 @@
   const _urlParams  = new URLSearchParams(location.search);
   const _isTestMode = _urlParams.get('test') === '1';
   if (_isTestMode) setLiveWeather(false);   // tests never fetch METAR — mission fallback weather, same every run
+  if (_isTestMode) setStrictData(true);     // tests fail on data that doesn't match its schema
 
   /* Show selection screen, or load directly if ?mission= param set */
   const _urlMission = _urlParams.get('mission');
