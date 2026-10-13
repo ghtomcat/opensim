@@ -318,6 +318,11 @@ Bus states (AC/DC/essential, generators, APU, external power, batteries) and hyd
 
 When it's taken up: decide which consumers depend on which bus/system (e.g. COM on DC ESS, gear and flaps on hydraulics, displays on AC), replace the per-panel COM power check in `core/crew.js` with the bus state, and make the hydraulic layout per aircraft (next entry).
 
+### Velis COM ignores its power switches — panel name mismatch
+*Found 2026-10-13 · `_isComPowered()` in `core/crew.js`*
+
+`_isComPowered()` powers the COM on the Velis only with MASTER + BATT EN + AVIONICS on — but it checks `panel === 'velis'`, and the Velis has `panel: "velis-epsi"` (the value `index.html` and `display/pedestal.js` compare against). The branch never matches, so the Velis COM is always powered: the switches don't cut it, and a `com_active` clearance trigger can't wait for the pilot to switch the avionics on. **Cause — verified (code); not yet seen in the browser.** **Fix:** compare against `'velis-epsi'` — better, take panel names from shared constants (data-contract stage 3), so a mistyped name can't compile in silently; longer term the COM power belongs to the electrical system (see *Vehicle- and mission-specific special cases in generic core modules*). **Done when:** on the Velis, the COM is silent until MASTER, BATT EN and AVIONICS are on.
+
 ### Smaller systems items
 *Found 2026-10-11*
 
