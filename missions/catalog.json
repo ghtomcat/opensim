@@ -578,13 +578,10 @@
       "classification": "SPACEX · MISSION SUMMARY",
       "date": "30 May 2020 · 19:22 UTC",
       "pilot": "Robert Behnken · Douglas Hurley",
-      "items": [
-        "First crewed Falcon 9",
-        "Dragon Endeavour — Crew Dragon capsule",
-        "Stage 1 B1058 returns to LZ-1",
-        "RTLS: Boostback · Entry · Landing burns",
-        "Target orbit: 400 km × 200 km · 51.6°"
-      ]
+      "unit": "NASA Commercial Crew Program · SpaceX",
+      "aircraft": "9× Merlin 1D+ · 7607 kN SL · Stage 2: MVac · 934 kN vac",
+      "orders": "Launch site: Kennedy Space Center LC-39A.\nTarget orbit: 200 × 400 km · 51.6° inclination.\nPayload: Crew Dragon Endeavour · 2 crew.\n\nFlight sequence:\nT+00:00  9-engine ignition · Liftoff\nT+01:54  CECO — center engine cutoff\nT+02:21  MECO · Stage separation\nT+02:27  MVac ignition\nT+08:36  SECO · Orbit insertion\nT+08:36+ Stage 1 B1058 lands · droneship Of Course I Still Love You\nT+12:00  Dragon separation",
+      "atmosphere": "May 30, 2020.\nBob Behnken. Doug Hurley.\n\nThe first crew to launch from American soil since 2011.\nThe first to ride a commercial spacecraft to orbit.\n\nStage 1 lands at sea."
     },
     "crew": [
       {
