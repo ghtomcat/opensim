@@ -21,6 +21,7 @@ import { bbTick }                   from './blackbox.js';
 import { tickHIL }                  from './hil.js';
 import { tickElevation }            from './elevation.js';
 import { tickTaxi }                 from './taxi.js';
+import { tickFlightPlan }           from './flightplan.js';
 
 /* Fixed physics timestep for rocket simulation.
    At any warp level ≥ PHYS_DT, the accumulator ensures every
@@ -89,6 +90,7 @@ export function tickSim(dt) {
   tickHydraulics(dt);
   tickElevation();   // DEM under the aircraft → S.terrainElevFt (CFIT, GPWS)
   tickTaxi();        // active taxi route + clearance (map line, ATC, pushback path)
+  tickFlightPlan();  // active flight plan (LNAV, VNAV, ND, MCDU) — rebuilt when the procedures land
   if (isRocket) {
     /* Fixed-dt rocket physics.
        When warpDt < PHYS_DT (real-time / low warp): one step with the
