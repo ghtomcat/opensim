@@ -2,16 +2,16 @@
    OpenSim — core/lnav.js
    Lateral navigation (managed NAV / LNAV): steer the aircraft down the flight plan.
 
-   The same buildFullRoute route the briefing studies, the ND draws, and the MCDU lists —
-   now flown. lnavTargetHeading() gives the heading to the active waypoint and sequences to
-   the next as each is passed; the AP (physics.js) turns that into a commanded bank.
+   The flight plan (S.flightPlan, owned by core/flightplan.js) that the ND draws and the
+   MCDU lists — now flown. lnavTargetHeading() gives the heading to the active waypoint and
+   sequences to the next as each is passed; the AP (physics.js) turns that into a commanded bank.
 
    This is the first *managed* autopilot axis: when S.navManaged is set the lateral channel
    follows the route; otherwise the AP holds the selected FCU heading (S.hdgT).
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from './state.js';
-import { buildFullRoute, getProcedures } from './route.js';
+import { setActiveLeg } from './flightplan.js';
 
 const DEG = Math.PI / 180;
 const _gc = (a, b, c, d) => {                              // great-circle nm
@@ -25,35 +25,21 @@ const _brg = (a, b, c, d) => {                             // initial bearing °
   return (Math.atan2(y, x)/DEG + 360) % 360;
 };
 
-/* Route legs (coordinate-bearing), cached per mission; the procedure-count is in the key so
-   the plan refreshes once the lazy CIFP import lands. Resets the active waypoint on change. */
-let _rt = { key: null, legs: null };
-function _legs() {
-  const dep = S.mission?.departure, arr = S.mission?.arrival;
-  const np  = Object.keys(getProcedures()).length;
-  const key = `${np}|${dep?.icao}/${dep?.runway}/${dep?.sid}|${arr?.icao}/${arr?.runway}/${arr?.star}`;
-  if (key !== _rt.key) {
-    _rt.key = key;
-    let r = null; try { r = buildFullRoute(dep, arr); } catch {}
-    _rt.legs = (r?.legs ?? []).filter(l => l.lat != null);
-    if (!_rt.legs.length) _rt.legs = null;
-    S.fmsActive = _rt.legs ? 1 : 0;                       // target the first fix, not the departure airport
-  }
-  return _rt.legs;
+/* For the displays and VNAV / managed speed: the plan's legs + the active index. */
+export function lnavActive() {
+  const fp = S.flightPlan;
+  return { legs: fp?.legs ?? null, idx: fp?.activeIdx ?? 0 };
 }
-
-/* For the displays (ND / MCDU): the cached legs + current active index. */
-export function lnavActive() { return { legs: _rt.legs, idx: S.fmsActive ?? 0 }; }
 
 /* Managed-NAV guidance: the heading to fly the flight plan, advancing the active waypoint as
    it is passed (along-track) or reached (turn-anticipation lead). null if no route to fly. */
 export function lnavTargetHeading() {
-  const legs = _legs();
+  const fp = S.flightPlan, legs = fp?.legs;
   if (!legs || legs.length < 2) return null;
   const lat = S.lat, lon = S.lon;
   if (lat == null || lon == null) return null;
   const cos = Math.cos(lat * DEG);
-  let i = Math.min(Math.max(1, S.fmsActive ?? 1), legs.length - 1);
+  let i = Math.min(Math.max(1, fp.activeIdx ?? 1), legs.length - 1);
 
   /* lead ≈ 0.35 min of travel — start the turn before the fix, and sequence once passed */
   const lead = Math.max(0.6, Math.min(8, (S.spd ?? 0) / 60 * 0.35));
@@ -65,6 +51,6 @@ export function lnavTargetHeading() {
     const passed = (toN * inN + toE * inE) > 0;                  // gone beyond the fix along that leg
     if (passed || dist < lead) i++; else break;                 // (don't use the onward leg — sharp turns false-trigger)
   }
-  S.fmsActive = i;
+  setActiveLeg(i);
   return _brg(lat, lon, legs[i].lat, legs[i].lon);
 }

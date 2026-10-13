@@ -37,8 +37,7 @@ export const S = {
   ap:       true,                 // autopilot engaged
   athr:     true,                 // autothrust
   navManaged: false,              // lateral managed NAV (LNAV) — follow the flight plan vs hold the FCU heading
-  fmsActive:  0,                  // active waypoint index in the flight-plan legs (LNAV sequencer)
-  flightPlan: null,               // active flight plan — owned by core/flightplan.js ({ legs, …, activeIdx })
+  flightPlan: null,               // active flight plan — owned by core/flightplan.js ({ legs, …, activeIdx: LNAV's active waypoint })
   altManaged: false,              // vertical managed VNAV — fly the altitude profile vs hold the FCU altitude
   vsT:        0,                  // selected vertical-speed target (fpm) — used in V/S mode
   vsSelected: false,              // V/S mode: AP flies vsT until it captures the FCU altitude (ALT*)
