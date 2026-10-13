@@ -100,7 +100,7 @@ not draw. Grouped by role:
 | Data contract | `vocab.js` (the names data and code share — vehicle types, panels, engine sounds, triggers, rocket events, failures, comm profiles; a misspelled name throws), `schema/` (`check.js` validator; `mission.js`, `catalog.js`, `aircraft.js` schemas; `known.js`: logged violations) |
 | Physics | `physics.js` (fixed-wing), `rocket.js` (launch, staging, orbit, booster recovery), `thrust.js`, `pushback.js` |
 | Aircraft systems | `fuel.js`, `electrical.js`, `battery.js`, `hydraulics.js`, `baro.js`, `failures.js`, `aircraft-config.js` |
-| Navigation & automation | `route.js` (full route: SID/airways/STAR/approach), `lnav.js`, `vnav.js`, `managed-speed.js`, `fma.js`, `airway-graph.js`, `taxi-graph.js`, `taxi.js` (the active taxi route + clearance) |
+| Navigation & automation | `route.js` (full route: SID/airways/STAR/approach), `lnav.js`, `vnav.js`, `managed-speed.js`, `fma.js`, `airway-graph.js`, `taxi-graph.js`, `taxi.js` (the active taxi route + clearance), `flightplan.js` (the active flight plan) |
 | Crew, radio, sound | `crew.js` (PF/PM/ATC/GPWS voice dispatch), `radio.js` (comm-chain filtering), `sound.js` (Web Audio engine synthesis), `*-processor.js` (AudioWorklet engine/crackle synthesizers: DB 605, Le Rhône 9J, Lycoming, R-2800) |
 | I/O | `input.js` (keyboard/mouse/gamepad), `telemetry.js` + `blackbox.js` (recording/export), `hil.js` (hardware-in-the-loop), `liveflight.js` (live ADS-B lookup) |
 
@@ -192,7 +192,7 @@ Grouped by what each field controls. "Consumer" is the module that reads it at r
 |---|---|---|
 | **Identity** | `id`, `title`, `description`, `author` | picker / HUD (`index.html`) |
 | **Vehicle** | `aircraft` — id (`"a350"`) or path (`"aircraft/a350.json"`) | `core/mission.js` |
-| **Place** | `departure {icao, name, runway, elevation}`, `arrival {icao, name, runway, elevation, ils {freq, course}, dock, surface, rwy*}` | start resolution, route building (`core/route.js` via `index.html`), COM/ATC (`display/com.js`), terrain & airport scenery, arrival-gate assignment (`dock`) |
+| **Place** | `departure {icao, name, runway, elevation}`, `arrival {icao, name, runway, elevation, ils {freq, course}, dock, surface, rwy*}` | start resolution, route building (`core/flightplan.js` → `core/route.js`), COM/ATC (`display/com.js`), terrain & airport scenery, arrival-gate assignment (`dock`) |
 | **Start** | `phase` (`ground`/`cruise`/`approach`), `start {runway, at}` or `start {stand}`, `initialState {lat, lon, alt, spd, hdg, pitch, roll, gear?, ap?, athr?, …Managed?, autobrake?, speedBrake?}`, `transitionAlt` | `core/mission.js`, `core/mission-start.js`; `phase` also feeds ATC check-ins |
 | **Environment** | `weather {source: live\|manual, icao, manual, fallback}`, `timeOfDay`, `water` | `core/mission.js` (METAR), `display/terrain.js`, `display/outside.js`, `display/clock.js`, `display/map.js` |
 | **Radio & voice** | `com {title, active, standby, freqs, loops, xpdrLabel}`, `commProfile`, `characters {<speaker>: {commProfile}}`, `atcClearances [...]`, `approachBrief [...]` | `display/com.js`, `core/crew.js`, `core/radio.js` |
@@ -847,7 +847,7 @@ Everything that decides *where to go* and *what the automation commands*. It bui
 the world data (§4) and feeds the autopilot inside `tickPhysics()` (§7.2). (Browser URLs and
 history are a different topic: [url-routing.md](url-routing.md).)
 
-### 10.1 The flight plan: `core/route.js`
+### 10.1 The flight plan: `core/route.js` and `core/flightplan.js`
 
 `buildFullRoute(dep, arr)` assembles the gate-to-gate route from the mission's
 `departure` / `arrival`:
@@ -867,19 +867,27 @@ SIDs, STARs and approaches come from the optional CIFP bundle (§4.1). Without i
 route falls back to airport → airways → airport. Altitude and speed constraints
 travel on each leg (`altParse` / `spdParse` read them).
 
-**One function, many copies of the result.** There's no flight-plan object in `S`.
-Each consumer calls `buildFullRoute()` itself:
+**One plan, owned by `core/flightplan.js`.** It publishes `S.flightPlan`: the
+`buildFullRoute()` result, the `dep` / `arr` it was built from, and `activeIdx` (the
+waypoint LNAV flies to). The module is the only caller of `buildFullRoute()`.
 
-| Consumer | Caching |
+| When | What |
 |---|---|
-| LNAV (`core/lnav.js`) | cached per dep/arr/SID/STAR + procedure-count key |
-| ND map (`display/pfd_instruments.js`) | same key, own cache |
-| MCDU F-PLN page (`display/pedestal.js`) | none: rebuilt each time the pedestal opens |
-| Kneeboard approach page (`display/kneeboard.js`) | cached on the arrival |
-| Briefing charts (`index.html`, 3 call sites) | none |
+| Mission load (`onMissionReset`) | built from the mission's `departure` / `arrival`; `activeIdx` = 1 (the first fix) |
+| Tick (`tickFlightPlan()`) | rebuilt when the lazy CIFP import lands, or when the mission's `departure` / `arrival` change |
+| `setActiveLeg(i)` | the LNAV sequencer moves the active waypoint |
+| `setArrivalRunway(rwy)` | amendment: rebuilt from the amended inputs (STAR and approach follow the runway); the active waypoint is kept if the new plan has it. The mission itself isn't changed; the next mission load drops amendments |
 
-All produce the same route as long as the inputs match. The route can't be edited or
-re-cleared in flight, because there's nothing to edit.
+| Consumer | Reads |
+|---|---|
+| LNAV (`core/lnav.js`) | `S.flightPlan.legs`, `activeIdx` (and moves it) |
+| VNAV, managed speed | `lnavActive()` → the plan's legs and `activeIdx` |
+| ND map (`display/pfd_instruments.js`) | `S.flightPlan`, every frame |
+| MCDU F-PLN page (`display/pedestal.js`) | `S.flightPlan`; re-renders when the legs change (rebuild or amendment), not on sequencing |
+| Briefing charts and nav log (`index.html`) | `planFor(dep, arr)`: the same route for a mission that isn't loaded yet (one-entry cache) |
+
+The kneeboard's approach page reads the procedures directly (`approachLegs()`) for the
+missed-approach text.
 
 ### 10.2 Managed guidance
 
@@ -887,7 +895,7 @@ The autopilot (§7.2) has a selected and a managed source per axis:
 
 | Axis | Selected | Managed (`S.*Managed`) | Module |
 |---|---|---|---|
-| Lateral | `hdgT` (heading bug) | `navManaged` → LNAV: heading to the active waypoint; sequences when the fix is passed or within a speed-based turn lead (`S.fmsActive`) | `core/lnav.js` |
+| Lateral | `hdgT` (heading bug) | `navManaged` → LNAV: heading to the active waypoint; sequences when the fix is passed or within a speed-based turn lead (`S.flightPlan.activeIdx`) | `core/lnav.js` |
 | Vertical | `altT` (FCU altitude), V/S | `altManaged` → VNAV: a ~3° geometric descent path built backward from the runway through the altitude constraints, giving TOD and a predicted altitude per fix; never below the cleared `altT` (pull the altitude down to start the descent) | `core/vnav.js` |
 | Speed | `spdT` | `spdManaged` → interpolates `envelope.spdProfile` by height above the destination; binds upcoming speed constraints within a look-ahead; turbofans only | `core/managed-speed.js` |
 | Thrust | lever | A/THR speed loop within the lever detent's N1 ceiling | `core/thrust.js` + `physics.js` |
@@ -916,11 +924,10 @@ altitude vs target, gear) is translated into each manufacturer's words:
 
 ### 10.5 Observations
 
-- **No flight-plan state.** See 10.1: five consumers recompute the route (a Dijkstra
-  over the airway graph each time), and there is no plan to amend in flight.
-- **LNAV writes `S.fmsActive` directly** rather than through `setState`.
+- **LNAV starts at the first fix, wherever the aircraft is.** A mission that starts
+  mid-route turns back toward the departure (see `issues.md`).
 
-All three are tracked in `issues.md` → *Navigation*.
+Tracked in `issues.md` → *Navigation*.
 
 ---
 

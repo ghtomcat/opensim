@@ -252,21 +252,10 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 
 ## Navigation
 
-### No flight-plan state — the route is recomputed per consumer
-*Found 2026-10-11 · `buildFullRoute()` in `core/route.js`*
+### LNAV starts at the first fix, wherever the aircraft is
+*Found 2026-10-13 · `core/flightplan.js` (`activeIdx` = 1 on build), `lnavTargetHeading()` in `core/lnav.js`*
 
-**Symptom.** There is no flight plan in `S`. LNAV, the ND, the MCDU, the kneeboard and the briefing (3 call sites) each call `buildFullRoute(departure, arrival)` themselves, with their own caches (or none). The route is a pure function of the mission's dep/arr — it can't change in flight.
-
-**Why it matters.** The training backlog needs a mutable plan: ATC re-clearance (different SID/STAR/runway), direct-to, holding, a diversion, a go-around re-sequencing into the missed approach. Today each of those would have to be threaded into five caches. Also wasteful: each consumer runs the airway Dijkstra.
-
-**Fix.** A flight-plan object owned by `core/` (e.g. `S.flightPlan = { legs, sid, star, appr, missed, activeIdx }`), built once from the mission at load (and rebuilt when the procedures arrive), amended by explicit operations (`directTo(fix)`, `setStar(name)`, `setRunway(rwy)`, …). All consumers read it; `S.fmsActive` becomes `activeIdx`. **Done when.** `buildFullRoute()` is called only by the flight-plan module; changing the arrival runway in flight updates the ND, MCDU and LNAV together.
-
-### LNAV writes `S.fmsActive` directly
-*`core/lnav.js`* — `_legs()` and `lnavTargetHeading()` assign `S.fmsActive = …` instead of `setState`. Harmless today (`setState` is a plain assign), but it bypasses the one write path. Folds into *No flight-plan state* (`activeIdx`).
-
----
-
-## Engine and systems
+The flight plan targets the first fix after the departure runway on mission load. The sequencer only advances past fixes the aircraft has flown beyond along their inbound leg, so a mission that starts mid-route flies back to the start. Seen on `evra-approach` (FL350 near 55.0 N 21.2 E, inbound Riga): with AP + managed NAV the aircraft turns from 069° to 186°, toward WA602 near Warsaw, and `activeIdx` stays 1. Same trace before the flight-plan refactor, so not a regression. **Fix:** on build (and on engaging NAV), set `activeIdx` to the leg the aircraft is on, e.g. the first leg whose along-track position is still ahead. **Done when:** on `evra-approach`, engaging managed NAV flies on toward Riga (roughly north) instead of turning back toward Warsaw.
 
 ### Engine start completes when the start-up sound finishes
 *Found 2026-10-11 · `startEngineLifecycle()` in `core/sound.js`*
@@ -340,7 +329,7 @@ The browser always joins room `hil-corsair` (`index.html` calls `hilInit(hubUrl)
 
 The pieces exist but aren't connected: the hub supports rooms and relays `STATE_PATCH` / `CREW_EVENT`; `S.role` (PF / PM / INSTRUCTOR, cycled with R) and `S.roomId` exist; catalog entries list roles. But the only WebSocket client in the browser is `core/hil.js` (hardware). No state is shared between two browsers, nothing sends `CREW_EVENT`, and `S.role` only changes what the PFD label shows. **Status: not implemented yet** (training roadmap: PF/PM/instructor).
 
-When it's taken up, decide: who owns the simulation (one authoritative browser — likely the PF or the instructor — others mirror), which state is shared (controls per role vs. full state), how crew audio and ATC are synchronised (`CREW_EVENT`), and what the instructor can inject (failures, weather, ATC). Builds on the one shared tick (`tickSim` in `core/loop.js`) and the flight-plan state (*No flight-plan state*).
+When it's taken up, decide: who owns the simulation (one authoritative browser — likely the PF or the instructor — others mirror), which state is shared (controls per role vs. full state), how crew audio and ATC are synchronised (`CREW_EVENT`), and what the instructor can inject (failures, weather, ATC). Builds on the one shared tick (`tickSim` in `core/loop.js`) and the flight-plan state (`S.flightPlan`, `core/flightplan.js`).
 
 ### The black box is not tamper-evident
 *Found 2026-10-11 · `downloadBlackbox()` in `core/blackbox.js`*
@@ -456,7 +445,7 @@ The declared layering (data → simulation → presentation → shell) is also n
 
 **Suggested order.**
 1. ~~One tick and one mission lifecycle~~ — done 2026-10-12.
-2. Owned products in `core/` (route, taxi route, elevation); `core/` no longer depends on `display/` — done 2026-10-13 (`data/`, `core/elevation.js`); taxi route — done 2026-10-13 (`core/taxi.js`); left: route, flat ground.
+2. Owned products in `core/` (route, taxi route, elevation); `core/` no longer depends on `display/` — done 2026-10-13 (`data/`, `core/elevation.js`); taxi route — done 2026-10-13 (`core/taxi.js`); flight plan — done 2026-10-13 (`core/flightplan.js`); left: flat ground.
 3. ~~Schema check at load + a test that loads every aircraft and mission~~ — done 2026-10-13 (`core/schema/`, `core/vocab.js`); left: *Overloaded fields in the JSON data*, *Name comparisons still spelled out by hand*.
 4. Vehicle contract and per-engine state — when the training work needs them.
 
@@ -465,7 +454,7 @@ The declared layering (data → simulation → presentation → shell) is also n
 
 **Symptom.** `S` is one mutable object with ~170 fields. `setState` is `Object.assign` (~280 calls), and ~110 direct writes sit beside it. No field has a declared owner, so several modules write the same field and the last writer in the frame wins. The comment at the top of `state.js` (only physics, input, mission write) is out of date. On top of that, modules keep private state between frames (fired entries, ramps, caches), cleared by hand-written `reset*()` functions.
 
-**Evidence.** *`enginePower` has many writers and no composition*; *Engine start completes when the start-up sound finishes* (`sound.js` writes `engineState`); *The outside view borrows the flight state for its camera*; *LNAV writes `S.fmsActive` directly*.
+**Evidence.** *`enginePower` has many writers and no composition*; *Engine start completes when the start-up sound finishes* (`sound.js` writes `engineState`); *The outside view borrows the flight state for its camera*.
 
 **Why it matters.** Correctness depends on the order of the frame loop and of the ~30 closures in the renderer list. A new feature can't tell whose field it is about to overwrite.
 
@@ -477,7 +466,7 @@ The declared layering (data → simulation → presentation → shell) is also n
 *Found 2026-10-11 · architecture review (`docs/architecture.md` §7.4, §10.1, §10.5)*
 
 **Symptom.** Products that several modules need are rebuilt by whoever needs them instead of being computed once and stored:
-- the flight plan: five consumers call `buildFullRoute()` (*No flight-plan state — the route is recomputed per consumer*);
+- ~~the flight plan~~ — done 2026-10-13: `core/flightplan.js` owns it (`S.flightPlan`); LNAV, VNAV, the ND, the MCDU and the briefing read it, and `setArrivalRunway()` amends it in flight;
 - ~~the taxi route~~ — done 2026-10-13: `core/taxi.js` owns it; the map draws it, com.js phrases it, pushback follows it;
 - "ground": the field elevation of the nearer airport, recomputed each tick (*The ground is flat*). (The DEM elevation now has an owner: `core/elevation.js`, sampled once per tick — done 2026-10-13.)
 

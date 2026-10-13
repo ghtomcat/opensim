@@ -74,7 +74,7 @@ plan from the bundled procedures + the airway graph:
 departure → SID → airways → STAR → approach → arrival runway
 ```
 
-This single route feeds the **briefing nav-log**, the **ND** (magenta/green track), the
+This single route, held in flight as `S.flightPlan` by `core/flightplan.js`, feeds the **briefing nav-log**, the **ND** (magenta/green track), the
 **MCDU F-PLN**, and the **managed** autoflight (LNAV heading, VNAV altitude, A/THR speed).
 Altitude and speed restrictions on the procedure legs (`≥FL260`, `≤220`) show in the
 nav-log ALT/SPD columns and are honoured by managed VNAV / managed speed.
