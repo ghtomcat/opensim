@@ -248,6 +248,16 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 
 `flyWithFlight()` picks an aircraft for the tracked flight with `pickAircraft(flight.icaoType)` (C172 → `c172`, DR40 → `robin-dr400`, PA28 → `c172`, else `a350`) and passes it to `init()`. But the inline mission it builds also sets `aircraft: 'a350'`, and `loadMission()` gives the mission's `aircraft` precedence over the caller's path. So the A350 always loads. **Cause — verified (code), not yet seen in the browser.** The hard-coded `'a350'` dates from `8f2d067` (25 Mar) and was harmless until `37ea9d0` (13 Jun) made the mission JSON the aircraft source of truth. **Fix:** set the inline mission's `aircraft` to the `pickAircraft()` result (or drop the field). **Done when:** tracking a C172 or DR400 loads that aircraft.
 
+### Rockets and robot labs get the weather and engine-failure setup
+*Found 2026-10-15 · `hasScenarioSetup()` in `app/briefing.js`*
+
+The setup is meant to be skipped for launches (`m.phase !== 'launch'`), but `m` is the catalog entry and `phase` only exists in the mission file (`missions/crew-demo2.json`: `"phase": "launch"`). So every rocket and both robot labs show the setup: weather presets and "50% power · Rough · Full failure" for a Falcon 9 or a robot arm. Seen in the browser (Demo-2). The crew choice does apply to rockets (named crew: Behnken / Hurley). **Fix:** offer each choice only where it applies — weather and engine failures for aircraft, crew where the mission has crew or roles, nothing for the labs — the same principle as carb icing only with `hasCarbHeat`. Goes into the one-page briefing (*Five screens…*, step 4), which loads the mission and aircraft JSON and can read `phase` / `vehicleType`. **Done when:** Demo-2 offers only the crew; the labs offer no setup; the airliners and props are unchanged.
+
+### The flight briefing labels the start altitude "CRUISE"
+*Found 2026-10-15 · `showFlightBriefing()` in `index.html`*
+
+The PLAN block shows `CRUISE` from `initialState.alt` — on an approach mission that's the start altitude (`lszh-approach`: "FL040", starting at 3 980 ft), not a cruise level. The DEPARTURE heading is also shown with nothing under it when the mission has no departure runway (`lszh-approach` departs KSFO without one). **Fix:** cruise from the flight plan (`S.flightPlan` / the route's cruise level) or the label "START ALT"; hide empty blocks. Goes into the one-page briefing (step 4).
+
 ### Five screens between mission select and flying
 *Found 2026-10-15 · `index.html` (`showBriefing`, `showRoleSelect`, `showScenarioSetup`, `showFlightBriefing`, `init`)*
 
@@ -656,7 +666,7 @@ To draw the terrain from the camera, `outside.js` saves the aircraft pose, write
 ## Data and docs
 
 ### `catalog.json` and mission files disagree
-*`missions/catalog.json`* — `egll-approach` (catalog: 737-800 into EGLL; file: 737 MAX 9 into Madrid), `fimp-takeoff` (catalog: Mauritius takeoff; file: Zürich Dock E) and `anchorage-bozeman` (catalog: "Anchorage → Bozeman", from Anchorage PANC; file: "Bozeman → Anchorage — ILS 15 (temp approach)", departing Bozeman — the direction is reversed). The card's labels (title, location) may differ from the mission by design, but these describe a different flight. Only the aircraft is checked automatically (`tests/data-schema.test.mjs`; `egll-approach` is on its known list).
+*`missions/catalog.json`* — `egll-approach` (catalog: 737-800 into EGLL; file: 737 MAX 9 into Madrid), `fimp-takeoff` (catalog: Mauritius takeoff; file: Zürich Dock E) and `anchorage-bozeman` (catalog: "Anchorage → Bozeman", from Anchorage PANC; file: "Bozeman → Anchorage — ILS 15 (temp approach)", departing Bozeman — the direction is reversed). Also `lszh-approach`: the briefing line says "LSZH · RWY 28 · ILS 110.300" (the same text as the `egll-approach` card — likely copied), the mission's ILS 28 is 109.900 (found 2026-10-15). The card's labels (title, location) may differ from the mission by design, but these describe a different flight. Only the aircraft is checked automatically (`tests/data-schema.test.mjs`; `egll-approach` is on its known list).
 
 ### Inspiration5 description says "Stage 1 returns to LZ-1"
 *`missions/inspiration5.json`* — the booster now lands on the droneship (ASDS). Its catalog briefing still says so too: `orders` lists "T+02:53 Boostback burn" and "T+08:45+ Stage 1 RTLS · LZ-1".
