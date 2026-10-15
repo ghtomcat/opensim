@@ -3775,13 +3775,12 @@
       });
     }
 
-    await sleep(400);
+    /* Loading takes tens of ms — fade the splash out over the running sim, don't wait for it */
     loadBar.style.width = '100%';
-    await sleep(300);
+    loadEl.style.pointerEvents = 'none';
+    loadEl.style.transition = 'opacity 0.3s';
     loadEl.style.opacity = '0';
-    loadEl.style.transition = 'opacity 0.5s';
-    await sleep(500);
-    loadEl.style.display = 'none';
+    setTimeout(() => { loadEl.style.display = 'none'; }, 300);
 
     /* Show onboarding — skip for autonomous/slider-controlled vehicles */
     const obEl = document.getElementById('onboarding');
@@ -4764,7 +4763,6 @@
     showSelect();
   };
 
-  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   /* Capture test flag NOW — before init() calls history.pushState which strips &test=1 */
   const _urlParams  = new URLSearchParams(location.search);
