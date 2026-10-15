@@ -15,15 +15,20 @@ import { aircraft as aircraftSchema } from './schema/aircraft.js';
 import { unknownErrors }  from './schema/known.js';
 
 /**
- * loadMission(missionPath, aircraftPath)
+ * loadMission(missionPath, aircraftPath, setup)
  * Returns the loaded { mission, aircraft } objects after patching state.
+ * setup — the pilot's scenario choices, applied to the mission before anything reads it:
+ *   { weather: null | {source:'manual', manual}, failures: [...], crew: {role, pilotId, pilotName, pilotCallsign} }
+ *   weather null/absent keeps the mission's own. A restart passes S.mission again without a setup
+ *   — it already carries the choices.
  */
-export async function loadMission(missionPath, aircraftPath) {
+export async function loadMission(missionPath, aircraftPath, setup = null) {
   const _fetch = (p) => fetch(`${p}?v=${Date.now()}`).then(r => r.json());
   const mission = typeof missionPath === 'object' ? missionPath : await _fetch(missionPath);
   /* Check the data against its schema — fresh loads and inline missions (live flight); a restart
      passes the already-checked S.mission / S.aircraft again (which by then carry runtime additions). */
   if (mission !== S.mission) _checkData(`missions/${mission.id}.json`, mission, missionSchema);
+  if (setup) _applySetup(mission, setup);   // after the check: the schema describes the file as authored
   /* The mission JSON is the source of truth for the aircraft: its "aircraft" field wins over
      the caller's path (the catalog's aircraftId, which is only the picker label + a fallback).
      So changing a mission's aircraft actually swaps the model — no catalog edit needed. */
@@ -160,6 +165,11 @@ export async function loadMission(missionPath, aircraftPath) {
     if (mission.weather.fallback) setState({ metar: { ...mission.weather.fallback } });
     if (_liveWeather) fetchMetar(mission.weather.icao).catch(() => {});
   }
+  /* Manual weather at a station (a scenario preset replacing live weather) — the preset is the
+     station's report, so the METAR strip, ATIS and tower read the same weather the flight flies. */
+  if (mission.weather?.source === 'manual' && mission.weather.icao && mission.weather.manual) {
+    setState({ metar: { ...mission.weather.manual } });
+  }
 
   /* Rocket-specific state init */
   if (aircraft.vehicleType === 'rocket') {
@@ -218,7 +228,15 @@ export async function loadMission(missionPath, aircraftPath) {
   S.switches.pwrEn    = false;
   S.switches.avionics = false;
   setCrewLang(aircraft.crewLang ?? null);
+  if (setup?.crew) setState({ ...setup.crew });
   return { mission, aircraft };
+}
+
+/* The scenario setup → the mission: weather replaces the mission's (keeping its station),
+   failures are added to the scripted ones. */
+function _applySetup(mission, { weather = null, failures = [] }) {
+  if (weather) mission.weather = mission.weather?.icao ? { ...weather, icao: mission.weather.icao } : { ...weather };
+  if (failures.length) mission.failures = [...(mission.failures ?? []), ...failures];
 }
 
 /* Live weather on/off — off in test mode (?test=1) so runs are reproducible */

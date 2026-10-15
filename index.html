@@ -3229,18 +3229,20 @@
         }
       }
 
-      m._scenarioFailures  = injected;
-      m._weatherOverride   = wxPreset?.override;   /* null = keep LIVE; object = manual */
       const crewMember = CREW_PRESETS.find(p => p.id === selCrew);
-      setState({
-        role:          crewMember?.role ?? selCrew,
-        pilotId:       selCrew,
-        pilotName:     crewMember?.name    ?? null,
-        pilotCallsign: crewMember?.callsign ?? null,
-      });
+      const setup = {
+        weather:  wxPreset?.override ?? null,   /* null = keep the mission's (LIVE); object = manual preset */
+        failures: injected,
+        crew: {
+          role:          crewMember?.role ?? selCrew,
+          pilotId:       selCrew,
+          pilotName:     crewMember?.name    ?? null,
+          pilotCallsign: crewMember?.callsign ?? null,
+        },
+      };
 
       el.classList.remove('visible');
-      setTimeout(() => showFlightBriefing(m), 400);   // WB/NB jets → briefing page; others skip through
+      setTimeout(() => showFlightBriefing(m, setup), 400);   // WB/NB jets → briefing page; others skip through
     };
 
     requestAnimationFrame(() => el.classList.add('visible'));
@@ -3632,14 +3634,14 @@
   /* ── Flight briefing (WB/NB jets): mission parameters + a route overview, shown after
      the scenario setup and before launch. Props/VFR and non-flight missions skip straight
      through to init (transparent). ── */
-  async function showFlightBriefing(m) {
+  async function showFlightBriefing(m, setup = null) {
     let md = {}, acd = {};
     try {
       md  = await fetch(`missions/${m.id}.json?v=${Date.now()}`).then(r => r.json());
       acd = await fetch(`aircraft/${m.aircraft}.json?v=${Date.now()}`).then(r => r.json());
     } catch {}
     const isJet = acd.panel === 'airbus' || acd.panel === 'e190';   // WB/NB glass airliners only
-    if (!isJet) { init(m.id, m.aircraft); return; }
+    if (!isJet) { init(m.id, m.aircraft, null, setup); return; }
 
     const dep = md.departure || {}, arr = md.arrival || {};
     const row = (k, v) => v ? `<div class="fb-row"><span class="k">${k}</span><span class="v">${v}</span></div>` : '';
@@ -3687,7 +3689,7 @@
     const el = document.getElementById('flight-briefing');
     document.getElementById('fb-fly-btn').onclick = () => {
       el.classList.remove('visible');
-      setTimeout(() => init(m.id, m.aircraft), 300);
+      setTimeout(() => init(m.id, m.aircraft, null, setup), 300);
     };
     document.querySelectorAll('#fb-tabs .fb-tab').forEach(btn => { btn.onclick = () => _briefingTab(btn.dataset.tab, dep, arr, md); });
     requestAnimationFrame(() => {
@@ -3698,7 +3700,7 @@
 
   /* ── Init ── */
   let _session = null;   // the running mission's listeners/timers — stopped before the next init()
-  async function init(missionId, aircraftId, inlineMission = null) {
+  async function init(missionId, aircraftId, inlineMission = null, setup = null) {
     _session?.stop();
     _session = newSession();
     /* Leaving this mission (Back to the selector, or the next init) — stop what it started */
@@ -3728,24 +3730,9 @@
     resetRobotArm();
     resetYertleQuadruped();
     resetCislunar();
-    await loadMission(inlineMission ?? `missions/${missionId}.json`, `aircraft/${aircraftId}.json`);
+    await loadMission(inlineMission ?? `missions/${missionId}.json`, `aircraft/${aircraftId}.json`, setup);
     if (_isTestMode) seedRandom(1);       // tests: same turbulence sequence every run
     if (!_isTestMode) initBlackbox();   // tests don't record: bbTick is a no-op without a session
-
-    /* Merge scenario failures injected from the scenario setup overlay */
-    const mData2 = MISSIONS.find(m => m.id === missionId);
-    if (mData2?._scenarioFailures?.length && S.mission) {
-      S.mission.failures = [...(S.mission.failures ?? []), ...mData2._scenarioFailures];
-      mData2._scenarioFailures = [];
-    }
-
-    /* Apply weather override from scenario setup (null = LIVE/keep, object = manual preset) */
-    if (mData2 && '_weatherOverride' in mData2 && S.mission) {
-      if (mData2._weatherOverride !== null) {
-        S.mission.weather = mData2._weatherOverride;
-      }
-      delete mData2._weatherOverride;
-    }
 
     /* Re-init COM with mission-specific frequencies now that S.mission is loaded */
     const _comEl = document.getElementById('com-container');
@@ -4880,10 +4867,10 @@
     window.simStep     = (n = 1, dt = 1/60) => {
       for (let i = 0; i < n; i++) tickSim(dt);   // the game loop's own step
     };
-    window.simLoad     = (missionId) => {
+    window.simLoad     = (missionId, setup = null) => {
       const m = MISSIONS.find(m => m.id === missionId);
       if (!m) throw new Error(`Mission not found: ${missionId}`);
-      return init(m.id, m.aircraft);
+      return init(m.id, m.aircraft, null, setup);
     };
     window.simReady    = false;
   }

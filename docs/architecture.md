@@ -1248,9 +1248,9 @@ init()
      onStop: suspendLoop, hide the maps, close the kneeboard,
              stopSound, stopCOM, resetCrew
   history.pushState(?mission=id)
-  loadMission()                         (§2.2)
+  loadMission(…, setup)                 (§2.2; setup = the scenario choices: weather, failures, crew —
+                                         applied to the mission before anything reads it)
   test mode: seedRandom(1) · otherwise: initBlackbox()
-  merge scenario-setup failures into S.mission.failures
   init displays: COM, overhead, ECAM, crew, input, FMA, outside view, kneeboard, map, …
   initSound(engineType); onboarding overlay (pauses the sim until dismissed)
   keyboard listener for shell keys (K, O, D, N, E, Q, H, X, V, C, M, L, Esc, Ctrl+Shift+L/B)

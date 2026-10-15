@@ -103,7 +103,7 @@ Together: the same test gives the same numbers on every run, to the last digit.
 | `simStep(n = 1, dt = 1/60)` | Advance `n` steps of `dt` seconds, synchronously — the game's own step (`tickSim`) |
 | `simGetState()` | Shallow copy of the whole state `S` |
 | `simSetState(patch)` | Merge a patch into `S` |
-| `simLoad(missionId)` | Load another mission (returns a promise) |
+| `simLoad(missionId, setup)` | Load another mission (returns a promise); `setup` = the scenario choices `{ weather, failures, crew }` as the setup screen passes them (`loadMission()` in `core/mission.js`) |
 | `simGetRpm()` · `simEngineState()` | Engine RPM string · engine state |
 
 To try something without writing a test, `tools/probe.mjs` loads a mission in test mode and prints what a snippet returns — see [issues.md → Reproducing](issues.md#reproducing).
