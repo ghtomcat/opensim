@@ -402,6 +402,11 @@ Airliners are built from the aircraft JSON (`_acGeoFromJson()`, data-driven from
 
 `smooth.js` gives needles and tapes first-order lag (instruments that move with inertia read as real). Only `display/pfd_instruments.js` uses it. Pending on the steam gauges and GA panels: `bf109.js`, `f4u1a.js`, `velis_epsi.js`, `g1000.js`, and the analog widgets in `panel_renderer.js` (DR400, G1000 standby). **Done when.** Every needle and drum display eases through `smooth.js` with a per-quantity time constant.
 
+### The pause hint depends on the panel
+*Found 2026-10-15 · `display/bf109.js`, `display/f4u1a.js`, `display/velis_epsi.js`, `display/pfd.js`, `display/outside.js`*
+
+Each cockpit panel draws its own pause hint when `S.paused`: "PAUSE [P]" in `bf109.js` and `f4u1a.js` (twice each, one per layout) and `velis_epsi.js`, "PAUSED [P] to resume" in the fallback `pfd.js`, "⏸ PAUSED" plus the orbit-camera hints in `outside.js`. The glass airliners (`panel_renderer.js`: A350, A340, 737, 777, E190), the G1000/C172 and DR400 cockpits and the rockets draw nothing — a paused A350 just looks frozen. Not a design choice: the hand-drawn panels each got a copy (same pattern as *Gauge helpers copied between the hand-drawn panels*). **Fix:** one pause indicator in the shell — an element in `index.html` shown while `S.paused`, the same on every panel and view; remove the copies from the panels. `outside.js` keeps only its orbit-camera hints (drag · zoom · 0 reset), which are specific to that view. Planned with step 5 of *Five screens between mission select and flying* (the non-blocking key map). **Done when:** pausing shows the same indicator on every aircraft and view, and no `display/` module draws a pause text.
+
 ### The cloud layer is never drawn
 *Found 2026-10-15 · `display/terrain.js` ("Procedural cloud layer from METAR")*
 
