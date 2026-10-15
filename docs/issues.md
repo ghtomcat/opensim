@@ -248,6 +248,33 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 
 `flyWithFlight()` picks an aircraft for the tracked flight with `pickAircraft(flight.icaoType)` (C172 → `c172`, DR40 → `robin-dr400`, PA28 → `c172`, else `a350`) and passes it to `init()`. But the inline mission it builds also sets `aircraft: 'a350'`, and `loadMission()` gives the mission's `aircraft` precedence over the caller's path. So the A350 always loads. **Cause — verified (code), not yet seen in the browser.** The hard-coded `'a350'` dates from `8f2d067` (25 Mar) and was harmless until `37ea9d0` (13 Jun) made the mission JSON the aircraft source of truth. **Fix:** set the inline mission's `aircraft` to the `pickAircraft()` result (or drop the field). **Done when:** tracking a C172 or DR400 loads that aircraft.
 
+### Five screens between mission select and flying
+*Found 2026-10-15 · `index.html` (`showBriefing`, `showRoleSelect`, `showScenarioSetup`, `showFlightBriefing`, `init`)*
+
+**Symptom.** After picking a mission the pilot passes up to six screens in sequence, each one dismissed before the next appears:
+
+| # | Screen | Shown for | Dismissed by |
+|---|---|---|---|
+| 1 | Mission story (`showBriefing`) | every mission | tap |
+| 1b | Role select (`showRoleSelect`) | missions with `roles` | card |
+| 2 | Scenario setup (weather · crew · failure) | all but launches, live flight, `fixedScenario` | Fly |
+| 3 | Flight briefing (route · airport · SID/STAR · navlog · freqs · weather) | glass airliners only (`panel === 'airbus'/'e190'`) | Fly |
+| 4 | Loading splash | every mission | waits — incl. ~1.2 s of fixed `sleep()` |
+| 5 | Key map (onboarding), **pauses the sim** | all but rockets/robots | key or click |
+
+Nothing loads while the pilot reads: `init()` starts only after screen 3, although screen 3 has already fetched the mission and aircraft JSON.
+
+**Related defect — suspected (code), not yet seen in the browser.** The setup is applied *after* `loadMission()`: `init()` patches `S.mission.weather` and appends `S.mission.failures` from fields stashed on the catalog entry (`m._weatherOverride`, `m._scenarioFailures`). `loadMission()` has by then set the altimeter QNH and started the live-METAR fetch from the mission's own weather — so a manual preset on a live-weather mission likely still fetches and shows the real METAR (ATIS, wind via `S.metar`).
+
+**Fix.** Select → **one briefing page** → Fly.
+- One page with the story, the scenario setup (and role) and — where the mission has them — the flight-briefing tabs, plus a Controls tab; one Fly button. Sections appear only when the mission has them.
+- Preload while the pilot reads: fetch and cache what the setup doesn't affect (mission + aircraft JSON, terrain tiles, audio buffers, procedures). Fly passes the setup (weather, failures, role) *into* `loadMission()` as an argument — no patching after the load, no stash on the catalog entry. Fly enables when the preload is done; no separate splash, no fixed sleeps.
+- The key map stops blocking: Controls tab in the briefing, `?` in flight, and a key-map hint that fades out without pausing — once per aircraft after the briefing, **every time** after a direct link.
+- **Direct links (`?mission=…`) go straight in** — no briefing, mission defaults for the setup. They come from anywhere: the Zeitanker book links its story straight to the Wolfskopf mission (https://zeitanker-trilogie.ch/episode3_en.html), which must start right away; tests and shared links rely on it too. With no briefing page to show progress, a direct link keeps a minimal loading indicator (no fixed sleeps).
+- The new page is its own module (`app/briefing.js`, next to `app/session.js`) — a first piece of *`index.html` carries most of the application wiring*.
+
+**Done when.** Select → briefing → Fly for every mission; a direct link starts the mission right away with the key-map hint; the full-screen splash (except the direct-link indicator) and the blocking key-map overlay are gone; a manual weather preset on a live-weather mission flies with the preset (no METAR fetch); the test suite passes.
+
 ---
 
 ## Navigation
