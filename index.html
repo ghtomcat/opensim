@@ -2087,6 +2087,7 @@
   import { startLoop, suspendLoop, tickSim } from './core/loop.js';
   import { seedRandom }   from './core/random.js';
   import { newSession }   from './app/session.js';
+  import { hasScenarioSetup, WEATHER_PRESETS, crewPresets, failurePresets, buildSetup } from './app/briefing.js';
   import { onMissionReset } from './core/lifecycle.js';
   import { resetSmooth }  from './display/smooth.js';
   import { hilInit }      from './core/hil.js';
@@ -3063,7 +3064,7 @@
       el.classList.remove('visible');
       window.removeEventListener('keydown', dismiss);
       el.removeEventListener('click', dismiss);
-      if (_hasScenarioSetup(m)) {
+      if (hasScenarioSetup(m)) {
         setTimeout(() => showScenarioSetup(m), 400);
       } else {
         setTimeout(() => init(m.id, m.aircraft), 400);
@@ -3086,7 +3087,7 @@
       card.addEventListener('click', () => {
         setState({ role: r.id });
         el.classList.remove('visible');
-        if (_hasScenarioSetup(m)) {
+        if (hasScenarioSetup(m)) {
           setTimeout(() => showScenarioSetup(m), 400);
         } else {
           setTimeout(() => init(m.id, m.aircraft), 400);
@@ -3098,44 +3099,14 @@
     requestAnimationFrame(() => el.classList.add('visible'));
   }
 
-  /* ── Scenario setup ── */
-  function _hasScenarioSetup(m) {
-    return m.phase !== 'launch'
-      && m.id !== 'live-flight'
-      && !m.fixedScenario;   // scripted story missions (fixed weather + scripted failures) skip the chooser
-  }
-
+  /* ── Scenario setup (choices and the setup they build: app/briefing.js) ── */
   function showScenarioSetup(m) {
     const el = document.getElementById('scenario-setup');
 
-    /* ── Weather presets ── */
-    const _wx = (clouds) => ({
-      source: 'manual',
-      manual: { wdir: 270, wspd: 8, altim: 1013, temp: 12, dewp: 5, visib: '10+', clouds },
-    });
-    const WX_PRESETS = [
-      { id: 'LIVE',     label: 'Live METAR',      override: null },
-      { id: 'CLEAR',    label: 'Clear · VFR',      override: _wx([]) },
-      { id: 'FEW 5K',   label: 'Few clouds 5000',  override: _wx([{ cover: 'FEW', base: 5000 }]) },
-      { id: 'SCT 3K',   label: 'Scattered 3000',   override: _wx([{ cover: 'SCT', base: 3000 }]) },
-      { id: 'BKN 2K',   label: 'Broken 2000',      override: { source: 'manual', manual: { wdir: 250, wspd: 12, altim: 1010, temp: 9, dewp: 7, visib: '6+', clouds: [{ cover: 'BKN', base: 2000 }] } } },
-      { id: 'OVC 1500', label: 'Overcast 1500',    override: { source: 'manual', manual: { wdir: 240, wspd: 15, altim: 1008, temp: 8, dewp: 7, visib: '5',   clouds: [{ cover: 'OVC', base: 1500 }] } } },
-    ];
-
-    /* ── Crew presets — use named crew if present, else roles; hide section if neither ── */
-    const CREW_PRESETS = m.crew?.length > 0 ? m.crew
-      : m.roles?.length > 0 ? m.roles
-      : [];
-
-    /* ── Failure presets ── */
-    const hasCarbHeat = ['c172', 'robin-dr400'].includes(m.aircraft);
-    const FAIL_PRESETS = [
-      { id: 'CLEAN',   label: 'No failure',       failures: [] },
-      ...(hasCarbHeat ? [{ id: 'CARB ICE', label: 'Carb icing · descent', carbIce: true }] : []),
-      { id: 'PARTIAL', label: '50% power · 30s',  severity: 0.5, ramp: 30, bang: false },
-      { id: 'ROUGH',   label: '30% power · bang', severity: 0.3, ramp: 20, bang: true  },
-      { id: 'FAILURE', label: 'Full failure',      severity: 0.0, ramp: 15, bang: true  },
-    ];
+    const CREW_PRESETS = crewPresets(m);
+    /* hasCarbHeat is in the aircraft JSON — the briefing page (one-page rewrite) will read it there */
+    const hasCarbHeat  = ['c172', 'robin-dr400'].includes(m.aircraft);
+    const FAIL_PRESETS = failurePresets({ hasCarbHeat });
 
     let selWx   = 'LIVE';
     let selCrew = S.pilotId ?? S.role ?? CREW_PRESETS[0]?.id ?? null;
@@ -3169,7 +3140,7 @@
       });
     }
 
-    _buildCards('ss-wx-cards',   WX_PRESETS,   () => selWx,   v => { selWx   = v; });
+    _buildCards('ss-wx-cards',   WEATHER_PRESETS,   () => selWx,   v => { selWx   = v; });
     const crewSection = document.getElementById('ss-crew-cards').closest('.ss-section');
     if (CREW_PRESETS.length > 0) {
       crewSection.style.display = '';
@@ -3210,36 +3181,12 @@
 
     /* Fly button */
     document.getElementById('ss-fly-btn').onclick = () => {
-      const wxPreset   = WX_PRESETS.find(p => p.id === selWx);
-      const failPreset = FAIL_PRESETS.find(p => p.id === selFail);
-      let injected = [];
-
-      if (failPreset && failPreset.id !== 'CLEAN') {
-        const T = randomTiming
-          ? Math.floor(60 + Math.random() * 240)
-          : Math.max(10, parseInt(fixedInput.value) || 120);
-        if (failPreset.carbIce) {
-          injected.push({ trigger: { type: 'time', t: T }, type: 'carb_ice' });
-        } else {
-          if (failPreset.bang) {
-            injected.push({ trigger: { type: 'time', t: T     }, type: 'engine_gunfire' });
-            injected.push({ trigger: { type: 'time', t: T + 1 }, type: 'engine_bang' });
-          }
-          injected.push({ trigger: { type: 'time', t: T + (failPreset.bang ? 1 : 0) }, type: 'engine_power', value: failPreset.severity, rampTime: failPreset.ramp });
-        }
-      }
-
-      const crewMember = CREW_PRESETS.find(p => p.id === selCrew);
-      const setup = {
-        weather:  wxPreset?.override ?? null,   /* null = keep the mission's (LIVE); object = manual preset */
-        failures: injected,
-        crew: {
-          role:          crewMember?.role ?? selCrew,
-          pilotId:       selCrew,
-          pilotName:     crewMember?.name    ?? null,
-          pilotCallsign: crewMember?.callsign ?? null,
-        },
-      };
+      const setup = buildSetup(m, {
+        weather: selWx,
+        failure: selFail,
+        timing:  randomTiming ? { random: true } : { fixedT: fixedInput.value },
+        crew:    selCrew,
+      }, { hasCarbHeat });
 
       el.classList.remove('visible');
       setTimeout(() => showFlightBriefing(m, setup), 400);   // WB/NB jets → briefing page; others skip through

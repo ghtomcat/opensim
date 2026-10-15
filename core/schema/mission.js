@@ -64,7 +64,7 @@ const clearance = object({
 
 /* ── Failures: scripted (core/failures.js) or a rocket anomaly (core/rocket.js) ── */
 const scriptedFailure = object(
-  { type: oneOf(...valuesOf(FAILURE)), value: num,
+  { type: oneOf(...valuesOf(FAILURE)), value: num, rampTime: num,
     trigger: object({ type: oneOf(...valuesOf(FAILURE_TRIGGER)), t: num, alt: num }, { required: ['type'] }) },
   { required: ['type', 'trigger'] },
 );

@@ -1280,7 +1280,7 @@ Beyond wiring, the module script holds application features (see `issues.md` →
 
 | Feature | Functions |
 |---|---|
-| Mission picker, briefing, role select, scenario setup | `showSelect`, `showBriefing`, `showRoleSelect`, `showScenarioSetup` |
+| Mission picker, briefing, role select, scenario setup | `showSelect`, `showBriefing`, `showRoleSelect`, `showScenarioSetup` (the screen; the choices and the setup they build are in `app/briefing.js`) |
 | Flight briefing charts (route, airport, SID/STAR, nav log, weather) | `showFlightBriefing`, `_renderRouteChart`, `_renderProcChart`, … |
 | Live flight: radar picker, ADS-B tracking that drives the sim | `flyWithFlight`, `renderRadarMap`, `_startTracking`, `_pollTracking` |
 | Panel text updates, mission clock, METAR display | `updatePanel` (~175 lines), `renderMissionClock`, `updateMetar` |

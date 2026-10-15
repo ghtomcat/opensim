@@ -402,6 +402,11 @@ Airliners are built from the aircraft JSON (`_acGeoFromJson()`, data-driven from
 
 `smooth.js` gives needles and tapes first-order lag (instruments that move with inertia read as real). Only `display/pfd_instruments.js` uses it. Pending on the steam gauges and GA panels: `bf109.js`, `f4u1a.js`, `velis_epsi.js`, `g1000.js`, and the analog widgets in `panel_renderer.js` (DR400, G1000 standby). **Done when.** Every needle and drum display eases through `smooth.js` with a per-quantity time constant.
 
+### The cloud layer is never drawn
+*Found 2026-10-15 · `display/terrain.js` ("Procedural cloud layer from METAR")*
+
+The procedural cloud layer reads `S.weather?.clouds`, but nothing writes `S.weather` — not `loadMission()`, not the METAR fetch, not the scenario setup. So `cloudLayers` is always empty and no cloud is drawn, live or preset; this has been so since the layer was added (`c3cb933`). **Cause — verified (code):** no writer of `S.weather` anywhere in `core/`, `display/`, `index.html`; not yet looked at in the browser. The clouds exist in the data: `S.metar.clouds` (live, the recorded fallback, or a setup preset at a station — `loadMission()`), and `S.mission.weather.manual.clouds` (setup presets). **Fix:** read the clouds from the same source as the wind — `manual` → `weather.manual`, `live` → `S.metar`, else `weather.fallback` (as `_getWind()` in `core/physics.js` and `_windNow()` in `terrain.js` do) — ideally one shared "current weather" helper instead of four copies of that choice. **Done when:** the setup's *Overcast 1500* draws an overcast layer at 1 500 ft, and a live METAR's layers are drawn. See also *Manual weather: the schema doesn't know clouds*.
+
 ### External libraries and fonts load from CDNs at start-up
 *Found 2026-10-11 · `index.html` `<head>`*
 
@@ -653,6 +658,11 @@ To draw the terrain from the camera, `outside.js` saves the aircraft pose, write
 
 ### Cold-and-dark start leaves `enginePower` at 1
 *Found 2026-10-11* — after loading `lszf-pattern`, `engineState` is `'off'` but `enginePower` reads 1. `core/mission.js` sets 0 for an engine-off start, so something after mission load sets it back — start by searching for `enginePower: 1` in `index.html` / `core/sound.js` init paths. No effect on thrust (needs `'running'`), but inconsistent.
+
+### Manual weather: the schema doesn't know clouds
+*Found 2026-10-15 · `core/schema/mission.js` (`weatherManual`), `app/briefing.js` (`WEATHER_PRESETS`)*
+
+The scenario-setup presets are manual weather with `clouds` and `dewp`, and since 2026-10-15 a preset at a station becomes `S.metar`, so the ATIS reads its clouds. The schema's `weatherManual` has neither field (`visib` is listed as *planned*, with the note "no ATIS for manual weather"). Presets are applied after the schema check, so nothing fails today — but a mission file that authors manual clouds would be rejected. **Fix:** give `weatherManual` the METAR fields the code reads (`dewp`, `visib`, `clouds`), i.e. the same shape as `weatherFallback`; update the note. **Done when:** the setup presets pass the mission schema (a check in `tests/briefing.test.mjs`). Goes with *The cloud layer is never drawn*.
 
 ### Stale docs
 `docs/architecture.md` was rewritten bottom-up on 2026-10-11 (§1–14). `docs/panel-system.md` was updated 2026-10-11. `docs/url-routing.md` (formerly `navigation.md` — it covers browser URLs and history, not aircraft navigation; renamed 2026-10-11) hasn't been checked against the code yet.
