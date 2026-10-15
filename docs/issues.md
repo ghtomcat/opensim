@@ -262,13 +262,22 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 | 4 | Loading splash | every mission | waits — incl. ~1.2 s of fixed `sleep()` |
 | 5 | Key map (onboarding), **pauses the sim** | all but rockets/robots | key or click |
 
-Nothing loads while the pilot reads: `init()` starts only after screen 3, although screen 3 has already fetched the mission and aircraft JSON.
+**Baseline — measured 2026-10-15** (headless Chromium, localhost, direct link, no Mapbox token). The splash is almost all fixed waiting:
 
-**Related defect — suspected (code), not yet seen in the browser.** The setup is applied *after* `loadMission()`: `init()` patches `S.mission.weather` and appends `S.mission.failures` from fields stashed on the catalog entry (`m._weatherOverride`, `m._scenarioFailures`). `loadMission()` has by then set the altimeter QNH and started the live-METAR fetch from the mission's own weather — so a manual preset on a live-weather mission likely still fetches and shows the real METAR (ATIS, wind via `S.metar`).
+| Mission | page modules loaded | `loadMission()` → ready | splash hidden |
+|---|---|---|---|
+| `lszh-approach` (A350) | 532 ms | 74 ms | 1 930 ms |
+| `lszf-pattern` (C172) | 365 ms | 14 ms | 1 712 ms |
+| `wolfskopf-1942` (Bf 109) | 599 ms | 11 ms | 1 946 ms |
+| `crew-demo2` (rocket) | 343 ms | 36 ms | 1 690 ms |
+
+`init()` itself takes 10–75 ms; the remaining ~1.2 s is the `sleep(400/300/500)` in `init()`. Terrain tiles, the map and large audio (Demo-2 webcast, 2.2 MB) stream in after the splash anyway and don't block. The JS modules and CDN libraries load once with the page, i.e. on the selection screen. So no preload layer is needed — removing the sleeps is the speed-up. (DEM tile timing not measured: headless has no `mapboxToken`; those tiles load asynchronously via `core/elevation.js` either way.)
+
+**Related defect — verified (browser, 2026-10-15).** The setup is applied *after* `loadMission()`: `init()` patches `S.mission.weather` and appends `S.mission.failures` from fields stashed on the catalog entry (`m._weatherOverride`, `m._scenarioFailures`). By then `loadMission()` has started the live-METAR fetch from the mission's own weather. `lszh-approach` with *Overcast 1500*: `S.mission.weather` = OVC 1500, but the METAR is fetched and `S.metar` = live LSZH (FEW 4500, 1020 hPa, 12 kt). The flight follows the preset (wind `_getWind()`, clouds, baro read `S.mission.weather`); what reads `S.metar` shows the live weather — METAR strip, ATIS, the tower's wind in the landing clearance (`display/com.js`).
 
 **Fix.** Select → **one briefing page** → Fly.
 - One page with the story, the scenario setup (and role) and — where the mission has them — the flight-briefing tabs, plus a Controls tab; one Fly button. Sections appear only when the mission has them.
-- Preload while the pilot reads: fetch and cache what the setup doesn't affect (mission + aircraft JSON, terrain tiles, audio buffers, procedures). Fly passes the setup (weather, failures, role) *into* `loadMission()` as an argument — no patching after the load, no stash on the catalog entry. Fly enables when the preload is done; no separate splash, no fixed sleeps.
+- Fly passes the setup (weather, failures, role) *into* `loadMission()` as an argument — no patching after the load, no stash on the catalog entry. Remove the fixed sleeps; per the baseline, no preload layer is needed (the briefing page may still fetch the mission/aircraft JSON it displays).
 - The key map stops blocking: Controls tab in the briefing, `?` in flight, and a key-map hint that fades out without pausing — once per aircraft after the briefing, **every time** after a direct link.
 - **Direct links (`?mission=…`) go straight in** — no briefing, mission defaults for the setup. They come from anywhere: the Zeitanker book links its story straight to the Wolfskopf mission (https://zeitanker-trilogie.ch/episode3_en.html), which must start right away; tests and shared links rely on it too. With no briefing page to show progress, a direct link keeps a minimal loading indicator (no fixed sleeps).
 - The new page is its own module (`app/briefing.js`, next to `app/session.js`) — a first piece of *`index.html` carries most of the application wiring*.
