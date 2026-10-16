@@ -13,8 +13,8 @@
       "pilot": "Captain / First Officer",
       "unit": "Zurich Approach 119.700",
       "aircraft": "Airbus A350-900 · FMGS engaged",
-      "orders": "Cleared ILS 28. Descend 4000ft.\nExpect vectors from LOBEP. Speed 250kt below FL100.\nGear down abeam threshold. Full flaps by FAP.\nDecision height: 700ft. Go-around: climb 5000ft, track 283°.",
-      "atmosphere": "Long-haul inbound from San Francisco — fourteen hours behind you.\nLive METAR active. Weather may differ from brief.\nOpen kneeboard (K) for full approach plate."
+      "orders": "Eleven hours out of San Francisco. The night went by over Greenland and the North Sea, and now it's morning over the Swiss Plateau. The cabin is waking up and the breakfast trays are going back. One approach left before the long day is done.",
+      "atmosphere": "Lake Zurich below, the Alps white along the horizon. Home."
     },
     "roles": [
       {
@@ -45,8 +45,8 @@
       "pilot": "Captain / First Officer",
       "unit": "Geneva Ground / Tower",
       "aircraft": "Embraer E190-E2 · Helvetic Airways",
-      "orders": "Start engines (E key). Taxi to RWY 22 via Foxtrot and November.\nHold short — one departure ahead. Cleared takeoff when ready.\nMaintain RWY heading to 1000ft AGL. Squawk 4712.\nClimb FL240, routing to München (EDDM). Mont Blanc at 12 o'clock.",
-      "atmosphere": "Live METAR active.\nGeneva — Lake to the right, mountains straight ahead.\nHelvetica. Clean, efficient, on time."
+      "orders": "Morning in Geneva. Bankers, diplomats and a ski team in the back, and a short hop to Munich ahead. Helvetic runs this route like a Swiss train: clean, quiet, on time. One hour over the Alps.",
+      "atmosphere": "The lake on one side, the Jura on the other, Mont Blanc catching the first sun."
     },
     "roles": [
       {
@@ -77,8 +77,8 @@
       "pilot": "Captain / First Officer",
       "unit": "London Heathrow Tower 118.700",
       "aircraft": "Boeing 737-800 · British Airways · Speedbird",
-      "orders": "Cleared ILS 27L. Descend FL100, speed 250kt below.\nExpect LOREL arrival via WILLO. Vectors to localizer.\nGear down by 2500ft. Flaps full by FAP.\nDecision height: 200ft. Go-around: climb 3000ft, track 270°.",
-      "atmosphere": "Runway 27L. The busiest approach in Europe.\nYou've flown this dozens of times.\nBut every landing is the first."
+      "orders": "Two hours up from Madrid. The sun turned to grey somewhere over Biscay. Now London is below, and so is the queue for Heathrow: holding stacks, a jet every ninety seconds, the controllers' voices fast and calm.",
+      "atmosphere": "The busiest runway in Europe. You've flown it dozens of times, and every landing is still the first."
     },
     "roles": [
       {
@@ -109,8 +109,8 @@
       "pilot": "Captain / First Officer",
       "unit": "Warsaw Control → Vilnius Control",
       "aircraft": "Airbus A220-300 · Air Baltic",
-      "orders": "Stable at FL350, 290kt. Baltic Sea ahead left.\nRequest descent via Vilnius — target FL240 then approach.\nApproach brief due at 9500ft (opens automatically).\nILS 36, course 360°, DH 200ft.",
-      "atmosphere": "Live METAR at EVRA active.\nAir Baltic. The whole fleet is A220. Every aircraft, every route."
+      "orders": "Early afternoon, with Warsaw forty minutes behind. Up here the sky is empty and the coffee is still warm. The Baltic coast slides by on the left. Soon comes the long descent into Riga.",
+      "atmosphere": "airBaltic flies nothing but the A220. Every aircraft, every route, the same quiet cockpit."
     },
     "roles": [
       {
@@ -141,8 +141,8 @@
       "pilot": "Captain / First Officer",
       "unit": "Mauritius Ground / Tower",
       "aircraft": "Airbus A340-313 · Edelweiss Air · HB-JMF",
-      "orders": "Start all 4 engines (E key). Taxi to RWY 14.\nCleared takeoff — wind 130° at 12kt.\nV1 162kt  Vr 165kt  V2 181kt. Heavy — 275t.\nMaintain RWY heading to 3000ft. Climb FL370.",
-      "atmosphere": "Sunrise over the Indian Ocean. Warm, humid.\nEdelweiss Air — Zürich bound. 10h 40min ahead.\n4 engines. Long haul. The way it used to be done."
+      "orders": "Mauritius at dawn. The holiday is over for three hundred passengers, with sand still in their shoes. Ahead are eleven hours up the length of Africa and across the Mediterranean, landing in Zürich in the afternoon.",
+      "atmosphere": "Four engines, a heavy jet, a long runway by the sea. The way long haul used to be done."
     },
     "roles": [
       {
@@ -782,8 +782,8 @@
       "pilot": "Captain / First Officer",
       "unit": "Anchorage Ground / Tower 118.300",
       "aircraft": "Boeing 737 MAX 9 · Alaska Airlines",
-      "orders": "On the ramp at Ted Stevens. Start engines, taxi to runway one five.\nClimb runway heading, then direct Bozeman.\n2,400 km southeast over the Wrangells and the northern Rockies.",
-      "atmosphere": "Anchorage. Mountains on every side.\nThe Eskimo on the tail has flown this state for seventy years.\nBozeman, Montana — five hours south."
+      "orders": "Evening at Ted Stevens, with mountains on every side. Four hours southeast across the Wrangells and the Canadian Rockies, down into Montana.",
+      "atmosphere": "The face on the tail has watched over this state for half a century."
     },
     "roles": [
       {
@@ -814,8 +814,8 @@
       "pilot": "Captain / First Officer",
       "unit": "Singapore Ground / Tower 118.600",
       "aircraft": "Boeing 777-300ER · Singapore Airlines",
-      "orders": "On the ramp at Changi. Start the GE90s, taxi to runway two zero centre.\nClimb out over the Strait, direct PIBAP, then the long haul northwest.\n10,800 km to London Heathrow — thirteen hours.",
-      "atmosphere": "Changi at dusk. The equator heat shimmering off the apron.\nThe golden bird on the tail, bound for London through the night.\nThe flagship of Singapore Airlines."
+      "orders": "Changi at dusk. Three hundred people settle in for the night. Thirteen hours northwest lie ahead: the Bay of Bengal, India, the Gulf, Turkey, Europe asleep below.",
+      "atmosphere": "Equatorial heat shimmering off the apron. The golden bird on the tail, the night ahead of you."
     },
     "roles": [
       {
