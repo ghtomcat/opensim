@@ -1907,7 +1907,7 @@
 <script type="module">
   import { S, setState }  from './core/state.js';
   import { loadMission, setLiveWeather, setStrictData } from './core/mission.js';
-  import { COAST }        from './data/coastlines.js';
+  import { COAST_50M }    from './data/coastlines.js';
   import { RUNWAYS }      from './data/runways-data.js';
   import { AIRPORT_FREQS } from './data/navdata.js';
   import { TAXI_WAYS }    from './data/taxi-data.js';
@@ -2867,9 +2867,9 @@
     const ox = (W - gw * sc) / 2, oy = (H - gh * sc) / 2;
     const proj = (la, lo) => [ox + (lo - lonMin) * cosMid * sc, oy + (latMax - la) * sc];
 
-    /* Coastlines (COAST = [[lon,lat]…]) — break the path outside the view. */
+    /* Coastlines (COAST_50M = [[lon,lat]…]) — break the path outside the view. */
     ctx.strokeStyle = 'rgba(120,150,180,0.22)'; ctx.lineWidth = 1 * dpr; ctx.beginPath();
-    for (const poly of COAST) {
+    for (const poly of COAST_50M) {
       let started = false;
       for (const [lo, la] of poly) {
         if (lo < lonMin - 5 || lo > lonMax + 5 || la < latMin - 5 || la > latMax + 5) { started = false; continue; }
@@ -3064,11 +3064,12 @@
     const pox = (W - gw * psc) / 2, poy = planT + ((planB - planT) - gh * psc) / 2;
     const proj = (la, lo) => [pox + (lo - lonMin) * cosMid * psc, poy + (latMax - la) * psc];
 
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, planB + 8 * dpr); ctx.clip();   // keep the coast out of the profile
     ctx.strokeStyle = 'rgba(120,150,180,0.18)'; ctx.lineWidth = 1 * dpr; ctx.beginPath();
-    for (const poly of COAST) { let st = false; for (const [lo, la] of poly) {
+    for (const poly of COAST_50M) { let st = false; for (const [lo, la] of poly) {
       if (lo < lonMin - 3 || lo > lonMax + 3 || la < latMin - 3 || la > latMax + 3) { st = false; continue; }
       const [x, y] = proj(la, lo); if (st) ctx.lineTo(x, y); else { ctx.moveTo(x, y); st = true; } } }
-    ctx.stroke();
+    ctx.stroke(); ctx.restore();
     ctx.strokeStyle = '#d96ec8'; ctx.lineWidth = 2 * dpr; ctx.lineJoin = 'round'; ctx.beginPath();
     pts.forEach((p, i) => { const [x, y] = proj(p.lat, p.lon); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke();
     for (const l of path) {

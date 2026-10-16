@@ -86,7 +86,7 @@ OpenSim/
 | `missions/` | Scenario definitions: aircraft reference, departure/arrival, initial state, weather, ATC/narrative timeline, failures, debrief. `catalog.json` is the mission-picker list (titles, briefings, roles). | `core/mission.js`, `core/catalog.js` |
 | `config/` | Cockpit configuration cascade. `defaults.json` is the base layer; `manufacturers/{airbus,boeing,embraer}.json` override it; the aircraft's own `cockpit` block overrides last. | `core/aircraft-config.js` |
 | `panels/` | Layout specs for the data-driven glass displays (`airbus-pfd/nd/ecam`, `e190-pfd/nd`, `g1000`, `dr400`); `styles/` holds the per-family look. | `display/panel_renderer.js` |
-| `data/` | Real-world reference data as plain ES modules: `runways-data.js`, `navdata.js`, `navaids-data.js`, `airways-data.js`, `taxi-data.js`, `stands-data.js`, `terminals-data.js`, `satellites-data.js`, `towers-data.js`, `procedures-data-xp.js` (gitignored, optional) — all produced by `scripts/build-*.py`; `windsocks-data.js` and `coastlines.js` are hand-maintained. Generated files are not edited by hand; each names its source script in its header comment. They are scoped to the airports referenced in `missions/`, so adding a mission airport means re-running the relevant builders. See §4.1. | `core/` and `display/` |
+| `data/` | Real-world reference data as plain ES modules: `runways-data.js`, `navdata.js`, `navaids-data.js`, `airways-data.js`, `taxi-data.js`, `stands-data.js`, `terminals-data.js`, `satellites-data.js`, `towers-data.js`, `procedures-data-xp.js` (gitignored, optional) — all produced by `scripts/build-*.py`; `windsocks-data.js` is hand-maintained, and so is `coastlines.js` apart from its generated `COAST_50M` block. Generated files are not edited by hand; each names its source script in its header comment. They are scoped to the airports referenced in `missions/`, so adding a mission airport means re-running the relevant builders. See §4.1. | `core/` and `display/` |
 
 ### 1.2 `core/` — simulation
 
@@ -392,7 +392,7 @@ module. There's no database and no build step at load.
 | `satellites-data.js` | `SATELLITES` (round satellite terminals) | OSM | `build-satellites.py` | `display/terrain.js` |
 | `towers-data.js` | `TOWERS` | OSM | `build-towers.py` | `display/terrain.js` |
 | `windsocks-data.js` | `WINDSOCKS` | **hand-maintained** (where OSM has none) | — | `display/terrain.js` |
-| `coastlines.js` | `COAST`, `SPACE_SITES` | hand-maintained | — | `display/map.js`, `index.html` |
+| `coastlines.js` | `COAST` (~5°, the space-mission map), `SPACE_SITES`; `COAST_50M` (the briefing charts) | hand-maintained; `COAST_50M` Natural Earth 1:50m (public domain) | `build-coastlines.py` (`COAST_50M` only) | `display/map.js` (`COAST`), `index.html` (`COAST_50M`) |
 
 Two raster textures in `assets/` are bundled the same way: `terrain-color.jpg`
 (Blue Marble land colour, `display/terrain-color.js`) and `night-lights.png` (VIIRS

@@ -723,6 +723,7 @@ Geographic data, fetched live or bundled from open datasets:
 - **[OpenStreetMap](https://www.openstreetmap.org)** — runways, taxiways, aprons, holding positions, parking stands, terminal footprints and control towers via the Overpass API (© OpenStreetMap contributors, ODbL).
 - **FAA CIFP** and **X-Plane nav data** — SIDs, STARs, approaches and airways for the mission airports (`scripts/build-cifp.py`, `scripts/build-airways.py`).
 - **[Mapbox](https://www.mapbox.com)** — terrain elevation (Terrain-RGB / Copernicus DEM) and water polygons.
+- **[Natural Earth](https://www.naturalearthdata.com)** — 1:50m world coastlines for the briefing's route and SID/STAR charts (public domain). Bundled in `data/coastlines.js`; regenerate with `scripts/build-coastlines.py`.
 - **NASA Blue Marble** (day ground colour) and **VIIRS / Black Marble 2016** (night lights) — public domain.
 
 ---
