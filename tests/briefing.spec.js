@@ -74,3 +74,32 @@ test('the picks are the setup the mission flies with', async ({ page }) => {
   expect(s.metar.clouds).toEqual([{ cover: 'OVC', base: 1500 }]);
   expect(s.mission.failures.at(-1)).toEqual({ trigger: { type: 'time', t: 90 }, type: 'engine_power', value: 0.5, rampTime: 30 });
 });
+
+test('the briefing is a history step: Back returns to the picker, Fly then Back too', async ({ page }) => {
+  await openBriefing(page, 'lszf-pattern');
+  expect(new URL(page.url()).searchParams.get('briefing')).toBe('lszf-pattern');
+  await page.goBack();
+  await expect(page.locator('#briefing')).toBeHidden();
+  await expect(page.locator('#mission-select')).not.toHaveClass(/hidden/);
+
+  /* A second mission: Back from its briefing must not lead to the first one */
+  await page.goForward();
+  await expect(page.locator('#briefing')).toHaveClass(/visible/);
+  await page.keyboard.press('Escape');                                   // Esc = Back
+  await expect(page.locator('#mission-select')).not.toHaveClass(/hidden/);
+  await page.evaluate(() => [...document.querySelectorAll('.ms-card')].find(c => /Wolfskopf|Titovka/i.test(c.textContent))?.click());
+  await expect(page.locator('#briefing')).toHaveClass(/visible/);
+  expect(new URL(page.url()).searchParams.get('briefing')).toBe('wolfskopf-1942');
+  await page.click('#bp-fly');
+  await flying(page, 'wolfskopf-1942');
+  expect(new URL(page.url()).searchParams.get('mission')).toBe('wolfskopf-1942');
+  await page.goBack();                                                   // the flight replaced the briefing entry
+  await expect(page.locator('#mission-select')).not.toHaveClass(/hidden/);
+  await expect(page.locator('#briefing')).toBeHidden();
+});
+
+test('a reload on the briefing stays on the briefing', async ({ page }) => {
+  await page.goto('/?briefing=bougainville-1943');
+  await expect(page.locator('#briefing')).toHaveClass(/visible/);
+  await expect(page.locator('#bp-lead img.mb-document')).toBeVisible();
+});

@@ -32,8 +32,28 @@ When the page loads with a `?mission=` parameter, the selector is skipped and th
 ```
 ?mission=lszh-approach   → loads A350 LSZH approach immediately
 ?mission=bf109-takeoff   → loads Bf 109 takeoff scenario immediately
+?briefing=lszh-approach  → shows that mission's briefing page (a reload on the briefing)
 (no param)               → shows the mission selector
 ```
+
+A direct link goes straight into the mission, with the mission's defaults for the setup — no
+briefing. Links from outside (the Zeitanker book links to `?mission=wolfskopf-1942`), shared
+links and the tests rely on that.
+
+---
+
+## The Briefing Step
+
+Clicking a mission card pushes its own entry before the briefing page appears:
+
+```js
+history.pushState({ briefingId: m.id }, '', `?briefing=${m.id}`);
+```
+
+So Back (or Esc) on the briefing returns to the selector, and a new mission's briefing drops
+any forward entries — Forward can't lead to a mission flown earlier. Fly replaces the briefing
+entry with the mission's (`init()` uses `replaceState` when `history.state.briefingId` is the
+mission), so Back from the flight goes to the selector, as before.
 
 This is implemented at the bottom of `index.html`:
 
@@ -52,7 +72,7 @@ if (_urlMission) {
 
 ## pushState on Mission Start
 
-Every time `init()` is called, it pushes a history entry:
+Every time `init()` is called, it pushes a history entry (or replaces the briefing's, see above):
 
 ```js
 history.pushState({ missionId, aircraftId }, '', `?mission=${missionId}`);
@@ -82,6 +102,7 @@ Pressing forward after going back restores the previous mission:
 - Audio from any currently running sim stops
 - `init()` is called with the `missionId` and `aircraftId` stored in `e.state` — it stops the previous session and resumes the loop
 - The mission loads fresh, including briefing bypass (no briefing on forward navigation)
+- Forward to a briefing entry (`e.state.briefingId`) stops any running mission and shows that briefing
 
 ```js
 window.addEventListener('popstate', (e) => {
@@ -106,6 +127,8 @@ window.addEventListener('popstate', (e) => {
 ```
 opensim/                     → mission selector (no history state)
   ↓ select mission
+opensim/?briefing=lszh-approach → briefing page (state: { briefingId })
+  ↓ Fly — replaces the briefing entry
 opensim/?mission=lszh-approach  → sim running (state: { missionId, aircraftId })
   ↓ press Back
 opensim/                     → selector, audio stopped

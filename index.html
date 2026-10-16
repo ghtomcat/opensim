@@ -2817,6 +2817,9 @@
       `;
       card.addEventListener('click', () => {
         document.getElementById('mission-select').classList.add('hidden');
+        /* The briefing is its own history step: Back returns to the picker, a reload stays here */
+        const hil = new URLSearchParams(location.search).has('hil') ? '&hil' : '';
+        history.pushState({ briefingId: m.id }, '', `?briefing=${m.id}${hil}`);
         showBriefing(m);
       });
       grid.appendChild(card);
@@ -3252,6 +3255,7 @@
         fetch(`aircraft/${m.aircraft}.json?v=${Date.now()}`).then(r => r.json()),
       ]);
     } catch {}
+    if (history.state?.briefingId !== m.id) return;   // Back (or another mission) while the files loaded
     const layout  = briefingLayout(m, acd);
     const choices = setupChoices(m, md, acd);
     const vt      = acd.vehicleType ?? '';
@@ -3469,7 +3473,10 @@
 
   window.addEventListener('keydown', e => {
     if (!_bp.m) return;
-    if (e.key === 'Escape') _bpClosePop();
+    if (e.key === 'Escape') {
+      if (!document.getElementById('bp-pop').hidden) _bpClosePop();
+      else history.back();   // the briefing's history entry → the picker
+    }
     const a = document.activeElement;
     if (e.key === 'Enter' && a?.tagName !== 'INPUT' && !a?.closest('.bp-pop, .bp-strip, .fb-tabs, .fb-apt, .mb-lang-toggle')) { e.preventDefault(); _bpFly(); }
   });
@@ -3491,7 +3498,9 @@
 
     /* Push a history entry with mission data so back/forward work correctly */
     const _hilParam = new URLSearchParams(window.location.search).has('hil') ? '&hil' : '';
-    history.pushState({ missionId, aircraftId }, '', `?mission=${missionId}${_hilParam}`);
+    /* Fly from the briefing replaces its entry: Back from the flight goes to the picker */
+    const _fromBriefing = history.state?.briefingId === missionId;
+    history[_fromBriefing ? 'replaceState' : 'pushState']({ missionId, aircraftId }, '', `?mission=${missionId}${_hilParam}`);
 
     /* Stop any ADS-B tracking from a previous live flight */
     if (missionId !== 'live-flight') _stopTracking();
@@ -4596,6 +4605,13 @@
     } else {
       showSelect();
     }
+  } else if (MISSIONS.some(m => m.id === _urlParams.get('briefing'))) {
+    /* ?briefing=id (a reload on the briefing page) → that briefing, with the picker behind it */
+    const _m = MISSIONS.find(m => m.id === _urlParams.get('briefing'));
+    history.replaceState({ briefingId: _m.id }, '', location.href);
+    showSelect();
+    document.getElementById('mission-select').classList.add('hidden');
+    showBriefing(_m);
   } else {
     showSelect();
   }
@@ -4603,7 +4619,15 @@
   /* ── Back / forward button handling ── */
   window.addEventListener('popstate', (e) => {
     stopSound();
-    if (e.state?.missionId) {
+    if (e.state?.briefingId) {
+      /* Back from a flight started elsewhere, or Forward to a briefing — stop any mission, show it */
+      _session?.stop();
+      _session = null;
+      document.getElementById('mission-select').classList.add('hidden');
+      document.title = 'OpenSim';
+      const m = MISSIONS.find(m => m.id === e.state.briefingId);
+      if (m) showBriefing(m);
+    } else if (e.state?.missionId) {
       /* Forward: restore the mission the state points to */
       document.getElementById('mission-select').classList.add('hidden');
       _hideBriefing();
