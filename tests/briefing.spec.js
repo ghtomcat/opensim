@@ -48,6 +48,13 @@ test('the airliner gets its charts; the Controls chip opens the key list and clo
   await expect(pop.locator('.bp-keys')).toBeVisible();
   await page.click('.bp-chip[data-kind="controls"]');
   await expect(pop).toBeHidden();
+  await page.click('.fb-tab[data-tab="airport"]');                     // both airports, departure first
+  await expect(page.locator('#fb-apt button')).toHaveText(['KSFO', 'LSZH']);
+  await expect(page.locator('#fb-apt button').first()).toHaveAttribute('aria-pressed', 'true');
+  await page.click('#fb-apt button:text("LSZH")');
+  await expect(page.locator('#fb-apt button').last()).toHaveAttribute('aria-pressed', 'true');
+  await page.click('.fb-tab[data-tab="route"]');
+  await expect(page.locator('#fb-apt')).toBeHidden();
 });
 
 test('the picks are the setup the mission flies with', async ({ page }) => {

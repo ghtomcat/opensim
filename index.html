@@ -1425,6 +1425,14 @@
     .fb-tbl td { padding: 4px 10px; border-bottom: 1px solid rgba(255,255,255,0.05); color: #cfd8e4; }
     .fb-tbl td.id { color: #9fc8e8; }
     .fb-tbl td.v  { color: #eef2f7; text-align: right; }
+    .fb-apt { position: absolute; top: 58px; left: 20px; z-index: 2; display: flex; gap: 6px; }
+    .fb-apt[hidden] { display: none; }
+    .fb-apt button {
+      background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.18); border-radius: 3px;
+      padding: 4px 10px; cursor: pointer; font: 12px "IBM Plex Mono", monospace; color: rgba(216,224,234,0.6);
+    }
+    .fb-apt button:hover { color: #eef2f7; }
+    .fb-apt button[aria-pressed="true"] { color: #eef2f7; border-color: var(--mb-accent, #eef2f7); }
     .fb-metar { font-size: 13px; color: #9fc8e8; word-break: break-word; line-height: 1.6; margin-bottom: 6px; }
     .fb-empty { color: rgba(216,224,234,0.4); font-size: 13px; padding: 8px 0; }
 
@@ -1656,6 +1664,7 @@
         <button class="fb-tab" data-tab="freqs">Frequencies</button>
       </div>
       <canvas id="fb-chart"></canvas>
+      <div class="fb-apt" id="fb-apt" hidden></div>
       <div class="fb-text" id="fb-text"></div>
     </section>
   </div>
@@ -2952,8 +2961,6 @@
         ctx.fillStyle = '#ffffff'; ctx.font = `bold ${11 * dpr}px "IBM Plex Mono",monospace`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
         ctx.fillText('  ' + s.ref, x + 5 * dpr, y); } }
 
-    ctx.fillStyle = 'rgba(255,255,255,0.65)'; ctx.font = `${12 * dpr}px "IBM Plex Mono",monospace`;
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillText(ic || '', 22 * dpr, 14 * dpr);
   }
 
   /* "+03500" / "-FL080" / "FL080" / ARINC descriptor "J03000" → { ft, kind } (above/below/at).
@@ -3181,15 +3188,30 @@
   }
 
   /* Switch briefing tab: the chart canvas for Route, the text pane otherwise. */
+  /* Airport tab: one button per airport (departure, arrival) — the chart shows the one picked.
+     The start gate is drawn on the departure airport only. */
+  function _airportTab(dep, arr, md) {
+    const el   = document.getElementById('fb-apt');
+    const apts = [dep, arr].filter((a, i, all) => a?.icao && all.findIndex(b => b?.icao === a.icao) === i);
+    el.innerHTML = apts.map((a, i) => `<button data-i="${i}" aria-pressed="${i === 0}">${a.icao}</button>`).join('');
+    const show = (i) => {
+      el.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.i === i)));
+      requestAnimationFrame(() => _renderAirportChart(apts[i] ?? dep, apts[i] === dep ? md : null));
+    };
+    el.querySelectorAll('button').forEach(b => b.addEventListener('click', () => show(+b.dataset.i)));
+    show(0);
+  }
+
   function _briefingTab(name, dep, arr, md) {
     document.querySelectorAll('#fb-tabs .fb-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    document.getElementById('fb-apt').hidden = name !== 'airport';
     const tx = document.getElementById('fb-text');
     document.getElementById('fb-chart').onclick = null;   // only the departure chart uses click
     const isChart = name === 'route' || name === 'airport' || name === 'departure' || name === 'arrival';
     /* Canvas stays laid out (stable offsetWidth); the opaque text pane just covers it. */
     tx.style.display = isChart ? 'none' : 'block';
     if      (name === 'route')     requestAnimationFrame(() => _renderRouteChart(dep, arr));
-    else if (name === 'airport')   requestAnimationFrame(() => _renderAirportChart(dep, md));
+    else if (name === 'airport')   _airportTab(dep, arr, md);
     else if (name === 'departure') { _fbDepIdx = 0; requestAnimationFrame(() => _renderDepartureChart(dep, md)); }   // open on the planned SID
     else if (name === 'arrival')   { _fbArrIdx = 0; requestAnimationFrame(() => _renderArrivalChart(arr, md)); }     // open on the planned STAR
     else if (name === 'navlog')  tx.innerHTML = _navLogHtml(dep, arr);
@@ -3449,7 +3471,7 @@
     if (!_bp.m) return;
     if (e.key === 'Escape') _bpClosePop();
     const a = document.activeElement;
-    if (e.key === 'Enter' && a?.tagName !== 'INPUT' && !a?.closest('.bp-pop, .bp-strip, .fb-tabs, .mb-lang-toggle')) { e.preventDefault(); _bpFly(); }
+    if (e.key === 'Enter' && a?.tagName !== 'INPUT' && !a?.closest('.bp-pop, .bp-strip, .fb-tabs, .fb-apt, .mb-lang-toggle')) { e.preventDefault(); _bpFly(); }
   });
   /* A click outside closes the popover (a picked card is already redrawn — detached — by then) */
   document.addEventListener('click', e => { if (_bp.m && e.target.isConnected && !e.target.closest('.bp-pop, .bp-chip')) _bpClosePop(); });
