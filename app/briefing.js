@@ -1,20 +1,37 @@
 /* ═══════════════════════════════════════════════════════════════
    OpenSim — app/briefing.js
-   The scenario setup without the screen: which choices a mission
-   offers (weather, crew, failure) and how the pilot's picks become
-   the setup that loadMission() applies (core/mission.js).
+   The briefing page without the screen: which layout a mission gets,
+   which choices it offers (weather, crew, failure) and how the
+   pilot's picks become the setup that loadMission() applies
+   (core/mission.js).
    Pure — no DOM, no S.
+     m   = the catalog entry, md = the mission file, acd = the aircraft file
    ═══════════════════════════════════════════════════════════════ */
 
 import { FAILURE } from '../core/vocab.js';
 
-/** Missions that show the setup: not launches, live flight or fixed-story missions
-    (scripted weather and failures). */
-export function hasScenarioSetup(m) {
-  return m.phase !== 'launch'
-    && m.id !== 'live-flight'
-    && !m.fixedScenario;
+/** The page's main content: the scanned orders, the airliner's charts, or the story text. */
+export function briefingLayout(m, acd = {}) {
+  if (m.briefing?.document && m.briefing?.image) return 'doc';
+  if (acd.panel === 'airbus' || acd.panel === 'e190') return 'chart';   // WB/NB glass airliners
+  return 'text';
 }
+
+/**
+ * The choices a mission offers. Fixed-story missions script their weather and failures;
+ * launches, rockets and robot labs have no weather or engine failure to pick. The phase is
+ * in the mission file, not the catalog.
+ *   → { weather: bool, failure: bool, crew: [crew or roles] }
+ */
+export function setupChoices(m, md = {}, acd = {}) {
+  if (m.fixedScenario || m.id === 'live-flight') return { weather: false, failure: false, crew: [] };
+  const vt = acd.vehicleType ?? '';
+  const flies = md.phase !== 'launch' && vt !== 'rocket' && !vt.startsWith('robot');
+  return { weather: flies, failure: flies, crew: crewPresets(m) };
+}
+
+/** What "keep the mission's weather" means here: live METAR, or the weather it was written with. */
+export const ownWeatherLabel = (md = {}) => md.weather?.source === 'live' ? 'Live METAR' : 'As briefed';
 
 /* ── Weather ── */
 const _wx = (clouds) => ({
@@ -87,7 +104,7 @@ export function buildSetup(m, picks, { hasCarbHeat = false, rand = Math.random }
   return {
     weather:  wx?.override ?? null,
     failures: failureEntries(fail, T),
-    crew: {
+    crew: picks.crew == null ? null : {   // no crew choice → the mission's own role stays
       role:          member?.role ?? picks.crew,
       pilotId:       picks.crew,
       pilotName:     member?.name     ?? null,

@@ -1288,26 +1288,24 @@
       50%       { opacity: 0.8; }
     }
 
-    /* ── Pre-mission briefing overlay ── */
-    #mission-briefing {
+    /* ── Briefing page: the mission's story, charts and setup on one page ──
+       Main content above (doc · chart · text, picked by briefingLayout), the setup strip below.
+       Mockup: docs/mockups/briefing.html */
+    #briefing {
       position: fixed; inset: 0; z-index: 310;
       background: #030609;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      padding: 40px 24px;
+      display: grid; grid-template-rows: 1fr auto;
       opacity: 0;
-      transition: opacity 0.4s ease;
+      transition: opacity 0.3s ease;
       pointer-events: none;
     }
-    #mission-briefing.visible {
-      opacity: 1;
-      pointer-events: all;
-    }
-    .mb-inner {
-      max-width: 560px;
-      width: 100%;
-      display: flex; flex-direction: column; gap: 0;
-    }
+    #briefing.visible { opacity: 1; pointer-events: all; }
+    #briefing[hidden] { display: none; }
+    .bp-lead { min-height: 0; overflow: auto; }
+    .bp-lead.doc, .bp-lead.text { display: grid; place-items: center; padding: 48px 24px 24px; }
+
+    /* Text layout — the story column */
+    .mb-inner { max-width: 560px; width: 100%; display: flex; flex-direction: column; }
     .mb-classification {
       font-family: "IBM Plex Mono", monospace;
       font-size: 10px; letter-spacing: 0.25em;
@@ -1325,32 +1323,16 @@
       text-transform: uppercase;
       margin-bottom: 20px;
     }
-    .mb-pilot-block {
-      margin-bottom: 20px;
-    }
+    .mb-pilot-block { margin-bottom: 20px; }
     .mb-pilot {
       font-family: "Syne", sans-serif;
       font-size: 20px; font-weight: 700;
       color: var(--white);
       line-height: 1.3;
     }
-    .mb-unit {
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 12px;
-      color: rgba(232,237,242,0.5);
-      margin-top: 2px;
-    }
-    .mb-aircraft {
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 11px; letter-spacing: 0.05em;
-      color: rgba(232,237,242,0.35);
-      margin-top: 2px;
-    }
-    .mb-divider {
-      height: 1px;
-      background: rgba(255,255,255,0.07);
-      margin: 20px 0;
-    }
+    .mb-unit { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: rgba(232,237,242,0.5); margin-top: 2px; }
+    .mb-aircraft { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: 0.05em; color: rgba(232,237,242,0.35); margin-top: 2px; }
+    .mb-divider { height: 1px; background: rgba(255,255,255,0.07); margin: 20px 0; }
     .mb-orders {
       font-family: "IBM Plex Mono", monospace;
       font-size: 13px; line-height: 1.8;
@@ -1360,27 +1342,13 @@
     .mb-atmosphere {
       font-family: "IBM Plex Mono", monospace;
       font-size: 12px; line-height: 1.7;
-      color: rgba(232,237,242,0.4);
+      color: rgba(232,237,242,0.45);
       font-style: italic;
-      margin-top: 24px;
+      margin-top: 22px;
       border-left: 2px solid var(--mb-accent, var(--cyan));
       padding-left: 14px;
     }
-    .mb-fly {
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 10px; letter-spacing: 0.2em;
-      color: rgba(232,237,242,0.25);
-      text-transform: uppercase;
-      margin-top: 36px;
-      animation: ob-blink 1.4s ease-in-out infinite;
-    }
-    .mb-with-image {
-      display: grid;
-      grid-template-columns: 1fr 260px;
-      gap: 48px;
-      align-items: start;
-      max-width: 860px;
-    }
+    .mb-with-image { display: grid; grid-template-columns: 1fr 260px; gap: 48px; align-items: start; max-width: 860px; }
     .mb-portrait {
       width: 100%;
       aspect-ratio: 4/3;
@@ -1390,22 +1358,17 @@
       filter: grayscale(100%) contrast(1.1);
       border: 1px solid rgba(255,255,255,0.08);
     }
-    .mb-doc-layout {
-      display: grid;
-      grid-template-columns: 1fr 260px;
-      gap: 48px;
-      align-items: center;
-      max-width: 860px;
-    }
+
+    /* Document layout — the scanned orders lead, the portrait beside them */
+    .mb-doc { width: min(860px, 100%); }
+    .mb-doc-layout { display: grid; grid-template-columns: 1fr 260px; gap: 48px; align-items: center; }
     .mb-document {
-      width: 100%;
+      width: 100%; display: block;
       opacity: 0.88;
       filter: sepia(0.15) contrast(1.05);
       border: 1px solid rgba(255,255,255,0.06);
     }
-    .mb-lang-toggle {
-      display: flex; gap: 6px; margin-bottom: 8px;
-    }
+    .mb-lang-toggle { display: flex; gap: 6px; margin-bottom: 8px; }
     .mb-lang-btn {
       font-family: "IBM Plex Mono", monospace;
       font-size: 11px; letter-spacing: 0.08em;
@@ -1414,164 +1377,28 @@
       background: transparent; color: rgba(255,255,255,0.45);
       cursor: pointer;
     }
-    .mb-lang-btn.active {
-      border-color: var(--mb-accent, #cc4444);
-      color: var(--mb-accent, #cc4444);
-    }
+    .mb-lang-btn.active { border-color: var(--mb-accent, #cc4444); color: var(--mb-accent, #cc4444); }
 
-    /* ── Role selector overlay ── */
-    #role-select {
-      position: fixed; inset: 0; z-index: 320;
-      background: #030609;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      padding: 40px 24px;
-      opacity: 0; transition: opacity 0.4s ease;
-      pointer-events: none;
-    }
-    #role-select.visible { opacity: 1; pointer-events: all; }
-    .rs-title {
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 10px; letter-spacing: 0.25em;
-      color: rgba(232,237,242,0.35);
-      text-transform: uppercase;
-      margin-bottom: 40px;
-    }
-    .rs-cards {
-      display: flex; flex-wrap: wrap; gap: 16px;
-      justify-content: center; max-width: 720px;
-    }
-    .rs-card {
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.08);
-      padding: 24px 32px; min-width: 130px;
-      text-align: center; cursor: pointer;
-      transition: background 0.15s, border-color 0.15s;
-    }
-    .rs-card:hover {
-      background: rgba(255,255,255,0.07);
-      border-color: var(--rs-accent, rgba(255,255,255,0.22));
-    }
-    .rs-card-id {
-      font-family: "Syne", sans-serif;
-      font-size: 18px; font-weight: 700;
-      color: var(--white); margin-bottom: 8px;
-    }
-    .rs-card-label {
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 11px; color: rgba(232,237,242,0.4);
-      line-height: 1.5;
-    }
-    .rs-card.rs-instructor { border-color: rgba(255,200,50,0.15); }
-    .rs-card.rs-instructor .rs-card-id { color: rgba(255,200,50,0.75); }
-
-    /* ── Scenario setup overlay ── */
-    #scenario-setup {
-      position: fixed; inset: 0; z-index: 325;
-      background: #030609;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      padding: 40px 24px;
-      opacity: 0;
-      transition: opacity 0.4s ease;
-      pointer-events: none;
-    }
-    #scenario-setup.visible { opacity: 1; pointer-events: all; }
-    .ss-title {
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 11px; letter-spacing: 0.2em;
-      color: rgba(232,237,242,0.3);
-      text-transform: uppercase;
-      margin-bottom: 40px;
-    }
-    .ss-cards {
-      display: flex; flex-wrap: wrap; gap: 14px;
-      justify-content: center; max-width: 680px;
-      margin-bottom: 36px;
-    }
-    .ss-card {
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 4px;
-      padding: 18px 24px; min-width: 130px;
-      cursor: pointer; text-align: center;
-      transition: background 0.15s, border-color 0.15s;
-    }
-    .ss-card:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.22); }
-    .ss-card.selected { background: rgba(255,255,255,0.07); border-color: rgba(255,200,50,0.5); }
-    .ss-card-id {
-      font-family: "Syne", sans-serif;
-      font-size: 15px; font-weight: 700;
-      color: var(--white); margin-bottom: 6px;
-    }
-    .ss-card-label {
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 10px; color: rgba(232,237,242,0.35);
-    }
-    .ss-timing {
-      display: flex; align-items: center; gap: 12px;
-      margin-bottom: 40px;
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 11px; color: rgba(232,237,242,0.4);
-    }
-    .ss-timing-toggle {
-      display: flex; gap: 0;
-    }
-    .ss-timing-btn {
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.1);
-      color: rgba(232,237,242,0.5);
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 10px; letter-spacing: 0.1em;
-      padding: 5px 12px; cursor: pointer;
-      transition: background 0.15s;
-    }
-    .ss-timing-btn:first-child { border-radius: 3px 0 0 3px; }
-    .ss-timing-btn:last-child  { border-radius: 0 3px 3px 0; border-left: none; }
-    .ss-timing-btn.active { background: rgba(255,200,50,0.1); border-color: rgba(255,200,50,0.3); color: rgba(255,200,50,0.8); }
-    #ss-fixed-input {
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.1);
-      color: var(--white);
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 12px;
-      padding: 4px 10px; width: 64px;
-      border-radius: 3px; text-align: center;
-    }
-    .ss-fly-btn {
-      background: none;
-      border: 1px solid rgba(255,255,255,0.2);
-      color: #e8edf2;
-      font-family: "Syne", sans-serif;
-      font-size: 12px; letter-spacing: 0.15em;
-      padding: 10px 36px; cursor: pointer;
-      text-transform: uppercase;
-      transition: border-color 0.15s, background 0.15s;
-    }
-    .ss-fly-btn:hover { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.05); }
-
-    /* ── Flight briefing (pre-flight: mission parameters + route chart) ── */
-    #flight-briefing {
-      position: fixed; inset: 0; z-index: 200; display: none;
-      background: #06080c; color: #d8e0ea; font-family: "IBM Plex Mono", monospace;
-    }
-    #flight-briefing.visible { display: block; }
-    .fb-inner { position: absolute; inset: 0; display: flex; }
+    /* Chart layout — the airliner: story + parameters left, charts right */
+    .fb-inner { display: flex; min-height: 0; color: #d8e0ea; font-family: "IBM Plex Mono", monospace; }
+    .fb-inner[hidden] { display: none; }
     .fb-params {
-      width: 380px; min-width: 320px; padding: 34px 30px; box-sizing: border-box;
+      width: 380px; min-width: 320px; padding: 30px 28px; box-sizing: border-box;
       border-right: 1px solid rgba(255,255,255,0.08);
-      background: rgba(0,0,0,0.28); overflow-y: auto;
+      background: #040709; overflow-y: auto;
     }
-    .fb-title { font-size: 18px; letter-spacing: 0.04em; color: #eef2f7; }
-    .fb-sub   { font-size: 12px; color: rgba(216,224,234,0.5); margin-bottom: 18px; }
+    .fb-title { font-family: "Syne", sans-serif; font-size: 22px; font-weight: 700; color: #eef2f7; }
+    .fb-sub   { font-size: 12px; color: rgba(216,224,234,0.5); margin: 4px 0 18px; }
+    .fb-params .mb-orders { font-size: 12.5px; line-height: 1.75; }
+    .fb-params .mb-atmosphere { margin-top: 16px; }
     .fb-h {
-      font-size: 10.5px; letter-spacing: 0.18em; color: rgba(216,224,234,0.42);
-      margin: 22px 0 8px; border-bottom: 1px solid rgba(255,255,255,0.07); padding-bottom: 5px;
+      font-size: 11px; color: rgba(216,224,234,0.42);
+      margin: 20px 0 6px; border-bottom: 1px solid rgba(255,255,255,0.07); padding-bottom: 6px;
     }
-    .fb-row { display: flex; justify-content: space-between; gap: 14px; padding: 4px 0; font-size: 13px; }
+    .fb-row { display: flex; justify-content: space-between; gap: 14px; padding: 3px 0; font-size: 12.5px; }
     .fb-row .k { color: rgba(216,224,234,0.55); }
     .fb-row .v { color: #eef2f7; text-align: right; }
-    .fb-chart-wrap { flex: 1; position: relative; }
+    .fb-chart-wrap { flex: 1; position: relative; min-width: 0; background: #050a10; }
     /* Canvas needs an explicit CSS size: as a replaced element, left/right alone would let
        it take its (buffer) intrinsic width, which then feeds back into offsetWidth. */
     #fb-chart { position: absolute; left: 0; top: 46px; width: 100%; height: calc(100% - 46px); display: block; }
@@ -1580,16 +1407,16 @@
                 background: #070b11; font-family: "IBM Plex Mono", monospace; }
     .fb-tabs {
       position: absolute; top: 0; left: 0; right: 0; height: 46px; z-index: 2;
-      display: flex; align-items: stretch; padding: 0 14px;
-      border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.25);
+      display: flex; align-items: stretch; gap: 4px; padding: 0 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
     }
     .fb-tab {
       background: none; border: none; color: rgba(216,224,234,0.5); cursor: pointer;
-      padding: 0 18px; font: 600 12px "IBM Plex Mono", monospace; letter-spacing: 0.08em;
+      padding: 0 14px; font: 12.5px "IBM Plex Mono", monospace;
       border-bottom: 2px solid transparent;
     }
     .fb-tab:hover { color: #d8e0ea; }
-    .fb-tab.active { color: #eef2f7; border-bottom-color: #d96ec8; }
+    .fb-tab.active { color: #eef2f7; border-bottom-color: var(--mb-accent, #d96ec8); }
     .fb-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
     .fb-tbl th {
       text-align: left; color: rgba(216,224,234,0.42); font-weight: 600; letter-spacing: 0.1em;
@@ -1600,30 +1427,71 @@
     .fb-tbl td.v  { color: #eef2f7; text-align: right; }
     .fb-metar { font-size: 13px; color: #9fc8e8; word-break: break-word; line-height: 1.6; margin-bottom: 6px; }
     .fb-empty { color: rgba(216,224,234,0.4); font-size: 13px; padding: 8px 0; }
-    .fb-fly-btn {
-      position: absolute; bottom: 30px; right: 34px; z-index: 2;
-      padding: 13px 30px; background: rgba(255,255,255,0.04); color: #eef2f7;
-      border: 1px solid rgba(255,255,255,0.32); border-radius: 4px; cursor: pointer;
-      font: 600 14px "IBM Plex Mono", monospace; letter-spacing: 0.1em;
-    }
-    .fb-fly-btn:hover { border-color: rgba(255,255,255,0.6); background: rgba(255,255,255,0.09); }
-    .ss-section { width: 100%; max-width: 720px; margin-bottom: 28px; }
-    .ss-section-label {
+
+    /* The setup strip — the same on every mission: chips open popovers, Fly (Enter) starts */
+    .bp-strip {
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 14px 24px 18px;
       font-family: "IBM Plex Mono", monospace;
-      font-size: 9px; letter-spacing: 0.22em;
-      color: rgba(232,237,242,0.28);
-      text-transform: uppercase;
-      margin-bottom: 10px;
     }
-    .ss-card.ss-card-inst { border-color: rgba(255,200,50,0.14); }
-    .ss-card.ss-card-inst .ss-card-id { color: rgba(255,200,50,0.72); }
-    .ss-card.selected.ss-card-inst { border-color: rgba(255,200,50,0.55); }
-    /* Named crew cards */
-    .ss-card.ss-crew-named { min-width: 158px; text-align: left; padding: 14px 18px; }
-    .ss-card.ss-crew-named .ss-card-id { font-size: 9px; letter-spacing: 0.2em; color: rgba(232,237,242,0.35); margin-bottom: 4px; }
-    .ss-card.ss-crew-named .ss-crew-name { font-family: "Syne", sans-serif; font-size: 13px; font-weight: 700; color: var(--white); margin-bottom: 4px; line-height: 1.2; }
-    .ss-card.ss-crew-named .ss-card-label { font-size: 9px; }
-    .ss-card.ss-crew-named.ss-card-inst .ss-crew-name { color: rgba(255,200,50,0.72); }
+    .bp-strip .spacer { flex: 0 0 24px; }
+    #briefing.chart .bp-strip { justify-content: flex-start; border-top: 1px solid rgba(255,255,255,0.08); background: #05090d; padding: 12px 20px; }
+    #briefing.chart .bp-strip .spacer { flex: 1; }
+    .bp-chip {
+      display: inline-flex; align-items: baseline; gap: 9px;
+      background: none; border: 1px solid transparent; border-radius: 3px;
+      padding: 8px 12px; cursor: pointer;
+      font: 12.5px "IBM Plex Mono", monospace;
+    }
+    .bp-chip .k { color: rgba(232,237,242,0.42); }
+    .bp-chip .v { color: var(--white); }
+    .bp-chip .v::after { content: " ▾"; color: rgba(232,237,242,0.22); font-size: 10px; }
+    .bp-chip:hover, .bp-chip[aria-expanded="true"] { border-color: rgba(255,255,255,0.14); background: rgba(255,255,255,0.03); }
+    .bp-chip.changed .v { color: rgba(255,210,90,0.95); }
+    .bp-fly {
+      margin-left: 6px; padding: 10px 26px; cursor: pointer;
+      font-family: "Syne", sans-serif; font-size: 15px; font-weight: 700; letter-spacing: 0.04em; color: var(--white);
+      background: transparent; border: 1px solid rgba(255,255,255,0.3); border-radius: 3px;
+    }
+    .bp-fly:hover { border-color: var(--mb-accent, var(--white)); color: var(--mb-accent, var(--white)); }
+    .bp-fly kbd { font-family: "IBM Plex Mono", monospace; font-weight: 400; font-size: 10px; color: rgba(232,237,242,0.22); margin-left: 10px; }
+    #briefing :focus-visible, .bp-pop :focus-visible { outline: 1px solid var(--mb-accent, var(--white)); outline-offset: 3px; }
+
+    /* Popover — the choices as cards, or the key list */
+    .bp-pop {
+      position: fixed; z-index: 330; padding: 14px; min-width: 300px; max-width: 640px;
+      max-height: calc(100vh - 120px); overflow: auto;
+      background: #070c12; border: 1px solid rgba(255,255,255,0.12); border-radius: 4px;
+      box-shadow: 0 -12px 40px rgba(0,0,0,0.6);
+      font-family: "IBM Plex Mono", monospace; color: rgba(232,237,242,0.8);
+    }
+    .bp-pop[hidden] { display: none; }
+    .bp-cards { display: flex; flex-wrap: wrap; gap: 8px; }
+    .bp-card {
+      background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.09); border-radius: 3px;
+      padding: 10px 14px; min-width: 112px; text-align: left; cursor: pointer; font: inherit; color: inherit;
+    }
+    .bp-card:hover { background: rgba(255,255,255,0.06); }
+    .bp-card[aria-checked="true"] { border-color: rgba(255,200,50,0.55); background: rgba(255,255,255,0.06); }
+    .bp-card .id { font-family: "Syne", sans-serif; font-weight: 700; font-size: 13px; color: var(--white); }
+    .bp-card .lb { font-size: 11px; color: rgba(232,237,242,0.42); margin-top: 3px; }
+    .bp-card.inst .id { color: rgba(255,200,50,0.85); }
+    .bp-timing { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 12px; color: rgba(232,237,242,0.42); }
+    .bp-seg button { background: none; border: 1px solid rgba(255,255,255,0.15); padding: 4px 10px; cursor: pointer; font: 11.5px "IBM Plex Mono", monospace; color: rgba(232,237,242,0.42); }
+    .bp-seg button + button { border-left: 0; }
+    .bp-seg button[aria-pressed="true"] { color: rgba(255,210,90,0.95); border-color: rgba(255,200,50,0.35); background: rgba(255,200,50,0.07); }
+    .bp-timing input { width: 56px; background: transparent; border: 1px solid rgba(255,255,255,0.15); color: var(--white); font: inherit; padding: 3px 6px; }
+    .bp-keys { display: grid; grid-template-columns: auto 1fr; gap: 9px 18px; margin: 0; font-size: 12.5px; }
+    .bp-keys dt { color: rgba(255,200,80,0.9); text-align: right; white-space: nowrap; }
+    .bp-keys dd { margin: 0; }
+
+    @media (max-width: 860px) {
+      .mb-doc-layout, .mb-with-image { grid-template-columns: 1fr; }
+      .mb-portrait { display: none; }
+      .fb-chart-wrap { display: none; }
+      .fb-params { width: 100%; min-width: 0; border-right: 0; }
+      .bp-strip, #briefing.chart .bp-strip { flex-wrap: wrap; justify-content: center; }
+    }
 
     /* ── On-screen keyboard (touch devices) ── */
     #osk {
@@ -1772,68 +1640,28 @@
   <canvas id="ms-radar"></canvas>
 </div>
 
-<!-- Pre-mission briefing overlay -->
-<div id="mission-briefing">
-  <div class="mb-inner" id="mb-content"></div>
-</div>
-
-<!-- Role selector overlay -->
-<div id="role-select">
-  <div class="rs-title">Select your role</div>
-  <div class="rs-cards" id="rs-cards"></div>
-</div>
-
-<!-- Scenario setup overlay -->
-<div id="scenario-setup">
-  <div class="ss-title">Scenario Setup</div>
-
-  <div class="ss-section">
-    <div class="ss-section-label">Weather</div>
-    <div class="ss-cards" id="ss-wx-cards"></div>
-  </div>
-
-  <div class="ss-section">
-    <div class="ss-section-label">Crew</div>
-    <div class="ss-cards" id="ss-crew-cards"></div>
-  </div>
-
-  <div class="ss-section">
-    <div class="ss-section-label">Failures</div>
-    <div class="ss-cards" id="ss-cards"></div>
-    <div class="ss-timing" id="ss-timing">
-      <span>Trigger</span>
-      <div class="ss-timing-toggle">
-        <button class="ss-timing-btn active" id="ss-rand-btn">Random</button>
-        <button class="ss-timing-btn" id="ss-fixed-btn">Fixed</button>
-      </div>
-      <input type="number" id="ss-fixed-input" value="120" min="10" max="3600" style="display:none">
-      <span id="ss-timing-label">60–300 s</span>
-    </div>
-  </div>
-
-  <button class="ss-fly-btn" id="ss-fly-btn">Fly</button>
-</div>
-
-<!-- Flight briefing (pre-flight prep: mission parameters + route chart) — WB/NB jets -->
-<div id="flight-briefing">
-  <div class="fb-inner">
-    <div class="fb-params" id="fb-params"></div>
-    <div class="fb-chart-wrap">
-      <div class="fb-tabs" id="fb-tabs">
+<!-- Briefing page: story, charts and setup on one page (showBriefing; mockup docs/mockups/briefing.html) -->
+<div id="briefing" hidden>
+  <main class="bp-lead" id="bp-lead"></main>
+  <div class="fb-inner" id="fb-inner" hidden>
+    <section class="fb-params" id="fb-params"></section>
+    <section class="fb-chart-wrap">
+      <div class="fb-tabs" id="fb-tabs" role="tablist">
         <button class="fb-tab active" data-tab="route">Route</button>
         <button class="fb-tab" data-tab="airport">Airport</button>
         <button class="fb-tab" data-tab="departure">Departure</button>
         <button class="fb-tab" data-tab="arrival">Arrival</button>
-        <button class="fb-tab" data-tab="navlog">Nav Log</button>
+        <button class="fb-tab" data-tab="navlog">Nav log</button>
         <button class="fb-tab" data-tab="weather">Weather</button>
-        <button class="fb-tab" data-tab="freqs">Freqs</button>
+        <button class="fb-tab" data-tab="freqs">Frequencies</button>
       </div>
       <canvas id="fb-chart"></canvas>
       <div class="fb-text" id="fb-text"></div>
-      <button class="fb-fly-btn" id="fb-fly-btn">Fly &rarr;</button>
-    </div>
+    </section>
   </div>
+  <footer class="bp-strip" id="bp-strip"></footer>
 </div>
+<div class="bp-pop" id="bp-pop" hidden></div>
 
 <!-- Outside view -->
 <div id="outside">
@@ -2087,7 +1915,7 @@
   import { startLoop, suspendLoop, tickSim } from './core/loop.js';
   import { seedRandom }   from './core/random.js';
   import { newSession }   from './app/session.js';
-  import { hasScenarioSetup, WEATHER_PRESETS, crewPresets, failurePresets, buildSetup } from './app/briefing.js';
+  import { briefingLayout, setupChoices, ownWeatherLabel, WEATHER_PRESETS, failurePresets, buildSetup } from './app/briefing.js';
   import { onMissionReset } from './core/lifecycle.js';
   import { resetSmooth }  from './display/smooth.js';
   import { hilInit }      from './core/hil.js';
@@ -2986,215 +2814,6 @@
     });
   }
 
-  /* ── Pre-mission briefing ── */
-  function showBriefing(m) {
-    const el      = document.getElementById('mission-briefing');
-    const content = document.getElementById('mb-content');
-    const b       = m.briefing ?? {};
-
-    el.style.setProperty('--mb-accent', m.accent);
-
-    /* Build text column */
-    let textHtml = '';
-    if (b.classification) {
-      textHtml += `<div class="mb-classification">${b.classification}</div>`;
-    }
-    if (b.date) {
-      textHtml += `<div class="mb-date">${b.date}</div>`;
-    }
-    textHtml += `<div class="mb-pilot-block">`;
-    if (b.pilot)    textHtml += `<div class="mb-pilot">${b.pilot}</div>`;
-    if (b.unit)     textHtml += `<div class="mb-unit">${b.unit}</div>`;
-    if (b.aircraft) textHtml += `<div class="mb-aircraft">${b.aircraft}</div>`;
-    textHtml += `</div>`;
-    if (b.orders) {
-      textHtml += `<div class="mb-divider"></div>`;
-      textHtml += `<div class="mb-orders">${b.orders.replace(/\n/g, '<br>')}</div>`;
-    }
-    if (b.atmosphere) {
-      textHtml += `<div class="mb-atmosphere">${b.atmosphere.replace(/\n/g, '<br>')}</div>`;
-    }
-    textHtml += `<div class="mb-fly">Tap to continue</div>`;
-
-    if (b.document && b.image) {
-      /* Document left, portrait right — orders speak for themselves */
-      const atmHtml = b.atmosphere
-        ? `<div class="mb-atmosphere" style="margin-top:20px">${b.atmosphere.replace(/\n/g, '<br>')}</div>` : '';
-      const langToggle = b.document_en
-        ? `<div class="mb-lang-toggle">
-             <button class="mb-lang-btn active" data-lang="ru">RU</button>
-             <button class="mb-lang-btn"        data-lang="en">EN</button>
-           </div>` : '';
-      content.className = 'mb-inner';
-      content.style.maxWidth = '860px';
-      content.innerHTML = `
-        ${langToggle}
-        <div class="mb-doc-layout">
-          <img class="mb-document" id="mb-doc-img" src="${b.document}" alt="document">
-          <img class="mb-portrait" src="${b.image}" alt="">
-        </div>
-        ${atmHtml}
-        <div class="mb-fly">Tap to continue</div>`;
-
-      if (b.document_en) {
-        content.querySelectorAll('.mb-lang-btn').forEach(btn => {
-          btn.addEventListener('click', e => {
-            e.stopPropagation();
-            const lang = btn.dataset.lang;
-            document.getElementById('mb-doc-img').src = lang === 'en' ? b.document_en : b.document;
-            content.querySelectorAll('.mb-lang-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-          });
-        });
-      }
-    } else if (b.image) {
-      content.className = 'mb-inner mb-with-image';
-      content.innerHTML = `<div>${textHtml}</div><img class="mb-portrait" src="${b.image}" alt="">`;
-    } else {
-      content.className = 'mb-inner';
-      content.innerHTML = textHtml;
-    }
-
-    /* Fade in */
-    requestAnimationFrame(() => {
-      el.classList.add('visible');
-    });
-
-    const dismiss = () => {
-      el.classList.remove('visible');
-      window.removeEventListener('keydown', dismiss);
-      el.removeEventListener('click', dismiss);
-      if (hasScenarioSetup(m)) {
-        setTimeout(() => showScenarioSetup(m), 400);
-      } else {
-        setTimeout(() => init(m.id, m.aircraft), 400);
-      }
-    };
-    el.addEventListener('click', dismiss);
-  }
-
-  /* ── Role selector ── */
-  function showRoleSelect(m) {
-    const el    = document.getElementById('role-select');
-    const cards = document.getElementById('rs-cards');
-    el.style.setProperty('--rs-accent', m.accent ?? 'rgba(255,255,255,0.22)');
-    cards.innerHTML = '';
-
-    for (const r of m.roles) {
-      const card = document.createElement('div');
-      card.className = 'rs-card' + (r.id === 'INSTRUCTOR' ? ' rs-instructor' : '');
-      card.innerHTML = `<div class="rs-card-id">${r.id}</div><div class="rs-card-label">${r.label}</div>`;
-      card.addEventListener('click', () => {
-        setState({ role: r.id });
-        el.classList.remove('visible');
-        if (hasScenarioSetup(m)) {
-          setTimeout(() => showScenarioSetup(m), 400);
-        } else {
-          setTimeout(() => init(m.id, m.aircraft), 400);
-        }
-      });
-      cards.appendChild(card);
-    }
-
-    requestAnimationFrame(() => el.classList.add('visible'));
-  }
-
-  /* ── Scenario setup (choices and the setup they build: app/briefing.js) ── */
-  function showScenarioSetup(m) {
-    const el = document.getElementById('scenario-setup');
-
-    const CREW_PRESETS = crewPresets(m);
-    /* hasCarbHeat is in the aircraft JSON — the briefing page (one-page rewrite) will read it there */
-    const hasCarbHeat  = ['c172', 'robin-dr400'].includes(m.aircraft);
-    const FAIL_PRESETS = failurePresets({ hasCarbHeat });
-
-    let selWx   = 'LIVE';
-    let selCrew = S.pilotId ?? S.role ?? CREW_PRESETS[0]?.id ?? null;
-    let selFail = 'CLEAN';
-    let randomTiming = true;
-
-    function _buildCards(containerId, presets, getCurrent, setCurrent, extraClass) {
-      const el2 = document.getElementById(containerId);
-      el2.innerHTML = '';
-      const isNamedCrew = presets.some(p => p.name);
-      presets.forEach(p => {
-        const isInst = p.id === 'INSTRUCTOR' || p.id === 'INST';
-        const card = document.createElement('div');
-        card.className = 'ss-card'
-          + (p.id === getCurrent() ? ' selected' : '')
-          + (isInst ? ' ss-card-inst' : '')
-          + (isNamedCrew ? ' ss-crew-named' : '')
-          + (extraClass ? ' ' + extraClass : '');
-        card.dataset.id = p.id;
-        if (isNamedCrew) {
-          const roleLabel = p.role === 'INSTRUCTOR' ? 'Instructor' : p.role ? `${p.label ?? p.id} · ${p.role}` : (p.label ?? p.id);
-          card.innerHTML = `<div class="ss-card-id">${p.id}</div><div class="ss-crew-name">${p.name}</div><div class="ss-card-label">${roleLabel}</div>`;
-        } else {
-          card.innerHTML = `<div class="ss-card-id${isInst ? ' ss-card-id-inst' : ''}">${p.id}</div><div class="ss-card-label">${p.label}</div>`;
-        }
-        card.addEventListener('click', () => {
-          setCurrent(p.id);
-          el2.querySelectorAll('.ss-card').forEach(c => c.classList.toggle('selected', c.dataset.id === p.id));
-        });
-        el2.appendChild(card);
-      });
-    }
-
-    _buildCards('ss-wx-cards',   WEATHER_PRESETS,   () => selWx,   v => { selWx   = v; });
-    const crewSection = document.getElementById('ss-crew-cards').closest('.ss-section');
-    if (CREW_PRESETS.length > 0) {
-      crewSection.style.display = '';
-      _buildCards('ss-crew-cards', CREW_PRESETS, () => selCrew, v => { selCrew = v; });
-    } else {
-      crewSection.style.display = 'none';
-    }
-    _buildCards('ss-cards',      FAIL_PRESETS, () => selFail, v => {
-      selFail = v;
-      document.getElementById('ss-timing').style.display = v === 'CLEAN' ? 'none' : 'flex';
-    });
-
-    /* Timing controls */
-    const timingEl   = document.getElementById('ss-timing');
-    const randBtn    = document.getElementById('ss-rand-btn');
-    const fixedBtn   = document.getElementById('ss-fixed-btn');
-    const fixedInput = document.getElementById('ss-fixed-input');
-    const timingLbl  = document.getElementById('ss-timing-label');
-
-    timingEl.style.display = 'none';
-    randBtn.classList.add('active');
-    fixedBtn.classList.remove('active');
-    fixedInput.style.display = 'none';
-    timingLbl.textContent = '60–300 s';
-
-    randBtn.onclick = () => {
-      randomTiming = true;
-      randBtn.classList.add('active'); fixedBtn.classList.remove('active');
-      fixedInput.style.display = 'none';
-      timingLbl.textContent = '60–300 s';
-    };
-    fixedBtn.onclick = () => {
-      randomTiming = false;
-      fixedBtn.classList.add('active'); randBtn.classList.remove('active');
-      fixedInput.style.display = '';
-      timingLbl.textContent = 's';
-    };
-
-    /* Fly button */
-    document.getElementById('ss-fly-btn').onclick = () => {
-      const setup = buildSetup(m, {
-        weather: selWx,
-        failure: selFail,
-        timing:  randomTiming ? { random: true } : { fixedT: fixedInput.value },
-        crew:    selCrew,
-      }, { hasCarbHeat });
-
-      el.classList.remove('visible');
-      setTimeout(() => showFlightBriefing(m, setup), 400);   // WB/NB jets → briefing page; others skip through
-    };
-
-    requestAnimationFrame(() => el.classList.add('visible'));
-  }
-
   /* SID/STAR/approach procedures — loaded from the (gitignored, local) X-Plane build if
      present; absent on the public site, where the Departure tab just says so. */
   let _PROCEDURES = {};
@@ -3578,72 +3197,262 @@
     else if (name === 'weather') { tx.innerHTML = _weatherLoadingHtml(dep, arr); _fillWeather(dep, arr); }
   }
 
-  /* ── Flight briefing (WB/NB jets): mission parameters + a route overview, shown after
-     the scenario setup and before launch. Props/VFR and non-flight missions skip straight
-     through to init (transparent). ── */
-  async function showFlightBriefing(m, setup = null) {
+  /* ── Briefing page: the story, the airliner's charts and the setup on one page.
+     Layout and choices come from app/briefing.js; Fly builds the setup and starts init(). ── */
+
+  /* Key list for aircraft without their own `onboarding` list (also the key map in init) */
+  const _DEFAULT_OB = [
+    { key: '↑ ↓',    desc: 'Altitude target ±500 ft' },
+    { key: '← →',    desc: 'Heading target ±5°' },
+    { key: '+ −',    desc: 'Speed ±5 kt' },
+    { key: '1–5',    desc: 'Situation: Ground · Takeoff · Climb · Cruise · Approach' },
+    { key: 'F1–F4',  desc: 'Thrust: IDLE · CLB · MCT · TOGA' },
+    { key: 'f / F',  desc: 'Flaps ▼ extend / ▲ retract' },
+    { key: 'G',      desc: 'Gear toggle' },
+    { key: 'Tab',    desc: 'Display: PFD ↔ ECAM' },
+    { key: 'P',      desc: 'Pause' },
+    { key: 'X',      desc: 'Audio on/off' },
+    { key: 'E / Q',  desc: 'Anlasser / Kraftstoffhahn (Bf 109)' },
+    { key: 'Q',      desc: 'Fuel selector: BOTH → LEFT → RIGHT → OFF' },
+    { key: 'R',      desc: 'Role: PF → PM → INSTRUCTOR' },
+    { key: 'Space',  desc: 'PTT — Push to Talk' },
+  ];
+
+  const _bp = { m: null };   // the briefing on screen: m, md, acd, choices, picks, keys
+  const _esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const _br  = (s) => _esc(s).replace(/\n/g, '<br>');
+
+  async function showBriefing(m) {
     let md = {}, acd = {};
     try {
-      md  = await fetch(`missions/${m.id}.json?v=${Date.now()}`).then(r => r.json());
-      acd = await fetch(`aircraft/${m.aircraft}.json?v=${Date.now()}`).then(r => r.json());
+      [md, acd] = await Promise.all([
+        fetch(`missions/${m.id}.json?v=${Date.now()}`).then(r => r.json()),
+        fetch(`aircraft/${m.aircraft}.json?v=${Date.now()}`).then(r => r.json()),
+      ]);
     } catch {}
-    const isJet = acd.panel === 'airbus' || acd.panel === 'e190';   // WB/NB glass airliners only
-    if (!isJet) { init(m.id, m.aircraft, null, setup); return; }
+    const layout  = briefingLayout(m, acd);
+    const choices = setupChoices(m, md, acd);
+    const vt      = acd.vehicleType ?? '';
+    const noKeys  = vt === 'rocket' || vt.startsWith('robot');   // launched or driven by sliders: no key map
+    const crew    = [S.pilotId, S.role].find(id => choices.crew.some(c => c.id === id)) ?? choices.crew[0]?.id ?? null;
+    Object.assign(_bp, { m, md, acd, choices,
+      picks: { weather: 'LIVE', failure: 'CLEAN', random: true, fixedT: 120, crew },
+      keys:  acd.onboarding ?? (noKeys ? [] : _DEFAULT_OB) });
 
+    const el   = document.getElementById('briefing');
+    const lead = document.getElementById('bp-lead');
+    const fb   = document.getElementById('fb-inner');
+    el.classList.toggle('chart', layout === 'chart');
+    el.style.setProperty('--mb-accent', m.accent);
+    lead.className = `bp-lead ${layout}`;
+    lead.hidden = layout === 'chart';
+    fb.hidden   = layout !== 'chart';
+    const b = m.briefing ?? {};
+    if (layout === 'chart') _fillChartBriefing(m, md, acd);
+    else lead.innerHTML = layout === 'doc' ? _docHtml(b) : _textHtml(b);
+    if (layout === 'doc' && b.document_en) {
+      lead.querySelectorAll('.mb-lang-btn').forEach(btn => btn.addEventListener('click', () => {
+        document.getElementById('mb-doc-img').src = btn.dataset.lang === 'en' ? b.document_en : b.document;
+        lead.querySelectorAll('.mb-lang-btn').forEach(x => x.classList.toggle('active', x === btn));
+      }));
+    }
+    _bpStrip();
+
+    el.hidden = false;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      el.classList.add('visible');
+      if (layout === 'chart') _briefingTab('route', md.departure || {}, md.arrival || {}, md);   // default tab → render the route
+    }));
+  }
+
+  function _hideBriefing() {
+    const el = document.getElementById('briefing');
+    _bpClosePop();
+    _bp.m = null;
+    el.classList.remove('visible');
+    setTimeout(() => { if (!el.classList.contains('visible')) el.hidden = true; }, 300);
+  }
+
+  /* Document layout: the scanned orders and the portrait */
+  function _docHtml(b) {
+    const lang = b.document_en
+      ? `<div class="mb-lang-toggle">
+           <button class="mb-lang-btn active" data-lang="ru">RU</button>
+           <button class="mb-lang-btn"        data-lang="en">EN</button>
+         </div>` : '';
+    return `<div class="mb-doc">
+        ${lang}
+        <div class="mb-doc-layout">
+          <img class="mb-document" id="mb-doc-img" src="${b.document}" alt="Mission orders">
+          <img class="mb-portrait" src="${b.image}" alt="">
+        </div>
+        ${b.atmosphere ? `<div class="mb-atmosphere">${_br(b.atmosphere)}</div>` : ''}
+      </div>`;
+  }
+
+  /* Text layout: the story column (a portrait beside it if the mission has one) */
+  function _textHtml(b) {
+    const text = `<div>
+        ${b.classification ? `<div class="mb-classification">${_esc(b.classification)}</div>` : ''}
+        ${b.date ? `<div class="mb-date">${_esc(b.date)}</div>` : ''}
+        <div class="mb-pilot-block">
+          ${b.pilot    ? `<div class="mb-pilot">${_esc(b.pilot)}</div>` : ''}
+          ${b.unit     ? `<div class="mb-unit">${_esc(b.unit)}</div>` : ''}
+          ${b.aircraft ? `<div class="mb-aircraft">${_esc(b.aircraft)}</div>` : ''}
+        </div>
+        ${b.orders ? `<div class="mb-divider"></div><div class="mb-orders">${_esc(b.orders)}</div>` : ''}
+        ${b.atmosphere ? `<div class="mb-atmosphere">${_br(b.atmosphere)}</div>` : ''}
+      </div>`;
+    return b.image
+      ? `<div class="mb-inner mb-with-image">${text}<img class="mb-portrait" src="${b.image}" alt=""></div>`
+      : `<div class="mb-inner">${text}</div>`;
+  }
+
+  /* Chart layout (WB/NB jets): story + mission parameters left, the chart tabs right */
+  function _fillChartBriefing(m, md, acd) {
+    const b   = m.briefing ?? {};
     const dep = md.departure || {}, arr = md.arrival || {};
-    const row = (k, v) => v ? `<div class="fb-row"><span class="k">${k}</span><span class="v">${v}</span></div>` : '';
-    const fl  = md.initialState?.alt ? `FL${String(Math.round(md.initialState.alt / 100)).padStart(3, '0')}` : '—';
+    const row   = (k, v) => v ? `<div class="fb-row"><span class="k">${k}</span><span class="v">${v}</span></div>` : '';
+    const block = (h, ...rows) => rows.join('') ? `<div class="fb-h">${h}</div>${rows.join('')}` : '';   // no empty headings
 
-    /* APPROACH block — arrival runway, ILS, approx minima, and the missed approach (kept legs) */
+    /* Approach — arrival runway, ILS, approx minima, and the missed approach (kept legs) */
     const _minH = (acd.gpws || []).find(g => /minimum/i.test(g.speech || ''))?.alt;
     let _missedLines = [];
     try { _missedLines = _missedApproachText(_approachLegs(_PROCEDURES[arr.icao], arr.runway).missed); } catch {}
-    const _apprBlock = arr.icao ? (
-      `<div class="fb-h">APPROACH</div>` +
-      row('ARR RWY', arr.runway ? `${arr.ils ? 'ILS ' : ''}${arr.runway}` : '—') +
-      (arr.ils ? row('ILS', `${arr.ils.freq} · CRS ${String(arr.ils.course ?? '').padStart(3, '0')}`) : '') +
-      (_minH ? row('MINIMA', `${_minH} ft AGL ≈`) : '') +
-      (_missedLines.length ? `<div class="fb-row"><span class="k">MISSED</span><span class="v">${_missedLines.join('<br>')}</span></div>` : '')
-    ) : '';
 
-    /* DEPARTURE block — runway + the planned SID (the full SID legs are in the Departure tab).
+    /* Departure — runway + the planned SID (the full SID legs are in the Departure tab).
        No engine-out/EOSID here: that's not in the standard nav data (operator-specific). */
     let _sid = null;
     try { const _ss = _PROCEDURES[dep.icao]?.sids || [];
           _sid = _ss.find(s => s.trans === dep.runway) || _ss.find(s => s.trans === 'ALL') || null; } catch {}
-    const _depBlock = dep.icao ? (
-      `<div class="fb-h">DEPARTURE</div>` +
-      row('DEP RWY', dep.runway) +
-      (_sid?.name ? row('SID', _sid.name) : '')
-    ) : '';
+
+    const ini   = md.initialState ?? {};
+    const start = ini.spd === 0 ? 'On the ground' : ini.alt != null ? `${Math.round(ini.alt).toLocaleString('en-US')} ft` : null;
 
     document.getElementById('fb-params').innerHTML =
-      `<div class="fb-title">${m.acName ?? m.aircraft}</div>` +
-      `<div class="fb-sub">${m.title ?? ''}</div>` +
-      `<div class="fb-h">ROUTE</div>` +
-      row('FROM',    dep.icao ? `${dep.icao}${dep.name ? ' · ' + dep.name : ''}` : '—') +
-      row('TO',      arr.icao ? `${arr.icao}${arr.name ? ' · ' + arr.name : ''}` : '—') +
-      _depBlock +
-      _apprBlock +
-      `<div class="fb-h">AIRCRAFT</div>` +
-      row('REG',      acd.registration) +
-      row('CALLSIGN', acd.callsign) +
-      row('ICAO',     acd.icaoType) +
-      `<div class="fb-h">PLAN</div>` +
-      row('CRUISE',  fl) +
-      row('WEATHER', md.weather?.source === 'live' ? `LIVE · ${md.weather.icao ?? dep.icao ?? ''}` : 'PRESET');
+      `<div class="fb-title">${_esc(m.acName ?? m.aircraft)}</div>` +
+      `<div class="fb-sub">${_esc(m.title ?? '')}</div>` +
+      (b.orders ? `<div class="mb-orders">${_esc(b.orders)}</div>` : '') +
+      (b.atmosphere ? `<div class="mb-atmosphere">${_br(b.atmosphere)}</div>` : '') +
+      block('Route',
+        row('From', dep.icao ? `${dep.icao}${dep.name ? ' · ' + dep.name : ''}` : null),
+        row('To',   arr.icao ? `${arr.icao}${arr.name ? ' · ' + arr.name : ''}` : null)) +
+      (dep.icao ? block('Departure', row('Runway', dep.runway), row('SID', _sid?.name)) : '') +
+      (arr.icao ? block('Approach',
+        row('Runway', arr.runway ? `${arr.ils ? 'ILS ' : ''}${arr.runway}` : null),
+        arr.ils ? row('ILS', `${arr.ils.freq} · CRS ${String(arr.ils.course ?? '').padStart(3, '0')}`) : '',
+        _minH ? row('Minima', `${_minH} ft AGL ≈`) : '',
+        row('Missed', _missedLines.join('<br>'))) : '') +
+      block('Aircraft', row('Registration', acd.registration), row('Callsign', acd.callsign), row('ICAO', acd.icaoType)) +
+      block('Start', row('Altitude', start));
 
-    const el = document.getElementById('flight-briefing');
-    document.getElementById('fb-fly-btn').onclick = () => {
-      el.classList.remove('visible');
-      setTimeout(() => init(m.id, m.aircraft, null, setup), 300);
-    };
     document.querySelectorAll('#fb-tabs .fb-tab').forEach(btn => { btn.onclick = () => _briefingTab(btn.dataset.tab, dep, arr, md); });
-    requestAnimationFrame(() => {
-      el.classList.add('visible');
-      requestAnimationFrame(() => _briefingTab('route', dep, arr, md));   // default tab → render the route
-    });
   }
+
+  /* ── The setup strip: a chip per choice, Controls, Fly ── */
+  const _BP_LABEL = { weather: 'Weather', crew: 'Crew', failure: 'Failure', controls: 'Controls' };
+  const _isInst   = (id) => id === 'INSTRUCTOR' || id === 'INST';
+  const _bpFails  = () => failurePresets({ hasCarbHeat: !!_bp.acd.hasCarbHeat });
+
+  function _bpValue(kind) {
+    const { picks, md, choices } = _bp;
+    if (kind === 'weather') return picks.weather === 'LIVE' ? ownWeatherLabel(md) : WEATHER_PRESETS.find(p => p.id === picks.weather).label;
+    if (kind === 'crew')    { const c = choices.crew.find(c => c.id === picks.crew); return c?.name ?? c?.label ?? picks.crew; }
+    if (kind === 'failure') {
+      if (picks.failure === 'CLEAN') return 'None';
+      return `${_bpFails().find(p => p.id === picks.failure).label}, ${picks.random ? 'at a random time' : `at ${picks.fixedT} s`}`;
+    }
+    return '';
+  }
+
+  function _bpStrip() {
+    const { choices, picks, keys } = _bp;
+    const kinds   = ['weather', 'crew', 'failure'].filter(k => k === 'crew' ? choices.crew.length > 0 : choices[k]);
+    const changed = (k) => (k === 'weather' && picks.weather !== 'LIVE') || (k === 'failure' && picks.failure !== 'CLEAN');
+    const chip    = (k) => `<button class="bp-chip${changed(k) ? ' changed' : ''}" data-kind="${k}" aria-haspopup="true" aria-expanded="false">
+        <span class="k">${_BP_LABEL[k]}</span><span class="v">${_esc(_bpValue(k))}</span></button>`;
+    const strip = document.getElementById('bp-strip');
+    strip.innerHTML = kinds.map(chip).join('') + (kinds.length ? `<span class="spacer"></span>` : '') +
+      (keys.length ? chip('controls') : '') +
+      `<button class="bp-fly" id="bp-fly">Fly<kbd>Enter</kbd></button>`;
+    strip.querySelectorAll('.bp-chip').forEach(c => c.addEventListener('click', () => _bpOpenPop(c)));
+    document.getElementById('bp-fly').addEventListener('click', _bpFly);
+  }
+
+  /* ── Popover: the choices as cards, or the key list ── */
+  function _bpOpenPop(chip) {
+    const kind = chip.dataset.kind, pop = document.getElementById('bp-pop');
+    if (!pop.hidden && pop.dataset.kind === kind) return _bpClosePop();
+    _bpClosePop();
+    const { picks, md, choices, keys } = _bp;
+    if (kind === 'controls') {
+      pop.innerHTML = `<dl class="bp-keys" aria-label="Controls">${keys.map(({ key, desc }) => `<dt>${_esc(key)}</dt><dd>${_esc(desc)}</dd>`).join('')}</dl>`;
+      return _bpPlace(chip, kind);
+    }
+    const cards = kind === 'weather'
+        ? WEATHER_PRESETS.map(p => p.id !== 'LIVE' ? [p.id, p.id, p.label]
+            : md.weather?.source === 'live' ? ['LIVE', 'LIVE', 'Live METAR'] : ['LIVE', 'BRIEFED', 'The mission\'s weather'])
+      : kind === 'failure'
+        ? _bpFails().map(p => [p.id, p.id, p.label])
+        : choices.crew.map(c => c.name
+            ? [c.id, c.name, _isInst(c.id) || c.role === 'INSTRUCTOR' ? 'Instructor' : c.label ? `${c.label} · ${c.role}` : c.role]
+            : [c.id, c.id, c.label]);
+    pop.innerHTML = `<div class="bp-cards" role="radiogroup" aria-label="${_BP_LABEL[kind]}">${cards.map(([id, top, sub]) =>
+        `<button class="bp-card${_isInst(id) ? ' inst' : ''}" role="radio" aria-checked="${id === picks[kind]}" data-id="${_esc(id)}">
+           <div class="id">${_esc(top)}</div><div class="lb">${_esc(sub)}</div></button>`).join('')}</div>` +
+      (kind === 'failure' && picks.failure !== 'CLEAN' ? `<div class="bp-timing"><span>When</span>
+        <span class="bp-seg"><button data-t="random" aria-pressed="${picks.random}">Random 60–300 s</button><button data-t="fixed" aria-pressed="${!picks.random}">At</button></span>
+        <input id="bp-fixed-t" type="number" min="10" max="3600" value="${picks.fixedT}" aria-label="Seconds after start" ${picks.random ? 'disabled' : ''}> s</div>` : '');
+    _bpPlace(chip, kind);
+    pop.querySelectorAll('.bp-card').forEach(c => c.addEventListener('click', () => { picks[kind] = c.dataset.id; _bpRefresh(kind); }));
+    pop.querySelectorAll('.bp-seg button').forEach(b => b.addEventListener('click', () => { picks.random = b.dataset.t === 'random'; _bpRefresh(kind); }));
+    pop.querySelector('#bp-fixed-t')?.addEventListener('change', e => { picks.fixedT = Math.max(10, parseInt(e.target.value) || 120); _bpStrip(); });
+  }
+
+  function _bpPlace(chip, kind) {
+    const pop = document.getElementById('bp-pop');
+    pop.dataset.kind = kind;
+    pop.hidden = false;
+    const r = chip.getBoundingClientRect(), pr = pop.getBoundingClientRect();
+    pop.style.left = Math.max(12, Math.min(innerWidth - pr.width - 12, r.left)) + 'px';
+    pop.style.top  = Math.max(12, r.top - pr.height - 10) + 'px';
+    chip.setAttribute('aria-expanded', 'true');
+  }
+
+  function _bpRefresh(kind) {   // a pick changed: redraw the strip, reopen the same popover
+    _bpStrip();
+    document.getElementById('bp-pop').hidden = true;
+    _bpOpenPop(document.querySelector(`#bp-strip .bp-chip[data-kind="${kind}"]`));
+  }
+
+  function _bpClosePop() {
+    const pop = document.getElementById('bp-pop');
+    pop.hidden = true; pop.dataset.kind = '';
+    document.querySelectorAll('#bp-strip .bp-chip').forEach(c => c.setAttribute('aria-expanded', 'false'));
+  }
+
+  /* Fly: the picks become the setup loadMission() applies */
+  function _bpFly() {
+    const { m, choices, picks, acd } = _bp;
+    if (!m) return;   // already flying
+    const setup = buildSetup(m, {
+      weather: choices.weather ? picks.weather : 'LIVE',
+      failure: choices.failure ? picks.failure : 'CLEAN',
+      timing:  picks.random ? { random: true } : { fixedT: picks.fixedT },
+      crew:    choices.crew.length > 0 ? picks.crew : null,
+    }, { hasCarbHeat: !!acd.hasCarbHeat });
+    _hideBriefing();
+    init(m.id, m.aircraft, null, setup).catch(console.error);
+  }
+
+  window.addEventListener('keydown', e => {
+    if (!_bp.m) return;
+    if (e.key === 'Escape') _bpClosePop();
+    const a = document.activeElement;
+    if (e.key === 'Enter' && a?.tagName !== 'INPUT' && !a?.closest('.bp-pop, .bp-strip, .fb-tabs, .mb-lang-toggle')) { e.preventDefault(); _bpFly(); }
+  });
+  /* A click outside closes the popover (a picked card is already redrawn — detached — by then) */
+  document.addEventListener('click', e => { if (_bp.m && e.target.isConnected && !e.target.closest('.bp-pop, .bp-chip')) _bpClosePop(); });
 
   /* ── Init ── */
   let _session = null;   // the running mission's listeners/timers — stopped before the next init()
@@ -3733,23 +3542,7 @@
     /* Populate mission title */
     document.getElementById('mission-title').textContent = S.mission?.title ?? '';
 
-    /* Populate onboarding key grid — from aircraft JSON or default English set */
-    const _DEFAULT_OB = [
-      { key: '↑ ↓',    desc: 'Altitude target ±500 ft' },
-      { key: '← →',    desc: 'Heading target ±5°' },
-      { key: '+ −',    desc: 'Speed ±5 kt' },
-      { key: '1–5',    desc: 'Situation: Ground · Takeoff · Climb · Cruise · Approach' },
-      { key: 'F1–F4',  desc: 'Thrust: IDLE · CLB · MCT · TOGA' },
-      { key: 'f / F',  desc: 'Flaps ▼ extend / ▲ retract' },
-      { key: 'G',      desc: 'Gear toggle' },
-      { key: 'Tab',    desc: 'Display: PFD ↔ ECAM' },
-      { key: 'P',      desc: 'Pause' },
-      { key: 'X',      desc: 'Audio on/off' },
-      { key: 'E / Q',  desc: 'Anlasser / Kraftstoffhahn (Bf 109)' },
-      { key: 'Q',      desc: 'Fuel selector: BOTH → LEFT → RIGHT → OFF' },
-      { key: 'R',      desc: 'Role: PF → PM → INSTRUCTOR' },
-      { key: 'Space',  desc: 'PTT — Push to Talk' },
-    ];
+    /* Populate onboarding key grid — from aircraft JSON or the default set (_DEFAULT_OB) */
     const obGrid = document.getElementById('ob-grid');
     obGrid.innerHTML = '';
     (S.aircraft?.onboarding ?? _DEFAULT_OB).forEach(({ key, desc }) => {
@@ -4791,13 +4584,13 @@
     if (e.state?.missionId) {
       /* Forward: restore the mission the state points to */
       document.getElementById('mission-select').classList.add('hidden');
-      document.getElementById('mission-briefing').classList.remove('visible');
+      _hideBriefing();
       init(e.state.missionId, e.state.aircraftId).catch(console.error);
     } else {
       /* Back: return to mission selector — stop the running mission */
       _session?.stop();
       _session = null;
-      document.getElementById('mission-briefing').classList.remove('visible');
+      _hideBriefing();
       document.getElementById('mission-select').classList.remove('hidden');
       document.title = 'OpenSim';
       showSelect();   /* ensure grid is rendered (may not have been on direct URL load) */

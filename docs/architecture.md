@@ -1240,8 +1240,8 @@ page load
   popstate    → back: stop the mission session, picker
                 forward: init(that mission)                 (url-routing.md)
 
-picker card → showBriefing → [showRoleSelect] → [showScenarioSetup] → [showFlightBriefing (jets)]
-            → init(missionId, aircraftId)
+picker card → showBriefing (one page: doc · chart · text layout + setup strip)
+            → Fly / Enter → init(missionId, aircraftId, null, setup)
 
 init()
   _session?.stop(); _session = newSession()        (app/session.js)
@@ -1280,8 +1280,8 @@ Beyond wiring, the module script holds application features (see `issues.md` →
 
 | Feature | Functions |
 |---|---|
-| Mission picker, briefing, role select, scenario setup | `showSelect`, `showBriefing`, `showRoleSelect`, `showScenarioSetup` (the screen; the choices and the setup they build are in `app/briefing.js`) |
-| Flight briefing charts (route, airport, SID/STAR, nav log, weather) | `showFlightBriefing`, `_renderRouteChart`, `_renderProcChart`, … |
+| Mission picker, briefing page (story, setup strip, Fly) | `showSelect`, `showBriefing`, `_bpStrip`, `_bpOpenPop`, `_bpFly` (the screen; layout, choices and the setup they build are in `app/briefing.js`) |
+| Briefing charts on the airliners (route, airport, SID/STAR, nav log, weather) | `_fillChartBriefing`, `_briefingTab`, `_renderRouteChart`, `_renderProcChart`, … |
 | Live flight: radar picker, ADS-B tracking that drives the sim | `flyWithFlight`, `renderRadarMap`, `_startTracking`, `_pollTracking` |
 | Panel text updates, mission clock, METAR display | `updatePanel` (~175 lines), `renderMissionClock`, `updateMetar` |
 | Approach tracking and **scoring**, debrief, crash overlay | `_trackApproach`, `_computeApproachScore`, `_computeEmergScore`, `showDebrief`, `checkCrash` |
