@@ -3494,6 +3494,7 @@
       hideMap(); hideVelisMap(); hideG1000Map(); closeKneeboard();
       stopSound();     // closes the AudioContext: engine, APU, fuel pump, start/shutdown buffers
       stopCOM(); resetCrew();
+      setOutsideCamMode(0);   // outside.js's window wheel handler eats scroll in the orbit cams — the picker must scroll
     });
 
     /* Push a history entry with mission data so back/forward work correctly */
