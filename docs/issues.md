@@ -288,6 +288,19 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 
 ## Navigation
 
+### Geneva → Munich routes 470 nm, with no STAR
+*Found 2026-10-16 · `buildFullRoute()` in `core/route.js`, `routeAirway()` in `core/airway-graph.js`, `missions/lsgg-takeoff.json`*
+
+**Symptom.** The briefing's route tab for `lsgg-takeoff` (LSGG 22 → EDDM 26L) shows 470 nm in 17 legs, for about 263 nm great-circle. The line runs far north and zigzags before it reaches Munich. The ND and LNAV fly the same route, since it comes from one place (`core/flightplan.js`).
+
+**Legs (verified, browser, 2026-10-16).** SID KONI4D to KONIL (46.57, 6.46), then the airway part: KARLU (48.97, 8.55) — one 167 nm leg north to near Karlsruhe — GBL (49.64, 9.95), DKB (49.14, 10.24), VADRU, BUGEK, ANELA (49.77, 11.22), EKSOS, DOSIS (49.24, 11.41), then straight into the approach: NELBI, FI26L, EDDM. `star` is `null`.
+
+**Cause — not yet verified.** Two things to check:
+- No STAR for EDDM 26L: `arrStarOptions()` returns nothing, so the airway part aims at the runway instead of a STAR entry, and its path ends north of Munich at DOSIS.
+- The airway part: KONIL → KARLU looks like a jump to the nearest graph node, not an airway segment, and the path north of 49° N is a detour (via Würzburg / Nürnberg).
+
+**Done when.** The `lsgg-takeoff` route uses an EDDM STAR and is close to the real-world Geneva → Munich distance (roughly 280–330 nm); a test in `tests/` holds the distance.
+
 ### Engine start completes when the start-up sound finishes
 *Found 2026-10-11 · `startEngineLifecycle()` in `core/sound.js`*
 
