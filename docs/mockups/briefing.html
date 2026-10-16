@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenSim — one-page briefing (mockup)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap">
+<style>
+  :root {
+    --bg: #030609;
+    --panel: #05090d;
+    --white: #e8edf2;
+    --text: rgba(232,237,242,0.8);
+    --muted: rgba(232,237,242,0.42);
+    --faint: rgba(232,237,242,0.22);
+    --line: rgba(255,255,255,0.08);
+    --pick: rgba(255,200,50,0.55);
+    --accent: #4dc5dc;
+    --mono: "IBM Plex Mono", monospace;
+    --syne: "Syne", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--mono); }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 1px solid var(--accent); outline-offset: 3px; }
+
+  /* ── Mockup-only switcher (not part of the design) ── */
+  .mock-nav {
+    position: fixed; top: 10px; right: 12px; z-index: 50;
+    display: flex; gap: 2px; padding: 3px;
+    border: 1px dashed rgba(255,255,255,0.18); background: rgba(0,0,0,0.6);
+    font-size: 11px;
+  }
+  .mock-nav span { padding: 4px 8px; color: rgba(255,255,255,0.35); }
+  .mock-nav button { background: none; border: 0; padding: 4px 8px; cursor: pointer; color: rgba(255,255,255,0.5); }
+  .mock-nav button[aria-current="true"] { color: #fff; background: rgba(255,255,255,0.08); }
+
+  /* ── Page: main content above, the setup strip below ── */
+  .page { position: fixed; inset: 0; display: grid; grid-template-rows: 1fr auto; }
+  .lead { min-height: 0; overflow: auto; }
+
+  /* Document register — the scanned orders lead; everything else steps back */
+  .lead.doc { display: grid; place-items: center; padding: 56px 24px 24px; }
+  .doc-wrap { width: min(860px, 100%); }
+  .doc-grid { display: grid; grid-template-columns: 1fr 260px; gap: 48px; align-items: center; }
+  .doc-grid img.document { width: 100%; display: block; opacity: 0.9; filter: sepia(0.15) contrast(1.05); border: 1px solid rgba(255,255,255,0.06); }
+  .doc-grid img.portrait { width: 100%; aspect-ratio: 4/3; object-fit: cover; object-position: center top; opacity: 0.55; filter: grayscale(100%) contrast(1.1); border: 1px solid var(--line); }
+  .atmosphere {
+    font-size: 12px; line-height: 1.7; color: rgba(232,237,242,0.45); font-style: italic;
+    border-left: 2px solid var(--accent); padding-left: 14px; margin: 22px 0 0; white-space: pre-line;
+  }
+
+  /* Text register — the story column of today's first screen */
+  .lead.text { display: grid; place-items: center; padding: 56px 24px 24px; }
+  .story { width: min(560px, 100%); }
+  .story .cls { font-size: 10px; letter-spacing: 0.25em; color: rgba(255,68,68,0.75); border-block: 1px solid rgba(255,68,68,0.2); padding: 4px 0; margin-bottom: 24px; }
+  .story .date { font-size: 11px; letter-spacing: 0.12em; color: var(--accent); margin-bottom: 20px; }
+  .story h1 { font-family: var(--syne); font-size: 20px; font-weight: 700; color: var(--white); margin: 0; line-height: 1.3; }
+  .story .unit { font-size: 12px; color: rgba(232,237,242,0.5); margin-top: 2px; }
+  .story .ac { font-size: 11px; color: rgba(232,237,242,0.35); margin-top: 2px; }
+  .story hr { border: 0; height: 1px; background: rgba(255,255,255,0.07); margin: 20px 0; }
+  .orders { font-size: 13px; line-height: 1.8; color: var(--text); white-space: pre-line; margin: 0; }
+
+  /* Chart register — the airliner: story + parameters left, charts right */
+  .lead.chart { display: grid; grid-template-columns: 380px 1fr; overflow: hidden; }
+  .side { border-right: 1px solid var(--line); background: #040709; padding: 30px 28px; overflow: auto; }
+  .side h1 { font-family: var(--syne); font-size: 22px; font-weight: 700; color: var(--white); margin: 0; }
+  .side .sub { font-size: 12px; color: var(--muted); margin: 4px 0 18px; }
+  .side .orders { font-size: 12.5px; line-height: 1.75; }
+  .side .atmosphere { margin-top: 16px; }
+  .params { margin-top: 26px; }
+  .params h2 { font-size: 11px; font-weight: 400; color: var(--muted); margin: 18px 0 6px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+  .row { display: flex; justify-content: space-between; gap: 14px; padding: 3px 0; font-size: 12.5px; }
+  .row .k { color: var(--muted); }
+  .row .v { color: #eef2f7; text-align: right; }
+  .charts { display: grid; grid-template-rows: auto 1fr; min-width: 0; }
+  .tabs { display: flex; gap: 4px; padding: 0 14px; border-bottom: 1px solid var(--line); }
+  .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 13px 14px 11px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
+  .tabs button[aria-selected="true"] { color: #eef2f7; border-bottom-color: var(--accent); }
+  .chart-pane { position: relative; background: #050a10; }
+  .chart-pane svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .chart-meta { position: absolute; right: 18px; bottom: 14px; font-size: 11px; color: var(--muted); }
+  .chart-tags { position: absolute; left: 20px; top: 14px; font-size: 11px; color: var(--muted); display: flex; gap: 18px; }
+
+  /* ── The setup strip: the same component on every mission ── */
+  .strip {
+    display: flex; align-items: center; gap: 6px;
+    padding: 14px 24px 18px;
+  }
+  .strip .spacer { flex: 1; }
+  .chip {
+    display: inline-flex; align-items: baseline; gap: 9px;
+    background: none; border: 1px solid transparent; border-radius: 3px;
+    padding: 8px 12px; cursor: pointer; font-size: 12.5px;
+  }
+  .chip .k { color: var(--muted); }
+  .chip .v { color: var(--white); }
+  .chip .v::after { content: " ▾"; color: var(--faint); font-size: 10px; }
+  .chip:hover, .chip[aria-expanded="true"] { border-color: rgba(255,255,255,0.14); background: rgba(255,255,255,0.03); }
+  .chip.changed .v { color: rgba(255,210,90,0.95); }
+  .fly {
+    margin-left: 6px; padding: 10px 26px; cursor: pointer;
+    font-family: var(--syne); font-size: 15px; font-weight: 700; letter-spacing: 0.04em; color: var(--white);
+    background: transparent; border: 1px solid rgba(255,255,255,0.3); border-radius: 3px;
+  }
+  .fly:hover { border-color: var(--accent); color: var(--accent); }
+  .fly kbd { font-family: var(--mono); font-weight: 400; font-size: 10px; color: var(--faint); margin-left: 10px; }
+
+  /* Under a document the strip almost disappears; on the airliner it's a framed panel */
+  .page.doc .strip { justify-content: center; }
+  .page.doc .strip .spacer { flex: 0 0 24px; }
+  .page.chart .strip { border-top: 1px solid var(--line); background: var(--panel); padding: 12px 20px; }
+  .page.text .strip { justify-content: center; }
+  .page.text .strip .spacer { flex: 0 0 24px; }
+
+  /* ── Popover: today's cards, compact ── */
+  .pop {
+    position: fixed; z-index: 20; padding: 14px; min-width: 300px; max-width: 640px;
+    background: #070c12; border: 1px solid rgba(255,255,255,0.12); border-radius: 4px;
+    box-shadow: 0 -12px 40px rgba(0,0,0,0.6);
+  }
+  .pop[hidden] { display: none; }
+  .cards { display: flex; flex-wrap: wrap; gap: 8px; }
+  .card {
+    background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.09); border-radius: 3px;
+    padding: 10px 14px; min-width: 112px; text-align: left; cursor: pointer;
+  }
+  .card:hover { background: rgba(255,255,255,0.06); }
+  .card[aria-checked="true"] { border-color: var(--pick); background: rgba(255,255,255,0.06); }
+  .card .id { font-family: var(--syne); font-weight: 700; font-size: 13px; color: var(--white); }
+  .card .lb { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .card.inst .id { color: rgba(255,200,50,0.85); }
+  .timing { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+  .seg button { background: none; border: 1px solid rgba(255,255,255,0.15); padding: 4px 10px; cursor: pointer; font-size: 11.5px; color: var(--muted); }
+  .seg button + button { border-left: 0; }
+  .seg button[aria-pressed="true"] { color: rgba(255,210,90,0.95); border-color: rgba(255,200,50,0.35); background: rgba(255,200,50,0.07); }
+  .timing input { width: 56px; background: transparent; border: 1px solid rgba(255,255,255,0.15); color: var(--white); font: inherit; padding: 3px 6px; }
+
+  /* ── Controls: the same popover, a key list instead of cards ── */
+  .pop { max-height: calc(100vh - 120px); overflow: auto; }
+  .keys { display: grid; grid-template-columns: auto 1fr; gap: 9px 18px; margin: 0; font-size: 12.5px; }
+  .keys dt { color: rgba(255,200,80,0.9); text-align: right; white-space: nowrap; }
+  .keys dd { margin: 0; color: var(--text); }
+
+  /* Mockup-only: what Fly would hand to loadMission() */
+  .toast {
+    position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 40;
+    background: #0a1118; border: 1px dashed rgba(255,255,255,0.2); padding: 12px 16px; font-size: 11.5px; color: var(--text);
+    white-space: pre; max-width: 90vw; overflow: auto;
+  }
+  .toast[hidden] { display: none; }
+
+  @media (max-width: 860px) {
+    .doc-grid { grid-template-columns: 1fr; }
+    .doc-grid img.portrait { display: none; }
+    .lead.chart { grid-template-columns: 1fr; }
+    .charts { display: none; }
+    .strip { flex-wrap: wrap; justify-content: center; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="mock-nav" aria-label="Mockup missions"><span>Mockup</span></nav>
+
+<div class="page" id="page">
+  <main class="lead" id="lead"></main>
+  <footer class="strip" id="strip"></footer>
+</div>
+
+<div class="pop" id="pop" hidden></div>
+<div class="toast" id="toast" hidden></div>
+
+<script type="module">
+const IMG = '../../images/';   // repo-relative: works from the dev server and from file://
+
+/* ── The choices (app/briefing.js) ── */
+const WEATHER = [
+  ['LIVE', 'Live METAR'], ['CLEAR', 'Clear · VFR'], ['FEW 5K', 'Few clouds 5000'],
+  ['SCT 3K', 'Scattered 3000'], ['BKN 2K', 'Broken 2000'], ['OVC 1500', 'Overcast 1500'],
+];
+const FAILURES = [
+  ['CLEAN', 'No failure'], ['PARTIAL', '50% power · 30s'], ['ROUGH', '30% power · bang'], ['FAILURE', 'Full failure'],
+];
+const KEYS_DEFAULT = [
+  ['↑ ↓', 'Altitude target ±500 ft'], ['← →', 'Heading target ±5°'], ['+ −', 'Speed ±5 kt'],
+  ['F1–F4', 'Thrust: IDLE · CLB · MCT · TOGA'], ['f / F', 'Flaps extend / retract'], ['G', 'Gear'],
+  ['Tab', 'Display: PFD ↔ ECAM'], ['K', 'Kneeboard'], ['P', 'Pause'], ['R', 'Role: PF → PM → Instructor'], ['Space', 'Push to talk'],
+];
+const KEYS_BF109 = [
+  ['Maus / Pfeiltasten', 'Steuerknüppel · Seitenruder'], ['F', 'Landeklappen'], ['G', 'Fahrwerk'],
+  ['F1', 'Leerlauf'], ['+ / −', 'Gashebel ±'], ['t / T', 'Höhenrudertrimm'], ['B (halten)', 'Bremsen'],
+  ['V', 'Außenansicht'], ['K', 'Kniebeinkarte'], ['N', 'Karte'], ['E', 'Anlasser'], ['M', 'Motor abstellen'], ['P', 'Pause'],
+];
+
+/* ── Four missions, real catalog content ── */
+const MISSIONS = {
+  wolfskopf: {
+    label: 'Wolfskopf', register: 'doc', accent: '#8888cc', setup: [],  // fixedScenario: nothing to choose
+    document: 'gkdos-wolfskopf.png', image: 'friedrich.png',
+    atmosphere: 'Er wusste, dass er zurückkommen würde.\naber er kannte die felder dort unten nicht.',
+    keys: KEYS_BF109,
+  },
+  bougainville: {
+    label: 'Bougainville', register: 'doc', accent: '#c8a850', setup: ['weather', 'failure'],
+    weatherOwn: 'As briefed',   // the mission's weather is manual — "Live METAR" would be wrong for 1943
+    document: 'betty_joe.png', image: 'ed_beeler.png',
+    atmosphere: 'Twenty-five years since the last one ended.\nThe Wasp is on your nose.\nShe has no idea what\'s coming.',
+    keys: KEYS_DEFAULT,
+  },
+  a350: {
+    label: 'A350 · LSZH', register: 'chart', accent: '#4dc5dc', setup: ['weather', 'crew', 'failure'],
+    weatherOwn: 'Live METAR',
+    crew: [['PF', 'Pilot flying'], ['PM', 'Pilot monitoring'], ['INSTRUCTOR', 'Instructor']],
+    title: 'Airbus A350-900', sub: 'ILS approach · runway 28',
+    orders: 'Cleared ILS 28. Descend 4000ft.\nExpect vectors from LOBEP. Speed 250kt below FL100.\nGear down abeam threshold. Full flaps by FAP.\nDecision height: 700ft. Go-around: climb 5000ft, track 283°.',
+    atmosphere: 'Long-haul inbound from San Francisco — fourteen hours behind you.',
+    params: [
+      ['Route', [['From', 'KSFO · San Francisco'], ['To', 'LSZH · Zürich']]],
+      ['Approach', [['Runway', 'ILS 28'], ['ILS', '109.900 · CRS 280'], ['Minima', '200 ft AGL ≈'], ['Missed', 'Climb ≥1820, D273C ≤4000,\nintercept, D061J 7000, GIPOL']]],
+      ['Aircraft', [['Registration', 'HB-IFA'], ['Callsign', 'VisionPilot'], ['ICAO', 'A359']]],
+      ['Start', [['Altitude', '4,000 ft'], ['Weather', 'Live · LSZH']]],
+    ],
+    keys: KEYS_DEFAULT,
+  },
+  demo2: {
+    label: 'Demo-2', register: 'text', accent: '#a0b8d8', setup: ['crew'],   // a rocket: crew only
+    crew: [['CDR', 'Robert Behnken', 'Commander · PF'], ['PILOT', 'Douglas Hurley', 'Pilot · PM'], ['INST', 'Instructor', 'Instructor']],
+    cls: 'SPACEX · MISSION SUMMARY', date: '30 May 2020 · 19:22 UTC',
+    who: 'Robert Behnken · Douglas Hurley', unit: 'NASA Commercial Crew Program · SpaceX',
+    ac: '9× Merlin 1D+ · 7607 kN SL · Stage 2: MVac · 934 kN vac',
+    orders: 'Launch site: Kennedy Space Center LC-39A.\nTarget orbit: 200 × 400 km · 51.6° inclination.\nPayload: Crew Dragon Endeavour · 2 crew.',
+    atmosphere: 'May 30, 2020.\nBob Behnken. Doug Hurley.\n\nThe first crew to launch from American soil since 2011.',
+    keys: [['Space', 'Push to talk'], ['V', 'Camera'], ['P', 'Pause'], ['W', 'Time warp']],
+  },
+};
+
+let cur = null;
+let picks = {};
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* ── Main content per register ── */
+function leadHtml(m) {
+  if (m.register === 'doc') return `
+    <div class="doc-wrap">
+      <div class="doc-grid">
+        <img class="document" src="${IMG + m.document}" alt="Mission orders">
+        <img class="portrait" src="${IMG + m.image}" alt="">
+      </div>
+      <p class="atmosphere">${esc(m.atmosphere)}</p>
+    </div>`;
+  if (m.register === 'text') return `
+    <article class="story">
+      <div class="cls">${esc(m.cls)}</div>
+      <div class="date">${esc(m.date)}</div>
+      <h1>${esc(m.who)}</h1>
+      <div class="unit">${esc(m.unit)}</div>
+      <div class="ac">${esc(m.ac)}</div>
+      <hr>
+      <p class="orders">${esc(m.orders)}</p>
+      <p class="atmosphere">${esc(m.atmosphere)}</p>
+    </article>`;
+  return `
+    <section class="side">
+      <h1>${esc(m.title)}</h1>
+      <div class="sub">${esc(m.sub)}</div>
+      <p class="orders">${esc(m.orders)}</p>
+      <p class="atmosphere">${esc(m.atmosphere)}</p>
+      <div class="params">${m.params.map(([h, rows]) => `
+        <h2>${h}</h2>${rows.map(([k, v]) => `<div class="row"><span class="k">${k}</span><span class="v">${esc(v).replace(/\n/g, '<br>')}</span></div>`).join('')}`).join('')}
+      </div>
+    </section>
+    <section class="charts">
+      <div class="tabs" role="tablist">${['Route', 'Airport', 'Departure', 'Arrival', 'Nav log', 'Weather', 'Frequencies']
+        .map((t, i) => `<button role="tab" aria-selected="${i === 0}">${t}</button>`).join('')}</div>
+      <div class="chart-pane">${routeSvg()}
+        <div class="chart-tags"><span>SID GAPP7</span><span>STAR BLM3G</span></div>
+        <div class="chart-meta">5098 nm · 8 legs</div>
+      </div>
+    </section>`;
+}
+
+function routeSvg() {
+  return `<svg viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet" aria-label="Route KSFO to LSZH">
+    <g stroke="rgba(255,255,255,0.04)">${Array.from({ length: 9 }, (_, i) => `<line x1="0" x2="1000" y1="${i * 80 + 30}" y2="${i * 80 + 30}"/>`).join('')}
+      ${Array.from({ length: 12 }, (_, i) => `<line y1="0" y2="700" x1="${i * 90 + 20}" x2="${i * 90 + 20}"/>`).join('')}</g>
+    <g fill="none" stroke="rgba(150,175,200,0.22)" stroke-width="1">
+      <path d="M95 300 L100 350 L118 395 L140 420 L146 460"/>
+      <path d="M430 330 L455 300 L490 290 L470 260 L500 230 L525 300"/>
+      <path d="M820 250 L835 290 L820 360 L880 330 L930 360"/>
+    </g>
+    <path d="M130 400 Q 520 250 900 330" fill="none" stroke="#e6a23c" stroke-width="2"/>
+    <circle cx="130" cy="400" r="5" fill="#4cd07d"/><text x="142" y="404" fill="#e8edf2" font-size="13" font-family="IBM Plex Mono">KSFO</text>
+    <circle cx="900" cy="330" r="5" fill="#ff5c5c"/><text x="912" y="334" fill="#e8edf2" font-size="13" font-family="IBM Plex Mono">LSZH</text>
+  </svg>`;
+}
+
+/* ── The strip ── */
+function value(kind) {
+  const m = cur;
+  if (kind === 'weather') return picks.weather === 'LIVE' ? m.weatherOwn : WEATHER.find(w => w[0] === picks.weather)[1];
+  if (kind === 'crew')    { const c = m.crew.find(c => c[0] === picks.crew); return c[2] ? c[1] : c[1]; }
+  if (kind === 'failure') {
+    const f = FAILURES.find(f => f[0] === picks.failure)[1];
+    return picks.failure === 'CLEAN' ? 'None' : `${f}, ${picks.timing === 'random' ? 'at a random time' : `at ${picks.fixedT} s`}`;
+  }
+}
+const isChanged = (kind) => (kind === 'weather' && picks.weather !== 'LIVE') || (kind === 'failure' && picks.failure !== 'CLEAN');
+const LABEL = { weather: 'Weather', crew: 'Crew', failure: 'Failure' };
+
+function renderStrip() {
+  const chips = cur.setup.map(k =>
+    `<button class="chip${isChanged(k) ? ' changed' : ''}" data-kind="${k}" aria-haspopup="true" aria-expanded="false">
+       <span class="k">${LABEL[k]}</span><span class="v">${esc(value(k))}</span></button>`).join('');
+  $('strip').innerHTML = `${chips}<span class="spacer"></span>
+    <button class="chip" data-kind="controls" aria-haspopup="true" aria-expanded="false"><span class="k">Controls</span><span class="v"></span></button>
+    <button class="fly" id="fly">Fly<kbd>Enter</kbd></button>`;
+  $('strip').querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => openPop(c)));
+  $('fly').addEventListener('click', fly);
+}
+
+/* ── Popover with today's cards ── */
+function openPop(chip) {
+  const kind = chip.dataset.kind, pop = $('pop');
+  if (!pop.hidden && pop.dataset.kind === kind) return closePop();
+  closePop();
+  if (kind === 'controls') {
+    pop.innerHTML = `<dl class="keys" aria-label="Controls">${cur.keys.map(([k, d]) => `<dt>${esc(k)}</dt><dd>${esc(d)}</dd>`).join('')}</dl>`;
+    return place(chip, kind);
+  }
+  const list = kind === 'weather' ? WEATHER.map(([id, lb]) => id !== 'LIVE' ? [id, id, lb]
+                 : cur.weatherOwn === 'Live METAR' ? ['LIVE', 'LIVE', 'Live METAR'] : ['LIVE', 'BRIEFED', 'The mission\'s weather'])
+             : kind === 'failure' ? FAILURES.map(([id, lb]) => [id, id, lb])
+             : cur.crew.map(([id, a, b]) => [id, b ? a : id, b ?? a]);
+  const sel = picks[kind];
+  pop.innerHTML = `<div class="cards" role="radiogroup" aria-label="${LABEL[kind]}">${list.map(([id, top, sub]) =>
+      `<button class="card${/^INST/.test(id) ? ' inst' : ''}" role="radio" aria-checked="${id === sel}" data-id="${id}">
+         <div class="id">${esc(top)}</div><div class="lb">${esc(sub)}</div></button>`).join('')}</div>
+    ${kind === 'failure' ? `<div class="timing"><span>When</span>
+      <span class="seg"><button data-t="random" aria-pressed="${picks.timing === 'random'}">Random 60–300 s</button><button data-t="fixed" aria-pressed="${picks.timing === 'fixed'}">At</button></span>
+      <input id="fixedT" type="number" min="10" value="${picks.fixedT}" aria-label="Seconds after start" ${picks.timing === 'fixed' ? '' : 'disabled'}> s</div>` : ''}`;
+  place(chip, kind);
+  pop.querySelectorAll('.card').forEach(c => c.addEventListener('click', () => { picks[kind] = c.dataset.id; refresh(kind); }));
+  pop.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => { picks.timing = b.dataset.t; refresh(kind); }));
+  pop.querySelector('#fixedT')?.addEventListener('change', e => { picks.fixedT = Math.max(10, +e.target.value || 120); renderStrip(); });
+}
+function place(chip, kind) {
+  const pop = $('pop');
+  pop.dataset.kind = kind;
+  pop.hidden = false;
+  const r = chip.getBoundingClientRect(), pr = pop.getBoundingClientRect();
+  pop.style.left = Math.max(12, Math.min(innerWidth - pr.width - 12, r.left)) + 'px';
+  pop.style.top  = Math.max(12, r.top - pr.height - 10) + 'px';
+  chip.setAttribute('aria-expanded', 'true');
+}
+function refresh(kind) {
+  renderStrip();
+  const chip = $('strip').querySelector(`.chip[data-kind="${kind}"]`);
+  $('pop').hidden = true; openPop(chip);
+}
+function closePop() {
+  $('pop').hidden = true; $('pop').dataset.kind = '';
+  $('strip').querySelectorAll('.chip').forEach(c => c.setAttribute('aria-expanded', 'false'));
+}
+
+/* ── Fly (mockup: show the setup loadMission() would get) ── */
+function fly() {
+  closePop();
+  const setup = {};
+  if (cur.setup.includes('weather')) setup.weather = picks.weather === 'LIVE' ? null : picks.weather;
+  if (cur.setup.includes('failure')) setup.failure = picks.failure === 'CLEAN' ? 'none' : `${picks.failure} at ${picks.timing === 'random' ? 'random 60–300 s' : picks.fixedT + ' s'}`;
+  if (cur.setup.includes('crew')) setup.crew = picks.crew;
+  $('toast').textContent = `Fly → loadMission(…, setup)\n${JSON.stringify(setup, null, 2)}`;
+  $('toast').hidden = false;
+  clearTimeout(fly._t); fly._t = setTimeout(() => { $('toast').hidden = true; }, 3500);
+}
+
+/* ── Mission switch ── */
+function show(id) {
+  cur = MISSIONS[id];
+  picks = { weather: 'LIVE', failure: 'CLEAN', timing: 'random', fixedT: 120, crew: cur.crew?.[0][0] };
+  document.documentElement.style.setProperty('--accent', cur.accent);
+  $('page').className = `page ${cur.register}`;
+  $('lead').className = `lead ${cur.register}`;
+  $('lead').innerHTML = leadHtml(cur);
+  closePop(); $('toast').hidden = true;
+  renderStrip();
+  document.querySelectorAll('.mock-nav button').forEach(b => b.setAttribute('aria-current', String(b.dataset.id === id)));
+  history.replaceState(null, '', '#' + id);
+}
+
+const nav = document.querySelector('.mock-nav');
+for (const [id, m] of Object.entries(MISSIONS)) {
+  const b = document.createElement('button'); b.textContent = m.label; b.dataset.id = id;
+  b.addEventListener('click', () => show(id)); nav.appendChild(b);
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closePop();
+  if (e.key === 'Enter' && document.activeElement?.tagName !== 'INPUT' && !document.activeElement?.closest('.pop, .strip, .mock-nav')) fly();
+});
+document.addEventListener('click', e => { if (!e.target.closest('.pop, .chip')) closePop(); });
+show(MISSIONS[location.hash.slice(1)] ? location.hash.slice(1) : 'wolfskopf');
+addEventListener('hashchange', () => { const id = location.hash.slice(1); if (MISSIONS[id] && MISSIONS[id] !== cur) show(id); });
+</script>
+</body>
+</html>
