@@ -1951,6 +1951,7 @@
   import { initRightConsole, renderRightConsole } from './display/rightconsole.js';
   import { initCenterConsole, toggleCenter, renderCenterConsole } from './display/centerconsole.js';
   import { initSound, startSound, stopSound, startEngineLifecycle, stopEngineLifecycle, switchEngine, tickSound, getCurrentRpm, silenceAll, apDisconnectChime } from './core/sound.js';
+  import { audioContext } from './core/audio.js';
   import { initOutside, tickOutside, outsideInvalidate, setOutsideCamMode } from './display/outside.js?v=6';
   import { initKneeboard, toggleKneeboard, closeKneeboard, tickKneeboard } from './display/kneeboard.js';
   import { initMap, renderMap, toggleMap, showMap, hideMap, initVelisMap, hideVelisMap, initG1000Map, hideG1000Map } from './display/map.js';
@@ -3492,7 +3493,7 @@
     _session.onStop(() => {
       suspendLoop();   // no ticks or renders behind the selector; the next startLoop resumes
       hideMap(); hideVelisMap(); hideG1000Map(); closeKneeboard();
-      stopSound();     // closes the AudioContext: engine, APU, fuel pump, start/shutdown buffers
+      stopSound();     // stops engine, APU, fuel pump, start/shutdown buffers (the shared context stays open)
       stopCOM(); resetCrew();
       setOutsideCamMode(0);   // outside.js's window wheel handler eats scroll in the orbit cams — the picker must scroll
     });
@@ -4231,7 +4232,7 @@
   /* ── Warning tone ── */
   function _playWarnTone(type) {
     try {
-      const ctx  = new AudioContext();
+      const ctx  = audioContext();
       const osc  = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain); gain.connect(ctx.destination);
@@ -4247,7 +4248,6 @@
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (type === 'red' ? 0.5 : 0.3));
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + (type === 'red' ? 0.5 : 0.3));
-      osc.onended = () => ctx.close();
     } catch(e) { /* audio context unavailable */ }
   }
 

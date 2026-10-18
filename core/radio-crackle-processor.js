@@ -10,11 +10,13 @@ class RadioCrackleProcessor extends AudioWorkletProcessor {
     this._burstLen     = 0;   // samples remaining in current burst
     this._squelchTimer = 0;   // samples of squelch tail remaining
     this.port.onmessage = (e) => {
+      if (e.data?.stop) { this._stopped = true; return; }   // node torn down — end process() (the context stays open)
       if (e.data.squelchTail) this._squelchTimer = Math.floor(sampleRate * 0.18);
     };
   }
 
   process(inputs, outputs, parameters) {
+    if (this._stopped) return false;
     const out        = outputs[0][0];
     const crackle    = parameters.crackleLevel[0] ?? 0.018;
     const burstLevel = parameters.burstLevel[0]   ?? 0.08;

@@ -385,6 +385,7 @@ export async function createRadioChain(ctx, profileName = 'vhf-aviation') {
     try { noiseSource.stop(); } catch {}
     try { carrierOsc?.stop(); } catch {}
     try { whineOsc?.stop(); } catch {}
+    try { crackleNode?.port.postMessage({ stop: true }); } catch {}   // ends its process(); the context stays open
     try { crackleNode?.disconnect(); } catch {}
     nodes.forEach(n => { try { n.disconnect(); } catch {} });
   }

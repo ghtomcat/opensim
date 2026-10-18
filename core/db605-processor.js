@@ -33,6 +33,7 @@ class DB605Processor extends AudioWorkletProcessor {
     this._updateBodyDecay(this.rpm);
 
     this.port.onmessage = (e) => {
+      if (e.data?.stop) { this._stopped = true; return; }   // node torn down — end process() (the context stays open)
       const d = e.data;
       if (d.rpm !== undefined) {
         this.rpm = d.rpm; this._updateBodyDecay(d.rpm);
@@ -58,6 +59,7 @@ class DB605Processor extends AudioWorkletProcessor {
   }
 
   process(inputs, outputs) {
+    if (this._stopped) return false;
     const out = outputs[0][0];
     if (!out) return true;
 

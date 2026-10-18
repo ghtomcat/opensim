@@ -121,7 +121,7 @@ Cockpit profiles tap the engine output from `sound.js` (`_master` GainNode) and 
 | `cockpit-c172` | 5% |
 | `capsule-dragon` | 4% |
 
-**Critical:** The radio chain must use the same `AudioContext` as `sound.js`. `getAudioContext()` in `sound.js` returns the shared context. Using a separate `AudioContext` for the radio chain prevents cross-node connections and breaks environment bleed.
+**Critical:** The radio chain must use the same `AudioContext` as `sound.js`: the one from `audioContext()` in `core/audio.js` (`getAudioContext()` in `sound.js` returns it while sound is on). Using a separate `AudioContext` for the radio chain prevents cross-node connections and breaks environment bleed.
 
 ---
 

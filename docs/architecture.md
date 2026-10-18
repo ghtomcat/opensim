@@ -101,7 +101,7 @@ not draw. Grouped by role:
 | Physics | `physics.js` (fixed-wing), `rocket.js` (launch, staging, orbit, booster recovery), `thrust.js`, `pushback.js` |
 | Aircraft systems | `fuel.js`, `electrical.js`, `battery.js`, `hydraulics.js`, `baro.js`, `failures.js`, `aircraft-config.js` |
 | Navigation & automation | `route.js` (full route: SID/airways/STAR/approach), `lnav.js`, `vnav.js`, `managed-speed.js`, `fma.js`, `airway-graph.js`, `taxi-graph.js`, `taxi.js` (the active taxi route + clearance), `flightplan.js` (the active flight plan) |
-| Crew, radio, sound | `crew.js` (PF/PM/ATC/GPWS voice dispatch), `radio.js` (comm-chain filtering), `sound.js` (Web Audio engine synthesis), `*-processor.js` (AudioWorklet engine/crackle synthesizers: DB 605, Le Rhône 9J, Lycoming, R-2800) |
+| Crew, radio, sound | `crew.js` (PF/PM/ATC/GPWS voice dispatch), `radio.js` (comm-chain filtering), `audio.js` (the one AudioContext + worklet loading), `sound.js` (Web Audio engine synthesis), `*-processor.js` (AudioWorklet engine/crackle synthesizers: DB 605, Le Rhône 9J, Lycoming, R-2800) |
 | I/O | `input.js` (keyboard/mouse/gamepad), `telemetry.js` + `blackbox.js` (recording/export), `hil.js` (hardware-in-the-loop), `liveflight.js` (live ADS-B lookup) |
 
 ### 1.3 `display/` — presentation
@@ -1005,8 +1005,18 @@ Procedural synthesis. Nothing is a looped recording except the start-up sequence
 | Effects | — | engine bang, gunfire, coolant hiss, AP-disconnect chime, APU, fuel pump, GPWS whoop |
 
 `tickSound()` runs in the renderer list (§6.3) and maps RPM/N1, throttle and state
-to the synthesis parameters. `startSound()` **closes the AudioContext and creates a
-new one** on every (re)start, and re-adds the worklet modules.
+to the synthesis parameters.
+
+**One AudioContext for the session** (`core/audio.js`). `audioContext()` creates it on
+first use and it is never closed; `loadWorklet(url)` adds each AudioWorklet module once.
+Engine, APU, fuel pump, radio chain, GPWS, COM squelch and the shell's warning tones all
+play on it. `sound.js` sends its nodes through one output gain: `stopSound()` stops its
+long-running sources by name, tells the engine worklets to stop, and disconnects that
+gain, so a transmission or callout playing during an engine (re)start keeps playing.
+`getAudioContext()` in `sound.js` returns the context only while sound is on (`null`
+after `stopSound()`), and the crew's GPWS, PTT click and radio atmosphere stay silent
+then. A context created before any user gesture starts suspended; `core/audio.js`
+resumes it on the next key or click.
 
 ### 11.4 Observations
 
@@ -1019,11 +1029,6 @@ new one** on every (re)start, and re-adds the worklet modules.
   - The Velis's `engineType: "electric"` has no `ENGINES` entry, so the electric motor
     gets the **geared-turbofan** preset (the console says so).
   - `COCKPIT_PROFILES` lists `cockpit-c172`, which isn't a radio profile.
-- **One AudioContext, re-created.** The radio chain and engine bleed use the context
-  from `sound.js`. That context is closed and replaced whenever an engine sound
-  (re)starts, so anything playing on the old one stops (inferred: an engine start
-  during an ATC transmission would cut it). `display/com.js` (squelch) and `index.html`
-  create contexts of their own.
 - **`crew.js` is 1,250 lines** covering callouts, two GPWS layers, the mission script,
   rocket event detection, briefings, TTS voices and radio playback.
 

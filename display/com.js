@@ -10,6 +10,7 @@ import { bbEvent } from '../core/blackbox.js';
 import { RUNWAYS } from '../data/runways-data.js';
 import { gatesFor } from './stands-util.js';
 import { clearTaxiIn } from '../core/taxi.js';
+import { audioContext } from '../core/audio.js';
 
 /* Nearest runway whose centreline is within `maxNm` (perpendicular distance, clamped to
    the thresholds) — on it, lined up, or holding short. Drives the takeoff and the
@@ -98,7 +99,6 @@ const XPDR = {
   ident:  false,
 };
 
-let _squelchCtx  = null;
 let _streamAudio = null;   // currently playing LiveATC stream
 let _tuneAudio   = null;   // one-shot audio played on tuning a frequency (greeting, ATIS clip)
 let _bound       = false;  // event listeners registered once only
@@ -650,8 +650,7 @@ function _setLiveIndicator(state, fallbackPage) {
 
 /* ── Squelch click ── */
 function _squelch() {
-  if (!_squelchCtx) _squelchCtx = new (window.AudioContext || window.webkitAudioContext)();
-  const ctx = _squelchCtx;
+  const ctx = audioContext();
   const buf = ctx.createBuffer(1, ctx.sampleRate * 0.04, ctx.sampleRate);
   const data = buf.getChannelData(0);
   for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.15;

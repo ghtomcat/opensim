@@ -52,6 +52,7 @@ class LeRh9Processor extends AudioWorkletProcessor {
     this._updateDecay(this.rpm);
 
     this.port.onmessage = (e) => {
+      if (e.data?.stop) { this._stopped = true; return; }   // node torn down — end process() (the context stays open)
       if (e.data.rpm        !== undefined) { this.rpm = e.data.rpm; this._updateDecay(this.rpm); }
       if (e.data.masterGain !== undefined) this.masterGain = e.data.masterGain;
       if (e.data.throttle   !== undefined) this.throttle   = e.data.throttle;
@@ -66,6 +67,7 @@ class LeRh9Processor extends AudioWorkletProcessor {
   }
 
   process(inputs, outputs) {
+    if (this._stopped) return false;
     const out = outputs[0][0];
     if (!out) return true;
 

@@ -6,6 +6,7 @@
 
 import { S, setState } from './state.js';
 import { ENGINE, assertCovers, warnUnknown } from './vocab.js';
+import { audioContext, loadWorklet } from './audio.js';
 
 /* ── Engine type presets ── */
 const ENGINES = {
@@ -266,7 +267,9 @@ export function getRpmValue() {
 }
 
 /* ── Internal state — oscillator path ── */
-let _ctx          = null;
+let _ctx          = null;   // the shared context (core/audio.js) while sound is on; null = sound off
+let _out          = null;   // this module's output: every sound.js node ends here → destination.
+                            // Teardown disconnects it — the context itself is never closed.
 let _master       = null;
 let _oscs         = [];
 let _noise        = null;
@@ -374,7 +377,7 @@ export function engineGunfire() {
       filt.Q.value         = 0.8;
       const gain = _ctx.createGain();
       gain.gain.value = 3.5 + Math.random() * 1.5;
-      src.connect(filt); filt.connect(gain); gain.connect(_ctx.destination);
+      src.connect(filt); filt.connect(gain); gain.connect(_out);
       src.start();
     }, i * 90 + Math.random() * 30);   // irregular ~90ms spacing
   }
@@ -408,7 +411,7 @@ export function coolantHiss() {
   src.connect(hp);
   hp.connect(lp);
   lp.connect(gain);
-  gain.connect(_ctx.destination);
+  gain.connect(_out);
   src.start();
 }
 
@@ -439,7 +442,7 @@ export function apDisconnectChime() {
       gain.gain.linearRampToValueAtTime(0,    st + noteDur);
 
       osc.connect(gain);
-      gain.connect(_ctx.destination);
+      gain.connect(_out);
       osc.start(st);
       osc.stop(st + noteDur + 0.01);
     }
@@ -470,7 +473,7 @@ export function engineBang() {
 
   src.connect(filt);
   filt.connect(gain);
-  gain.connect(_ctx.destination);
+  gain.connect(_out);
   src.start();
 }
 
@@ -494,7 +497,7 @@ function _scheduleKnacken() {
     filt.Q.value         = 2.5;
     const gain = _ctx.createGain();
     gain.gain.value = 0.55 + Math.random() * 0.25;
-    src.connect(filt); filt.connect(gain); gain.connect(_ctx.destination);
+    src.connect(filt); filt.connect(gain); gain.connect(_out);
     src.start();
     _scheduleKnacken();   // chain next tick
   }, interval);
@@ -530,7 +533,7 @@ function _flapMotorWhirr() {
   nGain.gain.setValueAtTime(0.28, now + dur - 0.12);
   nGain.gain.linearRampToValueAtTime(0, now + dur);
 
-  nSrc.connect(nFilt); nFilt.connect(nGain); nGain.connect(_ctx.destination);
+  nSrc.connect(nFilt); nFilt.connect(nGain); nGain.connect(_out);
   nSrc.start(now); nSrc.stop(now + dur);
 
   /* ── Oscillator layer — gearbox fundamental ~72Hz, sawtooth ── */
@@ -552,7 +555,7 @@ function _flapMotorWhirr() {
   mGain.gain.setValueAtTime(0.14, now + dur - 0.15);
   mGain.gain.linearRampToValueAtTime(0, now + dur);
 
-  mOsc.connect(mFilt); mFilt.connect(mGain); mGain.connect(_ctx.destination);
+  mOsc.connect(mFilt); mFilt.connect(mGain); mGain.connect(_out);
   mOsc.start(now); mOsc.stop(now + dur);
 
   /* ── Thunk at end of travel ── */
@@ -568,7 +571,7 @@ function _flapMotorWhirr() {
     const tFilt = _ctx.createBiquadFilter();
     tFilt.type = 'lowpass'; tFilt.frequency.value = 220; tFilt.Q.value = 1.8;
     const tGain = _ctx.createGain(); tGain.gain.value = 0.9;
-    tSrc.connect(tFilt); tFilt.connect(tGain); tGain.connect(_ctx.destination);
+    tSrc.connect(tFilt); tFilt.connect(tGain); tGain.connect(_out);
     tSrc.start(t);
     _flapMotorTimer = null;
   }, (dur - 0.05) * 1000);
@@ -598,7 +601,7 @@ function _playHeartbeat() {
   const gNode = _ctx.createGain();
   gNode.gain.setValueAtTime(gain, now);
   gNode.gain.setTargetAtTime(0, now + 0.04, 0.02);
-  src.connect(filt); filt.connect(gNode); gNode.connect(_ctx.destination);
+  src.connect(filt); filt.connect(gNode); gNode.connect(_out);
   src.start(now);
 }
 
@@ -623,7 +626,7 @@ function _niflheimStart() {
   _niflheimGain.gain.setValueAtTime(0, now);
   _niflheimGain.gain.setValueAtTime(0, now);
   _niflheimGain.gain.setTargetAtTime(0.45, now, 3.0);
-  _niflheimGain.connect(_ctx.destination);
+  _niflheimGain.connect(_out);
 
   /* 4Hz LFO — tremolo that reads as something breathing, something wrong */
   const lfo     = _ctx.createOscillator();
@@ -678,16 +681,32 @@ function _niflheimStop() {
   }, 8000);
 }
 
+/* Sound on: take the shared context and give this module a fresh output gain. */
+function _acquire() {
+  if (!_ctx) {
+    _ctx = audioContext();
+    _out = _ctx.createGain();
+    _out.connect(_out);
+  }
+  return _ctx;
+}
+
+/* Engine worklet processors run until told to stop (their process() returns true) —
+   with the context no longer closed, a worklet left running would never end. */
+function _stopWorklet() {
+  try { _workletNode?.port.postMessage({ stop: true }); } catch {}
+}
+
 export function startSound(engineType) {
   if (engineType === ENGINE.NONE) {
-    if (!_ctx) _ctx = new AudioContext();
+    _acquire();
     return;
   }
   if (engineType) _cfg = _preset(engineType);
   if (!_cfg) _cfg = _preset(ENGINE.GEARED_TURBOFAN);
   if (_started) _teardown();
 
-  _ctx    = new AudioContext();
+  _acquire();
   _master = _ctx.createGain();
   _master.gain.value = 0;
 
@@ -704,9 +723,9 @@ export function startSound(engineType) {
     _waveshaper.curve     = curve;
     _waveshaper.oversample = '4x';
     _master.connect(_waveshaper);
-    _waveshaper.connect(_ctx.destination);
+    _waveshaper.connect(_out);
   } else {
-    _master.connect(_ctx.destination);
+    _master.connect(_out);
   }
 
   if (_cfg.impulse) {
@@ -918,7 +937,7 @@ async function _startWorkletEngine() {
   const workletFile = _cfg.workletFile ?? './core/db605-processor.js';
   const workletName = _cfg.workletName ?? 'db605-processor';
   try {
-    await _ctx.audioWorklet.addModule(workletFile);
+    await loadWorklet(workletFile);
 
     _workletNode = new AudioWorkletNode(_ctx, workletName);
     _workletMute = _ctx.createGain();
@@ -1053,7 +1072,7 @@ function _startOscEngine() {
     _resFilt.connect(_resGain);
     /* Bypass _master — this resonance is structural, not engine-power-dependent.
        Goes through waveshaper if present (saturation pushes 19Hz into felt 38/57Hz). */
-    _resGain.connect(_waveshaper ?? _ctx.destination);
+    _resGain.connect(_waveshaper ?? _out);
     _resOsc.start();
   }
 
@@ -1062,6 +1081,11 @@ function _startOscEngine() {
 }
 
 function _buildWindLayer() {
+  /* An engine restart builds the layer again on the same context — stop the old one first,
+     or two wind/flap/ground/hiss layers play at once. */
+  for (const n of [_windNoise, _flapNoise, _groundNoise, _hissNoise]) { try { n?.stop(); } catch {} }
+  for (const g of [_windGain, _flapGain, _groundGain, _hissGain])     { try { g?.disconnect(); } catch {} }
+
   /* Wind — broadband rush, shaped by airspeed */
   const wBuf  = _ctx.createBuffer(1, _ctx.sampleRate * 2, _ctx.sampleRate);
   const wData = wBuf.getChannelData(0);
@@ -1081,7 +1105,7 @@ function _buildWindLayer() {
 
   _windNoise.connect(_windFilt);
   _windFilt.connect(_windGain);
-  _windGain.connect(_ctx.destination);
+  _windGain.connect(_out);
   _windNoise.start();
 
   /* Flap rumble — low-frequency turbulence from separated flow */
@@ -1103,7 +1127,7 @@ function _buildWindLayer() {
 
   _flapNoise.connect(_flapFilt);
   _flapFilt.connect(_flapGain);
-  _flapGain.connect(_ctx.destination);
+  _flapGain.connect(_out);
   _flapNoise.start();
 
   /* Ground roll — airframe creak and gear rumble on grass */
@@ -1125,7 +1149,7 @@ function _buildWindLayer() {
 
   _groundNoise.connect(_groundFilt);
   _groundFilt.connect(_groundGain);
-  _groundGain.connect(_ctx.destination);
+  _groundGain.connect(_out);
   _groundNoise.start();
 
   /* Coolant hiss — high-pitched steam, rises as engine dies */
@@ -1147,7 +1171,7 @@ function _buildWindLayer() {
 
   _hissNoise.connect(_hissFilt);
   _hissFilt.connect(_hissGain);
-  _hissGain.connect(_ctx.destination);
+  _hissGain.connect(_out);
   _hissNoise.start();
 }
 
@@ -1731,7 +1755,7 @@ async function _loadWorkletSilently() {
   const workletFile = _cfg.workletFile ?? './core/db605-processor.js';
   const workletName = _cfg.workletName ?? 'db605-processor';
   try {
-    await _ctx.audioWorklet.addModule(workletFile);
+    await loadWorklet(workletFile);
     _workletNode = new AudioWorkletNode(_ctx, workletName);
     _workletMute = _ctx.createGain();
     _workletMute.gain.value = 0;   // silent during startup — unmuted at handoff
@@ -1987,7 +2011,7 @@ function _startApuIdle() {
 
   const gain = _ctx.createGain();
   gain.gain.value = 0;
-  gain.connect(_ctx.destination);
+  gain.connect(_out);
 
   /* Main drone ~162 Hz */
   const osc = _ctx.createOscillator();
@@ -2028,10 +2052,10 @@ function _startApuIdle() {
 
 export async function startApuSound() {
   if (!_ctx) {
-    _ctx    = new AudioContext();
+    _acquire();
     _master = _ctx.createGain();
     _master.gain.value = 0;
-    _master.connect(_ctx.destination);
+    _master.connect(_out);
   }
   if (_ctx.state === 'suspended') await _ctx.resume();
 
@@ -2043,7 +2067,7 @@ export async function startApuSound() {
   gain.gain.value = 0.82;
   src.buffer = ab;
   src.connect(gain);
-  gain.connect(_ctx.destination);
+  gain.connect(_out);
   src.onended = () => _startApuIdle();
   src.start();
 }
@@ -2224,10 +2248,10 @@ export async function startEngineLifecycle() {
     setState({ engineState: 'starting', enginePower: 0.01, n1: S.n1 ?? 0 });
 
     if (!_ctx) {
-      _ctx    = new AudioContext();
+      _acquire();
       _master = _ctx.createGain();
       _master.gain.value = 0;
-      _master.connect(_ctx.destination);
+      _master.connect(_out);
     }
     if (_ctx.state === 'suspended') await _ctx.resume();
 
@@ -2246,7 +2270,7 @@ export async function startEngineLifecycle() {
       _lifecycleStartedAt = null;
       if (S.engineState !== 'starting') return;
       setState({ engineState: 'running', enginePower: 1.0 });
-      setTimeout(() => startSound(), 50);   // fresh context; oscillator ramps from 0
+      setTimeout(() => startSound(), 50);   // oscillator engine takes over; ramps from 0
     };
 
     src.start();
@@ -2258,10 +2282,10 @@ export async function startEngineLifecycle() {
   if (S.fuelShutoff && S.fuelLeft !== null) return;   // fuel shutoff closed — no start
 
   if (!_ctx) {
-    _ctx    = new AudioContext();
+    _acquire();
     _master = _ctx.createGain();
     _master.gain.value = 0;
-    _master.connect(_ctx.destination);
+    _master.connect(_out);
   }
   if (_ctx.state === 'suspended') await _ctx.resume();
 
@@ -2420,7 +2444,7 @@ export function stopEngineLifecycle() {
     src.buffer = ab;
     const shutGain = _ctx.createGain();
     shutGain.gain.value = _master?.gain.value ?? ((_cfg?.masterGain ?? 0.8) * 0.4 / 0.8);
-    src.connect(shutGain); shutGain.connect(_ctx.destination);
+    src.connect(shutGain); shutGain.connect(_out);
     src.start();
     _master?.gain.setTargetAtTime(0, _ctx.currentTime, 0.3);
   }
@@ -2443,10 +2467,10 @@ export async function startFuelPump() {
   if (_pumpNodes) return;
 
   if (!_ctx) {
-    _ctx    = new AudioContext();
+    _acquire();
     _master = _ctx.createGain();
     _master.gain.value = 1;
-    _master.connect(_ctx.destination);
+    _master.connect(_out);
   }
   if (_ctx.state === 'suspended') await _ctx.resume();
   if (_master.gain.value < 0.05) _master.gain.setTargetAtTime(1, _ctx.currentTime, 0.2);
@@ -2509,6 +2533,7 @@ export function stopFuelPump() {
 function _teardownEngine() {
   _inStartup = false;
   _workletReady = false;
+  _stopWorklet();
   try { _workletNode?.disconnect(); } catch {}
   try { _workletMute?.disconnect(); } catch {}
   _workletNode = null; _workletMute = null;
@@ -2531,18 +2556,23 @@ function _teardownEngine() {
   _started = false;
 }
 
-/* ── Full teardown — kills everything including wind ── */
+/* ── Full teardown — kills everything including wind ──
+   The shared context stays open (core/audio.js): the long-running sources are stopped
+   by name, and disconnecting _out silences whatever is left (one-shot buffers, effects). */
 function _teardown() {
   if (!_ctx) return;
   _teardownEngine();
   try { _windNoise?.stop();  } catch {}
   try { _flapNoise?.stop();  } catch {}
-  /* These nodes die with the context: drop the refs so APU/pump can start again,
-     and so a start buffer's onended can't restart the engine after we've closed. */
-  if (_lifecycleSrc) { _lifecycleSrc.onended = null; _lifecycleSrc = null; }
+  /* Stop the start/shutdown buffer without its onended (which would restart the engine),
+     and the APU and fuel-pump loops; drop the refs so they can start again. */
+  if (_lifecycleSrc) { _lifecycleSrc.onended = null; try { _lifecycleSrc.stop(); } catch {} _lifecycleSrc = null; }
+  if (_apuIdleNodes) { try { _apuIdleNodes.osc.stop(); _apuIdleNodes.noiseSrc.stop(); } catch {} }
+  if (_pumpNodes)    { const { o1, o2, noise, lfo } = _pumpNodes; try { o1.stop(); o2.stop(); noise.stop(); lfo.stop(); } catch {} }
   _apuIdleNodes = null;
   _pumpNodes    = null;
-  _ctx.close();
+  try { _out?.disconnect(); } catch {}
+  _out = null;
   clearTimeout(_flapMotorTimer); _flapMotorTimer = null; _flapStep = null;
   _ctx = null; _master = null; _waveshaper = null; _oscs = [];
   _noise = null; _noiseGain = null;

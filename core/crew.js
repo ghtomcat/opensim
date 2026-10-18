@@ -7,6 +7,7 @@
 import { S, setState } from './state.js';
 import { playThroughChain, createRadioChain } from './radio.js';
 import { getAudioContext, getEngineBleedNode } from './sound.js';
+import { audioContext } from './audio.js';
 import { TRIGGER, ROCKET_EVENT, assertCovers, warnUnknown } from './vocab.js';
 import { elevM as terrainElevM } from './elevation.js';   // EGPWS look-ahead (3b) — same tile cache as the ND and the outside view
 
@@ -1101,8 +1102,9 @@ export async function playRadio(src, { profile, onEnded } = {}) {
     ?? 'vhf-aviation';
 
   try {
-    /* Always use sound.js AudioContext so engine bleed nodes can be shared */
-    const ctx          = getAudioContext() ?? new AudioContext();
+    /* The shared context (core/audio.js) — the same one sound.js plays the engine on,
+       so the engine bleed node can be mixed in */
+    const ctx          = audioContext();
     const bleedCfg     = COCKPIT_PROFILES[profileName];
     const envBleedNode = bleedCfg ? getEngineBleedNode() : null;
 
