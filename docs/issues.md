@@ -364,7 +364,7 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 - **Shell (§14).** The `E`/`Q` handlers call `engine.js`; `simGetState()` exposes `engines`. Engine-out scoring doesn't go into `index.html` (*`index.html` carries most of the application wiring*).
 
 *Stages.*
-0. **Owner, still one engine.** `core/engine.js`: lifecycle out of `sound.js` and `velis_epsi.js`, the APU lifecycle out of `electrical.js`, power from factors, N1 spool out of `physics.js`. `engine` an object everywhere. One AudioContext (*The AudioContext is recreated…*). Done when: a cold start completes via `simStep` with audio muted; no module but `engine.js` writes engine or APU state.
+0. **Owner, still one engine.** `core/engine.js`: lifecycle out of `sound.js` and `velis_epsi.js`, the APU lifecycle out of `electrical.js`, power from factors, N1 spool out of `physics.js`. `engine` an object everywhere (done 2026-10-18). One AudioContext (*The AudioContext is recreated…*). Done when: a cold start completes via `simStep` with audio muted; no module but `engine.js` writes engine or APU state.
 1. **The array.** `S.engines[]` by `count`, old fields derived from it. Done when: every aircraft flies the same seeded test runs as before.
 2. **Per-engine control and failure, electrical layout as data, no yaw yet.** Masters, levers, fire handles and failures by engine; the full turbofan model (fan/core/EGT/FF); the A350 electrical layout in JSON, read by the simulation, the overhead and the ELEC page; engine controls derived and sending commands. Done when: an A350 loses ENG 1 at V1 (new LSZH departure), climbs on ENG 2 with less climb rate, the ECAM shows ENG 1 failed and GEN 1A/1B offline, and the overhead shows exactly the A350's generators.
 3. **Yaw axis.** A350 engine lateral positions measured into `dimensions`; sideslip, rudder (keys + gamepad), rudder trim, thrust moment. Done when: an engine failure yaws the aircraft toward the dead engine, rudder holds it, and full rudder below V_MC can't.
@@ -628,12 +628,12 @@ The aircraft says *what* it has, the manufacturer *where* it goes, the style *ho
 ### Overloaded fields in the JSON data
 *Found 2026-10-11 · `aircraft/*.json`, `missions/*.json`; left over from the data-contract work (2026-10-13)*
 
-The data now has a schema (`core/schema/`, checked by `npm test` and at load), but three fields still have two meanings, and the schema has to accept both:
-- **`engine`** is an object `{ type: "turbofan", count, … }` on the jets and a descriptive string (`"Lycoming IO-360, 180hp"`) on the others; code reads `engine?.type`.
+The data now has a schema (`core/schema/`, checked by `npm test` and at load), but these fields have two meanings, and the schema has to accept both:
+- ~~**`engine`** an object on the jets, a descriptive string on the others~~ — done 2026-10-18: one object on every aircraft (`type`, `count`, `model`, `description`).
 - **`timeOfDay`** is hours, or a day fraction when < 1 (`display/terrain.js`).
 - **A `failures` entry** goes to `core/failures.js` or `core/rocket.js` depending on whether it has a `trigger` key.
 
-**Fix:** one shape each — e.g. `engine` always an object (the description as `engine.model` / documentation), `timeOfDay` always hours, rocket anomalies under their own key. One field at a time; the schema then drops the second shape. **Done when:** none of the three needs an `anyOf` in `core/schema/`.
+**Fix:** one shape each — e.g. `engine` always an object (the description as `engine.model` / documentation), `timeOfDay` always hours, rocket anomalies under their own key. One field at a time; the schema then drops the second shape. **Done when:** none of them needs an `anyOf` in `core/schema/`.
 
 ### Name comparisons still spelled out by hand (data-contract stage 3b)
 *Noted 2026-10-13 · `core/vocab.js`; comparisons in `core/`, `display/`, `index.html`*
@@ -752,10 +752,10 @@ To draw the terrain from the camera, `outside.js` saves the aircraft pose, write
 
 The scenario-setup presets are manual weather with `clouds` and `dewp`, and since 2026-10-15 a preset at a station becomes `S.metar`, so the ATIS reads its clouds. The schema's `weatherManual` has neither field (`visib` is listed as *planned*, with the note "no ATIS for manual weather"). Presets are applied after the schema check, so nothing fails today — but a mission file that authors manual clouds would be rejected. **Fix:** give `weatherManual` the METAR fields the code reads (`dewp`, `visib`, `clouds`), i.e. the same shape as `weatherFallback`; update the note. **Done when:** the setup presets pass the mission schema (a check in `tests/briefing.test.mjs`). Goes with *The cloud layer is never drawn*.
 
-### 737 MAX 9 names the wrong engine
-*Found 2026-10-18 · `aircraft/b737max9.json`*
+### An-225 and DC-8 are turbofans but fly the non-turbofan path
+*Found 2026-10-18 · `aircraft/an225.json`, `aircraft/dc8.json`*
 
-`engine.model` is `"cfm56-7"`; the 737 MAX has the CFM LEAP-1B, and the data-driven build measured a LEAP-1B nacelle. Documentation only today, but `engine.model` will select engine-type parameters in the multi-engine work (*One engine per aircraft*). **Fix:** `"leap-1b"`. **Done when:** the field names the LEAP-1B.
+Both have turbofans (D-18T; JT3D/CFM56 depending on the DC-8 variant), but their `engine` has no `type`: `"turbofan"` switches on the N1 spool, A/THR thrust, electrical, hydraulics and the turbofan sound, so setting it would change how they fly. They use the prop path today (`spdT` as the throttle). The DC-8 is also the kinematic stub (no `manualControl`). **Fix:** when each one is checked in flight on the turbofan path (thrust levers, `thrustProfiles`, `idleN1`), set `type: "turbofan"`. **Done when:** both declare `type: "turbofan"` and fly their missions as before or better.
 
 ### Stale docs
 `docs/architecture.md` was rewritten bottom-up on 2026-10-11 (§1–14). `docs/panel-system.md` was updated 2026-10-11. `docs/url-routing.md` (formerly `navigation.md` — it covers browser URLs and history, not aircraft navigation; renamed 2026-10-11) hasn't been checked against the code yet.

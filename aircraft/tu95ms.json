@@ -10,7 +10,7 @@
   "icaoType": "TU95",
   "landSurfaces": ["runway"],
   "era": "Cold War · 1956",
-  "engine": "Kuznetsov NK-12MV × 4 · Contra-rotating turboprop · 44740kW",
+  "engine": { "type": "turboprop", "count": 4, "model": "nk-12mv", "description": "Kuznetsov NK-12MV × 4 · Contra-rotating turboprop · 44740kW" },
 
   "manualControl": true,
   "crewLang": "ru-RU",

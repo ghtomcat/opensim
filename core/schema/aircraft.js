@@ -10,20 +10,17 @@
    "Aircraft geometry is derived when authored").
    ═══════════════════════════════════════════════════════════════ */
 
-import { str, num, bool, open, oneOf, arrayOf, mapOf, anyOf, object } from './check.js';
+import { str, num, bool, open, oneOf, arrayOf, mapOf, object } from './check.js';
 import { com } from './mission.js';
-import { ENGINE, PANEL, VEHICLE, valuesOf } from '../vocab.js';
+import { ENGINE, ENGINE_TYPE, PANEL, VEHICLE, valuesOf } from '../vocab.js';
 
 const GLASS_JET = [PANEL.AIRBUS, PANEL.E190];   // panels that drive the turbofan A/THR + N1 system
 
 /* ── Engine, thrust, envelope ── */
-const engine = anyOf(
-  str,   // a description ("Lycoming IO-360, 180hp") — the sim reads nothing from it
-  object(
-    { type: oneOf('turbofan'), count: num, idleN1: num, thrustReverser: bool,
-      chevrons: bool, nacellePaint: arrayOf(num) },   // last two: 3D model
-    { doc: { model: str } },
-  ),
+const engine = object(
+  { type: oneOf(...valuesOf(ENGINE_TYPE)), count: num, idleN1: num, thrustReverser: bool,
+    chevrons: bool, nacellePaint: arrayOf(num) },   // last two: 3D model
+  { doc: { model: str, description: str }, required: ['count'] },
 );
 const envelope = object(
   { cruiseAlt: num, cruiseSpd: num, maxSpd: num, spdProfile: mapOf(num) },
@@ -132,8 +129,10 @@ export const aircraft = object(
       if (!a.id.length) errs.push('empty "id"');
       if (a.envelope?.maxSpd !== undefined && !(a.envelope.maxSpd > 0)) errs.push('envelope.maxSpd must be > 0');
       const turbofan = a.engine?.type === 'turbofan';
-      /* a declared turbofan needs a usable engine count and a sane idle */
-      if (turbofan && !(Number.isInteger(a.engine.count) && a.engine.count >= 1)) errs.push('turbofan needs an integer engine.count >= 1');
+      /* every winged aircraft declares its engines (rockets and robots have their own models) */
+      if (a.vehicleType === undefined && !a.engine) errs.push('an aircraft needs an engine block');
+      if (a.engine && !(Number.isInteger(a.engine.count) && a.engine.count >= 1)) errs.push('engine.count must be an integer >= 1');
+      /* a declared turbofan needs a sane idle */
       if (turbofan && a.engine.idleN1 !== undefined && !(a.engine.idleN1 >= 0 && a.engine.idleN1 <= 100)) errs.push('engine.idleN1 out of range 0…100');
       /* the A/THR detents read thrustProfiles: spdT >= 0 and a positive maximum (the lever denominator) */
       if (a.thrustProfiles) {

@@ -168,7 +168,7 @@
   },
   "engine": {
     "type": "turbofan",
-    "model": "cfm56-7",
+    "model": "leap-1b",
     "count": 2,
     "chevrons": false,
     "thrustReverser": true

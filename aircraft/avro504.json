@@ -10,7 +10,7 @@
   "landSurfaces": ["runway", "grass"],
   "gearRuggedness": 0.7,
   "era": "WWI / 1918",
-  "engine": "Le Rhône 9J rotary, 110hp",
+  "engine": { "type": "piston", "count": 1, "model": "le-rhone-9j", "description": "Le Rhône 9J rotary, 110hp" },
 
   "envelope": {
     "cruiseAlt":  5000,

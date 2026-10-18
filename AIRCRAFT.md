@@ -133,13 +133,17 @@ The array maps to color slots `0–9` in `display/outside.js`. `null` keeps the 
 
 ---
 
-## Engine (AP / turbofan aircraft)
+## Engine (every aircraft)
 
-Used by the outside renderer for nacelle geometry and sound.
+One object on every winged aircraft. Rockets and robots have none.
 
 ```json
 "engine": {
+  "type": "turbofan",
+  "count": 2,
   "model": "trent-xwb",
+  "description": "Rolls-Royce Trent XWB-84",
+  "idleN1": 22,
   "chevrons": true,
   "thrustReverser": true
 }
@@ -147,9 +151,13 @@ Used by the outside renderer for nacelle geometry and sound.
 
 | Field | Description |
 |---|---|
-| `model` | Engine label shown in briefing card. No functional effect. |
+| `type` | `turbofan` (switches on the N1 spool, A/THR, electrical, hydraulics), `turboprop`, `turbojet`, `piston`, `electric`. Only `turbofan` selects code today. |
+| `count` | Number of engines. **Required.** Sizes the pedestal levers, overhead, ECAM. |
+| `model` | Engine id (`io-360`, `trent-xwb`). Documentation for now. |
+| `description` | Human-readable description. Documentation. |
+| `idleN1` | Turbofan idle N1 (%). |
 | `chevrons` | Draws chevron serrations on the nozzle. |
-| `thrustReverser` | Enables TR cascade overlay on landing. |
+| `thrustReverser` | Enables the thrust reverser (and its cascade overlay on landing). |
 
 ---
 

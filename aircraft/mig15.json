@@ -5,6 +5,7 @@
   "render": "mig15",
   "gear": { "tires": [[1, 0.00126], [3, 0.00147], [5, 0.00147]] },
   "name": "MiG-15 'Fagot'",
+  "engine": { "type": "turbojet", "count": 1, "model": "vk-1", "description": "Klimov VK-1, centrifugal-flow turbojet" },
   "manufacturer": "mikoyan-gurevich",
   "family": "mig-15",
   "model": "mig-15",

@@ -6,6 +6,7 @@
   "render": "bf109",
   "gear": { "fixed": true, "tires": [[1, 0.000171], [3, 0.000171], [5, 0.000081]] },
   "name": "Messerschmitt Bf 109 E-4",
+  "engine": { "type": "piston", "count": 1, "model": "db-601a", "description": "Daimler-Benz DB 601 A, inverted V12, supercharged" },
   "manufacturer": "messerschmitt",
   "family": "bf-109",
   "model": "bf-109e-4",

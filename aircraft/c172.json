@@ -22,7 +22,7 @@
   "nose":     { "tipX":  0.00351 },
   "geometry": { "tailX": -0.00351 },
   "era": "VFR / PPL(A)",
-  "engine": "Lycoming IO-360, 180hp",
+  "engine": { "type": "piston", "count": 1, "model": "io-360", "description": "Lycoming IO-360, 180hp" },
   "envelope": {
     "cruiseAlt": 8000,
     "maxAlt": 14000,

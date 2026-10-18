@@ -70,6 +70,11 @@ export const ENGINE = namesFrom([
   'nk12-turboprop', 'v12-supercharged', 'radial-2000hp', 'electric', 'none',
 ]);
 
+/** aircraft.engine.type — the kind of engine. Only 'turbofan' selects code today (N1 spool, A/THR,
+    electrical, hydraulics); the others describe the engine for the engine model (issues.md:
+    "One engine per aircraft"). Absent on the An-225 and the DC-8 (see issues.md). */
+export const ENGINE_TYPE = namesFrom(['turbofan', 'turboprop', 'turbojet', 'piston', 'electric']);
+
 /* ── Mission script ── */
 
 /** atcClearances[].trigger.type — evaluated in core/crew.js */

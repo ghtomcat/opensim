@@ -103,6 +103,18 @@ test('comment keys (_note) are allowed anywhere', () => {
   assert.deepEqual(errs, []);
 });
 test('glass jets still need a turbofan (rule from the old aircraft-data lint)', () => {
-  const errs = errorsAfter('aircraft/a350.json', aircraft, a => { a.engine = 'two Rolls-Royce Trent XWB'; });
+  const errs = errorsAfter('aircraft/a350.json', aircraft, a => { delete a.engine.type; });
   assert.ok(errs.some(e => e.includes('needs engine.type "turbofan"')), errs.join('\n'));
+});
+test('engine is an object — the old description string fails', () => {
+  const errs = errorsAfter('aircraft/c172.json', aircraft, a => { a.engine = 'Lycoming IO-360, 180hp'; });
+  assert.ok(errs.some(e => e.startsWith('engine:')), errs.join('\n'));
+});
+test('every winged aircraft declares its engines, with an integer count', () => {
+  const none = errorsAfter('aircraft/bf109.json', aircraft, a => { delete a.engine; });
+  assert.ok(none.some(e => e.endsWith('an aircraft needs an engine block')), none.join('\n'));
+  const half = errorsAfter('aircraft/a340.json', aircraft, a => { a.engine.count = 2.5; });
+  assert.ok(half.some(e => e.endsWith('engine.count must be an integer >= 1')), half.join('\n'));
+  const kind = errorsAfter('aircraft/c172.json', aircraft, a => { a.engine.type = 'diesel'; });
+  assert.ok(kind.some(e => e.startsWith('engine.type: "diesel" is not one of')), kind.join('\n'));
 });

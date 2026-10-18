@@ -282,7 +282,7 @@ that simulates and draws it. Read these first when opening an unfamiliar aircraf
 | `views` | Which cockpit zones exist and which keys toggle them | `overhead`, `left`, `center`, `right`, `pedestal` | `index.html`, `display/*console.js`, `overhead.js`, `pedestal.js` |
 | `render` | 3D outside model builder, when not the generic airliner builder | `bf109`, `f4u`, `mig15`, `propplane` (C172), `c172` (DR400), `falcon1`, `falcon9`, `saturn-v`, `starship` | `display/outside.js` |
 | `sound.engineType` | Engine sound synthesizer | `v12-supercharged`, `radial-2000hp`, `lycoming-o360`, `rotary-9`, `turbojet-vk1`, `nk12-turboprop`, `high-bypass`, `geared-turbofan` (default when absent), `electric`, `none` | `index.html` → `core/sound.js` |
-| `engine.type` | Turbofan systems (N1 spool, start sequence, reversers, ECAM) | `"turbofan"`; on other aircraft `engine` is a descriptive **string** | `core/physics.js`, `thrust.js`, `sound.js`, `electrical.js`, `mission.js`, displays |
+| `engine.type` | Turbofan systems (N1 spool, start sequence, reversers, ECAM) | `"turbofan"` selects code; `turboprop`, `turbojet`, `piston`, `electric` only describe the engine for now (`ENGINE_TYPE` in `core/vocab.js`); absent on the An-225 and DC-8 | `core/physics.js`, `thrust.js`, `sound.js`, `electrical.js`, `mission.js`, displays |
 | `manufacturer`, `family` | Config cascade layers (§3.3) | `airbus`, `boeing`, `embraer` have layer files | `core/aircraft-config.js` |
 
 ### 3.2 Field groups and their consumers
@@ -357,9 +357,9 @@ pending.
 
 - **Not read by any code:** `model`, `era`, `landSurfaces`, `ambient`, `gearRuggedness`,
   `raCallouts`, `crewCallouts`, `externalSensor`, `_status`.
-- **`engine` has two shapes:** an object (`{type: "turbofan", model, count, …}`) on the
-  jets, a descriptive string (`"Lycoming IO-360, 180hp"`) on the others. Code checks
-  `engine?.type`, which is `undefined` on a string.
+- **`engine` is one object on every aircraft:** `{type, count, model, description, …}`.
+  `count` is required; `model` and `description` are documentation. Rockets and robots
+  have no `engine` (their engines live in `performance.stages`).
 - **`panel` is shared across manufacturers:** the Boeings use `"airbus"` (the shared
   glass renderer), and the MiG-15 uses `"bf109"`.
 
