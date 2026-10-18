@@ -87,6 +87,7 @@
     "type": "turbofan",
     "model": "pw1500g",
     "count": 2,
+    "startTime": 54.68,
     "chevrons": true,
     "thrustReverser": true,
     "nacellePaint": [164, 210, 0]

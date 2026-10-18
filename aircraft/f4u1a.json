@@ -14,7 +14,7 @@
   "gear": { "fixed": true, "tires": [[1, 0.000273], [3, 0.000273], [5, 0.000141]] },
   "panel": "f4u",
   "name": "Vought F4U-1A Corsair",
-  "engine": { "type": "piston", "count": 1, "model": "r-2800-8", "description": "Pratt & Whitney R-2800-8 Double Wasp, 18-cylinder radial" },
+  "engine": { "type": "piston", "count": 1, "model": "r-2800-8", "description": "Pratt & Whitney R-2800-8 Double Wasp, 18-cylinder radial", "startTime": 71.16, "stopTime": 5.5 },
   "manufacturer": "vought",
   "family": "f4u-corsair",
   "model": "f4u-1a",

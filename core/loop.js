@@ -14,6 +14,7 @@ import { tickGamepad, tickControls } from './input.js';
 import { tickFailures }              from './failures.js';
 import { tickFuel }                  from './fuel.js';
 import { tickBattery }               from './battery.js';
+import { tickEngine }                from './engine.js';
 import { tickElectrical }           from './electrical.js';
 import { tickHydraulics }          from './hydraulics.js';
 import { tickTelemetry }            from './telemetry.js';
@@ -86,6 +87,7 @@ export function tickSim(dt) {
   tickFailures(warpDt);
   tickFuel(dt);
   tickBattery(dt);
+  tickEngine(dt);    // start / shutdown lifecycle on sim time (after the fuel and battery checks)
   tickElectrical(dt);
   tickHydraulics(dt);
   tickElevation();   // DEM under the aircraft → S.terrainElevFt (CFIT, GPWS)

@@ -18,7 +18,6 @@
 import { S, setState }               from '../core/state.js';
 import { getCOMState, comTransfer }  from './com.js';
 import { updateVelisMapOverlay }     from './map.js';
-import { startSound, stopSound }     from '../core/sound.js';
 
 /* ── Palette ── */
 const P = {
@@ -44,20 +43,6 @@ const _r   = d => (d - 90) * Math.PI / 180;
 
 /* ── Hit regions for click handling — rebuilt each frame ── */
 let _hitRegions = [];
-
-/* Motor state follows switches: MASTER + BATT EN + PWR EN → running */
-function _updateElectricEngine() {
-  const sw = S.switches;
-  const motorReady = sw.master && sw.battEn && sw.pwrEn;
-  const running    = S.engineState === 'running';
-  if (motorReady && !running) {
-    setState({ engineState: 'running', enginePower: 1.0 });
-    startSound('electric');
-  } else if (!motorReady && running) {
-    setState({ engineState: 'off', enginePower: 0 });
-    stopSound();
-  }
-}
 
 /* ════════════════════════════════════════════════════════════
    MAIN ENTRY
@@ -408,21 +393,21 @@ function _drawMasterSwitches(ctx, x0, y0, w, h, sc) {
   const keyY = sy + keyR * 1.60;
   _velisKey(ctx, cpx, keyY, keyR, sw.master);
   reg(cpx, sy, keyR * 3.4, keyR * 3.6,
-    () => { S.switches.master = !S.switches.master; _updateElectricEngine(); });
+    () => { S.switches.master = !S.switches.master });
   sy = keyY + keyR * 2.15 + h * 0.010;
 
   /* ── POWER: BATT EN + PWR EN ── */
   secLabel('POWER', sy); sy += h * 0.032;
   _velisToggle(ctx, cx1, sy, swW, swH, sw.battEn, 'BATT EN');
-  reg(cx1, sy, swW, swH, () => { S.switches.battEn = !S.switches.battEn; _updateElectricEngine(); });
+  reg(cx1, sy, swW, swH, () => { S.switches.battEn = !S.switches.battEn });
   _velisToggle(ctx, cx2, sy, swW, swH, sw.pwrEn,  'PWR EN');
-  reg(cx2, sy, swW, swH, () => { S.switches.pwrEn  = !S.switches.pwrEn;  _updateElectricEngine(); });
+  reg(cx2, sy, swW, swH, () => { S.switches.pwrEn  = !S.switches.pwrEn;  });
   sy += swH + h * 0.010;
 
   /* ── AVIONICS ── */
   secLabel('AVIONICS', sy); sy += h * 0.032;
   _velisToggle(ctx, cpx, sy, swW, swH, sw.avionics, 'AVNCS');
-  reg(cpx, sy, swW, swH, () => { S.switches.avionics = !S.switches.avionics; _updateElectricEngine(); });
+  reg(cpx, sy, swW, swH, () => { S.switches.avionics = !S.switches.avionics; });
 }
 
 /* Key rotary switch — MASTER only (OFF / RUN) */

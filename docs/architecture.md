@@ -98,6 +98,7 @@ not draw. Grouped by role:
 | State & loop | `state.js` (single source of truth `S` + `setState`), `loop.js` (requestAnimationFrame loop; `tickSim(dt)`, the one simulation step), `lifecycle.js` (mission reset registry), `random.js` (simulation random numbers, seeded in test mode), `mission.js` / `mission-start.js` (load JSON, set initial state, weather), `catalog.js` (mission list) |
 | World | `elevation.js` (Mapbox Terrain-RGB DEM: one tile cache, `elevM(lat, lon)`, and `tickElevation()` → `S.terrainElevFt`) |
 | Data contract | `vocab.js` (the names data and code share — vehicle types, panels, engine sounds, triggers, rocket events, failures, comm profiles; a misspelled name throws), `schema/` (`check.js` validator; `mission.js`, `catalog.js`, `aircraft.js` schemas; `known.js`: logged violations) |
+| Engine | `engine.js` (start and shutdown lifecycle — the owner of `engineState`) |
 | Physics | `physics.js` (fixed-wing), `rocket.js` (launch, staging, orbit, booster recovery), `thrust.js`, `pushback.js` |
 | Aircraft systems | `fuel.js`, `electrical.js`, `battery.js`, `hydraulics.js`, `baro.js`, `failures.js`, `aircraft-config.js` |
 | Navigation & automation | `route.js` (full route: SID/airways/STAR/approach), `lnav.js`, `vnav.js`, `managed-speed.js`, `fma.js`, `airway-graph.js`, `taxi-graph.js`, `taxi.js` (the active taxi route + clearance), `flightplan.js` (the active flight plan) |
@@ -516,7 +517,7 @@ dt = time since last frame, capped at 0.1 s
 2. simulation   tickSim(dt) — skipped while S.paused, and always in test mode
      tickControls(dt)                held keys; roll/steer spring back when released
      tickFailures(warpDt)
-     tickFuel(dt), tickBattery(dt), tickElectrical(dt), tickHydraulics(dt)
+     tickFuel(dt), tickBattery(dt), tickEngine(dt), tickElectrical(dt), tickHydraulics(dt)
      vehicle physics, chosen per frame (§3.1):
         rocket      → tickRocket + tickBooster   (time warp, fixed steps; see below)
         robot-arm   → nothing (kinematics live in the display)
@@ -789,7 +790,8 @@ aircraft that declare the matching data.
 | `core/battery.js` | aircraft with `battery` (Velis Electro) | `batteryCharge` (%) | drain ∝ `enginePower` (`powerDrawKw`, `capacityKwh`); empty → `enginePower` 0 |
 | `core/electrical.js` | turbofans | APU state machine; generators, AC/DC/essential buses, bus tie, ext power, `bat1..3Charge` | **display only** (ECAM, overhead, pedestal) |
 | `core/hydraulics.js` | turbofans | GREEN / BLUE / YELLOW pressure, engine-driven and electric pumps | **display only** (ECAM, PFD) |
-| `core/failures.js` | all (by mission) | scripted failures (§2.5); carb ice (`carbIceLevel`); coolant leak → seize | sets `enginePower` / `engineState` |
+| `core/engine.js` | every aircraft with an `engine` | `engineState`, `engineStartT`, `engineStopT` | the start and shutdown lifecycle on sim time (§9.2) |
+| `core/failures.js` | all (by mission) | scripted failures (§2.5); carb ice (`carbIceLevel`); coolant leak → seize | sets `enginePower`; a seized engine stops (`engineQuit()`) |
 | cooling (in `core/physics.js`) | aircraft with `cooling` | `coolantTemp`, `oilTempC` | heat balance (§7.1); `failures.js` seizes the engine at `cooling.critical` |
 
 Light-aircraft switches (`masterBat`, `masterAlt`, `avionicsOn`, `magnetos`, `lights`;
@@ -802,8 +804,9 @@ The engine is represented by **single values**, whatever `engine.count` says:
 
 | Field | Meaning | Written by |
 |---|---|---|
-| `engineState` | `off` → `starting` → `running` (→ `shutdown`) | `core/sound.js` (start-up lifecycle, 11 writes), `physics.js` (turbofan spool), `fuel.js`, `failures.js`, `mission.js`, Velis panel |
-| `enginePower` | 0–1 power available (scales thrust) | `failures.js` (ramps, carb ice, seize), `fuel.js`, `battery.js`, `sound.js`, `mission.js`, crash |
+| `engineState` | `off` → `starting` → `running` (→ `shutdown`) | `core/engine.js` only (the initial value through `initialEngine()` in `mission.js`'s load `setState`) |
+| `engineStartT` / `engineStopT` | s of sim time since the start / the shutdown began | `core/engine.js` |
+| `enginePower` | 0–1 power available (scales thrust) | `failures.js` (ramps, carb ice, seize), `fuel.js`, `battery.js`, `engine.js` (start), `mission.js`, crash |
 | `n1` | turbofan fan speed % | `physics.js` |
 
 Consequences:
@@ -814,12 +817,21 @@ Consequences:
 - **`enginePower` has many writers and no composition.** Each writer sets an absolute
   value. Carb ice, for example, sets `1 − 0.7·ice` every frame while active, which
   overwrites a failure ramp. The last writer in the frame wins.
-- **Engine start completes when the sound finishes.** `startEngineLifecycle()` in
-  `core/sound.js` plays the start-up recording and sets `engineState: 'running'` in the
-  audio buffer's `onended` callback. For impulse engines it also requires the
-  AudioWorklet; without it the engine goes back to `off`. For turbofans,
-  `physics.js` also moves `starting → running` when N1 reaches idle, so there are two
-  paths.
+
+**The lifecycle (`core/engine.js`).** One owner, on sim time, so it pauses with the sim
+and steps with `simStep`, and needs no audio:
+
+| Call | From | Effect |
+|---|---|---|
+| `startEngine()` | `E`, magnetos START, ENG MASTER | `off` → `starting` (turbofan: also from `shutdown`; not with the fuel shutoff closed or a seized engine) |
+| `tickEngine(dt)` | the frame loop | `starting` → `running` after `engine.startTime` s (turbofan: or once N1 reaches idle); `shutdown` → `off` after `engine.stopTime` s (turbofan: once N1 < 0.5 %); the electric motor follows MASTER + BATT EN + PWR EN |
+| `stopEngine()` | `Q`, magnetos OFF, ENG MASTER off, fire handle | → `shutdown` |
+| `engineQuit()` | fuel starvation, a seized engine | → `off` at once |
+
+`engine.startTime` is the length of the start-up recording `sound.js` plays for the
+engine (`tests/engine.test.mjs` keeps them equal); an engine without one has no start
+sequence and just runs. `sound.js` follows the state: the recording on `starting`, the
+hand-off to the running engine sound on `running`, the run-down on `shutdown`.
 
 ### 9.3 Observations
 
@@ -1001,7 +1013,7 @@ Procedural synthesis. Nothing is a looped recording except the start-up sequence
 |---|---|---|
 | Oscillator engines | `geared-turbofan` (default), `high-bypass`, `low-bypass-military`, `turbojet-vk1`, `nk12-turboprop` | sawtooth harmonics + filtered noise, pitch follows RPM/N1 |
 | Impulse engines | `v12-supercharged` (DB 605), `radial-2000hp` (R-2800), `lycoming-o360`, `rotary-9` (Le Rhône) | AudioWorklet cylinder-firing synthesis (`*-processor.js`), one per engine family |
-| Start-up / shut-down | turbofan (CFM56), DB 605, R-2800, Lycoming, VK-1 | assembled buffers played once; **they drive `engineState`** (§9.2) |
+| Start-up / shut-down | turbofan (CFM56), DB 605, R-2800, Lycoming, VK-1 | assembled buffers played once, **following** `engineState` (§9.2) |
 | Effects | — | engine bang, gunfire, coolant hiss, AP-disconnect chime, APU, fuel pump, GPWS whoop |
 
 `tickSound()` runs in the renderer list (§6.3) and maps RPM/N1, throttle and state
@@ -1015,8 +1027,10 @@ long-running sources by name, tells the engine worklets to stop, and disconnects
 gain, so a transmission or callout playing during an engine (re)start keeps playing.
 `getAudioContext()` in `sound.js` returns the context only while sound is on (`null`
 after `stopSound()`), and the crew's GPWS, PTT click and radio atmosphere stay silent
-then. A context created before any user gesture starts suspended; `core/audio.js`
-resumes it on the next key or click.
+then. Browsers only let a context run when it's created or resumed inside a user
+gesture, and the engine sound starts a frame after the key press (it follows
+`engineState`), so `core/audio.js` creates or resumes the context in the capture phase
+of every key and click.
 
 ### 11.4 Observations
 
@@ -1211,8 +1225,8 @@ the EGPWS read (§7.4).
 
 - **`renderTerrain()` is one function of about 2,840 lines** (`terrain.js` lines
   653–~3,490), drawing every layer in 13.4 and sharing local state across them.
-- **Display modules do simulation work:** the Velis motor's engine state
-  (`velis_epsi.js`, §9.2), and the camera pose written into `S` (`outside.js`, §6.5).
+- **Display modules do simulation work:** the camera pose written into `S`
+  (`outside.js`, §6.5). (The Velis motor's engine state moved to `core/engine.js`, 2026-10-18.)
 - **Prop and warbird geometry is code, not data.** Airliners are data-driven (§3.4),
   but the C172, Bf 109, F4U and MiG-15 are vertex arrays inside JS modules.
 - **Display lag is applied unevenly:** only the glass instruments use `smooth.js`.

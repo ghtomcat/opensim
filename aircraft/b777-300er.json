@@ -329,6 +329,7 @@
     "type": "turbofan",
     "model": "ge90-115b",
     "count": 2,
+    "startTime": 54.68,
     "chevrons": false,
     "thrustReverser": true
   },

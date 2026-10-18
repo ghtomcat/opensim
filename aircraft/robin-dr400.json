@@ -19,7 +19,7 @@
   "nose":     { "tipX":  0.00351 },
   "geometry": { "tailX": -0.00351 },
   "era": "VFR / PPL(A)",
-  "engine": { "type": "piston", "count": 1, "model": "o-320-d2a", "description": "Lycoming O-320-D2A, 160hp" },
+  "engine": { "type": "piston", "count": 1, "model": "o-320-d2a", "description": "Lycoming O-320-D2A, 160hp", "startTime": 2.8, "stopTime": 3.5 },
   "envelope": {
     "cruiseAlt": 8000,
     "maxAlt": 14000,

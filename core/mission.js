@@ -5,6 +5,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState }   from './state.js';
+import { initialEngine }  from './engine.js';
 import { runMissionResets } from './lifecycle.js';
 import { setCrewLang }    from './crew.js';
 import { resolveStart }   from './mission-start.js';
@@ -57,13 +58,9 @@ export async function loadMission(missionPath, aircraftPath, setup = null) {
   const startCoolantTemp = startAirborne ? (aircraft.cooling?.normal?.[0] ?? 85)
                                          : (aircraft.cooling?.ambient ?? 15);
 
-  /* Engine state: piston/electric ground starts begin 'off' (manual startup via E key).
-     Turbofan ground starts also begin 'off' — crew must run through start sequence.
-     All airborne starts (cruise/approach missions) begin 'running'. */
-  const hasColdStart =
-    ['v12-supercharged', 'radial-2000hp', 'lycoming-o360', 'electric', 'turbojet-vk1'].includes(aircraft.sound?.engineType) ||
-    (aircraft.engine?.type === 'turbofan' && startOnGround);
-  const startEngineState = (startOnGround && hasColdStart) ? 'off' : 'running';
+  /* Engine: cold on the ground for engines with a start sequence, running otherwise
+     (the rules live with the engine owner, core/engine.js) */
+  const _engine = initialEngine(aircraft, { onGround: startOnGround, spd });
 
   /* Barometric altimeter init — set the subscale to the field QNH (live METAR or mission
      weather), and start on STD above the transition altitude. altT is held in INDICATED
@@ -73,15 +70,6 @@ export async function loadMission(missionPath, aircraftPath, setup = null) {
   const _baroSet  = _qnhField;
   const _subscale = _baroStd ? 1013.25 : _baroSet;
   const _altInd   = Math.round(((alt ?? 0) + (_subscale - _qnhField) * 27.3) / 100) * 100;   // FCU step
-
-  /* Initial N1 for turbofan — set to match cruise throttle when airborne, 0 when off */
-  const initN1 = (() => {
-    if (aircraft.engine?.type !== 'turbofan') return 0;
-    if (startEngineState === 'off') return 0;
-    const IDLE_N1 = aircraft.engine?.idleN1 ?? 22;
-    const spdNorm = Math.min(1, Math.max(0, spd / (aircraft.envelope?.maxSpd ?? 340)));
-    return IDLE_N1 + (100 - IDLE_N1) * spdNorm;
-  })();
 
   setState({
     aircraft,
@@ -118,9 +106,7 @@ export async function loadMission(missionPath, aircraftPath, setup = null) {
     wow:   startOnGround,
     parkBrake: startOnGround,   // parked on the ground → brake set; airborne → released
     trim:  0,
-    enginePower: startEngineState === 'off' ? 0 : 1.0,
-    engineState: startEngineState,
-    n1:          initN1,
+    ..._engine,                   // engineState, enginePower, n1, engineStartT/StopT (core/engine.js)
     oilTempC:    startOilTempC,
     coolFlap:    1,
     coolantTemp: startCoolantTemp,

@@ -34,11 +34,19 @@ export function loadWorklet(url) {
   return _worklets.get(url);
 }
 
-/* A context created before any user gesture starts suspended (browser autoplay rule).
-   It used to be replaced on every engine start; now it lives on, so resume it on the
-   next key or click instead. */
+/* Browsers only let a context run when it is created or resumed inside a user gesture
+   (autoplay rule; Safari is strict about it). Sounds start a frame after the key press
+   that caused them — the engine sound follows S.engineState in tickSound() — so the
+   context is created (or resumed) here, in the capture phase of every key and click,
+   before any handler runs. A context created outside a gesture would stay suspended
+   until some later sound happened to resume it. */
 if (typeof document !== 'undefined') {
-  const _resume = () => { if (_ctx?.state === 'suspended') _ctx.resume().catch(() => {}); };
-  document.addEventListener('keydown',     _resume, { capture: true });
-  document.addEventListener('pointerdown', _resume, { capture: true });
+  const _wake = () => {
+    try {
+      const ctx = audioContext();
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    } catch {}   // no Web Audio in this browser — the sim runs silent
+  };
+  document.addEventListener('keydown',     _wake, { capture: true });
+  document.addEventListener('pointerdown', _wake, { capture: true });
 }

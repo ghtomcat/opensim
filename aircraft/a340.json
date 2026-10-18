@@ -146,6 +146,7 @@
     "type": "turbofan",
     "model": "cfm56-5c4",
     "count": 4,
+    "startTime": 54.68,
     "idleN1": 23,
     "chevrons": false,
     "thrustReverser": true,

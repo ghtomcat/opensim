@@ -11,7 +11,7 @@
 
 import { S, setState } from './state.js';
 import { bbEvent } from './blackbox.js';
-import { stopEngineLifecycle } from './sound.js';
+import { engineQuit } from './engine.js';
 import { onMissionReset } from './lifecycle.js';
 
 /* Default fuel burn rates litres/hour at full power */
@@ -122,8 +122,8 @@ function _starveRunDown(dt, kind) {
   if ((S.enginePower ?? 0) <= 0.05) { _clearStarve(); return; }   // already stopped
   const t = (S.fuelStarveT ?? STARVE_RUNDOWN_S) - dt;
   if (t <= 0) {
-    setState({ enginePower: 0, engineState: 'off', fuelStarveT: null });
-    stopEngineLifecycle();                                         // same as engine shutdown
+    setState({ enginePower: 0, fuelStarveT: null });
+    engineQuit();                                                  // the engine stops (restartable)
     if (S.emergLog) S.emergLog.push({ t: S.time, type: 'failure', failureType: 'fuel_starvation', value: 0 });
     bbEvent({ type: kind, selector: S.fuelSelector ?? null, shutoff: !!S.fuelShutoff });
   } else {

@@ -1950,7 +1950,8 @@
   import { initLeftConsole, toggleLeftConsole, renderLeftConsole } from './display/leftconsole.js';
   import { initRightConsole, renderRightConsole } from './display/rightconsole.js';
   import { initCenterConsole, toggleCenter, renderCenterConsole } from './display/centerconsole.js';
-  import { initSound, startSound, stopSound, startEngineLifecycle, stopEngineLifecycle, switchEngine, tickSound, getCurrentRpm, silenceAll, apDisconnectChime } from './core/sound.js';
+  import { initSound, startSound, stopSound, switchEngine, tickSound, getCurrentRpm, silenceAll, apDisconnectChime } from './core/sound.js';
+  import { startEngine, stopEngine } from './core/engine.js';
   import { audioContext } from './core/audio.js';
   import { initOutside, tickOutside, outsideInvalidate, setOutsideCamMode } from './display/outside.js?v=6';
   import { initKneeboard, toggleKneeboard, closeKneeboard, tickKneeboard } from './display/kneeboard.js';
@@ -3690,14 +3691,14 @@
       if ((e.key === 'e' || e.key === 'E') && _hasLifecycle) {
         bbEvent({ type: 'engine_start_commanded', engineState: S.engineState });
         if (S.aircraft?.panel === 'g1000') setState({ magnetos: 'START' });
-        startEngineLifecycle();
+        startEngine();
         return;
       }
 
       /* Q — engine cut-off: fuel cutoff on turbofan, mixture/Kraftstoffhahn on piston */
       if ((e.key === 'q' || e.key === 'Q') && (_isV12 || _isRadial || _isTurbofan || _isVK1)) {
         bbEvent({ type: 'engine_cutoff', method: 'mixture' });
-        stopEngineLifecycle();
+        stopEngine();
         return;
       }
 

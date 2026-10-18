@@ -10,7 +10,8 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from './state.js';
-import { engineBang, engineGunfire, coolantHiss, stopEngineLifecycle } from './sound.js';
+import { engineBang, engineGunfire, coolantHiss } from './sound.js';
+import { engineQuit } from './engine.js';
 import { bbEvent } from './blackbox.js';
 import { onMissionReset } from './lifecycle.js';
 import { FAILURE, FAILURE_TRIGGER, assertCovers, warnUnknown } from './vocab.js';
@@ -100,8 +101,8 @@ export function tickFailures(dt) {
   if (S.coolantState === 'seizing') {
     const power = Math.max(0, (S.enginePower ?? 1) - (dt / 25));   // seizes over ~25s
     if (power <= 0) {
-      setState({ enginePower: 0, coolantState: 'failed', engineState: 'off' });
-      stopEngineLifecycle();   // engine seized — kill the run loop (RPM falls to 0)
+      setState({ enginePower: 0, coolantState: 'failed' });
+      engineQuit();            // engine seized — it stops, and won't restart (coolantState 'failed')
     } else {
       setState({ enginePower: power });
     }

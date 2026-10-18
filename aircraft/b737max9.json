@@ -170,6 +170,7 @@
     "type": "turbofan",
     "model": "leap-1b",
     "count": 2,
+    "startTime": 54.68,
     "chevrons": false,
     "thrustReverser": true
   },

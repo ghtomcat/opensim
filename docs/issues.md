@@ -301,22 +301,6 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 
 **Done when.** The `lsgg-takeoff` route uses an EDDM STAR and is close to the real-world Geneva → Munich distance (roughly 280–330 nm); a test in `tests/` holds the distance.
 
-### Engine start completes when the start-up sound finishes
-*Found 2026-10-11 · `startEngineLifecycle()` in `core/sound.js`*
-
-**Symptom.** A cold start (E key, magnetos to START, pedestal ENG START) sets `engineState: 'starting'`, plays the start-up recording, and sets `engineState: 'running'` + `enginePower: 1` in the audio buffer's `onended` callback. For the impulse engines (`v12-supercharged`, `radial-2000hp`, `lycoming-o360`) the engine falls back to `'off'` if the AudioWorklet isn't loaded.
-
-**Cause — verified (code), effects not yet seen in the browser.** The engine lifecycle grew inside the sound module (11 `engineState` writes there). The start rules live there too: no start with `coolantState === 'failed'` or the fuel shutoff closed.
-
-**Consequences (inferred).**
-- Without working audio — AudioContext blocked or failing, worklet not loaded, headless tests — a cold-start engine can't start or drops back to off.
-- Start time is the wall-clock length of the recording: pause and time warp don't apply; a test can't step through a start with `simStep`.
-- Turbofans have a second path: `physics.js` moves `starting → running` when N1 reaches idle. Two owners for one transition.
-
-**Fix.** An engine model in `core/` (e.g. `core/engine.js`) owns the lifecycle as a sim-time state machine: start conditions (fuel, magnetos, coolant, battery), start duration per engine type (from the aircraft JSON — matched to the recording lengths), `starting → running`. `sound.js` *follows* `engineState` and plays the matching recording; it no longer writes engine state.
-
-**Done when.** `grep -n "engineState" core/sound.js` finds only reads; a cold start completes in a headless test via `simStep`; with audio muted the engine still starts; pausing during a start pauses the start.
-
 ### One engine per aircraft
 *Found 2026-10-11 · `S.engineState`, `S.enginePower`, `S.n1` (single values)*
 
@@ -324,7 +308,7 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 
 **Why it matters.** Engine-out on a twin can't be simulated: engine failure after V1, single-engine climb, the engine-out departure procedure (EOSID), asymmetric thrust and rudder, single-engine approach and go-around — the core of multi-engine training and of the abnormal-procedures backlog. Also per-engine start sequences, a single engine fire, and generator/pump loss of one engine.
 
-**Design — agreed 2026-10-18.** One owner for the engines, and the three engine issues become one piece of work (this entry, *Engine start completes when the start-up sound finishes* and *`enginePower` has many writers and no composition*). The cockpit side of it is the first instance of *The cockpit builds itself from the aircraft data*.
+**Design — agreed 2026-10-18.** One owner for the engines, and the three engine issues become one piece of work (this entry, *Engine start completes when the start-up sound finishes* — done 2026-10-18 — and *`enginePower` has many writers and no composition*). The cockpit side of it is the first instance of *The cockpit builds itself from the aircraft data*.
 
 *Decisions.*
 - **Owner:** `core/engine.js` is the only writer of `S.engines[]`, sized by `engine.count`; a single-engine aircraft is an array of one. Each entry has a shared core (`state`, `lever`, `reverser`, power factors) plus fields for its engine type. Other modules change an engine only through `engine.js` commands (master, start, cut-off, fire handle).
@@ -360,11 +344,11 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 - **Automation (§10).** The A/THR drives running engines only. What the autopilot does about yaw (fly-by-wire compensation vs. the pilot trimming rudder) is per-type data — check the A350's flight-control laws. Engine-out speeds, drift-down and the EOSID belong to the training stage.
 - **Sound (§11).** `sound.js` follows `S.engines[]` and writes no engine state. One shared AudioContext (`core/audio.js`, done 2026-10-18), so starting ENG 1 doesn't cut ENG 2's start sound. Later, one voice per engine (or per side), panned; `fanGear` sets the fan and turbine tones.
 - **Input and recording (§12).** Rudder in `core/input.js`; `keybindings.md` updated. `E` runs the start sequence, `Q` cuts all engines; single engines are started and stopped from their own controls. Telemetry and the black box record the engine array and log per-engine events.
-- **Display (§13).** Engine controls are derived from the engine entries, generators and pumps from the system layouts; each control is *node + action* and sends a command to its owner instead of writing `S` (see *The cockpit builds itself from the aircraft data*). ECAM ENGINE page (`display/ecam.js`) and the engine widgets in `pfd_instruments.js` read per engine, labelled from `engine.display`; a failed engine is amber. ELEC and HYD pages are drawn from the layouts. The outside view spins each fan and deploys each reverser separately. `velis_epsi.js` stops writing `engineState` and goes through `engine.js`.
+- **Display (§13).** Engine controls are derived from the engine entries, generators and pumps from the system layouts; each control is *node + action* and sends a command to its owner instead of writing `S` (see *The cockpit builds itself from the aircraft data*). ECAM ENGINE page (`display/ecam.js`) and the engine widgets in `pfd_instruments.js` read per engine, labelled from `engine.display`; a failed engine is amber. ELEC and HYD pages are drawn from the layouts. The outside view spins each fan and deploys each reverser separately. `velis_epsi.js` no longer writes `engineState` (done 2026-10-18: the motor follows its switches in `engine.js`).
 - **Shell (§14).** The `E`/`Q` handlers call `engine.js`; `simGetState()` exposes `engines`. Engine-out scoring doesn't go into `index.html` (*`index.html` carries most of the application wiring*).
 
 *Stages.*
-0. **Owner, still one engine.** `core/engine.js`: lifecycle out of `sound.js` and `velis_epsi.js`, the APU lifecycle out of `electrical.js`, power from factors, N1 spool out of `physics.js`. `engine` an object everywhere (done 2026-10-18). One AudioContext (done 2026-10-18). Done when: a cold start completes via `simStep` with audio muted; no module but `engine.js` writes engine or APU state.
+0. **Owner, still one engine.** `core/engine.js`: lifecycle out of `sound.js` and `velis_epsi.js` (done 2026-10-18: sim time, `engine.startTime` / `stopTime`, `sound.js` follows the state), the APU lifecycle out of `electrical.js`, power from factors, N1 spool out of `physics.js`. `engine` an object everywhere (done 2026-10-18). One AudioContext (done 2026-10-18). Done when: a cold start completes via `simStep` with audio muted; no module but `engine.js` writes engine or APU state.
 1. **The array.** `S.engines[]` by `count`, old fields derived from it. Done when: every aircraft flies the same seeded test runs as before.
 2. **Per-engine control and failure, electrical layout as data, no yaw yet.** Masters, levers, fire handles and failures by engine; the full turbofan model (fan/core/EGT/FF); the A350 electrical layout in JSON, read by the simulation, the overhead and the ELEC page; engine controls derived and sending commands. Done when: an A350 loses ENG 1 at V1 (new LSZH departure), climbs on ENG 2 with less climb rate, the ECAM shows ENG 1 failed and GEN 1A/1B offline, and the overhead shows exactly the A350's generators.
 3. **Yaw axis.** A350 engine lateral positions measured into `dimensions`; sideslip, rudder (keys + gamepad), rudder trim, thrust moment. Done when: an engine failure yaws the aircraft toward the dead engine, rudder holds it, and full rudder below V_MC can't.
@@ -485,13 +469,13 @@ Leaflet 1.9.4 (JS + CSS) and Three.js r134 (+ `STLLoader`, `OrbitControls`) load
 ## Sound
 
 ### F4U Corsair starts up with the DB 605 start-up sound
-*Found 2026-10-11 · `core/sound.js`, start-up buffer selection (`const startupBuf = _engineType === 'radial-2800hp'`)*
+*Found 2026-10-11 · `startRecording()` in `core/sound.js` (`case 'radial-2800hp'`)*
 
-The check compares against `'radial-2800hp'`, but the F4U's engine type (and every other check in the code) is `'radial-2000hp'`. It never matches, so the Corsair falls through to `_assembleStartup()`, the DB 605 sequence; `_assembleR2800Startup()` is never called. **Cause — verified (code + history).** `21d56de` (14 Apr, Lycoming start-up) changed `'radial-2000hp'` to `'radial-2800hp'` on that line — most likely a typo. **Fix:** `'radial-2000hp'`. **Done when:** an F4U cold start (E key, `bougainville-1943` or another ground start) plays the R-2800 start-up. One of the hand-spelled comparisons in *Name comparisons still spelled out by hand*.
+The check compares against `'radial-2800hp'`, but the F4U's engine type (and every other check in the code) is `'radial-2000hp'`. It never matches, so the Corsair falls through to `_assembleStartup()`, the DB 605 sequence; `_assembleR2800Startup()` is never called. **Cause — verified (code + history).** `21d56de` (14 Apr, Lycoming start-up) changed `'radial-2000hp'` to `'radial-2800hp'` on that line — most likely a typo. **Fix:** `'radial-2000hp'` (in `startRecording()`), and set the F4U's `engine.startTime` to the R-2800 recording, 64.1 s (`tests/engine.test.mjs` fails until the two agree). **Done when:** an F4U cold start (E key, `bougainville-1943` or another ground start) plays the R-2800 start-up. One of the hand-spelled comparisons in *Name comparisons still spelled out by hand*.
 
 
 ### Velis electric motor plays the geared-turbofan sound
-*Found 2026-10-11 · `ENGINES` in `core/sound.js`; `startSound('electric')` in `display/velis_epsi.js`*
+*Found 2026-10-11 · `ENGINES` in `core/sound.js`; `startSound('electric')` when the motor runs*
 
 The Velis's `sound.engineType` is `"electric"`, but `ENGINES` has no `electric` preset; `initSound()` / `startSound()` fall back to the geared-turbofan preset (`_preset()` in `core/sound.js`). **Cause — verified (code), not yet heard in the sim.** **Fix:** an `electric` preset (motor whine + prop, no combustion — the removed `edf-hovercraft` preset used `slewTime: 0.04`, "electric motors spool almost instantly"), calibrated against a Velis recording (`docs/sound-calibration.md`). Since 2026-10-13 the fallback is visible: the console warns `[vocab] unknown engine sound "electric"`, and the sound coverage check in `core/sound.js` exempts `electric` with a pointer to this entry. **Done when:** the Velis sounds like an electric motor, and `electric` is no longer exempt from the `ENGINES` coverage check. (An unknown `engineType` already fails the data schema.)
 
@@ -545,7 +529,7 @@ The declared layering (data → simulation → presentation → shell) is also n
 
 **Symptom.** `S` is one mutable object with ~170 fields. `setState` is `Object.assign` (~280 calls), and ~110 direct writes sit beside it. No field has a declared owner, so several modules write the same field and the last writer in the frame wins. The comment at the top of `state.js` (only physics, input, mission write) is out of date. On top of that, modules keep private state between frames (fired entries, ramps, caches), cleared by hand-written `reset*()` functions.
 
-**Evidence.** *`enginePower` has many writers and no composition*; *Engine start completes when the start-up sound finishes* (`sound.js` writes `engineState`); *The outside view borrows the flight state for its camera*.
+**Evidence.** *`enginePower` has many writers and no composition*; ~~*Engine start completes when the start-up sound finishes*~~ (done 2026-10-18: `core/engine.js` owns `engineState`); *The outside view borrows the flight state for its camera*.
 
 **Why it matters.** Correctness depends on the order of the frame loop and of the ~30 closures in the renderer list. A new feature can't tell whose field it is about to overwrite.
 
@@ -588,7 +572,7 @@ The declared layering (data → simulation → presentation → shell) is also n
 
 **Why it matters.** The training procedures backlog (engine-out / EOSID, V1 cut, failure injection, hydraulic loss) needs per-engine state and systems that affect the flight. These aren't missing features to bolt on; there is no place in the runtime where a system's output reaches physics.
 
-**Fix.** Design the seam before the first training procedure that needs it: per-engine state arrays (`engines[i].{state, n1, power}`), and a defined path by which systems produce effects that physics reads (thrust per engine, control authority, gear/flap availability). Builds on *`S` has no field ownership* and the engine-model fix in *Engine start completes when the start-up sound finishes*.
+**Fix.** Design the seam before the first training procedure that needs it: per-engine state arrays (`engines[i].{state, n1, power}`), and a defined path by which systems produce effects that physics reads (thrust per engine, control authority, gear/flap availability). Builds on *`S` has no field ownership* and the engine owner `core/engine.js` (2026-10-18).
 
 **Done when.** An engine can fail on its own on a twin, and the aircraft yaws and loses thrust accordingly; one hydraulic loss removes one function.
 
@@ -736,7 +720,7 @@ To draw the terrain from the camera, `outside.js` saves the aircraft pose, write
 *`missions/inspiration5.json`* — the booster now lands on the droneship (ASDS). Its catalog briefing still says so too: `orders` lists "T+02:53 Boostback burn" and "T+08:45+ Stage 1 RTLS · LZ-1".
 
 ### Cold-and-dark start leaves `enginePower` at 1
-*Found 2026-10-11* — after loading `lszf-pattern`, `engineState` is `'off'` but `enginePower` reads 1. `core/mission.js` sets 0 for an engine-off start, so something after mission load sets it back — start by searching for `enginePower: 1` in `index.html` / `core/sound.js` init paths. No effect on thrust (needs `'running'`), but inconsistent.
+*Found 2026-10-11* — after loading `lszf-pattern`, `engineState` is `'off'` but `enginePower` reads 1. `core/mission.js` sets 0 for an engine-off start, so something after mission load sets it back — start by searching for `enginePower: 1` in `index.html` / `core/sound.js` init paths. No effect on thrust (needs `'running'`), but inconsistent. Still seen 2026-10-18 (after `core/engine.js`, which writes 0 for a cold start) — goes with the power-from-factors step of *One engine per aircraft*.
 
 ### Manual weather: the schema doesn't know clouds
 *Found 2026-10-15 · `core/schema/mission.js` (`weatherManual`), `app/briefing.js` (`WEATHER_PRESETS`)*

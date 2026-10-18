@@ -45,6 +45,7 @@
     "type": "turbofan",
     "model": "pw1900g",
     "count": 2,
+    "startTime": 54.68,
     "chevrons": false,
     "thrustReverser": true
   },

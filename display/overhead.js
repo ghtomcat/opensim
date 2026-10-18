@@ -11,7 +11,8 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState }                             from '../core/state.js';
-import { stopEngineLifecycle, startApuSound, stopApuSound } from '../core/sound.js';
+import { startApuSound, stopApuSound } from '../core/sound.js';
+import { stopEngine } from '../core/engine.js';
 import { apuMasterSet, apuStartPress, apuFirePull, elecCfg } from '../core/electrical.js';
 import { pushButtonHTML, setPushButton }          from './pushbutton.js';
 
@@ -465,7 +466,7 @@ function _attachHandlers() {
       fires[i - 1] = true;
       setState({ engFireArmed: fires });
       /* Shut down engine if this was the last/only running engine */
-      if ((S.engineState ?? 'off') === 'running') stopEngineLifecycle();
+      if ((S.engineState ?? 'off') === 'running') stopEngine();
       _updateSwitches();
     });
     /* AGENT 1 */

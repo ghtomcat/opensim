@@ -144,6 +144,7 @@ One object on every winged aircraft. Rockets and robots have none.
   "model": "trent-xwb",
   "description": "Rolls-Royce Trent XWB-84",
   "idleN1": 22,
+  "startTime": 54.68,
   "chevrons": true,
   "thrustReverser": true
 }
@@ -156,6 +157,8 @@ One object on every winged aircraft. Rockets and robots have none.
 | `model` | Engine id (`io-360`, `trent-xwb`). Documentation for now. |
 | `description` | Human-readable description. Documentation. |
 | `idleN1` | Turbofan idle N1 (%). |
+| `startTime` | s from start to running — the length of the start-up recording the sound plays (`tests/engine.test.mjs` checks it). Absent → no start sequence, the engine just runs. |
+| `stopTime` | s from shutdown to off (pistons, turbojet). Turbofans stop when the fan has run down. |
 | `chevrons` | Draws chevron serrations on the nozzle. |
 | `thrustReverser` | Enables the thrust reverser (and its cascade overlay on landing). |
 

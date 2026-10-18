@@ -349,16 +349,13 @@ test.describe('Fuel — warning flags', () => {
 
 /* ═══════════════════════════════════════════
    ENGINE LIFECYCLE — Start, cut, restart
-   Uses real AudioContext time — waitForFunction polls until onended fires (~2.8s).
+   The start runs on sim time (core/engine.js): step past the C172's 2.8 s engine.startTime.
    ═══════════════════════════════════════════ */
 
 async function startEngine(page) {
   await setState(page, { engineState: 'off', enginePower: 0 });
   await page.keyboard.press('e');
-  await page.waitForFunction(
-    () => window.simGetState().engineState === 'running',
-    { timeout: 12_000 }
-  );
+  await step(page, 3);
 }
 
 test.describe('Engine lifecycle — Lycoming start and restart', () => {
@@ -393,7 +390,7 @@ test.describe('Engine lifecycle — Lycoming start and restart', () => {
     await loadSim(page);
     await setState(page, { engineState: 'off', enginePower: 0, fuelShutoff: true });
     await page.keyboard.press('e');
-    await page.waitForTimeout(3_000);   // the start lifecycle runs on real time
+    await step(page, 3);
     expect((await getState(page)).engineState).not.toBe('running');
   });
 
@@ -432,6 +429,21 @@ test.describe('Engine lifecycle — Lycoming start and restart', () => {
     const rpm = parseInt(await getRpm(page));
     expect(rpm).toBeGreaterThan(500);
     expect(rpm).not.toBe(7);
+  });
+
+  test('the start does not need audio — no AudioContext in the page at all', async ({ page }) => {
+    await page.addInitScript(() => { delete window.AudioContext; delete window.webkitAudioContext; });
+    await loadSim(page);
+    await startEngine(page);
+    expect((await getState(page)).engineState).toBe('running');
+  });
+
+  test('the start pauses with the sim — not running without sim steps', async ({ page }) => {
+    await loadSim(page);
+    await setState(page, { engineState: 'off', enginePower: 0 });
+    await page.keyboard.press('e');
+    await page.waitForTimeout(3_500);   // real time passes, sim time doesn't (test mode: manual clock)
+    expect((await getState(page)).engineState).toBe('starting');
   });
 
   test('E does nothing if engine already running', async ({ page }) => {
@@ -562,7 +574,7 @@ test.describe('Carb ice — recovery with carb heat', () => {
 /* ═══════════════════════════════════════════
    BF 109 — V12, single tank
    left: 400L, right: 0L
-   Q → stopEngineLifecycle (not cycleFuelSelector)
+   Q → stopEngine (not cycleFuelSelector)
    ═══════════════════════════════════════════ */
 
 test.describe('Bf 109 — single left tank (V12)', () => {
@@ -621,7 +633,7 @@ test.describe('Bf 109 — single left tank (V12)', () => {
     const before = (await getState(page)).fuelSelector;
     await page.keyboard.press('q');
     const after = (await getState(page)).fuelSelector;
-    // Selector should be unchanged — Q drives stopEngineLifecycle on V12
+    // Selector should be unchanged — Q drives stopEngine on V12
     expect(after).toBe(before);
   });
 

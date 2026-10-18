@@ -4,7 +4,7 @@
    Engine type defined in aircraft JSON → sound.engineType.
    ═══════════════════════════════════════════════════════════════ */
 
-import { S, setState } from './state.js';
+import { S } from './state.js';
 import { ENGINE, assertCovers, warnUnknown } from './vocab.js';
 import { audioContext, loadWorklet } from './audio.js';
 
@@ -190,9 +190,10 @@ export function getCurrentRpm() {
   if (!_cfg) return null;
   if (S.engineState === 'off') return '---';
 
-  /* During engine startup: compute RPM from elapsed time, matching synthesis curves */
-  if (_lifecycleStartedAt !== null && _ctx) {
-    const elapsed = _ctx.currentTime - _lifecycleStartedAt;
+  /* During engine startup: compute RPM from the sim time since the start (core/engine.js),
+     matching the synthesis curves of the recording */
+  if (S.engineState === 'starting' && S.engineStartT != null) {
+    const elapsed = S.engineStartT;
     if (_engineType === 'turbojet-vk1') {
       /* VK-1: N1 climbs 0→22% over 28.5s startup sequence */
       const p = Math.min(1, elapsed / 28.5);
@@ -227,14 +228,14 @@ export function getCurrentRpm() {
 
   /* During shutdown: exponential decay from _shutdownRpm */
   if (S.engineState === 'shutdown') {
-    if (_engineType === 'turbojet-vk1' && _shutdownWallAt !== null) {
-      const elapsed = (performance.now() - _shutdownWallAt) / 1000;
+    if (_engineType === 'turbojet-vk1' && S.engineStopT != null) {
+      const elapsed = S.engineStopT;
       const n1 = Math.max(0, _shutdownN1 * Math.exp(-elapsed / 4.5));
       if (n1 < 0.5) return '---';
       return 'N1 ' + Math.round(n1) + '%';
     }
-    if (_shutdownAt !== null && _ctx) {
-      const elapsed = _ctx.currentTime - _shutdownAt;
+    if (_IMPULSE_LIFECYCLE.includes(_engineType) && S.engineStopT != null) {
+      const elapsed = S.engineStopT;
       const rpm = Math.max(0, _shutdownRpm * Math.exp(-elapsed / 1.2));
       if (rpm < 5) return '--- RPM';
       return Math.round(rpm) + ' RPM';
@@ -287,15 +288,12 @@ let _workletNode  = null;   // AudioWorkletNode
 let _workletMute  = null;   // GainNode between worklet and _master — 0 during startup, 1 after
 let _workletReady = false;
 
-/* ── Engine lifecycle (v12-supercharged only) ── */
+/* ── Engine lifecycle sound (the lifecycle itself is core/engine.js's) ── */
 let _lastRpm         = 1000;   // last computed RPM — used by shutdown synth
 let _shutdownRpm     = 0;      // RPM at moment of shutdown — for gauge decay
-let _shutdownAt      = null;   // _ctx.currentTime when shutdown began
-let _shutdownN1      = 0;      // VK-1: N1% at fuel cutoff (wall-clock decay, no AudioContext needed)
-let _shutdownWallAt  = null;   // VK-1: performance.now() at fuel cutoff
+let _shutdownN1      = 0;      // VK-1: N1% at fuel cutoff — decays over S.engineStopT
 let _engineType      = null;   // current engine type string
 let _lifecycleSrc    = null;   // BufferSource playing startup sequence
-let _lifecycleStartedAt = null; // _ctx.currentTime when startup began
 let _workletLoadDone = false;  // flag: worklet loaded during startup
 
 /* ── Internal state — saturation stage ── */
@@ -354,6 +352,7 @@ let _niflheimOn   = false;
 export function initSound(engineType) {
   _engineType = engineType ?? ENGINE.GEARED_TURBOFAN;
   _cfg = _preset(_engineType);
+  _seenEngineState = S.engineState ?? 'off';   // the mission's initial state — no transition to play
 }
 
 export function engineGunfire() {
@@ -686,7 +685,7 @@ function _acquire() {
   if (!_ctx) {
     _ctx = audioContext();
     _out = _ctx.createGain();
-    _out.connect(_out);
+    _out.connect(_ctx.destination);   // the only sound.js connection to the speakers
   }
   return _ctx;
 }
@@ -765,6 +764,7 @@ export function switchEngine(type) {
 }
 
 export function tickSound() {
+  _followEngine();   // start/stop sounds follow S.engineState (core/engine.js) — even before sound is on
   if (!_ctx || !_cfg) return;
 
   /* Wind survives engine shutdown — update it whenever AudioContext is alive */
@@ -784,7 +784,7 @@ export function tickSound() {
   }
 
   /* Turbofan: the shutdown spool-down (below) rode N1 down to ~0 — now tear the engine sound
-     down (this closes the audio context, so only do it once the fan has fully coasted out). */
+     down (only once the fan has fully coasted out). */
   if (S.engineState === 'off' && S.aircraft?.engine?.type === 'turbofan') { stopSound(); return; }
 
   const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 350;
@@ -2241,107 +2241,126 @@ function _assembleVK1Startup(sr) {
   return full;
 }
 
-export async function startEngineLifecycle() {
-  /* Turbofan: CFM56 startup synthesis → oscillator handoff */
-  if (_engineType === 'geared-turbofan') {
-    if (S.engineState === 'starting' || S.engineState === 'running') return;
-    setState({ engineState: 'starting', enginePower: 0.01, n1: S.n1 ?? 0 });
+/* ══════════════════════════════════════════
+   Engine lifecycle sound — follows S.engineState
+   core/engine.js owns the lifecycle (sim time); this side only plays it:
+   the start-up recording on → 'starting', the hand-off to the running
+   engine on → 'running', the run-down on → 'shutdown', silence on → 'off'.
+   Called from tickSound() on every change of state.
+   ══════════════════════════════════════════ */
 
-    if (!_ctx) {
-      _acquire();
-      _master = _ctx.createGain();
-      _master.gain.value = 0;
-      _master.connect(_out);
-    }
-    if (_ctx.state === 'suspended') await _ctx.resume();
+const _IMPULSE_LIFECYCLE = ['v12-supercharged', 'radial-2000hp', 'lycoming-o360'];
+let _seenEngineState = null;   // the state the sound last followed (set by initSound)
 
-    const startupBuf = _assembleCFM56Startup(_ctx.sampleRate);
-    const ab  = _ctx.createBuffer(1, startupBuf.length, _ctx.sampleRate);
-    ab.copyToChannel(startupBuf, 0);
-    const src = _ctx.createBufferSource();
-    src.buffer = ab;
-    _master.gain.value = 1.0;
-    src.connect(_master);
-    _lifecycleSrc        = src;
-    _lifecycleStartedAt  = _ctx.currentTime;
+function _followEngine() {
+  const st = S.engineState ?? 'off';
+  if (_seenEngineState === null) { _seenEngineState = st; return; }
+  if (st === _seenEngineState) return;
+  const from = _seenEngineState;
+  _seenEngineState = st;
+  /* Sound must never break the engine or the frame loop (audio blocked, worklet missing …) */
+  _onEngineState(from, st).catch(err => console.warn('[sound] engine sound failed to follow', from, '→', st, err));
+}
 
-    src.onended = () => {
-      _lifecycleSrc       = null;
-      _lifecycleStartedAt = null;
-      if (S.engineState !== 'starting') return;
-      setState({ engineState: 'running', enginePower: 1.0 });
-      setTimeout(() => startSound(), 50);   // oscillator engine takes over; ramps from 0
-    };
-
-    src.start();
+async function _onEngineState(from, to) {
+  if (_engineType === 'electric') {                  // switch-driven motor: on or off, no recordings
+    if (to === 'running') startSound('electric');
+    else if (from === 'running') stopSound();
     return;
   }
-  if (_engineType !== 'v12-supercharged' && _engineType !== 'radial-2000hp' && _engineType !== 'lycoming-o360' && _engineType !== 'turbojet-vk1') { startSound(); return; }
-  if (S.engineState === 'starting' || S.engineState === 'running' || S.engineState === 'idle') return;
-  if (S.coolantState === 'failed') return;
-  if (S.fuelShutoff && S.fuelLeft !== null) return;   // fuel shutoff closed — no start
+  if (to === 'starting') return _playStart();
+  if (to === 'running')  return _handOff(from);
+  if (to === 'shutdown') return _playStop();
+  if (to === 'off') {
+    _stopStartRecording();
+    if (_IMPULSE_LIFECYCLE.includes(_engineType)) _teardownEngine();   // after the run-down — or at once (starved, seized)
+    /* turbofan: tickSound() stops once the fan is at 'off'; VK-1: stopped at 'shutdown' */
+  }
+}
 
-  if (!_ctx) {
-    _acquire();
+/* The context and a master gain for the lifecycle buffers (a previous run-down drops _master) */
+async function _ensureLifecycleOut() {
+  _acquire();
+  if (!_master) {
     _master = _ctx.createGain();
     _master.gain.value = 0;
     _master.connect(_out);
   }
   if (_ctx.state === 'suspended') await _ctx.resume();
+}
 
-  /* Reset engine power so fuel system re-engages after starvation restart */
-  setState({ engineState: 'starting', enginePower: 0.01 });
+function _stopStartRecording() {
+  if (_lifecycleSrc) { _lifecycleSrc.onended = null; try { _lifecycleSrc.stop(); } catch {} _lifecycleSrc = null; }
+}
 
-  const startupBuf = _engineType === 'radial-2800hp'
-    ? _assembleR2800Startup(_ctx.sampleRate)
-    : _engineType === 'lycoming-o360'
-    ? _assembleLycomingStartup(_ctx.sampleRate)
-    : _engineType === 'turbojet-vk1'
-    ? _assembleVK1Startup(_ctx.sampleRate)
-    : _assembleStartup(_ctx.sampleRate);
-  const ab  = _ctx.createBuffer(1, startupBuf.length, _ctx.sampleRate);
-  ab.copyToChannel(startupBuf, 0);
+/* → 'starting': play the start-up recording (its length is the aircraft's engine.startTime) */
+async function _playStart() {
+  const turbofan = _engineType === 'geared-turbofan';
+  if (!turbofan && !_IMPULSE_LIFECYCLE.includes(_engineType) && _engineType !== 'turbojet-vk1') return;
+  /* A worklet engine still connected (a start before the last run-down reached 'off') would
+     come back to life when _master goes to 1.0 below — tear it down; a fresh one loads below. */
+  if (_IMPULSE_LIFECYCLE.includes(_engineType) && _workletNode) _teardownEngine();
+  await _ensureLifecycleOut();
+  _stopStartRecording();
+
+  const buf = startRecording(_engineType, _ctx.sampleRate);
+  const ab  = _ctx.createBuffer(1, buf.length, _ctx.sampleRate);
+  ab.copyToChannel(buf, 0);
   const src = _ctx.createBufferSource();
   src.buffer = ab;
-  /* Route through _master so gain chain is consistent with live worklet.
-     Buffer already has scale baked in — set _master to 1.0 so it passes through unchanged. */
+  /* Route through _master so the gain chain matches the live engine. The buffer has its
+     scale baked in — _master at 1.0 passes it through unchanged. */
   _master.gain.value = 1.0;
   src.connect(_master);
   _lifecycleSrc = src;
-  _lifecycleStartedAt = _ctx.currentTime;
-  /* Lycoming startup is only 2.8s — too short to load the worklet concurrently.
-     Await it first so _workletNode is guaranteed set by onended.
-     V12 / R-2800 have 70s+ startups so concurrent load is fine for them. */
-  if (_engineType === 'lycoming-o360') await _loadWorkletSilently();
-  else _loadWorkletSilently();   /* fire-and-forget for long startups */
+  src.onended = () => { if (_lifecycleSrc === src) _lifecycleSrc = null; };
 
+  if (_IMPULSE_LIFECYCLE.includes(_engineType)) {
+    /* Lycoming startup is only 2.8s — too short to load the worklet concurrently.
+       Await it first so _workletNode is set by the hand-off.
+       V12 / R-2800 have 70s+ startups so concurrent load is fine for them. */
+    if (_engineType === 'lycoming-o360') await _loadWorkletSilently();
+    else _loadWorkletSilently();   /* fire-and-forget for long startups */
+    if ((S.engineState ?? 'off') !== 'starting') return;   // aborted while the worklet loaded
+  }
   src.start();
+}
 
-  src.onended = () => {
-    _lifecycleSrc = null;
-    _lifecycleStartedAt = null;
-    if (S.engineState !== 'starting') return;   // aborted (Q pressed) — don't activate
-    if (_engineType === 'turbojet-vk1') {
-      /* VK-1 uses oscillator engine — start it now that startup sound has finished */
-      setState({ engineState: 'running', enginePower: 1.0 });
-      setTimeout(() => startSound(_engineType), 50);
-      return;
-    }
-    if (!_workletNode) { setState({ engineState: 'off' }); return; }
-    console.log('[OpenSim] Engine started — worklet active, spdT:', S.spdT);
-    setState({ engineState: 'running', enginePower: 1.0, engineTemp: Math.min(1, (S.engineTemp ?? 0) + 0.8),
-               magnetos: S.magnetos === 'START' ? 'BOTH' : S.magnetos });
+/* → 'running': the recording hands over to the running engine sound */
+async function _handOff(from) {
+  _stopStartRecording();
+  if (_engineType === 'geared-turbofan' || _engineType === 'turbojet-vk1') {
+    setTimeout(() => startSound(_engineType), 50);   // oscillator engine takes over; ramps from 0
+    return;
+  }
+  if (!_IMPULSE_LIFECYCLE.includes(_engineType)) return;
+  if (from !== 'starting' || !_ctx || !_workletNode) {
+    /* No pre-loaded worklet to unmute (set to running directly, or the load failed) — start it fresh */
+    _teardownEngine();
+    startSound(_engineType);
+    return;
+  }
+  console.log('[OpenSim] Engine started — worklet active, spdT:', S.spdT);
+  const now = _ctx.currentTime;
+  /* Unmute worklet — _workletMute fades from 0→1 over 0.3s.
+     Do NOT touch _master.gain or _laderGain here: tickSound runs every frame
+     and will ramp both smoothly (τ=0.08s and τ=0.5s respectively), avoiding
+     the gain-product overshoot that caused a ping at handoff. */
+  _workletMute?.gain.setTargetAtTime(1.0, now, 0.3);
+  _workletNode.port.postMessage({ rpm: _cfg.rpmIdle, laderFreq: _cfg.superchargerFreqIdle });
 
-    const now = _ctx.currentTime;
-    /* Unmute worklet — _workletMute fades from 0→1 over 0.3s.
-       Do NOT touch _master.gain or _laderGain here: tickSound runs every frame
-       and will ramp both smoothly (τ=0.08s and τ=0.5s respectively), avoiding
-       the gain-product overshoot that caused a ping at handoff. */
-    _workletMute?.gain.setTargetAtTime(1.0, now, 0.3);
-    _workletNode.port.postMessage({ rpm: _cfg.rpmIdle, laderFreq: _cfg.superchargerFreqIdle });
+  _started = true; _workletReady = true; _inStartup = false;
+}
 
-    _started = true; _workletReady = true; _inStartup = false;
-  };
+/** The start-up recording for an engine sound — its length in s is the aircraft's engine.startTime. */
+export function startRecording(engineType, sr) {
+  switch (engineType) {
+    case 'geared-turbofan': return _assembleCFM56Startup(sr);
+    case 'lycoming-o360':   return _assembleLycomingStartup(sr);
+    case 'turbojet-vk1':    return _assembleVK1Startup(sr);
+    case 'radial-2800hp':   return _assembleR2800Startup(sr);   // never matches: the F4U is 'radial-2000hp' (issues.md)
+    default:                return _assembleStartup(sr);        // DB 601 — also played for the F4U today
+  }
 }
 
 function _synthLycomingShutdown(sr, startRpm = 1400) {
@@ -2394,43 +2413,27 @@ function _synthLycomingShutdown(sr, startRpm = 1400) {
   return buf;
 }
 
-export function stopEngineLifecycle() {
-  /* Turbofan fuel cutoff: enter 'shutdown' — N1 physics decays to 0 then sets 'off' */
-  if (_engineType === 'geared-turbofan') {
-    if (S.engineState === 'off' || S.engineState === 'shutdown') return;
-    setState({ engineState: 'shutdown' });
-    /* Abort startup buffer if still playing; prevent onended from starting oscillator */
-    if (_lifecycleSrc) { _lifecycleSrc.onended = null; try { _lifecycleSrc.stop(); } catch {} _lifecycleSrc = null; }
-    /* Don't tear down: keep the oscillators running so tickSound rides the fan (N1) down to a
-       descending spool-down whine. The teardown happens once N1 reaches 'off' (in tickSound).
-       If nothing is running yet (mid-startup), just stop. */
-    if (!_started) stopSound();
-    return;
-  }
-  /* VK-1: fuel cutoff — N1 spools down over ~8s */
+/* → 'shutdown': the run-down sound. core/engine.js moves to 'off' after engine.stopTime
+   (turbofan: once the fan has run down). */
+function _playStop() {
+  _stopStartRecording();
+  /* Turbofan fuel cutoff: keep the oscillators running so tickSound rides the fan (N1) down to a
+     descending spool-down whine; the teardown happens at 'off' (in tickSound).
+     If nothing is running yet (mid-startup), just stop. */
+  if (_engineType === 'geared-turbofan') { if (!_started) stopSound(); return; }
+  /* VK-1: fuel cutoff — the N1 readout decays from here (getCurrentRpm) */
   if (_engineType === 'turbojet-vk1') {
-    if (S.engineState === 'off' || S.engineState === 'shutdown') return;
     const maxSpd = S.aircraft?.envelope?.maxSpd ?? 567;
     const throttle = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
-    _shutdownN1    = Math.round(20 + 80 * throttle);
-    _shutdownWallAt = performance.now();
-    setState({ engineState: 'shutdown' });
+    _shutdownN1 = Math.round(20 + 80 * throttle);
     stopSound();
-    setTimeout(() => { if (S.engineState === 'shutdown') setState({ engineState: 'off' }); }, 8000);
     return;
   }
-  if (_engineType !== 'v12-supercharged' && _engineType !== 'radial-2000hp' && _engineType !== 'lycoming-o360') { stopSound(); return; }
-  if (S.engineState === 'off' || S.engineState === 'shutdown') return;
+  if (!_IMPULSE_LIFECYCLE.includes(_engineType)) return;
 
   _workletReady = false;
   _started      = false;
-
-  if (_lifecycleSrc) { _lifecycleSrc.onended = null; try { _lifecycleSrc.stop(); } catch {} _lifecycleSrc = null; }
-  _lifecycleStartedAt = null;
-
-  setState({ engineState: 'shutdown' });
-  _shutdownRpm = _lastRpm;
-  _shutdownAt  = _ctx?.currentTime ?? 0;
+  _shutdownRpm  = _lastRpm;
 
   if (_ctx) {
     const shutBuf = _engineType === 'radial-2000hp'
@@ -2448,9 +2451,6 @@ export function stopEngineLifecycle() {
     src.start();
     _master?.gain.setTargetAtTime(0, _ctx.currentTime, 0.3);
   }
-
-  const teardownMs = _engineType === 'lycoming-o360' ? 3500 : 5500;
-  setTimeout(() => { _teardownEngine(); setState({ engineState: 'off' }); }, teardownMs);
 }
 
 /* ── Engine bleed tap — for radio chain environment mixing ── */

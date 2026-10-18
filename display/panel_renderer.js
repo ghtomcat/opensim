@@ -15,7 +15,8 @@ import {
 } from './pfd_instruments.js';
 import { drawG1000PFD, drawG1000MFD, drawG1000Bezel, drawMagRotary, drawFuelSel } from './g1000.js';
 import { hideG1000Map } from './map.js';
-import { startFuelPump, stopFuelPump, startEngineLifecycle, stopEngineLifecycle } from '../core/sound.js';
+import { startFuelPump, stopFuelPump } from '../core/sound.js';
+import { startEngine, stopEngine } from '../core/engine.js';
 
 /* ── Hit regions (rebuilt each cockpit frame) ── */
 let _hitRegions  = [];
@@ -233,8 +234,8 @@ function _toggleSwitch(key) {
     const idx  = MAG_STATES.indexOf(cur);
     const next = MAG_STATES[(idx + 1) % MAG_STATES.length];
     setState({ magnetos: next });
-    if (next === 'START') startEngineLifecycle();
-    if (next === 'OFF')   stopEngineLifecycle();
+    if (next === 'START') startEngine();
+    if (next === 'OFF')   stopEngine();
     return;
   }
   /* dot-path e.g. "lights.nav" */
@@ -560,8 +561,8 @@ function _drawMagnetoKnob(ctx, box, style, cfg) {
       const idx  = MAG_STATES.indexOf(cur);
       const next = MAG_STATES[(idx + 1) % MAG_STATES.length];
       setState({ magnetos: next });
-      if (next === 'START') startEngineLifecycle();
-      if (next === 'OFF')   stopEngineLifecycle();
+      if (next === 'START') startEngine();
+      if (next === 'OFF')   stopEngine();
     },
   });
 }

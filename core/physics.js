@@ -83,7 +83,7 @@ export function tickPhysics(dt) {
      Runs for all turbofan aircraft before the main physics block.
      N1 ramps toward its target (idle floor + throttle contribution) with
      asymmetric time constants: 8 s spool-up, 15 s spool-down.
-     State transitions driven here so thrust sees the correct N1 immediately.
+     The starting → running and shutdown → off transitions are core/engine.js's (it reads N1).
      ────────────────────────────────────────────────────────────────────── */
   if (ac.engine?.type === 'turbofan' && !S.crashed) {
     const IDLE_N1 = ac.engine?.idleN1 ?? 22;
@@ -144,8 +144,6 @@ export function tickPhysics(dt) {
                    athrN1: athrActive ? athrI : newN1,      // track the A/THR integral; sync to N1 when off
                    athrMode, athrDetent };                  // thrust mode for the FMA (null when A/THR off)
     if (retardLever) n1Up.thrustLever = 0;                  // RETARD — levers to idle, so on the ground N1 stays at idle
-    if (state === 'starting' && newN1 >= IDLE_N1 * 0.95) n1Up.engineState = 'running';
-    if (state === 'shutdown' && newN1 < 0.5) n1Up.engineState = 'off';
     setState(n1Up);
   }
 

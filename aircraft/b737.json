@@ -160,6 +160,7 @@
     "type": "turbofan",
     "model": "cfm56-7",
     "count": 2,
+    "startTime": 54.68,
     "chevrons": false,
     "thrustReverser": true
   },

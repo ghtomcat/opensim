@@ -6,7 +6,8 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from '../core/state.js';
-import { startEngineLifecycle, stopEngineLifecycle, startFuelPump, stopFuelPump } from '../core/sound.js';
+import { startFuelPump, stopFuelPump } from '../core/sound.js';
+import { startEngine, stopEngine } from '../core/engine.js';
 import { altLabel } from '../core/route.js';
 import { buildDescentPath } from '../core/vnav.js';
 
@@ -784,9 +785,9 @@ function _attachHandlers() {
           setState({ engMasters: masters });
           return;
         }
-        startEngineLifecycle();
+        startEngine();
       } else if (wasOn) {
-        stopEngineLifecycle();
+        stopEngine();
       }
     });
   }
@@ -852,8 +853,8 @@ function _attachHandlers() {
   document.getElementById('ped-mag-rot')?.addEventListener('click', () => {
     const next = MAG[(MAG.indexOf(S.magnetos ?? 'OFF') + 1) % MAG.length];
     setState({ magnetos: next });
-    if (next === 'START') startEngineLifecycle();
-    if (next === 'OFF')   stopEngineLifecycle();
+    if (next === 'START') startEngine();
+    if (next === 'OFF')   stopEngine();
   });
   /* Fuel selector rotary — cycle BOTH → LEFT → RIGHT */
   const FSEL = ['BOTH', 'LEFT', 'RIGHT'];
