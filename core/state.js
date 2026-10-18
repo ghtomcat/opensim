@@ -28,7 +28,8 @@ export const S = {
   braking:  false,                   // ground brakes held (momentary, B key)
   parkBrake: false,                  // parking brake (latched, pedestal switch)
   steer:    0,                       // nose-wheel steering, -1 (full left) … +1 (full right)
-  enginePower: 1.0,               // 0 = dead engine, 1 = full power
+  enginePower: 1.0,               // 0 = dead engine, 1 = full power — computed by core/engine.js (lifecycle × engineFactors)
+  engineFactors: { failure: 1, ice: 1, seizure: 1, battery: 1, crash: 1 },   // 0–1 per cause — set via setEngineFactor() (core/engine.js)
   engineState: 'off',             // 'off' | 'starting' | 'running' | 'shutdown' — owned by core/engine.js
   engineStartT: null,             // s since the start began ('starting'), else null — core/engine.js
   engineStopT:  null,             // s since the shutdown began ('shutdown'), else null — core/engine.js

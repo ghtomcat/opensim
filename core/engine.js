@@ -24,6 +24,12 @@
                 BAT off (masterBat). Absent → no power condition (the
                 Bf 109's inertia starter, the airliners' pedestal start).
 
+   Power: S.enginePower (0–1, scales thrust) is computed here and only here,
+   as the lifecycle's share × the product of the causes' factors
+   (S.engineFactors). Each cause owns its factor and sets it through
+   setEngineFactor(): a failure ramp, carb ice, a seizure, a flat battery,
+   a crash. So causes combine instead of overwriting each other.
+
    Still one engine per aircraft — the array comes in stage 1 of
    issues.md "One engine per aircraft".
    ═══════════════════════════════════════════════════════════════ */
@@ -31,6 +37,32 @@
 import { S, setState } from './state.js';
 
 const ENGINE_OFF = { engineState: 'off', engineStartT: null, engineStopT: null };
+
+/* The causes that limit power, each 0–1, owned by its module (failures.js, battery.js, physics.js) */
+const FACTORS_NONE = Object.freeze({ failure: 1, ice: 1, seizure: 1, battery: 1, crash: 1 });
+
+/* The lifecycle's share: nothing when off, a trickle while the starter turns, all of it when
+   running. A shutdown keeps it until the engine is off (the run-down sounds follow RPM/N1). */
+const LIFECYCLE_POWER = { off: 0, starting: 0.01, running: 1, shutdown: 1 };
+
+function _power(state, factors) {
+  let p = LIFECYCLE_POWER[state] ?? 0;
+  for (const v of Object.values(factors)) p *= v;
+  return p;
+}
+
+/** Set one cause's factor (0–1) — the only way to change engine power from outside. */
+export function setEngineFactor(cause, value) {
+  if (!(cause in FACTORS_NONE)) throw new Error(`engine: unknown power factor "${cause}"`);
+  const v = Math.max(0, Math.min(1, value));
+  const factors = { ...(S.engineFactors ?? FACTORS_NONE), [cause]: v };
+  setState({ engineFactors: factors, enginePower: _power(S.engineState ?? 'off', factors) });
+}
+
+/** A lifecycle step: the new state plus the power it gives with the current factors. */
+function _toState(patch) {
+  setState({ ...patch, enginePower: _power(patch.engineState ?? S.engineState ?? 'off', S.engineFactors ?? FACTORS_NONE) });
+}
 
 const _eng       = () => S.aircraft?.engine ?? {};
 const _turbofan  = () => _eng().type === 'turbofan';
@@ -53,7 +85,8 @@ export function initialEngine(aircraft, { onGround, spd }) {
   /* Turbofan N1 matches the cruise throttle when airborne, 0 when off */
   const n1 = (eng.type !== 'turbofan' || cold) ? 0
            : idle + (100 - idle) * Math.min(1, Math.max(0, spd / (aircraft.envelope?.maxSpd ?? 340)));
-  return { engineState: cold ? 'off' : 'running', enginePower: cold ? 0 : 1.0, n1,
+  const engineState = cold ? 'off' : 'running';
+  return { engineState, engineFactors: FACTORS_NONE, enginePower: _power(engineState, FACTORS_NONE), n1,
            engineStartT: null, engineStopT: null };
 }
 
@@ -73,7 +106,7 @@ export function startEngine() {
       return;
     }
   }
-  setState({ engineState: 'starting', engineStartT: 0, engineStopT: null, enginePower: 0.01 });
+  _toState({ engineState: 'starting', engineStartT: 0, engineStopT: null });
 }
 
 /** Normal shutdown (Q, magnetos OFF, ENG MASTER off, fire handle): the engine runs down. */
@@ -81,13 +114,13 @@ export function stopEngine() {
   if (!hasStartSequence()) return;
   const st = S.engineState ?? 'off';
   if (st === 'off' || st === 'shutdown') return;
-  setState({ engineState: 'shutdown', engineStartT: null, engineStopT: 0 });
+  _toState({ engineState: 'shutdown', engineStartT: null, engineStopT: 0 });
 }
 
 /** The engine quits at once — fuel starvation, a seized engine. Restartable unless seized. */
 export function engineQuit() {
   if ((S.engineState ?? 'off') === 'off') return;
-  setState(ENGINE_OFF);
+  _toState(ENGINE_OFF);
 }
 
 /* Turbofan N1 — the fan eases toward its target with asymmetric time constants: 8 s
@@ -120,8 +153,8 @@ export function tickEngine(dt) {
   if (eng.type === 'electric') {
     const sw    = S.switches ?? {};
     const ready = !!(sw.master && sw.battEn && sw.pwrEn);
-    if (ready && st !== 'running')      setState({ engineState: 'running', enginePower: 1.0 });
-    else if (!ready && st === 'running') setState({ engineState: 'off', enginePower: 0 });
+    if (ready && st !== 'running')       _toState({ engineState: 'running' });
+    else if (!ready && st === 'running') _toState({ engineState: 'off' });
     return;
   }
 
@@ -130,12 +163,12 @@ export function tickEngine(dt) {
     const done = t >= (eng.startTime ?? 0)
               || (_turbofan() && (S.n1 ?? 0) >= _idleN1() * 0.95);   // fan at idle — the start is complete
     if (!done) { setState({ engineStartT: t }); return; }
-    const up = { engineState: 'running', engineStartT: null, enginePower: 1.0 };
+    const up = { engineState: 'running', engineStartT: null };
     if (!_turbofan()) {
       up.engineTemp = Math.min(1, (S.engineTemp ?? 0) + 0.8);
       if (S.magnetos === 'START') up.magnetos = 'BOTH';       // key springs back from START
     }
-    setState(up);
+    _toState(up);
     return;
   }
 
@@ -143,6 +176,7 @@ export function tickEngine(dt) {
     const t    = (S.engineStopT ?? 0) + dt;
     const done = _turbofan() ? (S.n1 ?? 0) < 0.5               // fan has run down
                              : t >= (eng.stopTime ?? 0);
-    setState(done ? ENGINE_OFF : { engineStopT: t });
+    if (done) _toState(ENGINE_OFF);
+    else setState({ engineStopT: t });
   }
 }

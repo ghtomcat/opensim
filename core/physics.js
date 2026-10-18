@@ -6,6 +6,7 @@
 
 import { S, setState } from './state.js';
 import { bbEvent } from './blackbox.js';
+import { setEngineFactor } from './engine.js';
 import { capturePushback, pushbackPose } from './pushback.js';
 import { computeAirbusFMA, computeBoeingFMA } from './fma.js';
 import { lnavTargetHeading } from './lnav.js';
@@ -528,7 +529,8 @@ export function tickPhysics(dt) {
     const justTouched = !S.wow && newWow;
     if (justTouched && vs < CRASH_VS_FPM) {
       setState({ crashed: true, crashReason: `HARD LANDING  ${Math.round(vs)} fpm`,
-                 enginePower: 0, spdT: 0 });
+                 spdT: 0 });
+      setEngineFactor('crash', 0);
       bbEvent({ type: 'crash', reason: `HARD LANDING ${Math.round(vs)} fpm` });
       return;
     }
@@ -536,7 +538,8 @@ export function tickPhysics(dt) {
     const vne = ac.envelope.maxSpd ?? 999;
     if (newSpd > vne * CRASH_OVERSPD) {
       setState({ crashed: true, crashReason: `OVERSPEED  ${Math.round(newSpd)} kt  (VNE ${Math.round(vne)} kt)`,
-                 enginePower: 0, spdT: 0 });
+                 spdT: 0 });
+      setEngineFactor('crash', 0);
       bbEvent({ type: 'crash', reason: `OVERSPEED ${Math.round(newSpd)} kt` });
       return;
     }
@@ -546,7 +549,8 @@ export function tickPhysics(dt) {
     const _terrFt = S.terrainElevFt;
     if (!newWow && _terrFt != null && _terrFt > _grdElev + 100 && newAlt <= _terrFt) {
       setState({ crashed: true, crashReason: `TERRAIN  ${Math.round(_terrFt)} ft`,
-                 enginePower: 0, spdT: 0 });
+                 spdT: 0 });
+      setEngineFactor('crash', 0);
       bbEvent({ type: 'crash', reason: `CFIT — terrain ${Math.round(_terrFt)} ft` });
       return;
     }

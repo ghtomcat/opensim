@@ -5,13 +5,13 @@
 
    Failure types:
      engine_bang   — sharp impulse sound, then power drops
-     engine_power  — set enginePower to value over rampTime seconds
+     engine_power  — ramp the failure power factor to value over rampTime seconds (core/engine.js)
      carb_ice      — gradual power loss; recover with carb heat ON for 10s
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from './state.js';
 import { engineBang, engineGunfire, coolantHiss } from './sound.js';
-import { engineQuit } from './engine.js';
+import { engineQuit, setEngineFactor } from './engine.js';
 import { bbEvent } from './blackbox.js';
 import { onMissionReset } from './lifecycle.js';
 import { FAILURE, FAILURE_TRIGGER, assertCovers, warnUnknown } from './vocab.js';
@@ -22,7 +22,8 @@ let _ramps    = [];          // active power ramps
 export function resetFailures() {
   _fired.clear();
   _ramps = [];
-  setState({ enginePower: 1.0, emergLog: [], carbHeat: false, carbIceLevel: 0, carbIceActive: false, coolantState: 'ok' });
+  /* engine power: the factors are reset with the mission's initial engine state (core/engine.js) */
+  setState({ emergLog: [], carbHeat: false, carbIceLevel: 0, carbIceActive: false, coolantState: 'ok' });
 }
 onMissionReset(resetFailures);
 
@@ -34,7 +35,7 @@ const _FAILURES = {
     target:   f.value   ?? 0,
     rampTime: f.rampTime ?? 10,
     elapsed:  0,
-    from:     S.enginePower ?? 1.0,
+    from:     S.engineFactors?.failure ?? 1.0,
   }) },
   [FAILURE.CARB_ICE]:       { scored: true,  fire: () => { if (S.aircraft?.hasCarbHeat) setState({ carbIceActive: true }); } },
   [FAILURE.COOLANT_LEAK]:   { scored: true,  fire: () => {
@@ -82,13 +83,13 @@ export function tickFailures(dt) {
 
     /* Process ramps */
     _ramps = _ramps.filter(r => r.elapsed < r.rampTime);
-    let power = S.enginePower ?? 1.0;
+    let power = S.engineFactors?.failure ?? 1.0;
     for (const r of _ramps) {
       r.elapsed += dt;
       const t01 = Math.min(1, r.elapsed / r.rampTime);
       power = r.from + (r.target - r.from) * t01;
     }
-    if (_ramps.length > 0) setState({ enginePower: power });
+    if (_ramps.length > 0) setEngineFactor('failure', power);
   }
 
   /* ── Cooling system — a coolant leak overheats the engine until it seizes ──
@@ -99,12 +100,11 @@ export function tickFailures(dt) {
     setState({ coolantState: 'seizing' });
   }
   if (S.coolantState === 'seizing') {
-    const power = Math.max(0, (S.enginePower ?? 1) - (dt / 25));   // seizes over ~25s
+    const power = Math.max(0, (S.engineFactors?.seizure ?? 1) - (dt / 25));   // seizes over ~25s
+    setEngineFactor('seizure', power);
     if (power <= 0) {
-      setState({ enginePower: 0, coolantState: 'failed' });
+      setState({ coolantState: 'failed' });
       engineQuit();            // engine seized — it stops, and won't restart (coolantState 'failed')
-    } else {
-      setState({ enginePower: power });
     }
   }
 
@@ -121,7 +121,7 @@ export function tickFailures(dt) {
     }
 
     /* Max power reduction: 70% at full ice (rough running → partial power → silence) */
-    const icePower = 1.0 - ice * 0.7;
-    setState({ carbIceLevel: ice, enginePower: icePower });
+    setState({ carbIceLevel: ice });
+    setEngineFactor('ice', 1.0 - ice * 0.7);
   }
 }

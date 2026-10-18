@@ -51,9 +51,13 @@ export function cycleFuelSelector() {
 }
 
 export function tickFuel(dt) {
-  /* Oil pressure warning fires for all aircraft, even without a fuel system */
+  /* Oil pressure warning also on aircraft without a fuel system (airliners, …). Here it only
+     counts for a running engine — the ECAM inhibits engine warnings while an engine is off or
+     starting — and never for an electric motor (no oil). The light aircraft below keep the
+     simple rule: their OIL PRESS light is on whenever the engine isn't making power. */
   if (S.fuelLeft === null) {
-    const warnings = { ...(S.warnings ?? {}), OIL_PRESS: (S.enginePower ?? 1) < 0.3 };
+    const oilLow = S.aircraft?.engine?.type !== 'electric' && S.engineState === 'running' && (S.enginePower ?? 1) < 0.3;
+    const warnings = { ...(S.warnings ?? {}), OIL_PRESS: oilLow };
     setState({ warnings });
     return;
   }
@@ -122,8 +126,8 @@ function _starveRunDown(dt, kind) {
   if ((S.enginePower ?? 0) <= 0.05) { _clearStarve(); return; }   // already stopped
   const t = (S.fuelStarveT ?? STARVE_RUNDOWN_S) - dt;
   if (t <= 0) {
-    setState({ enginePower: 0, fuelStarveT: null });
-    engineQuit();                                                  // the engine stops (restartable)
+    setState({ fuelStarveT: null });
+    engineQuit();                                                  // the engine stops (restartable) — no power when off
     if (S.emergLog) S.emergLog.push({ t: S.time, type: 'failure', failureType: 'fuel_starvation', value: 0 });
     bbEvent({ type: kind, selector: S.fuelSelector ?? null, shutoff: !!S.fuelShutoff });
   } else {

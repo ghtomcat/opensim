@@ -17,6 +17,7 @@
 
 import { S, setState } from './state.js';
 import { onMissionReset } from './lifecycle.js';
+import { setEngineFactor } from './engine.js';
 
 export function initBattery() {
   if (!S.aircraft?.battery) {
@@ -43,15 +44,8 @@ export function tickBattery(dt) {
     const drainPct = (bat.powerDrawKw * power) / (bat.capacityKwh * 3600) * 100 * dt;
     const charge   = Math.max(0, S.batteryCharge - drainPct);
     setState({ batteryCharge: charge });
-
-    /* Motor cuts when battery is flat — cannot recover */
-    if (charge <= 0 && power > 0) {
-      setState({ enginePower: 0 });
-    }
   }
 
-  /* Keep motor dead once battery is depleted */
-  if ((S.batteryCharge ?? 0) <= 0 && power > 0) {
-    setState({ enginePower: 0 });
-  }
+  /* Motor cuts when the battery is flat — cannot recover */
+  if ((S.batteryCharge ?? 0) <= 0 && (S.engineFactors?.battery ?? 1) > 0) setEngineFactor('battery', 0);
 }

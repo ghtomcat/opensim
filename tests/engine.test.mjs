@@ -12,7 +12,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { S, setState } from '../core/state.js';
-import { startEngine, stopEngine, engineQuit, tickEngine, initialEngine, hasStartSequence } from '../core/engine.js';
+import { startEngine, stopEngine, engineQuit, tickEngine, initialEngine, hasStartSequence, setEngineFactor } from '../core/engine.js';
 import { startRecording } from '../core/sound.js';
 import { tickThrust } from '../core/thrust.js';
 
@@ -24,7 +24,7 @@ const AIRCRAFT = readdirSync(join(here, '..', 'aircraft')).filter(f => f.endsWit
 function cold(aircraft, extra = {}) {
   setState({ aircraft, engineState: 'off', engineStartT: null, engineStopT: null, enginePower: 0, n1: 0,
              coolantState: null, fuelShutoff: false, fuelLeft: null, magnetos: 'BOTH', engineTemp: 0, switches: {},
-             masterBat: true, ...extra });
+             masterBat: true, engineFactors: { failure: 1, ice: 1, seizure: 1, battery: 1, crash: 1 }, ...extra });
   return (s, dt = 0.1) => { for (let t = 0; t < s - 1e-9; t += dt) tickEngine(dt); };
 }
 
@@ -194,4 +194,52 @@ test('turbofan: after a fuel cutoff the fan coasts down and the engine reaches o
   assert.equal(S.engineState, 'shutdown');                     // 22 · e^(−40/12) ≈ 0.8 % — still turning
   step(8);
   assert.equal(S.engineState, 'off');                          // < 0.5 % after ≈ 45 s
+});
+
+test('power is the lifecycle share × the causes — off 0, starting 0.01, running 1', () => {
+  const step = cold(load('c172'));
+  assert.equal(S.enginePower, 0);
+  startEngine();
+  assert.equal(S.enginePower, 0.01);
+  step(3);
+  assert.equal(S.enginePower, 1);
+  stopEngine();
+  assert.equal(S.enginePower, 1);                // the run-down keeps it until off
+  step(4);
+  assert.equal(S.engineState, 'off');
+  assert.equal(S.enginePower, 0);                // off makes no power — no fuel burn after a shutdown
+});
+
+test('causes combine instead of overwriting each other (failure ramp × carb ice)', () => {
+  const step = cold(load('c172'));
+  startEngine(); step(3);
+  setEngineFactor('failure', 0.5);
+  setEngineFactor('ice', 0.8);
+  assert.ok(Math.abs(S.enginePower - 0.4) < 1e-9);
+  setEngineFactor('ice', 1);                     // carb heat clears the ice — the failure stays
+  assert.equal(S.enginePower, 0.5);
+});
+
+test('a restart does not heal a partial failure; a crash makes no power', () => {
+  const step = cold(load('c172'));
+  startEngine(); step(3);
+  setEngineFactor('failure', 0.6);
+  engineQuit();
+  assert.equal(S.enginePower, 0);
+  startEngine(); step(3);
+  assert.equal(S.enginePower, 0.6);
+  setEngineFactor('crash', 0);
+  assert.equal(S.enginePower, 0);
+});
+
+test('a cold aircraft loads with no power, an airborne one with full power and no factors', () => {
+  const c = initialEngine(load('a350'), { onGround: true, spd: 0 });
+  assert.equal(c.enginePower, 0);
+  const a = initialEngine(load('a350'), { onGround: false, spd: 250 });
+  assert.equal(a.enginePower, 1);
+  assert.deepEqual(a.engineFactors, { failure: 1, ice: 1, seizure: 1, battery: 1, crash: 1 });
+});
+
+test('a misspelled cause throws', () => {
+  assert.throws(() => setEngineFactor('icing', 0.5), /unknown power factor/);
 });

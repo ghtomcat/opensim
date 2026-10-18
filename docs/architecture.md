@@ -788,11 +788,11 @@ aircraft that declare the matching data.
 | Module | Applies to | State it owns | Effect on the simulation |
 |---|---|---|---|
 | `core/fuel.js` | aircraft with `tanks` (Bf 109, F4U, C172, DR400) | `fuelLeft`, `fuelRight`, `fuelSelector`, `fuelShutoff`, `fuelStarveT`; `warnings.LOW_FUEL/OIL_PRESS/FUEL_SHUTOFF` | burn ∝ `enginePower` (`fuelBurn` L/h); empty selected tank or shutoff → 4 s run-down → engine off |
-| `core/battery.js` | aircraft with `battery` (Velis Electro) | `batteryCharge` (%) | drain ∝ `enginePower` (`powerDrawKw`, `capacityKwh`); empty → `enginePower` 0 |
+| `core/battery.js` | aircraft with `battery` (Velis Electro) | `batteryCharge` (%) | drain ∝ `enginePower` (`powerDrawKw`, `capacityKwh`); empty → the `battery` power factor 0 |
 | `core/electrical.js` | turbofans | APU state machine; generators, AC/DC/essential buses, bus tie, ext power, `bat1..3Charge` | **display only** (ECAM, overhead, pedestal) |
 | `core/hydraulics.js` | turbofans | GREEN / BLUE / YELLOW pressure, engine-driven and electric pumps | **display only** (ECAM, PFD) |
 | `core/engine.js` | every aircraft with an `engine` | `engineState`, `engineStartT`, `engineStopT` | the start and shutdown lifecycle on sim time (§9.2) |
-| `core/failures.js` | all (by mission) | scripted failures (§2.5); carb ice (`carbIceLevel`); coolant leak → seize | sets `enginePower`; a seized engine stops (`engineQuit()`) |
+| `core/failures.js` | all (by mission) | scripted failures (§2.5); carb ice (`carbIceLevel`); coolant leak → seize | the `failure`, `ice` and `seizure` power factors; a seized engine stops (`engineQuit()`) |
 | cooling (in `core/physics.js`) | aircraft with `cooling` | `coolantTemp`, `oilTempC` | heat balance (§7.1); `failures.js` seizes the engine at `cooling.critical` |
 
 Light-aircraft switches (`masterBat`, `masterAlt`, `avionicsOn`, `magnetos`, `lights`;
@@ -807,7 +807,8 @@ The engine is represented by **single values**, whatever `engine.count` says:
 |---|---|---|
 | `engineState` | `off` → `starting` → `running` (→ `shutdown`) | `core/engine.js` only (the initial value through `initialEngine()` in `mission.js`'s load `setState`) |
 | `engineStartT` / `engineStopT` | s of sim time since the start / the shutdown began | `core/engine.js` |
-| `enginePower` | 0–1 power available (scales thrust) | `failures.js` (ramps, carb ice, seize), `fuel.js`, `battery.js`, `engine.js` (start), `mission.js`, crash |
+| `enginePower` | 0–1 power available (scales thrust): the lifecycle's share (off 0, starting 0.01, running and shutdown 1) × the product of `engineFactors` | `core/engine.js` only |
+| `engineFactors` | `{failure, ice, seizure, battery, crash}`, each 0–1, owned by its cause (`failures.js`, `battery.js`, `physics.js`) | through `setEngineFactor()` in `core/engine.js`; reset at mission load |
 | `n1` | turbofan fan speed % — spooled toward `n1Cmd` (`core/thrust.js`: A/THR or lever) | `core/engine.js` |
 
 Consequences:
@@ -815,9 +816,11 @@ Consequences:
   derives "per-engine" generators from the shared N1, and the hydraulics drives both
   engine pumps from it ("approximated with shared N1"). One engine can't fail or be
   shut down on its own.
-- **`enginePower` has many writers and no composition.** Each writer sets an absolute
-  value. Carb ice, for example, sets `1 − 0.7·ice` every frame while active, which
-  overwrites a failure ramp. The last writer in the frame wins.
+- **Power is composed from causes.** A failure ramp and carb ice multiply instead of
+  overwriting each other; a restart doesn't heal a partial failure; an engine that is off
+  makes no power (and burns no fuel). OIL_PRESS on aircraft without tanks (the airliners)
+  counts only for a running engine, as the ECAM inhibits it while an engine is off or
+  starting; the light aircraft keep their OIL PRESS light with the engine off.
 
 **The lifecycle (`core/engine.js`).** One owner, on sim time, so it pauses with the sim
 and steps with `simStep`, and needs no audio:

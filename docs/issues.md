@@ -308,7 +308,7 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 
 **Why it matters.** Engine-out on a twin can't be simulated: engine failure after V1, single-engine climb, the engine-out departure procedure (EOSID), asymmetric thrust and rudder, single-engine approach and go-around — the core of multi-engine training and of the abnormal-procedures backlog. Also per-engine start sequences, a single engine fire, and generator/pump loss of one engine.
 
-**Design — agreed 2026-10-18.** One owner for the engines, and the three engine issues become one piece of work (this entry, *Engine start completes when the start-up sound finishes* — done 2026-10-18 — and *`enginePower` has many writers and no composition*). The cockpit side of it is the first instance of *The cockpit builds itself from the aircraft data*.
+**Design — agreed 2026-10-18.** One owner for the engines, and the three engine issues become one piece of work (this entry, *Engine start completes when the start-up sound finishes* — done 2026-10-18 — and *`enginePower` has many writers and no composition* — done 2026-10-18). The cockpit side of it is the first instance of *The cockpit builds itself from the aircraft data*.
 
 *Decisions.*
 - **Owner:** `core/engine.js` is the only writer of `S.engines[]`, sized by `engine.count`; a single-engine aircraft is an array of one. Each entry has a shared core (`state`, `lever`, `reverser`, power factors) plus fields for its engine type. Other modules change an engine only through `engine.js` commands (master, start, cut-off, fire handle).
@@ -348,7 +348,7 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 - **Shell (§14).** The `E`/`Q` handlers call `engine.js`; `simGetState()` exposes `engines`. Engine-out scoring doesn't go into `index.html` (*`index.html` carries most of the application wiring*).
 
 *Stages.*
-0. **Owner, still one engine.** `core/engine.js`: lifecycle out of `sound.js` and `velis_epsi.js` (done 2026-10-18: sim time, `engine.startTime` / `stopTime`, `sound.js` follows the state), the APU lifecycle out of `electrical.js`, power from factors, N1 spool out of `physics.js` (done 2026-10-18: the A/THR command in `core/thrust.js` `tickThrust`, the spool in `engine.js`). `engine` an object everywhere (done 2026-10-18). One AudioContext (done 2026-10-18). Done when: a cold start completes via `simStep` with audio muted; no module but `engine.js` writes engine or APU state.
+0. **Owner, still one engine.** `core/engine.js`: lifecycle out of `sound.js` and `velis_epsi.js` (done 2026-10-18: sim time, `engine.startTime` / `stopTime`, `sound.js` follows the state), the APU lifecycle out of `electrical.js`, power from factors (done 2026-10-18: `S.engineFactors` + `setEngineFactor()`, `enginePower` computed in `engine.js` only; fixes the cold-and-dark power of 1), N1 spool out of `physics.js` (done 2026-10-18: the A/THR command in `core/thrust.js` `tickThrust`, the spool in `engine.js`). `engine` an object everywhere (done 2026-10-18). One AudioContext (done 2026-10-18). Done when: a cold start completes via `simStep` with audio muted; no module but `engine.js` writes engine or APU state.
 1. **The array.** `S.engines[]` by `count`, old fields derived from it. Done when: every aircraft flies the same seeded test runs as before.
 2. **Per-engine control and failure, electrical layout as data, no yaw yet.** Masters, levers, fire handles and failures by engine; the full turbofan model (fan/core/EGT/FF); the A350 electrical layout in JSON, read by the simulation, the overhead and the ELEC page; engine controls derived and sending commands. Done when: an A350 loses ENG 1 at V1 (new LSZH departure), climbs on ENG 2 with less climb rate, the ECAM shows ENG 1 failed and GEN 1A/1B offline, and the overhead shows exactly the A350's generators.
 3. **Yaw axis.** A350 engine lateral positions measured into `dimensions`; sideslip, rudder (keys + gamepad), rudder trim, thrust moment. Done when: an engine failure yaws the aircraft toward the dead engine, rudder holds it, and full rudder below V_MC can't.
@@ -357,13 +357,6 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 6. **Training.** V1-cut mission, ENG FAIL procedure and callouts, engine-out climb and EOSID, single-engine approach and go-around, scoring (see the training-procedures backlog).
 
 **Done when.** A twin can lose one engine (failure or fuel cut) and keep flying on the other with the expected yaw and climb loss; the ECAM/EICAS shows the failed engine; single-engine aircraft behave as before.
-
-### `enginePower` has many writers and no composition
-*Found 2026-10-11*
-
-About seven places set `S.enginePower` to an absolute value: `failures.js` (power ramps, carb ice, coolant seizure), `fuel.js` (starvation), `battery.js` (empty), `sound.js` (start lifecycle), `mission.js` (initial), crash (`physics.js`). The last writer in a frame wins. Example: while carb ice is active, `tickFailures()` sets `enginePower = 1 − 0.7·ice` every frame, overwriting an `engine_power` failure ramp in progress; a restart via `sound.js` sets 1.0 regardless of an active partial failure.
-
-**Fix.** Keep the causes separate and compute power from them: e.g. `enginePower = available(fuel, battery, seizure) × (1 − failureLoss) × (1 − icingLoss)`, each factor owned by its module (per engine, see *One engine per aircraft*). **Done when.** No module assigns `enginePower` directly; a failure ramp and carb ice combine instead of overwriting each other.
 
 ### Airliner electrical and hydraulics are display-only — not implemented yet (intentional)
 *Noted 2026-10-11 · `core/electrical.js`, `core/hydraulics.js`*
@@ -534,7 +527,7 @@ The declared layering (data → simulation → presentation → shell) is also n
 
 **Symptom.** `S` is one mutable object with ~170 fields. `setState` is `Object.assign` (~280 calls), and ~110 direct writes sit beside it. No field has a declared owner, so several modules write the same field and the last writer in the frame wins. The comment at the top of `state.js` (only physics, input, mission write) is out of date. On top of that, modules keep private state between frames (fired entries, ramps, caches), cleared by hand-written `reset*()` functions.
 
-**Evidence.** *`enginePower` has many writers and no composition*; ~~*Engine start completes when the start-up sound finishes*~~ (done 2026-10-18: `core/engine.js` owns `engineState`); *The outside view borrows the flight state for its camera*.
+**Evidence.** ~~*`enginePower` has many writers and no composition*~~ (done 2026-10-18: `core/engine.js` composes it from factors); ~~*Engine start completes when the start-up sound finishes*~~ (done 2026-10-18: `core/engine.js` owns `engineState`); *The outside view borrows the flight state for its camera*.
 
 **Why it matters.** Correctness depends on the order of the frame loop and of the ~30 closures in the renderer list. A new feature can't tell whose field it is about to overwrite.
 
@@ -723,9 +716,6 @@ To draw the terrain from the camera, `outside.js` saves the aircraft pose, write
 
 ### Inspiration5 description says "Stage 1 returns to LZ-1"
 *`missions/inspiration5.json`* — the booster now lands on the droneship (ASDS). Its catalog briefing still says so too: `orders` lists "T+02:53 Boostback burn" and "T+08:45+ Stage 1 RTLS · LZ-1".
-
-### Cold-and-dark start leaves `enginePower` at 1
-*Found 2026-10-11* — after loading `lszf-pattern`, `engineState` is `'off'` but `enginePower` reads 1. `core/mission.js` sets 0 for an engine-off start, so something after mission load sets it back — start by searching for `enginePower: 1` in `index.html` / `core/sound.js` init paths. No effect on thrust (needs `'running'`), but inconsistent. Still seen 2026-10-18 (after `core/engine.js`, which writes 0 for a cold start) — goes with the power-from-factors step of *One engine per aircraft*.
 
 ### Manual weather: the schema doesn't know clouds
 *Found 2026-10-15 · `core/schema/mission.js` (`weatherManual`), `app/briefing.js` (`WEATHER_PRESETS`)*
