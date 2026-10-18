@@ -7,7 +7,7 @@
 
 import { S, setState } from '../core/state.js';
 import { startFuelPump, stopFuelPump } from '../core/sound.js';
-import { startEngine, stopEngine } from '../core/engine.js';
+import { startEngine, stopEngine, engineMaster } from '../core/engine.js';
 import { altLabel } from '../core/route.js';
 import { buildDescentPath } from '../core/vnav.js';
 
@@ -773,22 +773,7 @@ function _attachHandlers() {
   const n = S.aircraft?.engine?.count ?? 2;
   for (let i = 1; i <= n; i++) {
     document.getElementById(`ped-master-${i}`)?.addEventListener('click', () => {
-      const mode    = S.engMode ?? 'NORM';
-      const masters = [...(S.engMasters ?? Array(n).fill(false))];
-      const wasOn   = masters[i - 1];
-      masters[i - 1] = !wasOn;
-      setState({ engMasters: masters });
-
-      if (!wasOn && mode === 'IGN+START') {
-        if (!(S.acBusPowered ?? false)) {
-          masters[i - 1] = false;
-          setState({ engMasters: masters });
-          return;
-        }
-        startEngine();
-      } else if (wasOn) {
-        stopEngine();
-      }
+      engineMaster(i - 1, !S.engMasters?.[i - 1]);   // the start conditions are core/engine.js's
     });
   }
 
@@ -905,8 +890,10 @@ function _update() {
     if (head) head.style.top = `${leverPct}%`;
     const n1el = document.getElementById(`ped-n1-${e}`);
     if (n1el) {
-      const n1 = S.N1 ?? (S.enginePower != null ? (S.aircraft?.engine?.idleN1 ?? 22) + (100 - (S.aircraft?.engine?.idleN1 ?? 22)) * S.enginePower : null);
-      n1el.textContent = n1 != null ? `${n1.toFixed(1)}%` : '—';
+      /* Turbofan: the fan speed (N1 %, 0 with the engine off). Engines without an N1 — props,
+         the electric motor — show the power available in % instead. */
+      const pct = S.aircraft?.engine?.type === 'turbofan' ? S.n1 : (S.enginePower != null ? S.enginePower * 100 : null);
+      n1el.textContent = pct != null ? `${pct.toFixed(1)}%` : '—';
     }
   }
 
@@ -937,11 +924,10 @@ function _update() {
   });
 
   /* Engine master flip switches */
-  const masters  = S.engMasters ?? Array(engCount).fill(false);
-  const running  = S.engineState === 'running';
+  const masters  = S.engMasters ?? [];
   for (let i = 1; i <= engCount; i++) {
     const track = document.getElementById(`ped-master-${i}`);
-    if (track) track.classList.toggle('flip-on', !!(masters[i - 1] || running));
+    if (track) track.classList.toggle('flip-on', !!masters[i - 1]);   // the switch position, not the engine state
   }
   /* Rotary knob angle */
   const ANGLES = { 'CRANK': -120, 'NORM': 0, 'IGN+START': 120 };

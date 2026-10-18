@@ -30,3 +30,33 @@ test('ENG MASTER on the pedestal starts it — with AC power and ENG MODE IGN/ST
   await page.locator('#ped-master-1').dispatchEvent('click');
   expect((await state(page)).engineState).toBe('starting');
 });
+
+test('the pedestal shows the real N1 under the levers — 0 % with the engines off', async ({ page }) => {
+  await load(page);
+  await page.keyboard.press('d');
+  await expect(page.locator('#ped-n1-0')).toHaveText('0.0%');
+  await page.evaluate(() => window.simSetState({ acBusPowered: true, engMode: 'IGN+START' }));
+  await page.locator('#ped-master-1').dispatchEvent('click');
+  await step(page, 60);
+  const n1 = (await state(page)).n1;
+  await expect(page.locator('#ped-n1-0')).toHaveText(`${n1.toFixed(1)}%`);
+});
+
+test('ENG MASTER positions do not carry over to the next mission, and match its engine count', async ({ page }) => {
+  await load(page);
+  await page.evaluate(() => window.simSetState({ engMasters: [true, true] }));
+  await page.evaluate(() => window.simLoad('fimp-takeoff'));           // cold A340, same page
+  await page.waitForFunction(() => window.simGetState().aircraft?.id === 'a340', { timeout: 15_000 });
+  expect((await state(page)).engMasters).toEqual([false, false, false, false]);
+});
+
+test('a running engine does not show the other ENG MASTER as ON', async ({ page }) => {
+  await load(page);
+  await page.keyboard.press('d');
+  await page.evaluate(() => window.simSetState({ acBusPowered: true, engMode: 'IGN+START' }));
+  await page.locator('#ped-master-1').dispatchEvent('click');
+  await step(page, 60);
+  expect((await state(page)).engineState).toBe('running');
+  await expect(page.locator('#ped-master-1')).toHaveClass(/flip-on/);
+  await expect(page.locator('#ped-master-2')).not.toHaveClass(/flip-on/);
+});
