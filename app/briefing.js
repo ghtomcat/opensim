@@ -24,10 +24,12 @@ export function briefingLayout(m, acd = {}) {
  *   → { weather: bool, failure: bool, crew: [crew or roles] }
  */
 export function setupChoices(m, md = {}, acd = {}) {
-  if (m.fixedScenario || m.id === 'live-flight') return { weather: false, failure: false, crew: [] };
+  if (m.fixedScenario || m.id === 'live-flight') return { weather: false, failure: false, crew: [], failureAtV1: false, engines: 1 };
   const vt = acd.vehicleType ?? '';
   const flies = md.phase !== 'launch' && vt !== 'rocket' && !vt.startsWith('robot');
-  return { weather: flies, failure: flies, crew: crewPresets(m) };
+  return { weather: flies, failure: flies, crew: crewPresets(m),
+           failureAtV1: flies && md.initialState?.spd === 0,          // a takeoff: the mission starts on the ground
+           engines:     Math.max(1, acd.engine?.count ?? 1) };        // > 1: the pilot picks the engine that fails
 }
 
 /** What "keep the mission's weather" means here: live METAR, or the weather it was written with. */
@@ -76,34 +78,49 @@ export function failureTime(timing, rand = Math.random) {
     : Math.max(10, parseInt(timing.fixedT) || 120);
 }
 
-/** A failure preset at time T → the failure entries core/failures.js runs. */
-export function failureEntries(preset, T) {
+/**
+ * A failure preset → the failure entries core/failures.js runs.
+ *   T:      the time it comes (s), unless atV1
+ *   atV1:   on the takeoff roll at V1 instead
+ *   engine: 1 = ENG 1 …, or absent (all engines — a single-engine aircraft)
+ */
+export function failureEntries(preset, T, { atV1 = false, engine } = {}) {
   if (!preset || preset.id === 'CLEAN') return [];
   if (preset.carbIce) return [{ trigger: { type: 'time', t: T }, type: FAILURE.CARB_ICE }];
+  /* The bang is the engine letting go (a surge, a contained failure) — at the moment the power goes.
+     No gunfire: combat damage is a story of its own (wolfskopf-1942 scripts it), not an engine failure. */
+  const at  = atV1 ? { type: 'v1' } : { type: 'time', t: T };
   const out = [];
-  if (preset.bang) {
-    out.push({ trigger: { type: 'time', t: T     }, type: FAILURE.ENGINE_GUNFIRE });
-    out.push({ trigger: { type: 'time', t: T + 1 }, type: FAILURE.ENGINE_BANG });
-  }
-  out.push({ trigger: { type: 'time', t: T + (preset.bang ? 1 : 0) }, type: FAILURE.ENGINE_POWER,
-             value: preset.severity, rampTime: preset.ramp });
+  if (preset.bang) out.push({ trigger: at, type: FAILURE.ENGINE_BANG });
+  out.push({ trigger: at, type: FAILURE.ENGINE_POWER,
+             value: preset.severity, rampTime: preset.ramp, ...(engine != null ? { engine } : {}) });
   return out;
+}
+
+/** The engine that fails: the pilot's pick (1 …), or random — on a multi-engine aircraft only. */
+export function failureEngine(pick, engines, rand = Math.random) {
+  if (engines <= 1) return undefined;
+  return pick === 'random' || pick == null ? 1 + Math.floor(rand() * engines) : pick;
 }
 
 /* ── The setup ── */
 /**
  * The pilot's picks → the setup for loadMission(…, setup).
- *   picks: { weather: preset id, failure: preset id, timing: { random } | { fixedT }, crew: crew/role id }
- *   opts:  { hasCarbHeat } (offers carb icing), rand (tests)
+ *   picks: { weather: preset id, failure: preset id, timing: { random } | { fixedT } | { v1 },
+ *            engine: 1 … | 'random' (multi-engine), crew: crew/role id }
+ *   opts:  { hasCarbHeat } (offers carb icing), engines (the aircraft's engine count), rand (tests)
  */
-export function buildSetup(m, picks, { hasCarbHeat = false, rand = Math.random } = {}) {
+export function buildSetup(m, picks, { hasCarbHeat = false, engines = 1, rand = Math.random } = {}) {
   const wx     = WEATHER_PRESETS.find(p => p.id === picks.weather);
   const fail   = failurePresets({ hasCarbHeat }).find(p => p.id === picks.failure);
   const member = crewPresets(m).find(p => p.id === picks.crew);
-  const T      = fail && fail.id !== 'CLEAN' ? failureTime(picks.timing ?? { random: true }, rand) : 0;
+  const timing = picks.timing ?? { random: true };
+  const atV1   = !!timing.v1 && !fail?.carbIce;                       // carb icing has no V1 — it comes in the descent
+  const T      = fail && fail.id !== 'CLEAN' && !atV1 ? failureTime(timing.v1 ? { random: true } : timing, rand) : 0;
+  const engine = fail && fail.id !== 'CLEAN' && !fail.carbIce ? failureEngine(picks.engine, engines, rand) : undefined;
   return {
     weather:  wx?.override ?? null,
-    failures: failureEntries(fail, T),
+    failures: failureEntries(fail, T, { atV1, engine }),
     crew: picks.crew == null ? null : {   // no crew choice → the mission's own role stays
       role:          member?.role ?? picks.crew,
       pilotId:       picks.crew,

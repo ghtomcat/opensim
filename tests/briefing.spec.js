@@ -103,3 +103,40 @@ test('a reload on the briefing stays on the briefing', async ({ page }) => {
   await expect(page.locator('#briefing')).toHaveClass(/visible/);
   await expect(page.locator('#bp-lead img.mb-document')).toBeVisible();
 });
+
+test('a takeoff offers the failure at V1 and the engine — and the 777 flies with it', async ({ page }) => {
+  await openBriefing(page, 'singapore-london');
+  await page.click('.bp-chip[data-kind="failure"]');
+  await page.click('.bp-card[data-id="FAILURE"]');
+  await expect(page.locator('.bp-seg button[data-e]')).toHaveText(['ENG 1', 'ENG 2', 'Random']);
+  await page.click('.bp-seg button[data-t="v1"]');
+  await page.click('.bp-seg button[data-e="1"]');
+  await expect(page.locator('.bp-chip[data-kind="failure"]')).toContainText('at V1, ENG 1');
+  await page.click('#bp-fly');
+  await flying(page, 'singapore-london');
+  const s = await page.evaluate(() => window.simGetState());
+  expect(s.mission.failures.at(-1)).toEqual({ trigger: { type: 'v1' }, type: 'engine_power', value: 0, rampTime: 15, engine: 1 });
+
+  /* the takeoff roll: nothing fails below V1 (= VR, 165 kt, for now); at V1 ENG 1 loses its power, ENG 2 doesn't */
+  await page.evaluate(() => window.simSetState({ paused: false, engineState: 'running', enginePower: 1, thrustLever: 1, parkBrake: false, braking: false, athr: false }));
+  await page.waitForFunction(() => { window.simStep(6, 1 / 60); return window.simGetState().spd >= 150; }, null, { polling: 10, timeout: 20_000 });
+  expect((await page.evaluate(() => window.simGetState())).engines.map(e => e.factors.failure)).toEqual([1, 1]);
+  await page.waitForFunction(() => { window.simStep(6, 1 / 60); return window.simGetState().spd >= 170; }, null, { polling: 10, timeout: 20_000 });
+  await page.evaluate(() => window.simStep(1200, 1 / 60));         // the ramp (15 s) has run
+  const after = await page.evaluate(() => window.simGetState());
+  expect(after.engines[0].factors.failure).toBe(0);
+  expect(after.engines[1].factors.failure).toBe(1);
+});
+
+test('an approach offers no V1; a single-engine aircraft no engine choice', async ({ page }) => {
+  await openBriefing(page, 'lszh-approach');
+  await page.click('.bp-chip[data-kind="failure"]');
+  await page.click('.bp-card[data-id="PARTIAL"]');
+  await expect(page.locator('.bp-seg button[data-t="v1"]')).toHaveCount(0);
+  await expect(page.locator('.bp-seg button[data-e]')).toHaveCount(3);   // the A350: ENG 1, ENG 2, Random
+  await openBriefing(page, 'lszf-pattern');
+  await page.click('.bp-chip[data-kind="failure"]');
+  await page.click('.bp-card[data-id="PARTIAL"]');
+  await expect(page.locator('.bp-seg button[data-t="v1"]')).toHaveCount(1);   // the C172 takes off there
+  await expect(page.locator('.bp-seg button[data-e]')).toHaveCount(0);
+});

@@ -96,7 +96,7 @@ export const ROCKET_EVENT = namesFrom([
 export const FAILURE = namesFrom(['engine_gunfire', 'engine_bang', 'engine_power', 'carb_ice', 'coolant_leak']);
 
 /** failures[].trigger.type */
-export const FAILURE_TRIGGER = namesFrom(['time', 'alt']);
+export const FAILURE_TRIGGER = namesFrom(['time', 'alt', 'v1']);   // v1: on the takeoff roll at V1 (core/takeoff-perf.js)
 
 /** commProfile — the radio chains in core/radio.js (PROFILES), plus 'broadcast' (played dry, no chain) */
 export const COMM_PROFILE = namesFrom([

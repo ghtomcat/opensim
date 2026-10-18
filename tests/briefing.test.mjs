@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { briefingLayout, setupChoices, ownWeatherLabel, WEATHER_PRESETS, crewPresets, failurePresets, failureTime, failureEntries, buildSetup }
+import { briefingLayout, setupChoices, ownWeatherLabel, WEATHER_PRESETS, crewPresets, failurePresets, failureTime, failureEntries, failureEngine, buildSetup }
   from '../app/briefing.js';
 import { check } from '../core/schema/check.js';
 import { mission as missionSchema } from '../core/schema/mission.js';
@@ -26,13 +26,13 @@ test('layout: scanned orders, airliner charts, or the story text', () => {
 test('choices: weather and failure for flying missions; none for launches, rockets, labs, fixed stories', () => {
   const roles = [{ id: 'PF', label: 'Pilot flying' }];
   assert.deepEqual(setupChoices({ id: 'lszh-approach', roles }, { phase: 'approach' }, { panel: 'airbus' }),
-    { weather: true, failure: true, crew: roles });
+    { weather: true, failure: true, crew: roles, failureAtV1: false, engines: 1 });
   const demo2 = setupChoices({ id: 'crew-demo2', roles }, { phase: 'launch' }, { vehicleType: 'rocket' });
   assert.equal(demo2.weather, false); assert.equal(demo2.failure, false); assert.deepEqual(demo2.crew, roles);
   assert.equal(setupChoices({ id: 'x' }, { phase: 'ground' }, { vehicleType: 'rocket' }).weather, false);
   assert.equal(setupChoices({ id: 'yertle-lab' }, { phase: 'ground' }, { vehicleType: 'robot-dog' }).failure, false);
   assert.deepEqual(setupChoices({ id: 'wolfskopf-1942', fixedScenario: true }, { phase: 'cruise' }),
-    { weather: false, failure: false, crew: [] });
+    { weather: false, failure: false, crew: [], failureAtV1: false, engines: 1 });
   assert.equal(setupChoices({ id: 'live-flight' }).weather, false);
 });
 
@@ -64,11 +64,10 @@ test('failure time: random 60–300 s, or the fixed time (min 10 s, blank = 120 
   assert.equal(failureTime({ fixedT: '' }), 120);
 });
 
-test('failure entries: a bang is gunfire, then bang and power loss one second later', () => {
+test('failure entries: a bang and the power loss at the same moment — no gunfire (that is combat, not a failure)', () => {
   assert.deepEqual(failureEntries(preset('ROUGH'), 100), [
-    { trigger: { type: 'time', t: 100 }, type: 'engine_gunfire' },
-    { trigger: { type: 'time', t: 101 }, type: 'engine_bang' },
-    { trigger: { type: 'time', t: 101 }, type: 'engine_power', value: 0.3, rampTime: 20 },
+    { trigger: { type: 'time', t: 100 }, type: 'engine_bang' },
+    { trigger: { type: 'time', t: 100 }, type: 'engine_power', value: 0.3, rampTime: 20 },
   ]);
   assert.deepEqual(failureEntries(preset('PARTIAL'), 90), [
     { trigger: { type: 'time', t: 90 }, type: 'engine_power', value: 0.5, rampTime: 30 },
@@ -83,7 +82,8 @@ test('failure entries are valid mission failures (core/schema/)', () => {
   const m = JSON.parse(readFileSync(new URL('../missions/lszf-pattern.json', import.meta.url)));
   const before = check(m, missionSchema).length;
   m.failures = [...(m.failures ?? []),
-    ...failurePresets({ hasCarbHeat: true }).flatMap(p => failureEntries(p, 120))];
+    ...failurePresets({ hasCarbHeat: true }).flatMap(p => failureEntries(p, 120)),
+    ...failurePresets().flatMap(p => failureEntries(p, 0, { atV1: true, engine: 2 }))];   // the v1 trigger and an engine
   assert.equal(check(m, missionSchema).length, before);
 });
 
@@ -99,7 +99,7 @@ test('buildSetup: live weather keeps the mission\'s, a preset replaces it; no fa
 test('buildSetup: the failure comes at the chosen time', () => {
   const s = buildSetup({ id: 'lszf-pattern' },
     { weather: 'LIVE', failure: 'FAILURE', timing: { fixedT: '150' }, crew: null });
-  assert.deepEqual(s.failures.map(f => f.trigger.t), [150, 151, 151]);
+  assert.deepEqual(s.failures.map(f => f.trigger.t), [150, 150]);   // the bang and the power loss
   assert.equal(s.failures.at(-1).value, 0);
 });
 
@@ -114,4 +114,36 @@ test('buildSetup: a named crew member sets role, name and callsign; a plain role
   const roles = [{ id: 'PF', label: 'Pilot flying' }, { id: 'PM', label: 'Pilot monitoring' }];
   assert.deepEqual(buildSetup({ roles }, { weather: 'LIVE', failure: 'CLEAN', crew: 'PM' }).crew,
     { role: 'PM', pilotId: 'PM', pilotName: null, pilotCallsign: null });
+});
+
+test('choices: "at V1" for missions that start on the ground; the engine to fail on multi-engine aircraft', () => {
+  const takeoff = setupChoices({ id: 'singapore-london' }, { phase: 'ground', initialState: { spd: 0 } }, { engine: { count: 2 } });
+  assert.equal(takeoff.failureAtV1, true);
+  assert.equal(takeoff.engines, 2);
+  const approach = setupChoices({ id: 'lszh-approach' }, { phase: 'approach', initialState: { spd: 150 } }, { engine: { count: 2 } });
+  assert.equal(approach.failureAtV1, false);
+  assert.equal(setupChoices({ id: 'lszf-pattern' }, { initialState: { spd: 0 } }, { engine: { count: 1 } }).engines, 1);
+});
+
+test('failure at V1: every entry on the v1 trigger, the power loss on the chosen engine', () => {
+  assert.deepEqual(failureEntries(preset('FAILURE'), 0, { atV1: true, engine: 1 }), [
+    { trigger: { type: 'v1' }, type: 'engine_bang' },
+    { trigger: { type: 'v1' }, type: 'engine_power', value: 0, rampTime: 15, engine: 1 },
+  ]);
+});
+
+test('the engine that fails: the pick, random over the engines, none on a single engine', () => {
+  assert.equal(failureEngine(2, 2), 2);
+  assert.equal(failureEngine('random', 4, () => 0), 1);
+  assert.equal(failureEngine('random', 4, () => 0.9999), 4);
+  assert.equal(failureEngine(1, 1), undefined);
+});
+
+test('buildSetup: at V1 on ENG 2; carb icing ignores V1 and the engine', () => {
+  const m = { id: 'singapore-london' };
+  const s = buildSetup(m, { weather: 'LIVE', failure: 'PARTIAL', timing: { v1: true }, engine: 2 }, { engines: 2 });
+  assert.deepEqual(s.failures, [{ trigger: { type: 'v1' }, type: 'engine_power', value: 0.5, rampTime: 30, engine: 2 }]);
+  const ice = buildSetup({ id: 'lszf-pattern' }, { weather: 'LIVE', failure: 'CARB ICE', timing: { v1: true }, engine: 1 },
+                         { hasCarbHeat: true, engines: 1, rand: () => 0 });
+  assert.deepEqual(ice.failures, [{ trigger: { type: 'time', t: 60 }, type: 'carb_ice' }]);
 });

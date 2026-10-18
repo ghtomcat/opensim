@@ -1,7 +1,8 @@
 /* ═══════════════════════════════════════════════════════════════
    OpenSim — core/failures.js
    Scripted failure events. Reads S.mission.failures.
-   Triggers by time (seconds) or altitude (ft).
+   Triggers by time (seconds), altitude (ft), or V1 on the takeoff roll
+   (core/takeoff-perf.js — once, before the aircraft has flown).
 
    Failure types:
      engine_bang   — sharp impulse sound, then power drops
@@ -13,16 +14,19 @@
 import { S, setState } from './state.js';
 import { engineBang, engineGunfire, coolantHiss } from './sound.js';
 import { engineQuit, setEngineFactor } from './engine.js';
+import { v1 } from './takeoff-perf.js';
 import { bbEvent } from './blackbox.js';
 import { onMissionReset } from './lifecycle.js';
 import { FAILURE, FAILURE_TRIGGER, assertCovers, warnUnknown } from './vocab.js';
 
 let _fired    = new Set();   // indices of already-fired failures
 let _ramps    = [];          // active power ramps
+let _flown    = false;       // airborne at least once this mission — after that there is no takeoff roll (no V1)
 
 export function resetFailures() {
   _fired.clear();
   _ramps = [];
+  _flown = false;
   /* engine power: the factors are reset with the mission's initial engine state (core/engine.js) */
   setState({ emergLog: [], carbHeat: false, carbIceLevel: 0, carbIceActive: false, coolantState: 'ok' });
 }
@@ -61,6 +65,9 @@ export function tickFailures(dt) {
   const niflheimNow = S.mission?.id === 'wolfskopf-1942' && t >= 108 && t < 124;
   if (niflheimNow !== (S.niflheimVisible ?? false)) setState({ niflheimVisible: niflheimNow });
 
+  if (!S.wow) _flown = true;
+  const _v1 = v1();
+
   /* Check triggers */
   if (failures?.length) {
     failures.forEach((f, i) => {
@@ -70,7 +77,8 @@ export function tickFailures(dt) {
       if (!tr) return;   // rocket-system failures (affects/masterAlarm) handled by rocket.js
       const triggered =
         (tr.type === FAILURE_TRIGGER.TIME && t >= tr.t) ||
-        (tr.type === FAILURE_TRIGGER.ALT  && alt <= tr.alt);
+        (tr.type === FAILURE_TRIGGER.ALT  && alt <= tr.alt) ||
+        (tr.type === FAILURE_TRIGGER.V1   && S.wow && !_flown && _v1 != null && (S.spd ?? 0) >= _v1);   // the takeoff roll, at V1
 
       if (!triggered) return;
       _fired.add(i);

@@ -3264,7 +3264,7 @@
     const noKeys  = vt === 'rocket' || vt.startsWith('robot');   // launched or driven by sliders: no key map
     const crew    = [S.pilotId, S.role].find(id => choices.crew.some(c => c.id === id)) ?? choices.crew[0]?.id ?? null;
     Object.assign(_bp, { m, md, acd, choices,
-      picks: { weather: 'LIVE', failure: 'CLEAN', random: true, fixedT: 120, crew },
+      picks: { weather: 'LIVE', failure: 'CLEAN', when: 'random', fixedT: 120, engine: 'random', crew },
       keys:  acd.onboarding ?? (noKeys ? [] : _DEFAULT_OB) });
 
     const el   = document.getElementById('briefing');
@@ -3381,6 +3381,9 @@
   const _BP_LABEL = { weather: 'Weather', crew: 'Crew', failure: 'Failure', controls: 'Controls' };
   const _isInst   = (id) => id === 'INSTRUCTOR' || id === 'INST';
   const _bpFails  = () => failurePresets({ hasCarbHeat: !!_bp.acd.hasCarbHeat });
+  /* The failure's when and engine as they will be flown: carb icing has neither V1 nor an engine */
+  const _bpWhen   = () => (_bp.picks.when === 'v1' && (!_bp.choices.failureAtV1 || _bpFails().find(p => p.id === _bp.picks.failure)?.carbIce)) ? 'random' : _bp.picks.when;
+  const _bpEngPick = () => _bp.choices.engines > 1 && !_bpFails().find(p => p.id === _bp.picks.failure)?.carbIce;
 
   function _bpValue(kind) {
     const { picks, md, choices } = _bp;
@@ -3388,7 +3391,10 @@
     if (kind === 'crew')    { const c = choices.crew.find(c => c.id === picks.crew); return c?.name ?? c?.label ?? picks.crew; }
     if (kind === 'failure') {
       if (picks.failure === 'CLEAN') return 'None';
-      return `${_bpFails().find(p => p.id === picks.failure).label}, ${picks.random ? 'at a random time' : `at ${picks.fixedT} s`}`;
+      const when = _bpWhen();
+      const at   = when === 'v1' ? 'at V1' : when === 'random' ? 'at a random time' : `at ${picks.fixedT} s`;
+      const eng  = _bpEngPick() ? (picks.engine === 'random' ? ', a random engine' : `, ENG ${picks.engine}`) : '';
+      return `${_bpFails().find(p => p.id === picks.failure).label}, ${at}${eng}`;
     }
     return '';
   }
@@ -3428,12 +3434,20 @@
     pop.innerHTML = `<div class="bp-cards" role="radiogroup" aria-label="${_BP_LABEL[kind]}">${cards.map(([id, top, sub]) =>
         `<button class="bp-card${_isInst(id) ? ' inst' : ''}" role="radio" aria-checked="${id === picks[kind]}" data-id="${_esc(id)}">
            <div class="id">${_esc(top)}</div><div class="lb">${_esc(sub)}</div></button>`).join('')}</div>` +
-      (kind === 'failure' && picks.failure !== 'CLEAN' ? `<div class="bp-timing"><span>When</span>
-        <span class="bp-seg"><button data-t="random" aria-pressed="${picks.random}">Random 60–300 s</button><button data-t="fixed" aria-pressed="${!picks.random}">At</button></span>
-        <input id="bp-fixed-t" type="number" min="10" max="3600" value="${picks.fixedT}" aria-label="Seconds after start" ${picks.random ? 'disabled' : ''}> s</div>` : '');
+      (kind === 'failure' && picks.failure !== 'CLEAN' ? (() => {
+        const when = _bpWhen();
+        const iced = _bpFails().find(p => p.id === picks.failure)?.carbIce;
+        const v1   = choices.failureAtV1 && !iced;                                   // a takeoff — V1 is offered
+        return `<div class="bp-timing"><span>When</span>
+        <span class="bp-seg"><button data-t="random" aria-pressed="${when === 'random'}">Random 60–300 s</button>${v1 ? `<button data-t="v1" aria-pressed="${when === 'v1'}">At V1</button>` : ''}<button data-t="fixed" aria-pressed="${when === 'fixed'}">At</button></span>
+        <input id="bp-fixed-t" type="number" min="10" max="3600" value="${picks.fixedT}" aria-label="Seconds after start" ${when === 'fixed' ? '' : 'disabled'}> s</div>` +
+        (_bpEngPick() ? `<div class="bp-timing"><span>Engine</span>
+        <span class="bp-seg">${Array.from({ length: choices.engines }, (_, i) => `<button data-e="${i + 1}" aria-pressed="${picks.engine === i + 1}">ENG ${i + 1}</button>`).join('')}<button data-e="random" aria-pressed="${picks.engine === 'random'}">Random</button></span></div>` : '');
+      })() : '');
     _bpPlace(chip, kind);
     pop.querySelectorAll('.bp-card').forEach(c => c.addEventListener('click', () => { picks[kind] = c.dataset.id; _bpRefresh(kind); }));
-    pop.querySelectorAll('.bp-seg button').forEach(b => b.addEventListener('click', () => { picks.random = b.dataset.t === 'random'; _bpRefresh(kind); }));
+    pop.querySelectorAll('.bp-seg button[data-t]').forEach(b => b.addEventListener('click', () => { picks.when = b.dataset.t; _bpRefresh(kind); }));
+    pop.querySelectorAll('.bp-seg button[data-e]').forEach(b => b.addEventListener('click', () => { picks.engine = b.dataset.e === 'random' ? 'random' : +b.dataset.e; _bpRefresh(kind); }));
     pop.querySelector('#bp-fixed-t')?.addEventListener('change', e => { picks.fixedT = Math.max(10, parseInt(e.target.value) || 120); _bpStrip(); });
   }
 
@@ -3466,9 +3480,10 @@
     const setup = buildSetup(m, {
       weather: choices.weather ? picks.weather : 'LIVE',
       failure: choices.failure ? picks.failure : 'CLEAN',
-      timing:  picks.random ? { random: true } : { fixedT: picks.fixedT },
+      timing:  { random: { random: true }, fixed: { fixedT: picks.fixedT }, v1: { v1: true } }[_bpWhen()],
+      engine:  picks.engine,
       crew:    choices.crew.length > 0 ? picks.crew : null,
-    }, { hasCarbHeat: !!acd.hasCarbHeat });
+    }, { hasCarbHeat: !!acd.hasCarbHeat, engines: choices.engines });
     _hideBriefing();
     init(m.id, m.aircraft, null, setup).catch(console.error);
   }
