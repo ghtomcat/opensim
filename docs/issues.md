@@ -329,6 +329,10 @@ The missions also have a `phase` (ground / departure / circuit / cruise / approa
 
 **Done when.** The `lsgg-takeoff` route uses an EDDM STAR and is close to the real-world Geneva → Munich distance (roughly 280–330 nm); a test in `tests/` holds the distance.
 
+---
+
+## Engine and systems
+
 ### One engine per aircraft
 *Found 2026-10-11 · `S.engineState`, `S.enginePower`, `S.n1` (single values)*
 
@@ -403,6 +407,24 @@ The C172, DR400 and Velis switches are plain fields: no battery charge, no alter
 *Found 2026-10-13 · `_isComPowered()` in `core/crew.js`*
 
 `_isComPowered()` powers the COM on the Velis only with MASTER + BATT EN + AVIONICS on — but it checks `panel === 'velis'`, and the Velis has `panel: "velis-epsi"` (the value `index.html` and `display/pedestal.js` compare against). The branch never matches, so the Velis COM is always powered: the switches don't cut it, and a `com_active` clearance trigger can't wait for the pilot to switch the avionics on. **Cause — verified (code); not yet seen in the browser.** **Fix:** compare against `'velis-epsi'` — better, take panel names from shared constants (data-contract stage 3), so a mistyped name can't compile in silently; longer term the COM power belongs to the electrical system (see *Vehicle- and mission-specific special cases in generic core modules*). **Done when:** on the Velis, the COM is silent until MASTER, BATT EN and AVIONICS are on.
+
+### Engine values are generic — an engine catalogue per model, from the type certificates — not implemented yet
+*Noted 2026-10-18 · `core/engine.js` (core, EGT, fuel flow, oil pressure, windmilling), the E/WD gauges in `display/pfd_instruments.js`, `engine` in the aircraft files*
+
+**Today.** The turbofan model (stage 2c of *One engine per aircraft*) runs on generic values:
+- **Overridable per aircraft, but set by none:** `coreIdle` 60 %, `egtIdle` 400 °C, `egtTakeoff` 850 °C, `egtStart` 650 °C, `ffMax` (from the thrust × ~0.3 lb/lbf/h). `idleN1` is set on some.
+- **Hard-coded, the same for every engine:** the oil-pressure curve `80 · (core/100)^1.5` and its minimum, 13 psi (a CFM56 figure — now also the GE90's, the Trent XWB's, the PW1000G's); the curve shapes (EGT exponent 1.2, fuel-flow exponent 2.2, the start profile with light-off at 25 % core and 35 % of the start time); the windmill coefficients; the generator threshold (90 % of core idle).
+- **In the display:** the E/WD's EGT bands (amber 850, red 950 °C) and N1 limits are fixed in the code — the redlines differ by engine.
+- An engine model is shared by several aircraft (the CFM56-7 on the 737, the CFM56-5C4 on the A340, the LEAP-1B on the 737 MAX), so its values belong to the engine, not to each aircraft that carries it.
+
+**Fix.** An engine catalogue: one data file per engine model (`engines/ge90-115b.json`, `engines/cfm56-7b.json`, `engines/trent-xwb.json` …), referenced by the aircraft's `engine.model`, as a mission references its aircraft.
+- **Content:** the limits (EGT redline, start EGT limit, N1/N2 maxima, oil-pressure minimum), the operating points (idle N1/core, EGT at idle and takeoff, fuel flow), the start parameters — later the sound reference.
+- **A schema**, and a `generic-turbofan` file with today's defaults, so no value falls back to the code.
+- **The aircraft can override** single values (a derated version, e.g.).
+- **The readers:** `core/engine.js`, the E/WD gauge bands, OIL_PRESS.
+- **Sources:** the public **EASA type-certificate data sheets** (TCDS) of each engine for the certified limits — official, public documents, as the airport-planning drawings are for the geometry; operating values from published manuals or performance documents. Where none is found, the value stays generic and says so. No invented numbers.
+
+**Done when.** `core/engine.js` and the displays read every engine value from the catalogue (generic or per model); the GE90-115B (the first engine-out aircraft, the 777) has its own file from its TCDS; the E/WD's EGT redline is the engine's.
 
 ### Smaller systems items
 *Found 2026-10-11*
