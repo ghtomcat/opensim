@@ -11,7 +11,7 @@
 
 import { S, setState } from './state.js';
 import { bbEvent } from './blackbox.js';
-import { engineQuit } from './engine.js';
+import { engineQuit, engineOilLow } from './engine.js';
 import { onMissionReset } from './lifecycle.js';
 
 /* Default fuel burn rates litres/hour at full power */
@@ -56,7 +56,9 @@ export function tickFuel(dt) {
      starting — and never for an electric motor (no oil). The light aircraft below keep the
      simple rule: their OIL PRESS light is on whenever the engine isn't making power. */
   if (S.fuelLeft === null) {
-    const oilLow = S.aircraft?.engine?.type !== 'electric' && S.engineState === 'running' && (S.enginePower ?? 1) < 0.3;
+    const type   = S.aircraft?.engine?.type;
+    const oilLow = type === 'turbofan' ? (S.engines ?? []).some(engineOilLow)        // per engine, from its core (core/engine.js)
+                 : type !== 'electric' && S.engineState === 'running' && (S.enginePower ?? 1) < 0.3;
     const warnings = { ...(S.warnings ?? {}), OIL_PRESS: oilLow };
     setState({ warnings });
     return;

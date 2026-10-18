@@ -22,6 +22,7 @@ const engine = object(
     startTime: num, stopTime: num,   // s — the start sequence and the run-down (core/engine.js)
     starter: oneOf('electric'),      // what turns the engine over: 'electric' needs BAT on; absent → no condition
     coreIdle: num, spools: num,      // turbofan core: % at idle (default 60); 3 → the core is N3 (core/engine.js)
+    egtIdle: num, egtTakeoff: num, egtStart: num, ffMax: num,   // °C at idle / 100 % N1 / the start peak; kg/h at takeoff
     chevrons: bool, nacellePaint: arrayOf(num) },   // last two: 3D model
   { doc: { model: str, description: str }, required: ['count'] },
 );

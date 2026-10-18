@@ -13,10 +13,11 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { S, setState } from '../core/state.js';
 import { startEngine, stopEngine, engineQuit, tickEngine, initialEngine, hasStartSequence, setEngineFactor,
-         apuMaster, apuStart, apuFire, engineMaster, adoptEngineFields, engineAvailable, coreAtN1 } from '../core/engine.js';
+         apuMaster, apuStart, apuFire, engineMaster, adoptEngineFields, engineAvailable, coreAtN1, engineOilLow } from '../core/engine.js';
 import { startRecording, apuStartRecording } from '../core/sound.js';
 import { tickThrust } from '../core/thrust.js';
 import { tickElectrical } from '../core/electrical.js';
+import { tickFuel } from '../core/fuel.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const load = (id) => JSON.parse(readFileSync(join(here, '..', 'aircraft', `${id}.json`), 'utf8'));
@@ -467,4 +468,62 @@ test('a shutdown in flight ends when the fan has run down to its windmill speed'
   for (let t = 0; t < 120; t += 0.1) tickEngine(0.1);
   assert.equal(S.engines[0].state, 'off');
   assert.ok(S.engines[0].n1 > 20, `windmilling at ${S.engines[0].n1.toFixed(1)} %`);
+});
+
+/* ── Stage 2c part 2: EGT, fuel flow, oil pressure ── */
+
+function idleOnRunway() {
+  const ac = load('b777-300er');
+  setState({ aircraft: ac, wow: true, spd: 0, alt: 22, paused: false, crashed: false, n1Cmd: 22, thrustLever: 0,
+             thrustReverser: false, fuelLeft: null, warnings: {}, metar: { temp: 15 }, mission: {},
+             ...initialEngine(ac, { onGround: true, spd: 0, onRunway: true }) });
+  return ac;
+}
+
+test('at idle: EGT ≈ 400 °C, oil ≈ 37 psi, fuel flow a few hundred kg/h; at takeoff thrust they rise', () => {
+  idleOnRunway();
+  for (let t = 0; t < 30; t += 0.1) tickEngine(0.1);
+  const e = S.engines[0];
+  assert.ok(Math.abs(e.egt - 400) < 5, `EGT ${e.egt.toFixed(0)}`);
+  assert.ok(Math.abs(e.oil - 37.2) < 1, `oil ${e.oil.toFixed(1)}`);
+  assert.ok(e.ff > 200 && e.ff < 600, `FF ${e.ff.toFixed(0)}`);
+  setState({ n1Cmd: 100 });
+  for (let t = 0; t < 60; t += 0.1) tickEngine(0.1);
+  const t1 = S.engines[0];
+  assert.ok(t1.egt > 800, `EGT ${t1.egt.toFixed(0)} at takeoff thrust`);
+  assert.ok(t1.oil > 75, `oil ${t1.oil.toFixed(0)}`);
+  assert.ok(t1.ff > 10000, `FF ${t1.ff.toFixed(0)} — the GE90 at takeoff`);
+});
+
+test('the start: EGT rises at light-off toward the start peak, oil comes up with the core', () => {
+  const ac = load('b777-300er');
+  setState({ aircraft: ac, wow: true, spd: 0, alt: 22, paused: false, crashed: false, n1Cmd: 22, thrustLever: 0, metar: { temp: 15 }, mission: {},
+             ...initialEngine(ac, { onGround: true, spd: 0 }) });
+  startEngine();
+  const T = ac.engine.startTime;
+  for (let t = 0; t < T * 0.3; t += 0.1) tickEngine(0.1);
+  assert.ok(S.engines[0].egt < 30, `EGT ${S.engines[0].egt.toFixed(0)} before light-off`);
+  for (let t = 0; t < T * 0.2; t += 0.1) tickEngine(0.1);
+  assert.ok(S.engines[0].egt > 500, `EGT ${S.engines[0].egt.toFixed(0)} after light-off`);
+  for (let t = 0; t < T * 0.6; t += 0.1) tickEngine(0.1);
+  assert.equal(S.engines[0].state, 'running');
+  assert.ok(S.engines[0].oil > 25, `oil ${S.engines[0].oil.toFixed(0)}`);
+});
+
+test('a failed engine in flight: oil pressure low → OIL_PRESS; one shut down (master off) does not warn', () => {
+  runningTwin();
+  setState({ fuelLeft: null, warnings: {} });
+  for (let t = 0; t < 5; t += 0.1) tickEngine(0.1);
+  tickFuel(0.1);
+  assert.equal(S.warnings.OIL_PRESS, false);
+  setEngineFactor('failure', 0, 0);
+  for (let t = 0; t < 90; t += 0.1) tickEngine(0.1);
+  assert.ok(engineOilLow(S.engines[0]), `oil ${S.engines[0].oil.toFixed(1)} windmilling`);
+  assert.equal(S.engines[0].ff, 0);
+  tickFuel(0.1);
+  assert.equal(S.warnings.OIL_PRESS, true);
+  stopEngine(0);                                                   // master off — the ECAM inhibits it
+  for (let t = 0; t < 120; t += 0.1) tickEngine(0.1);
+  tickFuel(0.1);
+  assert.equal(S.warnings.OIL_PRESS, false);
 });

@@ -808,10 +808,14 @@ system model. COM power is decided per panel type in `core/crew.js` (§2.4).
 ### 9.2 The engines: one entry per engine
 
 `S.engines[]` holds **one entry per engine** (`engine.count`): `{ state, startT, stopT,
-n1, core, factors, power }`. A turbofan's `core` (N2, or N3 with `engine.spools: 3`) runs
+n1, core, egt, ff, oil, factors, power }`. A turbofan's `core` (N2, or N3 with `engine.spools: 3`) runs
 from `engine.coreIdle` (default 60 %) at idle N1 to 100 %, leads the fan, follows a start
 profile scaled to `startTime` (starter to ~25 %, light-off, idle), and windmills in flight
-when the engine makes no power (fan ~22 % at 250 kt, core about half; no thrust). The commands take an engine index (0-based) — ENG MASTER *i*, a
+when the engine makes no power (fan ~22 % at 250 kt, core about half; no thrust). Its EGT
+(`egtIdle` 400 → `egtTakeoff` 850 °C along N1, the start peak `egtStart` 650 °C at light-off,
+cooling to the outside air), fuel flow (`ffMax · (N1/100)^2.2`, less in thin air; `ffMax`
+defaults to the per-engine thrust × ~0.3 lb/lbf/h) and oil pressure (`80 · (core/100)^1.5`
+psi) are first-order curves from that state — display and warning values, not read by physics. The commands take an engine index (0-based) — ENG MASTER *i*, a
 failure on one engine — or act on all engines when it is absent (`E`, `Q`, the light
 aircraft). What must tell the engines apart reads the array: the thrust (§7.2), the
 generators and pumps, the engine displays. Everything else reads **single values derived
@@ -833,9 +837,11 @@ Consequences:
   can name its engine; each generator and engine-driven pump runs off its own engine's core
   (online from 90 % of core idle — so at idle on the runway, not when windmilling);
   the ECAM/E/WD engine displays read `S.engines` and show a failed engine (running, power
-  below 1) in amber with FAIL, and the core speed from the engine. Still missing: EGT, fuel
-  flow and oil pressure per engine, and the per-aircraft system layouts — stage 2 of
-  `issues.md` → *One engine per aircraft*.
+  below 1) in amber with FAIL, and the engine's core speed, EGT and fuel flow. OIL_PRESS on
+  the airliners comes from each engine selected on with oil below 13 psi (a failed engine →
+  MASTER WARN; one shut down with its master off is inhibited, as on the ECAM). Still
+  missing: the per-aircraft system layouts — stage 2 of `issues.md` → *One engine per
+  aircraft*.
 - **Power is composed from causes.** A failure ramp and carb ice multiply instead of
   overwriting each other; a restart doesn't heal a partial failure; an engine that is off
   makes no power (and burns no fuel). OIL_PRESS on aircraft without tanks (the airliners)

@@ -13,7 +13,7 @@
 
 import { S, setState } from '../core/state.js';
 import { elecCfg }    from '../core/electrical.js';
-import { engineAvailable } from '../core/engine.js';
+import { engineAvailable, engineOilLow } from '../core/engine.js';
 
 const C = {
   bg:      '#030609',
@@ -102,14 +102,17 @@ function _drawEngine(ctx, cx, H, s, eng) {
   const e   = S.engines?.[eng - 1];
   const n1  = Math.round(e?.n1 ?? S.n1 ?? 0);
   const failed = !!e && e.state === 'running' && engineAvailable(e) < 1;
-  const egt = Math.round(350 + (n1 / 100) * 340);
-  const ff  = Math.round(200 + (n1 / 100) * 7800);
+  const egt = Math.round(e?.egt ?? 350 + (n1 / 100) * 340);       // the engine's own values (core/engine.js)
+  const ff  = Math.round(e?.ff  ?? 200 + (n1 / 100) * 7800);
+  const oil = e?.oil != null ? Math.round(e.oil) : null;
+  const oilLow = !!e && engineOilLow(e);
 
   _arcGauge(ctx, cx, H * 0.38, 48 * s, n1, 100, n1 > 95 ? C.red : C.green, s);
   _label(ctx, n1 + '%',      cx, H * 0.38 + 5 * s, n1 > 95 ? C.red : C.green, 14 * s);
   _label(ctx, 'EGT',         cx, H * 0.62, C.dim, 8 * s);
   _label(ctx, egt + '°',     cx, H * 0.72, egt > 640 ? C.amber : C.green, 12 * s);
   _label(ctx, ff + ' KG/H',  cx, H * 0.83, C.dim, 8 * s);
+  if (oil != null) _label(ctx, 'OIL ' + oil + ' PSI', cx, H * 0.88, oilLow ? C.amber : C.dim, 8 * s);
   _label(ctx, failed ? 'ENG ' + eng + ' FAIL' : 'ENG ' + eng, cx, H * 0.93, failed ? C.amber : C.dim, 8 * s);
 }
 

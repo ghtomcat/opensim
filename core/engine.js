@@ -63,14 +63,14 @@ const _idleN1    = () => _eng().idleN1 ?? 22;
 const _count     = (eng = _eng()) => Math.max(1, eng.count ?? 1);
 
 /* ── The engines ─────────────────────────────────────────────────
-   S.engines[i] = { state, startT, stopT, n1, core, factors, power } — one per engine.
+   S.engines[i] = { state, startT, stopT, n1, core, egt, ff, oil, factors, power } — one per engine.
    The single fields the rest of the sim still reads (engineState, enginePower, n1,
    engineStartT, engineStopT, engineFactors) are derived from the array on every change;
    what must tell the engines apart (thrust, generators, pumps, the engine displays) reads
    the array. */
 
-function _newEngine(state, n1 = 0, core = 0) {
-  return { state, startT: null, stopT: null, n1, core, factors: FACTORS_NONE, power: _power(state, FACTORS_NONE) };
+function _newEngine(state, n1 = 0, core = 0, gauges = { egt: 15, ff: 0, oil: 0 }) {
+  return { state, startT: null, stopT: null, n1, core, ...gauges, factors: FACTORS_NONE, power: _power(state, FACTORS_NONE) };
 }
 
 /* ── The core (turbofan) ───────────────────────────────────────────
@@ -91,6 +91,54 @@ export function coreAtN1(n1, eng = _eng()) {
 function _coreStarting(t, eng) {
   const f = Math.min(1, t / Math.max(1, eng.startTime ?? 1)), ci = _coreIdle(eng);
   return f < 0.35 ? 25 * (f / 0.35) : 25 + (ci - 25) * ((f - 0.35) / 0.65);
+}
+
+/* ── EGT, fuel flow, oil pressure (turbofan) ──────────────────────
+   First-order, from the engine's own state. EGT (°C): engine.egtIdle (400) at idle N1 to
+   engine.egtTakeoff (850) at 100 %, a little hotter on a hot day; at light-off it rises to
+   engine.egtStart (650) and settles to idle; off, shut down or windmilling it cools to the
+   outside air. It rises fast (3 s) and cools slowly. Fuel flow (kg/h): engine.ffMax · (N1/100)^2.2,
+   less in thin air — ffMax defaults to the per-engine thrust × a typical takeoff TSFC
+   (≈ 0.3 lb/lbf/h); a trickle from light-off in the start. Oil pressure (psi): the pump is on the
+   gearbox — 80 · (core/100)^1.5 (≈ 37 at idle, ≈ 3 windmilling). */
+const OIL_MIN_PSI = 13;                       // the low-oil-pressure limit (CFM56)
+const _oat = () => (S.mission?.weather?.manual?.temp ?? S.metar?.temp ?? 15) - 1.98 * ((S.alt ?? 0) / 1000);   // as the cooling model
+const _rhoRatio = () => Math.pow(Math.max(0, 1 - 2.2558e-5 * (S.alt ?? 0) * 0.3048), 4.2559);
+function _ffMax(eng = _eng()) {
+  const perf = S.aircraft?.performance ?? {};
+  return eng.ffMax ?? 0.0306 * (perf.thrustMax ?? 0) / _count(eng);   // 0.3 lb/(lbf·h) = 0.0306 kg/(N·h)
+}
+
+/** An engine's gauge values for its state now — the EGT target, fuel flow, oil pressure. */
+function _gauges(e, eng, startT = e.startT) {
+  const idle = eng.idleN1 ?? 22, oat = _oat();
+  const lightOff = e.state === 'starting' && (startT ?? 0) >= 0.35 * (eng.startTime ?? 0);
+  const burning  = (e.state === 'running' && engineAvailable(e) > 0) || lightOff;
+  const x   = Math.max(0, (e.n1 - idle) / (100 - idle));
+  const egt = e.state === 'running' && burning
+              ? (eng.egtIdle ?? 400) + ((eng.egtTakeoff ?? 850) - (eng.egtIdle ?? 400)) * Math.pow(x, 1.2) + 0.5 * (oat - 15)
+            : lightOff ? ((startT ?? 0) < 0.6 * (eng.startTime ?? 0) ? (eng.egtStart ?? 650) : (eng.egtIdle ?? 400))
+            : oat;
+  const ff  = e.state === 'running' && burning ? _ffMax(eng) * Math.pow(e.n1 / 100, 2.2) * (0.4 + 0.6 * _rhoRatio())
+            : lightOff ? 0.02 * _ffMax(eng)
+            : 0;
+  const oil = 80 * Math.pow(Math.max(0, e.core ?? 0) / 100, 1.5);
+  return { egt, ff, oil };
+}
+
+/* The gauges at mission load: settled for a running engine (ISA 15 °C, sea-level density) */
+function _gaugesAtLoad(state, n1, core, eng, aircraft) {
+  const idle = eng.idleN1 ?? 22;
+  if (state !== 'running') return { egt: 15, ff: 0, oil: 0 };
+  const x = Math.max(0, (n1 - idle) / (100 - idle));
+  const ffMax = eng.ffMax ?? 0.0306 * (aircraft.performance?.thrustMax ?? 0) / _count(eng);
+  return { egt: (eng.egtIdle ?? 400) + ((eng.egtTakeoff ?? 850) - (eng.egtIdle ?? 400)) * Math.pow(x, 1.2),
+           ff: ffMax * Math.pow(n1 / 100, 2.2), oil: 80 * Math.pow(core / 100, 1.5) };
+}
+
+/** Is an engine that is selected on (running) short of oil pressure? — OIL_PRESS on the airliners. */
+export function engineOilLow(e) {
+  return e.state === 'running' && (e.oil ?? 99) < OIL_MIN_PSI;
 }
 
 /* Windmilling: in flight the airflow turns an engine that makes no power — the fan to ~22 % at
@@ -191,7 +239,9 @@ export function initialEngine(aircraft, { onGround, spd, onRunway = false }) {
            : idle + (100 - idle) * Math.min(1, Math.max(0, spd / (aircraft.envelope?.maxSpd ?? 340)));
   const count   = _count(eng);
   const core    = eng.type === 'turbofan' && !cold ? coreAtN1(n1, eng) : 0;
-  const engines = Array.from({ length: count }, () => _newEngine(cold ? 'off' : 'running', n1, core));
+  const state   = cold ? 'off' : 'running';
+  const gauges  = eng.type === 'turbofan' ? _gaugesAtLoad(state, n1, core, eng, aircraft) : undefined;
+  const engines = Array.from({ length: count }, () => _newEngine(state, n1, core, gauges));
   return { ..._aggregate(engines),
            engMasters: Array(count).fill(!cold),                   // ENG MASTER switches: on when the engines run
            apuMasterOn: false, ...APU_OFF, apuFireArmed: false };   // the APU is off at every mission start
@@ -312,7 +362,16 @@ function _spoolN1(e, dt) {
   const coreTgt  = powered ? coreAtN1(target, eng) : target * 0.5;
   const core     = e.state === 'starting' ? _coreStarting((e.startT ?? 0) + dt, eng)
                  : core0 + (coreTgt - core0) * (1 - Math.exp(-dt / (tau * 0.6)));
-  return { ...e, n1: Math.max(0, Math.min(100, n1)), core: Math.max(0, Math.min(105, core)) };
+  const next = { ...e, n1: Math.max(0, Math.min(100, n1)), core: Math.max(0, Math.min(105, core)) };
+
+  /* The gauges follow the new N1 and core; the EGT with its thermal lag */
+  const g    = _gauges(next, eng, (e.startT ?? 0) + (e.state === 'starting' ? dt : 0));
+  const egt0 = e.egt ?? g.egt;
+  const tauT = g.egt > egt0 ? 3 : 20;
+  next.egt = egt0 + (g.egt - egt0) * (1 - Math.exp(-dt / tauT));
+  next.ff  = g.ff;
+  next.oil = g.oil;
+  return next;
 }
 
 /* One engine's lifecycle step (after the spool, so it sees the new N1) */

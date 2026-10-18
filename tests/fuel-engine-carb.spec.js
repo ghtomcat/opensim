@@ -659,7 +659,8 @@ test.describe('Bf 109 — single left tank (V12)', () => {
 /* ═══════════════════════════════════════════
    NO-TANK AIRCRAFT — fuelLeft === null
    A350 (lszh-approach), An-225 (hostomel-2022)
-   OIL_PRESS still fires; LOW_FUEL / FUEL_SHUTOFF do not.
+   OIL_PRESS still fires — on a turbofan from each engine's oil pressure (core/engine.js);
+   LOW_FUEL / FUEL_SHUTOFF do not.
    ═══════════════════════════════════════════ */
 
 test.describe('No-tank aircraft — A350 (no fuel system)', () => {
@@ -669,15 +670,17 @@ test.describe('No-tank aircraft — A350 (no fuel system)', () => {
     expect((await getState(page)).fuelLeft).toBeNull();
   });
 
-  test('OIL_PRESS warning still fires when enginePower < 0.3', async ({ page }) => {
+  test('OIL_PRESS fires when an engine fails in flight — its oil pressure follows the windmilling core', async ({ page }) => {
     await page.goto('/?mission=lszh-approach&test=1');
     await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
-    await setState(page, { enginePower: 0.1 });
-    await step(page, 0.1);
-    expect((await getState(page)).warnings?.OIL_PRESS).toBe(true);
+    await page.evaluate(async () => (await import('/core/engine.js')).setEngineFactor('failure', 0, 0));   // ENG 1 fails
+    await step(page, 60);
+    const s = await getState(page);
+    expect(s.engines[0].oil).toBeLessThan(13);
+    expect(s.warnings?.OIL_PRESS).toBe(true);
   });
 
-  test('OIL_PRESS clears when enginePower >= 0.3', async ({ page }) => {
+  test('OIL_PRESS stays off with the engines running normally', async ({ page }) => {
     await page.goto('/?mission=lszh-approach&test=1');
     await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
     await setState(page, { enginePower: 0.8 });

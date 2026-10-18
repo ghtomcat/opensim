@@ -1566,8 +1566,9 @@ function _ewdEngineVals(eng, cmd, tNow) {
   const core  = S.engines?.[eng - 1]?.core;                                               // the engine's core (core/engine.js)
   const n2raw = core != null ? Math.max(0, core + (core > 1 ? _ewdScatter(eng, tNow, 0.5) : 0))
               : live ? Math.max(0, 48 + 0.55 * n1raw + _ewdScatter(eng, tNow, 0.5)) : 0;
-  const egtR  = 350 + Math.pow(Math.max(0, n1raw) / 100, 1.5) * 500 + _ewdOffset(eng, 6);
-  const ffR   = 200 + Math.pow(Math.max(0, n1raw) / 100, 2) * 3000;
+  const e     = S.engines?.[eng - 1];                                                     // the engine's own EGT and FF (core/engine.js)
+  const egtR  = e?.egt != null ? e.egt + _ewdOffset(eng, 6) : 350 + Math.pow(Math.max(0, n1raw) / 100, 1.5) * 500 + _ewdOffset(eng, 6);
+  const ffR   = e?.ff  != null ? e.ff                       : 200 + Math.pow(Math.max(0, n1raw) / 100, 2) * 3000;
   /* Per-quantity display lag — each parameter has its own inertia: FF responds first,
      then N2, N1 trails it, EGT (thermal mass) lags most. */
   return {
