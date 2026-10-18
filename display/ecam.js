@@ -13,6 +13,7 @@
 
 import { S, setState } from '../core/state.js';
 import { elecCfg }    from '../core/electrical.js';
+import { engineAvailable } from '../core/engine.js';
 
 const C = {
   bg:      '#030609',
@@ -98,7 +99,9 @@ function _drawUpperECAM(ctx, W, H, s) {
 }
 
 function _drawEngine(ctx, cx, H, s, eng) {
-  const n1  = Math.round(S.n1 ?? 0);
+  const e   = S.engines?.[eng - 1];
+  const n1  = Math.round(e?.n1 ?? S.n1 ?? 0);
+  const failed = !!e && e.state === 'running' && engineAvailable(e) < 1;
   const egt = Math.round(350 + (n1 / 100) * 340);
   const ff  = Math.round(200 + (n1 / 100) * 7800);
 
@@ -107,7 +110,7 @@ function _drawEngine(ctx, cx, H, s, eng) {
   _label(ctx, 'EGT',         cx, H * 0.62, C.dim, 8 * s);
   _label(ctx, egt + '°',     cx, H * 0.72, egt > 640 ? C.amber : C.green, 12 * s);
   _label(ctx, ff + ' KG/H',  cx, H * 0.83, C.dim, 8 * s);
-  _label(ctx, 'ENG ' + eng,  cx, H * 0.93, C.dim, 8 * s);
+  _label(ctx, failed ? 'ENG ' + eng + ' FAIL' : 'ENG ' + eng, cx, H * 0.93, failed ? C.amber : C.dim, 8 * s);
 }
 
 function _arcGauge(ctx, cx, cy, r, val, max, color, s) {

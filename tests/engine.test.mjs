@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { S, setState } from '../core/state.js';
 import { startEngine, stopEngine, engineQuit, tickEngine, initialEngine, hasStartSequence, setEngineFactor,
-         apuMaster, apuStart, apuFire, engineMaster, adoptEngineFields } from '../core/engine.js';
+         apuMaster, apuStart, apuFire, engineMaster, adoptEngineFields, engineAvailable } from '../core/engine.js';
 import { startRecording, apuStartRecording } from '../core/sound.js';
 import { tickThrust } from '../core/thrust.js';
 
@@ -299,10 +299,12 @@ test('ENG MASTER: IGN/START + AC power starts, no AC power drops it back, NORM o
   setState({ engMode: 'NORM' });
   engineMaster(1, true);                                         // NORM: latches, no start of its own
   assert.deepEqual(S.engMasters, [true, true, false, false]);
+  assert.equal(S.engines[1].state, 'off');                       // ENG 2 didn't start
   step(60);
-  engineMaster(1, false);                                        // another master still on — the shared engine keeps running
-  assert.equal(S.engineState, 'running');
-  engineMaster(0, false);                                        // the last one off — fuel cut
+  engineMaster(1, false);                                        // ENG 2 off — ENG 1 keeps running
+  assert.equal(S.engines[0].state, 'running');
+  engineMaster(0, false);                                        // ENG 1 off — its fuel cut
+  assert.equal(S.engines[0].state, 'shutdown');
   assert.equal(S.engineState, 'shutdown');
 });
 
@@ -352,4 +354,54 @@ test('the single fields are derived: the highest state, the largest N1 and power
   assert.equal(S.n1, 40);
   assert.equal(S.enginePower, 1);
   assert.equal(S.engineStartT, 3);
+});
+
+/* ── Stage 2: the engines differ ── */
+
+function runningTwin(id = 'b777-300er', n1 = 90) {
+  const ac = load(id);
+  setState({ aircraft: ac, paused: false, crashed: false, wow: false, thrustLever: 1, thrustReverser: false,
+             n1Cmd: n1, engMode: 'IGN+START', acBusPowered: true,
+             ...initialEngine(ac, { onGround: false, spd: 250 }) });
+  setState({ engines: S.engines.map(e => ({ ...e, n1 })) });
+  return ac;
+}
+
+test('ENG MASTER i starts and stops engine i only', () => {
+  const ac = load('a350');
+  setState({ aircraft: ac, paused: false, crashed: false, n1Cmd: 22, engMode: 'IGN+START', acBusPowered: true,
+             ...initialEngine(ac, { onGround: true, spd: 0 }) });
+  engineMaster(1, true);                                         // ENG 2 first
+  assert.deepEqual(S.engines.map(e => e.state), ['off', 'starting']);
+  for (let t = 0; t < 60; t += 0.1) tickEngine(0.1);
+  assert.deepEqual(S.engines.map(e => e.state), ['off', 'running']);
+  assert.equal(S.engineState, 'running');                         // the single field: the highest state
+  engineMaster(1, false);
+  assert.deepEqual(S.engines.map(e => e.state), ['off', 'shutdown']);
+  assert.deepEqual(S.engMasters, [false, false]);
+});
+
+test('a power failure on ENG 1 caps its N1 — at 0 it flames out and runs down; ENG 2 is untouched', () => {
+  runningTwin();
+  setEngineFactor('failure', 0.5, 0);
+  assert.equal(engineAvailable(S.engines[0]), 0.5);
+  assert.equal(engineAvailable(S.engines[1]), 1);
+  for (let t = 0; t < 90; t += 0.1) tickEngine(0.1);           // spool-down τ 15 s — settled after 90 s
+  const cap = 22 + 78 * 0.5;                                       // idle + (100 − idle) · power
+  assert.ok(Math.abs(S.engines[0].n1 - cap) < 0.5, `ENG 1 N1 ${S.engines[0].n1.toFixed(1)}, cap ${cap}`);
+  assert.ok(Math.abs(S.engines[1].n1 - 90) < 0.1);
+  setEngineFactor('failure', 0, 0);
+  for (let t = 0; t < 90; t += 0.1) tickEngine(0.1);
+  assert.ok(S.engines[0].n1 < 1, `ENG 1 N1 ${S.engines[0].n1.toFixed(2)} after a flameout`);
+  assert.equal(S.engines[0].state, 'running');                     // still selected on — but no power (ENG FAIL)
+  assert.equal(S.n1, S.engines[1].n1);                             // the single field: the larger N1
+});
+
+test('Q stops all engines; a stop on one engine leaves the others', () => {
+  runningTwin('a340');
+  stopEngine(2);
+  assert.deepEqual(S.engines.map(e => e.state), ['running', 'running', 'shutdown', 'running']);
+  assert.deepEqual(S.engMasters, [true, true, false, true]);
+  stopEngine();
+  assert.ok(S.engines.every(e => e.state === 'shutdown'));
 });

@@ -69,11 +69,11 @@ export function tickElectrical(dt) {
   const n = ac.engine?.count ?? 2;
   const idgConn = S.idgConnected?.length === n ? S.idgConnected : Array(n).fill(true);
   const genSw   = S.engGenSwitch?.length === n ? S.engGenSwitch : Array(n).fill(true);
-  const n1      = S.n1 ?? 0;
+  const n1Of    = (i) => S.engines?.[i]?.n1 ?? S.n1 ?? 0;   // each generator is driven by its own engine
 
-  /* Per-engine generator online: IDG connected + GEN switch ON + N1 > 56% */
+  /* Per-engine generator online: IDG connected + GEN switch ON + its engine's N1 > 56% */
   const engGenOn = Array.from({ length: n }, (_, i) =>
-    (idgConn[i] ?? true) && (genSw[i] ?? true) && n1 > 56
+    (idgConn[i] ?? true) && (genSw[i] ?? true) && n1Of(i) > 56
   );
 
   const cfg      = elecCfg();

@@ -153,6 +153,19 @@ export function tickPhysics(dt) {
       ? Math.pow(Math.max(0, (S.n1 ?? 0) / 100), 1.8)   // N1^1.8 → 22% N1 ≈ 5% T_max
       : Math.min(1, Math.max(0, S.spdT / (ac.envelope.cruiseSpd ?? 122)));
 
+    /* Thrust, summed over the engines — the mean of each running engine's share:
+       turbofan (N1/100)^1.8 — its power acts through N1 (core/engine.js caps N1 by the power
+       available), so a failed engine gives nothing once its fan has run down; props the
+       engine's power (× the lever below). The mean is taken as e₀ + Σ(eᵢ − e₀)/n, so identical
+       engines give exactly the one-engine value. */
+    const _engs  = S.engines?.length ? S.engines : [{ state: S.engineState, n1: S.n1 ?? 0, power: S.enginePower ?? 1 }];
+    const _share = (e) => e.state !== 'running' ? 0
+                        : isTurbofan ? Math.pow(Math.max(0, e.n1 / 100), 1.8)
+                        : (e.power ?? 1);
+    const _s0    = _share(_engs[0]);
+    let engShare = _s0;
+    for (let k = 1; k < _engs.length; k++) engShare += (_share(_engs[k]) - _s0) / _engs.length;
+
     /* Aircraft constants */
     const S_wing   = perf.wingArea  ?? 16.2;
     const mass     = perf.mass      ?? 1157;
@@ -319,8 +332,8 @@ export function tickPhysics(dt) {
     const CD    = CD_0_eff + sbCD + k_ind * CL_b * CL_b * geK;           // … spoilers + induced (cut near the ground)
     const L     = q * S_wing * CL;
     const D     = q * S_wing * CD;
-    const engineLive = S.engineState === 'running';
-    const T     = engineLive ? throttle * T_max * (rho / 1.225) * (S.enginePower ?? 1.0) : 0;
+    const T     = isTurbofan ? engShare * T_max * (rho / 1.225)                 // the engines' mean N1 share (above)
+                             : throttle * T_max * (rho / 1.225) * engShare;     // the lever × the engines' mean power
     const W     = mass * 9.81;
 
     const wowLatch = S.wow && (S.vs ?? 0) < -50;  // latch only when landing (descending), not takeoff

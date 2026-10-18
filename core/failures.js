@@ -5,7 +5,8 @@
 
    Failure types:
      engine_bang   — sharp impulse sound, then power drops
-     engine_power  — ramp the failure power factor to value over rampTime seconds (core/engine.js)
+     engine_power  — ramp the failure power factor to value over rampTime seconds (core/engine.js);
+                     on ENG `engine` (1 = ENG 1) only, or on all engines when it is absent
      carb_ice      — gradual power loss; recover with carb heat ON for 10s
    ═══════════════════════════════════════════════════════════════ */
 
@@ -31,12 +32,16 @@ onMissionReset(resetFailures);
 const _FAILURES = {
   [FAILURE.ENGINE_GUNFIRE]: { scored: false, fire: () => engineGunfire() },
   [FAILURE.ENGINE_BANG]:    { scored: true,  fire: () => engineBang() },
-  [FAILURE.ENGINE_POWER]:   { scored: true,  fire: (f) => _ramps.push({
-    target:   f.value   ?? 0,
-    rampTime: f.rampTime ?? 10,
-    elapsed:  0,
-    from:     S.engineFactors?.failure ?? 1.0,
-  }) },
+  [FAILURE.ENGINE_POWER]:   { scored: true,  fire: (f) => {
+    const idx = f.engine != null ? f.engine - 1 : undefined;   // 0-based engine, or all
+    _ramps.push({
+      target:   f.value   ?? 0,
+      rampTime: f.rampTime ?? 10,
+      elapsed:  0,
+      engine:   idx,
+      from:     (idx != null ? S.engines?.[idx]?.factors?.failure : S.engineFactors?.failure) ?? 1.0,
+    });
+  } },
   [FAILURE.CARB_ICE]:       { scored: true,  fire: () => { if (S.aircraft?.hasCarbHeat) setState({ carbIceActive: true }); } },
   [FAILURE.COOLANT_LEAK]:   { scored: true,  fire: () => {
     if (S.aircraft?.coolingSystem === 'liquid') {
@@ -83,13 +88,11 @@ export function tickFailures(dt) {
 
     /* Process ramps */
     _ramps = _ramps.filter(r => r.elapsed < r.rampTime);
-    let power = S.engineFactors?.failure ?? 1.0;
     for (const r of _ramps) {
       r.elapsed += dt;
       const t01 = Math.min(1, r.elapsed / r.rampTime);
-      power = r.from + (r.target - r.from) * t01;
+      setEngineFactor('failure', r.from + (r.target - r.from) * t01, r.engine);   // its engine, or all
     }
-    if (_ramps.length > 0) setEngineFactor('failure', power);
   }
 
   /* ── Cooling system — a coolant leak overheats the engine until it seizes ──

@@ -8,6 +8,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from '../core/state.js';
+import { engineAvailable } from '../core/engine.js';
 import { managedSpeed } from '../core/managed-speed.js';
 import { indicatedAlt, baroSubscale } from '../core/baro.js';
 import { smooth, smoothAngle } from './smooth.js';
@@ -1576,22 +1577,26 @@ function _ewdEngineVals(eng, cmd, tNow) {
   };
 }
 
+/* One engine's actual N1 (S.engines[i]), and whether it has failed: running but short of power */
+const _engN1     = (i) => +(S.engines?.[i]?.n1 ?? S.n1 ?? S.enginePower * 80);
+const _engFailed = (i) => { const e = S.engines?.[i]; return !!e && e.state === 'running' && engineAvailable(e) < 1; };
+
 /* Airbus EWD engine zone — N1 hero gauge + EGT below, digital N2/FF, value boxed low. */
 function _engineZoneAirbus(ctx, x, w, h, engY, engH, col, f) {
   const { grn, amb, red, dim } = col;
   const n    = S.aircraft?.engine?.count ?? 2;
   const engW = w / n;
-  const cmd  = +(S.n1 ?? S.enginePower * 80);
   const tNow = (typeof performance !== 'undefined' ? performance.now() : Date.now());
   const r1   = Math.min(0.42 * engW, 0.17 * engH);
   const r2   = r1 * 0.64;
 
   for (let i = 0; i < n; i++) {
     const ex = x + engW * i, cx = ex + engW / 2, eng = i + 1;
-    const { n1, n2, egt, ff } = _ewdEngineVals(eng, cmd, tNow);
+    const { n1, n2, egt, ff } = _ewdEngineVals(eng, _engN1(i), tNow);
+    const failed = _engFailed(i);
 
-    ctx.font = `${h * 0.034}px ${f}`; ctx.fillStyle = dim; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-    ctx.fillText(`ENG ${eng}`, cx, engY + engH * 0.06);
+    ctx.font = `${h * 0.034}px ${f}`; ctx.fillStyle = failed ? amb : dim; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(failed ? `ENG ${eng} FAIL` : `ENG ${eng}`, cx, engY + engH * 0.06);
 
     _ewdGauge(ctx, cx, engY + engH * 0.30, r1, n1,
               { max: 110,  red: 104,             ticks: [0, 55, 110],   dec: 1 }, grn, amb, red, f);
@@ -1619,17 +1624,21 @@ function _engineZoneBoeing(ctx, x, w, h, engY, engH, col, f) {
   const { wht, grn, amb, red, dim } = col;
   const n    = S.aircraft?.engine?.count ?? 2;
   const engW = w / n;
-  const cmd  = +(S.n1 ?? S.enginePower * 80);
   const tNow = (typeof performance !== 'undefined' ? performance.now() : Date.now());
   const r1   = Math.min(0.44 * engW, 0.19 * engH);
   const r2   = r1 * 0.62;
 
   for (let i = 0; i < n; i++) {
     const ex = x + engW * i, cx = ex + engW / 2, eng = i + 1;
+    const cmd = _engN1(i);
     const { live, n1, n2, egt, ff } = _ewdEngineVals(eng, cmd, tNow);
 
     _eicasGauge(ctx, cx, engY + engH * 0.30, r1, n1, live ? cmd : null,
                 { max: 110,  amber: 100, red: 104, ticks: [0, 20, 40, 60, 80, 100], dec: 1, lbl: 'N1' },  wht, grn, amb, red, f);
+    if (_engFailed(i)) {                                   // EICAS: ENG FAIL in amber, in the open bottom of the N1 dial
+      ctx.font = `bold ${h * 0.030}px ${f}`; ctx.fillStyle = amb; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('ENG FAIL', cx, engY + engH * 0.30 + r1 * 0.72);
+    }
     _eicasGauge(ctx, cx, engY + engH * 0.70, r2, egt, null,
                 { max: 1000, amber: 850, red: 950, ticks: [0, 500, 1000],           dec: 0, lbl: 'EGT' }, wht, grn, amb, red, f);
 

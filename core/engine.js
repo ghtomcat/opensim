@@ -37,8 +37,9 @@
    here: apuMasterOn, apuState, apuStartT, apuRunning, apuFireArmed.
    core/electrical.js reads apuState for the APU GEN.
 
-   Stage 1 of issues.md "One engine per aircraft": S.engines[] holds one
-   entry per engine; the commands still act on all of them together.
+   S.engines[] holds one entry per engine. The commands take an engine index
+   (0-based) — ENG MASTER i, a failure on one engine — or act on all engines
+   when it is absent (E, Q, the light aircraft).
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from './state.js';
@@ -63,10 +64,10 @@ const _count     = (eng = _eng()) => Math.max(1, eng.count ?? 1);
 
 /* ── The engines ─────────────────────────────────────────────────
    S.engines[i] = { state, startT, stopT, n1, factors, power } — one per engine.
-   Stage 1 (issues.md "One engine per aircraft"): every command acts on all engines,
-   so they stay identical. The single fields the rest of the sim still reads
-   (engineState, enginePower, n1, engineStartT, engineStopT, engineFactors) are derived
-   from the array on every change — the readers move over to the array later. */
+   The single fields the rest of the sim still reads (engineState, enginePower, n1,
+   engineStartT, engineStopT, engineFactors) are derived from the array on every change;
+   what must tell the engines apart (thrust, generators, pumps, the engine displays) reads
+   the array. */
 
 function _newEngine(state, n1 = 0) {
   return { state, startT: null, stopT: null, n1, factors: FACTORS_NONE, power: _power(state, FACTORS_NONE) };
@@ -118,11 +119,23 @@ export function adoptEngineFields(patch) {
   setState({ engines });
 }
 
-/** Set one cause's factor (0–1) — the only way to change engine power from outside. */
-export function setEngineFactor(cause, value) {
+/* Which engines a command reaches: engine index i (0-based), or all of them when i is absent */
+const _hits = (i) => (k) => i == null || k === i;
+
+/** An engine's available power — the product of its causes' factors (0 = flamed out, failed). */
+export function engineAvailable(e) {
+  let p = 1;
+  for (const v of Object.values(e.factors ?? FACTORS_NONE)) p *= v;
+  return p;
+}
+
+/** Set one cause's factor (0–1) on engine i, or on all engines — the only way to change engine power from outside. */
+export function setEngineFactor(cause, value, i) {
   if (!(cause in FACTORS_NONE)) throw new Error(`engine: unknown power factor "${cause}"`);
   const v = Math.max(0, Math.min(1, value));
-  _publish(_engines().map(e => {
+  const hit = _hits(i);
+  _publish(_engines().map((e, k) => {
+    if (!hit(k)) return e;
     const factors = { ...e.factors, [cause]: v };
     return { ...e, factors, power: _power(e.state, factors) };
   }));
@@ -183,19 +196,20 @@ function _tickApu(dt) {
   else setState({ apuStartT: t });
 }
 
-/** Start the engine (E key, magnetos START, ENG MASTER). Ignored while it starts or runs, and —
-    except a turbofan, which can be restarted while the fan spools down — until it has run down. */
-export function startEngine() {
+/** Start engine i, or all engines (E key, magnetos START, ENG MASTER). Ignored while it starts or
+    runs, and — except a turbofan, which can be restarted while the fan spools down — until it has run down. */
+export function startEngine(i) {
   if (!hasStartSequence()) return;
   const engines = _engines();
+  const hit  = _hits(i);
   const idle = (e) => e.state !== 'starting' && e.state !== 'running';
-  if (!engines.some(idle)) return;
+  if (!engines.some((e, k) => hit(k) && idle(e))) return;
   const turbofan = _turbofan();
   const refusedAll = !turbofan && (S.coolantState === 'failed'                      // seized — it won't turn over
                                 || (S.fuelShutoff && S.fuelLeft !== null)           // fuel shutoff closed — no start
                                 || (_eng().starter === 'electric' && !S.masterBat)); // electric starter, battery off — nothing turns
-  const next = engines.map(e => (!idle(e) || refusedAll || (!turbofan && e.state === 'shutdown'))   // still running down — no starter on a turning engine
-                              ? e : _withState(e, { state: 'starting', startT: 0, stopT: null }));
+  const next = engines.map((e, k) => (!hit(k) || !idle(e) || refusedAll || (!turbofan && e.state === 'shutdown'))   // still running down — no starter on a turning engine
+                                   ? e : _withState(e, { state: 'starting', startT: 0, stopT: null }));
   if (next.every((e, k) => e === engines[k])) {
     if (S.magnetos === 'START') setState({ magnetos: 'BOTH' });   // refused — the key springs back from START
     return;
@@ -203,21 +217,23 @@ export function startEngine() {
   _publish(next);
 }
 
-/** Normal shutdown (Q, magnetos OFF, ENG MASTER off, fire handle): the engine runs down.
-    On a turbofan the ENG MASTER switches are the fuel cutoff — they go to OFF. */
-export function stopEngine() {
+/** Normal shutdown of engine i, or all engines (Q, magnetos OFF, ENG MASTER off, fire handle): it runs
+    down. On a turbofan the ENG MASTER switches are the fuel cutoff — the stopped engines' go to OFF. */
+export function stopEngine(i) {
   if (!hasStartSequence()) return;
   const engines = _engines();
-  const next = engines.map(e => (e.state === 'off' || e.state === 'shutdown')
-                              ? e : _withState(e, { state: 'shutdown', startT: null, stopT: 0 }));
+  const hit  = _hits(i);
+  const next = engines.map((e, k) => (!hit(k) || e.state === 'off' || e.state === 'shutdown')
+                                   ? e : _withState(e, { state: 'shutdown', startT: null, stopT: 0 }));
   if (next.every((e, k) => e === engines[k])) return;
-  _publish(next, _turbofan() ? { engMasters: Array(_count()).fill(false) } : {});
+  const extra = {};
+  if (_turbofan()) extra.engMasters = Array.from({ length: _count() }, (_, k) => hit(k) ? false : !!S.engMasters?.[k]);
+  _publish(next, extra);
 }
 
 /**
- * ENG MASTER switch i (pedestal). ON with ENG MODE at IGN/START starts the engine — and needs
- * AC power, or the switch drops back to OFF; in NORM it only latches. OFF stops the engine once
- * every master is off (one shared engine until stage 1/2 of issues.md "One engine per aircraft").
+ * ENG MASTER switch i (pedestal) — engine i. ON with ENG MODE at IGN/START starts it — and needs
+ * AC power, or the switch drops back to OFF; in NORM it only latches. OFF cuts its fuel: it runs down.
  */
 export function engineMaster(i, on) {
   const n = Math.max(1, _eng().count ?? 1);
@@ -225,23 +241,27 @@ export function engineMaster(i, on) {
   if (on && (S.engMode ?? 'NORM') === 'IGN+START' && !(S.acBusPowered ?? false)) return;   // no AC power — no start, the switch drops back
   masters[i] = on;
   setState({ engMasters: masters });
-  if (on && (S.engMode ?? 'NORM') === 'IGN+START') startEngine();
-  else if (!on && masters.every(m => !m)) stopEngine();
+  if (on && (S.engMode ?? 'NORM') === 'IGN+START') startEngine(i);
+  else if (!on) stopEngine(i);
 }
 
-/** The engine quits at once — fuel starvation, a seized engine. Restartable unless seized. */
-export function engineQuit() {
+/** Engine i, or all engines, quit at once — fuel starvation, a seized engine. Restartable unless seized. */
+export function engineQuit(i) {
   const engines = _engines();
-  if (engines.every(e => e.state === 'off')) return;
-  _publish(engines.map(e => e.state === 'off' ? e : _withState(e, { state: 'off', startT: null, stopT: null })));
+  const hit = _hits(i);
+  if (engines.every((e, k) => !hit(k) || e.state === 'off')) return;
+  _publish(engines.map((e, k) => (!hit(k) || e.state === 'off') ? e : _withState(e, { state: 'off', startT: null, stopT: null })));
 }
 
 /* Turbofan N1 — the fan eases toward its target with asymmetric time constants: 8 s
    spool-up, 15 s spool-down (4 s at ground idle), 25 s while starting, 12 s coasting down
-   after a fuel cutoff. A running engine follows the thrust command (core/thrust.js). */
+   after a fuel cutoff. A running engine follows the thrust command (core/thrust.js), up to what its
+   available power allows: idle + (100 − idle) · power. With no power left it has flamed out and the
+   fan runs down. (A turbofan's power acts through its N1 — physics.js takes the thrust from N1 alone.) */
 function _spoolN1(e, dt) {
   const idle  = _idleN1();
-  const target = e.state === 'running'  ? (S.n1Cmd ?? idle)
+  const avail = engineAvailable(e);
+  const target = e.state === 'running'  ? (avail <= 0 ? 0 : Math.min(S.n1Cmd ?? idle, idle + (100 - idle) * avail))
                : e.state === 'starting' ? idle
                : 0;                                              // 'off' or 'shutdown'
   const idleLever = (S.thrustLever ?? 0) < 0.05;

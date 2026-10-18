@@ -235,7 +235,7 @@ entry `commProfile` → `characters[speaker].commProfile` → mission `commProfi
 
 `failures` entries carry a `trigger` (`{type: "time", t}` or `{type: "alt", alt}`)
 and a `type`, handled by `core/failures.js`: `engine_power` (ramp to `value` over
-`rampTime`), `engine_bang`, `engine_gunfire`, `carb_ice` (needs `hasCarbHeat` on the
+`rampTime`; on ENG `engine` only — `engine: 1` is ENG 1 — or on all engines), `engine_bang`, `engine_gunfire`, `carb_ice` (needs `hasCarbHeat` on the
 aircraft), `coolant_leak` (needs a liquid cooling system). Entries **without** a
 `trigger` are spacecraft system failures (`{t, id, affects[], masterAlarm}`), handled
 by `core/rocket.js`; they light warnings rather than change engine power.
@@ -631,9 +631,12 @@ the centre of mass; attitude isn't produced by moments.
   attitude (see issues). Drag is `CD_0` plus induced, gear, propeller-damage,
   cooling-flap and spoiler drag. Flap coefficients ramp over ~9 s per stage. Ground
   effect cuts induced drag and adds up to ~4 % lift within one wingspan.
-- **Thrust:** turbofans `T_max·(N1/100)^1.8·ρ/ρ₀`. Props use `spdT/cruiseSpd` as the
-  throttle: the speed target doubles as the power lever. Thrust is zero unless
-  `engineState === 'running'`, and it's scaled by `enginePower` (failures).
+- **Thrust:** summed over the engines (`S.engines`), each running engine contributing its
+  share of `T_max`. Turbofans `(N1/100)^1.8·ρ/ρ₀` — a turbofan's power acts through its N1
+  (`core/engine.js` caps N1 by the power available; a failed engine's fan runs down).
+  Props use `spdT/cruiseSpd` as the throttle (the speed target doubles as the power
+  lever) × the engine's power. An engine that isn't running gives nothing. The shares are
+  averaged so that identical engines give exactly the one-engine value.
 - **In flight:** speed from longitudinal forces; flight-path angle from
   `(L − W·cos γ)/(m·v)`, damped (−0.4·γ) and trimmed. Two extra stall terms (high-α
   snap, energy stall) are added on top. Turn rate from bank (coordinated). The Avro's
@@ -799,15 +802,16 @@ Light-aircraft switches (`masterBat`, `masterAlt`, `avionicsOn`, `magnetos`, `li
 the Velis `switches`) are plain fields in `S`, toggled by the cockpit. They aren't a
 system model. COM power is decided per panel type in `core/crew.js` (§2.4).
 
-### 9.2 The engine: one entry per engine, one shared control
+### 9.2 The engines: one entry per engine
 
 `S.engines[]` holds **one entry per engine** (`engine.count`): `{ state, startT, stopT,
-n1, factors, power }`. Every command still acts on all engines together, so they stay
-identical (stage 1 of `issues.md` → *One engine per aircraft*). The rest of the sim reads
-**single values derived from the array** on every change — the highest state (running >
-starting > shutdown > off), the largest N1 and power. Readers move to the array when the
-engines start to differ (stage 2). The test API's `simSetState` carries single-field
-writes into every engine (`adoptEngineFields`).
+n1, factors, power }`. The commands take an engine index (0-based) — ENG MASTER *i*, a
+failure on one engine — or act on all engines when it is absent (`E`, `Q`, the light
+aircraft). What must tell the engines apart reads the array: the thrust (§7.2), the
+generators and pumps, the engine displays. Everything else reads **single values derived
+from the array** on every change — the highest state (running > starting > shutdown >
+off), the largest N1 and power. The test API's `simSetState` carries single-field writes
+into every engine (`adoptEngineFields`).
 
 | Field | Meaning | Written by |
 |---|---|---|
@@ -819,10 +823,12 @@ writes into every engine (`adoptEngineFields`).
 | `n1` | turbofan fan speed % — spooled toward `n1Cmd` (`core/thrust.js`: A/THR or lever) | `core/engine.js` |
 
 Consequences:
-- **The engines are still controlled together.** The electrical system derives
-  "per-engine" generators from the shared N1, and the hydraulics drives both engine pumps
-  from it ("approximated with shared N1"). One engine can't fail or be shut down on its own
-  yet — that is stage 2.
+- **Each engine runs on its own.** ENG MASTER *i* starts and stops engine *i*; a failure
+  can name its engine; each generator and engine-driven pump reads its own engine's N1;
+  the ECAM/E/WD engine displays read `S.engines` and show a failed engine (running, power
+  below 1) in amber with FAIL. Still missing: the full engine model (core speed, EGT, fuel
+  flow, oil pressure per engine) and the per-aircraft system layouts — stage 2 of
+  `issues.md` → *One engine per aircraft*.
 - **Power is composed from causes.** A failure ramp and carb ice multiply instead of
   overwriting each other; a restart doesn't heal a partial failure; an engine that is off
   makes no power (and burns no fuel). OIL_PRESS on aircraft without tanks (the airliners)
@@ -834,11 +840,12 @@ and steps with `simStep`, and needs no audio:
 
 | Call | From | Effect |
 |---|---|---|
-| `startEngine()` | `E` (not on airliners), magnetos START, ENG MASTER | `off` → `starting` (turbofan: also from `shutdown`; not with the fuel shutoff closed, a seized engine, or an electric starter with BAT off — then the key springs back from START) |
+| `startEngine(i?)` | `E` (not on airliners), magnetos START, ENG MASTER *i* | `off` → `starting` (turbofan: also from `shutdown`; not with the fuel shutoff closed, a seized engine, or an electric starter with BAT off — then the key springs back from START) |
 | `tickEngine(dt)` | the frame loop | `starting` → `running` after `engine.startTime` s (turbofan: or once N1 reaches idle); `shutdown` → `off` after `engine.stopTime` s (turbofan: once N1 < 0.5 %); the electric motor follows MASTER + BATT EN + PWR EN |
-| `stopEngine()` | `Q`, magnetos OFF, the last ENG MASTER off, fire handle | → `shutdown` (turbofan: the ENG MASTERs go to OFF — they are the fuel cutoff) |
-| `engineMaster(i, on)` | ENG MASTER switch on the pedestal | owns `engMasters` (reset at mission load: one per engine, ON when the engines run): ON with ENG MODE IGN/START starts (no AC power → drops back to OFF), in NORM it only latches; OFF stops the shared engine once every master is off |
-| `engineQuit()` | fuel starvation, a seized engine | → `off` at once |
+| `stopEngine(i?)` | `Q` (all), magnetos OFF, ENG MASTER *i* off, fire handle | → `shutdown` (turbofan: the stopped engines' ENG MASTERs go to OFF — they are the fuel cutoff) |
+| `engineMaster(i, on)` | ENG MASTER switch on the pedestal | owns `engMasters` (reset at mission load: one per engine, ON when the engines run): ON with ENG MODE IGN/START starts (no AC power → drops back to OFF), in NORM it only latches; OFF stops engine *i* |
+| `engineQuit(i?)` | fuel starvation, a seized engine | → `off` at once |
+| `setEngineFactor(cause, v, i?)` | failures (per engine), carb ice, seizure, battery, crash | one cause's factor on engine *i* or all; the power and — on a turbofan — the reachable N1 follow (`idle + (100 − idle) · power`, 0 = flamed out) |
 
 **The APU** is an engine of its own in `core/engine.js`: `apuMaster(on)`, `apuStart()`
 (MASTER on and battery power on the essential bus) and `apuFire()` from the overhead;
