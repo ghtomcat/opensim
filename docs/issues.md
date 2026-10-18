@@ -243,6 +243,34 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 
 ## Mission loading
 
+### The aircraft's starting configuration is set by scattered rules — a named configuration per mission
+*Noted 2026-10-18 · `initialEngine()` in `core/engine.js`, `resetElectrical()` in `core/electrical.js`, the switch and light blocks in `core/mission.js`; `phase`, `start`, `initialState` in the missions; `situations` in the aircraft*
+
+**Today.** What the aircraft looks like at mission start is decided in five places, each by its own rule:
+
+| What | Where | Rule |
+|---|---|---|
+| Engines, ENG MASTERs | `initialEngine()` | on the ground with a start sequence → cold; a turbofan with `start.runway` → running (added 2026-10-18 — a stand-in, see below) |
+| APU, batteries, generators | `resetElectrical()` | always off — airborne starts included |
+| Lights | `mission.js` | by panel name: G1000 all off; Airbus/E190 nav + beacon + strobe, landing off |
+| C172 switches | `mission.js` | `panel === 'g1000'` → cold-and-dark, airborne starts included |
+| Gear, park brake | `mission.js` | from "on the ground" |
+| AP, A/THR, autobrake, spoilers | `mission.js` | `initialState`, or `!manualControl` |
+
+The missions also have a `phase` (ground / departure / circuit / cruise / approach / launch), and the airliners have `situations` (quick-start states GROUND / TAKEOFF / CLIMB / CRUISE / APPROACH — position, speed and targets only). A runway start is more than "engines running": landing lights and strobes on, APU off, transponder on, takeoff flaps; a cruise or an approach start is a different set again. A rule per item doesn't scale.
+
+**Idea: named configurations.** The end states of the normal checklists — `cold-dark`, `before-start` (at the stand: BAT and APU on, beacon), `lineup` (engines running, APU off, strobes and landing lights, transponder, takeoff flaps), `climb`, `cruise`, `approach`, `final`.
+- **Built bottom-up**, as in *The cockpit builds itself from the aircraft data*: each system says what its controls are in each configuration — engines, APU, electrical, lights, flaps, gear, transponder, AP / A/THR, brakes. Generic defaults per aircraft class; the manufacturer's SOP differences in the config cascade (`config/manufacturers/*.json`); the aircraft's own overrides on top.
+- **The mission picks one**: `"config": "lineup"`, or a default derived from `start` and `phase` (a stand → `cold-dark`, a runway → `lineup`, airborne → from the phase). Single items can still be overridden in `initialState`, as today (gear, AP, autobrake …).
+- **The briefing can offer it** — e.g. at a stand "cold & dark / ready for pushback": the full start procedure, or straight to the departure.
+- **The light-aircraft missions that teach the start on the runway** (`lszf-pattern`, `grenchen-neuchatel`, `hahnweide-1944`, …) say `"config": "cold-dark"` — one line, the same behaviour, so the test missions don't change.
+- `situations` (the quick-start states) can become a position + a configuration.
+
+**When.** After stages 2c/2d of *One engine per aircraft*: they make the systems (electrical layout, APU, generators at idle) data, so a configuration is "each system's controls in this position" instead of hard-coded switches. Until then the runway rule in `initialEngine()` stays as the stand-in — to be removed when this lands.
+
+**Done when.** The five places above are one configuration step at mission load; `singapore-london` lines up with the engines running, lights and transponder set and the APU off, from its configuration; a cruise and an approach start come up configured for their phase; and no rule in the code checks a panel name or the start position to set a switch.
+
+
 ### Live flight always loads the A350
 *Found 2026-10-11 · `flyWithFlight()` in `index.html` (`const liveMission = { … aircraft: 'a350' … }`)*
 
