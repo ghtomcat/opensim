@@ -3,15 +3,18 @@
    The engine lifecycle: off → starting → running → shutdown → off.
 
    The one owner of the engine state (S.engineState, S.engineStartT,
-   S.engineStopT). Everything that starts or stops the engine — keys,
+   S.engineStopT, and a turbofan's S.n1). Everything that starts or stops the engine — keys,
    cockpit switches, fuel starvation, a seized engine — calls in here;
    core/sound.js only follows the state and plays the matching sound.
    The lifecycle runs on sim time (tickEngine, from the frame loop), so
    it pauses with the sim, steps with simStep, and doesn't need audio.
 
+   Turbofans: tickEngine also spools N1 toward the thrust command
+   (S.n1Cmd, core/thrust.js) — physics.js reads S.n1 for the thrust.
+
    Data (aircraft.engine):
      type       'turbofan' — the start ends when N1 reaches idle, the
-                shutdown when the fan has run down (N1 from physics.js);
+                shutdown when the fan has run down;
                 'electric' — the motor follows MASTER + BATT EN + PWR EN.
      startTime  s from 'starting' to 'running' (the start-up recording's
                 length — tests/engine.test.mjs keeps the two equal).
@@ -79,9 +82,30 @@ export function engineQuit() {
   setState(ENGINE_OFF);
 }
 
-/** One sim step of the lifecycle — called from tickSim() before physics. */
+/* Turbofan N1 — the fan eases toward its target with asymmetric time constants: 8 s
+   spool-up, 15 s spool-down (4 s at ground idle), 25 s while starting, 12 s coasting down
+   after a fuel cutoff. A running engine follows the thrust command (core/thrust.js). */
+function _spoolN1(dt) {
+  const st    = S.engineState ?? 'off';
+  const idle  = _idleN1();
+  const n1Now = S.n1 ?? 0;
+  const target = st === 'running'  ? (S.n1Cmd ?? idle)
+               : st === 'starting' ? idle
+               : 0;                                              // 'off' or 'shutdown'
+  const idleLever = (S.thrustLever ?? 0) < 0.05;
+  const tau = st === 'starting' ? 25
+            : st === 'shutdown' ? 12                             // fuel cutoff — the fan coasts down by inertia, a slow ~30 s wind-down (not the ground-idle fast case)
+            : target > n1Now ? 8
+            : (S.wow && idleLever && !S.thrustReverser) ? 4      // ground idle (e.g. after the reverser stows) — spool down fast, no lingering roar
+            : 15;
+  const n1 = n1Now + (target - n1Now) * (1 - Math.exp(-dt / tau));
+  setState({ n1: Math.max(0, Math.min(100, n1)) });
+}
+
+/** One sim step — called from tickSim() right before physics: the turbofan spool, then the lifecycle. */
 export function tickEngine(dt) {
   const eng = _eng();
+  if (_turbofan() && !S.paused && !S.crashed) _spoolN1(dt);   // same guards as tickPhysics
   const st  = S.engineState ?? 'off';
 
   /* Electric motor: no start sequence, it follows the power switches */

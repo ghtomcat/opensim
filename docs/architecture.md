@@ -517,11 +517,13 @@ dt = time since last frame, capped at 0.1 s
 2. simulation   tickSim(dt) — skipped while S.paused, and always in test mode
      tickControls(dt)                held keys; roll/steer spring back when released
      tickFailures(warpDt)
-     tickFuel(dt), tickBattery(dt), tickEngine(dt), tickElectrical(dt), tickHydraulics(dt)
+     tickFuel(dt), tickBattery(dt), tickElectrical(dt), tickHydraulics(dt)
      vehicle physics, chosen per frame (§3.1):
         rocket      → tickRocket + tickBooster   (time warp, fixed steps; see below)
         robot-arm   → nothing (kinematics live in the display)
-        otherwise   → tickPhysics(warpDt)
+        otherwise   → tickThrust(warpDt)         thrust command: A/THR or lever → S.n1Cmd (core/thrust.js)
+                      tickEngine(warpDt)         N1 spool + start/shutdown lifecycle (core/engine.js)
+                      tickPhysics(warpDt)
      tickCrew(prevAlt, S.alt)        ATC script, callouts, GPWS
      tickTelemetry(warpDt), bbTick(dt)
      drop the time warp when S.warpTarget is reached
@@ -601,7 +603,6 @@ ticker and are described separately.
 guards        no aircraft / paused / crashed / no envelope → return
 ground ref    field elevation of the NEARER airport (departure or arrival threshold)
 speed limit   envelope.spdProfile → cap on the speed target
-engine        turbofan only: N1 spool + A/THR speed loop (thrust-lever detents, core/thrust.js)
 ILS           LOC/GS deviation from the arrival runway threshold; LOC/GS capture
 vacate        on the ground: has the aircraft left the landing runway? (taxi-in trigger)
 model         manualControl → force-based flight model (7.2)
@@ -807,7 +808,7 @@ The engine is represented by **single values**, whatever `engine.count` says:
 | `engineState` | `off` → `starting` → `running` (→ `shutdown`) | `core/engine.js` only (the initial value through `initialEngine()` in `mission.js`'s load `setState`) |
 | `engineStartT` / `engineStopT` | s of sim time since the start / the shutdown began | `core/engine.js` |
 | `enginePower` | 0–1 power available (scales thrust) | `failures.js` (ramps, carb ice, seize), `fuel.js`, `battery.js`, `engine.js` (start), `mission.js`, crash |
-| `n1` | turbofan fan speed % | `physics.js` |
+| `n1` | turbofan fan speed % — spooled toward `n1Cmd` (`core/thrust.js`: A/THR or lever) | `core/engine.js` |
 
 Consequences:
 - **Multi-engine aircraft have one N1 and one power value.** The electrical system
@@ -910,7 +911,7 @@ The autopilot (§7.2) has a selected and a managed source per axis:
 | Lateral | `hdgT` (heading bug) | `navManaged` → LNAV: heading to the active waypoint; sequences when the fix is passed or within a speed-based turn lead (`S.flightPlan.activeIdx`) | `core/lnav.js` |
 | Vertical | `altT` (FCU altitude), V/S | `altManaged` → VNAV: a ~3° geometric descent path built backward from the runway through the altitude constraints, giving TOD and a predicted altitude per fix; never below the cleared `altT` (pull the altitude down to start the descent) | `core/vnav.js` |
 | Speed | `spdT` | `spdManaged` → interpolates `envelope.spdProfile` by height above the destination; binds upcoming speed constraints within a look-ahead; turbofans only | `core/managed-speed.js` |
-| Thrust | lever | A/THR speed loop within the lever detent's N1 ceiling | `core/thrust.js` + `physics.js` |
+| Thrust | lever | A/THR speed loop within the lever detent's N1 ceiling → `n1Cmd`; the engine spools N1 to it | `core/thrust.js` (`tickThrust`), `core/engine.js` |
 
 Priority on the lateral axis: localizer (once captured) > LNAV > heading bug. On the
 vertical axis: glideslope (once captured) > selected V/S > VNAV / FCU altitude.

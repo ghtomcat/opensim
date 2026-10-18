@@ -14,6 +14,7 @@ import { dirname, join } from 'node:path';
 import { S, setState } from '../core/state.js';
 import { startEngine, stopEngine, engineQuit, tickEngine, initialEngine, hasStartSequence } from '../core/engine.js';
 import { startRecording } from '../core/sound.js';
+import { tickThrust } from '../core/thrust.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const load = (id) => JSON.parse(readFileSync(join(here, '..', 'aircraft', `${id}.json`), 'utf8'));
@@ -158,4 +159,23 @@ test('initial state: cold on the ground with a start sequence, running otherwise
   assert.equal(air.engineState, 'running');
   assert.ok(air.n1 > (a350.engine.idleN1 ?? 22));
   assert.equal(initialEngine(a350, { onGround: true, spd: 0 }).n1, 0);
+});
+
+test('turbofan: the thrust lever sets the command, the engine spools N1 toward it (8 s up)', () => {
+  const ac = load('a350');
+  cold(ac, { engineState: 'running', n1: 22, athr: false, wow: true, thrustLever: 1, crashed: false, paused: false, envelope: undefined });
+  tickThrust(0.1);
+  assert.equal(S.n1Cmd, 100);                                  // full lever → 100 % (A/THR off)
+  for (let t = 0; t < 8 - 1e-9; t += 0.1) { tickThrust(0.1); tickEngine(0.1); }
+  const expect = 22 + (100 - 22) * (1 - Math.exp(-1));         // one time constant
+  assert.ok(Math.abs(S.n1 - expect) < 0.5, `N1 ${S.n1.toFixed(2)} after 8 s, expected ≈ ${expect.toFixed(2)}`);
+});
+
+test('turbofan: after a fuel cutoff the fan coasts down and the engine reaches off by itself', () => {
+  const step = cold(load('a350'), { engineState: 'running', n1: 22, n1Cmd: 22 });
+  stopEngine();
+  step(40);
+  assert.equal(S.engineState, 'shutdown');                     // 22 · e^(−40/12) ≈ 0.8 % — still turning
+  step(8);
+  assert.equal(S.engineState, 'off');                          // < 0.5 % after ≈ 45 s
 });

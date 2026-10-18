@@ -10,8 +10,6 @@ import { capturePushback, pushbackPose } from './pushback.js';
 import { computeAirbusFMA, computeBoeingFMA } from './fma.js';
 import { lnavTargetHeading } from './lnav.js';
 import { vnavTargetAlt } from './vnav.js';
-import { activeDetent } from './thrust.js';
-import { managedSpeed } from './managed-speed.js';
 import { runwayThreshold } from './mission-start.js';
 import { indicatedAlt } from './baro.js';
 import { random } from './random.js';
@@ -25,7 +23,6 @@ const _gcNm = (aLat, aLon, bLat, bLon) => {
 const _brgDeg = (aLat, aLon, bLat, bLon) =>
   ((Math.atan2((bLon-aLon)*Math.cos(aLat*_DEG), bLat-aLat) * 180/Math.PI) + 360) % 360;
 
-let _athrSpdPrev = null;   // previous airspeed for the A/THR damping (speed-rate) term
 let _apVsCmd     = null;   // rate-limited AP vertical-speed command — eases the descent in (no step → no VS spike)
 let _vsRefAlt    = null;   // moving reference altitude for selected V/S mode (position feedback → no porpoising)
 
@@ -79,73 +76,11 @@ export function tickPhysics(dt) {
   let newTouchdownVS = S.touchdownVS ?? 0;
   let _abEngaged = false;   // autobrake actively decelerating (set in the ground-roll branch) → panel/ECAM
 
-  /* ── Turbofan N1 dynamics ─────────────────────────────────────────────
-     Runs for all turbofan aircraft before the main physics block.
-     N1 ramps toward its target (idle floor + throttle contribution) with
-     asymmetric time constants: 8 s spool-up, 15 s spool-down.
-     The starting → running and shutdown → off transitions are core/engine.js's (it reads N1).
+  /* ── Turbofan N1 ──────────────────────────────────────────────────────
+     Not here: core/thrust.js (tickThrust) computes the thrust command — the A/THR speed loop
+     or the lever — and core/engine.js (tickEngine) spools N1 toward it, both right before
+     this tick. The thrust below reads S.n1.
      ────────────────────────────────────────────────────────────────────── */
-  if (ac.engine?.type === 'turbofan' && !S.crashed) {
-    const IDLE_N1 = ac.engine?.idleN1 ?? 22;
-    const state   = S.engineState ?? 'off';
-    const n1Now   = S.n1 ?? 0;
-    const vmo     = ac.envelope.maxSpd ?? 340;
-
-    /* A/THR — when the AP + autothrust are engaged in flight, N1 is driven by a speed loop
-       (integrator on the speed error) to hold the target speed instead of being a thrust
-       lever. One loop gives the right phase behaviour: level → holds, climb → spools up,
-       descent → idles. Target = the FCU/managed speed, capped by 250 < FL100 and Vmo. */
-    const athrActive = state === 'running' && S.athr && !S.wow;   // A/THR is independent of the AP — holds speed while you hand-fly
-    let n1Target, athrI = S.athrN1 ?? n1Now;
-    let athrMode = null, athrDetent = null, retardLever = false;
-    if (athrActive) {
-      /* The thrust-lever detent is a flat-rated N1 ceiling — the A/THR may modulate up to
-         it, no further. Pinned at the ceiling → THR <detent>; below it → SPEED/MACH. */
-      const det     = activeDetent(ac, S.thrustLever ?? 0);
-      const ceiling = det ? det.n1Limit : 100;
-      athrDetent    = det?.label ?? null;
-      const mgSpd   = S.spdManaged ? managedSpeed() : null;                      // managed → phase speed schedule
-      const spdTgt  = (mgSpd != null) ? Math.min(mgSpd, vmo)                      // (already capped 250<FL100 inside)
-                                      : Math.min(S.spdT ?? vmo, S.alt < 10000 ? 250 : 1e4, vmo);  // selected FCU speed
-      const spdErr  = spdTgt - (S.spd ?? 0);
-      const spdRate = _athrSpdPrev != null ? ((S.spd ?? 0) - _athrSpdPrev) / dt : 0;    // kt/s — damps overshoot
-      athrI    = Math.max(IDLE_N1, Math.min(ceiling, athrI + spdErr * 0.10 * dt));      // integral (anti-windup at ceiling)
-      const speedN1 = Math.max(IDLE_N1, Math.min(100, athrI + spdErr * 1.0 - spdRate * 3.5)); // + proportional − derivative
-      n1Target = Math.min(speedN1, ceiling);                                            // detent caps the command
-      athrMode = (speedN1 >= ceiling - 0.5) ? 'THR'                                     // demand pinned at the limit
-               : (S.alt > 28000 ? 'MACH' : 'SPEED');                                    // modulating to hold speed
-      /* RETARD — in the flare (low on the captured glideslope) close the thrust to idle so the
-         speed bleeds and the jet settles, instead of the A/THR holding speed and floating it. */
-      if (S.gsCaptured && (S.alt - (S.mission?.arrival?.elevation ?? 0)) < 30) {
-        n1Target = IDLE_N1; athrMode = 'IDLE';
-        retardLever = true;   // pull the thrust levers back so they're at idle by touchdown
-      }
-    } else {
-      /* A/THR off → manual thrust: N1 follows the thrust lever, not the FCU selected speed
-         (turning the SPD knob no longer changes thrust). Falls back to spdT for old state. */
-      const lever = S.thrustLever ?? Math.min(1, Math.max(0, (S.spdT ?? 0) / vmo));
-      /* Thrust reverser deployed → engines spool up to reverse thrust (the landing roar),
-         ramped with the reverser; below 60 kt it stows and N1 falls back to the lever. */
-      const _revN1 = IDLE_N1 + (78 - IDLE_N1) * Math.min(1, (S.groundRollT ?? 0) / 2.5);
-      n1Target = (state === 'running') ? (S.thrustReverser ? _revN1 : IDLE_N1 + (100 - IDLE_N1) * lever)
-               : (state === 'starting') ? IDLE_N1
-               : 0;   // 'off' or 'shutdown'
-    }
-    _athrSpdPrev = athrActive ? (S.spd ?? 0) : null;
-
-    const tau  = (state === 'starting') ? 25
-               : (state === 'shutdown') ? 12                    // fuel cutoff — the fan coasts down by inertia, a slow ~30 s wind-down (not the ground-idle fast case)
-               : n1Target > n1Now ? 8
-               : (S.wow && _idleThr && !S.thrustReverser) ? 4   // ground idle (e.g. after the reverser stows) — spool down fast, no lingering roar
-               : 15;
-    const newN1 = n1Now + (n1Target - n1Now) * (1 - Math.exp(-dt / tau));
-
-    const n1Up = { n1: Math.max(0, Math.min(100, newN1)),
-                   athrN1: athrActive ? athrI : newN1,      // track the A/THR integral; sync to N1 when off
-                   athrMode, athrDetent };                  // thrust mode for the FMA (null when A/THR off)
-    if (retardLever) n1Up.thrustLever = 0;                  // RETARD — levers to idle, so on the ground N1 stays at idle
-    setState(n1Up);
-  }
 
   /* ── ILS approach — real LOC/GS deviations from the runway threshold, with capture. Computed
      once (outside the flight branches) so both the AP coupling and the PFD needles read it.
