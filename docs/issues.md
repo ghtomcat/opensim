@@ -351,7 +351,7 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 *Stages.*
 0. **Owner, still one engine.** `core/engine.js`: lifecycle out of `sound.js` and `velis_epsi.js` (done 2026-10-18: sim time, `engine.startTime` / `stopTime`, `sound.js` follows the state), the APU lifecycle out of `electrical.js` (done 2026-10-18: `apuMaster` / `apuStart` / `apuFire`, `apu.startTime` in the data, `sound.js` follows `apuState`), power from factors (done 2026-10-18: `S.engineFactors` + `setEngineFactor()`, `enginePower` computed in `engine.js` only; fixes the cold-and-dark power of 1), N1 spool out of `physics.js` (done 2026-10-18: the A/THR command in `core/thrust.js` `tickThrust`, the spool in `engine.js`). `engine` an object everywhere (done 2026-10-18). One AudioContext (done 2026-10-18). Done when: a cold start completes via `simStep` with audio muted; no module but `engine.js` writes engine or APU state. **Stage 0 done 2026-10-18** (both checks met).
 1. **The array.** `S.engines[]` by `count`, old fields derived from it. Done when: every aircraft flies the same seeded test runs as before. **Done 2026-10-18:** `{ state, startT, stopT, n1, factors, power }` per engine; the single fields are derived (highest state, largest N1 and power — exact while the engines are identical); `simSetState` carries single-field writes into every engine (`adoptEngineFields`). Seven seeded flights identical to the previous commit to 9 decimals (A350 A/THR ×2, E190 and A340 cold start + takeoff, C172, Velis, Wolfskopf Bf 109 with its failures).
-2. **Per-engine control and failure, electrical layout as data, no yaw yet.** Masters, levers, fire handles and failures by engine; the full turbofan model (fan/core/EGT/FF); the 777 electrical layout in JSON, read by the simulation, the overhead and the ELEC page; engine controls derived and sending commands; the setup choice "engine failure at V1". Done when: the 777 on `singapore-london` loses ENG 1 at V1 (the setup choice), climbs on ENG 2 with less climb rate, the ECAM shows ENG 1 failed and its generators offline, and the overhead shows exactly the 777's generators. **Progress 2026-10-18 — 2a done:** ENG MASTER *i* / failures (`engine: n`) act on one engine; a turbofan's power caps its N1 (0 = flameout, the fan runs down); thrust summed per engine; generators and pumps read their own engine; the E/WD and ECAM ENGINE page show each engine, a failed one amber with FAIL. Checked on the 777 at WSSS: ENG 1 lost at 150 kt → 194.6 vs 206.9 kt 10 s later, climb 1 322 vs 3 757 fpm at 6° pitch, GEN 1 offline. Next: 2b the setup choice "engine failure at V1", 2c the full turbofan model (core, EGT, FF, oil pressure per engine — OIL_PRESS still reads the larger engine), 2d the 777 electrical layout as data.
+2. **Per-engine control and failure, electrical layout as data, no yaw yet.** Masters, levers, fire handles and failures by engine; the full turbofan model (fan/core/EGT/FF); the 777 electrical layout in JSON, read by the simulation, the overhead and the ELEC page; engine controls derived and sending commands; the setup choice "engine failure at V1". Done when: the 777 on `singapore-london` loses ENG 1 at V1 (the setup choice), climbs on ENG 2 with less climb rate, the ECAM shows ENG 1 failed and its generators offline, and the overhead shows exactly the 777's generators. **Progress 2026-10-18 — 2a done:** ENG MASTER *i* / failures (`engine: n`) act on one engine; a turbofan's power caps its N1 (0 = flameout, the fan runs down); thrust summed per engine; generators and pumps read their own engine; the E/WD and ECAM ENGINE page show each engine, a failed one amber with FAIL. Checked on the 777 at WSSS: ENG 1 lost at 150 kt → 194.6 vs 206.9 kt 10 s later, climb 1 322 vs 3 757 fpm at 6° pitch, GEN 1 offline. Next: 2b "at V1" and the engine to fail, added to the briefing's failure choice (V1 = VR for now — see *Takeoff performance: V1, VR, V2 per takeoff*; the wider rework is *The failure choice, rethought*), 2c the full turbofan model (core, EGT, FF, oil pressure per engine — OIL_PRESS still reads the larger engine), 2d the 777 electrical layout as data.
 3. **Yaw axis.** The 777's engine lateral positions measured into `dimensions`; sideslip, rudder (keys + gamepad), rudder trim, thrust moment; TAC as per-type data, switchable. Done when: an engine failure yaws the aircraft toward the dead engine, rudder holds it, and full rudder below V_MC can't.
 4. **Hydraulic layout as data.** The 777 first (L/C/R), same three readers; the A350 (GREEN/YELLOW) next. Done when: losing ENG 1 on the 777 drops the L system's engine-driven pump only, and overhead and HYD page show the 777's three systems.
 5. **Sound and outside view per engine.**
@@ -499,6 +499,51 @@ The Velis's `sound.engineType` is `"electric"`, but `ENGINES` has no `electric` 
 **Why it matters.** Anyone who clones the repo has no `audio/` folder, so mission scripts that chain with `after` lose lines silently. Tests can't see the chain either.
 
 **Fix.** Mark the clearance ended on every way speech can finish: `onend`, `onerror`, no `speechSynthesis` (immediately), and a fallback timer from the text length and rate (whichever comes first, once). **Done when.** Inspiration5 without `audio/` fires the same clearances as with it (70), in test mode.
+
+---
+
+## Training
+
+### The failure choice, rethought — not implemented yet
+*Noted 2026-10-18 · `failurePresets()` / `failureEntries()` / `buildSetup()` in `app/briefing.js`; the briefing strip in `index.html` (`_bpFails`, `.bp-timing`); `core/failures.js`; `_computeEmergScore()` in `index.html`*
+
+**Today.** The briefing offers one failure per flight, from four presets that are all about engine power ("50 % power · 30 s", "30 % power · bang", "Full failure"; carb icing where there is carb heat), at a random time (60–300 s) or a fixed time. `failureEntries()` turns the pick into `engine_power` / `engine_bang` / `carb_ice` entries for `core/failures.js`, which triggers on time or altitude. The debrief scores it as a glider: best glide speed after the failure (`_computeEmergScore()`). That fits a single piston engine; it doesn't fit a twin (the task after an engine failure is V2 and the engine-out climb, not best glide), and it doesn't reach any system but the engine.
+
+**The general shape.** A failure is four independent choices:
+
+| Choice | Today | General |
+|---|---|---|
+| **What** | engine power presets | a catalogue **derived from the aircraft data** — only what the aircraft has and the sim simulates: per engine power loss, flameout, fire, seizure (liquid-cooled), carb ice (carb heat); a generator, a battery, the alternator (light aircraft); a hydraulic system; later instruments (pitot/static, AHRS), gear, flaps, flight controls. The same pattern as *The cockpit builds itself from the aircraft data*: a system brings its failures, as it brings its controls |
+| **Where** | — | which engine / which side / which system (`engine: 1`, a source id from the system layout like `gen1a`); or random, so the pilot has to identify it |
+| **When** | random 60–300 s, fixed s | **by flight phase** rather than by seconds — at V1 (the takeoff roll), after rotation, in the climb, cruise, on the approach, below 1 000 ft — or a time or altitude; a random time *within* a phase. Seconds since mission start mean little on a long-haul |
+| **How** | ramp time, optional bang | sudden, gradual, intermittent (rough running), with or without a cue (bang, vibration) |
+
+**Also:**
+- **More than one failure** per flight, and "a random failure from a category" (engine, electrical, hydraulic …) — the pilot doesn't know what's coming.
+- **Live failures by the instructor.** `S.role` already has INSTRUCTOR (R key); an instructor view could trigger failures during the flight, not only before it — the shape multi-crew needs too (*Multi-crew — not implemented yet*).
+- **One data format.** The pick generates ordinary mission `failures` entries, so a fixed-story mission and a pilot's pick run through the same code (`core/failures.js`, the schema, `core/vocab.js`). Rocket failures keep their own key (*Overloaded fields in the JSON data*).
+- **The debrief follows the failure.** Per failure what is expected: best glide (single engine), V2 and the engine-out climb (multi-engine), the ECAM/EICAS procedure. Links to the training-procedures backlog (RTO/V1, engine-out, EOSID).
+- **Persistence.** A failure stays until the mission is reloaded (a restart doesn't heal it — `core/engine.js` power factors); a repair or reset belongs to the instructor.
+
+**First steps that don't need the rewrite.** Stage 2b of *One engine per aircraft*: "at V1" as a timing for missions that start on the ground, and the engine to fail (ENG 1 … n / random) on multi-engine aircraft — added to the existing strip. Everything else waits for this entry.
+
+**Done when.** The briefing's failure choice is built from the aircraft's systems (no hard-coded preset list), offers what / where / when (by phase) / how, can combine failures and pick one at random from a category, and the debrief scores the failure that was flown.
+
+### Takeoff performance: V1, VR, V2 per takeoff — not implemented yet
+*Noted 2026-10-18 · `performance.Vr` in the aircraft data; `_vSpeeds()` in `display/pfd_instruments.js`; kneeboard texts (`a340`, `an225`)*
+
+**Today.** VR is a fixed number per aircraft (`performance.Vr`); there is no V1 and no V2 — a few kneeboards print them as text (A340: "V1: 162 kt Vr: 165 kt V2: 181 kt"). The stall speed and VLS are already computed, from mass, wing area, `CL_max` and the flaps (`_vSpeeds()`). The jets have one fixed `performance.mass` and burn no fuel. Stage 2b of *One engine per aircraft* uses **V1 = VR** for the "at V1" failure — an interim value, clearly marked.
+
+**Real world.** V1 is worked out for every takeoff from the weight, the runway (length, slope, wet/dry), wind, temperature, pressure altitude, flaps and thrust (full or derated), with V1 ≤ VR and V1 ≥ VMCG; the crew enters it in the FMS (Airbus PERF TAKEOFF, Boeing TAKEOFF REF) and it shows as a bug on the PFD.
+
+**Fix.** A takeoff-performance module in `core/` that computes V1 / VR / V2 for the takeoff about to be flown:
+- **Inputs** the sim already has: runway length and elevation (bundled runway data), temperature and wind (METAR), flaps, thrust, mass.
+- **VR / V2** from the computed stall speed in the takeoff configuration (V2 ≥ 1.13 VSR).
+- **V1 from the sim's own physics** — the balanced field: play the stop case (engine failure at V, brakes, reversers, spoilers) and the go case (continue on N−1 to 35 ft), and find the speed where both need the same runway. VMCG comes with the yaw axis (stage 3).
+- **Readers:** the briefing, the MCDU PERF page, the PFD speed bugs, a "V1" / "rotate" callout, the "at V1" failure trigger, and the RTO / V1-decision training.
+- **Weight** only matters once the jets have fuel and payload (out of scope so far); until then the fixed `performance.mass` is the takeoff weight.
+
+**Done when.** On the 777 at WSSS the briefing and the PFD show V1 / VR / V2 for the runway and weather of the day; a hotter day or a shorter runway changes them; and the "at V1" failure fires at that V1.
 
 ---
 
