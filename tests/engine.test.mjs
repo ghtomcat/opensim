@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { S, setState } from '../core/state.js';
 import { startEngine, stopEngine, engineQuit, tickEngine, initialEngine, hasStartSequence, setEngineFactor,
-         apuMaster, apuStart, apuFire } from '../core/engine.js';
+         apuMaster, apuStart, apuFire, engineMaster } from '../core/engine.js';
 import { startRecording, apuStartRecording } from '../core/sound.js';
 import { tickThrust } from '../core/thrust.js';
 
@@ -280,4 +280,34 @@ test('no APU in the data → START does nothing', () => {
   cold(load('tu95ms'), { apuMasterOn: true, essentialBusPowered: true, apuState: 'off' });
   apuStart();
   assert.equal(S.apuState, 'off');
+});
+
+test('ENG MASTER: IGN/START + AC power starts, no AC power drops it back, NORM only latches', () => {
+  const step = cold(load('a340'), { engMasters: [false, false, false, false], engMode: 'IGN+START', acBusPowered: false });
+  engineMaster(0, true);
+  assert.deepEqual(S.engMasters, [false, false, false, false]);   // no AC power — the switch drops back
+  assert.equal(S.engineState, 'off');
+  setState({ acBusPowered: true });
+  engineMaster(0, true);
+  assert.deepEqual(S.engMasters, [true, false, false, false]);
+  assert.equal(S.engineState, 'starting');
+  setState({ engMode: 'NORM' });
+  engineMaster(1, true);                                         // NORM: latches, no start of its own
+  assert.deepEqual(S.engMasters, [true, true, false, false]);
+  step(60);
+  engineMaster(1, false);                                        // another master still on — the shared engine keeps running
+  assert.equal(S.engineState, 'running');
+  engineMaster(0, false);                                        // the last one off — fuel cut
+  assert.equal(S.engineState, 'shutdown');
+});
+
+test('Q on a turbofan (stopEngine) sets the ENG MASTER switches to OFF — they are the fuel cutoff', () => {
+  const step = cold(load('a350'), { engMasters: [true, true], engineState: 'running', n1: 22 });
+  stopEngine();
+  assert.deepEqual(S.engMasters, [false, false]);
+});
+
+test('mission load: one ENG MASTER per engine — off when cold, on when the engines run', () => {
+  assert.deepEqual(initialEngine(load('a340'), { onGround: true,  spd: 0 }).engMasters,   [false, false, false, false]);
+  assert.deepEqual(initialEngine(load('a340'), { onGround: false, spd: 250 }).engMasters, [true, true, true, true]);
 });

@@ -92,8 +92,10 @@ export function initialEngine(aircraft, { onGround, spd }) {
   const n1 = (eng.type !== 'turbofan' || cold) ? 0
            : idle + (100 - idle) * Math.min(1, Math.max(0, spd / (aircraft.envelope?.maxSpd ?? 340)));
   const engineState = cold ? 'off' : 'running';
+  const count = Math.max(1, eng.count ?? 1);
   return { engineState, engineFactors: FACTORS_NONE, enginePower: _power(engineState, FACTORS_NONE), n1,
            engineStartT: null, engineStopT: null,
+           engMasters: Array(count).fill(!cold),                   // ENG MASTER switches: on when the engines run
            apuMasterOn: false, ...APU_OFF, apuFireArmed: false };   // the APU is off at every mission start
 }
 
@@ -147,12 +149,30 @@ export function startEngine() {
   _toState({ engineState: 'starting', engineStartT: 0, engineStopT: null });
 }
 
-/** Normal shutdown (Q, magnetos OFF, ENG MASTER off, fire handle): the engine runs down. */
+/** Normal shutdown (Q, magnetos OFF, ENG MASTER off, fire handle): the engine runs down.
+    On a turbofan the ENG MASTER switches are the fuel cutoff — they go to OFF. */
 export function stopEngine() {
   if (!hasStartSequence()) return;
   const st = S.engineState ?? 'off';
   if (st === 'off' || st === 'shutdown') return;
-  _toState({ engineState: 'shutdown', engineStartT: null, engineStopT: 0 });
+  const patch = { engineState: 'shutdown', engineStartT: null, engineStopT: 0 };
+  if (_turbofan()) patch.engMasters = Array(Math.max(1, _eng().count ?? 1)).fill(false);
+  _toState(patch);
+}
+
+/**
+ * ENG MASTER switch i (pedestal). ON with ENG MODE at IGN/START starts the engine — and needs
+ * AC power, or the switch drops back to OFF; in NORM it only latches. OFF stops the engine once
+ * every master is off (one shared engine until stage 1/2 of issues.md "One engine per aircraft").
+ */
+export function engineMaster(i, on) {
+  const n = Math.max(1, _eng().count ?? 1);
+  const masters = Array.from({ length: n }, (_, k) => !!S.engMasters?.[k]);
+  if (on && (S.engMode ?? 'NORM') === 'IGN+START' && !(S.acBusPowered ?? false)) return;   // no AC power — no start, the switch drops back
+  masters[i] = on;
+  setState({ engMasters: masters });
+  if (on && (S.engMode ?? 'NORM') === 'IGN+START') startEngine();
+  else if (!on && masters.every(m => !m)) stopEngine();
 }
 
 /** The engine quits at once — fuel starvation, a seized engine. Restartable unless seized. */

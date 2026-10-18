@@ -829,7 +829,8 @@ and steps with `simStep`, and needs no audio:
 |---|---|---|
 | `startEngine()` | `E` (not on airliners), magnetos START, ENG MASTER | `off` → `starting` (turbofan: also from `shutdown`; not with the fuel shutoff closed, a seized engine, or an electric starter with BAT off — then the key springs back from START) |
 | `tickEngine(dt)` | the frame loop | `starting` → `running` after `engine.startTime` s (turbofan: or once N1 reaches idle); `shutdown` → `off` after `engine.stopTime` s (turbofan: once N1 < 0.5 %); the electric motor follows MASTER + BATT EN + PWR EN |
-| `stopEngine()` | `Q`, magnetos OFF, ENG MASTER off, fire handle | → `shutdown` |
+| `stopEngine()` | `Q`, magnetos OFF, the last ENG MASTER off, fire handle | → `shutdown` (turbofan: the ENG MASTERs go to OFF — they are the fuel cutoff) |
+| `engineMaster(i, on)` | ENG MASTER switch on the pedestal | owns `engMasters` (reset at mission load: one per engine, ON when the engines run): ON with ENG MODE IGN/START starts (no AC power → drops back to OFF), in NORM it only latches; OFF stops the shared engine once every master is off |
 | `engineQuit()` | fuel starvation, a seized engine | → `off` at once |
 
 **The APU** is an engine of its own in `core/engine.js`: `apuMaster(on)`, `apuStart()`

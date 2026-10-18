@@ -129,7 +129,7 @@ export const S = {
   engFireArmed: [],      // bool[] — fire handle pulled per engine
   engAgents:   [],       // bool[] — flat: [eng1_a1, eng1_a2, eng2_a1, eng2_a2, ...]
   apuAgent:    false,    // APU extinguisher agent discharged
-  engMasters: [],        // bool[] — ENG MASTER switch per engine (pedestal)
+  engMasters: [],        // bool[] — ENG MASTER switch per engine (pedestal) — core/engine.js (engineMaster, reset at mission load)
   engMode:    'NORM',    // engine mode selector: 'NORM' | 'IGN+START' | 'CRANK'
   busTieAuto: true,      // bus tie mode: true=AUTO, false=MANUAL (open)
   galleyOn:   true,      // galley power enabled
