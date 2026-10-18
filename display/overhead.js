@@ -11,9 +11,8 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState }                             from '../core/state.js';
-import { startApuSound, stopApuSound } from '../core/sound.js';
-import { stopEngine } from '../core/engine.js';
-import { apuMasterSet, apuStartPress, apuFirePull, elecCfg } from '../core/electrical.js';
+import { stopEngine, apuMaster, apuStart, apuFire } from '../core/engine.js';
+import { elecCfg } from '../core/electrical.js';
 import { pushButtonHTML, setPushButton }          from './pushbutton.js';
 
 /* ── DOM node ─────────────────────────────────────────────────── */
@@ -489,17 +488,13 @@ function _attachHandlers() {
 
   /* APU MASTER — latching switch */
   document.getElementById('pb-apu-master')?.addEventListener('click', () => {
-    const wasOn = S.apuMasterOn ?? false;
-    apuMasterSet(!wasOn);
-    if (wasOn) stopApuSound();   // master off = shutdown
+    apuMaster(!(S.apuMasterOn ?? false));   // off = shutdown (the APU sound follows apuState)
     _updateSwitches();
   });
 
-  /* APU START — momentary, triggers startup + sound */
+  /* APU START — momentary; the start-up sound follows apuState */
   document.getElementById('pb-apu-start')?.addEventListener('click', () => {
-    const wasOff = (S.apuState ?? 'off') === 'off';
-    apuStartPress();
-    if (wasOff && (S.apuState ?? 'off') === 'starting') startApuSound();
+    apuStart();
     _updateSwitches();
   });
 
@@ -519,8 +514,7 @@ function _attachHandlers() {
   document.getElementById('ohp-apu-fire')?.addEventListener('click', () => {
     const guard = document.getElementById('ohp-apu-fire-guard');
     if (!guard?.classList.contains('lifted')) return;   // guard must be lifted first
-    apuFirePull();
-    stopApuSound();
+    apuFire();
     _updateSwitches();
   });
 

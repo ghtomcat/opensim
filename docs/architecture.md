@@ -789,9 +789,9 @@ aircraft that declare the matching data.
 |---|---|---|---|
 | `core/fuel.js` | aircraft with `tanks` (Bf 109, F4U, C172, DR400) | `fuelLeft`, `fuelRight`, `fuelSelector`, `fuelShutoff`, `fuelStarveT`; `warnings.LOW_FUEL/OIL_PRESS/FUEL_SHUTOFF` | burn ∝ `enginePower` (`fuelBurn` L/h); empty selected tank or shutoff → 4 s run-down → engine off |
 | `core/battery.js` | aircraft with `battery` (Velis Electro) | `batteryCharge` (%) | drain ∝ `enginePower` (`powerDrawKw`, `capacityKwh`); empty → the `battery` power factor 0 |
-| `core/electrical.js` | turbofans | APU state machine; generators, AC/DC/essential buses, bus tie, ext power, `bat1..3Charge` | **display only** (ECAM, overhead, pedestal) |
+| `core/electrical.js` | turbofans | generators (the APU GEN from `apuState`), AC/DC/essential buses, bus tie, ext power, `bat1..3Charge` | **display only** (ECAM, overhead, pedestal) |
 | `core/hydraulics.js` | turbofans | GREEN / BLUE / YELLOW pressure, engine-driven and electric pumps | **display only** (ECAM, PFD) |
-| `core/engine.js` | every aircraft with an `engine` | `engineState`, `engineStartT`, `engineStopT` | the start and shutdown lifecycle on sim time (§9.2) |
+| `core/engine.js` | every aircraft with an `engine`; the APU on aircraft with an `apu` | `engineState`, `engineStartT`, `engineStopT`, `enginePower`, `engineFactors`, `n1`; `apuMasterOn`, `apuState`, `apuStartT`, `apuRunning`, `apuFireArmed` | the start and shutdown lifecycle on sim time, power, the N1 spool (§9.2); the APU |
 | `core/failures.js` | all (by mission) | scripted failures (§2.5); carb ice (`carbIceLevel`); coolant leak → seize | the `failure`, `ice` and `seizure` power factors; a seized engine stops (`engineQuit()`) |
 | cooling (in `core/physics.js`) | aircraft with `cooling` | `coolantTemp`, `oilTempC` | heat balance (§7.1); `failures.js` seizes the engine at `cooling.critical` |
 
@@ -831,6 +831,12 @@ and steps with `simStep`, and needs no audio:
 | `tickEngine(dt)` | the frame loop | `starting` → `running` after `engine.startTime` s (turbofan: or once N1 reaches idle); `shutdown` → `off` after `engine.stopTime` s (turbofan: once N1 < 0.5 %); the electric motor follows MASTER + BATT EN + PWR EN |
 | `stopEngine()` | `Q`, magnetos OFF, ENG MASTER off, fire handle | → `shutdown` |
 | `engineQuit()` | fuel starvation, a seized engine | → `off` at once |
+
+**The APU** is an engine of its own in `core/engine.js`: `apuMaster(on)`, `apuStart()`
+(MASTER on and battery power on the essential bus) and `apuFire()` from the overhead;
+`starting` → `running` after `apu.startTime` s of sim time (the APU start-up recording's
+length). `electrical.js` reads `apuState` for the APU GEN; `sound.js` follows it (start-up,
+idle drone, fade-out).
 
 `engine.startTime` is the length of the start-up recording `sound.js` plays for the
 engine (`tests/engine.test.mjs` keeps them equal); an engine without one has no start

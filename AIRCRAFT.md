@@ -133,6 +133,18 @@ The array maps to color slots `0–9` in `display/outside.js`. `null` keeps the 
 
 ---
 
+## APU (airliners)
+
+```json
+"apu": { "startTime": 35.08 }
+```
+
+| Field | Description |
+|---|---|
+| `startTime` | s from APU START to running — the length of the APU start-up recording (`tests/engine.test.mjs` checks it). Without an `apu` block the aircraft has no APU: START does nothing. |
+
+---
+
 ## Engine (every aircraft)
 
 One object on every winged aircraft. Rockets and robots have none.

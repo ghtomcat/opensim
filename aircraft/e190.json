@@ -41,6 +41,7 @@
       }
     ]
   },
+  "apu": { "startTime": 35.08 },
   "engine": {
     "type": "turbofan",
     "model": "pw1900g",

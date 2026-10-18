@@ -24,47 +24,18 @@ import { onMissionReset } from './lifecycle.js';
 
 const BAT_DRAIN_PCT_S  = 0.30 / 60;
 const BAT_CHARGE_PCT_S = 3.0  / 60;
-const APU_START_SECS   = 35;
 
-let _apuStartT = null;
-
-/* ── APU MASTER switch ── */
-export function apuMasterSet(on) {
-  if (on) {
-    setState({ apuMasterOn: true });
-  } else {
-    _apuStartT = null;
-    setState({ apuMasterOn: false, apuState: 'off', apuGenOn: false,
-               apuBleedOn: false, apuRunning: false });
-  }
-}
-
-/* ── APU START (momentary) ── */
-export function apuStartPress() {
-  if (!(S.apuMasterOn ?? false)) return;
-  if (!(S.essentialBusPowered ?? false)) return;
-  if ((S.apuState ?? 'off') !== 'off') return;
-  _apuStartT = S.time ?? 0;
-  setState({ apuState: 'starting' });
-}
-
-/* ── APU FIRE handle ── */
-export function apuFirePull() {
-  _apuStartT = null;
-  setState({ apuMasterOn: false, apuState: 'off', apuGenOn: false,
-             apuBleedOn: false, apuRunning: false, apuFireArmed: true });
-}
+/* The APU itself (MASTER, START, fire handle, the start sequence) is core/engine.js's —
+   this module only reads apuState for the APU GEN. */
 
 /* ── Reset on mission load ── */
 export function resetElectrical() {
   const n = S.aircraft?.engine?.count ?? 2;
-  _apuStartT = null;
   setState({
     bat1On: false, bat2On: false, bat3On: false,
     bat1Charge: 100, bat2Charge: 100, bat3Charge: 100,
     extPwrOn: false, extPwrBOn: false,
-    apuMasterOn: false, apuState: 'off', apuBleedOn: false,
-    apuGenSwitch: true, apuFireArmed: false, apuRunning: false, apuGenOn: false,
+    apuBleedOn: false, apuGenSwitch: true, apuGenOn: false,   // the APU's own state: core/engine.js
     idgConnected: Array(n).fill(true),
     engGenSwitch: Array(n).fill(true),
     engGenOn: [],
@@ -93,12 +64,7 @@ export function tickElectrical(dt) {
   const ac = S.aircraft;
   if (!ac || ac.engine?.type !== 'turbofan') return;
 
-  /* APU state machine */
-  let apuState = S.apuState ?? 'off';
-  if (apuState === 'starting' && (S.time ?? 0) - (_apuStartT ?? 0) >= APU_START_SECS) {
-    apuState = 'running';
-    setState({ apuState: 'running', apuRunning: true });
-  }
+  const apuState = S.apuState ?? 'off';   // core/engine.js runs the APU
 
   const n = ac.engine?.count ?? 2;
   const idgConn = S.idgConnected?.length === n ? S.idgConnected : Array(n).fill(true);

@@ -116,11 +116,12 @@ export const S = {
   extPwrOn:   false,     // EXT PWR A (ground only)
   extPwrBOn:  false,     // EXT PWR B (ground only)
   apuMasterOn: false,    // APU MASTER switch (latching)
-  apuState:   'off',     // 'off' | 'starting' | 'running'
+  apuState:   'off',     // 'off' | 'starting' | 'running' — core/engine.js
+  apuStartT:  null,      // s since the APU start began — core/engine.js
   apuBleedOn: false,     // APU bleed valve
   apuGenSwitch: true,    // APU GEN switch (true = ON)
   apuFireArmed: false,   // fire handle pulled — extinguisher armed
-  apuRunning: false,     // derived from apuState
+  apuRunning: false,     // derived from apuState — core/engine.js
   apuGenOn:   false,     // derived — APU feeding AC bus
   idgConnected: [],      // bool[] per engine — IDG mechanical coupling (false = disconnected, irreversible)
   engGenSwitch: [],      // bool[] per engine — GEN switch ON/OFF

@@ -156,6 +156,7 @@
       }
     ]
   },
+  "apu": { "startTime": 35.08 },
   "engine": {
     "type": "turbofan",
     "model": "cfm56-7",

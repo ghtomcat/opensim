@@ -24,6 +24,8 @@ const engine = object(
     chevrons: bool, nacellePaint: arrayOf(num) },   // last two: 3D model
   { doc: { model: str, description: str }, required: ['count'] },
 );
+/* The APU — an engine of its own (core/engine.js); startTime is its start-up recording's length */
+const apu = object({ startTime: num }, { required: ['startTime'] });
 const envelope = object(
   { cruiseAlt: num, cruiseSpd: num, maxSpd: num, spdProfile: mapOf(num) },
   { doc: { maxAlt: num } },   // the service ceiling — a fact, nothing enforces it
@@ -79,7 +81,7 @@ export const aircraft = object(
   {
     id: str, name: str, manufacturer: str, family: str, icaoType: str, registration: str, callsign: str,
     vehicleType: oneOf(...valuesOf(VEHICLE)), manualControl: bool, panel: oneOf(...valuesOf(PANEL)),
-    engine, sound: object({ engineType: oneOf(...valuesOf(ENGINE)) }), ignitionTime: num, staging: oneOf('hot'),
+    engine, apu, sound: object({ engineType: oneOf(...valuesOf(ENGINE)) }), ignitionTime: num, staging: oneOf('hot'),
     envelope, performance, handling: object({ rollRate: num, pitchRate: num, maxBank: num, maxPitch: num }),
     flaps: arrayOf(flapSetting), thrustProfiles: arrayOf(thrustProfile), approachSpeed: num,
     autobrake: bool, fixedGear: bool, gridFins: bool, landingLegs: bool,

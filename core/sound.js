@@ -353,6 +353,7 @@ export function initSound(engineType) {
   _engineType = engineType ?? ENGINE.GEARED_TURBOFAN;
   _cfg = _preset(_engineType);
   _seenEngineState = S.engineState ?? 'off';   // the mission's initial state — no transition to play
+  _seenApuState    = S.apuState ?? 'off';
 }
 
 export function engineGunfire() {
@@ -765,6 +766,7 @@ export function switchEngine(type) {
 
 export function tickSound() {
   _followEngine();   // start/stop sounds follow S.engineState (core/engine.js) — even before sound is on
+  _followApu();      // and the APU's follow S.apuState
   if (!_ctx || !_cfg) return;
 
   /* Wind survives engine shutdown — update it whenever AudioContext is alive */
@@ -2050,15 +2052,32 @@ function _startApuIdle() {
   _apuIdleNodes = { gain, osc, lp, noiseSrc, hp };
 }
 
-export async function startApuSound() {
-  if (!_ctx) {
-    _acquire();
-    _master = _ctx.createGain();
-    _master.gain.value = 0;
-    _master.connect(_out);
-  }
-  if (_ctx.state === 'suspended') await _ctx.resume();
+/* ── APU sound — follows S.apuState (core/engine.js runs the APU) ──
+   'starting' → the start-up recording (its length is the aircraft's apu.startTime);
+   'running'  → the idle drone; 'off' → stop the recording, fade the drone out. */
+let _seenApuState = null;   // set by initSound
+let _apuStartSrc  = null;   // the start-up recording while it plays
 
+function _followApu() {
+  const st = S.apuState ?? 'off';
+  if (_seenApuState === null) _seenApuState = st;
+  if (st !== _seenApuState) {
+    _seenApuState = st;
+    try {
+      if (st === 'starting')     _playApuStart();
+      else if (st === 'running') { _stopApuStart(); _acquire(); _startApuIdle(); }
+      else                       { _stopApuStart(); _stopApuIdle(); }
+    } catch (err) { console.warn('[sound] APU sound failed to follow', st, err); }
+    return;
+  }
+  /* Running, but the drone is gone (an engine shutdown tore the sound down around it) — bring it back */
+  if (st === 'running' && !_apuIdleNodes) { try { _acquire(); _startApuIdle(); } catch {} }
+}
+
+function _playApuStart() {
+  _acquire();
+  if (_ctx.state === 'suspended') _ctx.resume().catch(() => {});
+  _stopApuStart();
   const buf = _assembleAPUStartup(_ctx.sampleRate);
   const ab  = _ctx.createBuffer(1, buf.length, _ctx.sampleRate);
   ab.copyToChannel(buf, 0);
@@ -2068,19 +2087,25 @@ export async function startApuSound() {
   src.buffer = ab;
   src.connect(gain);
   gain.connect(_out);
-  src.onended = () => _startApuIdle();
+  src.onended = () => { if (_apuStartSrc === src) _apuStartSrc = null; };
+  _apuStartSrc = src;
   src.start();
 }
 
-export function stopApuSound() {
+function _stopApuStart() {
+  if (_apuStartSrc) { _apuStartSrc.onended = null; try { _apuStartSrc.stop(); } catch {} _apuStartSrc = null; }
+}
+
+function _stopApuIdle() {
   if (!_apuIdleNodes || !_ctx) return;
   const { gain, osc, noiseSrc } = _apuIdleNodes;
+  _apuIdleNodes = null;                             // a new drone may start while this one fades
   gain.gain.setTargetAtTime(0, _ctx.currentTime, 1.8);
-  setTimeout(() => {
-    try { osc.stop(); noiseSrc.stop(); } catch {}
-    _apuIdleNodes = null;
-  }, 5000);
+  setTimeout(() => { try { osc.stop(); noiseSrc.stop(); } catch {} }, 5000);
 }
+
+/** The APU start-up recording — its length in s is the aircraft's apu.startTime. */
+export function apuStartRecording(sr) { return _assembleAPUStartup(sr); }
 
 /* ══════════════════════════════════════════════════════════════════
    CFM56 TURBOFAN STARTUP — Airbus A320 / A340 / A350 family
@@ -2568,6 +2593,7 @@ function _teardown() {
      and the APU and fuel-pump loops; drop the refs so they can start again. */
   if (_lifecycleSrc) { _lifecycleSrc.onended = null; try { _lifecycleSrc.stop(); } catch {} _lifecycleSrc = null; }
   if (_apuIdleNodes) { try { _apuIdleNodes.osc.stop(); _apuIdleNodes.noiseSrc.stop(); } catch {} }
+  _stopApuStart();
   if (_pumpNodes)    { const { o1, o2, noise, lfo } = _pumpNodes; try { o1.stop(); o2.stop(); noise.stop(); lfo.stop(); } catch {} }
   _apuIdleNodes = null;
   _pumpNodes    = null;

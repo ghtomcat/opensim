@@ -30,6 +30,12 @@
    setEngineFactor(): a failure ramp, carb ice, a seizure, a flat battery,
    a crash. So causes combine instead of overwriting each other.
 
+   The APU is an engine too (aircraft.apu): MASTER, START and the fire
+   handle call apuMaster() / apuStart() / apuFire(); the start runs on sim
+   time for apu.startTime s (the APU start-up recording's length). Owned
+   here: apuMasterOn, apuState, apuStartT, apuRunning, apuFireArmed.
+   core/electrical.js reads apuState for the APU GEN.
+
    Still one engine per aircraft — the array comes in stage 1 of
    issues.md "One engine per aircraft".
    ═══════════════════════════════════════════════════════════════ */
@@ -87,7 +93,39 @@ export function initialEngine(aircraft, { onGround, spd }) {
            : idle + (100 - idle) * Math.min(1, Math.max(0, spd / (aircraft.envelope?.maxSpd ?? 340)));
   const engineState = cold ? 'off' : 'running';
   return { engineState, engineFactors: FACTORS_NONE, enginePower: _power(engineState, FACTORS_NONE), n1,
-           engineStartT: null, engineStopT: null };
+           engineStartT: null, engineStopT: null,
+           apuMasterOn: false, ...APU_OFF, apuFireArmed: false };   // the APU is off at every mission start
+}
+
+/* ── APU ─────────────────────────────────────────────────────── */
+
+const APU_OFF = { apuState: 'off', apuStartT: null, apuRunning: false };
+
+/** APU MASTER switch. Off shuts the APU down at once (and closes its bleed valve). */
+export function apuMaster(on) {
+  if (on) setState({ apuMasterOn: true });
+  else    setState({ apuMasterOn: false, ...APU_OFF, apuBleedOn: false });
+}
+
+/** APU START (momentary): needs the MASTER on and battery power on the essential bus. */
+export function apuStart() {
+  if (!S.aircraft?.apu) return;
+  if (!(S.apuMasterOn ?? false)) return;
+  if (!(S.essentialBusPowered ?? false)) return;
+  if ((S.apuState ?? 'off') !== 'off') return;
+  setState({ apuState: 'starting', apuStartT: 0 });
+}
+
+/** APU FIRE handle: shuts the APU down and arms the extinguisher. */
+export function apuFire() {
+  setState({ apuMasterOn: false, ...APU_OFF, apuBleedOn: false, apuFireArmed: true });
+}
+
+function _tickApu(dt) {
+  if (S.apuState !== 'starting') return;
+  const t = (S.apuStartT ?? 0) + dt;
+  if (t >= (S.aircraft?.apu?.startTime ?? 0)) setState({ apuState: 'running', apuStartT: null, apuRunning: true });
+  else setState({ apuStartT: t });
 }
 
 /** Start the engine (E key, magnetos START, ENG MASTER). Ignored while it starts or runs, and —
@@ -146,6 +184,7 @@ function _spoolN1(dt) {
 /** One sim step — called from tickSim() right before physics: the turbofan spool, then the lifecycle. */
 export function tickEngine(dt) {
   const eng = _eng();
+  _tickApu(dt);
   if (_turbofan() && !S.paused && !S.crashed) _spoolN1(dt);   // same guards as tickPhysics
   const st  = S.engineState ?? 'off';
 

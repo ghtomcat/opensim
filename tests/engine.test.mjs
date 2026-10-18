@@ -12,8 +12,9 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { S, setState } from '../core/state.js';
-import { startEngine, stopEngine, engineQuit, tickEngine, initialEngine, hasStartSequence, setEngineFactor } from '../core/engine.js';
-import { startRecording } from '../core/sound.js';
+import { startEngine, stopEngine, engineQuit, tickEngine, initialEngine, hasStartSequence, setEngineFactor,
+         apuMaster, apuStart, apuFire } from '../core/engine.js';
+import { startRecording, apuStartRecording } from '../core/sound.js';
 import { tickThrust } from '../core/thrust.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -242,4 +243,41 @@ test('a cold aircraft loads with no power, an airborne one with full power and n
 
 test('a misspelled cause throws', () => {
   assert.throws(() => setEngineFactor('icing', 0.5), /unknown power factor/);
+});
+
+test('every APU start time matches the APU start-up recording', () => {
+  const SR = 8000, len = apuStartRecording(SR).length / SR;
+  for (const a of AIRCRAFT.filter(a => a.apu))
+    assert.ok(Math.abs(len - a.apu.startTime) < 0.05, `${a.id}: apu.startTime ${a.apu.startTime} s, recording ${len.toFixed(2)} s`);
+});
+
+test('APU: MASTER + battery power, START, running after apu.startTime; MASTER off or fire stops it', () => {
+  const ac = load('a350');
+  const step = cold(ac, { essentialBusPowered: false, apuMasterOn: false, apuState: 'off', apuFireArmed: false });
+  apuStart();
+  assert.equal(S.apuState, 'off');                    // no MASTER
+  apuMaster(true);
+  apuStart();
+  assert.equal(S.apuState, 'off');                    // no battery power on the essential bus
+  setState({ essentialBusPowered: true });
+  apuStart();
+  assert.equal(S.apuState, 'starting');
+  step(ac.apu.startTime - 0.2);
+  assert.equal(S.apuState, 'starting');
+  step(0.3);
+  assert.equal(S.apuState, 'running');
+  assert.equal(S.apuRunning, true);
+  apuMaster(false);
+  assert.equal(S.apuState, 'off');
+  apuMaster(true); apuStart(); step(ac.apu.startTime + 0.1);
+  apuFire();
+  assert.equal(S.apuState, 'off');
+  assert.equal(S.apuMasterOn, false);
+  assert.equal(S.apuFireArmed, true);
+});
+
+test('no APU in the data → START does nothing', () => {
+  cold(load('tu95ms'), { apuMasterOn: true, essentialBusPowered: true, apuState: 'off' });
+  apuStart();
+  assert.equal(S.apuState, 'off');
 });
