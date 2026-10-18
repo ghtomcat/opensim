@@ -1951,7 +1951,7 @@
   import { initRightConsole, renderRightConsole } from './display/rightconsole.js';
   import { initCenterConsole, toggleCenter, renderCenterConsole } from './display/centerconsole.js';
   import { initSound, startSound, stopSound, switchEngine, tickSound, getCurrentRpm, silenceAll, apDisconnectChime } from './core/sound.js';
-  import { startEngine, stopEngine } from './core/engine.js';
+  import { startEngine, stopEngine, adoptEngineFields } from './core/engine.js';
   import { audioContext } from './core/audio.js';
   import { initOutside, tickOutside, outsideInvalidate, setOutsideCamMode } from './display/outside.js?v=6';
   import { initKneeboard, toggleKneeboard, closeKneeboard, tickKneeboard } from './display/kneeboard.js';
@@ -4653,7 +4653,7 @@
   /* ── Test API — only active when ?test=1 ── */
   if (_isTestMode) {
     window.simGetState    = () => ({ ...S });
-    window.simSetState    = (patch) => setState(patch);
+    window.simSetState    = (patch) => { setState(patch); adoptEngineFields(patch); };   // single engine fields → every engine (core/engine.js)
     window.simGetRpm      = () => getCurrentRpm();
     window.simEngineState = () => S.engineState ?? 'off';
     window.simStep     = (n = 1, dt = 1/60) => {

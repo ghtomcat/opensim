@@ -799,23 +799,30 @@ Light-aircraft switches (`masterBat`, `masterAlt`, `avionicsOn`, `magnetos`, `li
 the Velis `switches`) are plain fields in `S`, toggled by the cockpit. They aren't a
 system model. COM power is decided per panel type in `core/crew.js` (§2.4).
 
-### 9.2 The engine: one engine per aircraft
+### 9.2 The engine: one entry per engine, one shared control
 
-The engine is represented by **single values**, whatever `engine.count` says:
+`S.engines[]` holds **one entry per engine** (`engine.count`): `{ state, startT, stopT,
+n1, factors, power }`. Every command still acts on all engines together, so they stay
+identical (stage 1 of `issues.md` → *One engine per aircraft*). The rest of the sim reads
+**single values derived from the array** on every change — the highest state (running >
+starting > shutdown > off), the largest N1 and power. Readers move to the array when the
+engines start to differ (stage 2). The test API's `simSetState` carries single-field
+writes into every engine (`adoptEngineFields`).
 
 | Field | Meaning | Written by |
 |---|---|---|
-| `engineState` | `off` → `starting` → `running` (→ `shutdown`) | `core/engine.js` only (the initial value through `initialEngine()` in `mission.js`'s load `setState`) |
+| `engines` | one entry per engine — the source of the fields below | `core/engine.js` only (the initial value through `initialEngine()` in `mission.js`'s load `setState`) |
+| `engineState` | `off` → `starting` → `running` (→ `shutdown`), derived from `engines` | `core/engine.js` |
 | `engineStartT` / `engineStopT` | s of sim time since the start / the shutdown began | `core/engine.js` |
 | `enginePower` | 0–1 power available (scales thrust): the lifecycle's share (off 0, starting 0.01, running and shutdown 1) × the product of `engineFactors` | `core/engine.js` only |
 | `engineFactors` | `{failure, ice, seizure, battery, crash}`, each 0–1, owned by its cause (`failures.js`, `battery.js`, `physics.js`) | through `setEngineFactor()` in `core/engine.js`; reset at mission load |
 | `n1` | turbofan fan speed % — spooled toward `n1Cmd` (`core/thrust.js`: A/THR or lever) | `core/engine.js` |
 
 Consequences:
-- **Multi-engine aircraft have one N1 and one power value.** The electrical system
-  derives "per-engine" generators from the shared N1, and the hydraulics drives both
-  engine pumps from it ("approximated with shared N1"). One engine can't fail or be
-  shut down on its own.
+- **The engines are still controlled together.** The electrical system derives
+  "per-engine" generators from the shared N1, and the hydraulics drives both engine pumps
+  from it ("approximated with shared N1"). One engine can't fail or be shut down on its own
+  yet — that is stage 2.
 - **Power is composed from causes.** A failure ramp and carb ice multiply instead of
   overwriting each other; a restart doesn't heal a partial failure; an engine that is off
   makes no power (and burns no fuel). OIL_PRESS on aircraft without tanks (the airliners)

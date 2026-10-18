@@ -106,7 +106,7 @@ export async function loadMission(missionPath, aircraftPath, setup = null) {
     wow:   startOnGround,
     parkBrake: startOnGround,   // parked on the ground → brake set; airborne → released
     trim:  0,
-    ..._engine,                   // engineState, enginePower, n1, engineStartT/StopT (core/engine.js)
+    ..._engine,                   // engines[] and the fields derived from it, ENG MASTERs, APU (core/engine.js)
     oilTempC:    startOilTempC,
     coolFlap:    1,
     coolantTemp: startCoolantTemp,

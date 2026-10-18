@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { S, setState } from '../core/state.js';
 import { startEngine, stopEngine, engineQuit, tickEngine, initialEngine, hasStartSequence, setEngineFactor,
-         apuMaster, apuStart, apuFire, engineMaster } from '../core/engine.js';
+         apuMaster, apuStart, apuFire, engineMaster, adoptEngineFields } from '../core/engine.js';
 import { startRecording, apuStartRecording } from '../core/sound.js';
 import { tickThrust } from '../core/thrust.js';
 
@@ -21,11 +21,16 @@ const here = dirname(fileURLToPath(import.meta.url));
 const load = (id) => JSON.parse(readFileSync(join(here, '..', 'aircraft', `${id}.json`), 'utf8'));
 const AIRCRAFT = readdirSync(join(here, '..', 'aircraft')).filter(f => f.endsWith('.json')).map(f => load(f.slice(0, -5)));
 
+/** Set single engine fields the way the test API does (simSetState): into every engine too */
+const set = (patch) => { setState(patch); adoptEngineFields(patch); };
+
 /** Fresh cold engine on `aircraft`; returns a stepper that runs tickEngine for `s` seconds. */
 function cold(aircraft, extra = {}) {
-  setState({ aircraft, engineState: 'off', engineStartT: null, engineStopT: null, enginePower: 0, n1: 0,
-             coolantState: null, fuelShutoff: false, fuelLeft: null, magnetos: 'BOTH', engineTemp: 0, switches: {},
-             masterBat: true, engineFactors: { failure: 1, ice: 1, seizure: 1, battery: 1, crash: 1 }, ...extra });
+  const patch = { aircraft, engineState: 'off', engineStartT: null, engineStopT: null, enginePower: 0, n1: 0,
+                  coolantState: null, fuelShutoff: false, fuelLeft: null, magnetos: 'BOTH', engineTemp: 0, switches: {},
+                  masterBat: true, engineFactors: { failure: 1, ice: 1, seizure: 1, battery: 1, crash: 1 }, ...extra };
+  setState({ engines: [], ...patch });
+  adoptEngineFields(patch);   // one engine entry per engine.count, from the single fields
   return (s, dt = 0.1) => { for (let t = 0; t < s - 1e-9; t += dt) tickEngine(dt); };
 }
 
@@ -109,7 +114,7 @@ test('a piston engine cannot be started while it runs down — only once it is o
 test('a turbofan can be restarted while the fan spools down', () => {
   const step = cold(load('a350'));
   startEngine(); step(60);
-  setState({ n1: 22 });
+  set({ n1: 22 });
   stopEngine(); step(2);
   startEngine();
   assert.equal(S.engineState, 'starting');
@@ -123,11 +128,11 @@ test('a turbofan start ends at engine.startTime, its shutdown when the fan has r
   assert.equal(S.engineState, 'starting');
   step(0.3);
   assert.equal(S.engineState, 'running');
-  setState({ n1: 22 });
+  set({ n1: 22 });
   stopEngine();
   step(5);
   assert.equal(S.engineState, 'shutdown');   // the fan is still turning (N1 comes from physics)
-  setState({ n1: 0.3 });
+  set({ n1: 0.3 });
   step(0.1);
   assert.equal(S.engineState, 'off');
 });
@@ -135,7 +140,7 @@ test('a turbofan start ends at engine.startTime, its shutdown when the fan has r
 test('a turbofan start also ends once the fan reaches idle', () => {
   const step = cold(load('a350'));
   startEngine(); step(10);
-  setState({ n1: 22 * 0.96 });
+  set({ n1: 22 * 0.96 });
   step(0.1);
   assert.equal(S.engineState, 'running');
 });
@@ -310,4 +315,41 @@ test('Q on a turbofan (stopEngine) sets the ENG MASTER switches to OFF — they 
 test('mission load: one ENG MASTER per engine — off when cold, on when the engines run', () => {
   assert.deepEqual(initialEngine(load('a340'), { onGround: true,  spd: 0 }).engMasters,   [false, false, false, false]);
   assert.deepEqual(initialEngine(load('a340'), { onGround: false, spd: 250 }).engMasters, [true, true, true, true]);
+});
+
+test('S.engines holds one entry per engine — the A340 has four, the C172 one', () => {
+  setState({ engines: [], ...initialEngine(load('a340'), { onGround: true, spd: 0 }) });
+  assert.equal(S.engines.length, 4);
+  setState({ engines: [], ...initialEngine(load('c172'), { onGround: true, spd: 0 }) });
+  assert.equal(S.engines.length, 1);
+});
+
+test('stage 1: every engine goes through the same start and spool; the single fields match them', () => {
+  const ac = load('a340');
+  const patch = initialEngine(ac, { onGround: true, spd: 0 });
+  setState({ aircraft: ac, paused: false, crashed: false, n1Cmd: 22, thrustLever: 0, wow: true, thrustReverser: false, ...patch });
+  startEngine();
+  for (let t = 0; t < 30; t += 0.1) tickEngine(0.1);
+  const n1s = S.engines.map(e => e.n1);
+  assert.ok(n1s.every(n => n === n1s[0]), `N1 ${n1s}`);                    // identical, to the last bit
+  assert.ok(S.engines.every(e => e.state === 'starting'));
+  assert.equal(S.n1, n1s[0]);
+  assert.equal(S.engineState, 'starting');
+  assert.equal(S.engineStartT, S.engines[0].startT);
+  for (let t = 0; t < 30; t += 0.1) tickEngine(0.1);
+  assert.ok(S.engines.every(e => e.state === 'running'));
+  assert.equal(S.enginePower, 1);
+});
+
+test('the single fields are derived: the highest state, the largest N1 and power', () => {
+  const ac = load('a340');
+  setState({ aircraft: ac, ...initialEngine(ac, { onGround: true, spd: 0 }) });
+  /* differing engines don't happen in stage 1 yet — build the array by hand */
+  const e = (state, n1, power) => ({ state, startT: state === 'starting' ? 3 : null, stopT: null, n1, factors: S.engineFactors, power });
+  setState({ engines: [e('off', 0, 0), e('starting', 5, 0.01), e('running', 40, 1), e('off', 0, 0)] });
+  setEngineFactor('crash', 1);   // any change publishes the single fields from the array
+  assert.equal(S.engineState, 'running');
+  assert.equal(S.n1, 40);
+  assert.equal(S.enginePower, 1);
+  assert.equal(S.engineStartT, 3);
 });
