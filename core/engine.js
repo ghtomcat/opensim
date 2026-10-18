@@ -149,11 +149,14 @@ export function hasStartSequence(engine = _eng()) {
 /**
  * The engine part of the mission's initial state — written by loadMission() in its one
  * setState. Ground starts of engines with a start sequence (and the switch-driven electric
- * motor) begin cold; everything else, and every airborne start, begins running.
+ * motor) begin cold; everything else, and every airborne start, begins running. An airliner
+ * lined up on the runway has its engines running (onRunway — mission.start.runway); at a stand
+ * it is cold. Light aircraft start cold on the runway too: their missions teach the start.
  */
-export function initialEngine(aircraft, { onGround, spd }) {
+export function initialEngine(aircraft, { onGround, spd, onRunway = false }) {
   const eng  = aircraft.engine ?? {};
-  const cold = onGround && (hasStartSequence(eng) || eng.type === 'electric');
+  const cold = onGround && (hasStartSequence(eng) || eng.type === 'electric')
+            && !(eng.type === 'turbofan' && onRunway);
   const idle = eng.idleN1 ?? 22;
   /* Turbofan N1 matches the cruise throttle when airborne, 0 when off */
   const n1 = (eng.type !== 'turbofan' || cold) ? 0

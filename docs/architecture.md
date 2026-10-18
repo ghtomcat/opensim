@@ -99,7 +99,7 @@ not draw. Grouped by role:
 | World | `elevation.js` (Mapbox Terrain-RGB DEM: one tile cache, `elevM(lat, lon)`, and `tickElevation()` → `S.terrainElevFt`) |
 | Data contract | `vocab.js` (the names data and code share — vehicle types, panels, engine sounds, triggers, rocket events, failures, comm profiles; a misspelled name throws), `schema/` (`check.js` validator; `mission.js`, `catalog.js`, `aircraft.js` schemas; `known.js`: logged violations) |
 | Engine | `engine.js` (start and shutdown lifecycle — the owner of `engineState`) |
-| Physics | `physics.js` (fixed-wing), `rocket.js` (launch, staging, orbit, booster recovery), `thrust.js`, `pushback.js` |
+| Physics | `physics.js` (fixed-wing), `takeoff-perf.js` (takeoff speeds — V1 = VR for now), `rocket.js` (launch, staging, orbit, booster recovery), `thrust.js`, `pushback.js` |
 | Aircraft systems | `fuel.js`, `electrical.js`, `battery.js`, `hydraulics.js`, `baro.js`, `failures.js`, `aircraft-config.js` |
 | Navigation & automation | `route.js` (full route: SID/airways/STAR/approach), `lnav.js`, `vnav.js`, `managed-speed.js`, `fma.js`, `airway-graph.js`, `taxi-graph.js`, `taxi.js` (the active taxi route + clearance), `flightplan.js` (the active flight plan) |
 | Crew, radio, sound | `crew.js` (PF/PM/ATC/GPWS voice dispatch), `radio.js` (comm-chain filtering), `audio.js` (the one AudioContext + worklet loading), `sound.js` (Web Audio engine synthesis), `*-processor.js` (AudioWorklet engine/crackle synthesizers: DB 605, Le Rhône 9J, Lycoming, R-2800) |
@@ -167,7 +167,9 @@ picker click / ?mission=<id>
                  runway / stand data; otherwise initialState lat/lon/hdg is used
             5. derive initial conditions from the start:
                  on ground?  (spd 0, alt ≤ field elevation) → gear down, park brake,
-                             cold engine ('off') for types that need a manual start
+                             cold engine ('off') for types that need a manual start —
+                             except an airliner lined up on the runway (start.runway):
+                             engines running at idle (core/engine.js initialEngine)
                  airborne?   → engine 'running', warm oil/coolant, N1 set
                  altimeter subscale → field QNH, or STD above transitionAlt
             6. setState({...})  — S.mission and S.aircraft now hold the full JSON
@@ -233,7 +235,8 @@ entry `commProfile` → `characters[speaker].commProfile` → mission `commProfi
 
 ### 2.5 Failures
 
-`failures` entries carry a `trigger` (`{type: "time", t}` or `{type: "alt", alt}`)
+`failures` entries carry a `trigger` (`{type: "time", t}`, `{type: "alt", alt}`, or `{type: "v1"}` —
+once on the takeoff roll at V1, from `core/takeoff-perf.js`, for now VR)
 and a `type`, handled by `core/failures.js`: `engine_power` (ramp to `value` over
 `rampTime`; on ENG `engine` only — `engine: 1` is ENG 1 — or on all engines), `engine_bang`, `engine_gunfire`, `carb_ice` (needs `hasCarbHeat` on the
 aircraft), `coolant_leak` (needs a liquid cooling system). Entries **without** a

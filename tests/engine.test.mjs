@@ -405,3 +405,13 @@ test('Q stops all engines; a stop on one engine leaves the others', () => {
   stopEngine();
   assert.ok(S.engines.every(e => e.state === 'shutdown'));
 });
+
+test('an airliner lined up on the runway has its engines running; at a stand it is cold; light aircraft stay cold', () => {
+  const b777 = load('b777-300er');
+  const lined = initialEngine(b777, { onGround: true, spd: 0, onRunway: true });
+  assert.equal(lined.engineState, 'running');
+  assert.deepEqual(lined.engMasters, [true, true]);
+  assert.equal(lined.n1, b777.engine.idleN1 ?? 22);                 // at idle
+  assert.equal(initialEngine(b777, { onGround: true, spd: 0, onRunway: false }).engineState, 'off');
+  assert.equal(initialEngine(load('c172'), { onGround: true, spd: 0, onRunway: true }).engineState, 'off');
+});
