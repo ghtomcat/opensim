@@ -1563,7 +1563,9 @@ function _ecamMemoZone(ctx, x, w, h, memoY, f, col) {
 function _ewdEngineVals(eng, cmd, tNow) {
   const live  = cmd > 1;
   const n1raw = live ? Math.max(0, cmd + _ewdScatter(eng, tNow, 0.35)) : cmd;
-  const n2raw = live ? Math.max(0, 48 + 0.55 * n1raw + _ewdScatter(eng, tNow, 0.5)) : 0;  // CFM56: ~60% N2 idle
+  const core  = S.engines?.[eng - 1]?.core;                                               // the engine's core (core/engine.js)
+  const n2raw = core != null ? Math.max(0, core + (core > 1 ? _ewdScatter(eng, tNow, 0.5) : 0))
+              : live ? Math.max(0, 48 + 0.55 * n1raw + _ewdScatter(eng, tNow, 0.5)) : 0;
   const egtR  = 350 + Math.pow(Math.max(0, n1raw) / 100, 1.5) * 500 + _ewdOffset(eng, 6);
   const ffR   = 200 + Math.pow(Math.max(0, n1raw) / 100, 2) * 3000;
   /* Per-quantity display lag — each parameter has its own inertia: FF responds first,
@@ -1580,6 +1582,7 @@ function _ewdEngineVals(eng, cmd, tNow) {
 /* One engine's actual N1 (S.engines[i]), and whether it has failed: running but short of power */
 const _engN1     = (i) => +(S.engines?.[i]?.n1 ?? S.n1 ?? S.enginePower * 80);
 const _engFailed = (i) => { const e = S.engines?.[i]; return !!e && e.state === 'running' && engineAvailable(e) < 1; };
+const _coreLabel = () => (S.aircraft?.engine?.spools ?? 2) >= 3 ? 'N3' : 'N2';   // the core spool's name
 
 /* Airbus EWD engine zone — N1 hero gauge + EGT below, digital N2/FF, value boxed low. */
 function _engineZoneAirbus(ctx, x, w, h, engY, engH, col, f) {
@@ -1605,7 +1608,7 @@ function _engineZoneAirbus(ctx, x, w, h, engY, engH, col, f) {
 
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = grn;
     ctx.font = `bold ${h * 0.038}px ${f}`;
-    ctx.fillText('N2 ' + n2.toFixed(1), cx, engY + engH * 0.86);
+    ctx.fillText(_coreLabel() + ' ' + n2.toFixed(1), cx, engY + engH * 0.86);
     ctx.fillText('FF ' + ff,            cx, engY + engH * 0.95);
 
     if (i < n - 1) {
@@ -1644,7 +1647,7 @@ function _engineZoneBoeing(ctx, x, w, h, engY, engH, col, f) {
 
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = wht;
     ctx.font = `bold ${h * 0.036}px ${f}`;
-    ctx.fillText('N2 ' + n2.toFixed(1), cx, engY + engH * 0.90);
+    ctx.fillText(_coreLabel() + ' ' + n2.toFixed(1), cx, engY + engH * 0.90);
     ctx.fillText('FF ' + ff,            cx, engY + engH * 0.985);
 
     if (i < n - 1) {

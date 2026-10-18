@@ -63,14 +63,42 @@ const _idleN1    = () => _eng().idleN1 ?? 22;
 const _count     = (eng = _eng()) => Math.max(1, eng.count ?? 1);
 
 /* ── The engines ─────────────────────────────────────────────────
-   S.engines[i] = { state, startT, stopT, n1, factors, power } — one per engine.
+   S.engines[i] = { state, startT, stopT, n1, core, factors, power } — one per engine.
    The single fields the rest of the sim still reads (engineState, enginePower, n1,
    engineStartT, engineStopT, engineFactors) are derived from the array on every change;
    what must tell the engines apart (thrust, generators, pumps, the engine displays) reads
    the array. */
 
-function _newEngine(state, n1 = 0) {
-  return { state, startT: null, stopT: null, n1, factors: FACTORS_NONE, power: _power(state, FACTORS_NONE) };
+function _newEngine(state, n1 = 0, core = 0) {
+  return { state, startT: null, stopT: null, n1, core, factors: FACTORS_NONE, power: _power(state, FACTORS_NONE) };
+}
+
+/* ── The core (turbofan) ───────────────────────────────────────────
+   The spool the starter turns and the accessory gearbox sits on — N2 on a two-spool engine,
+   N3 on a three-spool one (engine.spools). Kept simple: running, the core sits on a straight
+   line from engine.coreIdle (default 60 %) at idle N1 to 100 % at 100 % N1, and leads the fan.
+   The generators and engine-driven pumps run off it (core/electrical.js, core/hydraulics.js). */
+const _coreIdle = (eng = _eng()) => eng.coreIdle ?? 60;
+
+/** The core speed that goes with a fan speed, for engine data `eng`. */
+export function coreAtN1(n1, eng = _eng()) {
+  const idle = eng.idleN1 ?? 22, ci = _coreIdle(eng);
+  return n1 >= idle ? ci + (100 - ci) * (n1 - idle) / (100 - idle) : ci * n1 / idle;
+}
+
+/* The start: the starter turns the core to ~25 %, light-off, then it accelerates to idle —
+   scaled to engine.startTime, so it ends with the start-up recording. */
+function _coreStarting(t, eng) {
+  const f = Math.min(1, t / Math.max(1, eng.startTime ?? 1)), ci = _coreIdle(eng);
+  return f < 0.35 ? 25 * (f / 0.35) : 25 + (ci - 25) * ((f - 0.35) / 0.65);
+}
+
+/* Windmilling: in flight the airflow turns an engine that makes no power — the fan to ~22 % at
+   250 kt, the core to about half of that. It gives no thrust (physics.js counts running engines
+   with power only). On the ground, nothing. */
+function _windmillN1() {
+  if (S.wow) return 0;
+  return Math.max(0, Math.min(30, ((S.spd ?? 0) - 60) * 0.12));
 }
 
 /** The engine array (before the first mission load: one engine from the single fields) */
@@ -162,7 +190,8 @@ export function initialEngine(aircraft, { onGround, spd, onRunway = false }) {
   const n1 = (eng.type !== 'turbofan' || cold) ? 0
            : idle + (100 - idle) * Math.min(1, Math.max(0, spd / (aircraft.envelope?.maxSpd ?? 340)));
   const count   = _count(eng);
-  const engines = Array.from({ length: count }, () => _newEngine(cold ? 'off' : 'running', n1));
+  const core    = eng.type === 'turbofan' && !cold ? coreAtN1(n1, eng) : 0;
+  const engines = Array.from({ length: count }, () => _newEngine(cold ? 'off' : 'running', n1, core));
   return { ..._aggregate(engines),
            engMasters: Array(count).fill(!cold),                   // ENG MASTER switches: on when the engines run
            apuMasterOn: false, ...APU_OFF, apuFireArmed: false };   // the APU is off at every mission start
@@ -262,11 +291,13 @@ export function engineQuit(i) {
    available power allows: idle + (100 − idle) · power. With no power left it has flamed out and the
    fan runs down. (A turbofan's power acts through its N1 — physics.js takes the thrust from N1 alone.) */
 function _spoolN1(e, dt) {
+  const eng   = _eng();
   const idle  = _idleN1();
   const avail = engineAvailable(e);
-  const target = e.state === 'running'  ? (avail <= 0 ? 0 : Math.min(S.n1Cmd ?? idle, idle + (100 - idle) * avail))
+  const powered = e.state === 'running' && avail > 0;
+  const target = powered               ? Math.min(S.n1Cmd ?? idle, idle + (100 - idle) * avail)
                : e.state === 'starting' ? idle
-               : 0;                                              // 'off' or 'shutdown'
+               : _windmillN1();                                  // off, shutdown, or flamed out: what the airflow turns it at
   const idleLever = (S.thrustLever ?? 0) < 0.05;
   const tau = e.state === 'starting' ? 25
             : e.state === 'shutdown' ? 12                        // fuel cutoff — the fan coasts down by inertia, a slow ~30 s wind-down (not the ground-idle fast case)
@@ -274,7 +305,14 @@ function _spoolN1(e, dt) {
             : (S.wow && idleLever && !S.thrustReverser) ? 4      // ground idle (e.g. after the reverser stows) — spool down fast, no lingering roar
             : 15;
   const n1 = e.n1 + (target - e.n1) * (1 - Math.exp(-dt / tau));
-  return { ...e, n1: Math.max(0, Math.min(100, n1)) };
+
+  /* The core: on the start profile while starting; else toward the core of the fan's target,
+     faster than the fan (it leads); windmilling at about half the fan's speed */
+  const core0    = e.core ?? 0;
+  const coreTgt  = powered ? coreAtN1(target, eng) : target * 0.5;
+  const core     = e.state === 'starting' ? _coreStarting((e.startT ?? 0) + dt, eng)
+                 : core0 + (coreTgt - core0) * (1 - Math.exp(-dt / (tau * 0.6)));
+  return { ...e, n1: Math.max(0, Math.min(100, n1)), core: Math.max(0, Math.min(105, core)) };
 }
 
 /* One engine's lifecycle step (after the spool, so it sees the new N1) */
@@ -287,7 +325,7 @@ function _stepLifecycle(e, dt, eng) {
   }
   if (e.state === 'shutdown') {
     const t    = (e.stopT ?? 0) + dt;
-    const done = eng.type === 'turbofan' ? e.n1 < 0.5             // fan has run down
+    const done = eng.type === 'turbofan' ? e.n1 < _windmillN1() + 0.5   // the fan has run down (in flight: to its windmill speed)
                                          : t >= (eng.stopTime ?? 0);
     return done ? _withState(e, { state: 'off', startT: null, stopT: null }) : { ...e, stopT: t };
   }

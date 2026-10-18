@@ -69,11 +69,14 @@ export function tickElectrical(dt) {
   const n = ac.engine?.count ?? 2;
   const idgConn = S.idgConnected?.length === n ? S.idgConnected : Array(n).fill(true);
   const genSw   = S.engGenSwitch?.length === n ? S.engGenSwitch : Array(n).fill(true);
-  const n1Of    = (i) => S.engines?.[i]?.n1 ?? S.n1 ?? 0;   // each generator is driven by its own engine
+  /* Each generator is driven by its own engine's core (the accessory gearbox) — online from
+     90 % of core idle up, so it carries the bus at idle; a windmilling engine's core is too slow */
+  const genMin  = 0.9 * (ac.engine?.coreIdle ?? 60);
+  const coreOf  = (i) => S.engines?.[i]?.core ?? 0;
 
-  /* Per-engine generator online: IDG connected + GEN switch ON + its engine's N1 > 56% */
+  /* Per-engine generator online: IDG connected + GEN switch ON + its engine's core at idle or above */
   const engGenOn = Array.from({ length: n }, (_, i) =>
-    (idgConn[i] ?? true) && (genSw[i] ?? true) && n1Of(i) > 56
+    (idgConn[i] ?? true) && (genSw[i] ?? true) && coreOf(i) >= genMin
   );
 
   const cfg      = elecCfg();

@@ -808,7 +808,10 @@ system model. COM power is decided per panel type in `core/crew.js` (§2.4).
 ### 9.2 The engines: one entry per engine
 
 `S.engines[]` holds **one entry per engine** (`engine.count`): `{ state, startT, stopT,
-n1, factors, power }`. The commands take an engine index (0-based) — ENG MASTER *i*, a
+n1, core, factors, power }`. A turbofan's `core` (N2, or N3 with `engine.spools: 3`) runs
+from `engine.coreIdle` (default 60 %) at idle N1 to 100 %, leads the fan, follows a start
+profile scaled to `startTime` (starter to ~25 %, light-off, idle), and windmills in flight
+when the engine makes no power (fan ~22 % at 250 kt, core about half; no thrust). The commands take an engine index (0-based) — ENG MASTER *i*, a
 failure on one engine — or act on all engines when it is absent (`E`, `Q`, the light
 aircraft). What must tell the engines apart reads the array: the thrust (§7.2), the
 generators and pumps, the engine displays. Everything else reads **single values derived
@@ -827,10 +830,11 @@ into every engine (`adoptEngineFields`).
 
 Consequences:
 - **Each engine runs on its own.** ENG MASTER *i* starts and stops engine *i*; a failure
-  can name its engine; each generator and engine-driven pump reads its own engine's N1;
+  can name its engine; each generator and engine-driven pump runs off its own engine's core
+  (online from 90 % of core idle — so at idle on the runway, not when windmilling);
   the ECAM/E/WD engine displays read `S.engines` and show a failed engine (running, power
-  below 1) in amber with FAIL. Still missing: the full engine model (core speed, EGT, fuel
-  flow, oil pressure per engine) and the per-aircraft system layouts — stage 2 of
+  below 1) in amber with FAIL, and the core speed from the engine. Still missing: EGT, fuel
+  flow and oil pressure per engine, and the per-aircraft system layouts — stage 2 of
   `issues.md` → *One engine per aircraft*.
 - **Power is composed from causes.** A failure ramp and carb ice multiply instead of
   overwriting each other; a restart doesn't heal a partial failure; an engine that is off

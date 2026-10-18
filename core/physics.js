@@ -6,7 +6,7 @@
 
 import { S, setState } from './state.js';
 import { bbEvent } from './blackbox.js';
-import { setEngineFactor } from './engine.js';
+import { setEngineFactor, engineAvailable } from './engine.js';
 import { capturePushback, pushbackPose } from './pushback.js';
 import { computeAirbusFMA, computeBoeingFMA } from './fma.js';
 import { lnavTargetHeading } from './lnav.js';
@@ -159,7 +159,7 @@ export function tickPhysics(dt) {
        engine's power (× the lever below). The mean is taken as e₀ + Σ(eᵢ − e₀)/n, so identical
        engines give exactly the one-engine value. */
     const _engs  = S.engines?.length ? S.engines : [{ state: S.engineState, n1: S.n1 ?? 0, power: S.enginePower ?? 1 }];
-    const _share = (e) => e.state !== 'running' ? 0
+    const _share = (e) => e.state !== 'running' || (isTurbofan && e.factors && engineAvailable(e) <= 0) ? 0   // a flamed-out fan only windmills
                         : isTurbofan ? Math.pow(Math.max(0, e.n1 / 100), 1.8)
                         : (e.power ?? 1);
     const _s0    = _share(_engs[0]);

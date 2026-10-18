@@ -41,13 +41,15 @@ export function tickHydraulics(dt) {
   const ac = S.aircraft;
   if (!ac || ac.engine?.type !== 'turbofan') return;
 
-  const n1Of = (i) => S.engines?.[i]?.n1 ?? S.n1 ?? 0;
+  const coreOf = (i) => S.engines?.[i]?.core ?? 0;
+  const edpMin = 0.9 * (ac.engine?.coreIdle ?? 60);
   const acPowered = S.acBusPowered ?? false;
 
-  /* Engine-driven pumps — each runs when its own engine's N1 > 56 % (the layout per aircraft
-     comes with stage 4 of issues.md "One engine per aircraft"; today the A340's for all) */
-  const hydGreenEdp  = n1Of(0) > 56;                                    // ENG 1 → GREEN
-  const hydYellowEdp = n1Of((S.aircraft.engine?.count ?? 2) - 1) > 56;   // last engine → YELLOW
+  /* Engine-driven pumps — each runs off its own engine's core (the gearbox), from 90 % of core
+     idle up (the layout per aircraft comes with stage 4 of issues.md "One engine per aircraft";
+     today the A340's for all) */
+  const hydGreenEdp  = coreOf(0) >= edpMin;                                     // ENG 1 → GREEN
+  const hydYellowEdp = coreOf((ac.engine?.count ?? 2) - 1) >= edpMin;           // last engine → YELLOW
 
   /* Effective pressure source per system */
   const greenSrc  = hydGreenEdp  || ((S.hydGreenElecOn  ?? false) && acPowered);

@@ -21,6 +21,7 @@ const engine = object(
   { type: oneOf(...valuesOf(ENGINE_TYPE)), count: num, idleN1: num, thrustReverser: bool,
     startTime: num, stopTime: num,   // s — the start sequence and the run-down (core/engine.js)
     starter: oneOf('electric'),      // what turns the engine over: 'electric' needs BAT on; absent → no condition
+    coreIdle: num, spools: num,      // turbofan core: % at idle (default 60); 3 → the core is N3 (core/engine.js)
     chevrons: bool, nacellePaint: arrayOf(num) },   // last two: 3D model
   { doc: { model: str, description: str }, required: ['count'] },
 );

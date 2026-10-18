@@ -13,9 +13,10 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { S, setState } from '../core/state.js';
 import { startEngine, stopEngine, engineQuit, tickEngine, initialEngine, hasStartSequence, setEngineFactor,
-         apuMaster, apuStart, apuFire, engineMaster, adoptEngineFields, engineAvailable } from '../core/engine.js';
+         apuMaster, apuStart, apuFire, engineMaster, adoptEngineFields, engineAvailable, coreAtN1 } from '../core/engine.js';
 import { startRecording, apuStartRecording } from '../core/sound.js';
 import { tickThrust } from '../core/thrust.js';
+import { tickElectrical } from '../core/electrical.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const load = (id) => JSON.parse(readFileSync(join(here, '..', 'aircraft', `${id}.json`), 'utf8'));
@@ -28,7 +29,8 @@ const set = (patch) => { setState(patch); adoptEngineFields(patch); };
 function cold(aircraft, extra = {}) {
   const patch = { aircraft, engineState: 'off', engineStartT: null, engineStopT: null, enginePower: 0, n1: 0,
                   coolantState: null, fuelShutoff: false, fuelLeft: null, magnetos: 'BOTH', engineTemp: 0, switches: {},
-                  masterBat: true, engineFactors: { failure: 1, ice: 1, seizure: 1, battery: 1, crash: 1 }, ...extra };
+                  masterBat: true, engineFactors: { failure: 1, ice: 1, seizure: 1, battery: 1, crash: 1 },
+                  wow: true, spd: 0, ...extra };   // cold — on the ground, standing (S's defaults are airborne)
   setState({ engines: [], ...patch });
   adoptEngineFields(patch);   // one engine entry per engine.count, from the single fields
   return (s, dt = 0.1) => { for (let t = 0; t < s - 1e-9; t += dt) tickEngine(dt); };
@@ -360,7 +362,7 @@ test('the single fields are derived: the highest state, the largest N1 and power
 
 function runningTwin(id = 'b777-300er', n1 = 90) {
   const ac = load(id);
-  setState({ aircraft: ac, paused: false, crashed: false, wow: false, thrustLever: 1, thrustReverser: false,
+  setState({ aircraft: ac, paused: false, crashed: false, wow: false, spd: 250, thrustLever: 1, thrustReverser: false,
              n1Cmd: n1, engMode: 'IGN+START', acBusPowered: true,
              ...initialEngine(ac, { onGround: false, spd: 250 }) });
   setState({ engines: S.engines.map(e => ({ ...e, n1 })) });
@@ -381,7 +383,7 @@ test('ENG MASTER i starts and stops engine i only', () => {
   assert.deepEqual(S.engMasters, [false, false]);
 });
 
-test('a power failure on ENG 1 caps its N1 — at 0 it flames out and runs down; ENG 2 is untouched', () => {
+test('a power failure on ENG 1 caps its N1 — at 0 it flames out and windmills; ENG 2 is untouched', () => {
   runningTwin();
   setEngineFactor('failure', 0.5, 0);
   assert.equal(engineAvailable(S.engines[0]), 0.5);
@@ -392,7 +394,9 @@ test('a power failure on ENG 1 caps its N1 — at 0 it flames out and runs down;
   assert.ok(Math.abs(S.engines[1].n1 - 90) < 0.1);
   setEngineFactor('failure', 0, 0);
   for (let t = 0; t < 90; t += 0.1) tickEngine(0.1);
-  assert.ok(S.engines[0].n1 < 1, `ENG 1 N1 ${S.engines[0].n1.toFixed(2)} after a flameout`);
+  const wm = (250 - 60) * 0.12;                                      // the airflow turns the fan: 22.8 % at 250 kt
+  assert.ok(Math.abs(S.engines[0].n1 - wm) < 0.5, `ENG 1 N1 ${S.engines[0].n1.toFixed(2)} windmilling, expected ≈ ${wm}`);
+  assert.ok(Math.abs(S.engines[0].core - wm / 2) < 0.5, `ENG 1 core ${S.engines[0].core.toFixed(2)}`);
   assert.equal(S.engines[0].state, 'running');                     // still selected on — but no power (ENG FAIL)
   assert.equal(S.n1, S.engines[1].n1);                             // the single field: the larger N1
 });
@@ -414,4 +418,53 @@ test('an airliner lined up on the runway has its engines running; at a stand it 
   assert.equal(lined.n1, b777.engine.idleN1 ?? 22);                 // at idle
   assert.equal(initialEngine(b777, { onGround: true, spd: 0, onRunway: false }).engineState, 'off');
   assert.equal(initialEngine(load('c172'), { onGround: true, spd: 0, onRunway: true }).engineState, 'off');
+});
+
+/* ── Stage 2c: the core ── */
+
+test('core: idle N1 gives core idle (60 %), full N1 gives 100 %', () => {
+  const eng = load('b777-300er').engine;
+  assert.equal(coreAtN1(eng.idleN1 ?? 22, eng), 60);
+  assert.equal(coreAtN1(100, eng), 100);
+});
+
+test('the generators run off the core: online at idle on the runway', () => {
+  const ac = load('b777-300er');
+  setState({ aircraft: ac, wow: true, spd: 0, paused: false, crashed: false, n1Cmd: 22, thrustLever: 0,
+             idgConnected: [true, true], engGenSwitch: [true, true],
+             ...initialEngine(ac, { onGround: true, spd: 0, onRunway: true }) });
+  for (let t = 0; t < 2; t += 0.1) tickEngine(0.1);
+  assert.ok(Math.abs(S.engines[0].core - 60) < 0.1, `core ${S.engines[0].core}`);
+  tickElectrical(0.1);
+  assert.deepEqual(S.engGenOn, [true, true]);                     // N1 22 % — the old N1 > 56 % rule had them off
+});
+
+test('the start: the core follows the start profile — ~25 % at light-off, idle at the end', () => {
+  const ac = load('b777-300er');
+  setState({ aircraft: ac, wow: true, spd: 0, paused: false, crashed: false, n1Cmd: 22, thrustLever: 0,
+             ...initialEngine(ac, { onGround: true, spd: 0 }) });
+  startEngine();
+  const T = ac.engine.startTime;
+  for (let t = 0; t < T * 0.35 - 1e-9; t += 0.1) tickEngine(0.1);
+  assert.ok(Math.abs(S.engines[0].core - 25) < 1, `core ${S.engines[0].core.toFixed(1)} at light-off`);
+  for (let t = 0; t < T * 0.65; t += 0.1) tickEngine(0.1);
+  assert.equal(S.engines[0].state, 'running');
+  assert.ok(S.engines[0].core > 55, `core ${S.engines[0].core.toFixed(1)} at the end of the start`);
+});
+
+test('in flight a flamed-out engine windmills: its core is too slow for the generator', () => {
+  runningTwin();
+  setState({ idgConnected: [true, true], engGenSwitch: [true, true] });
+  setEngineFactor('failure', 0, 0);
+  for (let t = 0; t < 90; t += 0.1) tickEngine(0.1);
+  tickElectrical(0.1);
+  assert.deepEqual(S.engGenOn, [false, true]);
+});
+
+test('a shutdown in flight ends when the fan has run down to its windmill speed', () => {
+  runningTwin();
+  stopEngine(0);
+  for (let t = 0; t < 120; t += 0.1) tickEngine(0.1);
+  assert.equal(S.engines[0].state, 'off');
+  assert.ok(S.engines[0].n1 > 20, `windmilling at ${S.engines[0].n1.toFixed(1)} %`);
 });

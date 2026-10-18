@@ -195,6 +195,7 @@
   "engine": {
     "type": "turbofan",
     "count": 2,
+    "spools": 3,
     "startTime": 54.68,
     "model": "trent-xwb",
     "chevrons": true,
