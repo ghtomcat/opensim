@@ -3642,6 +3642,10 @@
     /* Turbofan/VK-1 ground starts need the lifecycle (E=start, Q=cutoff);
        dismissOnboarding already checks S.engineState to decide airborne vs ground start */
     const _hasLifecycle = _isV12 || _isRadial || _isLycoming || _isElectric || _isTurbofan || _isVK1;
+    /* E starts the engine from the keyboard — not on airliners: their start belongs to the whole
+       aircraft (power, ENG MODE IGN/START, one ENG MASTER at a time on the pedestal), which a key
+       press can't check. */
+    const _keyStart = _hasLifecycle && S.aircraft?.engine?.type !== 'turbofan';
 
     const dismissOnboarding = () => {
       obEl.classList.remove('visible');
@@ -3657,7 +3661,7 @@
           /* Ground start — engine off, user presses E */
           audioEl.textContent = _isV12      ? 'OFF · E=ANLASSER · Q=AUS'
                               : _isElectric  ? 'OFF · MASTER → BATT EN → PWR EN'
-                              : _isTurbofan  ? 'OFF · E=ENGINE START · Q=FUEL CUTOFF'
+                              : _isTurbofan  ? 'OFF · START ON THE PEDESTAL (D) · Q=FUEL CUTOFF'
                               :                'OFF · E=START · Q=CUT OFF';
           audioEl.className   = 'panel-value';
         }
@@ -3688,7 +3692,7 @@
       if (e.key === 'n' || e.key === 'N') { if (S.aircraft?.map !== false) toggleMap(); return; }
 
       /* E — Anlasser (v12 only) */
-      if ((e.key === 'e' || e.key === 'E') && _hasLifecycle) {
+      if ((e.key === 'e' || e.key === 'E') && _keyStart) {
         bbEvent({ type: 'engine_start_commanded', engineState: S.engineState });
         if (S.aircraft?.panel === 'g1000') setState({ magnetos: 'START' });
         startEngine();

@@ -47,7 +47,7 @@ Manual braking disarms the autobrake.
 | `F` | Flaps retract one stage |
 | `g` | Gear toggle (retractable gear only; squat switch — no gear-up on the ground) |
 | `s` | Speed brake: RET → ARM → FULL → RET. Armed spoilers deploy on touchdown and stow when you advance the thrust lever (ground: toward CLB · air: TOGA) |
-| `E` | Engine start (cold-start aircraft) |
+| `E` | Engine start (cold-start aircraft — not the airliners: start them on the pedestal) |
 | `Q` | Engine cutoff (V12, radial, turbofan, VK-1) · fuel selector cycle (other manual aircraft with a fuel system) |
 | `H` | Carburettor heat toggle (aircraft with carb heat) |
 | `1`–`5` | Situation presets (disabled during active missions) |
@@ -117,8 +117,11 @@ Engine state: `off → starting → running → shutdown → off`
 
 | Key | Action |
 |-----|--------|
-| `E` | Engine start |
 | `Q` | Fuel cutoff |
+
+No start key: the start is on the pedestal (`D`) — power on (APU or external), ENG MODE to
+IGN/START, then the ENG MASTER switches. A start from the keyboard would have to check the whole
+aircraft first (power, mode, fuel).
 
 ### Saturn V (missions with a lunar module)
 

@@ -729,11 +729,10 @@
       "title": "ENGINE START",
       "type": "checklist",
       "items": [
-        "ENG MODE — IGN/START · overhead rotary",
+        "ENG MODE — IGN/START · pedestal rotary",
         "ENG MASTER 1 2 3 4 — ON · pedestal",
-        "E key — start all engines",
         "N1 idle ~23% — check all 4 engines",
-        "ENG MODE — NORM · overhead rotary"
+        "ENG MODE — NORM · pedestal rotary"
       ]
     },
     {
