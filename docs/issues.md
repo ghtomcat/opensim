@@ -324,7 +324,53 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 
 **Why it matters.** Engine-out on a twin can't be simulated: engine failure after V1, single-engine climb, the engine-out departure procedure (EOSID), asymmetric thrust and rudder, single-engine approach and go-around — the core of multi-engine training and of the abnormal-procedures backlog. Also per-engine start sequences, a single engine fire, and generator/pump loss of one engine.
 
-**Fix — outline.** Engine state becomes an array (`S.engines[i] = { state, power, n1, … }`), sized by `engine.count`. Thrust sums per engine; asymmetric thrust adds a yaw moment (needs a yaw/sideslip term in the flight model — currently heading follows bank only). Electrical generators and hydraulic pumps key off their own engine. Failures target an engine index. Displays (ECAM, EICAS, N1 gauges, pedestal levers) read per engine. Single-engine aircraft are an array of one. Best done after *Engine start completes when the start-up sound finishes* and with *`tickPhysics()` is one 680-line function*.
+**Design — agreed 2026-10-18.** One owner for the engines, and the three engine issues become one piece of work (this entry, *Engine start completes when the start-up sound finishes* and *`enginePower` has many writers and no composition*). The cockpit side of it is the first instance of *The cockpit builds itself from the aircraft data*.
+
+*Decisions.*
+- **Owner:** `core/engine.js` is the only writer of `S.engines[]`, sized by `engine.count`; a single-engine aircraft is an array of one. Each entry has a shared core (`state`, `lever`, `reverser`, power factors) plus fields for its engine type. Other modules change an engine only through `engine.js` commands (master, start, cut-off, fire handle).
+- **The APU is an engine.** A single-spool gas turbine with a start sequence, core speed, EGT and fire handle: an entry of type `apu` in `engine.js`, same lifecycle code, its own parameters. Its state machine moves out of `core/electrical.js`.
+- **Full engine model, kept simple.** First-order curves, like the cooling model; no thermodynamic cycle.
+  - Turbofans have a **fan %** (N1) and a **core %** state. The core is the spool the starter turns and the accessory gearbox sits on: N2 on a two-spool engine, N3 on a three-spool one. On a three-spool engine the middle spool is computed between the two; nothing we model is driven by it.
+  - The core drives the start (starter → light-up at ~20 % → N1 follows) and every gearbox-driven generator and pump. A windmilling failed engine (fan up, core low) therefore loses its generators and pumps.
+  - EGT gives hot starts, the redline and fire/stall cues. FF is computed from thrust.
+  - **A geared fan changes no numbers:** the reduction gear (~3 : 1 on the PW1000G family) is a fixed ratio, so fan % and low-pressure spool % are the same value. `fanGear` only feeds the sound (lower fan tone, higher turbine whine) and the documentation. GTF-specific start behaviour (dry motoring against a bowed rotor) is start-sequence data.
+  - Data per engine type in the `engine` object, e.g. `"spools": 3, "fanGear": null, "display": ["N1", "EGT", "N3", "FF"]` (the ECAM labels), plus idle fan/core %, spool times and EGT limits from published limits. Trent XWB (A350) is three-spool; CFM56, GE90 and PW1500G/1900G (geared) are two-spool; the D-18T (An-225) three-spool; the NK-12 (Tu-95) is one spool driving a propeller gear.
+  - Pistons keep RPM/MAP/EGT/CHT/FF; electric keeps RPM/power/current.
+- **Power is a product of factors, each owned by its cause:** `power[i] = fuel × failure × ice × seizure × battery`, set through `engine.js` (e.g. `setEngineFactor(i, cause, value)`). No module assigns power directly.
+- **Systems point at engines, not the other way round.** The electrical and hydraulic layouts are per-aircraft JSON; each source names its `driver` (`"eng1"`, `"apu"`), and a gearbox unit is always driven by the core. `engine.js` knows nothing about generators or pumps; it publishes state and core %. Sketch for the A350 (two VFGs per engine; GREEN + YELLOW at 5000 psi, two engine-driven pumps per engine plus an electric pump each):
+  ```json
+  "electrical": { "sources": [
+    { "id": "gen1a", "type": "vfg", "driver": "eng1" }, { "id": "gen1b", "type": "vfg", "driver": "eng1" },
+    { "id": "gen2a", "type": "vfg", "driver": "eng2" }, { "id": "gen2b", "type": "vfg", "driver": "eng2" },
+    { "id": "apugen", "type": "gen", "driver": "apu" }, { "id": "ext", "type": "ext" } ] },
+  "hydraulics": { "systems": [
+    { "id": "green",  "psi": 5000, "sources": [{ "type": "edp", "driver": "eng1" }, { "type": "edp", "driver": "eng1" }, { "type": "emp" }] },
+    { "id": "yellow", "psi": 5000, "sources": [{ "type": "edp", "driver": "eng2" }, { "type": "edp", "driver": "eng2" }, { "type": "emp" }] } ] }
+  ```
+- **One system description, three readers:** the simulation (`core/`), the controls (overhead, pedestal) and the ECAM synoptic pages (ELEC, HYD) all read the same layout, so they can't disagree.
+- **Rudder keys:** `,` / `.` (springing back to centre), rudder trim `<` / `>`; on the ground they also steer the nosewheel. Gamepad axis 2 (already mapped to rudder) also works in flight.
+- **First engine-out aircraft: the A350.** It is data-driven already (`dimensions` from the airport-planning drawing; the engine lateral positions still have to be measured), its real cockpit has the Airbus ECAM the sim draws, and its yaw moment is large. Its only mission (`lszh-approach`) starts airborne, so the V1 cut needs a new LSZH departure mission. Later: the A320 (data-driven build) and a DA42 (light twin: critical engine, V_MC, the multi-engine rating).
+- **Out of scope:** bleed air/pneumatics and fuel for the jets (tanks → engines, crossfeed). They fit the same layout pattern later; until then the overhead shows no buttons for them. FF is computed, so the fuel system can use it later.
+
+*Against the layers (architecture.md, bottom-up).*
+- **Data (§3).** `engine` becomes an object on every aircraft; the string moves to `engine.model` (closes the `engine` part of *Overloaded fields*); Tu-95 and An-225 get `count: 4` / `6`. Engine positions for the yaw moment come from `dimensions` (mm, the source of truth), **not** from the render field `geometry.engineY`. `electrical`, `hydraulics`, `apu` and the fire protection (agents per engine / APU) become per-aircraft blocks; the current `electrical {extPwrB, batCount}` and the A340 layout hard-coded for every turbofan go. New names (`engine_fire`, `flameout`, source and system types) go in `core/vocab.js`; a failure entry gets an `engine` index in `core/schema/`.
+- **State and loop (§6).** `S.engines` is replaced whole on each write (`setState` is shallow). During the migration `engine.js` also writes `S.engineState` / `S.enginePower` / `S.n1` as values derived from the array, so readers can move over one by one; they're dropped at the end. Reset through `onMissionReset`; the airborne-start defaults move from `mission.js` into the engine reset. Tick order: `tickFailures` → `tickFuel` / `tickBattery` (factors) → **`tickEngines`** (engines + APU) → `tickElectrical` / `tickHydraulics` (read core %) → `tickPhysics` (reads thrust).
+- **Physics (§7).** The turbofan N1 spool and the `starting → running` / `shutdown → off` transitions move out of `tickPhysics()` into `engine.js`. The A/THR stays in automation and only produces a lever/N1 command for all running engines. Thrust and reverse thrust are summed per engine, on the ground too (asymmetric reverse, a rejected takeoff on one engine). A new yaw axis: a sideslip state, directional stability, sideslip drag and side force, rudder authority, and a thrust moment = Σ thrust × lateral arm. V_MC then comes out of the data. Goes with the split in *`tickPhysics()` is one 680-line function*. Prop throttles move to the lever, which also fixes *`spdT` is both the speed target and the throttle*.
+- **Systems (§9).** Electrical and hydraulics read their layout from the aircraft and their drivers' core % from `engine.js`. Failures target an engine index; fuel starvation and an empty battery become factors.
+- **Automation (§10).** The A/THR drives running engines only. What the autopilot does about yaw (fly-by-wire compensation vs. the pilot trimming rudder) is per-type data — check the A350's flight-control laws. Engine-out speeds, drift-down and the EOSID belong to the training stage.
+- **Sound (§11).** `sound.js` follows `S.engines[]` and writes no engine state. Per-engine starts make *The AudioContext is recreated on every engine (re)start* worse: starting ENG 1 would cut ENG 2's start sound. Fix that first. Later, one voice per engine (or per side), panned; `fanGear` sets the fan and turbine tones.
+- **Input and recording (§12).** Rudder in `core/input.js`; `keybindings.md` updated. `E` runs the start sequence, `Q` cuts all engines; single engines are started and stopped from their own controls. Telemetry and the black box record the engine array and log per-engine events.
+- **Display (§13).** Engine controls are derived from the engine entries, generators and pumps from the system layouts; each control is *node + action* and sends a command to its owner instead of writing `S` (see *The cockpit builds itself from the aircraft data*). ECAM ENGINE page (`display/ecam.js`) and the engine widgets in `pfd_instruments.js` read per engine, labelled from `engine.display`; a failed engine is amber. ELEC and HYD pages are drawn from the layouts. The outside view spins each fan and deploys each reverser separately. `velis_epsi.js` stops writing `engineState` and goes through `engine.js`.
+- **Shell (§14).** The `E`/`Q` handlers call `engine.js`; `simGetState()` exposes `engines`. Engine-out scoring doesn't go into `index.html` (*`index.html` carries most of the application wiring*).
+
+*Stages.*
+0. **Owner, still one engine.** `core/engine.js`: lifecycle out of `sound.js` and `velis_epsi.js`, the APU lifecycle out of `electrical.js`, power from factors, N1 spool out of `physics.js`. `engine` an object everywhere. One AudioContext (*The AudioContext is recreated…*). Done when: a cold start completes via `simStep` with audio muted; no module but `engine.js` writes engine or APU state.
+1. **The array.** `S.engines[]` by `count`, old fields derived from it. Done when: every aircraft flies the same seeded test runs as before.
+2. **Per-engine control and failure, electrical layout as data, no yaw yet.** Masters, levers, fire handles and failures by engine; the full turbofan model (fan/core/EGT/FF); the A350 electrical layout in JSON, read by the simulation, the overhead and the ELEC page; engine controls derived and sending commands. Done when: an A350 loses ENG 1 at V1 (new LSZH departure), climbs on ENG 2 with less climb rate, the ECAM shows ENG 1 failed and GEN 1A/1B offline, and the overhead shows exactly the A350's generators.
+3. **Yaw axis.** A350 engine lateral positions measured into `dimensions`; sideslip, rudder (keys + gamepad), rudder trim, thrust moment. Done when: an engine failure yaws the aircraft toward the dead engine, rudder holds it, and full rudder below V_MC can't.
+4. **Hydraulic layout as data.** The A350 first (GREEN/YELLOW), same three readers. Done when: losing ENG 1 drops GREEN's engine pumps only, and overhead and HYD page show the A350's two systems.
+5. **Sound and outside view per engine.**
+6. **Training.** V1-cut mission, ENG FAIL procedure and callouts, engine-out climb and EOSID, single-engine approach and go-around, scoring (see the training-procedures backlog).
 
 **Done when.** A twin can lose one engine (failure or fuel cut) and keep flying on the other with the expected yaw and climb loss; the ECAM/EICAS shows the failed engine; single-engine aircraft behave as before.
 
@@ -555,6 +601,30 @@ The declared layering (data → simulation → presentation → shell) is also n
 
 **Done when.** An engine can fail on its own on a twin, and the aircraft yaws and loses thrust accordingly; one hydraulic loss removes one function.
 
+### The cockpit builds itself from the aircraft data
+*Noted 2026-10-18 · `display/overhead.js`, `pedestal.js`, `leftconsole.js`, `rightconsole.js`, `centerconsole.js`; `config/`*
+
+**Today.** Only the main panel is data-driven (`panels/*.json`). The overhead is built in code from `engine.count` / `engine.type` and a two-field `electrical` block, with the A340's layout (IDG per engine, GREEN/BLUE/YELLOW pumps, fuel pumps) for every turbofan — wrong on the A350 (two VFGs per engine, no BLUE). The pedestal and the consoles read hand-written token lists (`pedestal: [...]` on the C172, `left` / `right` on the Bf 109); without one, `_pedestalTokens()` derives a list from code rules with panel names spelled out. The centre view is code. Handlers write `S` directly.
+
+**Idea.** The cockpit is built bottom-up, like the airport scenery from the airport graph:
+
+| Layer | Question | Source |
+|---|---|---|
+| 1. Systems | What does the aircraft have? | Aircraft JSON — engines, APU, electrical, hydraulics, flaps, gear, brakes, radios, FMS, autopilot. The simulation needs it anyway. |
+| 2. Controls | Which buttons? | Derived: each system brings its controls (engine → master, lever, fire handle; piston engine → throttle, mixture, magnetos; generator → GEN button; flaps → lever with the `flaps` detents; tanks → selector). |
+| 3. Placement | Which zone, in what order? | Rules per manufacturer and class in the config cascade (`config/manufacturers/*.json`, which carries only `comPanel` today). Airbus: engine masters on the pedestal, fire buttons on the overhead; 737: engine start on the overhead, fire handles on the aisle stand; C172: main panel; Bf 109: left console. |
+| 4. Look | How does it look? | `panels/styles/` per family; hand-drawn exceptions. |
+
+The aircraft says *what* it has, the manufacturer *where* it goes, the style *how* it looks. The token lists become optional overrides for a type whose real layout differs from its manufacturer's rule.
+
+**What makes it work.** A control is *node + action* (`eng2 · master off`, `gen1a · off`) and sends a command to the module that owns the node (`engine.js`, `electrical.js`, `hydraulics.js`); no control writes `S`. With owners and commands in place, the five zone modules (each with its own HTML, CSS and handlers) become one builder: systems → controls → placement → zone. Builds on *`S` has no field ownership*.
+
+**Limits.** Derived means complete and correct (every control exists, is in the right zone and works), not the exact real panel geometry; a type that needs that gets a layout override. The hand-drawn cockpits (Bf 109, F4U, Velis, rockets) keep their drawings, but their controls can come from the data. The main panel shows instruments, not controls, and stays with `panels/`.
+
+**First instance.** The multi-engine work (*One engine per aircraft*, stages 2 and 4): engine controls, generators and hydraulic pumps on the A350, derived from its data. The rest of the overhead (lights, anti-ice, pressurisation, ADIRS …) follows the same pattern later.
+
+**Done when.** A new airliner that fits its manufacturer's rules gets a complete, working overhead, pedestal and centre view from its systems data alone, with no token list and no zone-specific code.
+
 ### Overloaded fields in the JSON data
 *Found 2026-10-11 · `aircraft/*.json`, `missions/*.json`; left over from the data-contract work (2026-10-13)*
 
@@ -681,6 +751,11 @@ To draw the terrain from the camera, `outside.js` saves the aircraft pose, write
 *Found 2026-10-15 · `core/schema/mission.js` (`weatherManual`), `app/briefing.js` (`WEATHER_PRESETS`)*
 
 The scenario-setup presets are manual weather with `clouds` and `dewp`, and since 2026-10-15 a preset at a station becomes `S.metar`, so the ATIS reads its clouds. The schema's `weatherManual` has neither field (`visib` is listed as *planned*, with the note "no ATIS for manual weather"). Presets are applied after the schema check, so nothing fails today — but a mission file that authors manual clouds would be rejected. **Fix:** give `weatherManual` the METAR fields the code reads (`dewp`, `visib`, `clouds`), i.e. the same shape as `weatherFallback`; update the note. **Done when:** the setup presets pass the mission schema (a check in `tests/briefing.test.mjs`). Goes with *The cloud layer is never drawn*.
+
+### 737 MAX 9 names the wrong engine
+*Found 2026-10-18 · `aircraft/b737max9.json`*
+
+`engine.model` is `"cfm56-7"`; the 737 MAX has the CFM LEAP-1B, and the data-driven build measured a LEAP-1B nacelle. Documentation only today, but `engine.model` will select engine-type parameters in the multi-engine work (*One engine per aircraft*). **Fix:** `"leap-1b"`. **Done when:** the field names the LEAP-1B.
 
 ### Stale docs
 `docs/architecture.md` was rewritten bottom-up on 2026-10-11 (§1–14). `docs/panel-system.md` was updated 2026-10-11. `docs/url-routing.md` (formerly `navigation.md` — it covers browser URLs and history, not aircraft navigation; renamed 2026-10-11) hasn't been checked against the code yet.
