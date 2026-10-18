@@ -824,7 +824,7 @@ and steps with `simStep`, and needs no audio:
 
 | Call | From | Effect |
 |---|---|---|
-| `startEngine()` | `E` (not on airliners), magnetos START, ENG MASTER | `off` → `starting` (turbofan: also from `shutdown`; not with the fuel shutoff closed or a seized engine) |
+| `startEngine()` | `E` (not on airliners), magnetos START, ENG MASTER | `off` → `starting` (turbofan: also from `shutdown`; not with the fuel shutoff closed, a seized engine, or an electric starter with BAT off — then the key springs back from START) |
 | `tickEngine(dt)` | the frame loop | `starting` → `running` after `engine.startTime` s (turbofan: or once N1 reaches idle); `shutdown` → `off` after `engine.stopTime` s (turbofan: once N1 < 0.5 %); the electric motor follows MASTER + BATT EN + PWR EN |
 | `stopEngine()` | `Q`, magnetos OFF, ENG MASTER off, fire handle | → `shutdown` |
 | `engineQuit()` | fuel starvation, a seized engine | → `off` at once |

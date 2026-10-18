@@ -20,6 +20,9 @@
                 length — tests/engine.test.mjs keeps the two equal).
                 Absent → the engine has no start sequence (it just runs).
      stopTime   s from 'shutdown' to 'off' (non-turbofans).
+     starter    'electric' — the starter needs the battery: no start with
+                BAT off (masterBat). Absent → no power condition (the
+                Bf 109's inertia starter, the airliners' pedestal start).
 
    Still one engine per aircraft — the array comes in stage 1 of
    issues.md "One engine per aircraft".
@@ -61,9 +64,14 @@ export function startEngine() {
   const st = S.engineState ?? 'off';
   if (st === 'starting' || st === 'running') return;
   if (!_turbofan()) {
-    if (st === 'shutdown') return;                           // still running down — no starter on a turning engine
-    if (S.coolantState === 'failed') return;                 // seized — it won't turn over
-    if (S.fuelShutoff && S.fuelLeft !== null) return;        // fuel shutoff closed — no start
+    const refused = st === 'shutdown'                                // still running down — no starter on a turning engine
+                 || S.coolantState === 'failed'                      // seized — it won't turn over
+                 || (S.fuelShutoff && S.fuelLeft !== null)           // fuel shutoff closed — no start
+                 || (_eng().starter === 'electric' && !S.masterBat); // electric starter, battery off — nothing turns
+    if (refused) {
+      if (S.magnetos === 'START') setState({ magnetos: 'BOTH' });   // the key springs back from START
+      return;
+    }
   }
   setState({ engineState: 'starting', engineStartT: 0, engineStopT: null, enginePower: 0.01 });
 }

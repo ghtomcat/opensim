@@ -3662,6 +3662,7 @@
           audioEl.textContent = _isV12      ? 'OFF · E=ANLASSER · Q=AUS'
                               : _isElectric  ? 'OFF · MASTER → BATT EN → PWR EN'
                               : _isTurbofan  ? 'OFF · START ON THE PEDESTAL (D) · Q=FUEL CUTOFF'
+                              : S.aircraft?.engine?.starter === 'electric' ? 'OFF · BAT ON · E=START'
                               :                'OFF · E=START · Q=CUT OFF';
           audioEl.className   = 'panel-value';
         }

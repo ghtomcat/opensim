@@ -159,6 +159,7 @@ One object on every winged aircraft. Rockets and robots have none.
 | `idleN1` | Turbofan idle N1 (%). |
 | `startTime` | s from start to running — the length of the start-up recording the sound plays (`tests/engine.test.mjs` checks it). Absent → no start sequence, the engine just runs. |
 | `stopTime` | s from shutdown to off (pistons, turbojet). Turbofans stop when the fan has run down. |
+| `starter` | `electric` — the starter needs BAT on (C172, DR400). Absent → no power condition. |
 | `chevrons` | Draws chevron serrations on the nozzle. |
 | `thrustReverser` | Enables the thrust reverser (and its cascade overlay on landing). |
 

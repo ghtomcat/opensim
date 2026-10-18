@@ -20,6 +20,7 @@ const GLASS_JET = [PANEL.AIRBUS, PANEL.E190];   // panels that drive the turbofa
 const engine = object(
   { type: oneOf(...valuesOf(ENGINE_TYPE)), count: num, idleN1: num, thrustReverser: bool,
     startTime: num, stopTime: num,   // s — the start sequence and the run-down (core/engine.js)
+    starter: oneOf('electric'),      // what turns the engine over: 'electric' needs BAT on; absent → no condition
     chevrons: bool, nacellePaint: arrayOf(num) },   // last two: 3D model
   { doc: { model: str, description: str }, required: ['count'] },
 );

@@ -23,7 +23,8 @@ const AIRCRAFT = readdirSync(join(here, '..', 'aircraft')).filter(f => f.endsWit
 /** Fresh cold engine on `aircraft`; returns a stepper that runs tickEngine for `s` seconds. */
 function cold(aircraft, extra = {}) {
   setState({ aircraft, engineState: 'off', engineStartT: null, engineStopT: null, enginePower: 0, n1: 0,
-             coolantState: null, fuelShutoff: false, fuelLeft: null, magnetos: 'BOTH', engineTemp: 0, switches: {}, ...extra });
+             coolantState: null, fuelShutoff: false, fuelLeft: null, magnetos: 'BOTH', engineTemp: 0, switches: {},
+             masterBat: true, ...extra });
   return (s, dt = 0.1) => { for (let t = 0; t < s - 1e-9; t += dt) tickEngine(dt); };
 }
 
@@ -48,6 +49,21 @@ test('a piston cold start completes on sim time, without audio', () => {
   assert.equal(S.enginePower, 1.0);
   assert.equal(S.magnetos, 'BOTH');          // the key springs back from START
   assert.equal(S.engineStartT, null);
+});
+
+test('an electric starter needs BAT on — a refused start springs the key back to BOTH', () => {
+  const ac = load('c172');
+  const step = cold(ac, { masterBat: false, magnetos: 'START' });
+  startEngine(); step(3);
+  assert.equal(S.engineState, 'off');
+  assert.equal(S.magnetos, 'BOTH');
+  setState({ masterBat: true, magnetos: 'START' });
+  startEngine();
+  assert.equal(S.engineState, 'starting');
+  /* no starter declared → no battery condition (the Bf 109's inertia starter) */
+  cold(load('bf109'), { masterBat: false });
+  startEngine();
+  assert.equal(S.engineState, 'starting');
 });
 
 test('no start with the fuel shutoff closed or a seized engine; none while running', () => {

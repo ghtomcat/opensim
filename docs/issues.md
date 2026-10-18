@@ -372,6 +372,11 @@ Bus states (AC/DC/essential, generators, APU, external power, batteries) and hyd
 
 When it's taken up: decide which consumers depend on which bus/system (e.g. COM on DC ESS, gear and flaps on hydraulics, displays on AC), replace the per-panel COM power check in `core/crew.js` with the bus state, and make the hydraulic layout per aircraft (next entry).
 
+### Light-aircraft electrical is switches only — not implemented yet
+*Noted 2026-10-18 · `masterBat`, `masterAlt`, `avionicsOn` in `core/state.js`; `core/engine.js`, `core/crew.js`, `display/panel_renderer.js`, `display/outside.js`*
+
+The C172, DR400 and Velis switches are plain fields: no battery charge, no alternator, no bus. Each consumer checks the switch itself — the COM (`_isComPowered()` in `core/crew.js`), the G1000 screens (`panel_renderer.js`), the C172 lights (`outside.js`) and, since 2026-10-18, the electric starter (`startEngine()` in `core/engine.js`: an `engine.starter: "electric"` needs BAT on). The checks are right as far as they go; what they can't catch: a flat battery, a battery run down by cranking too long or flying with the alternator off, avionics or lights on a dead bus, an alternator failure (a classic training failure). **Fix:** a small electrical model for light aircraft from the aircraft data — battery (capacity, charge), alternator (driven by the engine RPM, `masterAlt`), one bus with its consumers (starter, avionics, COM, lights, fuel pump) — the same pattern as *The cockpit builds itself from the aircraft data*: the consumers read the bus, not the switches. Takes in *Velis COM ignores its power switches*. **Done when:** on the C172 a long crank with the alternator off flattens the battery, the starter then won't turn and the G1000 and COM go dark; an alternator failure can be injected.
+
 ### Velis COM ignores its power switches — panel name mismatch
 *Found 2026-10-13 · `_isComPowered()` in `core/crew.js`*
 

@@ -35,6 +35,7 @@ test('C172 cold start: the start-up and the running engine are audible', async (
   await tapDestination(page);
   await page.goto('/?mission=lszf-pattern&test=1');
   await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+  await page.evaluate(() => window.simSetState({ masterBat: true }));   // electric starter
   await page.keyboard.press('e');
   await page.waitForTimeout(800);                                     // the starter is turning (real audio time)
   expect(await level(page)).toBeGreaterThan(0.01);

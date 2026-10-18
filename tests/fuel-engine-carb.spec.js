@@ -353,7 +353,7 @@ test.describe('Fuel — warning flags', () => {
    ═══════════════════════════════════════════ */
 
 async function startEngine(page) {
-  await setState(page, { engineState: 'off', enginePower: 0 });
+  await setState(page, { engineState: 'off', enginePower: 0, masterBat: true });   // the C172's electric starter needs BAT on
   await page.keyboard.press('e');
   await step(page, 3);
 }
@@ -388,7 +388,7 @@ test.describe('Engine lifecycle — Lycoming start and restart', () => {
 
   test('E does not start the engine with the shutoff valve closed', async ({ page }) => {
     await loadSim(page);
-    await setState(page, { engineState: 'off', enginePower: 0, fuelShutoff: true });
+    await setState(page, { engineState: 'off', enginePower: 0, fuelShutoff: true, masterBat: true });
     await page.keyboard.press('e');
     await step(page, 3);
     expect((await getState(page)).engineState).not.toBe('running');
@@ -438,9 +438,19 @@ test.describe('Engine lifecycle — Lycoming start and restart', () => {
     expect((await getState(page)).engineState).toBe('running');
   });
 
+  test('E does not start the engine with BAT off (electric starter)', async ({ page }) => {
+    await loadSim(page);
+    await setState(page, { engineState: 'off', enginePower: 0, masterBat: false });
+    await page.keyboard.press('e');
+    await step(page, 3);
+    const s = await getState(page);
+    expect(s.engineState).toBe('off');
+    expect(s.magnetos).toBe('BOTH');   // the key sprang back from START
+  });
+
   test('the start pauses with the sim — not running without sim steps', async ({ page }) => {
     await loadSim(page);
-    await setState(page, { engineState: 'off', enginePower: 0 });
+    await setState(page, { engineState: 'off', enginePower: 0, masterBat: true });
     await page.keyboard.press('e');
     await page.waitForTimeout(3_500);   // real time passes, sim time doesn't (test mode: manual clock)
     expect((await getState(page)).engineState).toBe('starting');
