@@ -2,7 +2,8 @@
  * Electrical — the generic solver over the layout (core/electrical.js) against the logic it replaced.
  *
  * oracle() is the old tickElectrical() (until 2026-10-21: the A340's structure hard-coded for every
- * turbofan), kept here as a pure function. For the A340 (its layout in aircraft/a340.json, and the
+ * turbofan, its switches in single fields), kept here as a pure function; asControls() hands the same
+ * state to the solver as it reads it now (S.elecCtl by element, S.elecCharge). For the A340 (its layout in aircraft/a340.json, and the
  * default built from the engine count), the A220, the 737 and the A350, random switch / engine /
  * battery states go through both; every field the old code wrote must come out the same.
  *
@@ -14,7 +15,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { S, setState } from '../core/state.js';
-import { tickElectrical, solveElectrical, electricalLayout, defaultLayout } from '../core/electrical.js';
+import { tickElectrical, solveElectrical, electricalLayout, defaultLayout,
+         elecCtl, elecSwitch, elecIdgDisconnect, elecBusTie, elecBusTieAuto } from '../core/electrical.js';
 import { check } from '../core/schema/check.js';
 import { aircraft as aircraftSchema } from '../core/schema/aircraft.js';
 
@@ -89,6 +91,17 @@ function randomState(ac, rnd) {
   return st;
 }
 
+/* The same state as the solver sees it today: the switches by element (S.elecCtl), the charges (S.elecCharge) */
+function asControls(st) {
+  const n = st.aircraft.engine.count;
+  const elecCtl = { apugen: { on: st.apuGenSwitch }, extA: { on: st.extPwrOn }, extB: { on: st.extPwrBOn },
+                    busTie: { on: st.busTieAuto } };
+  for (let i = 0; i < n; i++) elecCtl[`gen${i + 1}`] = { on: st.engGenSwitch[i], idg: st.idgConnected[i] };
+  const elecCharge = {};
+  for (let k = 1; k <= 3; k++) { elecCtl[`bat${k}`] = { on: st[`bat${k}On`] }; elecCharge[`bat${k}`] = st[`bat${k}Charge`]; }
+  return { aircraft: st.aircraft, time: st.time, wow: st.wow, apuState: st.apuState, engines: st.engines, elecCtl, elecCharge };
+}
+
 function seeded(seed) { let x = seed >>> 0; return () => ((x = (x * 1664525 + 1013904223) >>> 0) / 4294967296); }
 
 const FIELDS = ['apuGenOn', 'engGenOn', 'acBus11', 'acBus12', 'acBus23', 'acBus24', 'acEssBus', 'dcBus1', 'dcBus2', 'dcEssBus',
@@ -106,11 +119,11 @@ for (const [name, make] of [
     for (let k = 0; k < 400; k++) {
       const st = randomState(ac, rnd);
       const want = oracle(st, 0.5);
-      setState({ ...st, elec: null });
+      setState({ ...asControls(st), elec: null });
       tickElectrical(0.5);
       for (const f of FIELDS) assert.deepEqual(S[f], want[f], `${name}, state ${k}: ${f}`);
       for (const b of [1, 2, 3]) if (want[`bat${b}Charge`] !== undefined)
-        assert.equal(S[`bat${b}Charge`], want[`bat${b}Charge`], `${name}, state ${k}: bat${b}Charge`);
+        assert.equal(S.elecCharge[`bat${b}`], want[`bat${b}Charge`], `${name}, state ${k}: bat${b}Charge`);
     }
   });
 }
@@ -124,14 +137,13 @@ test('the A340 layout in its file is the default for four engines', () => {
 
 test('a bus records what feeds it: its own generator, the APU, or a tie', () => {
   const a = load('a340');
-  setState({ aircraft: a, wow: true, busTieAuto: true, apuState: 'off', extPwrOn: false, extPwrBOn: false,
-             idgConnected: [true, true, true, true], engGenSwitch: [true, true, true, true],
-             engines: [{ core: 60 }, { core: 0 }, { core: 0 }, { core: 0 }], bat1On: false, bat2On: false, bat3On: false });
+  setState({ aircraft: a, wow: true, apuState: 'off', elecCtl: {}, elecCharge: {},       // every switch at its default
+             engines: [{ core: 60 }, { core: 0 }, { core: 0 }, { core: 0 }] });
   const e = solveElectrical(electricalLayout(a));
   assert.equal(e.buses.ac11.fedBy, 'gen1');
   assert.equal(e.buses.ac12.fedBy, 'ac11');                        // through the bus tie
   assert.equal(e.buses.dc2.fedBy, 'ac24');
-  setState({ busTieAuto: false });
+  setState({ elecCtl: { busTie: { on: false } } });
   assert.equal(solveElectrical(electricalLayout(a)).buses.ac12.powered, false);   // tie open — GEN 2 off, no power
 });
 
@@ -142,4 +154,37 @@ test('the schema catches a layout that names an element that does not exist', ()
   const errs = check(a, aircraftSchema).map(e => String(e));
   assert.ok(errs.some(e => e.includes('feeds from unknown "gen9"')), errs.join('\n'));
   assert.ok(errs.some(e => e.includes('driver "eng7" is not an engine')), errs.join('\n'));
+});
+
+/* ── The controls belong to the elements (stage 2d, part 3) ── */
+
+test('the controls: defaults by element type, toggled through the owner', () => {
+  setState({ aircraft: load('a340'), wow: true, elecCtl: {}, elecCharge: {} });
+  assert.deepEqual(elecCtl('gen1'), { on: true, idg: true });
+  assert.deepEqual(elecCtl('apugen'), { on: true });
+  assert.deepEqual(elecCtl('bat1'), { on: false });
+  assert.deepEqual(elecCtl('extA'), { on: false });
+  assert.deepEqual(elecCtl('galley'), { on: true });
+  assert.equal(elecBusTieAuto(), true);
+  elecSwitch('bat1');
+  assert.equal(elecCtl('bat1').on, true);
+  elecSwitch('gen2');
+  assert.deepEqual(elecCtl('gen2'), { on: false, idg: true });
+  elecBusTie();
+  assert.equal(elecBusTieAuto(), false);
+});
+
+test('external power plugs in on the ground only; an IDG, once disconnected, stays so', () => {
+  setState({ aircraft: load('a340'), wow: false, elecCtl: {}, elecCharge: {} });
+  elecSwitch('extA');
+  assert.equal(elecCtl('extA').on, false);
+  setState({ wow: true });
+  elecSwitch('extA');
+  assert.equal(elecCtl('extA').on, true);
+  elecIdgDisconnect('gen3');
+  assert.equal(elecCtl('gen3').idg, false);
+  elecIdgDisconnect('gen3');
+  assert.equal(elecCtl('gen3').idg, false);
+  setState({ engines: [{ core: 60 }, { core: 60 }, { core: 60 }, { core: 60 }] });
+  assert.equal(solveElectrical(electricalLayout()).sources.gen3.on, false);   // its engine runs — the generator doesn't
 });

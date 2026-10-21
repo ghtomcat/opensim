@@ -9,7 +9,7 @@
 
 import { S } from '../core/state.js';
 import { engineAvailable } from '../core/engine.js';
-import { electricalLayout, solveElectrical } from '../core/electrical.js';
+import { electricalLayout, solveElectrical, elecCharge } from '../core/electrical.js';
 import { managedSpeed } from '../core/managed-speed.js';
 import { indicatedAlt, baroSubscale } from '../core/baro.js';
 import { smooth, smoothAngle } from './smooth.js';
@@ -1721,6 +1721,9 @@ function _eicasGauge(ctx, cx, cy, r, val, cmd, opts, wht, grn, amb, red, f) {
    the other buses by depth below the mains → the battery bus with the batteries. A bus sits under the
    buses that feed it; an element's `pos: [x, y]` (fractions of the page) overrides. Lines and labels
    are green where power flows (fedBy), a bus label amber when it is unpowered. */
+/** The ELEC page for any display: colours { grn, amb, dim, cyn }. */
+export function drawElecPage(ctx, x, y, w, h, f, { grn, amb, dim, cyn }) { _ecamElec(ctx, x, y, w, h, f, grn, amb, dim, cyn); }
+
 function _ecamElec(ctx, x, y, w, h, f, grn, amb, dim, cyn) {
   ctx.font = `bold ${h * 0.055}px ${f}`; ctx.fillStyle = cyn; ctx.textAlign = 'center';
   ctx.fillText('ELEC', x + w / 2, y + h * 0.06);
@@ -1848,7 +1851,7 @@ function _ecamElec(ctx, x, y, w, h, f, grn, amb, dim, cyn) {
     ctx.fillStyle = l.col; ctx.fillText(l.text, px(l.fx), py(l.fy));
   }
   bats.forEach(s => {
-    const k = `bat${s.battery}`, pct = Math.round(S[`${k}Charge`] ?? 100), v = (20 + pct / 100 * 8.5).toFixed(1);
+    const pct = Math.round(elecCharge(s.id)), v = (20 + pct / 100 * 8.5).toFixed(1);
     const live = on(s.id);
     box(s.id, s.label ?? s.id, live, 0.16, 0.07, [`${v}V  ${pct}%`]);
   });

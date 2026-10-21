@@ -31,16 +31,10 @@ const BAT_CHARGE_PCT_S = 3.0  / 60;
 
 /* ── Reset on mission load ── */
 export function resetElectrical() {
-  const n = S.aircraft?.engine?.count ?? 2;
   setState({
-    bat1On: false, bat2On: false, bat3On: false,
-    bat1Charge: 100, bat2Charge: 100, bat3Charge: 100,
-    extPwrOn: false, extPwrBOn: false,
-    apuBleedOn: false, apuGenSwitch: true, apuGenOn: false,   // the APU's own state: core/engine.js
-    idgConnected: Array(n).fill(true),
-    engGenSwitch: Array(n).fill(true),
-    engGenOn: [],
-    busTieAuto: true, galleyOn: true,
+    elecCtl: {}, elecCharge: {},                              // every switch at its default, every battery full
+    apuBleedOn: false, apuGenOn: false,                       // the APU's own state: core/engine.js
+    engGenOn: [], elec: null,
     acBus11: false, acBus12: false, acBus23: false, acBus24: false,
     acEssBus: false, dcBus1: false, dcBus2: false, dcEssBus: false,
     genVoltage: [], genFreq: [], genLoad: [],
@@ -49,15 +43,52 @@ export function resetElectrical() {
 }
 onMissionReset(resetElectrical);
 
-/* ── Read electrical config from aircraft JSON, with engine-count defaults ── */
-export function elecCfg() {
-  const ac  = S.aircraft;
-  const n   = ac?.engine?.count ?? 2;
-  const cfg = ac?.electrical ?? {};
-  return {
-    extPwrB:  cfg.extPwrB  ?? (n >= 4),   // second EXT PWR port
-    batCount: cfg.batCount ?? (n >= 4 ? 3 : 2), // number of batteries (2 or 3)
-  };
+/* ── The controls — each belongs to its element ───────────────────
+   S.elecCtl[id] = { on, idg } — the element's switch (GEN, APU GEN, EXT PWR, BAT, a load's
+   pushbutton) and, on an engine generator, its IDG (disconnected for good once pulled);
+   S.elecCtl.busTie = { on } — BUS TIE AUTO. S.elecCharge[id] — a battery's charge (%).
+   Absent means the default for the element's type: generators on and connected, EXT PWR and
+   BAT off, loads on, BUS TIE AUTO. The cockpit changes them through elecSwitch(),
+   elecIdgDisconnect() and elecBusTie() — never by writing S. */
+const _isEngineGen = (el) => el?.type === 'gen' && el.driver !== 'apu';
+function _ctlDefault(el) {
+  if (!el) return { on: false };
+  if (el.type === 'gen')  return _isEngineGen(el) ? { on: true, idg: true } : { on: true };
+  if (el.type === 'load') return { on: true };
+  return { on: false };                                        // ext, bat
+}
+
+/** An element's control state — the cockpit's switch for it. */
+export function elecCtl(id, layout = electricalLayout()) {
+  const el = [...layout.sources, ...(layout.loads ?? [])].find(e => e.id === id);
+  return { ..._ctlDefault(el), ...(S.elecCtl?.[id] ?? {}) };
+}
+
+/** BUS TIE AUTO? */
+export const elecBusTieAuto = () => S.elecCtl?.busTie?.on ?? true;
+
+/** A battery's charge (%). */
+export const elecCharge = (id) => S.elecCharge?.[id] ?? 100;
+
+function _setCtl(id, patch) {
+  setState({ elecCtl: { ...(S.elecCtl ?? {}), [id]: { ...elecCtl(id), ...patch } } });
+}
+
+/** Toggle an element's switch (or set it with `on`). External power plugs in on the ground only. */
+export function elecSwitch(id, on) {
+  const el = electricalLayout().sources.find(e => e.id === id);
+  if (el?.type === 'ext' && !S.wow) return;
+  _setCtl(id, { on: on ?? !elecCtl(id).on });
+}
+
+/** Pull an engine generator's IDG disconnect — for good (it reconnects on the ground, not here). */
+export function elecIdgDisconnect(id) {
+  if (elecCtl(id).idg) _setCtl(id, { idg: false });
+}
+
+/** BUS TIE: toggle AUTO / OFF (or set it with `on`). */
+export function elecBusTie(on) {
+  setState({ elecCtl: { ...(S.elecCtl ?? {}), busTie: { on: on ?? !elecBusTieAuto() } } });
 }
 
 /* ── The layout ─────────────────────────────────────────────── */
@@ -98,22 +129,22 @@ export function defaultLayout(ac) {
     { id: 'dc2',   type: 'dc', label: 'DC BUS 2', feeds: [n >= 4 ? 'ac24' : 'ac12'] },                     // TR 2
     { id: 'dcEss', type: 'dc', label: 'DC ESS', feeds: ['dc1', 'dc2', 'batBus'] },
   ];
-  return { sources, buses };
+  return { sources, buses, loads: [{ id: 'galley', type: 'load', label: 'GALLEY' }] };
 }
 
 /* ── The solver ─────────────────────────────────────────────── */
 
-/* Is a source delivering? Its switches are today's fields (the overhead writes them) — they move to
-   the elements with the overhead built from the layout (stage 2d, part 3). */
-function _sourceOnline(src) {
+/* Is a source delivering? Its own switch (elecCtl), and what drives it */
+function _sourceOnline(src, layout) {
+  const ctl = elecCtl(src.id, layout);
   if (src.type === 'gen') {
-    if (src.driver === 'apu') return (S.apuState ?? 'off') === 'running' && (S.apuGenSwitch ?? true);
+    if (src.driver === 'apu') return (S.apuState ?? 'off') === 'running' && ctl.on;
     const i = parseInt(String(src.driver).replace('eng', ''), 10) - 1;           // eng1 → engine 0
     const genMin = 0.9 * (S.aircraft?.engine?.coreIdle ?? 60);                   // the gearbox: its engine's core at idle or above
-    return (S.idgConnected?.[i] ?? true) && (S.engGenSwitch?.[i] ?? true) && (S.engines?.[i]?.core ?? 0) >= genMin;
+    return ctl.idg && ctl.on && (S.engines?.[i]?.core ?? 0) >= genMin;
   }
-  if (src.type === 'ext') return !!(src.plug === 'B' ? S.extPwrBOn : S.extPwrOn) && !!S.wow;   // a ground cart — on the ground only
-  if (src.type === 'bat') return !!S[`bat${src.battery}On`] && (S[`bat${src.battery}Charge`] ?? 0) > 2;
+  if (src.type === 'ext') return ctl.on && !!S.wow;                              // a ground cart — on the ground only
+  if (src.type === 'bat') return ctl.on && elecCharge(src.id) > 2;
   return false;
 }
 
@@ -123,8 +154,8 @@ function _sourceOnline(src) {
  * changes, so power reaches every bus it can.
  */
 export function solveElectrical(layout = electricalLayout()) {
-  const sources = Object.fromEntries(layout.sources.map(s => [s.id, { on: _sourceOnline(s) }]));
-  const tie = S.busTieAuto ?? true;
+  const sources = Object.fromEntries(layout.sources.map(s => [s.id, { on: _sourceOnline(s, layout) }]));
+  const tie = elecBusTieAuto();
   let buses = Object.fromEntries(layout.buses.map(b => [b.id, { powered: false, fedBy: null }]));
   for (let pass = 0; pass <= layout.buses.length; pass++) {
     const live = (id) => sources[id]?.on || buses[id]?.powered;
@@ -183,16 +214,16 @@ export function tickElectrical(dt) {
   });
 
   /* Batteries charge from their buses (chargedBy — any of them powered), drain without */
-  const upd = {};
+  const charge = { ...(S.elecCharge ?? {}) };
+  let changed = false;
   for (const src of layout.sources.filter(s => s.type === 'bat')) {
-    const k = `bat${src.battery}`;
-    if (!(S[`${k}On`] ?? false)) continue;
+    if (!elecCtl(src.id, layout).on) continue;
     const charging = (src.chargedBy ?? []).some(pow);
-    const c = S[`${k}Charge`] ?? 100;
+    const c = elecCharge(src.id);
     let next = c;
     if (charging && c < 100) next = Math.min(100, c + BAT_CHARGE_PCT_S * dt);
     else if (!charging)      next = Math.max(0,   c - BAT_DRAIN_PCT_S  * dt);
-    if (Math.abs(next - c) > 0.001) upd[`${k}Charge`] = next;
+    if (Math.abs(next - c) > 0.001) { charge[src.id] = next; changed = true; }
   }
-  if (Object.keys(upd).length) setState(upd);
+  if (changed) setState({ elecCharge: charge });
 }

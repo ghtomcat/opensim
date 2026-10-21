@@ -42,7 +42,9 @@ const elecBus = object(
     ties: arrayOf(str) },     // buses it may borrow from while BUS TIE is AUTO
   { required: ['id', 'type'] },
 );
-const electrical = object({ batCount: num, extPwrB: bool, sources: arrayOf(elecSource), buses: arrayOf(elecBus) });
+const elecLoad = object({ id: str, type: oneOf('load'), label: str }, { required: ['id', 'type'] });   // a switchable load (GALLEY) — no effect yet
+const electrical = object({ batCount: num, extPwrB: bool,          // the default layout's options (no sources / buses given)
+                           sources: arrayOf(elecSource), buses: arrayOf(elecBus), loads: arrayOf(elecLoad) });
 
 const envelope = object(
   { cruiseAlt: num, cruiseSpd: num, maxSpd: num, spdProfile: mapOf(num) },

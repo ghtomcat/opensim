@@ -107,33 +107,23 @@ export const S = {
   /* ── Battery (electric aircraft) ── */
   batteryCharge: null,   // 0–100 % — null = not an electric aircraft
 
-  /* ── Electrical system (turbofan aircraft) ── */
-  bat1On:     false,     // BAT 1 master switch
-  bat2On:     false,     // BAT 2 master switch
-  bat3On:     false,     // APU BAT master switch
-  bat1Charge: 100,       // 0–100 %
-  bat2Charge: 100,
-  bat3Charge: 100,
-  extPwrOn:   false,     // EXT PWR A (ground only)
-  extPwrBOn:  false,     // EXT PWR B (ground only)
+  /* ── Electrical system (turbofan aircraft) — core/electrical.js ── */
+  elecCtl:    {},        // the elements' switches: { [id]: { on, idg } }, busTie: { on } — absent = the element type's default
+  elecCharge: {},        // the batteries' charge: { [id]: % } — absent = 100
+  elec:       null,      // the solution: { sources: {id: {on}}, buses: {id: {powered, fedBy}} }
   apuMasterOn: false,    // APU MASTER switch (latching)
   apuState:   'off',     // 'off' | 'starting' | 'running' — core/engine.js
   apuStartT:  null,      // s since the APU start began — core/engine.js
   apuBleedOn: false,     // APU bleed valve
-  apuGenSwitch: true,    // APU GEN switch (true = ON)
   apuFireArmed: false,   // fire handle pulled — extinguisher armed
   apuRunning: false,     // derived from apuState — core/engine.js
   apuGenOn:   false,     // derived — APU feeding AC bus
-  idgConnected: [],      // bool[] per engine — IDG mechanical coupling (false = disconnected, irreversible)
-  engGenSwitch: [],      // bool[] per engine — GEN switch ON/OFF
   engGenOn:   [],        // derived bool[] — one per engine
   engFireArmed: [],      // bool[] — fire handle pulled per engine
   engAgents:   [],       // bool[] — flat: [eng1_a1, eng1_a2, eng2_a1, eng2_a2, ...]
   apuAgent:    false,    // APU extinguisher agent discharged
   engMasters: [],        // bool[] — ENG MASTER switch per engine (pedestal) — core/engine.js (engineMaster, reset at mission load)
   engMode:    'NORM',    // engine mode selector: 'NORM' | 'IGN+START' | 'CRANK'
-  busTieAuto: true,      // bus tie mode: true=AUTO, false=MANUAL (open)
-  galleyOn:   true,      // galley power enabled
   /* Per-AC-bus derived power states */
   acBus11:    false,     // AC BUS 1-1 (ENG 1 generator)
   acBus12:    false,     // AC BUS 1-2 (ENG 2 generator)

@@ -12,7 +12,7 @@
 
 import { S, setState }                             from '../core/state.js';
 import { stopEngine, apuMaster, apuStart, apuFire } from '../core/engine.js';
-import { elecCfg } from '../core/electrical.js';
+import { electricalLayout, elecCtl, elecCharge, elecSwitch, elecIdgDisconnect, elecBusTie, elecBusTieAuto } from '../core/electrical.js';
 import { pushButtonHTML, setPushButton }          from './pushbutton.js';
 
 /* ── DOM node ─────────────────────────────────────────────────── */
@@ -326,44 +326,54 @@ function _batVoltage(charge, charging) {
 function _engCount() { return S.aircraft?.engine?.count ?? 2; }
 function _isTurbofan() { return S.aircraft?.engine?.type === 'turbofan'; }
 
-function _idgPair(i) {
-  /* IDG disconnect (guarded, amber) + GEN switch pushbutton */
+/* An engine generator's controls: its IDG disconnect (guarded) over its GEN pushbutton */
+function _genPair(el) {
+  const n = el.driver.replace('eng', '');
   return `<div class="ohp-gen-pair">
     <div class="ohp-idg-wrap">
-      <div class="ohp-idg-btn" id="ohp-idg-${i}">IDG ${i}</div>
-      <div class="ohp-idg-guard" id="ohp-idg-guard-${i}"><span>DISC</span></div>
+      <div class="ohp-idg-btn" id="ohp-idg-${el.id}">IDG ${n}</div>
+      <div class="ohp-idg-guard" id="ohp-idg-guard-${el.id}"><span>DISC</span></div>
     </div>
-    ${_sysPb(`gen-${i}`, `GEN ${i}`, { upper: 'FAULT' })}
+    ${_sysPb(`el-${el.id}`, el.label ?? `GEN ${n}`, { upper: 'FAULT' })}
   </div>`;
+}
+
+/* The electrical layout's elements, sorted for the overhead: the engine generators split left and
+   right by engine (the shared sources — APU GEN, EXT — between them), the batteries, the loads */
+function _elecParts() {
+  const L = electricalLayout();
+  const engGens = L.sources.filter(e => e.type === 'gen' && e.driver !== 'apu');
+  const half    = Math.ceil(engGens.length / 2);
+  return { L,
+    left:   engGens.slice(0, half), right: engGens.slice(half),
+    shared: L.sources.filter(e => (e.type === 'gen' && e.driver === 'apu') || e.type === 'ext'),
+    bats:   L.sources.filter(e => e.type === 'bat'),
+    loads:  L.loads ?? [],
+    tie:    L.buses.some(b => (b.ties ?? []).length) };
 }
 
 /* ── Build inner HTML ─────────────────────────────────────────── */
 function _buildHTML() {
   const n = _engCount();
   const turbofan = _isTurbofan();
-  const cfg = turbofan ? elecCfg() : {};
 
-  /* Electrical section — turbofan only */
-  const leftGenPairs  = Array.from({ length: Math.min(n, 2) }, (_, i) => _idgPair(i + 1)).join('');
-  const rightGenPairs = n >= 3 ? Array.from({ length: n - 2 }, (_, i) => _idgPair(i + 3)).join('') : '';
+  /* Electrical section — turbofan only; built from the electrical layout (core/electrical.js):
+     the batteries, BUS TIE (if the layout has ties) and the loads; then the engine generators
+     split left and right with the shared sources (APU GEN, EXT PWR) between them */
+  const E = turbofan ? _elecParts() : null;
+  const sharedPb = (el) => el.type === 'ext' ? _sysPb(`el-${el.id}`, el.label ?? el.id, { upper: 'AVAIL', upperColor: '#4ad86a' })
+                                             : _sysPb(`el-${el.id}`, el.label ?? el.id, { upper: 'FAULT' });
   const elecSection = turbofan ? `<div class="ohp-section">
     <div class="ohp-section-hdr">ELECTRICAL</div>
     <div class="ohp-row" style="margin-bottom:10px;">
-      ${_batPb('ohp-bat1', 'BAT 1')}
-      ${_batPb('ohp-bat2', 'BAT 2')}
-      ${cfg.batCount >= 3 ? _batPb('ohp-bat3', 'APU BAT') : ''}
-      <div class="ohp-divider"></div>
-      ${_sysPb('bus-tie', 'BUS TIE', { upper: 'FAULT' })}
-      <div class="ohp-divider"></div>
-      ${_sysPb('galley', 'GALLEY', { upper: 'FAULT' })}
+      ${E.bats.map(b => _batPb(`ohp-el-${b.id}`, b.label ?? b.id)).join('')}
+      ${E.tie ? `<div class="ohp-divider"></div>${_sysPb('el-busTie', 'BUS TIE', { upper: 'FAULT' })}` : ''}
+      ${E.loads.length ? `<div class="ohp-divider"></div>${E.loads.map(l => _sysPb(`el-${l.id}`, l.label ?? l.id, { upper: 'FAULT' })).join('')}` : ''}
     </div>
     <div class="ohp-row" style="align-items:flex-start; gap:8px;">
-      ${leftGenPairs}
-      <div class="ohp-divider"></div>
-      ${_sysPb('apu-gen', 'APU GEN', { upper: 'FAULT' })}
-      ${_sysPb('ext-a', 'EXT A', { upper: 'AVAIL', upperColor: '#4ad86a' })}
-      ${cfg.extPwrB ? _sysPb('ext-b', 'EXT B', { upper: 'AVAIL', upperColor: '#4ad86a' }) : ''}
-      ${n >= 3 ? `<div class="ohp-divider"></div>${rightGenPairs}` : ''}
+      ${E.left.map(_genPair).join('')}
+      ${E.shared.length ? `<div class="ohp-divider"></div>${E.shared.map(sharedPb).join('')}` : ''}
+      ${E.right.length ? `<div class="ohp-divider"></div>${E.right.map(_genPair).join('')}` : ''}
     </div>
   </div>` : '';
 
@@ -582,69 +592,26 @@ function _attachHandlers() {
 
   if (!turbofan) return;
 
-  /* Battery switches */
-  document.getElementById('ohp-bat1')?.addEventListener('click', () => {
-    setState({ bat1On: !(S.bat1On ?? false) });
-    _updateSwitches();
-  });
-  document.getElementById('ohp-bat2')?.addEventListener('click', () => {
-    setState({ bat2On: !(S.bat2On ?? false) });
-    _updateSwitches();
-  });
-
-  /* External power — only available on ground */
-  document.getElementById('pb-ext-a')?.addEventListener('click', () => {
-    if (!(S.wow ?? false)) return;
-    setState({ extPwrOn: !(S.extPwrOn ?? false) });
-    _updateSwitches();
-  });
-
-  document.getElementById('pb-ext-b')?.addEventListener('click', () => {
-    if (!(S.wow ?? false)) return;
-    setState({ extPwrBOn: !(S.extPwrBOn ?? false) });
-    _updateSwitches();
-  });
-
-  document.getElementById('pb-apu-gen')?.addEventListener('click', () => {
-    setState({ apuGenSwitch: !(S.apuGenSwitch ?? true) });
-    _updateSwitches();
-  });
-
-  document.getElementById('pb-bus-tie')?.addEventListener('click', () => {
-    setState({ busTieAuto: !(S.busTieAuto ?? true) });
-    _updateSwitches();
-  });
-
-  document.getElementById('pb-galley')?.addEventListener('click', () => {
-    setState({ galleyOn: !(S.galleyOn ?? true) });
-    _updateSwitches();
-  });
-
-  document.getElementById('ohp-bat3')?.addEventListener('click', () => {
-    setState({ bat3On: !(S.bat3On ?? false) });
-    _updateSwitches();
-  });
-
-  /* IDG guards + disconnect buttons */
-  for (let i = 1; i <= n; i++) {
-    document.getElementById(`ohp-idg-guard-${i}`)?.addEventListener('click', () => {
-      document.getElementById(`ohp-idg-guard-${i}`)?.classList.toggle('lifted');
-    });
-    document.getElementById(`ohp-idg-${i}`)?.addEventListener('click', () => {
-      const guard = document.getElementById(`ohp-idg-guard-${i}`);
-      if (!guard?.classList.contains('lifted')) return;
-      const conn = [...(S.idgConnected?.length ? S.idgConnected : Array(n).fill(true))];
-      if (!conn[i - 1]) return;   // already disconnected
-      conn[i - 1] = false;
-      setState({ idgConnected: conn });
-      _updateSwitches();
-    });
-    document.getElementById(`pb-gen-${i}`)?.addEventListener('click', () => {
-      const sw = [...(S.engGenSwitch?.length ? S.engGenSwitch : Array(n).fill(true))];
-      sw[i - 1] = !sw[i - 1];
-      setState({ engGenSwitch: sw });
-      _updateSwitches();
-    });
+  /* Electrical — every control sends its element's command to core/electrical.js */
+  if (turbofan) {
+    const E = _elecParts();
+    for (const el of [...E.bats]) {
+      document.getElementById(`ohp-el-${el.id}`)?.addEventListener('click', () => { elecSwitch(el.id); _updateSwitches(); });
+    }
+    for (const el of [...E.shared, ...E.left, ...E.right, ...E.loads]) {
+      document.getElementById(`pb-el-${el.id}`)?.addEventListener('click', () => { elecSwitch(el.id); _updateSwitches(); });
+    }
+    document.getElementById('pb-el-busTie')?.addEventListener('click', () => { elecBusTie(); _updateSwitches(); });
+    for (const el of [...E.left, ...E.right]) {
+      document.getElementById(`ohp-idg-guard-${el.id}`)?.addEventListener('click', () => {
+        document.getElementById(`ohp-idg-guard-${el.id}`)?.classList.toggle('lifted');
+      });
+      document.getElementById(`ohp-idg-${el.id}`)?.addEventListener('click', () => {
+        if (!document.getElementById(`ohp-idg-guard-${el.id}`)?.classList.contains('lifted')) return;   // guard first
+        elecIdgDisconnect(el.id);
+        _updateSwitches();
+      });
+    }
   }
 }
 
@@ -728,12 +695,16 @@ function _updateSwitches() {
 
   if (!turbofan) return;
 
-  /* Batteries */
-  for (const [k, id] of [['bat1', 'ohp-bat1'], ['bat2', 'ohp-bat2']]) {
-    const on      = S[`${k}On`] ?? false;
-    const charge  = S[`${k}Charge`] ?? 100;
+  /* Electrical — from the layout, its controls and its solution (S.elec) */
+  const E    = _elecParts();
+  const elec = S.elec;
+  const busPowered = (id) => !!elec?.buses?.[id]?.powered;
+  for (const el of E.bats) {
+    const id      = `ohp-el-${el.id}`;
+    const on      = elecCtl(el.id, E.L).on;
+    const charge  = elecCharge(el.id);
     const pct     = Math.round(charge);
-    const charging = (S.acBusPowered ?? false) && on;
+    const charging = on && (el.chargedBy ?? []).some(busPowered);
     _led(id, on);
     _pbOn(id, on);
     _sub(id, `${pct}%`);
@@ -750,53 +721,20 @@ function _updateSwitches() {
       voltEl.classList.toggle('ohp-volt-disp', true);  // ensure class remains
     }
   }
-
-  /* External power A + B — AVAIL (green) when ground power is connected & unused, ON when in use */
+  /* External power — AVAIL (green) when the cart is connected on the ground and unused, ON when in use;
+     APU GEN — ON lit when selected */
   const onGround = S.wow ?? false;
-  const extOn    = S.extPwrOn  ?? false;
-  const extBOn   = S.extPwrBOn ?? false;
-  setPushButton('ext-a', { upper: onGround && !extOn,  lower: extOn,  disabled: !onGround });
-  setPushButton('ext-b', { upper: onGround && !extBOn, lower: extBOn, disabled: !onGround });
-
-  /* APU GEN — ON lit when selected */
-  setPushButton('apu-gen', { lower: S.apuGenSwitch ?? true });
-
-  /* BUS TIE — ON lit when AUTO (tie engaged) */
-  setPushButton('bus-tie', { lower: S.busTieAuto ?? true });
-
-  /* GALLEY — ON lit when on */
-  setPushButton('galley', { lower: S.galleyOn ?? true });
-
-  /* APU BAT */
-  const bat3on     = S.bat3On ?? false;
-  const bat3charge = S.bat3Charge ?? 100;
-  const bat3pct    = Math.round(bat3charge);
-  const bat3charging = (S.acEssBus ?? false) && bat3on;
-  _led('ohp-bat3', bat3on);
-  _pbOn('ohp-bat3', bat3on);
-  _sub('ohp-bat3', `${bat3pct}%`);
-  const bat3fill = document.getElementById('ohp-bat3-fill');
-  if (bat3fill) {
-    bat3fill.style.width = `${bat3pct}%`;
-    bat3fill.style.background = bat3pct > 20 ? '#00c840' : bat3pct > 10 ? '#d09000' : '#c83030';
+  for (const el of E.shared) {
+    const on = elecCtl(el.id, E.L).on;
+    if (el.type === 'ext') setPushButton(`el-${el.id}`, { upper: onGround && !on, lower: on, disabled: !onGround });
+    else                   setPushButton(`el-${el.id}`, { lower: on });
   }
-  const bat3volt = document.getElementById('ohp-bat3-volt');
-  if (bat3volt) {
-    bat3volt.textContent = bat3on ? `${_batVoltage(bat3charge, bat3charging)}V` : '--.-V';
-    bat3volt.classList.toggle('low',  bat3pct <= 20 && bat3pct > 10);
-    bat3volt.classList.toggle('crit', bat3pct <= 10);
-    bat3volt.classList.toggle('ohp-volt-disp', true);
-  }
-
-  /* IDG + GEN per engine */
-  const n2 = _engCount();
-  const idgConn = S.idgConnected?.length === n2 ? S.idgConnected : Array(n2).fill(true);
-  const genOn   = S.engGenOn ?? [];
-  for (let i = 1; i <= n2; i++) {
-    const idg = document.getElementById(`ohp-idg-${i}`);
-    if (idg) idg.classList.toggle('disconnected', !idgConn[i - 1]);
-    const genOn_i = genOn[i - 1] ?? false;
-    setPushButton(`gen-${i}`, { lower: genOn_i });   // ON lit when the generator is online
+  setPushButton('el-busTie', { lower: elecBusTieAuto() });               // ON lit when AUTO (tie engaged)
+  for (const el of E.loads) setPushButton(`el-${el.id}`, { lower: elecCtl(el.id, E.L).on });
+  /* Engine generators — IDG disconnected (red), GEN ON lit when the generator is online */
+  for (const el of [...E.left, ...E.right]) {
+    document.getElementById(`ohp-idg-${el.id}`)?.classList.toggle('disconnected', !elecCtl(el.id, E.L).idg);
+    setPushButton(`el-${el.id}`, { lower: !!elec?.sources?.[el.id]?.on });
   }
 }
 

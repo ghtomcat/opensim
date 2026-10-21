@@ -795,7 +795,7 @@ aircraft that declare the matching data.
 |---|---|---|---|
 | `core/fuel.js` | aircraft with `tanks` (Bf 109, F4U, C172, DR400) | `fuelLeft`, `fuelRight`, `fuelSelector`, `fuelShutoff`, `fuelStarveT`; `warnings.LOW_FUEL/OIL_PRESS/FUEL_SHUTOFF` | burn ∝ `enginePower` (`fuelBurn` L/h); empty selected tank or shutoff → 4 s run-down → engine off |
 | `core/battery.js` | aircraft with `battery` (Velis Electro) | `batteryCharge` (%) | drain ∝ `enginePower` (`powerDrawKw`, `capacityKwh`); empty → the `battery` power factor 0 |
-| `core/electrical.js` | turbofans | a generic solver over the aircraft's electrical layout (`aircraft.electrical`: sources with a driver, buses with feeds in priority order and ties; default built from the engine count — the A340's structure): `S.elec = { sources, buses }` (with `fedBy`), the single fields derived from it (`acBus11` …, `engGenOn`, `acBusPowered`, `essentialBusPowered` …), `bat1..3Charge` | **display only** (ECAM, overhead, pedestal) — the sim reads `acBusPowered` (ENG MASTER start, electric hydraulic pumps) and `essentialBusPowered` (APU start) |
+| `core/electrical.js` | turbofans | the controls by element (`S.elecCtl`, `S.elecCharge` — through `elecSwitch` / `elecIdgDisconnect` / `elecBusTie`); a generic solver over the aircraft's electrical layout (`aircraft.electrical`: sources with a driver, buses with feeds in priority order and ties, loads; default built from the engine count — the A340's structure): `S.elec = { sources, buses }` (with `fedBy`), the single fields derived from it (`acBus11` …, `engGenOn`, `acBusPowered`, `essentialBusPowered` …) | **display only** (ECAM, overhead, pedestal) — the sim reads `acBusPowered` (ENG MASTER start, electric hydraulic pumps) and `essentialBusPowered` (APU start) |
 | `core/hydraulics.js` | turbofans | GREEN / BLUE / YELLOW pressure, engine-driven and electric pumps | **display only** (ECAM, PFD) |
 | `core/engine.js` | every aircraft with an `engine`; the APU on aircraft with an `apu` | `engineState`, `engineStartT`, `engineStopT`, `enginePower`, `engineFactors`, `n1`; `apuMasterOn`, `apuState`, `apuStartT`, `apuRunning`, `apuFireArmed` | the start and shutdown lifecycle on sim time, power, the N1 spool (§9.2); the APU |
 | `core/failures.js` | all (by mission) | scripted failures (§2.5); carb ice (`carbIceLevel`); coolant leak → seize | the `failure`, `ice` and `seizure` power factors; a seized engine stops (`engineQuit()`) |
@@ -1268,9 +1268,12 @@ the EGPWS read (§7.4).
 - **Prop and warbird geometry is code, not data.** Airliners are data-driven (§3.4),
   but the C172, Bf 109, F4U and MiG-15 are vertex arrays inside JS modules.
 - **Display lag is applied unevenly:** only the glass instruments use `smooth.js`.
-- **The ELEC page is drawn from the aircraft's electrical layout** (`_ecamElec`, reading
-  `electricalLayout()` and `S.elec` from `core/electrical.js`) — not a fixed picture. The
-  overhead's ELECTRICAL section is still hand-built (stage 2d, part 3).
+- **The ELEC page and the overhead's ELECTRICAL section are built from the aircraft's
+  electrical layout** (`core/electrical.js`): the page (`drawElecPage` / `_ecamElec`, also used
+  by `display/ecam.js`) from `electricalLayout()` and `S.elec`; the overhead one control per
+  element — every control sends its command (`elecSwitch`, `elecIdgDisconnect`, `elecBusTie`)
+  to `core/electrical.js`, which keeps them in `S.elecCtl` by element (the battery charge in
+  `S.elecCharge`).
 
 Tracked in `issues.md` → *Display* (also the CDN dependency from 13.2).
 

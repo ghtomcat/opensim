@@ -432,7 +432,6 @@ test('core: idle N1 gives core idle (60 %), full N1 gives 100 %', () => {
 test('the generators run off the core: online at idle on the runway', () => {
   const ac = load('b777-300er');
   setState({ aircraft: ac, wow: true, spd: 0, paused: false, crashed: false, n1Cmd: 22, thrustLever: 0,
-             idgConnected: [true, true], engGenSwitch: [true, true],
              ...initialEngine(ac, { onGround: true, spd: 0, onRunway: true }) });
   for (let t = 0; t < 2; t += 0.1) tickEngine(0.1);
   assert.ok(Math.abs(S.engines[0].core - 60) < 0.1, `core ${S.engines[0].core}`);
@@ -455,7 +454,7 @@ test('the start: the core follows the start profile — ~25 % at light-off, idle
 
 test('in flight a flamed-out engine windmills: its core is too slow for the generator', () => {
   runningTwin();
-  setState({ idgConnected: [true, true], engGenSwitch: [true, true] });
+  setState({ elecCtl: {} });                                     // every switch at its default
   setEngineFactor('failure', 0, 0);
   for (let t = 0; t < 90; t += 0.1) tickEngine(0.1);
   tickElectrical(0.1);

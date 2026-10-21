@@ -158,9 +158,7 @@
     ]
   },
   "electrical": {
-    "_note": "The A340 electrical layout — sources and buses in priority order (core/electrical.js). extPwrB / batCount: read by the overhead until it is built from the layout.",
-    "extPwrB": true,
-    "batCount": 3,
+    "_note": "The A340 electrical layout — sources and buses in priority order, loads (core/electrical.js); the overhead and the ELEC page are built from it.",
     "sources": [
       { "id": "gen1", "type": "gen", "driver": "eng1", "label": "GEN 1" },
       { "id": "gen2", "type": "gen", "driver": "eng2", "label": "GEN 2" },
@@ -183,6 +181,9 @@
       { "id": "dc1", "type": "dc", "label": "DC BUS 1", "feeds": ["ac11"] },
       { "id": "dc2", "type": "dc", "label": "DC BUS 2", "feeds": ["ac24"] },
       { "id": "dcEss", "type": "dc", "label": "DC ESS", "feeds": ["dc1", "dc2", "batBus"] }
+    ],
+    "loads": [
+      { "id": "galley", "type": "load", "label": "GALLEY" }
     ]
   },
   "displays": [
