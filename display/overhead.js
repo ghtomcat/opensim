@@ -342,14 +342,17 @@ function _genPair(el) {
    right by engine (the shared sources — APU GEN, EXT — between them), the batteries, the loads */
 function _elecParts() {
   const L = electricalLayout();
-  const engGens = L.sources.filter(e => e.type === 'gen' && e.driver !== 'apu');
+  const engGens = L.sources.filter(e => e.type === 'gen' && e.driver !== 'apu' && !e.backup);
   const half    = Math.ceil(engGens.length / 2);
+  const tieBuses = L.buses.filter(b => b.tieSwitch);                     // per-bus BUS TIE switches (the 777: L, R)
   return { L,
     left:   engGens.slice(0, half), right: engGens.slice(half),
     shared: L.sources.filter(e => (e.type === 'gen' && e.driver === 'apu') || e.type === 'ext'),
-    bats:   L.sources.filter(e => e.type === 'bat'),
+    backup: L.sources.filter(e => e.type === 'gen' && e.backup),         // BACKUP GEN switches
+    bats:   L.sources.filter(e => e.type === 'bat' && e.switch !== false),   // a battery without a switch has no button
     loads:  L.loads ?? [],
-    tie:    L.buses.some(b => (b.ties ?? []).length) };
+    tieBuses,
+    tie:    !tieBuses.length && L.buses.some(b => (b.ties ?? []).length) };   // the layout's one BUS TIE switch
 }
 
 /* ── Build inner HTML ─────────────────────────────────────────── */
@@ -368,6 +371,7 @@ function _buildHTML() {
     <div class="ohp-row" style="margin-bottom:10px;">
       ${E.bats.map(b => _batPb(`ohp-el-${b.id}`, b.label ?? b.id)).join('')}
       ${E.tie ? `<div class="ohp-divider"></div>${_sysPb('el-busTie', 'BUS TIE', { upper: 'FAULT' })}` : ''}
+      ${E.tieBuses.length ? `<div class="ohp-divider"></div>${E.tieBuses.map(b => _sysPb(`el-tie-${b.id}`, b.tieSwitch, { upper: 'ISLN' })).join('')}` : ''}
       ${E.loads.length ? `<div class="ohp-divider"></div>${E.loads.map(l => _sysPb(`el-${l.id}`, l.label ?? l.id, { upper: 'FAULT' })).join('')}` : ''}
     </div>
     <div class="ohp-row" style="align-items:flex-start; gap:8px;">
@@ -375,6 +379,7 @@ function _buildHTML() {
       ${E.shared.length ? `<div class="ohp-divider"></div>${E.shared.map(sharedPb).join('')}` : ''}
       ${E.right.length ? `<div class="ohp-divider"></div>${E.right.map(_genPair).join('')}` : ''}
     </div>
+    ${E.backup.length ? `<div class="ohp-row" style="margin-top:10px;">${E.backup.map(b => _sysPb(`el-${b.id}`, b.label ?? b.id, { upper: 'OFF' })).join('')}</div>` : ''}
   </div>` : '';
 
   /* APU section */
@@ -598,10 +603,13 @@ function _attachHandlers() {
     for (const el of [...E.bats]) {
       document.getElementById(`ohp-el-${el.id}`)?.addEventListener('click', () => { elecSwitch(el.id); _updateSwitches(); });
     }
-    for (const el of [...E.shared, ...E.left, ...E.right, ...E.loads]) {
+    for (const el of [...E.shared, ...E.left, ...E.right, ...E.loads, ...E.backup]) {
       document.getElementById(`pb-el-${el.id}`)?.addEventListener('click', () => { elecSwitch(el.id); _updateSwitches(); });
     }
     document.getElementById('pb-el-busTie')?.addEventListener('click', () => { elecBusTie(); _updateSwitches(); });
+    for (const b of E.tieBuses) {
+      document.getElementById(`pb-el-tie-${b.id}`)?.addEventListener('click', () => { elecBusTie(undefined, b.id); _updateSwitches(); });
+    }
     for (const el of [...E.left, ...E.right]) {
       document.getElementById(`ohp-idg-guard-${el.id}`)?.addEventListener('click', () => {
         document.getElementById(`ohp-idg-guard-${el.id}`)?.classList.toggle('lifted');
@@ -730,6 +738,8 @@ function _updateSwitches() {
     else                   setPushButton(`el-${el.id}`, { lower: on });
   }
   setPushButton('el-busTie', { lower: elecBusTieAuto() });               // ON lit when AUTO (tie engaged)
+  for (const b of E.tieBuses) setPushButton(`el-tie-${b.id}`, { lower: elecBusTieAuto(b.id), upper: !elecBusTieAuto(b.id) });   // AUTO / ISLN
+  for (const g of E.backup) setPushButton(`el-${g.id}`, { lower: elecCtl(g.id, E.L).on, upper: !elec?.sources?.[g.id]?.on });   // ON; OFF lit when not delivering
   for (const el of E.loads) setPushButton(`el-${el.id}`, { lower: elecCtl(el.id, E.L).on });
   /* Engine generators — IDG disconnected (red), GEN ON lit when the generator is online */
   for (const el of [...E.left, ...E.right]) {

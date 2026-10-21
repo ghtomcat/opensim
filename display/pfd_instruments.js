@@ -1742,10 +1742,13 @@ function _ecamElec(ctx, x, y, w, h, f, grn, amb, dim, cyn) {
   const mains   = L.buses.filter(b => b.role === 'main');
   const batBus  = L.buses.find(b => b.role === 'battery');
   const homeOf  = (sid) => mains.find(m => (m.feeds ?? [])[0] === sid);          // a generator's own bus
+  const feedsMain = (sid) => mains.some(m => (m.feeds ?? []).includes(sid));
   const engGens = L.sources.filter(s => s.type === 'gen' && homeOf(s.id));
-  const shared  = L.sources.filter(s => (s.type === 'gen' || s.type === 'ext') && !homeOf(s.id));
+  const shared  = L.sources.filter(s => (s.type === 'gen' || s.type === 'ext') && !homeOf(s.id) && feedsMain(s.id));
   const sharedW = {};
   const bats    = L.sources.filter(s => s.type === 'bat');
+  const others  = L.sources.filter(s => s.type !== 'bat' && !homeOf(s.id) && !feedsMain(s.id));   // backup generators, the RAT
+  const targetsOf = (sid) => L.buses.filter(b => b.role !== 'main' && (b.feeds ?? []).includes(sid));
   mains.forEach((m, i) => { pos[m.id] = [(i + 1) / (mains.length + 1), 0.36]; });             // evenly across the page
   engGens.forEach(g => { pos[g.id] = [pos[homeOf(g.id).id][0], 0.23]; });
   /* Shared sources (APU GEN, EXT …) go into the gaps between the main buses — clear of the generators */
@@ -1784,6 +1787,13 @@ function _ecamElec(ctx, x, y, w, h, f, grn, amb, dim, cyn) {
   const yBat = Math.max(0.66, 0.36 + 0.15 * (maxD + 1));
   if (batBus) pos[batBus.id] = [0.5, yBat];
   bats.forEach((s, i) => { pos[s.id] = [0.5 + (i - (bats.length - 1) / 2) * 0.26, yBat + 0.09]; });
+  /* Backup generators, the RAT: under the first bus they feed, side by side (hints in the data win below) */
+  others.forEach(s => {
+    const t = targetsOf(s.id)[0];
+    const sib = others.filter(o => targetsOf(o.id)[0] === t);
+    const k = sib.indexOf(s);
+    pos[s.id] = t && pos[t.id] ? [pos[t.id][0] + (k - (sib.length - 1) / 2) * 0.16, pos[t.id][1] + 0.08] : [0.5, 0.9];
+  });
   for (const el of [...L.sources, ...L.buses]) if (el.pos) pos[el.id] = el.pos;   // the data's hints win
 
   /* Drawing helpers */
@@ -1819,11 +1829,13 @@ function _ecamElec(ctx, x, y, w, h, f, grn, amb, dim, cyn) {
     mains.forEach(m => line([pos[m.id][0], yTie], [pos[m.id][0], pos[m.id][1]], viaTie(m)));
   }
 
-  /* Bus → bus: TR (AC → DC), INV (DC → AC), or a plain contactor. A line that skips a row is set off
-     sideways, so it doesn't run over the bus between */
+  /* Bus → bus: TR (AC → DC), INV (DC → AC), or a plain contactor — the normal path (the first bus
+     among the feeds) and the one in use (fedBy); an unused backup path stays hidden. A line that
+     skips a row is set off sideways, so it doesn't run over the bus between */
   for (const b of L.buses) for (const fd of (b.feeds ?? []).filter(fd => bus[fd])) {
     if (!pos[fd] || !pos[b.id]) continue;
     const live = fed(b.id) === fd;
+    if (!live && (b.feeds ?? []).find(f => bus[f]) !== fd) continue;
     const skip = Math.abs(pos[fd][1] - pos[b.id][1]) > 0.2 ? 0.06 : 0;
     const a0 = [pos[fd][0] + skip, pos[fd][1]], a1 = [pos[b.id][0] + skip, pos[b.id][1]];
     line(a0, a1, live, 1.2);
@@ -1833,8 +1845,14 @@ function _ecamElec(ctx, x, y, w, h, f, grn, amb, dim, cyn) {
       ctx.fillText(kind, px(a0[0] + (a1[0] - a0[0]) * 0.55) + w * 0.012, py(a0[1] + (a1[1] - a0[1]) * 0.55));
     }
   }
-  /* Batteries → the battery bus */
-  bats.forEach(s => { if (batBus) line([pos[s.id][0], pos[s.id][1] - 0.035], pos[batBus.id], on(s.id), 1.2); });
+  /* Sources → the other buses they feed (batteries, backup generators, the RAT; the APU and ground
+     power to a ground-service bus) — green where that bus is fed by them */
+  for (const s of [...shared, ...bats, ...others]) for (const t of targetsOf(s.id)) {
+    if (!pos[s.id] || !pos[t.id]) continue;
+    const live = fed(t.id) === s.id;
+    if (!live && s.type !== 'bat' && (t.feeds ?? [])[0] !== s.id) continue;   // its normal path or the one in use; a battery is always wired
+    line(pos[s.id], pos[t.id], live, 1.2);
+  }
 
   /* Buses, sources, batteries on top */
   const half = Math.min(0.13, 0.36 / (mains.length + 1));
@@ -1843,6 +1861,7 @@ function _ecamElec(ctx, x, y, w, h, f, grn, amb, dim, cyn) {
   if (batBus) bar(batBus.id, 0.10);
   engGens.forEach(s => box(s.id, s.label ?? s.id, on(s.id)));
   shared.forEach(s => box(s.id, s.label ?? s.id, on(s.id), sharedW[s.id]));
+  others.forEach(s => box(s.id, s.label ?? s.id, on(s.id)));
   ctx.font = `${h * 0.030}px ${f}`; ctx.textAlign = 'center';
   for (const l of labels) {
     const tw = ctx.measureText(l.text).width;

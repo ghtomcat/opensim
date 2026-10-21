@@ -188,3 +188,62 @@ test('external power plugs in on the ground only; an IDG, once disconnected, sta
   setState({ engines: [{ core: 60 }, { core: 60 }, { core: 60 }, { core: 60 }] });
   assert.equal(solveElectrical(electricalLayout()).sources.gen3.on, false);   // its engine runs — the generator doesn't
 });
+
+/* ── The 777's own layout (stage 2d, part 4) — each case from the sources in its file:
+   [S1] Andrade & Tenning, IEEE AES Magazine 1992; [S2] Boeing B777 Systems Summary [Electrical] ── */
+
+function b777(patch = {}) {
+  const ac = load('b777-300er');
+  setState({ aircraft: ac, wow: false, spd: 250, apuState: 'off', elecCtl: {}, elecCharge: {}, ratDeployed: false,
+             engines: [{ core: 95 }, { core: 95 }], ...patch });
+  return () => solveElectrical(electricalLayout(ac)).buses;
+}
+
+test('777: each IDG feeds its main bus, each main its transfer bus, the TRUs the DC buses', () => {
+  const b = b777()();
+  assert.equal(b.lMain.fedBy, 'genL'); assert.equal(b.rMain.fedBy, 'genR');           // [S2] respective IDG
+  assert.equal(b.lXfr.fedBy, 'lMain'); assert.equal(b.rXfr.fedBy, 'rMain');           // [S1] transfer from its main
+  assert.equal(b.lMainDc.fedBy, 'lXfr'); assert.equal(b.captFlt.fedBy, 'lXfr');       // [S2] L / C1 TRU on the L XFR
+  assert.equal(b.foFlt.fedBy, 'rXfr'); assert.equal(b.acStby.fedBy, 'lXfr');          // [S2] C2 TRU; AC STBY from L XFR
+  assert.equal(b.gndSvc.fedBy, 'rMain');                                               // [S2] ground service from R MAIN
+});
+
+test('777: ENG 1 lost — the bus ties feed L MAIN from the right IDG, the converter runs on the right backup generator', () => {
+  const b = b777({ engines: [{ core: 11 }, { core: 95 }] })();
+  assert.equal(b.lMain.fedBy, 'rMain');                                                // [S1] BTBs close: one IDG, both mains
+  assert.equal(b.conv.fedBy, 'bkupR');                                                 // [S1] either backup generator to the converter
+});
+
+test('777: L BUS TIE in ISLN with ENG 1 lost — L MAIN dead, the backup system feeds the left transfer bus', () => {
+  const b = b777({ engines: [{ core: 11 }, { core: 95 }], elecCtl: { lMain: { tie: false } } })();
+  assert.equal(b.lMain.powered, false);
+  assert.equal(b.lXfr.fedBy, 'conv');                                                  // [S1] main bus lost → backup powers the transfer bus
+  assert.equal(b.captFlt.fedBy, 'lXfr');
+});
+
+test('777 on the ground: primary external power on R MAIN while the APU feeds L MAIN', () => {
+  const b = b777({ wow: true, spd: 0, apuState: 'running', engines: [{ core: 0 }, { core: 0 }],
+                   elecCtl: { extPri: { on: true } } })();
+  assert.equal(b.rMain.fedBy, 'extPri');                                               // [S1] [S2] primary ext → right main
+  assert.equal(b.lMain.fedBy, 'apugen');                                               // [S1] APU and external power at the same time
+});
+
+test('777: both transfer buses lost in flight — the RAT deploys and powers the instrument and battery buses', () => {
+  b777({ engines: [{ core: 0 }, { core: 0 }], elecCtl: { mainBat: { on: true } } });
+  tickElectrical(0.1);
+  assert.equal(S.ratDeployed, true);                                                   // [S2] deploys if both AC transfer buses lose power
+  tickElectrical(0.1);
+  const b = S.elec.buses;
+  assert.equal(b.captFlt.fedBy, 'rat'); assert.equal(b.foFlt.fedBy, 'rat');            // [S2] RAT GEN → C1 and C2 TRUs
+  assert.equal(b.batBus.fedBy, 'rat');
+  b777({ wow: true, spd: 0, engines: [{ core: 0 }, { core: 0 }] });
+  tickElectrical(0.1);
+  assert.equal(S.ratDeployed, false);                                                  // not on the ground
+});
+
+test('777: the APU battery has no switch — its bus is powered from the battery alone', () => {
+  const b = b777({ wow: true, spd: 0, engines: [{ core: 0 }, { core: 0 }] })();
+  assert.equal(b.apuBatBus.fedBy, 'apuBat');                                           // [S2] APU battery → APU battery bus
+  assert.equal(b.hotBat.powered, false);   // BATTERY off — no APU start ([S2]: ON "allows the APU to be started"). Simplified:
+                                           // the model routes the main battery through the switch; the real hot battery bus stays connected
+});

@@ -56,3 +56,29 @@ test('the IDG disconnect needs its guard lifted; external power needs the ground
   await click(page, 'pb-el-extA');
   expect((await ctl(page)).extA).toBeUndefined();
 });
+
+test('the 777: its own panel — IDGs, backup generators, two bus ties, one battery switch', async ({ page }) => {
+  await overhead(page, 'singapore-london');
+  expect(await ids(page, '.gpb[id^="pb-el-gen"]')).toEqual(['pb-el-genL', 'pb-el-genR']);
+  expect(await ids(page, '.ohp-idg-btn')).toEqual(['ohp-idg-genL', 'ohp-idg-genR']);
+  expect(await ids(page, '.gpb[id^="pb-el-bkup"]')).toEqual(['pb-el-bkupL', 'pb-el-bkupR']);
+  expect(await ids(page, '.gpb[id^="pb-el-tie-"]')).toEqual(['pb-el-tie-lMain', 'pb-el-tie-rMain']);
+  expect(await ids(page, '.ohp-pb[id^="ohp-el-"]')).toEqual(['ohp-el-mainBat']);          // the APU battery has no switch
+  expect(await ids(page, '.gpb[id^="pb-el-ext"]')).toEqual(['pb-el-extSec', 'pb-el-extPri']);
+  await expect(page.locator('#pb-el-busTie')).toHaveCount(0);                            // no single BUS TIE
+});
+
+test('the 777 loses ENG 1: GEN L goes off line, L MAIN is fed through the bus tie', async ({ page }) => {
+  await overhead(page, 'singapore-london');                                              // engines running on the runway
+  await page.evaluate(async () => {
+    window.simSetState({ paused: false });
+    (await import('/core/engine.js')).setEngineFactor('failure', 0, 0);                   // ENG 1 fails
+    window.simStep(60 * 60, 1 / 60);
+  });
+  const e = await page.evaluate(() => window.simGetState().elec);
+  expect(e.sources.genL.on).toBe(false);
+  expect(e.sources.genR.on).toBe(true);
+  expect(e.buses.lMain.fedBy).toBe('rMain');
+  await expect(page.locator('#pb-el-genL-lower')).not.toHaveClass(/lit/);                 // the overhead shows it
+  await expect(page.locator('#pb-el-genR-lower')).toHaveClass(/lit/);
+});

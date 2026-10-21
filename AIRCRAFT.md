@@ -133,6 +133,46 @@ The array maps to color slots `0–9` in `display/outside.js`. `null` keeps the 
 
 ---
 
+## Electrical layout (airliners)
+
+The aircraft's electrical system as a graph, read by `core/electrical.js` (the solver), the
+ELEC page and the overhead's ELECTRICAL section. Without `sources` / `buses` the default is
+built from the engine count (the A340's structure; `extPwrB`, `batCount` are its options).
+
+```json
+"electrical": {
+  "sources_doc": ["S1: …", "S2: …"],
+  "sources": [
+    { "id": "genL",  "type": "gen", "driver": "eng1", "label": "L GEN" },
+    { "id": "bkupL", "type": "gen", "driver": "eng1", "backup": true, "label": "L BACKUP" },
+    { "id": "rat",   "type": "rat", "deployWhenUnpowered": ["lXfr", "rXfr"] },
+    { "id": "apuBat","type": "bat", "battery": 2, "switch": false, "chargedBy": ["gndSvc"] }
+  ],
+  "buses": [
+    { "id": "lMain", "type": "ac", "role": "main", "feeds": ["genL", "extSec", "apugen"], "ties": ["rMain"], "tieSwitch": "L BUS TIE" }
+  ],
+  "loads": [{ "id": "galley", "type": "load", "label": "GALLEY" }]
+}
+```
+
+| Field | Description |
+|---|---|
+| `sources[].type` | `gen` (`driver`: `eng1` … or `apu`; `backup: true` — a backup generator, no IDG), `ext` (ground power — on the ground only), `bat` (`chargedBy`: the buses that charge it; `switch: false` — always connected), `rat` (online once deployed; `deployWhenUnpowered`: the buses whose loss in flight deploys it) |
+| `buses[].feeds` | In priority order: sources, or buses (a TR, the static inverter, a contactor). The first live one powers the bus. |
+| `buses[].ties` | Buses it may borrow from while BUS TIE is AUTO. `tieSwitch`: the bus has its own BUS TIE switch (its label) — both sides must be AUTO; otherwise the layout has one BUS TIE switch. |
+| `buses[].role` | `main` — an AC main bus (`acBusPowered`); `battery` — the battery bus (`essentialBusPowered`). |
+| `pos` | On sources and buses: `[x, y]` on the ELEC page, as fractions — overrides the derived place. |
+| `sources_doc` | Where the layout comes from — documentation. |
+
+**Layouts in the data:** `a340` (the default structure written out), `b777-300er` from two
+sources: **[S1]** L. Andrade (Sundstrand) and C. Tenning (Boeing Commercial Airplane Group),
+*Design of the Boeing 777 Electric System*, IEEE AES Magazine, July 1992 — the AC main and
+backup system and the overhead panel; **[S2]** *Boeing B777 Systems Summary [Electrical]*, an
+FCOM-structured study document ("do not use for flight") — the DC, standby and RAT systems.
+The simplifications are listed in the layout's `_note` and in `docs/issues.md` (stage 2d).
+
+---
+
 ## APU (airliners)
 
 ```json

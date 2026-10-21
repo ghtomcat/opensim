@@ -30,21 +30,28 @@ const engine = object(
 const apu = object({ startTime: num }, { required: ['startTime'] });
 /* The electrical layout (core/electrical.js) — sources and buses; absent → built from the engine count */
 const elecSource = object(
-  { id: str, type: oneOf('gen', 'ext', 'bat'), label: str,
+  { id: str, type: oneOf('gen', 'ext', 'bat', 'rat'), label: str,
     driver: str,              // gen: 'eng1' … or 'apu'
+    backup: bool,             // gen: a backup generator — on its engine's gearbox, no IDG, its own ON/OFF switch
     plug: oneOf('A', 'B'),    // ext
-    battery: num, chargedBy: arrayOf(str) },   // bat: 1 …; the buses that charge it
+    battery: num, chargedBy: arrayOf(str),     // bat: 1 …; the buses that charge it
+    switch: bool,             // bat: false — always connected, no cockpit switch
+    deployWhenUnpowered: arrayOf(str),         // rat: deploys in flight when all these buses have lost power
+    pos: arrayOf(num) },      // the ELEC page: [x, y] as fractions of the page — overrides the derived place
   { required: ['id', 'type'] },
 );
 const elecBus = object(
   { id: str, type: oneOf('ac', 'dc'), label: str, role: oneOf('main', 'battery'),
     feeds: arrayOf(str),      // in priority order: sources, or buses (a TR, the static inverter)
-    ties: arrayOf(str) },     // buses it may borrow from while BUS TIE is AUTO
+    ties: arrayOf(str),       // buses it may borrow from while BUS TIE is AUTO
+    tieSwitch: str,           // the bus's own BUS TIE switch (its label) — both sides must be AUTO
+    pos: arrayOf(num) },
   { required: ['id', 'type'] },
 );
 const elecLoad = object({ id: str, type: oneOf('load'), label: str }, { required: ['id', 'type'] });   // a switchable load (GALLEY) — no effect yet
 const electrical = object({ batCount: num, extPwrB: bool,          // the default layout's options (no sources / buses given)
-                           sources: arrayOf(elecSource), buses: arrayOf(elecBus), loads: arrayOf(elecLoad) });
+                           sources: arrayOf(elecSource), buses: arrayOf(elecBus), loads: arrayOf(elecLoad) },
+                         { doc: { sources_doc: arrayOf(str) } });   // where the layout comes from
 
 const envelope = object(
   { cruiseAlt: num, cruiseSpd: num, maxSpd: num, spdProfile: mapOf(num) },
@@ -166,7 +173,8 @@ export const aircraft = object(
           for (const t of b.ties ?? [])  if (!busIds.has(t)) errs.push(`electrical: bus ${b.id} ties to unknown bus "${t}"`);
         }
         for (const src of el.sources ?? []) {
-          for (const c of src.chargedBy ?? []) if (!busIds.has(c)) errs.push(`electrical: ${src.id} charged by unknown bus "${c}"`);
+          for (const c of [...(src.chargedBy ?? []), ...(src.deployWhenUnpowered ?? [])])
+            if (!busIds.has(c)) errs.push(`electrical: ${src.id} names unknown bus "${c}"`);
           const m = /^eng(\d+)$/.exec(src.driver ?? '');
           if (src.type === 'gen' && src.driver !== 'apu' && !(m && +m[1] >= 1 && +m[1] <= (a.engine?.count ?? 0)))
             errs.push(`electrical: ${src.id} driver "${src.driver}" is not an engine of this aircraft`);

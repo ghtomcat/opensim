@@ -326,6 +326,41 @@
     ]
   },
   "apu": { "startTime": 35.08 },
+  "electrical": {
+    "_note": "The 777's electrical layout (core/electrical.js). Sources: [S1] L. Andrade (Sundstrand) and C. Tenning (Boeing Commercial Airplane Group), 'Design of the Boeing 777 Electric System', IEEE AES Magazine, July 1992 — AC main and backup system, overhead panel. [S2] 'Boeing B777 Systems Summary [Electrical]' (FCOM-structured study document, 'do not use for flight', ads-b.ca/777/B777-Electrical.pdf) — DC, standby, RAT. Simplified (issues.md, stage 2d part 4): the backup system feeds a transfer bus only when its main bus is dead — not the single-generator, autoland or self-test cases; no flight-control PSAs, utility or ground-handling buses, no load shedding; the main battery reaches the hot battery bus through the BATTERY switch (the real hot battery bus stays connected).",
+    "sources_doc": [
+      "S1: Andrade & Tenning, Design of the Boeing 777 Electric System, IEEE AES Magazine, July 1992 — https://ia601802.us.archive.org/7/items/215822772-fmc-man/316472034-b777-ELECTRICAL-SYSTEM-pdf.pdf",
+      "S2: Boeing B777 Systems Summary [Electrical], not for flight — https://ads-b.ca/777/B777-Electrical.pdf"
+    ],
+    "sources": [
+      { "id": "genL", "type": "gen", "driver": "eng1", "label": "L GEN", "pos": [0.14, 0.22] },
+      { "id": "genR", "type": "gen", "driver": "eng2", "label": "R GEN", "pos": [0.86, 0.22] },
+      { "id": "apugen", "type": "gen", "driver": "apu", "label": "APU GEN", "pos": [0.5, 0.12] },
+      { "id": "extSec", "type": "ext", "label": "SEC EXT", "pos": [0.33, 0.12] },
+      { "id": "extPri", "type": "ext", "label": "PRI EXT", "pos": [0.67, 0.12] },
+      { "id": "bkupL", "type": "gen", "driver": "eng1", "backup": true, "label": "L BACKUP", "pos": [0.42,  0.41] },
+      { "id": "bkupR", "type": "gen", "driver": "eng2", "backup": true, "label": "R BACKUP", "pos": [0.58,  0.41] },
+      { "id": "rat", "type": "rat", "label": "RAT GEN", "deployWhenUnpowered": ["lXfr", "rXfr"], "pos": [0.12,  0.84] },
+      { "id": "mainBat", "type": "bat", "battery": 1, "label": "MAIN BAT", "chargedBy": ["gndSvc"], "pos": [0.45,  0.92] },
+      { "id": "apuBat", "type": "bat", "battery": 2, "switch": false, "label": "APU BAT", "chargedBy": ["gndSvc"], "pos": [0.82,  0.92] }
+    ],
+    "buses": [
+      { "id": "lMain", "type": "ac", "role": "main", "label": "L MAIN", "feeds": ["genL", "extSec", "apugen"], "ties": ["rMain"], "tieSwitch": "L BUS TIE", "pos": [0.27, 0.33] },
+      { "id": "rMain", "type": "ac", "role": "main", "label": "R MAIN", "feeds": ["genR", "extPri", "apugen"], "ties": ["lMain"], "tieSwitch": "R BUS TIE", "pos": [0.73, 0.33] },
+      { "id": "gndSvc", "type": "ac", "label": "GND SVC", "feeds": ["rMain", "apugen", "extPri"], "pos": [0.9,  0.43] },
+      { "id": "conv", "type": "ac", "label": "CONVERTER", "feeds": ["bkupL", "bkupR"], "pos": [0.5,  0.5] },
+      { "id": "lXfr", "type": "ac", "label": "L XFR", "feeds": ["lMain", "conv"], "pos": [0.27,  0.5] },
+      { "id": "rXfr", "type": "ac", "label": "R XFR", "feeds": ["rMain", "conv"], "pos": [0.73,  0.5] },
+      { "id": "acStby", "type": "ac", "label": "AC STBY", "feeds": ["lXfr", "hotBat"], "pos": [0.62,  0.76] },
+      { "id": "lMainDc", "type": "dc", "label": "L MAIN DC", "feeds": ["lXfr", "rMainDc"], "pos": [0.1,  0.64] },
+      { "id": "rMainDc", "type": "dc", "label": "R MAIN DC", "feeds": ["rXfr", "lMainDc"], "pos": [0.9,  0.64] },
+      { "id": "captFlt", "type": "dc", "label": "CAPT FLT INST", "feeds": ["lXfr", "rat", "foFlt", "hotBat"], "pos": [0.34,  0.64] },
+      { "id": "foFlt", "type": "dc", "label": "F/O FLT INST", "feeds": ["rXfr", "rat", "captFlt"], "pos": [0.66,  0.64] },
+      { "id": "batBus", "type": "dc", "label": "BATTERY BUS", "feeds": ["lXfr", "rat", "hotBat"], "pos": [0.3,  0.76] },
+      { "id": "hotBat", "type": "dc", "role": "battery", "label": "HOT BAT", "feeds": ["gndSvc", "mainBat"], "pos": [0.45,  0.84] },
+      { "id": "apuBatBus", "type": "dc", "label": "APU BAT BUS", "feeds": ["gndSvc", "apuBat"], "pos": [0.82,  0.84] }
+    ]
+  },
   "engine": {
     "type": "turbofan",
     "model": "ge90-115b",

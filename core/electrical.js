@@ -4,11 +4,15 @@
    electrical layout (aircraft.electrical: sources, buses).
 
    The layout is a graph:
-     sources  gen (driver eng1 … / apu), ext (plug A / B), bat (battery 1 …)
+     sources  gen (driver eng1 … / apu; backup: true — a backup generator,
+              no IDG), ext, bat (switch: false — always connected), rat
+              (online once deployed — deployWhenUnpowered: the buses whose
+              loss in flight deploys it)
      buses    ac / dc; feeds in priority order — sources, or buses
               (a TR, the static inverter, a contactor); ties — buses it
-              may borrow from while BUS TIE is AUTO; role 'main' (an AC
-              main bus) or 'battery' (the battery bus)
+              may borrow from while BUS TIE is AUTO (tieSwitch: the bus has
+              its own BUS TIE switch — then both sides must be AUTO); role
+              'main' (an AC main bus) or 'battery' (the battery bus)
    A source is online when its driver delivers; a bus is powered by its
    first live feed (fedBy), or through a tie. Without a layout in the
    aircraft file the default is built from the engine count — the A340's
@@ -32,7 +36,7 @@ const BAT_CHARGE_PCT_S = 3.0  / 60;
 /* ── Reset on mission load ── */
 export function resetElectrical() {
   setState({
-    elecCtl: {}, elecCharge: {},                              // every switch at its default, every battery full
+    elecCtl: {}, elecCharge: {}, ratDeployed: false,          // every switch at its default, every battery full, the RAT stowed
     apuBleedOn: false, apuGenOn: false,                       // the APU's own state: core/engine.js
     engGenOn: [], elec: null,
     acBus11: false, acBus12: false, acBus23: false, acBus24: false,
@@ -46,26 +50,30 @@ onMissionReset(resetElectrical);
 /* ── The controls — each belongs to its element ───────────────────
    S.elecCtl[id] = { on, idg } — the element's switch (GEN, APU GEN, EXT PWR, BAT, a load's
    pushbutton) and, on an engine generator, its IDG (disconnected for good once pulled);
-   S.elecCtl.busTie = { on } — BUS TIE AUTO. S.elecCharge[id] — a battery's charge (%).
+   S.elecCtl[busId] = { tie } — a bus's own BUS TIE switch (tieSwitch); S.elecCtl.busTie = { on }
+   — the one BUS TIE switch of a layout without per-bus switches. S.elecCharge[id] — a battery's
+   charge (%). S.ratDeployed — the RAT is out (it stays out).
    Absent means the default for the element's type: generators on and connected, EXT PWR and
    BAT off, loads on, BUS TIE AUTO. The cockpit changes them through elecSwitch(),
    elecIdgDisconnect() and elecBusTie() — never by writing S. */
-const _isEngineGen = (el) => el?.type === 'gen' && el.driver !== 'apu';
+const _isEngineGen = (el) => el?.type === 'gen' && el.driver !== 'apu' && !el.backup;
 function _ctlDefault(el) {
   if (!el) return { on: false };
+  if (el.feeds)           return { tie: true };                  // a bus — its BUS TIE switch AUTO
   if (el.type === 'gen')  return _isEngineGen(el) ? { on: true, idg: true } : { on: true };
   if (el.type === 'load') return { on: true };
-  return { on: false };                                        // ext, bat
+  if (el.type === 'bat' && el.switch === false) return { on: true };   // always connected
+  return { on: false };                                        // ext, bat, rat
 }
 
 /** An element's control state — the cockpit's switch for it. */
 export function elecCtl(id, layout = electricalLayout()) {
-  const el = [...layout.sources, ...(layout.loads ?? [])].find(e => e.id === id);
+  const el = [...layout.sources, ...layout.buses, ...(layout.loads ?? [])].find(e => e.id === id);
   return { ..._ctlDefault(el), ...(S.elecCtl?.[id] ?? {}) };
 }
 
-/** BUS TIE AUTO? */
-export const elecBusTieAuto = () => S.elecCtl?.busTie?.on ?? true;
+/** BUS TIE AUTO? — a bus's own switch (busId), or the layout's one switch. */
+export const elecBusTieAuto = (busId) => busId != null ? !!elecCtl(busId).tie : (S.elecCtl?.busTie?.on ?? true);
 
 /** A battery's charge (%). */
 export const elecCharge = (id) => S.elecCharge?.[id] ?? 100;
@@ -86,8 +94,9 @@ export function elecIdgDisconnect(id) {
   if (elecCtl(id).idg) _setCtl(id, { idg: false });
 }
 
-/** BUS TIE: toggle AUTO / OFF (or set it with `on`). */
-export function elecBusTie(on) {
+/** BUS TIE: toggle AUTO / ISLN (or set it with `on`) — a bus's own switch (busId), or the layout's one. */
+export function elecBusTie(on, busId) {
+  if (busId != null) { _setCtl(busId, { tie: on ?? !elecBusTieAuto(busId) }); return; }
   setState({ elecCtl: { ...(S.elecCtl ?? {}), busTie: { on: on ?? !elecBusTieAuto() } } });
 }
 
@@ -141,10 +150,11 @@ function _sourceOnline(src, layout) {
     if (src.driver === 'apu') return (S.apuState ?? 'off') === 'running' && ctl.on;
     const i = parseInt(String(src.driver).replace('eng', ''), 10) - 1;           // eng1 → engine 0
     const genMin = 0.9 * (S.aircraft?.engine?.coreIdle ?? 60);                   // the gearbox: its engine's core at idle or above
-    return ctl.idg && ctl.on && (S.engines?.[i]?.core ?? 0) >= genMin;
+    return (src.backup || ctl.idg) && ctl.on && (S.engines?.[i]?.core ?? 0) >= genMin;   // a backup generator has no IDG
   }
   if (src.type === 'ext') return ctl.on && !!S.wow;                              // a ground cart — on the ground only
   if (src.type === 'bat') return ctl.on && elecCharge(src.id) > 2;
+  if (src.type === 'rat') return !!S.ratDeployed && !S.wow && (S.spd ?? 0) >= 80;   // turned by the airstream
   return false;
 }
 
@@ -155,12 +165,16 @@ function _sourceOnline(src, layout) {
  */
 export function solveElectrical(layout = electricalLayout()) {
   const sources = Object.fromEntries(layout.sources.map(s => [s.id, { on: _sourceOnline(s, layout) }]));
-  const tie = elecBusTieAuto();
+  /* Ties: per-bus BUS TIE switches (tieSwitch) — both sides AUTO; else the layout's one switch */
+  const perBus = layout.buses.some(b => b.tieSwitch);
+  const busById = Object.fromEntries(layout.buses.map(b => [b.id, b]));
+  const tied = (a, b) => !perBus ? elecBusTieAuto()
+    : (!busById[a]?.tieSwitch || elecBusTieAuto(a)) && (!busById[b]?.tieSwitch || elecBusTieAuto(b));
   let buses = Object.fromEntries(layout.buses.map(b => [b.id, { powered: false, fedBy: null }]));
   for (let pass = 0; pass <= layout.buses.length; pass++) {
     const live = (id) => sources[id]?.on || buses[id]?.powered;
     const next = Object.fromEntries(layout.buses.map(b => {
-      const feed = (b.feeds ?? []).find(live) ?? (tie ? (b.ties ?? []).find(t => buses[t]?.powered) : undefined);
+      const feed = (b.feeds ?? []).find(live) ?? (b.ties ?? []).find(t => tied(b.id, t) && buses[t]?.powered);
       return [b.id, { powered: feed != null, fedBy: feed ?? null }];
     }));
     const same = layout.buses.every(b => next[b.id].powered === buses[b.id].powered && next[b.id].fedBy === buses[b.id].fedBy);
@@ -186,7 +200,7 @@ export function tickElectrical(dt) {
   const n      = ac.engine?.count ?? 2;
 
   /* The single fields, derived */
-  const genOf    = (i) => layout.sources.find(s => s.type === 'gen' && s.driver === `eng${i + 1}`);
+  const genOf    = (i) => layout.sources.find(s => s.type === 'gen' && !s.backup && s.driver === `eng${i + 1}`);
   const engGenOn = Array.from({ length: n }, (_, i) => { const g = genOf(i); return g ? on(g.id) : false; });
   const apuGenOn = layout.sources.some(s => s.type === 'gen' && s.driver === 'apu' && on(s.id));
   const busFields = Object.fromEntries(Object.values(_BUS_FIELD).map(f => [f, false]));
@@ -226,4 +240,11 @@ export function tickElectrical(dt) {
     if (Math.abs(next - c) > 0.001) { charge[src.id] = next; changed = true; }
   }
   if (changed) setState({ elecCharge: charge });
+
+  /* The RAT deploys in flight when every bus it watches has lost power — and stays out */
+  if (!S.ratDeployed && !S.wow) {
+    for (const rat of layout.sources.filter(s => s.type === 'rat' && (s.deployWhenUnpowered ?? []).length)) {
+      if (rat.deployWhenUnpowered.every(id => !pow(id))) { setState({ ratDeployed: true }); break; }
+    }
+  }
 }
