@@ -1268,6 +1268,9 @@ the EGPWS read (§7.4).
 - **Prop and warbird geometry is code, not data.** Airliners are data-driven (§3.4),
   but the C172, Bf 109, F4U and MiG-15 are vertex arrays inside JS modules.
 - **Display lag is applied unevenly:** only the glass instruments use `smooth.js`.
+- **The ELEC page is drawn from the aircraft's electrical layout** (`_ecamElec`, reading
+  `electricalLayout()` and `S.elec` from `core/electrical.js`) — not a fixed picture. The
+  overhead's ELECTRICAL section is still hand-built (stage 2d, part 3).
 
 Tracked in `issues.md` → *Display* (also the CDN dependency from 13.2).
 

@@ -9,6 +9,7 @@
 
 import { S } from '../core/state.js';
 import { engineAvailable } from '../core/engine.js';
+import { electricalLayout, solveElectrical } from '../core/electrical.js';
 import { managedSpeed } from '../core/managed-speed.js';
 import { indicatedAlt, baroSubscale } from '../core/baro.js';
 import { smooth, smoothAngle } from './smooth.js';
@@ -1714,81 +1715,143 @@ function _eicasGauge(ctx, cx, cy, r, val, cmd, opts, wht, grn, amb, red, f) {
 }
 
 /* ── ECAM ELEC synoptic ─────────────────────────────────────── */
+/* The ELEC page — drawn from the aircraft's electrical layout (core/electrical.js) and its solution
+   S.elec, so it shows the generators and buses the aircraft has. Rows, top to bottom: shared sources
+   (APU GEN, EXT …) → the engine generators above their main bus → the tie line → the main AC buses →
+   the other buses by depth below the mains → the battery bus with the batteries. A bus sits under the
+   buses that feed it; an element's `pos: [x, y]` (fractions of the page) overrides. Lines and labels
+   are green where power flows (fedBy), a bus label amber when it is unpowered. */
 function _ecamElec(ctx, x, y, w, h, f, grn, amb, dim, cyn) {
   ctx.font = `bold ${h * 0.055}px ${f}`; ctx.fillStyle = cyn; ctx.textAlign = 'center';
   ctx.fillText('ELEC', x + w / 2, y + h * 0.06);
 
-  const acPwr  = S.acBusPowered  ?? false;
-  const dcPwr  = S.dcBusPowered  ?? false;
-  const essPwr = S.essentialBusPowered ?? false;
+  const L    = electricalLayout();
+  const E    = S.elec ?? solveElectrical(L);
+  const src  = Object.fromEntries(L.sources.map(s => [s.id, s]));
+  const bus  = Object.fromEntries(L.buses.map(b => [b.id, b]));
+  const on   = (id) => !!E.sources?.[id]?.on;
+  const pow  = (id) => !!E.buses?.[id]?.powered;
+  const fed  = (id) => E.buses?.[id]?.fedBy ?? null;
+  const px   = (fx) => x + w * fx, py = (fy) => y + h * fy;
+  const pos  = {};                                       // id → [fx, fy]
 
-  /* AC bus bar */
-  const busY  = y + h * 0.22;
-  const barX0 = x + w * 0.08;
-  const barX1 = x + w * 0.92;
-  ctx.strokeStyle = acPwr ? grn : dim; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(barX0, busY); ctx.lineTo(barX1, busY); ctx.stroke();
-  ctx.font = `${h * 0.038}px ${f}`; ctx.fillStyle = acPwr ? grn : amb; ctx.textAlign = 'center';
-  ctx.fillText('AC BUS', x + w / 2, busY - h * 0.04);
-
-  /* Generators above bar */
-  const n        = S.aircraft?.engine?.count ?? 2;
-  const engGenOn = S.engGenOn ?? [];
-  const apuGen   = S.apuGenOn  ?? false;
-  const extPwr   = S.extPwrOn  ?? false;
-  const genLabels = ['GEN 1', 'APU', n === 4 ? 'GEN 4' : 'GEN 2', 'EXT'];
-  const genOn     = [engGenOn[0] ?? false, apuGen, engGenOn[n - 1] ?? false, extPwr];
-  const genXs     = [0.15, 0.38, 0.62, 0.85].map(r => x + w * r);
-  const genY      = y + h * 0.14;
-
-  genLabels.forEach((lbl, i) => {
-    const gx = genXs[i]; const on = genOn[i];
-    ctx.strokeStyle = on ? grn : dim; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(gx, genY); ctx.lineTo(gx, busY); ctx.stroke();
-    ctx.strokeRect(gx - w * 0.055, genY - h * 0.04, w * 0.11, h * 0.04);
-    ctx.font = `${h * 0.030}px ${f}`; ctx.fillStyle = on ? grn : dim; ctx.textAlign = 'center';
-    ctx.fillText(lbl, gx, genY - h * 0.015);
+  /* The rows */
+  const mains   = L.buses.filter(b => b.role === 'main');
+  const batBus  = L.buses.find(b => b.role === 'battery');
+  const homeOf  = (sid) => mains.find(m => (m.feeds ?? [])[0] === sid);          // a generator's own bus
+  const engGens = L.sources.filter(s => s.type === 'gen' && homeOf(s.id));
+  const shared  = L.sources.filter(s => (s.type === 'gen' || s.type === 'ext') && !homeOf(s.id));
+  const sharedW = {};
+  const bats    = L.sources.filter(s => s.type === 'bat');
+  mains.forEach((m, i) => { pos[m.id] = [(i + 1) / (mains.length + 1), 0.36]; });             // evenly across the page
+  engGens.forEach(g => { pos[g.id] = [pos[homeOf(g.id).id][0], 0.23]; });
+  /* Shared sources (APU GEN, EXT …) go into the gaps between the main buses — clear of the generators */
+  const gx = mains.length > 1 ? mains.map(m => pos[m.id][0]) : [0.2, 0.8];
+  const gaps = gx.slice(1).map((xr, i) => [gx[i], xr]);
+  shared.forEach((s, i) => {
+    const g = gaps[Math.min(gaps.length - 1, Math.floor(i * gaps.length / shared.length))];
+    const inGap = shared.filter((_, j) => gaps[Math.min(gaps.length - 1, Math.floor(j * gaps.length / shared.length))] === g);
+    const k = inGap.indexOf(s);
+    pos[s.id] = [g[0] + (g[1] - g[0]) * (k + 1) / (inGap.length + 1), 0.13];
+    sharedW[s.id] = Math.min(0.12, (g[1] - g[0]) / (inGap.length + 1) - 0.012);   // narrower when a gap is crowded
   });
 
-  /* TR → DC bus */
-  const trY  = busY + h * 0.12;
-  const dcY  = trY  + h * 0.12;
-  ctx.strokeStyle = dcPwr ? grn : dim; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(x + w / 2, busY); ctx.lineTo(x + w / 2, dcY); ctx.stroke();
-  ctx.font = `${h * 0.030}px ${f}`; ctx.fillStyle = dcPwr ? grn : dim; ctx.textAlign = 'center';
-  ctx.fillText('TR', x + w / 2, trY);
+  /* The other buses: depth below the mains (longest feed path), under the buses that feed them */
+  const rest  = L.buses.filter(b => b.role !== 'main' && b.role !== 'battery');
+  const depth = {};
+  const dOf   = (id, seen = new Set()) => {
+    if (bus[id]?.role === 'main') return 0;
+    if (depth[id] != null) return depth[id];
+    if (seen.has(id)) return 1;
+    seen.add(id);
+    const ds = (bus[id]?.feeds ?? []).filter(fd => bus[fd] && bus[fd].role !== 'battery').map(fd => dOf(fd, seen));
+    return (depth[id] = 1 + (ds.length ? Math.max(...ds) : 0));
+  };
+  rest.forEach(b => dOf(b.id));
+  const maxD = Math.max(0, ...rest.map(b => depth[b.id]));
+  for (let d = 1; d <= maxD; d++) {
+    const row = rest.filter(b => depth[b.id] === d).map(b => {
+      const ups = (b.feeds ?? []).filter(fd => pos[fd] && bus[fd]);
+      return { b, fx: ups.length ? ups.reduce((a, fd) => a + pos[fd][0], 0) / ups.length : 0.5 };
+    }).sort((p, q) => p.fx - q.fx);
+    for (let i = 1; i < row.length; i++) row[i].fx = Math.max(row[i].fx, row[i - 1].fx + 0.22);   // keep them apart
+    const over = row.length ? row[row.length - 1].fx - 0.88 : 0;
+    row.forEach(r => { pos[r.b.id] = [Math.max(0.12, r.fx - Math.max(0, over)), 0.36 + 0.15 * d]; });
+  }
+  const yBat = Math.max(0.66, 0.36 + 0.15 * (maxD + 1));
+  if (batBus) pos[batBus.id] = [0.5, yBat];
+  bats.forEach((s, i) => { pos[s.id] = [0.5 + (i - (bats.length - 1) / 2) * 0.26, yBat + 0.09]; });
+  for (const el of [...L.sources, ...L.buses]) if (el.pos) pos[el.id] = el.pos;   // the data's hints win
 
-  ctx.strokeStyle = dcPwr ? grn : dim; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(barX0, dcY); ctx.lineTo(barX1, dcY); ctx.stroke();
-  ctx.font = `${h * 0.038}px ${f}`; ctx.fillStyle = dcPwr ? grn : amb; ctx.textAlign = 'center';
-  ctx.fillText('DC BUS', x + w / 2, dcY - h * 0.04);
+  /* Drawing helpers */
+  const line = (a, b, live, lw = 1.5) => {
+    ctx.strokeStyle = live ? grn : dim; ctx.lineWidth = lw;
+    ctx.beginPath(); ctx.moveTo(px(a[0]), py(a[1])); ctx.lineTo(px(b[0]), py(b[1])); ctx.stroke();
+  };
+  const box = (id, label, live, bw = 0.12, bh = 0.045, sub = []) => {
+    const [fx, fy] = pos[id];
+    ctx.strokeStyle = live ? grn : dim; ctx.lineWidth = 1.5;
+    ctx.strokeRect(px(fx - bw / 2), py(fy - bh / 2), w * bw, h * bh);
+    ctx.font = `${h * 0.028}px ${f}`; ctx.fillStyle = live ? grn : dim; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(label, px(fx), py(fy - (sub.length ? bh * 0.18 : 0)));
+    sub.forEach((t, k) => ctx.fillText(t, px(fx), py(fy + bh * 0.22 + k * 0.028)));
+    ctx.textBaseline = 'alphabetic';
+  };
+  const labels = [];                                     // bus labels — painted last, on a dark backing
+  const bar = (id, half) => {
+    const [fx, fy] = pos[id], live = pow(id);
+    ctx.strokeStyle = live ? grn : dim; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(px(fx - half), py(fy)); ctx.lineTo(px(fx + half), py(fy)); ctx.stroke();
+    labels.push({ text: bus[id].label ?? id, fx, fy: fy - 0.018, col: live ? grn : amb });
+  };
 
-  /* Batteries */
-  const bats = [
-    { key: 'bat1', lbl: 'BAT 1', bx: x + w * 0.25 },
-    { key: 'bat2', lbl: 'BAT 2', bx: x + w * 0.75 },
-  ];
-  bats.forEach(({ key, lbl, bx }) => {
-    const on  = S[`${key}On`] ?? false;
-    const pct = Math.round(S[`${key}Charge`] ?? 100);
-    const v   = (20 + pct / 100 * 8.5).toFixed(1);
-    const col = on ? (pct > 20 ? grn : pct > 10 ? amb : '#ff4444') : dim;
-    ctx.strokeStyle = col; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(bx, dcY); ctx.lineTo(bx, dcY + h * 0.08); ctx.stroke();
-    ctx.strokeRect(bx - w * 0.08, dcY + h * 0.08, w * 0.16, h * 0.09);
-    ctx.font = `${h * 0.028}px ${f}`; ctx.fillStyle = col; ctx.textAlign = 'center';
-    ctx.fillText(lbl,     bx, dcY + h * 0.115);
-    ctx.fillText(v + 'V', bx, dcY + h * 0.148);
-    ctx.fillText(pct + '%', bx, dcY + h * 0.176);
+  /* Generators → their bus; shared sources → the tie line → the mains */
+  const yTie = 0.30;
+  engGens.forEach(g => line([pos[g.id][0], pos[g.id][1] + 0.022], [pos[g.id][0], pos[homeOf(g.id).id][1]], fed(homeOf(g.id).id) === g.id));
+  if (mains.length) {
+    const viaTie = (m) => { const fb = fed(m.id); return !!fb && (shared.some(s => s.id === fb) || !!bus[fb]); };
+    const tieLive = mains.some(viaTie);
+    if (mains.length > 1 || shared.length) line([pos[mains[0].id][0], yTie], [pos[mains[mains.length - 1].id][0], yTie], tieLive);
+    shared.forEach(s => line([pos[s.id][0], pos[s.id][1] + 0.022], [pos[s.id][0], yTie], on(s.id) && mains.some(m => fed(m.id) === s.id)));
+    mains.forEach(m => line([pos[m.id][0], yTie], [pos[m.id][0], pos[m.id][1]], viaTie(m)));
+  }
+
+  /* Bus → bus: TR (AC → DC), INV (DC → AC), or a plain contactor. A line that skips a row is set off
+     sideways, so it doesn't run over the bus between */
+  for (const b of L.buses) for (const fd of (b.feeds ?? []).filter(fd => bus[fd])) {
+    if (!pos[fd] || !pos[b.id]) continue;
+    const live = fed(b.id) === fd;
+    const skip = Math.abs(pos[fd][1] - pos[b.id][1]) > 0.2 ? 0.06 : 0;
+    const a0 = [pos[fd][0] + skip, pos[fd][1]], a1 = [pos[b.id][0] + skip, pos[b.id][1]];
+    line(a0, a1, live, 1.2);
+    const kind = bus[fd].type === 'ac' && b.type === 'dc' ? 'TR' : bus[fd].type === 'dc' && b.type === 'ac' ? 'INV' : '';
+    if (kind) {
+      ctx.font = `${h * 0.022}px ${f}`; ctx.fillStyle = live ? grn : dim; ctx.textAlign = 'left';
+      ctx.fillText(kind, px(a0[0] + (a1[0] - a0[0]) * 0.55) + w * 0.012, py(a0[1] + (a1[1] - a0[1]) * 0.55));
+    }
+  }
+  /* Batteries → the battery bus */
+  bats.forEach(s => { if (batBus) line([pos[s.id][0], pos[s.id][1] - 0.035], pos[batBus.id], on(s.id), 1.2); });
+
+  /* Buses, sources, batteries on top */
+  const half = Math.min(0.13, 0.36 / (mains.length + 1));
+  mains.forEach(m => bar(m.id, half));
+  rest.forEach(b => bar(b.id, 0.08));
+  if (batBus) bar(batBus.id, 0.10);
+  engGens.forEach(s => box(s.id, s.label ?? s.id, on(s.id)));
+  shared.forEach(s => box(s.id, s.label ?? s.id, on(s.id), sharedW[s.id]));
+  ctx.font = `${h * 0.030}px ${f}`; ctx.textAlign = 'center';
+  for (const l of labels) {
+    const tw = ctx.measureText(l.text).width;
+    ctx.fillStyle = 'rgba(2,4,6,0.92)';
+    ctx.fillRect(px(l.fx) - tw / 2 - 3, py(l.fy) - h * 0.026, tw + 6, h * 0.032);
+    ctx.fillStyle = l.col; ctx.fillText(l.text, px(l.fx), py(l.fy));
+  }
+  bats.forEach(s => {
+    const k = `bat${s.battery}`, pct = Math.round(S[`${k}Charge`] ?? 100), v = (20 + pct / 100 * 8.5).toFixed(1);
+    const live = on(s.id);
+    box(s.id, s.label ?? s.id, live, 0.16, 0.07, [`${v}V  ${pct}%`]);
   });
-
-  /* Essential bus */
-  const essY = dcY + h * 0.10;
-  ctx.strokeStyle = essPwr ? grn : amb; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(x + w / 2, dcY); ctx.lineTo(x + w / 2, essY); ctx.stroke();
-  ctx.strokeRect(x + w / 2 - w * 0.08, essY, w * 0.16, h * 0.05);
-  ctx.font = `${h * 0.028}px ${f}`; ctx.fillStyle = essPwr ? grn : amb; ctx.textAlign = 'center';
-  ctx.fillText('ESS BUS', x + w / 2, essY + h * 0.032);
 }
 
 /* ── ECAM HYD synoptic ──────────────────────────────────────── */
