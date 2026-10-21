@@ -158,8 +158,32 @@
     ]
   },
   "electrical": {
+    "_note": "The A340 electrical layout — sources and buses in priority order (core/electrical.js). extPwrB / batCount: read by the overhead until it is built from the layout.",
     "extPwrB": true,
-    "batCount": 3
+    "batCount": 3,
+    "sources": [
+      { "id": "gen1", "type": "gen", "driver": "eng1", "label": "GEN 1" },
+      { "id": "gen2", "type": "gen", "driver": "eng2", "label": "GEN 2" },
+      { "id": "gen3", "type": "gen", "driver": "eng3", "label": "GEN 3" },
+      { "id": "gen4", "type": "gen", "driver": "eng4", "label": "GEN 4" },
+      { "id": "apugen", "type": "gen", "driver": "apu", "label": "APU GEN" },
+      { "id": "extA", "type": "ext", "plug": "A", "label": "EXT A" },
+      { "id": "extB", "type": "ext", "plug": "B", "label": "EXT B" },
+      { "id": "bat1", "type": "bat", "battery": 1, "label": "BAT 1", "chargedBy": ["ac11", "ac12", "ac23", "ac24"] },
+      { "id": "bat2", "type": "bat", "battery": 2, "label": "BAT 2", "chargedBy": ["ac11", "ac12", "ac23", "ac24"] },
+      { "id": "bat3", "type": "bat", "battery": 3, "label": "APU BAT", "chargedBy": ["acEss"] }
+    ],
+    "buses": [
+      { "id": "ac11", "type": "ac", "role": "main", "label": "AC BUS 1-1", "feeds": ["gen1", "apugen", "extA"], "ties": ["ac12", "ac23", "ac24"] },
+      { "id": "ac12", "type": "ac", "role": "main", "label": "AC BUS 1-2", "feeds": ["gen2", "apugen", "extA"], "ties": ["ac11", "ac23", "ac24"] },
+      { "id": "ac23", "type": "ac", "role": "main", "label": "AC BUS 2-3", "feeds": ["gen3", "apugen", "extB"], "ties": ["ac11", "ac12", "ac24"] },
+      { "id": "ac24", "type": "ac", "role": "main", "label": "AC BUS 2-4", "feeds": ["gen4", "apugen", "extB"], "ties": ["ac11", "ac12", "ac23"] },
+      { "id": "batBus", "type": "dc", "role": "battery", "label": "DC BAT", "feeds": ["bat1", "bat2", "bat3"] },
+      { "id": "acEss", "type": "ac", "label": "AC ESS", "feeds": ["ac11", "ac24", "batBus"] },
+      { "id": "dc1", "type": "dc", "label": "DC BUS 1", "feeds": ["ac11"] },
+      { "id": "dc2", "type": "dc", "label": "DC BUS 2", "feeds": ["ac24"] },
+      { "id": "dcEss", "type": "dc", "label": "DC ESS", "feeds": ["dc1", "dc2", "batBus"] }
+    ]
   },
   "displays": [
     {

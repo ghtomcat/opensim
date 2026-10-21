@@ -28,6 +28,22 @@ const engine = object(
 );
 /* The APU — an engine of its own (core/engine.js); startTime is its start-up recording's length */
 const apu = object({ startTime: num }, { required: ['startTime'] });
+/* The electrical layout (core/electrical.js) — sources and buses; absent → built from the engine count */
+const elecSource = object(
+  { id: str, type: oneOf('gen', 'ext', 'bat'), label: str,
+    driver: str,              // gen: 'eng1' … or 'apu'
+    plug: oneOf('A', 'B'),    // ext
+    battery: num, chargedBy: arrayOf(str) },   // bat: 1 …; the buses that charge it
+  { required: ['id', 'type'] },
+);
+const elecBus = object(
+  { id: str, type: oneOf('ac', 'dc'), label: str, role: oneOf('main', 'battery'),
+    feeds: arrayOf(str),      // in priority order: sources, or buses (a TR, the static inverter)
+    ties: arrayOf(str) },     // buses it may borrow from while BUS TIE is AUTO
+  { required: ['id', 'type'] },
+);
+const electrical = object({ batCount: num, extPwrB: bool, sources: arrayOf(elecSource), buses: arrayOf(elecBus) });
+
 const envelope = object(
   { cruiseAlt: num, cruiseSpd: num, maxSpd: num, spdProfile: mapOf(num) },
   { doc: { maxAlt: num } },   // the service ceiling — a fact, nothing enforces it
@@ -89,7 +105,7 @@ export const aircraft = object(
     autobrake: bool, fixedGear: bool, gridFins: bool, landingLegs: bool,
     /* systems */
     tanks: object({ left: num, right: num, unit: oneOf('L') }), fuelBurn: num, hasCarbHeat: bool,
-    battery: object({ capacityKwh: num, powerDrawKw: num }), electrical: object({ batCount: num, extPwrB: bool }),
+    battery: object({ capacityKwh: num, powerDrawKw: num }), electrical,
     cooling, coolingSystem: oneOf('liquid', 'air'),
     /* crew and callouts */
     crewLang: str, gpws: arrayOf(gpwsCallout), pmCallouts: arrayOf(altCallout),
@@ -138,6 +154,22 @@ export const aircraft = object(
       /* every winged aircraft declares its engines (rockets and robots have their own models) */
       if (a.vehicleType === undefined && !a.engine) errs.push('an aircraft needs an engine block');
       if (a.engine && !(Number.isInteger(a.engine.count) && a.engine.count >= 1)) errs.push('engine.count must be an integer >= 1');
+      /* the electrical layout's references: every feed, tie and charging bus names an element, every driver an engine */
+      const el = a.electrical;
+      if (el?.buses) {
+        const ids = new Set([...(el.sources ?? []), ...el.buses].map(x => x.id));
+        const busIds = new Set(el.buses.map(b => b.id));
+        for (const b of el.buses) {
+          for (const f of b.feeds ?? []) if (!ids.has(f)) errs.push(`electrical: bus ${b.id} feeds from unknown "${f}"`);
+          for (const t of b.ties ?? [])  if (!busIds.has(t)) errs.push(`electrical: bus ${b.id} ties to unknown bus "${t}"`);
+        }
+        for (const src of el.sources ?? []) {
+          for (const c of src.chargedBy ?? []) if (!busIds.has(c)) errs.push(`electrical: ${src.id} charged by unknown bus "${c}"`);
+          const m = /^eng(\d+)$/.exec(src.driver ?? '');
+          if (src.type === 'gen' && src.driver !== 'apu' && !(m && +m[1] >= 1 && +m[1] <= (a.engine?.count ?? 0)))
+            errs.push(`electrical: ${src.id} driver "${src.driver}" is not an engine of this aircraft`);
+        }
+      }
       /* a declared turbofan needs a sane idle */
       if (turbofan && a.engine.idleN1 !== undefined && !(a.engine.idleN1 >= 0 && a.engine.idleN1 <= 100)) errs.push('engine.idleN1 out of range 0…100');
       /* the A/THR detents read thrustProfiles: spdT >= 0 and a positive maximum (the lever denominator) */
