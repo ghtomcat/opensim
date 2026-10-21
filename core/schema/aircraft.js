@@ -115,6 +115,7 @@ export const aircraft = object(
     /* systems */
     tanks: object({ left: num, right: num, unit: oneOf('L') }), fuelBurn: num, hasCarbHeat: bool,
     battery: object({ capacityKwh: num, powerDrawKw: num }), electrical,
+    balance: object({ noseGearLoadShare: num }),     // nominal CG (core/airframe.js) until weight and balance
     cooling, coolingSystem: oneOf('liquid', 'air'),
     /* crew and callouts */
     crewLang: str, gpws: arrayOf(gpwsCallout), pmCallouts: arrayOf(altCallout),
@@ -146,7 +147,7 @@ export const aircraft = object(
     doc: {
       model: str, era: str, subtype: str,
       specs: open, links: open,       // robot hardware data
-      dimensions: open,               // DWG measurement record — read by scripts/rescale-aircraft.py
+      dimensions: open,               // DWG measurement record — read by scripts/rescale-aircraft.py; core/airframe.js reads a few (checked below)
     },
     planned: {
       landSurfaces: arrayOf(str),
@@ -180,6 +181,16 @@ export const aircraft = object(
             errs.push(`electrical: ${src.id} driver "${src.driver}" is not an engine of this aircraft`);
         }
       }
+      /* the measurements the physics reads (core/airframe.js): positive mm, and a tail that fits together */
+      const d = a.dimensions ?? {};
+      for (const k of ['noseTipToNoseGear', 'noseTipToMainGear', 'engineCenterlineToAircraftCenterline', 'vstabRootChord', 'vstabTipChord',
+                       'vstabHeight', 'noseTipToVstabRootLE', 'noseTipToVstabTipLE', 'vstabRudderRootChord', 'vstabRudderTopChord', 'vstabRudderTopHeight'])
+        if (d[k] !== undefined && !(typeof d[k] === 'number' && d[k] > 0)) errs.push(`dimensions.${k} must be a positive number (mm)`);
+      if (d.noseTipToNoseGear >= d.noseTipToMainGear) errs.push('dimensions: the nose gear must be ahead of the main gear');
+      if (d.noseTipToVstabTipLE < d.noseTipToVstabRootLE) errs.push('dimensions: the fin tip leading edge must not be ahead of its root');
+      if (d.vstabRudderRootChord >= d.vstabRootChord || d.vstabRudderTopHeight > d.vstabHeight) errs.push('dimensions: the rudder must fit inside the vertical tail');
+      const share = a.balance?.noseGearLoadShare;
+      if (share !== undefined && !(share > 0 && share < 0.5)) errs.push('balance.noseGearLoadShare must be between 0 and 0.5');
       /* a declared turbofan needs a sane idle */
       if (turbofan && a.engine.idleN1 !== undefined && !(a.engine.idleN1 >= 0 && a.engine.idleN1 <= 100)) errs.push('engine.idleN1 out of range 0…100');
       /* the A/THR detents read thrustProfiles: spdT >= 0 and a positive maximum (the lever denominator) */

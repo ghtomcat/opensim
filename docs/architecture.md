@@ -99,7 +99,7 @@ not draw. Grouped by role:
 | World | `elevation.js` (Mapbox Terrain-RGB DEM: one tile cache, `elevM(lat, lon)`, and `tickElevation()` → `S.terrainElevFt`) |
 | Data contract | `vocab.js` (the names data and code share — vehicle types, panels, engine sounds, triggers, rocket events, failures, comm profiles; a misspelled name throws), `schema/` (`check.js` validator; `mission.js`, `catalog.js`, `aircraft.js` schemas; `known.js`: logged violations) |
 | Engine | `engine.js` (start and shutdown lifecycle — the owner of `engineState`) |
-| Physics | `physics.js` (fixed-wing), `takeoff-perf.js` (takeoff speeds — V1 = VR for now), `rocket.js` (launch, staging, orbit, booster recovery), `thrust.js`, `pushback.js` |
+| Physics | `physics.js` (fixed-wing), `airframe.js` (the geometry the physics reads from `dimensions`: nominal CG, engine positions, vertical tail and rudder), `takeoff-perf.js` (takeoff speeds — V1 = VR for now), `rocket.js` (launch, staging, orbit, booster recovery), `thrust.js`, `pushback.js` |
 | Aircraft systems | `fuel.js`, `electrical.js`, `battery.js`, `hydraulics.js`, `baro.js`, `failures.js`, `aircraft-config.js` |
 | Navigation & automation | `route.js` (full route: SID/airways/STAR/approach), `lnav.js`, `vnav.js`, `managed-speed.js`, `fma.js`, `airway-graph.js`, `taxi-graph.js`, `taxi.js` (the active taxi route + clearance), `flightplan.js` (the active flight plan) |
 | Crew, radio, sound | `crew.js` (PF/PM/ATC/GPWS voice dispatch), `radio.js` (comm-chain filtering), `audio.js` (the one AudioContext + worklet loading), `sound.js` (Web Audio engine synthesis), `*-processor.js` (AudioWorklet engine/crackle synthesizers: DB 605, Le Rhône 9J, Lycoming, R-2800) |
@@ -252,7 +252,8 @@ fails. Two kinds of fields are allowed although the sim doesn't read them:
 
 - **Documentation only** — for people: mission `author`, `description`, `narrative`,
   `fiction_note`, `book`; aircraft `model`, `era`, `subtype`, `specs`, `links`,
-  `envelope.maxAlt`, and `dimensions` (the DWG measurement record). Keys starting
+  `envelope.maxAlt`, and `dimensions` (the DWG measurement record — except the few
+  `core/airframe.js` reads, §3.4, which the schema checks). Keys starting
   with `_` are comments, allowed anywhere.
 - **Planned** — data for a feature that isn't built yet, listed so it stays visible:
   e.g. `landSurfaces`, `gearRuggedness`, `ambient`, the robot arm's `scoring`, manual
@@ -294,7 +295,7 @@ that simulates and draws it. Read these first when opening an unfamiliar aircraf
 | Group | Fields | Consumer |
 |---|---|---|
 | **Identity** | `id`, `name`, `manufacturer`, `family`, `model`, `subtype`, `registration`, `callsign`, `icaoType`, `crewLang` | picker, COM/ATC (`callsign`), `core/crew.js` (`crewLang`) |
-| **Flight model** | `performance {mass, wingArea, thrustMax, CL_0, CL_alpha, CL_max, CD_0, …}`, `envelope {cruiseAlt, maxAlt, cruiseSpd, maxSpd, spdProfile}`, `handling {rollRate, pitchRate, maxBank, maxPitch}`, `flaps [{label, dCL_0, dCL_max, dCD_0}]`, `thrustProfiles`, `approachSpeed`, `autobrake`, `rotaryEngine` | `core/physics.js`, `thrust.js`, `managed-speed.js`, `vnav.js`, `input.js`, pedestal/levers |
+| **Flight model** | `performance {mass, wingArea, thrustMax, CL_0, CL_alpha, CL_max, CD_0, …}`, `envelope {cruiseAlt, maxAlt, cruiseSpd, maxSpd, spdProfile}`, `handling {rollRate, pitchRate, maxBank, maxPitch}`, `flaps [{label, dCL_0, dCL_max, dCD_0}]`, `thrustProfiles`, `approachSpeed`, `autobrake`, `rotaryEngine`; `balance {noseGearLoadShare}` (nominal CG) and the `dimensions` below that `core/airframe.js` reads | `core/physics.js`, `airframe.js`, `thrust.js`, `managed-speed.js`, `vnav.js`, `input.js`, pedestal/levers |
 | **Rocket model** | `performance {massWet, stages[], payload, fpaProfile[], recovery{}, …}`, `ignitionTime`, `staging`, `gridFins`, `landingLegs` | `core/rocket.js`, rocket displays |
 | **Other vehicle models** | `specs` (robot), `joints`, `links` (robot arm/dog) | `display/robot_arm.js`, `display/yertle_quadruped.js` |
 | **Systems** | `tanks`, `fuelBurn`, `hasCarbHeat`; `cooling {type, ambient, normal, redline, …}` + `coolingSystem`; `electrical`; `battery` | `core/fuel.js`, `core/physics.js` (heat balance), `core/failures.js`, `core/electrical.js`, `core/battery.js` |
@@ -348,6 +349,20 @@ aircraft) writes the derived values into the render fields. The renderer
   until you do.
 - `dimensions` and the derived fields can drift apart if one is edited by hand. Checked
   2026-10-11: `a340` and `a350` agree exactly (length, nose-gear and main-gear stations).
+
+**The physics reads `dimensions` directly, never the render fields.** `core/airframe.js`
+turns a few measurements into metres and arms (x aft of the nose tip, y right of the
+centreline), and returns `null` for what an aircraft hasn't measured:
+
+| Function | From `dimensions` (mm) | Gives |
+|---|---|---|
+| `nominalCg(ac)` | `noseTipToNoseGear`, `noseTipToMainGear`; `balance.noseGearLoadShare` (default 0.08) | the CG, that share of the wheelbase ahead of the main gear — nominal until weight and balance (`issues.md`) |
+| `engineY(ac)` | `engineCenterlineToAircraftCenterline` (twins) | each engine's lateral position, ENG 1 left |
+| `vstab(ac)` | `vstabRootChord`, `vstabTipChord`, `vstabHeight`, `noseTipToVstabRootLE`, `noseTipToVstabTipLE`; `vstabRudderRootChord`, `vstabRudderTopChord`, `vstabRudderTopHeight` | the vertical tail (fin + rudder as one trapezoid): area, sweep, aspect ratio, MAC, the quarter-MAC station and its arm from the CG; the rudder's area and chord ratios |
+
+Measured so far: the 777-300ER (DWG × 500.7, cross-checked against Boeing's ACAP
+D6-58329-2 Rev G; the sources in the fields' notes). The A340 has its tail under the same
+`vstab…` names but no root leading edge or engine positions yet.
 
 **Planned:** derive the geometry at load time from `dimensions` instead, with shape
 stored as proportions, so the two can't drift. See `issues.md` → *Aircraft geometry is

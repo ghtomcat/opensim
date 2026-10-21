@@ -110,6 +110,14 @@ test('engine is an object — the old description string fails', () => {
   const errs = errorsAfter('aircraft/c172.json', aircraft, a => { a.engine = 'Lycoming IO-360, 180hp'; });
   assert.ok(errs.some(e => e.startsWith('engine:')), errs.join('\n'));
 });
+test('the measurements the physics reads are checked (core/airframe.js)', () => {
+  const big = errorsAfter('aircraft/b777-300er.json', aircraft, a => { a.dimensions.vstabRudderRootChord = 9000; });
+  assert.ok(big.some(e => e.endsWith('the rudder must fit inside the vertical tail')), big.join('\n'));
+  const neg = errorsAfter('aircraft/b777-300er.json', aircraft, a => { a.dimensions.engineCenterlineToAircraftCenterline = -9690; });
+  assert.ok(neg.some(e => e.endsWith('engineCenterlineToAircraftCenterline must be a positive number (mm)')), neg.join('\n'));
+  const share = errorsAfter('aircraft/b777-300er.json', aircraft, a => { a.balance.noseGearLoadShare = 7.57; });
+  assert.ok(share.some(e => e.endsWith('noseGearLoadShare must be between 0 and 0.5')), share.join('\n'));
+});
 test('every winged aircraft declares its engines, with an integer count', () => {
   const none = errorsAfter('aircraft/bf109.json', aircraft, a => { delete a.engine; });
   assert.ok(none.some(e => e.endsWith('an aircraft needs an engine block')), none.join('\n'));

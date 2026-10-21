@@ -586,15 +586,19 @@
     "fanCowlLength": 5369,
     "engineCenterlineToAircraftCenterline": 9690,
     "_engineCenterlineNote": "DWG 19.354 mm × 500.7 (engine centreline eyeballed). Cross-check: Boeing ACAP D6-58329-2 Rev G (Dec 2024) §2.2.2 gives 31 ft 6.5 in = 9610 mm — 80 mm (0.8 %) apart. Read by physics for the thrust moment (stage 3).",
-    "finRootChord": 7978,
-    "finTipChord": 2495,
-    "finHeight": 10318,
-    "noseTipToFinRootLE": 61158,
-    "noseTipToFinTipLE": 69164,
-    "rudderRootChord": 2665,
-    "rudderTopChord": 884,
-    "rudderTopHeight": 10038,
-    "_finNote": "Vertical tail (fin + rudder as one outline), side view of the DWG × 500.7. Root 15.933, tip 4.983, height 20.608, nose→root LE 122.145, nose→tip LE 138.135 mm. Rudder: chord 5.323 at the root (its bottom edge), 1.766 at its top; the top stops 0.559 short of the fin tip (the top hinge sits in the fin) → 10038 above the root. Derived: area 54.0 m² (published ≈ 53.2 m², from memory — not a document), taper 0.31, LE sweep 37.8°, MAC 5715 at 4258 above the root, MAC quarter-chord ≈ 65.9 m from the nose; rudder 33.4 % of the chord at both ends (a straight constant-percent hinge line), area 17.8 m². Read by physics for the directional stability and rudder power (stage 3)."
+    "vstabRootChord": 7978,
+    "vstabTipChord": 2495,
+    "vstabHeight": 10318,
+    "noseTipToVstabRootLE": 61158,
+    "noseTipToVstabTipLE": 69164,
+    "vstabRudderRootChord": 2665,
+    "vstabRudderTopChord": 884,
+    "vstabRudderTopHeight": 10038,
+    "_vstabNote": "Vertical tail (fin + rudder as one outline), side view of the DWG × 500.7. Root 15.933, tip 4.983, height 20.608, nose→root LE 122.145, nose→tip LE 138.135 mm. Rudder: chord 5.323 at the root (its bottom edge), 1.766 at its top; the top stops 0.559 short of the fin tip (the top hinge sits in the fin) → 10038 above the root. Derived: area 54.0 m² (published ≈ 53.2 m², from memory — not a document), taper 0.31, LE sweep 37.8°, MAC 5715 at 4258 above the root, MAC quarter-chord ≈ 65.9 m from the nose; rudder 33.4 % of the chord at both ends (a straight constant-percent hinge line), area 17.8 m². Read by physics for the directional stability and rudder power (stage 3)."
+  },
+  "balance": {
+    "noseGearLoadShare": 0.0757,
+    "_note": "Nominal CG until weight and balance exists (issues.md): the share of the weight on the nose gear, which puts the CG that fraction of the wheelbase ahead of the main gear — 0.0757 × (36699 − 5900) = 2332 mm → 34367 mm from the nose tip. From Boeing ACAP D6-58329-2 Rev G §7.3 at the max design taxi weight 352441 kg: nose gear static at the most forward CG 26771 kg (7.60 %); main gear static at the most aft CG 2 × 162934 kg (nose 7.54 %). Mean 7.57 %."
   },
   "bellyFairing": {
     "fromX": 0.003336,
