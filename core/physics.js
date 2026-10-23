@@ -408,7 +408,12 @@ export function tickPhysics(dt) {
           newYawDev = g.yawDev / DEG;                                   // the pedals' turn and any swing
           newHdg = (((S.hdg + (yawRate + newYawDev) * dt) % 360) + 360) % 360;
         } else {
-          newHdg = (((S.hdg + yawRate * dt) % 360) + 360) % 360;
+          /* No measured airframe: the pedals steer the nosewheel like the tiller (a light aircraft
+             steers with its pedals); full pedal = full steering. */
+          const rud = (S.rudder ?? 0) + (S.rudderTrim ?? 0);
+          const steerYaw = rud === 0 ? yawRate
+            : Math.max(-30, Math.min(30, Math.max(-1, Math.min(1, (S.steer ?? 0) + rud)) * newSpd * 1.1));
+          newHdg = (((S.hdg + steerYaw * dt) % 360) + 360) % 360;
         }
       } else {
         newHdg = convergeHdg(S.hdg, S.hdgT, 30 * dt);  // AP heading-bug steering

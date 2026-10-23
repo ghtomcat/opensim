@@ -26,6 +26,9 @@
 | `↓` | Pitch down | Pitch down |
 | `←` | Roll left (wings spring back to level when released) | Nosewheel steering left |
 | `→` | Roll right | Nosewheel steering right |
+| `,` (hold) | Rudder left (springs back to centre when released) | Rudder left — steers the nosewheel too |
+| `.` (hold) | Rudder right | Rudder right — steers the nosewheel too |
+| `<` / `>` | Rudder trim left / right (Swiss keyboard: one key, Shift for `>`) | Rudder trim |
 | `t` | Trim nose up | Trim nose up |
 | `T` | Trim nose down | Trim nose down |
 | `B` (hold) | Brakes | Brakes |
@@ -33,6 +36,8 @@
 **With the autopilot engaged the arrow keys do nothing** — the autopilot flies pitch and roll. Disconnect it first (airliners: click **AP1** on the FCU), or change its targets on the FCU knobs.
 
 Manual braking disarms the autobrake.
+
+The rudder yaws the aircraft only where its vertical tail is measured (today the 777 — `core/yaw.js`); there it holds an engine failure, in the air and on the takeoff roll. On every other aircraft the rudder steers the nosewheel on the ground and does nothing in the air yet. A gamepad's twist axis is the rudder too.
 
 ---
 

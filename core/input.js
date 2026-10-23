@@ -51,6 +51,15 @@ const GP = {
   DEADZONE: 0.08,
 };
 
+/* ── Rudder ── held `,` / `.` push the pedals toward full left / right and they spring back to
+   centre when released; `<` / `>` step the rudder trim (Swiss keyboard: one key, Shift for `>`);
+   the gamepad's twist axis sets the pedals directly. S.rudder + S.rudderTrim → core/yaw.js. */
+const RUDDER_RATE      = 1.5;    // /s — full pedal in ~0.7 s
+const RUDDER_RELAX     = 2.5;    // /s — spring back to centre
+const RUDDER_TRIM_STEP = 0.02;   // per press (auto-repeat while held)
+const RUDDER_TRIM_MAX  = 0.5;    // trim authority, a share of full rudder (assumed — airliner rudder trim is roughly half the travel)
+let _gpRudder = 0;               // the gamepad twist axis, after the deadzone
+
 let _gpPrevButtons = [];
 let _gpPrevThrottle = null;   // last applied throttle-axis value — only re-assert thrust on real movement
 
@@ -110,6 +119,18 @@ export function tickControls(dt) {
   if (elevatorIn !== 0) {
     patch.pitchT = Math.max(-maxPitch, Math.min(maxPitch, S.pitchT + elevatorIn * pitchRate));
   }
+
+  /* Rudder pedals — on the ground and in flight: keys, else the gamepad, else spring back */
+  const rudderIn = (_held.has('.') ? 1 : 0) - (_held.has(',') ? 1 : 0);
+  const rudder = S.rudder ?? 0;
+  let nextRudder = rudder;
+  if (rudderIn !== 0)      nextRudder = Math.max(-1, Math.min(1, rudder + rudderIn * RUDDER_RATE * dt));
+  else if (_gpRudder !== 0) nextRudder = _gpRudder;
+  else if (rudder !== 0) {
+    const next = rudder - Math.sign(rudder) * Math.min(Math.abs(rudder), RUDDER_RELAX * dt);
+    nextRudder = Math.abs(next) < 0.01 ? 0 : next;
+  }
+  if (nextRudder !== rudder) patch.rudder = nextRudder;
   if (Object.keys(patch).length) setState(patch);
 }
 
@@ -127,6 +148,7 @@ export function tickGamepad() {
   /* Axes with deadzone */
   const roll     = _dz(ax[GP.ROLL]);
   const pitch    = _dz(ax[GP.PITCH]);
+  _gpRudder      = _dz(ax[GP.RUDDER] ?? 0);   // twist → the pedals (tickControls applies it)
   const throttleRaw = ax[GP.THROTTLE] ?? 0;  // -1 = full fwd, +1 = full back
 
   /* Roll → bankT, Pitch → pitchT (disable AP for manual flight) */
@@ -301,6 +323,13 @@ function _onKeyDown(e) {
     if (e.key === 'ArrowDown')  setState({ altT: Math.max(0,     S.altT - 500) });
     if (e.key === 'ArrowLeft')  setState({ hdgT: (S.hdgT - 5 + 360) % 360 });
     if (e.key === 'ArrowRight') setState({ hdgT: (S.hdgT + 5) % 360 });
+  }
+
+  /* Rudder trim — < left, > right (manual aircraft) */
+  if ((e.key === '<' || e.key === '>') && S.aircraft?.manualControl) {
+    const t = (S.rudderTrim ?? 0) + (e.key === '>' ? 1 : -1) * RUDDER_TRIM_STEP;
+    setState({ rudderTrim: Math.round(Math.max(-RUDDER_TRIM_MAX, Math.min(RUDDER_TRIM_MAX, t)) * 100) / 100 });
+    return;
   }
 
   /* Trim — t nose up, T nose down */
