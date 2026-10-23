@@ -400,7 +400,8 @@
   "handling": {
     "rudderMaxDeg": 27,
     "rudderLimitKt": 160,
-    "_note": "Rudder travel ±27° at low speed, full up to 160 kt, then reduced ∝ 1/V² (the moment held) as the 777's flight control computers limit it with airspeed — both values from memory / assumed, not from a document; to check against the 777 FCOM / flight controls description. Read by core/yaw.js."
+    "pedalSteerDeg": 7,
+    "_note": "Rudder travel ±27° at low speed, full up to 160 kt, then reduced ∝ 1/V² (the moment held) as the 777's flight control computers limit it with airspeed; the rudder pedals steer the nosewheel ±7° (the tiller ±70°) — all from memory / assumed, not from a document; to check against the 777 FCOM / flight controls description. Read by core/yaw.js."
   },
   "performance": {
     "mass": 220000, "wingArea": 436.8, "thrustMax": 760000,

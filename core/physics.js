@@ -14,7 +14,7 @@ import { vnavTargetAlt } from './vnav.js';
 import { runwayThreshold } from './mission-start.js';
 import { indicatedAlt } from './baro.js';
 import { random } from './random.js';
-import { yawModel, yawStep, windmillDrag } from './yaw.js';
+import { yawModel, yawStep, windmillDrag, groundYawStep, pedalYawRate } from './yaw.js';
 
 const _DEG = Math.PI / 180;
 const _gcNm = (aLat, aLon, bLat, bLon) => {
@@ -74,7 +74,7 @@ export function tickPhysics(dt) {
   const spdTarget = Math.min(S.spdT, spdLimit);
 
   let newAlt, newSpd, newHdg, newPitch, newRoll, vs;
-  let newBeta = 0, newYawDev = 0, newLatAccel = 0;   // the yaw axis (core/yaw.js) — 0 without a measured tail, and on the ground
+  let newBeta = 0, newYawDev = 0, newLatAccel = 0;   // the yaw axis (core/yaw.js) — 0 without a measured tail; β 0 on the wheels
   let newWow = S.wow ?? false;
   let newTouchdownVS = S.touchdownVS ?? 0;
   let _abEngaged = false;   // autobrake actively decelerating (set in the ground-roll branch) → panel/ECAM
@@ -172,6 +172,7 @@ export function tickPhysics(dt) {
        whether it is dead (windmilling) give the thrust moment. */
     const yawM     = yawModel(ac);
     const _engDead = yawM ? _engs.map(e => _share(e) === 0) : null;
+    const _engThrust = () => { const k = T_max * (rho / 1.225) / _engs.length; return _engs.map(e => _share(e) * k); };
 
     /* Aircraft constants */
     const S_wing   = perf.wingArea  ?? 16.2;
@@ -396,7 +397,19 @@ export function tickPhysics(dt) {
         /* Nose-wheel steering: yaw rate ∝ steer angle × ground speed, so it only
            turns while rolling (can't pivot a stationary aircraft). Capped at 30°/s. */
         const yawRate = Math.max(-30, Math.min(30, (S.steer ?? 0) * newSpd * 1.1));  // °/s
-        newHdg = (((S.hdg + yawRate * dt) % 360) + 360) % 360;
+        if (yawM) {
+          /* Measured airframe (core/yaw.js): the pedals steer the nosewheel too; thrust asymmetry
+             and the rudder turn the nose beyond that once the nosewheel can't hold it sideways. */
+          const rud = (S.rudder ?? 0) + (S.rudderTrim ?? 0);
+          const g = groundYawStep(yawM, {
+            yawDev: (S.yawDev ?? 0) * DEG, q, tas: tas_ms, thrust: _engThrust(), dead: _engDead,
+            rudder: rud, weightOnWheels: W - L, pedalRate: pedalYawRate(yawM, rud, newSpd_ms, mass, W - L),
+          }, dt);
+          newYawDev = g.yawDev / DEG;                                   // the pedals' turn and any swing
+          newHdg = (((S.hdg + (yawRate + newYawDev) * dt) % 360) + 360) % 360;
+        } else {
+          newHdg = (((S.hdg + yawRate * dt) % 360) + 360) % 360;
+        }
       } else {
         newHdg = convergeHdg(S.hdg, S.hdgT, 30 * dt);  // AP heading-bug steering
       }
@@ -442,10 +455,9 @@ export function tickPhysics(dt) {
          the rudder, the fin and the fuselage turn the nose off the flight path (sideslip β). The
          heading stays the nose; the aircraft moves along heading + β (dead reckoning below). */
       if (yawM) {
-        const tRatio = T_max * (rho / 1.225) / _engs.length;
         const y = yawStep(yawM, {
           beta: (S.beta ?? 0) * DEG, yawDev: (S.yawDev ?? 0) * DEG, q, tas: newTas_ms,
-          thrust: _engs.map(e => _share(e) * tRatio), dead: _engDead,
+          thrust: _engThrust(), dead: _engDead,
           rudder: (S.rudder ?? 0) + (S.rudderTrim ?? 0),
         }, dt, mass);
         newBeta     = Math.max(-30, Math.min(30, y.beta / DEG));

@@ -367,7 +367,11 @@ deflection), the fuselage's destabilising moment (DATCOM), Izz from mass, span a
 (Roskam), a dead engine's windmilling drag on the nacelle's frontal area, and a rudder
 limiter (full travel up to `handling.rudderLimitKt`, then the moment held). Each estimate
 is a named constant at the top of the module. The physics calls it in the flight branch:
-the heading stays the nose, the aircraft moves along heading + β. With symmetric thrust and
+the heading stays the nose, the aircraft moves along heading + β. On the ground
+(`groundYawStep`) the tyres hold the nose to what the nosewheel steers — the tiller as
+before, plus the pedals (`handling.pedalSteerDeg`, capped by the tyres' grip) — up to the
+nosewheel's side-friction limit (`performance.muSide` × its load × the wheelbase);
+beyond it the aircraft pivots on the main gear, β stays 0 on the wheels. With symmetric thrust and
 no rudder it gives exactly nothing, so aircraft and flights without an asymmetry are
 unchanged; V_MC is not a parameter, it follows (`vmcQ()`: ~132 kt for the 777).
 

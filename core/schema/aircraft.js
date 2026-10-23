@@ -75,7 +75,7 @@ const performance = object({
   /* fixed-wing force model */
   mass: num, wingArea: num, wingSpan: num, thrustMax: num, Vr: num,
   CL_0: num, CL_alpha: num, CL_max: num, CD_0: num, inducedK: num,
-  gearDrag: num, spoilerDrag: num, coolFlapDrag: num, muRoll: num, muBrake: num,
+  gearDrag: num, spoilerDrag: num, coolFlapDrag: num, muRoll: num, muBrake: num, muSide: num,
   /* rockets */
   massWet: num, payload: num, Cd: num, area: num, gLimit: num, qLimit: num, cegCutoffG: num,
   guidanceDuration: num, lesJettisonT: num, stages: arrayOf(stage),
@@ -109,7 +109,7 @@ export const aircraft = object(
     id: str, name: str, manufacturer: str, family: str, icaoType: str, registration: str, callsign: str,
     vehicleType: oneOf(...valuesOf(VEHICLE)), manualControl: bool, panel: oneOf(...valuesOf(PANEL)),
     engine, apu, sound: object({ engineType: oneOf(...valuesOf(ENGINE)) }), ignitionTime: num, staging: oneOf('hot'),
-    envelope, performance, handling: object({ rollRate: num, pitchRate: num, maxBank: num, maxPitch: num, rudderMaxDeg: num, rudderLimitKt: num }),
+    envelope, performance, handling: object({ rollRate: num, pitchRate: num, maxBank: num, maxPitch: num, rudderMaxDeg: num, rudderLimitKt: num, pedalSteerDeg: num }),
     inertia: object({ Izz: num }),                   // kg·m² — overrides core/yaw.js's estimate from mass, span and length
     flaps: arrayOf(flapSetting), thrustProfiles: arrayOf(thrustProfile), approachSpeed: num,
     autobrake: bool, fixedGear: bool, gridFins: bool, landingLegs: bool,

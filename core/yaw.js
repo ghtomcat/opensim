@@ -13,13 +13,19 @@
    The damping acts on the yaw away from the coordinated turn, so a
    normal turn stays coordinated (as with the yaw damper on).
 
+   On the ground (groundYawStep) the tyres hold the nose to the rate
+   the nosewheel steers — tiller and pedals — up to what the nosewheel
+   can take sideways before it skids (side friction × its load × the
+   wheelbase). Beyond that the aircraft pivots on the main gear; the
+   path follows the nose (β = 0 on the wheels; no crosswind yet).
+
    Conventions: β > 0 = the air from the right (the nose left of the
    flight path); yaw rate and N > 0 = nose right; y > 0 = right of the
    centreline; rudder > 0 = right pedal (nose right). Units SI, angles
    in rad inside this module.
    ═══════════════════════════════════════════════════════════════ */
 
-import { nominalCg, engineY, vstab } from './airframe.js';
+import { nominalCg, engineY, vstab, DEFAULT_NOSE_GEAR_SHARE } from './airframe.js';
 
 /* Estimates — each a published method or a typical value, none tuned to a result. */
 const FIN_AR_EFFECT   = 1.55;   // fuselage + tailplane as end plates: effective aspect ratio of a fin (DATCOM)
@@ -29,6 +35,9 @@ const FUSELAGE_SIDE_K = 0.80;   // body side area ≈ 0.8 × diameter × length
 const RZ_BAR          = 0.46;   // Roskam radius of gyration about z; Izz = m·(R̄z·(b+L)/4)² — the 747's ≈ 15 m
 const WINDMILL_CD     = 0.10;   // a dead turbofan's windmilling + spillage drag on the nacelle's frontal area
 const RUDDER_MAX_DEG  = 25;     // when the aircraft gives none
+const MU_SIDE         = 0.5;    // the nosewheel's side friction on a dry runway, before it skids — when the aircraft gives none
+const PEDAL_STEER_DEG = 7;      // nosewheel travel from the rudder pedals (the tiller does the rest) — when the aircraft gives none
+const TYRE_TAU        = 0.2;    // s — how fast the tyres take out a yaw rate they can hold
 const RUDDER_LIMIT_KT = 160;    // the rudder limiter: full travel below this IAS, then ∝ 1/V² (the moment held) — when the aircraft gives none
 
 const _cache = new WeakMap();
@@ -75,6 +84,10 @@ function _build(ac) {
     engineY: ys,                                        // null → no thrust moment (not measured)
     windmillArea: WINDMILL_CD * Math.PI / 4 * cowl * cowl,
     cg,
+    wheelbase: (d.noseTipToMainGear - d.noseTipToNoseGear) / 1000,
+    noseShare: ac.balance?.noseGearLoadShare ?? DEFAULT_NOSE_GEAR_SHARE,
+    muSide: ac.performance?.muSide ?? MU_SIDE,
+    pedalSteer: (ac.handling?.pedalSteerDeg ?? PEDAL_STEER_DEG) * Math.PI / 180,
   };
 }
 
@@ -121,4 +134,29 @@ export function vmcQ(model, thrustOneEngine) {
   /* full rudder: N = q·finK·τ·δmax·arm; the engine: T·y; the dead engine's drag q·A·y */
   const q = thrustOneEngine * y / (model.finK * model.tau * model.rudderMax * model.arm - model.windmillArea * y);
   return q > 0 && q <= model.rudderLimitQ ? q : null;
+}
+
+/** The yaw rate (rad/s) the pedals steer through the nosewheel at ground speed v (m/s) — the
+    geometry (v·tan δ / wheelbase), capped at what the tyres' side grip can turn the path at
+    (μ·weight on the wheels / (m·v)) when the mass and that weight are given. */
+export function pedalYawRate(model, rudder, v, mass, weightOnWheels) {
+  const geo = v * Math.tan(Math.max(-1, Math.min(1, rudder)) * model.pedalSteer) / model.wheelbase;
+  if (!(mass > 0) || weightOnWheels === undefined) return geo;
+  const grip = model.muSide * Math.max(0, weightOnWheels) / (mass * Math.max(1, v));
+  return Math.max(-grip, Math.min(grip, geo));
+}
+
+/** The nosewheel's yaw-moment limit (N·m) with the weight not yet carried by the wing (N). */
+export function tyreLimit(model, weightOnWheels) {
+  return model.muSide * model.noseShare * Math.max(0, weightOnWheels) * model.wheelbase;
+}
+
+/** One step on the wheels: the yaw rate beyond the tiller's (rad/s). The tyres cancel the aero
+    and thrust moments and steer it to the pedals' rate (s.pedalRate), up to their limit. */
+export function groundYawStep(model, s, dt) {
+  const { N } = yawForces(model, { ...s, beta: 0 });
+  const cap = tyreLimit(model, s.weightOnWheels);
+  const want = model.Izz * ((s.pedalRate ?? 0) - s.yawDev) / TYRE_TAU - N;
+  const Nt = Math.max(-cap, Math.min(cap, want));
+  return { yawDev: s.yawDev + (N + Nt) / model.Izz * dt, N, skidding: Nt !== want };
 }
