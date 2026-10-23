@@ -17,7 +17,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { yawModel, yawForces, yawStep, vmcQ, windmillDrag, rudderTravel,
-         groundYawStep, tyreLimit, pedalYawRate, ballDeflection } from '../core/yaw.js';
+         groundYawStep, tyreLimit, pedalYawRate, ballDeflection, finAngle } from '../core/yaw.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const load = (id) => JSON.parse(readFileSync(join(root, 'aircraft', `${id}.json`), 'utf8'));
@@ -145,4 +145,19 @@ test('the slip indicator: ENG 1 out without rudder puts the ball right — step 
   assert.ok(ballDeflection(ay) > 0.3, `ball ${ballDeflection(ay)} (a_y ${ay} m/s²)`);
   assert.equal(ballDeflection(0), 0);
   assert.equal(ballDeflection(-100), 1);                             // pinned at full deflection
+});
+
+test('the fin stalls: linear up to 25°, then the side force falls away', () => {
+  const d = Math.PI / 180;
+  assert.equal(finAngle(20 * d), 20 * d);
+  assert.equal(finAngle(-25 * d), -25 * d);
+  assert.ok(Math.abs(finAngle(40 * d) - 15 * d) < 1e-12, '40 % lost 10° past the stall');
+  assert.ok(finAngle(30 * d) < 25 * d && finAngle(30 * d) > 15 * d);
+});
+
+test('V_MCA: with full rudder ENG 1 out is held at 125 kt — below ~112 kt the fin stalls and the yaw diverges', () => {
+  const held = fly(125, { thrust: [0, T1], dead: [true, false], rudder: 1 }, 60);
+  assert.ok(held.betaDeg > 0 && held.betaDeg < 10, `125 kt: β ${held.betaDeg}°`);
+  const gone = fly(105, { thrust: [0, T1], dead: [true, false], rudder: 1 }, 60);
+  assert.ok(gone.betaDeg > 40 && gone.hdg < -90, `105 kt: β ${gone.betaDeg}°, heading ${gone.hdg}°`);
 });

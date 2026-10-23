@@ -10,6 +10,10 @@
    the nose on the flight path, turns coordinated by bank.
 
    Yaw only in this version: no roll from sideslip, no Dutch roll.
+   The fin stalls: its angle (sideslip + the rudder's share) is linear up
+   to FIN_STALL_DEG, then the side force falls away. Below the speed where
+   the fin, stalled, can't hold the engine any more, there is no balance
+   and the yaw diverges — V_MC is where that starts.
    The damping acts on the yaw away from the coordinated turn, so a
    normal turn stays coordinated (as with the yaw damper on).
 
@@ -29,6 +33,8 @@ import { nominalCg, engineY, vstab, DEFAULT_NOSE_GEAR_SHARE } from './airframe.j
 
 /* Estimates — each a published method or a typical value, none tuned to a result. */
 const FIN_AR_EFFECT   = 1.55;   // fuselage + tailplane as end plates: effective aspect ratio of a fin (DATCOM)
+const FIN_STALL_DEG   = 25;     // the fin's stall angle (sideslip + rudder): low aspect ratio, swept — typically 25–30°
+const FIN_POST_STALL  = 0.4;    // side force lost past the stall, reached 10° beyond it (a gentle, low-AR stall)
 const RUDDER_LARGE_K  = 0.75;   // a plain flap loses effectiveness at large deflection (DATCOM, ~25°)
 const FUSELAGE_KN     = 0.0018; // DATCOM 5.2.3.1 body yaw factor K_N·K_Rl, typical airliner value
 const FUSELAGE_SIDE_K = 0.80;   // body side area ≈ 0.8 × diameter × length
@@ -91,6 +97,15 @@ function _build(ac) {
   };
 }
 
+/** The fin's effective angle (rad) after the stall: linear up to the stall angle, then the
+    side force falls by FIN_POST_STALL over the next 10° and stays there. */
+export function finAngle(a) {
+  const st = FIN_STALL_DEG * Math.PI / 180, m = Math.abs(a);
+  if (m <= st) return a;
+  const k = Math.min(1, (m - st) / (10 * Math.PI / 180));
+  return Math.sign(a) * st * (1 - FIN_POST_STALL * k);
+}
+
 /** Rudder travel (rad) at this dynamic pressure: full below the limit speed, then the moment held. */
 export function rudderTravel(model, q) {
   return model.rudderMax * Math.min(1, model.rudderLimitQ / Math.max(1, q));
@@ -99,7 +114,7 @@ export function rudderTravel(model, q) {
 /** Yaw moment (N·m) and side force (N) for the state and inputs. */
 export function yawForces(model, { beta, yawDev, q, tas, thrust = [], dead = [], rudder = 0 }) {
   const dr = Math.max(-1, Math.min(1, rudder)) * rudderTravel(model, q);
-  const finY = -q * model.finK * (beta + model.tau * dr);           // the fin's side force (air from the right → left)
+  const finY = -q * model.finK * finAngle(beta + model.tau * dr);  // the fin's side force (air from the right → left), stalls
   let N = -model.arm * finY                                         // the fin: weathercock + rudder
         - q * model.fuselageN * beta                                // the fuselage: destabilising
         - q * model.finK * model.arm * model.arm / Math.max(10, tas) * yawDev;   // the fin's damping
