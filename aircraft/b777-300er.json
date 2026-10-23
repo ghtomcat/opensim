@@ -401,6 +401,12 @@
     "rudderMaxDeg": 27,
     "rudderLimitKt": 160,
     "pedalSteerDeg": 7,
+    "tac": {
+      "thresholdFrac": 0.10,
+      "minKt": 80,
+      "lagS": 1.0,
+      "_note": "Thrust asymmetry compensation (core/yaw.js tacRudder). From G. F. Bartley (Boeing), 'Boeing B-777: Fly-By-Wire Flight Controls', The Avionics Handbook, ch. 11, CRC Press 2001: rudder for a thrust asymmetry above ~10 % of rated thrust, cancelling the engine-failure yaw, at all airspeeds above 80 kt — on the takeoff roll too — not with the reversers deployed. The 1-s lag is an estimate (Flight International's 777-300ER flight test: TAC lets a slight yaw develop first, as a cue). Switch: THRUST ASYM COMP on the overhead (FLIGHT CONTROLS)."
+    },
     "_note": "Rudder travel ±27° at low speed, full up to 160 kt, then reduced ∝ 1/V² (the moment held) as the 777's flight control computers limit it with airspeed; the rudder pedals steer the nosewheel ±7° (the tiller ±70°) — all from memory / assumed, not from a document; to check against the 777 FCOM / flight controls description. Read by core/yaw.js."
   },
   "performance": {

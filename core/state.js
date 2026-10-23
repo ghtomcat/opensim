@@ -30,6 +30,8 @@ export const S = {
   steer:    0,                       // nose-wheel steering, -1 (full left) … +1 (full right)
   rudder:   0,                       // rudder pedals, -1 (full left) … +1 (full right) — core/yaw.js
   rudderTrim: 0,                     // rudder trim, same scale, added to the pedals
+  tacRudder: 0,                      // the rudder TAC adds (thrust asymmetry compensation, the 777) — core/yaw.js
+  tacOff:   false,                   // the THRUST ASYM COMP switch off (overhead)
   beta:     0,                       // sideslip, deg (+ = the air from the right) — core/yaw.js
   yawDev:   0,                       // yaw rate away from the coordinated turn, deg/s
   latAccel: 0,                       // lateral acceleration from the side force, m/s² — the slip indicator

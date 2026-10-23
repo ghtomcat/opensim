@@ -428,6 +428,14 @@ function _buildHTML() {
     </div>
   </div>` : '';
 
+  /* Flight controls — only where the aircraft has a TAC (core/yaw.js): THRUST ASYM COMP, lit OFF when off */
+  const fltCtlSection = S.aircraft?.handling?.tac ? `<div class="ohp-section">
+    <div class="ohp-section-hdr">FLIGHT CONTROLS</div>
+    <div class="ohp-row">
+      ${_sysPb('tac', 'THRUST ASYM COMP', { lower: 'OFF', lowerColor: '#e8e8e8' })}
+    </div>
+  </div>` : '';
+
   /* Engine fire handles */
   const engFireHandles = Array.from({ length: n }, (_, i) => `
     <div class="ohp-fire-group">
@@ -457,6 +465,7 @@ function _buildHTML() {
     ${elecSection}
     ${apuSection}
     ${hydSection}
+    ${fltCtlSection}
     ${fuelSection}
     ${engSection}
     <div class="ohp-hint">O · RETURN TO INSTRUMENTS</div>
@@ -564,6 +573,12 @@ function _attachHandlers() {
   document.getElementById('ohp-apu-agent')?.addEventListener('click', () => {
     if (!(S.apuFireArmed ?? false)) return;
     setState({ apuAgent: true });
+    _updateSwitches();
+  });
+
+  /* THRUST ASYM COMP (TAC) */
+  document.getElementById('pb-tac')?.addEventListener('click', () => {
+    setState({ tacOff: !(S.tacOff ?? false) });
     _updateSwitches();
   });
 
@@ -685,6 +700,9 @@ function _updateSwitches() {
   document.getElementById('ohp-apu-fire')?.classList.toggle('armed', fireArmed);
   const fireLed = document.getElementById('ohp-apu-fire-led');
   if (fireLed) fireLed.classList.toggle('on', fireArmed || _testLitAPU);
+
+  /* Flight controls */
+  setPushButton('tac', { lower: S.tacOff ?? false });
 
   /* Fuel */
   setPushButton('xfeed', { lower: S.xfeedOpen ?? false });

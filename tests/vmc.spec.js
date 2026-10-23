@@ -1,7 +1,7 @@
 /**
  * V_MCA emerges from the model (core/yaw.js) — it is not a parameter. The 777 on singapore-london,
  * airborne, ENG 1 failed, ENG 2 at full thrust, full right rudder and 5° of bank toward the live
- * engine (the CS/FAR 25.149 definition), speed and altitude held every frame. Above ~112 kt the
+ * engine (the CS/FAR 25.149 definition), TAC off, speed and altitude held every frame. Above ~112 kt the
  * sideslip settles and the heading holds; below it the fin stalls, the sideslip runs away and the
  * aircraft yaws off toward the dead engine.
  */
@@ -11,7 +11,7 @@ test('V_MCA: the 777 is held on one engine at 125 kt, departs at 105 kt', async 
   await page.goto('/?mission=singapore-london&test=1');
   await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
   const r = await page.evaluate(async () => {
-    window.simSetState({ paused: false, thrustLever: 1, parkBrake: false });
+    window.simSetState({ paused: false, thrustLever: 1, parkBrake: false, tacOff: true });   // the airframe alone, without TAC
     window.simStep(40 * 60, 1 / 60);
     window.simSetState({ pitchT: 8 });
     window.simStep(30 * 60, 1 / 60);

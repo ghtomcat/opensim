@@ -14,7 +14,7 @@ import { vnavTargetAlt } from './vnav.js';
 import { runwayThreshold } from './mission-start.js';
 import { indicatedAlt } from './baro.js';
 import { random } from './random.js';
-import { yawModel, yawStep, windmillDrag, groundYawStep, pedalYawRate } from './yaw.js';
+import { yawModel, yawStep, windmillDrag, groundYawStep, pedalYawRate, tacRudder } from './yaw.js';
 
 const _DEG = Math.PI / 180;
 const _gcNm = (aLat, aLon, bLat, bLon) => {
@@ -74,7 +74,7 @@ export function tickPhysics(dt) {
   const spdTarget = Math.min(S.spdT, spdLimit);
 
   let newAlt, newSpd, newHdg, newPitch, newRoll, vs;
-  let newBeta = 0, newYawDev = 0, newLatAccel = 0;   // the yaw axis (core/yaw.js) — 0 without a measured tail; β 0 on the wheels
+  let newBeta = 0, newYawDev = 0, newLatAccel = 0, newTacRudder = 0;   // the yaw axis (core/yaw.js) — 0 without a measured tail; β 0 on the wheels
   let newWow = S.wow ?? false;
   let newTouchdownVS = S.touchdownVS ?? 0;
   let _abEngaged = false;   // autobrake actively decelerating (set in the ground-roll branch) → panel/ECAM
@@ -174,6 +174,7 @@ export function tickPhysics(dt) {
     const _engDead = yawM ? _engs.map(e => _share(e) === 0) : null;
     const _engThrust = () => { const k = T_max * (rho / 1.225) / _engs.length; return _engs.map(e => _share(e) * k); };
 
+
     /* Aircraft constants */
     const S_wing   = perf.wingArea  ?? 16.2;
     const mass     = perf.mass      ?? 1157;
@@ -184,6 +185,17 @@ export function tickPhysics(dt) {
     const CD_0     = perf.CD_0     ?? 0.028;
     const k_ind    = perf.inducedK ?? 0.055;
     const Vr       = perf.Vr ?? 55;
+
+    /* TAC (core/yaw.js tacRudder): the rudder that cancels a thrust asymmetry, lagged — added to
+       the pedals and the trim wherever the rudder acts below. */
+    if (yawM?.tac) {
+      const tgt = tacRudder(yawM, { thrust: _engThrust(), rated: T_max / _engs.length, q, ias: S.spd,
+                                    reverser: !!S.thrustReverser, off: !!S.tacOff });
+      const cur = S.tacRudder ?? 0;
+      newTacRudder = cur + (tgt - cur) * Math.min(1, dt / (yawM.tac.lagS ?? 1));
+      if (Math.abs(newTacRudder) < 1e-6 && tgt === 0) newTacRudder = 0;
+    }
+    const _rudderAll = () => (S.rudder ?? 0) + (S.rudderTrim ?? 0) + newTacRudder;
 
     /* ── Flap actuator ── S.flaps is a discrete selected stage; the AERO must RAMP to it over a
        few seconds, not snap, or each selection steps the drag/lift and punches the VS (≈−3000 fpm)
@@ -400,10 +412,11 @@ export function tickPhysics(dt) {
         if (yawM) {
           /* Measured airframe (core/yaw.js): the pedals steer the nosewheel too; thrust asymmetry
              and the rudder turn the nose beyond that once the nosewheel can't hold it sideways. */
-          const rud = (S.rudder ?? 0) + (S.rudderTrim ?? 0);
+          const rud = _rudderAll();
           const g = groundYawStep(yawM, {
             yawDev: (S.yawDev ?? 0) * DEG, q, tas: tas_ms, thrust: _engThrust(), dead: _engDead,
-            rudder: rud, weightOnWheels: W - L, pedalRate: pedalYawRate(yawM, rud, newSpd_ms, mass, W - L),
+            rudder: rud, weightOnWheels: W - L,
+            pedalRate: pedalYawRate(yawM, rud - newTacRudder, newSpd_ms, mass, W - L),   // the nosewheel follows the pedals, not TAC's rudder
           }, dt);
           newYawDev = g.yawDev / DEG;                                   // the pedals' turn and any swing
           newHdg = (((S.hdg + (yawRate + newYawDev) * dt) % 360) + 360) % 360;
@@ -463,7 +476,7 @@ export function tickPhysics(dt) {
         const y = yawStep(yawM, {
           beta: (S.beta ?? 0) * DEG, yawDev: (S.yawDev ?? 0) * DEG, q, tas: newTas_ms,
           thrust: _engThrust(), dead: _engDead,
-          rudder: (S.rudder ?? 0) + (S.rudderTrim ?? 0),
+          rudder: _rudderAll(),
         }, dt, mass);
         newBeta     = Math.max(-30, Math.min(30, y.beta / DEG));
         newYawDev   = y.yawDev / DEG;
@@ -705,6 +718,7 @@ export function tickPhysics(dt) {
 
   setState({ alt: newAlt, spd: newSpd, hdg: pbHdg, pitch: newPitch, roll: newRoll,
              beta: newBeta, yawDev: newYawDev, latAccel: newLatAccel,   // the yaw axis (core/yaw.js), deg · deg/s · m/s²
+             tacRudder: newTacRudder,                                     // TAC's rudder (core/yaw.js tacRudder)
              rollRate: newRollRate, pitchRate: newPitchRate, fieldElev: _grdElev,   // nearer airport — drives the shadow's AGL gate (outside.js), all panels
              ...( _flapActual != null ? { flapPos: _flapActual } : {} ),   // smoothed flap position — visual reads this so flaps & aero move together
              vs, ilsLoc, ilsGs, locCaptured: locCap, gsCaptured: gsCap, fma, lat: pbLat, lon: pbLon,

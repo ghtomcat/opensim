@@ -94,6 +94,7 @@ function _build(ac) {
     noseShare: ac.balance?.noseGearLoadShare ?? DEFAULT_NOSE_GEAR_SHARE,
     muSide: ac.performance?.muSide ?? MU_SIDE,
     pedalSteer: (ac.handling?.pedalSteerDeg ?? PEDAL_STEER_DEG) * Math.PI / 180,
+    tac: ac.handling?.tac ?? null,                      // thrust asymmetry compensation (the 777) — tacRudder()
   };
 }
 
@@ -182,4 +183,20 @@ export function groundYawStep(model, s, dt) {
 export const BALL_FULL_G = 0.15;
 export function ballDeflection(latAccel = 0) {
   return Math.max(-1, Math.min(1, (0 - latAccel) / (BALL_FULL_G * 9.81)));   // 0 − x: no −0
+}
+
+/** Thrust asymmetry compensation (TAC, the 777): the rudder share (−1 … +1) that cancels the
+    engines' thrust moment, once their thrust differs by more than tac.thresholdFrac of one
+    engine's rated thrust, above tac.minKt (also on the takeoff roll), not with the reversers out
+    and not switched off. From the engines' thrust, not the yaw — a dead engine's windmilling
+    drag stays for the pilot. The physics lags it by tac.lagS (the cue to the pilot).
+    Bartley, "Boeing B-777: Fly-By-Wire Flight Controls", The Avionics Handbook, CRC Press 2001. */
+export function tacRudder(model, { thrust = [], rated, q, ias, reverser = false, off = false }) {
+  const t = model?.tac;
+  if (!t || off || reverser || !model.engineY || !(ias >= (t.minKt ?? 80)) || !(rated > 0)) return 0;
+  if (Math.max(...thrust) - Math.min(...thrust) <= (t.thresholdFrac ?? 0.1) * rated) return 0;
+  let Nt = 0;
+  for (let i = 0; i < model.engineY.length; i++) Nt -= (thrust[i] ?? 0) * model.engineY[i];
+  const perUnit = q * model.finK * model.tau * rudderTravel(model, q) * model.arm;   // full rudder's moment
+  return perUnit > 0 ? Math.max(-1, Math.min(1, -Nt / perUnit)) : 0;
 }

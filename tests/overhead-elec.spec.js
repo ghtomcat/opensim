@@ -82,3 +82,15 @@ test('the 777 loses ENG 1: GEN L goes off line, L MAIN is fed through the bus ti
   await expect(page.locator('#pb-el-genL-lower')).not.toHaveClass(/lit/);                 // the overhead shows it
   await expect(page.locator('#pb-el-genR-lower')).toHaveClass(/lit/);
 });
+
+test('the 777 has THRUST ASYM COMP under FLIGHT CONTROLS; it switches TAC off and on — the A340 has none', async ({ page }) => {
+  await overhead(page, 'singapore-london');
+  await expect(page.locator('#pb-tac')).toHaveCount(1);
+  await click(page, 'pb-tac');
+  expect((await page.evaluate(() => window.simGetState())).tacOff).toBe(true);
+  await expect(page.locator('#pb-tac-lower')).toHaveClass(/lit/);                         // OFF lit
+  await click(page, 'pb-tac');
+  expect((await page.evaluate(() => window.simGetState())).tacOff).toBe(false);
+  await overhead(page, 'fimp-takeoff');
+  await expect(page.locator('#pb-tac')).toHaveCount(0);
+});

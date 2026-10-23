@@ -17,7 +17,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { yawModel, yawForces, yawStep, vmcQ, windmillDrag, rudderTravel,
-         groundYawStep, tyreLimit, pedalYawRate, ballDeflection, finAngle } from '../core/yaw.js';
+         groundYawStep, tyreLimit, pedalYawRate, ballDeflection, finAngle, tacRudder } from '../core/yaw.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const load = (id) => JSON.parse(readFileSync(join(root, 'aircraft', `${id}.json`), 'utf8'));
@@ -160,4 +160,18 @@ test('V_MCA: with full rudder ENG 1 out is held at 125 kt — below ~112 kt the 
   assert.ok(held.betaDeg > 0 && held.betaDeg < 10, `125 kt: β ${held.betaDeg}°`);
   const gone = fly(105, { thrust: [0, T1], dead: [true, false], rudder: 1 }, 60);
   assert.ok(gone.betaDeg > 40 && gone.hdg < -90, `105 kt: β ${gone.betaDeg}°, heading ${gone.hdg}°`);
+});
+
+test('TAC: the rudder that cancels the thrust moment — above 10 % asymmetry and 80 kt, not reversed, not off', () => {
+  const at = (kt, thrust, o = {}) => tacRudder(M, { thrust, rated: T1, q: qOf(kt), ias: kt, ...o });
+  const r = at(150, [0, T1]);
+  assert.ok(r > 0.3 && r <= 1, `ENG 1 out → right rudder ${r}`);
+  const f = yawForces(M, { beta: 0, yawDev: 0, q: qOf(150), tas: 150 * 0.5144, thrust: [0, T1], rudder: r });
+  assert.ok(Math.abs(f.N) < 1e-6 * T1, `the thrust moment cancelled: ${f.N} N·m`);
+  assert.ok(at(150, [T1, 0]) === -r, 'ENG 2 out: the mirror image');
+  assert.equal(at(150, [T1, 0.95 * T1]), 0, 'under 10 %: nothing');
+  assert.equal(at(70, [0, T1]), 0, 'below 80 kt: nothing');
+  assert.equal(at(150, [0, T1], { reverser: true }), 0, 'reversers out: nothing');
+  assert.equal(at(150, [0, T1], { off: true }), 0, 'switched off: nothing');
+  assert.equal(tacRudder(yawModel(load('a350')), { thrust: [0, T1], rated: T1, q: qOf(150), ias: 150 }), 0, 'no TAC on the A350');
 });
