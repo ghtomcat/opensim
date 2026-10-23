@@ -15,6 +15,7 @@
 import { S } from '../core/state.js';
 import { getRpmValue, getCurrentRpm } from '../core/sound.js';
 import { drawAnalogClock } from './clock.js';
+import { ballDeflection } from '../core/yaw.js';
 
 /* ── Palette ── */
 const P = {
@@ -527,8 +528,8 @@ function _drawWendezeiger(ctx, x, y, r, sc) {
   const ballY = y + r * 0.58;
   ctx.strokeStyle = P.mark; ctx.lineWidth = 1.2 * sc;
   ctx.beginPath(); ctx.arc(x, ballY, 20 * sc, Math.PI, Math.PI * 2); ctx.stroke();
-  /* Ball — centred (no lateral acc model) */
-  ctx.beginPath(); ctx.arc(x, ballY, 6.5 * sc, 0, Math.PI * 2);
+  /* Ball — from the lateral acceleration (core/yaw.js); centred while the aircraft has no yaw model */
+  ctx.beginPath(); ctx.arc(x + ballDeflection(S.latAccel) * 13.5 * sc, ballY, 6.5 * sc, 0, Math.PI * 2);
   ctx.fillStyle = P.ndlBack; ctx.fill();
   ctx.strokeStyle = P.mark; ctx.lineWidth = 0.8 * sc; ctx.stroke();
 

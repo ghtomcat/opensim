@@ -160,3 +160,11 @@ export function groundYawStep(model, s, dt) {
   const Nt = Math.max(-cap, Math.min(cap, want));
   return { yawDev: s.yawDev + (N + Nt) / model.Izz * dt, N, skidding: Nt !== want };
 }
+
+/** The slip indicator's deflection, −1 … +1 (+ = the ball / index to the right), from the lateral
+    acceleration (m/s²): the ball moves opposite to it — "step on the ball". Full deflection at
+    0.15 g (a display scale, assumed). Every slip indicator reads this. */
+export const BALL_FULL_G = 0.15;
+export function ballDeflection(latAccel = 0) {
+  return Math.max(-1, Math.min(1, (0 - latAccel) / (BALL_FULL_G * 9.81)));   // 0 − x: no −0
+}

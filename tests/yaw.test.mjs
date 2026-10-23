@@ -17,7 +17,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { yawModel, yawForces, yawStep, vmcQ, windmillDrag, rudderTravel,
-         groundYawStep, tyreLimit, pedalYawRate } from '../core/yaw.js';
+         groundYawStep, tyreLimit, pedalYawRate, ballDeflection } from '../core/yaw.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const load = (id) => JSON.parse(readFileSync(join(root, 'aircraft', `${id}.json`), 'utf8'));
@@ -137,4 +137,12 @@ test('the pedals steer the nosewheel: right pedal, nose right, more with speed',
   assert.ok(pedalYawRate(M, 1, v, MASS, W * 0.8) < pedalYawRate(M, 1, v) / 3, 'at 150 kt the tyres, not the geometry, limit the turn');
   assert.equal(pedalYawRate(M, 0.5, 0), 0);                       // no pivot at a standstill
   assert.ok(tyreLimit(M, W) > tyreLimit(M, W / 2), 'less nosewheel grip as the wing lifts');
+});
+
+test('the slip indicator: ENG 1 out without rudder puts the ball right — step on it, right rudder', () => {
+  const s = fly(250, { thrust: [0, T1], dead: [true, false] }, 10);
+  const ay = yawStep(M, { ...s, q: qOf(250), tas: 250 * 0.5144, thrust: [0, T1], dead: [true, false] }, 1 / 60, MASS).latAccel;
+  assert.ok(ballDeflection(ay) > 0.3, `ball ${ballDeflection(ay)} (a_y ${ay} m/s²)`);
+  assert.equal(ballDeflection(0), 0);
+  assert.equal(ballDeflection(-100), 1);                             // pinned at full deflection
 });

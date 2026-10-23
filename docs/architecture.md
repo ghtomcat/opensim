@@ -371,7 +371,8 @@ the heading stays the nose, the aircraft moves along heading + β. On the ground
 (`groundYawStep`) the tyres hold the nose to what the nosewheel steers — the tiller as
 before, plus the pedals (`handling.pedalSteerDeg`, capped by the tyres' grip) — up to the
 nosewheel's side-friction limit (`performance.muSide` × its load × the wheelbase);
-beyond it the aircraft pivots on the main gear, β stays 0 on the wheels. With symmetric thrust and
+beyond it the aircraft pivots on the main gear, β stays 0 on the wheels. Every slip indicator — the
+PFD's slip/skid index, the warbirds' balls — reads `ballDeflection(S.latAccel)`. With symmetric thrust and
 no rudder it gives exactly nothing, so aircraft and flights without an asymmetry are
 unchanged; V_MC is not a parameter, it follows (`vmcQ()`: ~132 kt for the 777).
 

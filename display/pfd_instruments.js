@@ -11,6 +11,7 @@ import { S } from '../core/state.js';
 import { engineAvailable } from '../core/engine.js';
 import { electricalLayout, solveElectrical, elecCharge } from '../core/electrical.js';
 import { managedSpeed } from '../core/managed-speed.js';
+import { ballDeflection } from '../core/yaw.js';
 import { indicatedAlt, baroSubscale } from '../core/baro.js';
 import { smooth, smoothAngle } from './smooth.js';
 import { buildDescentPath } from '../core/vnav.js';
@@ -460,6 +461,18 @@ function _bankArc(ctx, box, style) {
   ctx.moveTo(px - Math.sin(ptr) * 8, py + Math.cos(ptr) * 8);
   ctx.lineTo(px + Math.sin(ptr) * 8, py - Math.cos(ptr) * 8);
   ctx.lineTo(Math.cos(ptr) * (r - 18), Math.sin(ptr) * (r - 18));
+  ctx.closePath();
+  ctx.fill();
+
+  /* Slip / skid index — the trapezoid under the bank pointer, moving with it, displaced sideways
+     like the ball (core/yaw.js ballDeflection from S.latAccel): the pilot steps on it. */
+  ctx.rotate(-S.roll * Math.PI / 180);
+  const dx = ballDeflection(S.latAccel) * 16;
+  ctx.beginPath();
+  ctx.moveTo(dx - 7, -r + 21);
+  ctx.lineTo(dx + 7, -r + 21);
+  ctx.lineTo(dx + 10, -r + 27);
+  ctx.lineTo(dx - 10, -r + 27);
   ctx.closePath();
   ctx.fill();
 
