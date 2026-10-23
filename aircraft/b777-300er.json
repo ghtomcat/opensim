@@ -397,6 +397,11 @@
     { "label": "30", "dCL_0": 1.05, "dCL_max": 1.15, "dCD_0": 0.08 }
   ],
   "manualControl": true,
+  "handling": {
+    "rudderMaxDeg": 27,
+    "rudderLimitKt": 160,
+    "_note": "Rudder travel ±27° at low speed, full up to 160 kt, then reduced ∝ 1/V² (the moment held) as the 777's flight control computers limit it with airspeed — both values from memory / assumed, not from a document; to check against the 777 FCOM / flight controls description. Read by core/yaw.js."
+  },
   "performance": {
     "mass": 220000, "wingArea": 436.8, "thrustMax": 760000,
     "CL_0": 0.2, "CL_alpha": 4.5, "CL_max": 2.0, "CD_0": 0.018, "inducedK": 0.034,
@@ -572,6 +577,9 @@
   },
   "dimensions": {
     "_note": "from Boeing 777-300ER airport-planning DWG @ 1:500.7; drawing-mm × 0.0004356 = model, × 500.7 = real-mm",
+    "length": 73860,
+    "wingSpan": 64800,
+    "_lengthSpanNote": "From Boeing ACAP D6-58329-2 Rev G §2.2.2 (73.86 m, 64.80 m), not the DWG. Read by core/yaw.js (the yaw inertia).",
     "fuselageDiameter": 6206,
     "noseTipToNoseGear": 5900,
     "noseTipToDoor1": 6221,

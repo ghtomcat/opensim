@@ -99,7 +99,7 @@ not draw. Grouped by role:
 | World | `elevation.js` (Mapbox Terrain-RGB DEM: one tile cache, `elevM(lat, lon)`, and `tickElevation()` → `S.terrainElevFt`) |
 | Data contract | `vocab.js` (the names data and code share — vehicle types, panels, engine sounds, triggers, rocket events, failures, comm profiles; a misspelled name throws), `schema/` (`check.js` validator; `mission.js`, `catalog.js`, `aircraft.js` schemas; `known.js`: logged violations) |
 | Engine | `engine.js` (start and shutdown lifecycle — the owner of `engineState`) |
-| Physics | `physics.js` (fixed-wing), `airframe.js` (the geometry the physics reads from `dimensions`: nominal CG, engine positions, vertical tail and rudder), `takeoff-perf.js` (takeoff speeds — V1 = VR for now), `rocket.js` (launch, staging, orbit, booster recovery), `thrust.js`, `pushback.js` |
+| Physics | `physics.js` (fixed-wing), `airframe.js` (the geometry the physics reads from `dimensions`: nominal CG, engine positions, vertical tail and rudder), `yaw.js` (the yaw axis: sideslip `beta` and the yaw away from the coordinated turn `yawDev`, from thrust asymmetry, windmilling drag, fin, rudder and fuselage — only for a measured tail), `takeoff-perf.js` (takeoff speeds — V1 = VR for now), `rocket.js` (launch, staging, orbit, booster recovery), `thrust.js`, `pushback.js` |
 | Aircraft systems | `fuel.js`, `electrical.js`, `battery.js`, `hydraulics.js`, `baro.js`, `failures.js`, `aircraft-config.js` |
 | Navigation & automation | `route.js` (full route: SID/airways/STAR/approach), `lnav.js`, `vnav.js`, `managed-speed.js`, `fma.js`, `airway-graph.js`, `taxi-graph.js`, `taxi.js` (the active taxi route + clearance), `flightplan.js` (the active flight plan) |
 | Crew, radio, sound | `crew.js` (PF/PM/ATC/GPWS voice dispatch), `radio.js` (comm-chain filtering), `audio.js` (the one AudioContext + worklet loading), `sound.js` (Web Audio engine synthesis), `*-processor.js` (AudioWorklet engine/crackle synthesizers: DB 605, Le Rhône 9J, Lycoming, R-2800) |
@@ -295,7 +295,7 @@ that simulates and draws it. Read these first when opening an unfamiliar aircraf
 | Group | Fields | Consumer |
 |---|---|---|
 | **Identity** | `id`, `name`, `manufacturer`, `family`, `model`, `subtype`, `registration`, `callsign`, `icaoType`, `crewLang` | picker, COM/ATC (`callsign`), `core/crew.js` (`crewLang`) |
-| **Flight model** | `performance {mass, wingArea, thrustMax, CL_0, CL_alpha, CL_max, CD_0, …}`, `envelope {cruiseAlt, maxAlt, cruiseSpd, maxSpd, spdProfile}`, `handling {rollRate, pitchRate, maxBank, maxPitch}`, `flaps [{label, dCL_0, dCL_max, dCD_0}]`, `thrustProfiles`, `approachSpeed`, `autobrake`, `rotaryEngine`; `balance {noseGearLoadShare}` (nominal CG) and the `dimensions` below that `core/airframe.js` reads | `core/physics.js`, `airframe.js`, `thrust.js`, `managed-speed.js`, `vnav.js`, `input.js`, pedestal/levers |
+| **Flight model** | `performance {mass, wingArea, thrustMax, CL_0, CL_alpha, CL_max, CD_0, …}`, `envelope {cruiseAlt, maxAlt, cruiseSpd, maxSpd, spdProfile}`, `handling {rollRate, pitchRate, maxBank, maxPitch, rudderMaxDeg, rudderLimitKt}`, `inertia {Izz}`, `flaps [{label, dCL_0, dCL_max, dCD_0}]`, `thrustProfiles`, `approachSpeed`, `autobrake`, `rotaryEngine`; `balance {noseGearLoadShare}` (nominal CG) and the `dimensions` below that `core/airframe.js` reads | `core/physics.js`, `airframe.js`, `thrust.js`, `managed-speed.js`, `vnav.js`, `input.js`, pedestal/levers |
 | **Rocket model** | `performance {massWet, stages[], payload, fpaProfile[], recovery{}, …}`, `ignitionTime`, `staging`, `gridFins`, `landingLegs` | `core/rocket.js`, rocket displays |
 | **Other vehicle models** | `specs` (robot), `joints`, `links` (robot arm/dog) | `display/robot_arm.js`, `display/yertle_quadruped.js` |
 | **Systems** | `tanks`, `fuelBurn`, `hasCarbHeat`; `cooling {type, ambient, normal, redline, …}` + `coolingSystem`; `electrical`; `battery` | `core/fuel.js`, `core/physics.js` (heat balance), `core/failures.js`, `core/electrical.js`, `core/battery.js` |
@@ -359,6 +359,17 @@ centreline), and returns `null` for what an aircraft hasn't measured:
 | `nominalCg(ac)` | `noseTipToNoseGear`, `noseTipToMainGear`; `balance.noseGearLoadShare` (default 0.08) | the CG, that share of the wheelbase ahead of the main gear — nominal until weight and balance (`issues.md`) |
 | `engineY(ac)` | `engineCenterlineToAircraftCenterline` (twins) | each engine's lateral position, ENG 1 left |
 | `vstab(ac)` | `vstabRootChord`, `vstabTipChord`, `vstabHeight`, `noseTipToVstabRootLE`, `noseTipToVstabTipLE`; `vstabRudderRootChord`, `vstabRudderTopChord`, `vstabRudderTopHeight` | the vertical tail (fin + rudder as one trapezoid): area, sweep, aspect ratio, MAC, the quarter-MAC station and its arm from the CG; the rudder's area and chord ratios |
+
+`core/yaw.js` builds the yaw axis on these (`yawModel(ac)`, null without a measured tail):
+fin lift slope from its aspect ratio and half-chord sweep (Helmbold/DATCOM, ×1.55 for the
+end plates), rudder effectiveness from its chord share (flap theory, reduced for large
+deflection), the fuselage's destabilising moment (DATCOM), Izz from mass, span and length
+(Roskam), a dead engine's windmilling drag on the nacelle's frontal area, and a rudder
+limiter (full travel up to `handling.rudderLimitKt`, then the moment held). Each estimate
+is a named constant at the top of the module. The physics calls it in the flight branch:
+the heading stays the nose, the aircraft moves along heading + β. With symmetric thrust and
+no rudder it gives exactly nothing, so aircraft and flights without an asymmetry are
+unchanged; V_MC is not a parameter, it follows (`vmcQ()`: ~132 kt for the 777).
 
 Measured so far: the 777-300ER (DWG × 500.7, cross-checked against Boeing's ACAP
 D6-58329-2 Rev G; the sources in the fields' notes). The A340 has its tail under the same

@@ -109,7 +109,8 @@ export const aircraft = object(
     id: str, name: str, manufacturer: str, family: str, icaoType: str, registration: str, callsign: str,
     vehicleType: oneOf(...valuesOf(VEHICLE)), manualControl: bool, panel: oneOf(...valuesOf(PANEL)),
     engine, apu, sound: object({ engineType: oneOf(...valuesOf(ENGINE)) }), ignitionTime: num, staging: oneOf('hot'),
-    envelope, performance, handling: object({ rollRate: num, pitchRate: num, maxBank: num, maxPitch: num }),
+    envelope, performance, handling: object({ rollRate: num, pitchRate: num, maxBank: num, maxPitch: num, rudderMaxDeg: num, rudderLimitKt: num }),
+    inertia: object({ Izz: num }),                   // kg·m² — overrides core/yaw.js's estimate from mass, span and length
     flaps: arrayOf(flapSetting), thrustProfiles: arrayOf(thrustProfile), approachSpeed: num,
     autobrake: bool, fixedGear: bool, gridFins: bool, landingLegs: bool,
     /* systems */
@@ -183,7 +184,7 @@ export const aircraft = object(
       }
       /* the measurements the physics reads (core/airframe.js): positive mm, and a tail that fits together */
       const d = a.dimensions ?? {};
-      for (const k of ['noseTipToNoseGear', 'noseTipToMainGear', 'engineCenterlineToAircraftCenterline', 'vstabRootChord', 'vstabTipChord',
+      for (const k of ['length', 'wingSpan', 'fuselageDiameter', 'fanCowlDiameter', 'noseTipToNoseGear', 'noseTipToMainGear', 'engineCenterlineToAircraftCenterline', 'vstabRootChord', 'vstabTipChord',
                        'vstabHeight', 'noseTipToVstabRootLE', 'noseTipToVstabTipLE', 'vstabRudderRootChord', 'vstabRudderTopChord', 'vstabRudderTopHeight'])
         if (d[k] !== undefined && !(typeof d[k] === 'number' && d[k] > 0)) errs.push(`dimensions.${k} must be a positive number (mm)`);
       if (d.noseTipToNoseGear >= d.noseTipToMainGear) errs.push('dimensions: the nose gear must be ahead of the main gear');

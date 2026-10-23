@@ -14,6 +14,7 @@ import { vnavTargetAlt } from './vnav.js';
 import { runwayThreshold } from './mission-start.js';
 import { indicatedAlt } from './baro.js';
 import { random } from './random.js';
+import { yawModel, yawStep, windmillDrag } from './yaw.js';
 
 const _DEG = Math.PI / 180;
 const _gcNm = (aLat, aLon, bLat, bLon) => {
@@ -73,6 +74,7 @@ export function tickPhysics(dt) {
   const spdTarget = Math.min(S.spdT, spdLimit);
 
   let newAlt, newSpd, newHdg, newPitch, newRoll, vs;
+  let newBeta = 0, newYawDev = 0, newLatAccel = 0;   // the yaw axis (core/yaw.js) — 0 without a measured tail, and on the ground
   let newWow = S.wow ?? false;
   let newTouchdownVS = S.touchdownVS ?? 0;
   let _abEngaged = false;   // autobrake actively decelerating (set in the ground-roll branch) → panel/ECAM
@@ -165,6 +167,11 @@ export function tickPhysics(dt) {
     const _s0    = _share(_engs[0]);
     let engShare = _s0;
     for (let k = 1; k < _engs.length; k++) engShare += (_share(_engs[k]) - _s0) / _engs.length;
+
+    /* The yaw axis — only with a measured vertical tail (core/yaw.js): each engine's thrust and
+       whether it is dead (windmilling) give the thrust moment. */
+    const yawM     = yawModel(ac);
+    const _engDead = yawM ? _engs.map(e => _share(e) === 0) : null;
 
     /* Aircraft constants */
     const S_wing   = perf.wingArea  ?? 16.2;
@@ -331,7 +338,7 @@ export function tickPhysics(dt) {
     const CL    = CL_b * geLift * sbLift;                                // ground effect lifts, spoilers dump …
     const CD    = CD_0_eff + sbCD + k_ind * CL_b * CL_b * geK;           // … spoilers + induced (cut near the ground)
     const L     = q * S_wing * CL;
-    const D     = q * S_wing * CD;
+    const D     = q * S_wing * CD + windmillDrag(yawM, q, _engDead);   // + a dead engine's windmilling drag (measured airframes)
     const T     = isTurbofan ? engShare * T_max * (rho / 1.225)                 // the engines' mean N1 share (above)
                              : throttle * T_max * (rho / 1.225) * engShare;     // the lever × the engines' mean power
     const W     = mass * 9.81;
@@ -431,6 +438,22 @@ export function tickPhysics(dt) {
       const turnRate = 9.81 * Math.tan(newRoll * DEG) / Math.max(10, newTas_ms);
       newHdg = (S.hdg + turnRate * dt * 180 / Math.PI + 360) % 360;
 
+      /* Yaw away from the coordinated turn (core/yaw.js): thrust asymmetry, a dead engine's drag,
+         the rudder, the fin and the fuselage turn the nose off the flight path (sideslip β). The
+         heading stays the nose; the aircraft moves along heading + β (dead reckoning below). */
+      if (yawM) {
+        const tRatio = T_max * (rho / 1.225) / _engs.length;
+        const y = yawStep(yawM, {
+          beta: (S.beta ?? 0) * DEG, yawDev: (S.yawDev ?? 0) * DEG, q, tas: newTas_ms,
+          thrust: _engs.map(e => _share(e) * tRatio), dead: _engDead,
+          rudder: (S.rudder ?? 0) + (S.rudderTrim ?? 0),
+        }, dt, mass);
+        newBeta     = Math.max(-30, Math.min(30, y.beta / DEG));
+        newYawDev   = y.yawDev / DEG;
+        newLatAccel = y.latAccel;
+        newHdg      = (newHdg + newYawDev * dt + 360) % 360;
+      }
+
       /* ── Rotary engine gyroscopic precession ──
          Le Rhône spins clockwise seen from pilot.
          Pitch-up → yaw right. Left bank → pitch-down assist. Right bank → pitch-up resistance.
@@ -522,7 +545,7 @@ export function tickPhysics(dt) {
   /* ── Dead reckoning — ground velocity = TAS vector + wind. On the ground the wheels
      hold the aircraft, so no wind drift — it only tracks along its heading (a parked
      aircraft doesn't get blown across the apron). ── */
-  const hdgRad = newHdg * DEG;
+  const hdgRad = (newHdg + newBeta) * DEG;           // the flight path: the nose + sideslip
   const cosLat = Math.cos(S.lat * DEG);
   const _rhoRatio = Math.pow(Math.max(0, 1 - 2.2558e-5 * newAlt * 0.3048), 4.2559);   // ρ/ρ₀ at the new altitude
   const _tasMs    = newSpd * 0.5144 / Math.sqrt(Math.max(0.05, _rhoRatio));            // groundspeed ≈ TAS (IAS→TAS)
@@ -664,6 +687,7 @@ export function tickPhysics(dt) {
   }
 
   setState({ alt: newAlt, spd: newSpd, hdg: pbHdg, pitch: newPitch, roll: newRoll,
+             beta: newBeta, yawDev: newYawDev, latAccel: newLatAccel,   // the yaw axis (core/yaw.js), deg · deg/s · m/s²
              rollRate: newRollRate, pitchRate: newPitchRate, fieldElev: _grdElev,   // nearer airport — drives the shadow's AGL gate (outside.js), all panels
              ...( _flapActual != null ? { flapPos: _flapActual } : {} ),   // smoothed flap position — visual reads this so flaps & aero move together
              vs, ilsLoc, ilsGs, locCaptured: locCap, gsCaptured: gsCap, fma, lat: pbLat, lon: pbLon,

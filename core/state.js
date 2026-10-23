@@ -28,6 +28,11 @@ export const S = {
   braking:  false,                   // ground brakes held (momentary, B key)
   parkBrake: false,                  // parking brake (latched, pedestal switch)
   steer:    0,                       // nose-wheel steering, -1 (full left) … +1 (full right)
+  rudder:   0,                       // rudder pedals, -1 (full left) … +1 (full right) — core/yaw.js
+  rudderTrim: 0,                     // rudder trim, same scale, added to the pedals
+  beta:     0,                       // sideslip, deg (+ = the air from the right) — core/yaw.js
+  yawDev:   0,                       // yaw rate away from the coordinated turn, deg/s
+  latAccel: 0,                       // lateral acceleration from the side force, m/s² — the slip indicator
   enginePower: 1.0,               // 0 = dead engine, 1 = full power — computed by core/engine.js (lifecycle × engineFactors)
   engineFactors: { failure: 1, ice: 1, seizure: 1, battery: 1, crash: 1 },   // 0–1 per cause — set via setEngineFactor() (core/engine.js)
   engines:     [],                // one per engine: { state, startT, stopT, n1, factors, power } — core/engine.js; the single fields below are derived from it
