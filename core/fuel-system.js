@@ -14,6 +14,8 @@
      engines  { eng1: 'left', … } — the manifold each engine draws from
      valves   id, label, type crossfeed — joins the two manifolds
      load     the default load, a fraction of each tank's capacity
+     loLevelKg, imbalanceKg — the caution thresholds (defaults: 5 % of a
+              feed tank, 2 % of the total capacity)
    Each engine draws its fuel flow (S.engines[i].ff, kg/h): from a
    running override pump on its side, else a running main pump on its
    side, else through an open crossfeed from the other side; with no
@@ -34,6 +36,8 @@ import { S, setState } from './state.js';
 import { onMissionReset } from './lifecycle.js';
 
 const DEFAULT_LOAD = 0.6;   // until missions or weight and balance set the fuel load
+const LO_LEVEL     = 0.05;  // a feed tank below 5 % of its capacity — the LO LEVEL caution, unless the layout gives loLevelKg
+const IMBALANCE    = 0.02;  // the wing tanks apart by more than 2 % of the total capacity, unless the layout gives imbalanceKg
 
 /* ── The layout ── */
 export function fuelLayout(ac = S.aircraft) {
@@ -78,6 +82,7 @@ export function fuelValve(id, open) { setState({ fuelCtl: { ...(S.fuelCtl ?? {})
 
 /* ── Reset on mission load: every tank at the layout's load ── */
 export function resetFuelSystem() {
+  _clearCautions();                                           // the last mission's FUEL_… keys go with it
   const ac = S.aircraft;
   if (!ac || ac.engine?.type !== 'turbofan') { setState({ fuelSys: null, fuelCtl: {} }); return; }
   const layout = fuelLayout(ac), load = layout.load ?? DEFAULT_LOAD;
@@ -139,4 +144,60 @@ export function tickFuelSystem(dt) {
     }
   });
   setState({ fuelSys: _state(layout, tanks, Object.fromEntries(Object.entries(running).map(([id, r]) => [id, { running: r }])), feeds, suction) });
+  _publishCautions(layout);
+}
+
+/* This module's keys in S.warnings (FUEL_…) — replaced each tick, removed on a mission reset; the others' keys kept */
+let _ownKeys = [];
+function _clearCautions() {
+  if (!_ownKeys.length) return;
+  const w = { ...(S.warnings ?? {}) };
+  for (const k of _ownKeys) delete w[k];
+  _ownKeys = [];
+  setState({ warnings: w });
+}
+function _publishCautions(layout) {
+  const mine = fuelCautions(layout);
+  const w = { ...(S.warnings ?? {}) };
+  for (const k of _ownKeys) delete w[k];
+  Object.assign(w, mine);
+  _ownKeys = Object.keys(mine);
+  setState({ warnings: w });
+}
+
+/* ── For the displays: tanks, pumps, valves and feeds, labelled; and the cautions ── */
+
+/** The fuel system as the FUEL page and the ECAM show it. A pump's state: 'run', 'off' (switched off),
+    'fault' (switched on, its tank has fuel, no power — LO PR), 'empty' (switched on, its tank empty). */
+export function fuelView(layout = fuelLayout()) {
+  const fs = S.fuelSys;
+  if (!fs) return null;
+  const tanks = layout.tanks.map(t => ({ id: t.id, label: t.label ?? t.id, kg: fs.tanks[t.id]?.kg ?? 0, capacityKg: t.capacityKg }));
+  const pumps = layout.pumps.map(p => {
+    const on = fuelCtl(p.id, layout), running = !!fs.pumps?.[p.id]?.running, kg = fs.tanks[p.tank]?.kg ?? 0;
+    return { id: p.id, label: p.label ?? p.id, tank: p.tank, feeds: p.feeds, role: p.role ?? 'main',
+             state: running ? 'run' : !on ? 'off' : kg > 0 ? 'fault' : 'empty' };
+  });
+  const valves  = (layout.valves ?? []).map(v => ({ id: v.id, label: v.label ?? v.id, type: v.type, open: !!fs.valves?.[v.id]?.open }));
+  const engines = Object.entries(layout.engines ?? {}).map(([eng, side]) => ({ eng, side, feeds: fs.feeds?.[eng] ?? [], suction: !!fs.suction?.[eng] }));
+  return { tanks, pumps, valves, engines, fob: fs.fob };
+}
+
+/** The fuel cautions, as S.warnings keys (the glass E/WD shows FUEL… keys in amber). None while the
+    aircraft has no AC power at all — cold and dark, the warning system itself is unpowered; LO PR means
+    a pump commanded on without pressure while the rest of the aircraft is powered. */
+export function fuelCautions(layout = fuelLayout(), view = fuelView(layout)) {
+  const w = {};
+  if (!view || !S.acBusPowered) return w;
+  const total = layout.tanks.reduce((a, t) => a + t.capacityKg, 0);
+  for (const p of view.pumps) if (p.state === 'fault') w[`FUEL_${p.label.replace(/\s+/g, '_')}_LO_PR`] = true;
+  /* LO LEVEL — a tank feeding a side through a main pump, below its threshold */
+  const feedTanks = new Set(layout.pumps.filter(p => (p.role ?? 'main') === 'main').map(p => p.tank));
+  for (const t of view.tanks) if (feedTanks.has(t.id) && t.kg < (layout.loLevelKg ?? LO_LEVEL * t.capacityKg))
+    w[`FUEL_${t.label.replace(/\s+/g, '_')}_LO_LEVEL`] = true;
+  /* IMBALANCE — between the tanks feeding the left and the right */
+  const sideKg = (side) => view.tanks.filter(t => layout.pumps.some(p => p.tank === t.id && p.feeds === side && (p.role ?? 'main') === 'main'))
+                                     .reduce((a, t) => a + t.kg, 0);
+  if (Math.abs(sideKg('left') - sideKg('right')) > (layout.imbalanceKg ?? IMBALANCE * total)) w.FUEL_IMBALANCE = true;
+  return w;
 }

@@ -10,7 +10,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState }     from '../core/state.js';
-import { drawECAMUpper, drawECAMLower } from './pfd_instruments.js';
+import { drawECAMUpper, drawECAMLower, nextSdPage } from './pfd_instruments.js';
 import { pushButtonHTML, setPushButton } from './pushbutton.js';
 import { bbEvent }         from '../core/blackbox.js';
 
@@ -140,11 +140,11 @@ export function initCenterConsole() {
   _el.innerHTML = _buildHTML();
   document.body.appendChild(_el);
   _ecamCanvas = _el.querySelector('#ccon-ecam');
-  /* Click the lower (SD) screen → toggle the ELEC/HYD synoptic. */
+  /* Click the lower (SD) screen → the next synoptic (ELEC → HYD → FUEL). */
   _ecamCanvas.addEventListener('click', (e) => {
     const rect = _ecamCanvas.getBoundingClientRect();
     if ((e.clientY - rect.top) / rect.height > 0.5) {
-      setState({ ecamPage: S.ecamPage === 'hyd' ? 'elec' : 'hyd' });
+      setState({ ecamPage: nextSdPage(S.ecamPage) });
     }
   });
 

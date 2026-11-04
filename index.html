@@ -1931,7 +1931,7 @@
   import { initBlackbox, bbEvent, downloadBlackbox } from './core/blackbox.js';
   import { renderPFD }         from './display/pfd.js';
   import { renderPanel, renderFCU, renderCockpit, handleCockpitClick } from './display/panel_renderer.js';
-  import { qnhHitRegion, fcuButtonRegions } from './display/pfd_instruments.js';
+  import { qnhHitRegion, fcuButtonRegions, nextSdPage } from './display/pfd_instruments.js';
   import { indicatedAlt } from './core/baro.js';
   import { renderRocket, renderApollo, handleApolloClick, isApolloTelemetry } from './display/rocket_display.js';
   import { renderLM, handleLMClick } from './display/lm_display.js';
@@ -1993,14 +1993,14 @@
     if (panel !== 'airbus' && panel !== 'e190') return;
     e.preventDefault();
     e.stopPropagation();
-    /* Centre (M) view: Tab cycles the lower SD synoptic (ELEC/HYD). The upper E/WD is fixed —
+    /* Centre (M) view: Tab cycles the lower SD synoptic (ELEC → HYD → FUEL). The upper E/WD is fixed —
        on a real Airbus it always shows engines + warnings + memo, so it doesn't page. */
     if (S.cockpitView === 'center') {
-      setState({ ecamPage: S.ecamPage === 'hyd' ? 'elec' : 'hyd' });
+      setState({ ecamPage: nextSdPage(S.ecamPage) });
       return;
     }
     if (!e.shiftKey && _currentSpec(1) === 'airbus-ecam') {
-      const ecamPages = ['status', 'elec', 'hyd'];
+      const ecamPages = ['status', 'elec', 'hyd', 'fuel'];
       const cur = S.ecamPage ?? 'status';
       const idx = ecamPages.indexOf(cur);
       if (idx < ecamPages.length - 1) {

@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { S, setState } from '../core/state.js';
 import { fuelLayout, defaultFuelLayout, resetFuelSystem, tickFuelSystem, fuelPump, fuelValve, fuelCtl,
-         solveFuelPumps } from '../core/fuel-system.js';
+         solveFuelPumps, fuelView, fuelCautions } from '../core/fuel-system.js';
 import { check } from '../core/schema/check.js';
 import { aircraft as aircraftSchema } from '../core/schema/aircraft.js';
 
@@ -120,4 +120,71 @@ test('the schema catches a pump in an unknown tank, an engine that does not exis
   assert.ok(errs.some(e => e.includes('unknown tank "nowhere"')), errs.join('\n'));
   assert.ok(errs.some(e => e.includes('"eng5" is not an engine')), errs.join('\n'));
   assert.ok(errs.some(e => e.includes('load must be between 0 and 1')), errs.join('\n'));
+});
+
+/* ── What the displays read: the view and the cautions ── */
+const setTanks = (t) => setState({ fuelSys: { ...S.fuelSys, tanks: { ...S.fuelSys.tanks, ...t } } });
+/* the given pumps on a bus that is down — the rest of the aircraft powered (S.acBusPowered) */
+function busDown(...ids) {
+  const l = structuredClone(fuelLayout());
+  for (const p of l.pumps) if (ids.includes(p.id)) p.bus = 'down';
+  setState({ aircraft: { ...S.aircraft, fuelSystem: l }, elec: { buses: { down: { powered: false } } } });
+}
+
+test('the view: pump states — running, off, LO PR (on, no power, fuel in the tank), empty', () => {
+  start('a350', [6000, 6000]);
+  fuelPump('lFwd', false);
+  tickFuelSystem(1);
+  const st = () => Object.fromEntries(fuelView().pumps.map(p => [p.id, p.state]));
+  assert.equal(st().lFwd, 'off');
+  assert.equal(st().lAft, 'run');
+  setTanks({ center: { kg: 0 } }); tickFuelSystem(1);
+  assert.equal(st().cL, 'empty');
+  setState({ acBusPowered: false }); tickFuelSystem(1);
+  assert.equal(st().lAft, 'fault');
+  assert.equal(st().lFwd, 'off');
+  assert.equal(fuelView().engines.find(e => e.eng === 'eng1').suction, true);
+});
+
+test('the cautions: pump LO PR, a feed tank LO LEVEL below 5 %, IMBALANCE beyond 2 % of the total', () => {
+  start('a350', [0, 0]);
+  tickFuelSystem(1);
+  assert.deepEqual(fuelCautions(), {}, 'normal: none');
+  const l = fuelLayout(), cap = (id) => l.tanks.find(t => t.id === id).capacityKg, total = l.tanks.reduce((a, t) => a + t.capacityKg, 0);
+  setTanks({ left: { kg: 0.04 * cap('left') }, right: { kg: 0.04 * cap('left') } }); tickFuelSystem(1);
+  assert.deepEqual(Object.keys(fuelCautions()).sort(), ['FUEL_L_LO_LEVEL', 'FUEL_R_LO_LEVEL']);
+  setTanks({ left: { kg: 0.5 * cap('left') }, right: { kg: 0.5 * cap('left') - 0.03 * total } }); tickFuelSystem(1);
+  assert.deepEqual(Object.keys(fuelCautions()), ['FUEL_IMBALANCE']);
+  setTanks({ right: { kg: 0.5 * cap('left') } });
+  busDown('lFwd', 'cR'); tickFuelSystem(1);
+  assert.deepEqual(Object.keys(fuelCautions()).sort(), ['FUEL_CTR_R_LO_PR', 'FUEL_L_FWD_LO_PR']);
+});
+
+test('the cautions reach S.warnings — this module\'s keys only, replaced each tick', () => {
+  start('a350', [0, 0]);
+  setState({ warnings: { OIL_PRESS: true } });
+  busDown('lFwd'); tickFuelSystem(1);
+  assert.equal(S.warnings.OIL_PRESS, true);
+  assert.equal(S.warnings.FUEL_L_FWD_LO_PR, true);
+  setState({ elec: { buses: { down: { powered: true } } } }); tickFuelSystem(1);
+  assert.equal(S.warnings.FUEL_L_FWD_LO_PR, undefined, 'gone once the pump runs');
+  assert.equal(S.warnings.OIL_PRESS, true, 'the others\' keys kept');
+});
+
+test('no fuel cautions cold and dark — no AC power on the aircraft at all', () => {
+  start('a340', [0, 0, 0, 0], { acBusPowered: false, warnings: {} });
+  tickFuelSystem(1);
+  assert.deepEqual(fuelCautions(), {});
+  assert.deepEqual(Object.keys(S.warnings).filter(k => k.startsWith('FUEL_')), []);
+});
+
+test('a mission reset removes the last mission\'s fuel cautions — the others\' keys stay', () => {
+  start('a350', [0, 0], { warnings: { OIL_PRESS: true } });
+  busDown('lFwd');
+  tickFuelSystem(1);
+  assert.equal(S.warnings.FUEL_L_FWD_LO_PR, true);
+  setState({ aircraft: load('a350') });
+  resetFuelSystem();
+  assert.equal(S.warnings.FUEL_L_FWD_LO_PR, undefined, 'gone with the reset');
+  assert.equal(S.warnings.OIL_PRESS, true);
 });

@@ -12,8 +12,9 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from '../core/state.js';
-import { drawElecPage, drawHydPage } from './pfd_instruments.js';
+import { drawElecPage, drawHydPage, drawFuelPage } from './pfd_instruments.js';
 import { hydView } from '../core/hydraulics.js';
+import { fuelView, fuelCautions } from '../core/fuel-system.js';
 import { engineAvailable, engineOilLow } from '../core/engine.js';
 
 const C = {
@@ -51,7 +52,8 @@ export function handleECAMClick(x, y, hasUpperHalf = false) {
   /* Bottom strip: 5 equal columns FUEL=0, HYD=1, ELEC=2, PRESS=3, PACK=4 */
   if (y > 0.88) {
     const col = Math.floor(x * 5);
-    if      (col === 1) setState({ ecamPage: page === 'hyd'  ? 'status' : 'hyd'  });
+    if      (col === 0) setState({ ecamPage: page === 'fuel' ? 'status' : 'fuel' });
+    else if (col === 1) setState({ ecamPage: page === 'hyd'  ? 'status' : 'hyd'  });
     else if (col === 2) setState({ ecamPage: page === 'elec' ? 'status' : 'elec' });
     return;
   }
@@ -81,6 +83,7 @@ export function renderECAM(canvas) {
   const page = S.ecamPage ?? 'status';
   if      (page === 'elec') _drawElecPage(ctx, W, half, H, s);
   else if (page === 'hyd')  _drawHydPage(ctx, W, half, H, s);
+  else if (page === 'fuel') _drawFuelPage(ctx, W, half, H, s);
   else                      _drawStatusPage(ctx, W, half, H, s);
 
   ctx.restore();
@@ -164,7 +167,7 @@ function _drawSystemsRow(ctx, W, H, s) {
   const elecOk = S.acBusPowered ?? false;
 
   const systems = [
-    { label: 'FUEL',  val: _fuelPct() + '%',      col: C.green },
+    { label: 'FUEL',  val: _fob(),                col: C.green },
     { label: 'HYD',   val: hydOk  ? 'NORM' : 'LO', col: hydOk  ? C.green : C.amber },
     { label: 'ELEC',  val: elecOk ? 'NORM' : 'OFF', col: elecOk ? C.green : C.amber },
     { label: 'PRESS', val: 'NORM',                  col: C.green },
@@ -196,6 +199,15 @@ function _drawHydPage(ctx, W, top, H, s) {
   _drawSystemsRow(ctx, W, H, s);
 }
 
+/* ════════════════════════════════════════════════════════════
+   LOWER ECAM — FUEL: the shared FUEL page, drawn from the aircraft's fuel layout
+   (drawFuelPage in display/pfd_instruments.js — one drawer for every display)
+   ════════════════════════════════════════════════════════════ */
+function _drawFuelPage(ctx, W, top, H, s) {
+  drawFuelPage(ctx, 0, top, W, H - top - 30 * s, FONT, { grn: C.green, amb: C.amber, dim: C.dim, cyn: C.cyan });
+  _drawSystemsRow(ctx, W, H, s);
+}
+
 /* ── Shared helpers ── */
 function _box(ctx, cx, cy, w, h, color, s) {
   ctx.strokeStyle = color;
@@ -210,6 +222,7 @@ function _getWarnings() {
   if (S.alt < 200 && !S.gear && S.spd < 180) w.push({ level: 'WARNING', text: 'GEAR NOT DOWN' });
   if (S.vs < -3000 && S.alt < 5000)       w.push({ level: 'WARNING', text: 'SINK RATE' });
   for (const sys of hydView()) if (sys.lost) w.push({ level: 'CAUTION', text: `HYD ${sys.label} LO` });   // from the layout
+  for (const k of Object.keys(fuelCautions())) w.push({ level: 'CAUTION', text: k.replace(/_/g, ' ') });   // from the fuel layout
   if (!(S.essentialBusPowered ?? true))   w.push({ level: 'WARNING', text: 'ELEC — ESS BUS OFF' });
   /* Autobrake memo (green): armed level, or DECEL while it's actively braking */
   if (S.aircraft?.autobrake && (S.autobrake ?? 'OFF') !== 'OFF')
@@ -217,9 +230,10 @@ function _getWarnings() {
   return w;
 }
 
-function _fuelPct() {
-  const burned = (S.time / 43200) * 40;
-  return Math.max(10, Math.round(100 - burned));
+/* The fuel on board for the systems row — the airliner fuel system's (core/fuel-system.js), in tonnes; '—' without one */
+function _fob() {
+  const v = fuelView();
+  return v ? `${(v.fob / 1000).toFixed(1)} T` : '—';
 }
 
 function _label(ctx, text, x, y, color, size) {

@@ -71,7 +71,7 @@ const fuelPumpE = object({ id: str, label: str, tank: str, feeds: oneOf('left', 
                          { required: ['id', 'tank', 'feeds'] });
 const fuelValveE = object({ id: str, label: str, type: oneOf('crossfeed') }, { required: ['id', 'type'] });
 const fuelSystem = object({ tanks: arrayOf(fuelTank), pumps: arrayOf(fuelPumpE), engines: mapOf(oneOf('left', 'right')),
-                            valves: arrayOf(fuelValveE), load: num },
+                            valves: arrayOf(fuelValveE), load: num, loLevelKg: num, imbalanceKg: num },
                           { required: ['tanks', 'pumps', 'engines'], doc: { sources_doc: arrayOf(str) } });
 
 const envelope = object(

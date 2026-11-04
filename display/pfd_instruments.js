@@ -12,6 +12,7 @@ import { engineAvailable } from '../core/engine.js';
 import { electricalLayout, solveElectrical, elecCharge } from '../core/electrical.js';
 import { managedSpeed } from '../core/managed-speed.js';
 import { hydView } from '../core/hydraulics.js';
+import { fuelView } from '../core/fuel-system.js';
 import { ballDeflection } from '../core/yaw.js';
 import { indicatedAlt, baroSubscale } from '../core/baro.js';
 import { smooth, smoothAngle } from './smooth.js';
@@ -1507,6 +1508,7 @@ function _ewdPage(ctx, box, style, engineZone, forcePage) {
   const page = forcePage ?? S.ecamPage ?? 'status';
   if (page === 'elec') { _ecamElec(ctx, x, y, w, h, f, col.grn, col.amb, col.dim, col.cyn); return; }
   if (page === 'hyd')  { _ecamHyd (ctx, x, y, w, h, f, col.grn, col.amb, col.dim, col.cyn); return; }
+  if (page === 'fuel') { drawFuelPage(ctx, x, y, w, h, f, { grn: col.grn, amb: col.amb, dim: col.dim, cyn: col.cyn }); return; }
 
   /* ── STATUS / ENGINE page ─────────────────────────────────── */
   const warnH = h * 0.28, engH = h * 0.48;
@@ -1525,7 +1527,11 @@ export function drawEICAS(ctx, box, style) { _ewdPage(ctx, box, style, _engineZo
    the forward ECAM exactly. */
 function _engZone() { return S.aircraft?.manufacturer === 'boeing' ? _engineZoneBoeing : _engineZoneAirbus; }
 export function drawECAMUpper(ctx, box, style) { _ewdPage(ctx, box, style, _engZone(), 'status'); }
-export function drawECAMLower(ctx, box, style) { _ewdPage(ctx, box, style, _engZone(), S.ecamPage === 'hyd' ? 'hyd' : 'elec'); }
+export function drawECAMLower(ctx, box, style) { _ewdPage(ctx, box, style, _engZone(), SD_PAGES.includes(S.ecamPage) ? S.ecamPage : 'elec'); }
+
+/** The lower ECAM's (SD) synoptic pages, in the order Tab and a click step through them. */
+export const SD_PAGES = ['elec', 'hyd', 'fuel'];
+export const nextSdPage = (page) => SD_PAGES[(SD_PAGES.indexOf(page) + 1) % SD_PAGES.length];
 
 /* Shared warning zone + the divider above the engines. */
 function _ecamWarnZone(ctx, x, w, h, warnY, warnH, engY, f, col) {
@@ -1893,6 +1899,86 @@ function _ecamElec(ctx, x, y, w, h, f, grn, amb, dim, cyn) {
 /* ── ECAM HYD synoptic ──────────────────────────────────────── */
 function _ecamHyd(ctx, x, y, w, h, f, grn, amb, dim, cyn) {
   drawHydPage(ctx, x, y, w, h, f, { grn, amb, dim, cyn });
+}
+
+/* ════════════════════════════════════════════════════════════
+   FUEL PAGE — drawn from the aircraft's fuel layout (core/fuel-system.js fuelView): the fuel on
+   board; the engines, each with the tank feeding it (amber SUCT when no pump does); the feed line
+   with its crossfeed valve (in line when open, across when closed); the tanks with their quantity
+   and a fill bar; the pumps under their tank — green running, dim off, amber LO PR (on, no power),
+   white the tank empty. Display-only: kg, no starvation (issues.md "Airliner fuel system").
+   ════════════════════════════════════════════════════════════ */
+export function drawFuelPage(ctx, x, y, w, h, f, { grn, amb, dim, cyn }) {
+  const v = fuelView();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.font = `bold ${h * 0.055}px ${f}`; ctx.fillStyle = cyn;
+  ctx.fillText('FUEL', x + w / 2, y + h * 0.06);
+  if (!v) {
+    ctx.font = `${h * 0.04}px ${f}`; ctx.fillStyle = dim;
+    ctx.fillText('NO FUEL SYSTEM', x + w / 2, y + h * 0.5);
+    return;
+  }
+  const white = '#e8e8e8';
+  ctx.font = `${h * 0.032}px ${f}`; ctx.textAlign = 'right'; ctx.fillStyle = white;
+  ctx.fillText('FOB', x + w * 0.80, y + h * 0.06);
+  ctx.font = `bold ${h * 0.040}px ${f}`; ctx.fillStyle = grn;
+  ctx.fillText(`${Math.round(v.fob)}`, x + w * 0.93, y + h * 0.06);
+  ctx.font = `${h * 0.026}px ${f}`; ctx.fillStyle = cyn;
+  ctx.fillText('KG', x + w * 0.985, y + h * 0.06);
+
+  /* Engines, spread over their side: the left ones over the left half, the right ones over the right */
+  const engY = y + h * 0.15, lineY = y + h * 0.30;
+  const bySide = (side) => v.engines.filter(e => e.side === side);
+  const spread = (list, x0, x1) => list.map((e, i) => ({ ...e, ex: x0 + (x1 - x0) * (i + 1) / (list.length + 1) }));
+  const engs = [...spread(bySide('left'), x + w * 0.05, x + w * 0.47), ...spread(bySide('right'), x + w * 0.53, x + w * 0.95)];
+  const tankLabel = Object.fromEntries(v.tanks.map(t => [t.id, t.label]));
+  ctx.textAlign = 'center';
+  for (const e of engs) {
+    ctx.font = `bold ${h * 0.032}px ${f}`; ctx.fillStyle = white;
+    ctx.fillText(e.eng.replace('eng', 'ENG '), e.ex, engY);
+    ctx.font = `${h * 0.026}px ${f}`;
+    ctx.fillStyle = e.suction ? amb : grn;
+    ctx.fillText(e.suction ? 'SUCT' : e.feeds.map(id => tankLabel[id] ?? id).join('+') || '—', e.ex, engY + h * 0.04);
+    ctx.strokeStyle = e.feeds.length ? grn : dim; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(e.ex, engY + h * 0.055); ctx.lineTo(e.ex, lineY); ctx.stroke();
+  }
+
+  /* The feed line, split by the crossfeed valve in the middle */
+  const xf = v.valves.find(vv => vv.type === 'crossfeed');
+  const cx = x + w / 2, r = h * 0.025;
+  ctx.strokeStyle = grn; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x + w * 0.08, lineY); ctx.lineTo(cx - r, lineY); ctx.moveTo(cx + r, lineY); ctx.lineTo(x + w * 0.92, lineY); ctx.stroke();
+  if (xf) {
+    ctx.strokeStyle = xf.open ? grn : white; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, lineY, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath();
+    if (xf.open) { ctx.moveTo(cx - r, lineY); ctx.lineTo(cx + r, lineY); }
+    else         { ctx.moveTo(cx, lineY - r); ctx.lineTo(cx, lineY + r); }
+    ctx.stroke();
+    ctx.font = `${h * 0.024}px ${f}`; ctx.fillStyle = xf.open ? grn : white;
+    ctx.fillText(xf.label, cx, lineY - r - h * 0.012);
+  }
+
+  /* Tanks, in layout order across the page; their pumps beneath */
+  const n = v.tanks.length, top = y + h * 0.40, boxH = h * 0.24, gap = w * 0.03;
+  const boxW = (w * 0.9 - gap * (n - 1)) / n;
+  const stateCol = { run: grn, off: dim, fault: amb, empty: white };
+  v.tanks.forEach((t, i) => {
+    const bx = x + w * 0.05 + i * (boxW + gap), mid = bx + boxW / 2;
+    const frac = t.capacityKg > 0 ? Math.max(0, Math.min(1, t.kg / t.capacityKg)) : 0;
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1;
+    ctx.strokeRect(bx, top, boxW, boxH);
+    ctx.fillStyle = 'rgba(93,212,126,0.18)';
+    ctx.fillRect(bx + 1, top + boxH * (1 - frac), boxW - 2, boxH * frac);
+    ctx.font = `bold ${h * 0.042}px ${f}`; ctx.fillStyle = grn;
+    ctx.fillText(`${Math.round(t.kg)}`, mid, top + boxH * 0.55);
+    ctx.font = `${h * 0.030}px ${f}`; ctx.fillStyle = white;
+    ctx.fillText(t.label, mid, top + boxH + h * 0.04);
+    v.pumps.filter(p => p.tank === t.id).forEach((p, k) => {
+      ctx.font = `${h * 0.026}px ${f}`; ctx.fillStyle = stateCol[p.state];
+      ctx.fillText(p.state === 'fault' ? `${p.label} LO PR` : p.label, mid, top + boxH + h * (0.085 + 0.038 * k));
+    });
+  });
 }
 
 /* ════════════════════════════════════════════════════════════
