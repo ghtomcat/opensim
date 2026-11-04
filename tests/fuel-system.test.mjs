@@ -165,7 +165,7 @@ test('the cautions reach S.warnings — this module\'s keys only, replaced each 
   setState({ warnings: { OIL_PRESS: true } });
   busDown('lFwd'); tickFuelSystem(1);
   assert.equal(S.warnings.OIL_PRESS, true);
-  assert.equal(S.warnings.FUEL_L_FWD_LO_PR, true);
+  assert.equal(S.warnings.FUEL_L_FWD_LO_PR, 'caution');
   setState({ elec: { buses: { down: { powered: true } } } }); tickFuelSystem(1);
   assert.equal(S.warnings.FUEL_L_FWD_LO_PR, undefined, 'gone once the pump runs');
   assert.equal(S.warnings.OIL_PRESS, true, 'the others\' keys kept');
@@ -182,7 +182,7 @@ test('a mission reset removes the last mission\'s fuel cautions — the others\'
   start('a350', [0, 0], { warnings: { OIL_PRESS: true } });
   busDown('lFwd');
   tickFuelSystem(1);
-  assert.equal(S.warnings.FUEL_L_FWD_LO_PR, true);
+  assert.equal(S.warnings.FUEL_L_FWD_LO_PR, 'caution');
   setState({ aircraft: load('a350') });
   resetFuelSystem();
   assert.equal(S.warnings.FUEL_L_FWD_LO_PR, undefined, 'gone with the reset');

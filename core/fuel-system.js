@@ -34,6 +34,7 @@
 
 import { S, setState } from './state.js';
 import { onMissionReset } from './lifecycle.js';
+import { publishAlerts, clearAlerts } from './alerts.js';
 
 const DEFAULT_LOAD = 0.6;   // until missions or weight and balance set the fuel load
 const LO_LEVEL     = 0.05;  // a feed tank below 5 % of its capacity — the LO LEVEL caution, unless the layout gives loLevelKg
@@ -82,7 +83,7 @@ export function fuelValve(id, open) { setState({ fuelCtl: { ...(S.fuelCtl ?? {})
 
 /* ── Reset on mission load: every tank at the layout's load ── */
 export function resetFuelSystem() {
-  _clearCautions();                                           // the last mission's FUEL_… keys go with it
+  clearAlerts('fuel');                                        // the last mission's FUEL_… alerts go with it
   const ac = S.aircraft;
   if (!ac || ac.engine?.type !== 'turbofan') { setState({ fuelSys: null, fuelCtl: {} }); return; }
   const layout = fuelLayout(ac), load = layout.load ?? DEFAULT_LOAD;
@@ -147,22 +148,8 @@ export function tickFuelSystem(dt) {
   _publishCautions(layout);
 }
 
-/* This module's keys in S.warnings (FUEL_…) — replaced each tick, removed on a mission reset; the others' keys kept */
-let _ownKeys = [];
-function _clearCautions() {
-  if (!_ownKeys.length) return;
-  const w = { ...(S.warnings ?? {}) };
-  for (const k of _ownKeys) delete w[k];
-  _ownKeys = [];
-  setState({ warnings: w });
-}
 function _publishCautions(layout) {
-  const mine = fuelCautions(layout);
-  const w = { ...(S.warnings ?? {}) };
-  for (const k of _ownKeys) delete w[k];
-  Object.assign(w, mine);
-  _ownKeys = Object.keys(mine);
-  setState({ warnings: w });
+  publishAlerts('fuel', fuelCautions(layout));               // core/alerts.js — this module's FUEL_… keys only
 }
 
 /* ── For the displays: tanks, pumps, valves and feeds, labelled; and the cautions ── */
@@ -190,14 +177,14 @@ export function fuelCautions(layout = fuelLayout(), view = fuelView(layout)) {
   const w = {};
   if (!view || !S.acBusPowered) return w;
   const total = layout.tanks.reduce((a, t) => a + t.capacityKg, 0);
-  for (const p of view.pumps) if (p.state === 'fault') w[`FUEL_${p.label.replace(/\s+/g, '_')}_LO_PR`] = true;
+  for (const p of view.pumps) if (p.state === 'fault') w[`FUEL_${p.label.replace(/\s+/g, '_')}_LO_PR`] = 'caution';
   /* LO LEVEL — a tank feeding a side through a main pump, below its threshold */
   const feedTanks = new Set(layout.pumps.filter(p => (p.role ?? 'main') === 'main').map(p => p.tank));
   for (const t of view.tanks) if (feedTanks.has(t.id) && t.kg < (layout.loLevelKg ?? LO_LEVEL * t.capacityKg))
-    w[`FUEL_${t.label.replace(/\s+/g, '_')}_LO_LEVEL`] = true;
+    w[`FUEL_${t.label.replace(/\s+/g, '_')}_LO_LEVEL`] = 'caution';
   /* IMBALANCE — between the tanks feeding the left and the right */
   const sideKg = (side) => view.tanks.filter(t => layout.pumps.some(p => p.tank === t.id && p.feeds === side && (p.role ?? 'main') === 'main'))
                                      .reduce((a, t) => a + t.kg, 0);
-  if (Math.abs(sideKg('left') - sideKg('right')) > (layout.imbalanceKg ?? IMBALANCE * total)) w.FUEL_IMBALANCE = true;
+  if (Math.abs(sideKg('left') - sideKg('right')) > (layout.imbalanceKg ?? IMBALANCE * total)) w.FUEL_IMBALANCE = 'caution';
   return w;
 }

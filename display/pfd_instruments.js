@@ -13,6 +13,7 @@ import { electricalLayout, solveElectrical, elecCharge } from '../core/electrica
 import { managedSpeed } from '../core/managed-speed.js';
 import { hydView } from '../core/hydraulics.js';
 import { fuelView } from '../core/fuel-system.js';
+import { activeAlerts } from '../core/alerts.js';
 import { ballDeflection } from '../core/yaw.js';
 import { indicatedAlt, baroSubscale } from '../core/baro.js';
 import { smooth, smoothAngle } from './smooth.js';
@@ -1248,9 +1249,9 @@ export function drawFCU(ctx, W, H, style) {
   const mwW = W * 0.055;
   {
     const lim   = _vSpeeds();
-    const amber = Object.entries(S.warnings ?? {}).some(([k, v]) => v && (k.startsWith('LOW') || k.startsWith('FUEL')));
-    const red   = Object.entries(S.warnings ?? {}).some(([k, v]) => v && !(k.startsWith('LOW') || k.startsWith('FUEL')))
-               || (lim?.vmo != null && S.spd > lim.vmo + 4);
+    const alerts = activeAlerts();                                 // core/alerts.js — each alert's level
+    const amber = alerts.some(a => a.level === 'caution');
+    const red   = alerts.some(a => a.level === 'warning') || (lim?.vmo != null && S.spd > lim.vmo + 4);
     const flash = (Math.floor(Date.now() / 350) % 2) === 0;
     const lw = mwW * 0.80, lh = H * 0.36, lx = (mwW - lw) / 2;
     const lamp = (ly, on, onCol, label, steady) => {
@@ -1510,13 +1511,15 @@ function _ewdPage(ctx, box, style, engineZone, forcePage) {
   if (page === 'hyd')  { _ecamHyd (ctx, x, y, w, h, f, col.grn, col.amb, col.dim, col.cyn); return; }
   if (page === 'fuel') { drawFuelPage(ctx, x, y, w, h, f, { grn: col.grn, amb: col.amb, dim: col.dim, cyn: col.cyn }); return; }
 
-  /* ── STATUS / ENGINE page ─────────────────────────────────── */
-  const warnH = h * 0.28, engH = h * 0.48;
-  const warnY = y, engY = warnY + warnH, memoY = engY + engH;
-
-  _ecamWarnZone(ctx, x, w, h, warnY, warnH, engY, f, col);
-  engineZone   (ctx, x, w, h, engY, engH, col, f);
-  _ecamMemoZone(ctx, x, w, h, memoY, f, col);
+  /* ── STATUS / ENGINE page — the Airbus E/WD: the engines on top; below, the warning and caution
+     messages on the left and the memos on the right ─────────────────────────────────── */
+  const engH = h * 0.60, lowY = y + engH, lowH = h - engH, msgW = w * 0.58;
+  engineZone   (ctx, x, w, h, y, engH, col, f);
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(x, lowY); ctx.lineTo(x + w, lowY);
+  ctx.moveTo(x + msgW, lowY + h * 0.02); ctx.lineTo(x + msgW, y + h - h * 0.02); ctx.stroke();
+  _ecamWarnZone(ctx, x, msgW, h, lowY, lowH, f, col);
+  _ecamMemoZone(ctx, x + msgW, w - msgW, h, lowY, f, col);
 }
 
 export function drawECAM (ctx, box, style) { _ewdPage(ctx, box, style, _engineZoneAirbus); }
@@ -1533,33 +1536,26 @@ export function drawECAMLower(ctx, box, style) { _ewdPage(ctx, box, style, _engZ
 export const SD_PAGES = ['elec', 'hyd', 'fuel'];
 export const nextSdPage = (page) => SD_PAGES[(SD_PAGES.indexOf(page) + 1) % SD_PAGES.length];
 
-/* Shared warning zone + the divider above the engines. */
-function _ecamWarnZone(ctx, x, w, h, warnY, warnH, engY, f, col) {
-  ctx.textBaseline = 'alphabetic';
-  const hasWarn = Object.values(S.warnings ?? {}).some(Boolean);
-  if (hasWarn) {
-    let wy = warnY + h * 0.06;
-    for (const [key, active] of Object.entries(S.warnings ?? {})) {
-      if (!active) continue;
-      ctx.font      = `bold ${h * 0.055}px ${f}`;
-      ctx.fillStyle = key.startsWith('LOW') || key.startsWith('FUEL') ? col.amb : col.red;
-      ctx.textAlign = 'left';
-      ctx.fillText(key.replace(/_/g, ' '), x + w * 0.04, wy);
-      wy += h * 0.065;
-    }
-  } else {
-    ctx.font = `${h * 0.042}px ${f}`; ctx.fillStyle = col.dim; ctx.textAlign = 'center';
-    ctx.fillText('NORMAL', x + w * 0.5, warnY + warnH * 0.52);
+/* The warning and caution messages (core/alerts.js activeAlerts): red warnings first, then amber
+   cautions, at memo size; when they don't fit, the last line says how many more there are. */
+function _ecamWarnZone(ctx, x, w, h, top, zoneH, f, col) {
+  const alerts = activeAlerts();
+  const fs = h * 0.038, step = h * 0.052;
+  const fit = Math.max(1, Math.floor((zoneH - h * 0.03) / step));
+  const shown = alerts.length > fit ? alerts.slice(0, fit - 1) : alerts;
+  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+  shown.forEach((a, i) => {
+    ctx.font = `bold ${fs}px ${f}`; ctx.fillStyle = a.level === 'warning' ? col.red : col.amb;
+    ctx.fillText(a.text, x + w * 0.05, top + h * 0.055 + i * step);
+  });
+  if (shown.length < alerts.length) {
+    ctx.font = `${fs}px ${f}`; ctx.fillStyle = col.wht;
+    ctx.fillText(`\u25BC ${alerts.length - shown.length} MORE`, x + w * 0.05, top + h * 0.055 + shown.length * step);
   }
-  ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(x, engY); ctx.lineTo(x + w, engY); ctx.stroke();
 }
 
 /* Shared memo zone — gear / flaps / belts / lights. */
 function _ecamMemoZone(ctx, x, w, h, memoY, f, col) {
-  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-  ctx.beginPath(); ctx.moveTo(x, memoY); ctx.lineTo(x + w, memoY); ctx.stroke();
-
   const flapsLabel = ['CLEAN', 'CONF 1', 'CONF 2', 'CONF 3'][Math.min(S.flaps ?? 0, 3)];
   const gearLabel  = S.gear ? 'DN' : 'UP';
   const memos = [
@@ -1568,15 +1564,15 @@ function _ecamMemoZone(ctx, x, w, h, memoY, f, col) {
     { lbl: 'SEAT BELTS', val: 'ON',       col: col.wht },
     { lbl: 'LDG LTS',    val: 'ON',       col: col.wht },
   ];
-  const memoFs = h * 0.038, mCols = 2, memoW = w / mCols;
+  const memoFs = h * 0.038, mCols = 1, memoW = w / mCols;
   ctx.textBaseline = 'alphabetic';
   memos.forEach((m, i) => {
     const mx = x + (i % mCols) * memoW + memoW * 0.04;
-    const my = memoY + h * 0.060 + Math.floor(i / mCols) * h * 0.068;
+    const my = memoY + h * 0.055 + Math.floor(i / mCols) * h * 0.052;
     ctx.font = `${memoFs}px ${f}`; ctx.fillStyle = col.dim; ctx.textAlign = 'left';
     ctx.fillText(m.lbl, mx, my);
     ctx.font = `bold ${memoFs}px ${f}`; ctx.fillStyle = m.col;
-    ctx.fillText(m.val, mx + memoW * 0.42, my);
+    ctx.fillText(m.val, mx + memoW * 0.55, my);
   });
 }
 

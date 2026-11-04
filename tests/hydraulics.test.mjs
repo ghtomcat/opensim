@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { S, setState } from '../core/state.js';
-import { tickHydraulics, hydraulicsLayout, defaultLayout, hydCtl, hydPump, solvePumps, hydView } from '../core/hydraulics.js';
+import { tickHydraulics, hydraulicsLayout, defaultLayout, hydCtl, hydPump, solvePumps, hydView, hydCautions } from '../core/hydraulics.js';
 import { check } from '../core/schema/check.js';
 import { aircraft as aircraftSchema } from '../core/schema/aircraft.js';
 
@@ -241,4 +241,16 @@ test('A340: ENG 2 lost — B ELEC, the only other way to pressurise BLUE [A1]; E
 test('A340: the LO caution below 1450 psi, not 1/6 of nominal', () => {
   setState({ aircraft: a340, hydCtl: {}, hyd: { systems: { green: { psi: 1400 }, blue: { psi: 1500 }, yellow: { psi: 3000 } } } });
   assert.deepEqual(hydView().map(s => [s.id, s.lost]), [['green', true], ['blue', false], ['yellow', false]]);
+});
+
+test('the HYD cautions: a system lost with an engine running and AC power — not before engine start, not cold and dark, not switched off', () => {
+  const settled = { systems: { green: { psi: 0 }, blue: { psi: 0 }, yellow: { psi: 3000 } } };   // ENG 1's GREEN run down, YELLOW up
+  const run = (over) => { setState({ aircraft: load('a350'), hydCtl: {}, hyd: settled, ratDeployed: false, ...over }); tickHydraulics(1 / 60); return hydCautions(); };
+  const one = [{ state: 'running', core: 0 }, { state: 'running', core: 95 }];   // ENG 1 failed, ENG 2 running
+  assert.deepEqual(run({ acBusPowered: true, engines: one }), { HYD_GREEN_LO: 'caution' }, 'BLUE: its pump off — deliberate, no caution');
+  assert.deepEqual(run({ acBusPowered: true, engines: [{ state: 'off', core: 0 }, { state: 'off', core: 0 }] }), {}, 'before engine start');
+  assert.deepEqual(run({ acBusPowered: false, engines: one }), {}, 'no AC power');
+  setState({ hydCtl: { blueElec: 'on' } });
+  setState({ acBusPowered: false }); tickHydraulics(1 / 60); setState({ acBusPowered: true });
+  assert.ok(hydCautions().HYD_BLUE_LO, 'BLUE switched on but not delivering yet: a caution');
 });

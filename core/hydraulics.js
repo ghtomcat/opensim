@@ -28,6 +28,7 @@
 
 import { S, setState } from './state.js';
 import { onMissionReset } from './lifecycle.js';
+import { publishAlerts, clearAlerts } from './alerts.js';
 
 const PSI_REF   = 3000;    // the rates below are for a 3000-psi system; scaled to the system's own
 const RISE_RATE = 600;     // psi/s while a pump runs
@@ -134,8 +135,22 @@ export function hydView(layout = hydraulicsLayout()) {
   });
 }
 
+/** The hydraulic cautions, as S.warnings keys: HYD_<system>_LO for a system below its loPsi. Only
+    while an engine runs and the aircraft has AC power — before engine start the systems are naturally
+    unpressurised, and cold and dark the warning system is unpowered — and not for a system whose
+    pumps are all switched off (deliberately unpressurised: the default layout's BLUE until its
+    electric pump is switched on). */
+export function hydCautions(layout = hydraulicsLayout()) {
+  const w = {};
+  if (!S.acBusPowered || !(S.engines ?? []).some(e => e.state === 'running')) return w;
+  for (const sys of hydView(layout))
+    if (sys.lost && !sys.pumps.every(p => p.state === 'off')) w[`HYD_${sys.label.replace(/\s+/g, '_')}_LO`] = 'caution';
+  return w;
+}
+
 /* ── Reset on mission load ── */
 export function resetHydraulics() {
+  clearAlerts('hyd');                                         // the last mission's HYD_… alerts go with it
   const layout = hydraulicsLayout();
   const engRunning = S.engineState === 'running';                            // airborne starts: pre-pressurised where an engine pump is
   const systems = {};
@@ -165,4 +180,5 @@ export function tickHydraulics(dt) {
     };
   }
   setState({ hyd: { systems } });
+  publishAlerts('hyd', hydCautions(layout));                  // core/alerts.js — this module's HYD_… keys only
 }
