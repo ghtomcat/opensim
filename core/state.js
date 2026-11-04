@@ -153,6 +153,10 @@ export const S = {
   hyd:      null,        // the hydraulic systems — core/hydraulics.js: { systems: {id: {psi, pumps}} }
   hydCtl:   {},          // the pump switches by pump id ('on' | 'off' | 'auto'), through hydPump()
 
+  /* ── Airliner fuel system (turbofan aircraft) — core/fuel-system.js; light aircraft: fuelLeft … ── */
+  fuelSys:  null,        // { tanks: {id: {kg}}, pumps, valves, feeds, suction, fob } — kg
+  fuelCtl:  {},          // pumps on / valves open by element id, through fuelPump() / fuelValve()
+
   /* ── ECAM lower page ── */
   ecamPage: 'status',    // 'status' | 'elec' | 'hyd'
 

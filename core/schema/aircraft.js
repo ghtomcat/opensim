@@ -65,6 +65,15 @@ const hydSystem = object({ id: str, label: str, psi: num, pumps: arrayOf(hydPump
                         { required: ['id', 'psi', 'pumps'] });
 const hydraulics = object({ systems: arrayOf(hydSystem) }, { required: ['systems'], doc: { sources_doc: arrayOf(str) } });
 
+const fuelTank  = object({ id: str, label: str, capacityKg: num }, { required: ['id', 'capacityKg'] });
+const fuelPumpE = object({ id: str, label: str, tank: str, feeds: oneOf('left', 'right'), bus: str,
+                           role: oneOf('main', 'override') },          // override: the centre tank's — feeds first
+                         { required: ['id', 'tank', 'feeds'] });
+const fuelValveE = object({ id: str, label: str, type: oneOf('crossfeed') }, { required: ['id', 'type'] });
+const fuelSystem = object({ tanks: arrayOf(fuelTank), pumps: arrayOf(fuelPumpE), engines: mapOf(oneOf('left', 'right')),
+                            valves: arrayOf(fuelValveE), load: num },
+                          { required: ['tanks', 'pumps', 'engines'], doc: { sources_doc: arrayOf(str) } });
+
 const envelope = object(
   { cruiseAlt: num, cruiseSpd: num, maxSpd: num, spdProfile: mapOf(num) },
   { doc: { maxAlt: num } },   // the service ceiling — a fact, nothing enforces it
@@ -128,7 +137,7 @@ export const aircraft = object(
     autobrake: bool, fixedGear: bool, gridFins: bool, landingLegs: bool,
     /* systems */
     tanks: object({ left: num, right: num, unit: oneOf('L') }), fuelBurn: num, hasCarbHeat: bool,
-    battery: object({ capacityKwh: num, powerDrawKw: num }), electrical, hydraulics,
+    battery: object({ capacityKwh: num, powerDrawKw: num }), electrical, hydraulics, fuelSystem,
     balance: object({ noseGearLoadShare: num }),     // nominal CG (core/airframe.js) until weight and balance
     cooling, coolingSystem: oneOf('liquid', 'air'),
     /* crew and callouts */
@@ -217,6 +226,20 @@ export const aircraft = object(
             errs.push(`hydraulics: ${p.id} driver "${p.driver}" is not an engine of this aircraft`);
           if (p.bus && a.electrical?.buses && !busIds.has(p.bus)) errs.push(`hydraulics: ${p.id} names unknown bus "${p.bus}"`);
         }
+      }
+      /* the fuel layout's references: every pump in a tank, every engine of the aircraft, buses in the electrical layout */
+      const fs = a.fuelSystem;
+      if (fs?.tanks) {
+        const tankIds = new Set(fs.tanks.map(t => t.id)), busIds = new Set((a.electrical?.buses ?? []).map(b => b.id));
+        for (const p of fs.pumps ?? []) {
+          if (!tankIds.has(p.tank)) errs.push(`fuelSystem: pump ${p.id} in unknown tank "${p.tank}"`);
+          if (p.bus && a.electrical?.buses && !busIds.has(p.bus)) errs.push(`fuelSystem: pump ${p.id} names unknown bus "${p.bus}"`);
+        }
+        for (const eng of Object.keys(fs.engines ?? {})) {
+          const m = /^eng(\d+)$/.exec(eng);
+          if (!(m && +m[1] >= 1 && +m[1] <= (a.engine?.count ?? 0))) errs.push(`fuelSystem: "${eng}" is not an engine of this aircraft`);
+        }
+        if (fs.load !== undefined && !(fs.load >= 0 && fs.load <= 1)) errs.push('fuelSystem.load must be between 0 and 1');
       }
       /* a declared turbofan needs a sane idle */
       if (turbofan && a.engine.idleN1 !== undefined && !(a.engine.idleN1 >= 0 && a.engine.idleN1 <= 100)) errs.push('engine.idleN1 out of range 0…100');

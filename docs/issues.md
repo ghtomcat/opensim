@@ -479,6 +479,24 @@ The missions also have a `phase` (ground / departure / circuit / cruise / approa
 
 **Done when.** A twin can lose one engine (failure or fuel cut) and keep flying on the other with the expected yaw and climb loss; the ECAM/EICAS shows the failed engine; single-engine aircraft behave as before.
 
+### Airliner fuel system — the layout as data, display-only (agreed 2026-11-04)
+*`core/fuel-system.js` (new), `display/overhead.js` (FUEL section), the ECAM's FUEL figure (`_fuelPct()` in `display/ecam.js`); `core/fuel.js` stays for the light aircraft*
+
+**Today.** Two worlds. The light aircraft (C172, DR400, warbirds) have a simple, working model in `core/fuel.js` — left/right tanks, a selector, burn, starvation that stops the engine. The airliners have none (`S.fuelLeft` is null): the overhead's X FEED and PMP 1 … n buttons write `S` directly and nothing reads them; the ECAM's FUEL figure is invented from the elapsed time (`_fuelPct()`). Each turbofan already computes its own fuel flow (kg/h, `S.engines[i].ff`, stage 2c of *One engine per aircraft*).
+
+**Design — the same pattern as the electrical and hydraulic layouts, kept out of physics.**
+- **1 · Data: the fuel layout** in the aircraft file (`fuelSystem`): tanks (id, label, usable capacity in kg), pumps (in a tank, on an electrical bus, a role — `main`, or `override`: the centre tank's pumps, feeding first at their higher pressure), the engine feeds (which tank side feeds which engine), crossfeed valves, a default load (a fraction of capacity — 0.6 until missions or weight and balance set it).
+- **2 · One generic solver** in `core/fuel-system.js`: each engine draws its fuel flow — the centre first while its override pumps run and it has fuel, then its own side's tank, the other side's through an open crossfeed; tank quantities fall. `S.fuelSys`; the controls by element (`S.fuelCtl`) through commands (`fuelPump`, `fuelValve`) — the overhead's direct writes of `xfeedOpen` / `fuelPumps` go.
+- **3 · Readers from the layout:** the overhead's FUEL section (pumps per tank, crossfeed), a FUEL page (tanks with quantities, pumps, valves, feed to the engines), the ECAM's FUEL figure (fuel on board instead of `_fuelPct()`), cautions (pump low pressure, low fuel, wing imbalance).
+- **Units:** kg internally (the Airbus displays kg; Boeing operators choose lb or kg — per-manufacturer display later).
+- **Out of scope, kept out of physics:** an empty tank doesn't stop an engine (starvation is the physics step); the burn doesn't change the mass or the CG (*Weight and balance*); no suction feed without pumps (the engine is fed from its own tank anyway, flagged), no fuel temperature, jettison or refuelling.
+- **Light aircraft untouched:** `core/fuel.js` keeps its model, which already reaches the engine; onto the same layout later, as its own step. The electric Velis has no fuel at all — its energy is the battery (`core/battery.js`), untouched too (checked 2026-11-04: battery drain identical over 5 min of powered flight).
+- **Order.** (1) the schema, the solver and a default layout (two wing tanks and a centre tank, the engines fed by side, a crossfeed) — no visible change; (2) the FUEL page and the ECAM's FUEL figure; (3) the overhead's FUEL section; (4) the 777's own layout with sources — the ACAP for the -300ER's capacity, FAA-H-8083-31B ch. 14 (figure 14-19) for the tank structure; its pumps, crossfeed valves and centre-first logic still need a source (research first); (5) the A340 when a source turns up.
+
+**Part 1 done (2026-11-04):** `core/fuel-system.js` — the layout schema (`fuelSystem`, with reference checks: pumps in known tanks, engines of the aircraft, buses of the electrical layout, a load within 0 … 1), the generic solver and `S.fuelSys`, the controls by element (`S.fuelCtl`, `fuelPump()` / `fuelValve()`), the default layout (a wing tank each side and a centre tank, 30 % of the mass split 30 / 40 / 30 — an estimate; two pumps each; the engines by side; one crossfeed), loaded at 60 %. Ticked after the hydraulics in `core/loop.js`. No visible change yet: the overhead's buttons still write their old fields until part 3. `tests/fuel-system.test.mjs` (the feed order, the burn equal to the fuel flow, pumps without power or fuel, the crossfeed, empty tanks, light aircraft untouched); seeded flights identical.
+
+**Done when.** The 777 burns fuel from its tanks as its engines' fuel flow says — centre first, then the mains — the FUEL page and the ECAM show the real fuel on board, and the overhead's fuel pumps and crossfeed are the 777's and work; the light aircraft unchanged.
+
 ### Airliner electrical and hydraulics are display-only — not implemented yet (intentional)
 *Noted 2026-10-11 · `core/electrical.js`, `core/hydraulics.js`*
 

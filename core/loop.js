@@ -18,6 +18,7 @@ import { tickEngine }                from './engine.js';
 import { tickThrust }                from './thrust.js';
 import { tickElectrical }           from './electrical.js';
 import { tickHydraulics }          from './hydraulics.js';
+import { tickFuelSystem }          from './fuel-system.js';
 import { tickTelemetry }            from './telemetry.js';
 import { bbTick }                   from './blackbox.js';
 import { tickHIL }                  from './hil.js';
@@ -90,6 +91,7 @@ export function tickSim(dt) {
   tickBattery(dt);
   tickElectrical(dt);
   tickHydraulics(dt);
+  tickFuelSystem(dt);
   tickElevation();   // DEM under the aircraft → S.terrainElevFt (CFIT, GPWS)
   tickTaxi();        // active taxi route + clearance (map line, ATC, pushback path)
   tickFlightPlan();  // active flight plan (LNAV, VNAV, ND, MCDU) — rebuilt when the procedures land
