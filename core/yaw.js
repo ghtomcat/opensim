@@ -30,6 +30,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { nominalCg, engineY, vstab, DEFAULT_NOSE_GEAR_SHARE } from './airframe.js';
+import { setState } from './state.js';
 
 /* Estimates — each a published method or a typical value, none tuned to a result. */
 const FIN_AR_EFFECT   = 1.55;   // fuselage + tailplane as end plates: effective aspect ratio of a fin (DATCOM)
@@ -183,6 +184,11 @@ export function groundYawStep(model, s, dt) {
 export const BALL_FULL_G = 0.15;
 export function ballDeflection(latAccel = 0) {
   return Math.max(-1, Math.min(1, (0 - latAccel) / (BALL_FULL_G * 9.81)));   // 0 − x: no −0
+}
+
+/** The THRUST ASYM COMP switch: TAC on (true) or off — the only writer of S.tacOff. */
+export function tacSwitch(on) {
+  setState({ tacOff: !on });
 }
 
 /** Thrust asymmetry compensation (TAC, the 777): the rudder share (−1 … +1) that cancels the

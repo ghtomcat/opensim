@@ -706,7 +706,7 @@ The declared layering (data → simulation → presentation → shell) is also n
 1. ~~One tick and one mission lifecycle~~ — done 2026-10-12.
 2. Owned products in `core/` (route, taxi route, elevation); `core/` no longer depends on `display/` — done 2026-10-13 (`data/`, `core/elevation.js`); taxi route — done 2026-10-13 (`core/taxi.js`); flight plan — done 2026-10-13 (`core/flightplan.js`); left: flat ground.
 3. ~~Schema check at load + a test that loads every aircraft and mission~~ — done 2026-10-13 (`core/schema/`, `core/vocab.js`); left: *Overloaded fields in the JSON data*, *Name comparisons still spelled out by hand*.
-4. Vehicle contract and per-engine state — when the training work needs them.
+4. Vehicle contract and per-engine state — when the training work needs them. **Per-engine state done** (2026-10-18 … 2026-10-21, *One engine per aircraft* stages 1–2: `S.engines[]`, owned by `core/engine.js`); the vehicle contract is still open.
 
 ### `S` has no field ownership
 *Found 2026-10-11 · architecture review (`docs/architecture.md` §6.1, §9.2)*
@@ -718,6 +718,8 @@ The declared layering (data → simulation → presentation → shell) is also n
 **Why it matters.** Correctness depends on the order of the frame loop and of the ~30 closures in the renderer list. A new feature can't tell whose field it is about to overwrite.
 
 **Fix.** Give each field group one owning module (documented in `state.js`, next to the defaults). Others request changes through that owner (e.g. `enginePower` composed from contributions: failure × carb ice × fuel × battery). Displays read only. Optional dev-mode guard: a `Proxy` on `S` in test mode that logs writes from non-owners.
+
+**Progress (checked 2026-11-04).** New owners with commands since the review: `core/engine.js` (engines, APU — `engineMaster`, `apuMaster` …), `core/electrical.js` (`S.elec`, `S.elecCtl` — `elecSwitch`, `elecIdgDisconnect`, `elecBusTie`), `core/hydraulics.js` (`S.hyd`, `S.hydCtl` — `hydPump`), `core/yaw.js` (`S.tacOff` — `tacSwitch`; the yaw state `beta` / `yawDev` / `latAccel` / `tacRudder` written by `core/physics.js`), `core/input.js` (`rudder`, `rudderTrim`). The overhead's ELECTRICAL, HYDRAULICS and FLIGHT CONTROLS controls go through them. **Still written directly by `display/overhead.js`:** `engFireArmed`, `engAgents`, `apuBleedOn`, `apuAgent`, `xfeedOpen`, `fuelPumps`, `cockpitView` (7 places) — the fire, APU bleed and fuel controls; they go with *The cockpit builds itself from the aircraft data*.
 
 **Done when.** Every field group in `state.js` names its owner; no display module writes `S` except through an owner's API; a test-mode write check passes.
 
@@ -732,6 +734,8 @@ The declared layering (data → simulation → presentation → shell) is also n
 **Why it matters.** Copies can disagree, nothing can be amended (no route to re-clear in flight), and a product disappears when the consumer that happens to produce it isn't running.
 
 **Fix.** One rule for new work: a product used by more than one module gets an owning `core/` module that computes it when its inputs change and stores it; consumers read. The single entries above are the instances.
+
+**New products follow the rule (2026-11-04).** The electrical and hydraulic state is solved once per tick by its owner (`S.elec`, `S.hyd`); the displays read views the owner provides (`hydView()`, the ELEC page's reading of `S.elec`) — recomputed per call from owned state, cheap, never by the consumer's own logic. The airframe geometry (`core/airframe.js`) and the yaw model (`yawModel()`, cached per aircraft) likewise.
 
 **Done when.** The three instances are closed, and the rule is written in `architecture.md`.
 
@@ -760,6 +764,8 @@ The declared layering (data → simulation → presentation → shell) is also n
 
 **Done when.** An engine can fail on its own on a twin, and the aircraft yaws and loses thrust accordingly; one hydraulic loss removes one function.
 
+**Progress (checked 2026-11-04) — the first half is met.** *One engine per aircraft* stages 1–4: per-engine state (`S.engines[]`, `core/engine.js`), thrust summed per engine, the yaw axis (`core/yaw.js` — thrust asymmetry, windmilling drag, rudder, V_MCA emerging, TAC), so an engine fails on its own on the 777 and it yaws and loses thrust. The electrical and hydraulic systems are now solved from layouts per aircraft (`S.elec`, `S.hyd`) — but they still only feed the displays: **the second half is open**. That is the seam still to design: a defined path from a system's state to what physics and the controls can do — brake pressure and anti-skid, nosewheel steering, gear and flap actuation, flight-control authority (per surface, by hydraulic system), the electrical consumers. It decides what a hydraulic or electrical failure *means* in the sim, and it is what the abnormal-procedure training needs next (*Airliner electrical and hydraulics are display-only*).
+
 ### The cockpit builds itself from the aircraft data
 *Noted 2026-10-18 · `display/overhead.js`, `pedestal.js`, `leftconsole.js`, `rightconsole.js`, `centerconsole.js`; `config/`*
 
@@ -783,6 +789,8 @@ The aircraft says *what* it has, the manufacturer *where* it goes, the style *ho
 **First instance.** The multi-engine work (*One engine per aircraft*, stages 2 and 4): engine controls, generators and hydraulic pumps on the 777 (then the A350), derived from their data. The rest of the overhead (lights, anti-ice, pressurisation, ADIRS …) follows the same pattern later.
 
 **Done when.** A new airliner that fits its manufacturer's rules gets a complete, working overhead, pedestal and centre view from its systems data alone, with no token list and no zone-specific code.
+
+**Progress (checked 2026-11-04).** The first instance is done for the overhead: its ELECTRICAL section (stage 2d), HYDRAULICS section (stage 4) and FLIGHT CONTROLS section (the TAC switch, only where the data has a TAC — stage 3d) are built from the aircraft's layouts, one control per element, each sending a command to its owner (*node + action*). The 777 and the A340 show their own generators and pumps (the A350 still the default structure — no layout of its own yet); the ELEC and HYD pages come from the same layouts. Still code: the FUEL section (pumps from the engine count), APU, the fire handles (they also write `S` directly — see *`S` has no field ownership*), the placement into zones (layer 3 — no manufacturer rules yet), the pedestal, the consoles and the centre view.
 
 ### Overloaded fields in the JSON data
 *Found 2026-10-11 · `aircraft/*.json`, `missions/*.json`; left over from the data-contract work (2026-10-13)*
@@ -873,6 +881,8 @@ To draw the terrain from the camera, `outside.js` saves the aircraft pose, write
 
 **Done when.** No single function in `core/physics.js` above ~150 lines; the extracted model parts have unit tests; the test suite passes unchanged.
 
+**Note (2026-11-04).** `tickPhysics` is 688 lines: the yaw axis added its wiring (per-engine thrust, TAC, the flight and ground yaw steps). The model itself went out, in the shape this entry asks for — `core/yaw.js` and `core/airframe.js`, pure functions with unit tests (`tests/yaw.test.mjs`, `tests/airframe.test.mjs`).
+
 ### `core/crew.js` is a 1,250-line module with many jobs
 *Found 2026-10-11 · architecture review*
 
@@ -912,6 +922,8 @@ The scenario-setup presets are manual weather with `clouds` and `dewp`, and sinc
 *Found 2026-10-18 · `aircraft/an225.json`, `aircraft/dc8.json`*
 
 Both have turbofans (D-18T; JT3D/CFM56 depending on the DC-8 variant), but their `engine` has no `type`: `"turbofan"` switches on the N1 spool, A/THR thrust, electrical, hydraulics and the turbofan sound, so setting it would change how they fly. They use the prop path today (`spdT` as the throttle). The DC-8 is also the kinematic stub (no `manualControl`). **Fix:** when each one is checked in flight on the turbofan path (thrust levers, `thrustProfiles`, `idleN1`), set `type: "turbofan"`. **Done when:** both declare `type: "turbofan"` and fly their missions as before or better.
+
+**Also (2026-11-04):** the hydraulic solver runs for turbofans only, so on the An-225 the HYD page shows the reset pressures with the engine pumps' FAULT state — not a live system.
 
 ### Stale docs
 `docs/architecture.md` was rewritten bottom-up on 2026-10-11 (§1–14). `docs/panel-system.md` was updated 2026-10-11. `docs/url-routing.md` (formerly `navigation.md` — it covers browser URLs and history, not aircraft navigation; renamed 2026-10-11) hasn't been checked against the code yet.

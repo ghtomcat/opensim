@@ -17,7 +17,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { yawModel, yawForces, yawStep, vmcQ, windmillDrag, rudderTravel,
-         groundYawStep, tyreLimit, pedalYawRate, ballDeflection, finAngle, tacRudder } from '../core/yaw.js';
+         groundYawStep, tyreLimit, pedalYawRate, ballDeflection, finAngle, tacRudder, tacSwitch } from '../core/yaw.js';
+import { S } from '../core/state.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const load = (id) => JSON.parse(readFileSync(join(root, 'aircraft', `${id}.json`), 'utf8'));
@@ -174,4 +175,11 @@ test('TAC: the rudder that cancels the thrust moment — above 10 % asymmetry an
   assert.equal(at(150, [0, T1], { reverser: true }), 0, 'reversers out: nothing');
   assert.equal(at(150, [0, T1], { off: true }), 0, 'switched off: nothing');
   assert.equal(tacRudder(yawModel(load('a350')), { thrust: [0, T1], rated: T1, q: qOf(150), ias: 150 }), 0, 'no TAC on the A350');
+});
+
+test('the THRUST ASYM COMP switch goes through tacSwitch()', () => {
+  tacSwitch(false);
+  assert.equal(S.tacOff, true);
+  tacSwitch(true);
+  assert.equal(S.tacOff, false);
 });

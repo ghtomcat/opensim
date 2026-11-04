@@ -14,6 +14,7 @@ import { S, setState }                             from '../core/state.js';
 import { stopEngine, apuMaster, apuStart, apuFire } from '../core/engine.js';
 import { electricalLayout, elecCtl, elecCharge, elecSwitch, elecIdgDisconnect, elecBusTie, elecBusTieAuto } from '../core/electrical.js';
 import { hydCtl, hydPump, hydView, hydraulicsLayout, hydRole } from '../core/hydraulics.js';
+import { tacSwitch }                                from '../core/yaw.js';
 import { pushButtonHTML, setPushButton, setPushButtonLower } from './pushbutton.js';
 
 /* ── DOM node ─────────────────────────────────────────────────── */
@@ -580,7 +581,7 @@ function _attachHandlers() {
 
   /* THRUST ASYM COMP (TAC) */
   document.getElementById('pb-tac')?.addEventListener('click', () => {
-    setState({ tacOff: !(S.tacOff ?? false) });
+    tacSwitch(!!S.tacOff);                                   // off → on, on → off
     _updateSwitches();
   });
 
