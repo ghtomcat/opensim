@@ -103,6 +103,32 @@ export function solvePumps(layout = hydraulicsLayout(), ac = S.aircraft) {
   return running;
 }
 
+/* ── For the displays: each system with its pressure and each pump's state, labelled ── */
+const _TYPE_LABEL = { edp: 'EDP', acmp: 'ELEC', adp: 'AIR', rat: 'RAT' };
+
+/** The systems as the HYD page, the status line and the cautions show them. A pump's state:
+    'run' (delivering), 'avail' (AUTO, standing by), 'fault' (switched on, its driver delivers nothing),
+    'off' (switched off — or the RAT stowed). lo: below 5/6 of nominal (the page's amber); lost:
+    below 1/6 (the LO caution). */
+export function hydView(layout = hydraulicsLayout()) {
+  return layout.systems.map(sys => {
+    const psi = S.hyd?.systems?.[sys.id]?.psi ?? 0;
+    const counts = {};
+    for (const p of sys.pumps) counts[p.type] = (counts[p.type] ?? 0) + 1;
+    const nth = {};
+    const pumps = sys.pumps.map(p => {
+      nth[p.type] = (nth[p.type] ?? 0) + 1;
+      const running = !!S.hyd?.systems?.[sys.id]?.pumps?.[p.id]?.running;
+      const mode = p.type === 'rat' ? null : hydCtl(p.id, layout);
+      const state = running ? 'run' : p.type === 'rat' || mode === 'off' ? 'off' : mode === 'auto' ? 'avail' : 'fault';
+      const label = p.label ?? (_TYPE_LABEL[p.type] + (counts[p.type] > 1 ? ` ${nth[p.type]}` : ''));
+      return { id: p.id, type: p.type, label, state, mode };
+    });
+    return { id: sys.id, label: sys.label ?? sys.id.toUpperCase(), psi, nominal: sys.psi,
+             lo: psi < sys.psi * 5 / 6, lost: psi < sys.psi / 6, pumps };
+  });
+}
+
 /* ── Reset on mission load ── */
 export function resetHydraulics() {
   const layout = hydraulicsLayout();

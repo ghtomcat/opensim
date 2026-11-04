@@ -12,7 +12,8 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from '../core/state.js';
-import { drawElecPage } from './pfd_instruments.js';
+import { drawElecPage, drawHydPage } from './pfd_instruments.js';
+import { hydView } from '../core/hydraulics.js';
 import { engineAvailable, engineOilLow } from '../core/engine.js';
 
 const C = {
@@ -159,7 +160,7 @@ function _drawStatusPage(ctx, W, top, H, s) {
 }
 
 function _drawSystemsRow(ctx, W, H, s) {
-  const hydOk  = (S.hydGreenPsi ?? 0) > 2500 && (S.hydYellowPsi ?? 0) > 2500;
+  const hydOk  = hydView().every(sys => !sys.lo || sys.pumps.every(p => p.state === 'off'));   // every system up — or deliberately unpowered (the A340's BLUE until switched on)
   const elecOk = S.acBusPowered ?? false;
 
   const systems = [
@@ -187,88 +188,11 @@ function _drawElecPage(ctx, W, top, H, s) {
 }
 
 /* ════════════════════════════════════════════════════════════
-   LOWER ECAM — HYD synoptic
+   LOWER ECAM — HYD: the shared HYD page, drawn from the aircraft's hydraulic layout
+   (drawHydPage in display/pfd_instruments.js — one drawer for every display)
    ════════════════════════════════════════════════════════════ */
 function _drawHydPage(ctx, W, top, H, s) {
-  const rowH = H - top;
-  const pad  = 18 * s;
-
-  _label(ctx, 'HYD', W / 2, top + 14 * s, C.cyan, 10 * s);
-
-  const systems = [
-    {
-      name: 'GREEN', x: W * 0.20,
-      psi:  S.hydGreenPsi  ?? 0,
-      edp:  S.hydGreenEdp  ?? false,
-      elec: S.hydGreenElecOn ?? false,
-      col:  '#5dd47e',
-    },
-    {
-      name: 'BLUE',  x: W * 0.50,
-      psi:  S.hydBluePsi   ?? 0,
-      edp:  false,
-      elec: S.hydBlueElecOn  ?? false,
-      col:  '#4dc5dc',
-    },
-    {
-      name: 'YELLOW', x: W * 0.80,
-      psi:  S.hydYellowPsi ?? 0,
-      edp:  S.hydYellowEdp ?? false,
-      elec: S.hydYellowElecOn ?? false,
-      col:  '#ffb74d',
-    },
-  ];
-
-  const barTop = top + 35 * s;
-  const barBot = top + rowH * 0.72;
-  const barH   = barBot - barTop;
-  const barW   = 28 * s;
-
-  systems.forEach(({ name, x, psi, edp, elec, col }) => {
-    const pct  = Math.min(1, psi / 3000);
-    const ok   = psi > 2500;
-    const lo   = psi > 500 && psi <= 2500;
-    const color = ok ? col : lo ? C.amber : C.red;
-
-    /* System name */
-    _label(ctx, name, x, top + 24 * s, color, 9 * s);
-
-    /* Pressure bar background */
-    ctx.fillStyle = 'rgba(255,255,255,0.06)';
-    ctx.fillRect(x - barW/2, barTop, barW, barH);
-
-    /* Pressure bar fill */
-    const fillH = barH * pct;
-    ctx.fillStyle = color;
-    ctx.globalAlpha = 0.85;
-    ctx.fillRect(x - barW/2, barTop + barH - fillH, barW, fillH);
-    ctx.globalAlpha = 1.0;
-
-    /* PSI readout */
-    _label(ctx, Math.round(psi) + ' PSI', x, barBot + 14 * s,
-           psi < 100 ? C.dim : color, 10 * s);
-
-    /* Source labels */
-    const srcY = barBot + 30 * s;
-    if (edp) {
-      _label(ctx, 'EDP', x, srcY,          color, 7 * s);
-    }
-    const elecCol = elec ? color : C.dim;
-    _label(ctx, 'ELEC ' + (elec ? 'ON' : 'OFF'), x, srcY + 14 * s, elecCol, 7 * s);
-  });
-
-  /* Nominal line */
-  const nomY = barTop + barH * (1 - 2500/3000);
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-  ctx.lineWidth = 1;
-  ctx.setLineDash([4, 4]);
-  ctx.beginPath();
-  ctx.moveTo(systems[0].x - barW/2 - 8*s, nomY);
-  ctx.lineTo(systems[2].x + barW/2 + 8*s, nomY);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  _label(ctx, '2500', systems[0].x - barW/2 - 16*s, nomY, C.dim, 6*s);
-
+  drawHydPage(ctx, 0, top, W, H - top - 30 * s, FONT, { grn: C.green, amb: C.amber, dim: C.dim, cyn: C.cyan });
   _drawSystemsRow(ctx, W, H, s);
 }
 
@@ -285,9 +209,7 @@ function _getWarnings() {
   if (S.flaps > 0 && S.spd > 250)         w.push({ level: 'CAUTION', text: 'FLAPS — SPD LIMIT' });
   if (S.alt < 200 && !S.gear && S.spd < 180) w.push({ level: 'WARNING', text: 'GEAR NOT DOWN' });
   if (S.vs < -3000 && S.alt < 5000)       w.push({ level: 'WARNING', text: 'SINK RATE' });
-  if ((S.hydGreenPsi ?? 0) < 500)         w.push({ level: 'CAUTION', text: 'HYD GREEN LO' });
-  if ((S.hydBluePsi  ?? 0) < 500)         w.push({ level: 'CAUTION', text: 'HYD BLUE LO' });
-  if ((S.hydYellowPsi?? 0) < 500)         w.push({ level: 'CAUTION', text: 'HYD YELLOW LO' });
+  for (const sys of hydView()) if (sys.lost) w.push({ level: 'CAUTION', text: `HYD ${sys.label} LO` });   // from the layout
   if (!(S.essentialBusPowered ?? true))   w.push({ level: 'WARNING', text: 'ELEC — ESS BUS OFF' });
   /* Autobrake memo (green): armed level, or DECEL while it's actively braking */
   if (S.aircraft?.autobrake && (S.autobrake ?? 'OFF') !== 'OFF')

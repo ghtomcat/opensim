@@ -15,7 +15,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { S, setState } from '../core/state.js';
-import { tickHydraulics, hydraulicsLayout, defaultLayout, hydCtl, hydPump, solvePumps } from '../core/hydraulics.js';
+import { tickHydraulics, hydraulicsLayout, defaultLayout, hydCtl, hydPump, solvePumps, hydView } from '../core/hydraulics.js';
 import { check } from '../core/schema/check.js';
 import { aircraft as aircraftSchema } from '../core/schema/aircraft.js';
 
@@ -132,4 +132,26 @@ test('the schema catches a layout that names an engine or a bus that does not ex
 
 test('without a layout in the file a turbofan gets the default', () => {
   assert.equal(hydraulicsLayout(load('a350')).systems.map(s => s.id).join(), 'green,blue,yellow');
+});
+
+test('the view the pages read: pump states and labels, LO below 5/6 of nominal, the caution below 1/6', () => {
+  const layout = { systems: [
+    { id: 'C', label: 'C', psi: 3000, pumps: [
+      { id: 'c1', type: 'acmp', role: 'primary' }, { id: 'c2', type: 'acmp', role: 'primary' },
+      { id: 'a1', type: 'adp', role: 'demand' }, { id: 'rat', type: 'rat' } ] },
+    { id: 'X', psi: 5000, pumps: [{ id: 'x', type: 'acmp', role: 'standby' }] } ] };
+  const ac = { engine: { type: 'turbofan', count: 2 }, hydraulics: layout };
+  setState({ aircraft: ac, hydCtl: { c2: 'on' }, acBusPowered: true, engines: [{ core: 95 }, { core: 95 }],
+             ratDeployed: false, hyd: null });
+  tickHydraulics(1 / 60);
+  setState({ hyd: { systems: { C: { ...S.hyd.systems.C, psi: 2400 }, X: { ...S.hyd.systems.X, psi: 800 } } } });
+  const [c, x] = hydView();
+  assert.deepEqual(c.pumps.map(p => [p.label, p.state]), [['ELEC 1', 'run'], ['ELEC 2', 'run'], ['AIR', 'avail'], ['RAT', 'off']]);
+  assert.equal(x.label, 'X');                                      // the id when no label
+  assert.deepEqual(x.pumps.map(p => p.state), ['off']);
+  assert.ok(c.lo && !c.lost, 'C: 2400 of 3000 — amber, no caution');
+  assert.ok(x.lo && x.lost, 'X: 800 of 5000 — below 1/6, the caution');
+  setState({ acBusPowered: false });
+  tickHydraulics(1 / 60);
+  assert.equal(hydView()[0].pumps[0].state, 'fault', 'switched on, no AC power');
 });

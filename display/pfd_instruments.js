@@ -11,6 +11,7 @@ import { S } from '../core/state.js';
 import { engineAvailable } from '../core/engine.js';
 import { electricalLayout, solveElectrical, elecCharge } from '../core/electrical.js';
 import { managedSpeed } from '../core/managed-speed.js';
+import { hydView } from '../core/hydraulics.js';
 import { ballDeflection } from '../core/yaw.js';
 import { indicatedAlt, baroSubscale } from '../core/baro.js';
 import { smooth, smoothAngle } from './smooth.js';
@@ -1891,54 +1892,60 @@ function _ecamElec(ctx, x, y, w, h, f, grn, amb, dim, cyn) {
 
 /* ── ECAM HYD synoptic ──────────────────────────────────────── */
 function _ecamHyd(ctx, x, y, w, h, f, grn, amb, dim, cyn) {
+  drawHydPage(ctx, x, y, w, h, f, { grn, amb, dim, cyn });
+}
+
+/* ════════════════════════════════════════════════════════════
+   HYD PAGE — drawn from the aircraft's hydraulic layout (core/hydraulics.js hydView): a column
+   per system — its pressure bar (amber below 5/6 of nominal), the pressure, the name — and under
+   it its pumps: green running, white standing by in AUTO, amber switched on but not delivering,
+   dim off. One drawer for every display (the glass cockpit's lower ECAM, display/ecam.js).
+   ════════════════════════════════════════════════════════════ */
+const _HYD_COL = { green: '#5dd47e', blue: '#4dc5dc', yellow: '#ffb74d' };   // Airbus systems by colour; others white
+export function drawHydPage(ctx, x, y, w, h, f, { grn, amb, dim, cyn }) {
   ctx.font = `bold ${h * 0.055}px ${f}`; ctx.fillStyle = cyn; ctx.textAlign = 'center';
   ctx.fillText('HYD', x + w / 2, y + h * 0.06);
 
-  const systems = [
-    { lbl: 'GREEN',  psi: S.hydGreenPsi  ?? 0, edp: S.hydGreenEdp  ?? false, elec: S.hydGreenElecOn  ?? false, col: '#5dd47e', bx: x + w * 0.20 },
-    { lbl: 'BLUE',   psi: S.hydBluePsi   ?? 0, edp: false,                   elec: S.hydBlueElecOn   ?? false, col: '#4dc5dc', bx: x + w * 0.50 },
-    { lbl: 'YELLOW', psi: S.hydYellowPsi ?? 0, edp: S.hydYellowEdp ?? false, elec: S.hydYellowElecOn ?? false, col: '#ffb74d', bx: x + w * 0.80 },
-  ];
-
-  const barBot  = y + h * 0.82;
-  const barTop  = y + h * 0.18;
+  const systems = hydView();
+  const n       = systems.length;
+  const barTop  = y + h * 0.13;
+  const barBot  = y + h * 0.60;
   const barH    = barBot - barTop;
-  const nomY    = barTop + barH * (1 - 2500 / 3000);
-  const barW    = w * 0.10;
+  const barW    = Math.min(w * 0.10, w * 0.5 / Math.max(1, n));
+  const colX    = (i) => x + w * (n > 1 ? 0.2 + 0.6 * i / (n - 1) : 0.5);
+  const nomFrac = 5 / 6;                                       // the amber threshold, as a share of nominal
 
-  /* Nominal pressure dashed line */
+  /* The threshold — dashed, labelled with the first system's value */
+  const thrY = barTop + barH * (1 - nomFrac);
   ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1;
   ctx.setLineDash([4, 4]);
-  ctx.beginPath(); ctx.moveTo(x + w * 0.08, nomY); ctx.lineTo(x + w * 0.92, nomY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + w * 0.08, thrY); ctx.lineTo(x + w * 0.92, thrY); ctx.stroke();
   ctx.setLineDash([]);
   ctx.font = `${h * 0.028}px ${f}`; ctx.fillStyle = dim; ctx.textAlign = 'left';
-  ctx.fillText('2500', x + w * 0.02, nomY + h * 0.014);
+  if (n) ctx.fillText(String(Math.round(systems[0].nominal * nomFrac)), x + w * 0.02, thrY + h * 0.014);
 
-  systems.forEach(({ lbl, psi, edp, elec, col, bx }) => {
-    const norm   = Math.min(1, psi / 3000);
-    const fillH  = barH * norm;
-    const isLo   = psi < 2500;
+  const stateCol = { run: grn, avail: '#e8e8e8', fault: amb, off: dim };
+  systems.forEach((sys, i) => {
+    const bx  = colX(i);
+    const col = _HYD_COL[sys.id] ?? '#e8e8e8';
+    const fillH = barH * Math.min(1, sys.psi / sys.nominal);
 
-    /* Background bar */
     ctx.fillStyle = 'rgba(255,255,255,0.06)';
     ctx.fillRect(bx - barW / 2, barTop, barW, barH);
-
-    /* Filled bar */
-    ctx.fillStyle = isLo ? amb : col;
+    ctx.fillStyle = sys.lo ? amb : col;
     ctx.fillRect(bx - barW / 2, barBot - fillH, barW, fillH);
 
-    /* PSI label */
-    ctx.font = `bold ${h * 0.040}px ${f}`; ctx.fillStyle = isLo ? amb : col; ctx.textAlign = 'center';
-    ctx.fillText(Math.round(psi), bx, barBot + h * 0.055);
-
-    /* System label */
+    ctx.textAlign = 'center';
+    ctx.font = `bold ${h * 0.040}px ${f}`; ctx.fillStyle = sys.lo ? amb : col;
+    ctx.fillText(Math.round(sys.psi), bx, barBot + h * 0.055);
     ctx.font = `${h * 0.032}px ${f}`; ctx.fillStyle = col;
-    ctx.fillText(lbl, bx, barBot + h * 0.090);
+    ctx.fillText(sys.label, bx, barBot + h * 0.095);
 
-    /* Source labels */
+    /* Its pumps, one per line */
     ctx.font = `${h * 0.026}px ${f}`;
-    if (edp)  { ctx.fillStyle = grn; ctx.fillText('EDP', bx, barTop - h * 0.045); }
-    if (elec) { ctx.fillStyle = grn; ctx.fillText('ELEC', bx, barTop - h * 0.015); }
-    if (!edp && !elec) { ctx.fillStyle = amb; ctx.fillText('OFF', bx, barTop - h * 0.028); }
+    sys.pumps.forEach((p, k) => {
+      ctx.fillStyle = stateCol[p.state];
+      ctx.fillText(p.label, bx, barBot + h * (0.145 + 0.04 * k));
+    });
   });
 }
