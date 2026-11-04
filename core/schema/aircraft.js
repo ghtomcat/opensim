@@ -60,7 +60,9 @@ const hydPump = object(
     role: oneOf('primary', 'demand', 'standby') },   // normally on · AUTO on demand · off until switched on
   { required: ['id', 'type'] },
 );
-const hydSystem = object({ id: str, label: str, psi: num, pumps: arrayOf(hydPump) }, { required: ['id', 'psi', 'pumps'] });
+const hydSystem = object({ id: str, label: str, psi: num, pumps: arrayOf(hydPump),
+                          loPsi: num },   // below it the system has failed — the LO caution (default 1/6 of psi)
+                        { required: ['id', 'psi', 'pumps'] });
 const hydraulics = object({ systems: arrayOf(hydSystem) }, { required: ['systems'], doc: { sources_doc: arrayOf(str) } });
 
 const envelope = object(

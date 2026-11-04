@@ -14,9 +14,11 @@ const ids = (page) => page.locator('.gpb[id^="pb-hyd-"]').evaluateAll(els => els
 const click = (page, id) => page.locator(`#${id}`).dispatchEvent('click');
 const ctl = (page) => page.evaluate(() => window.simGetState().hydCtl);
 
-test('the A340: a control for each pump of its layout', async ({ page }) => {
+test('the A340: a control for each pump of its layout — no RAT button', async ({ page }) => {
   await overhead(page, 'fimp-takeoff');
-  expect(await ids(page)).toEqual(['pb-hyd-greenEdp', 'pb-hyd-greenElec', 'pb-hyd-blueElec', 'pb-hyd-yellowEdp', 'pb-hyd-yellowElec']);
+  expect(await ids(page)).toEqual(['pb-hyd-gEdp1', 'pb-hyd-gEdp4', 'pb-hyd-gElec', 'pb-hyd-bEdp2', 'pb-hyd-bElec',
+                                   'pb-hyd-yEdp3', 'pb-hyd-yElec']);
+  await expect(page.locator('#pb-hyd-gElec-lower')).toHaveText('AUTO');
 });
 
 test('the controls send their commands: BLUE ELEC on pressurises BLUE; an engine pump off is lit off', async ({ page }) => {
@@ -35,8 +37,8 @@ test('FAULT: an engine pump switched on with its engine stopped', async ({ page 
   await overhead(page, 'fimp-takeoff');                           // cold on the stand
   await page.evaluate(() => window.simStep(2, 1 / 60));
   await page.keyboard.press('o'); await page.keyboard.press('o');  // redraw
-  await expect(page.locator('#pb-hyd-greenEdp-upper')).toHaveClass(/lit/);
-  await expect(page.locator('#pb-hyd-greenElec-upper')).not.toHaveClass(/lit/);   // off — no fault
+  await expect(page.locator('#pb-hyd-gEdp1-upper')).toHaveClass(/lit/);
+  await expect(page.locator('#pb-hyd-gElec-upper')).not.toHaveClass(/lit/);       // AUTO, standing by — no fault
 });
 
 test('the 777: its own panel — L ENG, L ELEC, C1 / C2 ELEC, C1 / C2 AIR, R ENG, R ELEC; no RAT button', async ({ page }) => {

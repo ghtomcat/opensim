@@ -2,11 +2,11 @@
  * Hydraulics — the generic solver over the layout (core/hydraulics.js) against the logic it replaced.
  *
  * oracle() is the old tickHydraulics() (until 2026-11-04: the A340's three systems hard-coded for
- * every turbofan, the electric pump switches in single fields), kept here as a pure function. For
- * the A340 (its layout in aircraft/a340.json, and the default built from the engine count), the
- * A220, the 737 and the A350, random engine / AC power / switch / pressure states go through both;
+ * every turbofan, the electric pump switches in single fields), kept here as a pure function. The
+ * default layout (built from the engine count — still that structure) on a four-engine aircraft, the
+ * A220, the 737 and the A350: random engine / AC power / switch / pressure states go through both;
  * every pressure and engine-pump state the old code wrote must come out the same in S.hyd. Then the
- * controls and the roles, and the 777's layout against its source.
+ * controls and the roles, and the 777's and the A340's layouts against their sources.
  *
  * Run:  node --test tests/hydraulics.test.mjs
  */
@@ -74,8 +74,7 @@ const fromHyd = () => {
 const FIELDS = ['hydGreenPsi', 'hydBluePsi', 'hydYellowPsi', 'hydGreenEdp', 'hydBlueEdp', 'hydYellowEdp'];
 
 for (const [name, make] of [
-  ['A340 — its layout in aircraft/a340.json', () => load('a340')],
-  ['A340 — the default from the engine count', () => { const a = load('a340'); delete a.hydraulics; return a; }],
+  ['four engines — the default from the engine count', () => { const a = load('a340'); delete a.hydraulics; return a; }],
   ['A220', () => load('a220')],
   ['737', () => load('b737')],
   ['A350', () => load('a350')],
@@ -95,19 +94,15 @@ for (const [name, make] of [
   });
 }
 
-test('the A340 layout in its file is the default for four engines', () => {
-  const a = load('a340');
-  const strip = (l) => JSON.parse(JSON.stringify(l, (k, v) => k.startsWith('_') ? undefined : v));
-  assert.deepEqual(strip(a.hydraulics), strip(defaultLayout(a)));
-});
-
 test('the controls: defaults by role, changed through hydPump', () => {
-  setState({ aircraft: load('a340'), hydCtl: {} });
+  setState({ aircraft: load('a350'), hydCtl: {} });                // the default layout
   assert.equal(hydCtl('greenEdp'), 'on');                          // primary
   assert.equal(hydCtl('blueElec'), 'off');                         // standby
   hydPump('blueElec', 'on');
   assert.equal(hydCtl('blueElec'), 'on');
   assert.equal(S.hydCtl.blueElec, 'on');
+  setState({ aircraft: load('a340'), hydCtl: {} });
+  assert.equal(hydCtl('gElec'), 'auto');                           // demand
 });
 
 test('a demand pump in AUTO runs only while its system\'s primary pumps deliver nothing', () => {
@@ -129,11 +124,11 @@ test('the schema catches a layout that names an engine or a bus that does not ex
   const a = load('a340');
   a.hydraulics.systems[0].pumps[0].driver = 'eng7';
   a.hydraulics.systems[1].pumps[0].bus = 'nowhere';
-  a.hydraulics.systems[2].pumps[1].id = 'greenElec';
+  a.hydraulics.systems[2].pumps[1].id = 'gElec';
   const errs = check(a, aircraftSchema);
   assert.ok(errs.some(e => e.includes('driver "eng7" is not an engine')), errs.join('\n'));
   assert.ok(errs.some(e => e.includes('unknown bus "nowhere"')), errs.join('\n'));
-  assert.ok(errs.some(e => e.includes('"greenElec" used twice')), errs.join('\n'));
+  assert.ok(errs.some(e => e.includes('"gElec" used twice')), errs.join('\n'));
 });
 
 test('without a layout in the file a turbofan gets the default', () => {
@@ -203,4 +198,47 @@ test('777: no AC on the mains — C1 / C2 stop, the air-driven pumps take over o
 
 test('777 [H1]: the RAT\'s pump runs once the RAT is deployed', () => {
   assert.equal(run777({ ratDeployed: true, engines: [{ core: 0 }, { core: 0 }], elec: elecUp(false, false) }).rat, true);
+});
+
+/* ── The A340's layout against its source ([A1] AAIB report 4/2000, G-VSKY, §1.6.5.1) ── */
+const a340 = load('a340');
+const run340 = (cores, over = {}) => {
+  setState({ aircraft: a340, hydCtl: {}, ratDeployed: false, acBusPowered: true,
+             engines: cores.map(core => ({ core })), hyd: null, ...over });
+  return solvePumps();
+};
+
+test('A340 [A1]: GREEN on ENG 1 and 4, BLUE on ENG 2, YELLOW on ENG 3; an electric pump each; the RAT on GREEN; 1450 psi', () => {
+  const l = hydraulicsLayout(a340);
+  const edps = Object.fromEntries(l.systems.map(s => [s.id, s.pumps.filter(p => p.type === 'edp').map(p => p.driver)]));
+  assert.deepEqual(edps, { green: ['eng1', 'eng4'], blue: ['eng2'], yellow: ['eng3'] });
+  for (const s of l.systems) {
+    assert.equal(s.psi, 3000); assert.equal(s.loPsi, 1450);
+    assert.equal(s.pumps.filter(p => p.type === 'acmp').length, 1, `${s.id}: one electric pump`);
+  }
+  assert.deepEqual(l.systems.filter(s => s.pumps.some(p => p.type === 'rat')).map(s => s.id), ['green']);
+  assert.ok(l.sources_doc[0].includes('4/2000'));
+});
+
+test('A340: all engines running — the engine pumps; the electric pumps stand by', () => {
+  assert.deepEqual(run340([95, 95, 95, 95]), { gEdp1: true, gEdp4: true, gElec: false, rat: false, bEdp2: true, bElec: false,
+                                               yEdp3: true, yElec: false });
+});
+
+test('A340: one GREEN engine lost — the other keeps GREEN; ENG 1 and 4 lost — G ELEC takes over [A1]', () => {
+  const one = run340([0, 95, 95, 95]);
+  assert.ok(!one.gEdp1 && one.gEdp4 && !one.gElec);
+  const both = run340([0, 95, 95, 0]);
+  assert.ok(!both.gEdp1 && !both.gEdp4 && both.gElec, 'braking and steering with ENG 1 and 4 shut down');
+  assert.ok(both.bEdp2 && both.yEdp3);
+});
+
+test('A340: ENG 2 lost — B ELEC, the only other way to pressurise BLUE [A1]; ENG 3 lost — Y ELEC', () => {
+  assert.ok(run340([95, 0, 95, 95]).bElec);
+  assert.ok(run340([95, 95, 0, 95]).yElec);
+});
+
+test('A340: the LO caution below 1450 psi, not 1/6 of nominal', () => {
+  setState({ aircraft: a340, hydCtl: {}, hyd: { systems: { green: { psi: 1400 }, blue: { psi: 1500 }, yellow: { psi: 3000 } } } });
+  assert.deepEqual(hydView().map(s => [s.id, s.lost]), [['green', true], ['blue', false], ['yellow', false]]);
 });

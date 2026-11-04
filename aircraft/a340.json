@@ -158,16 +158,22 @@
     ]
   },
   "hydraulics": {
-    "_note": "The A340's three systems (core/hydraulics.js) — written out from what the code hard-coded until stage 4: GREEN (ENG 1's EDP + an electric pump), BLUE (electric only), YELLOW (ENG 4's EDP + an electric pump), 3000 psi. Simplified — the real A340's pumps per engine, its RAT and power transfer units are not checked against a source yet; to do against the A340 FCOM when this layout is refined.",
+    "sources_doc": [
+      "[A1] AAIB (UK), Aircraft Accident Report No 4/2000 (EW/C97/11/1), 'Report on the accident to Airbus A340-311, G-VSKY at London Heathrow Airport on 5 November 1997', §1.6.5.1 'Hydraulic power' (and §1.6.5.5 / 1.6.5.6: steering, brakes)"
+    ],
+    "_note": "The A340's three systems (core/hydraulics.js), from [A1]: GREEN, BLUE, YELLOW at 3000 psi, below 1450 psi a failure condition (loPsi). Engine pumps: GREEN on ENG 1 and ENG 4, BLUE on ENG 2, YELLOW on ENG 3. One electric pump per system: GREEN's supplements ENG 1 / 4 and gives braking and steering with ENG 1 and 4 shut down; BLUE's is the only other way to pressurise BLUE; YELLOW's helps flap retraction after an ENG 3 failure and runs the cargo doors on the ground. The RAT pressurises GREEN (1600–2600 psi, certified down to 140 kt). [A1] names no power transfer unit (for BLUE: 'no other means'). Modelled: the electric pumps in AUTO run when their system's engine pumps deliver nothing. Not modelled: their other triggers ([A1]: supplementing one lost GREEN EDP for gear retraction, the flaps after ENG 3), which AC bus feeds each electric pump (not in [A1] — any AC power here), the RAT's automatic deployment (GREEN lost with all AC busbars — the A340's electrical layout has no RAT or emergency generator yet), the hand pump and cargo doors, the pumps' 25–30-s run-down after a fire-pushbutton shutdown (the fire valve closes at once). The overhead labels (G ENG 1 …) are ours.",
     "systems": [
-      { "id": "green",  "label": "GREEN",  "psi": 3000, "pumps": [
-        { "id": "greenEdp",   "type": "edp",  "driver": "eng1", "role": "primary" },
-        { "id": "greenElec",  "type": "acmp", "role": "standby" } ] },
-      { "id": "blue",   "label": "BLUE",   "psi": 3000, "pumps": [
-        { "id": "blueElec",   "type": "acmp", "role": "standby" } ] },
-      { "id": "yellow", "label": "YELLOW", "psi": 3000, "pumps": [
-        { "id": "yellowEdp",  "type": "edp",  "driver": "eng4", "role": "primary" },
-        { "id": "yellowElec", "type": "acmp", "role": "standby" } ] }
+      { "id": "green",  "label": "GREEN",  "psi": 3000, "loPsi": 1450, "pumps": [
+        { "id": "gEdp1", "type": "edp",  "label": "G ENG 1", "driver": "eng1", "role": "primary" },
+        { "id": "gEdp4", "type": "edp",  "label": "G ENG 4", "driver": "eng4", "role": "primary" },
+        { "id": "gElec", "type": "acmp", "label": "G ELEC",                     "role": "demand" },
+        { "id": "rat",   "type": "rat",  "label": "RAT" } ] },
+      { "id": "blue",   "label": "BLUE",   "psi": 3000, "loPsi": 1450, "pumps": [
+        { "id": "bEdp2", "type": "edp",  "label": "B ENG 2", "driver": "eng2", "role": "primary" },
+        { "id": "bElec", "type": "acmp", "label": "B ELEC",                     "role": "demand" } ] },
+      { "id": "yellow", "label": "YELLOW", "psi": 3000, "loPsi": 1450, "pumps": [
+        { "id": "yEdp3", "type": "edp",  "label": "Y ENG 3", "driver": "eng3", "role": "primary" },
+        { "id": "yElec", "type": "acmp", "label": "Y ELEC",                     "role": "demand" } ] }
     ]
   },
   "electrical": {

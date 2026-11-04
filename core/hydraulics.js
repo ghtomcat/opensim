@@ -4,7 +4,7 @@
    hydraulic layout (aircraft.hydraulics: systems with their pumps).
 
    The layout:
-     systems  id, label, psi (nominal pressure), pumps
+     systems  id, label, psi (nominal pressure), loPsi (below it: failed), pumps
      pumps    type edp  — engine-driven, on its engine's core (driver: eng1 …)
                    acmp — an AC motor pump, on an electrical bus (bus: an id
                           of the electrical layout; none — any AC power)
@@ -114,7 +114,7 @@ const _TYPE_LABEL = { edp: 'EDP', acmp: 'ELEC', adp: 'AIR', rat: 'RAT' };
 /** The systems as the HYD page, the status line and the cautions show them. A pump's state:
     'run' (delivering), 'avail' (AUTO, standing by), 'fault' (switched on, its driver delivers nothing),
     'off' (switched off — or the RAT stowed). lo: below 5/6 of nominal (the page's amber); lost:
-    below 1/6 (the LO caution). */
+    below the system's loPsi, else 1/6 of nominal (the LO caution). */
 export function hydView(layout = hydraulicsLayout()) {
   return layout.systems.map(sys => {
     const psi = S.hyd?.systems?.[sys.id]?.psi ?? 0;
@@ -130,7 +130,7 @@ export function hydView(layout = hydraulicsLayout()) {
       return { id: p.id, type: p.type, label, own: !!p.label, state, mode };   // own: the layout names it (the 777's L ENG …)
     });
     return { id: sys.id, label: sys.label ?? sys.id.toUpperCase(), psi, nominal: sys.psi,
-             lo: psi < sys.psi * 5 / 6, lost: psi < sys.psi / 6, pumps };
+             lo: psi < sys.psi * 5 / 6, lost: psi < (sys.loPsi ?? sys.psi / 6), pumps };
   });
 }
 
