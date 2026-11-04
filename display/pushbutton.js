@@ -80,3 +80,9 @@ export function setPushButtonUpper(id, text) {
   const el = document.getElementById(`pb-${id}-upper`);
   if (el) el.textContent = text;
 }
+
+/* Set the lower legend text at runtime (e.g. a three-position pump switch: AUTO / ON / OFF). */
+export function setPushButtonLower(id, text) {
+  const el = document.getElementById(`pb-${id}-lower`);
+  if (el && el.textContent !== text) el.textContent = text;
+}

@@ -13,8 +13,8 @@
 import { S, setState }                             from '../core/state.js';
 import { stopEngine, apuMaster, apuStart, apuFire } from '../core/engine.js';
 import { electricalLayout, elecCtl, elecCharge, elecSwitch, elecIdgDisconnect, elecBusTie, elecBusTieAuto } from '../core/electrical.js';
-import { hydCtl, hydPump }                         from '../core/hydraulics.js';
-import { pushButtonHTML, setPushButton }          from './pushbutton.js';
+import { hydCtl, hydPump, hydView, hydraulicsLayout, hydRole } from '../core/hydraulics.js';
+import { pushButtonHTML, setPushButton, setPushButtonLower } from './pushbutton.js';
 
 /* ── DOM node ─────────────────────────────────────────────────── */
 let _el = null;
@@ -419,13 +419,14 @@ function _buildHTML() {
     </div>
   </div>`;
 
-  /* Hydraulics section — turbofan only */
+  /* Hydraulics section — turbofan only; built from the hydraulic layout (core/hydraulics.js): a
+     group per system, a control per pump (not the RAT) — primary and standby pumps ON/OFF, demand
+     pumps AUTO / ON / OFF (a pushbutton that cycles — the 777's are rotary selectors) */
   const hydSection = turbofan ? `<div class="ohp-section">
     <div class="ohp-section-hdr">HYDRAULICS</div>
-    <div class="ohp-row">
-      ${_sysPb('hyd-green',  'GREEN PMP',  { upper: 'FAULT' })}
-      ${_sysPb('hyd-blue',   'BLUE PMP',   { upper: 'FAULT' })}
-      ${_sysPb('hyd-yellow', 'YELLOW PMP', { upper: 'FAULT' })}
+    <div class="ohp-row" style="align-items:flex-start; gap:8px;">
+      ${hydView().map((sys, i) => `${i ? '<div class="ohp-divider"></div>' : ''}${sys.pumps.filter(p => p.type !== 'rat').map(p =>
+        _sysPb(`hyd-${p.id}`, `${sys.label} ${p.label}`, { upper: 'FAULT', lower: hydRole(p.id) === 'demand' ? 'AUTO' : 'ON' })).join('')}`).join('')}
     </div>
   </div>` : '';
 
@@ -599,14 +600,13 @@ function _attachHandlers() {
     });
   }
 
-  /* Hydraulic electric pumps — through core/hydraulics.js (until the section is built from the layout) */
-  for (const [id, pump] of [
-    ['pb-hyd-green',  'greenElec'],
-    ['pb-hyd-blue',   'blueElec'],
-    ['pb-hyd-yellow', 'yellowElec'],
-  ]) {
-    document.getElementById(id)?.addEventListener('click', () => {
-      hydPump(pump, hydCtl(pump) === 'on' ? 'off' : 'on');
+  /* Hydraulic pumps — each control sends its pump's command to core/hydraulics.js:
+     ON/OFF toggles; a demand pump cycles AUTO → ON → OFF → AUTO */
+  for (const sys of hydraulicsLayout().systems) for (const p of sys.pumps) {
+    if (p.type === 'rat') continue;
+    document.getElementById(`pb-hyd-${p.id}`)?.addEventListener('click', () => {
+      const m = hydCtl(p.id);
+      hydPump(p.id, p.role === 'demand' ? ({ auto: 'on', on: 'off', off: 'auto' })[m] : (m === 'on' ? 'off' : 'on'));
       _updateSwitches();
     });
   }
@@ -711,13 +711,11 @@ function _updateSwitches() {
     setPushButton(`fuel-${i}`, { lower: fuelPumps[i - 1] ?? true });
   }
 
-  /* Hydraulics */
-  for (const [id, pump] of [
-    ['hyd-green',  'greenElec'],
-    ['hyd-blue',   'blueElec'],
-    ['hyd-yellow', 'yellowElec'],
-  ]) {
-    setPushButton(id, { lower: hydCtl(pump) === 'on' });
+  /* Hydraulics — from the solver's view: FAULT when switched on but not delivering */
+  for (const sys of hydView()) for (const p of sys.pumps) {
+    if (p.type === 'rat') continue;
+    if (hydRole(p.id) === 'demand') setPushButtonLower(`hyd-${p.id}`, p.mode.toUpperCase());
+    setPushButton(`hyd-${p.id}`, { lower: p.mode !== 'off', upper: p.state === 'fault' });
   }
 
   if (!turbofan) return;

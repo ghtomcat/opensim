@@ -65,6 +65,12 @@ export function hydCtl(id, layout = hydraulicsLayout()) {
   return 'off';
 }
 
+/** A pump's role in its layout ('primary' | 'demand' | 'standby'), or null (the RAT, or unknown). */
+export function hydRole(id, layout = hydraulicsLayout()) {
+  for (const sys of layout.systems) for (const p of sys.pumps) if (p.id === id) return p.role ?? null;
+  return null;
+}
+
 /** Set a pump's switch. */
 export function hydPump(id, mode) {
   setState({ hydCtl: { ...(S.hydCtl ?? {}), [id]: mode } });
