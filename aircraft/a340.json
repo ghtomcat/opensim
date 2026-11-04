@@ -157,6 +157,19 @@
       234
     ]
   },
+  "hydraulics": {
+    "_note": "The A340's three systems (core/hydraulics.js) — written out from what the code hard-coded until stage 4: GREEN (ENG 1's EDP + an electric pump), BLUE (electric only), YELLOW (ENG 4's EDP + an electric pump), 3000 psi. Simplified — the real A340's pumps per engine, its RAT and power transfer units are not checked against a source yet; to do against the A340 FCOM when this layout is refined.",
+    "systems": [
+      { "id": "green",  "label": "GREEN",  "psi": 3000, "pumps": [
+        { "id": "greenEdp",   "type": "edp",  "driver": "eng1", "role": "primary" },
+        { "id": "greenElec",  "type": "acmp", "role": "standby" } ] },
+      { "id": "blue",   "label": "BLUE",   "psi": 3000, "pumps": [
+        { "id": "blueElec",   "type": "acmp", "role": "standby" } ] },
+      { "id": "yellow", "label": "YELLOW", "psi": 3000, "pumps": [
+        { "id": "yellowEdp",  "type": "edp",  "driver": "eng4", "role": "primary" },
+        { "id": "yellowElec", "type": "acmp", "role": "standby" } ] }
+    ]
+  },
   "electrical": {
     "_note": "The A340 electrical layout — sources and buses in priority order, loads (core/electrical.js); the overhead and the ELEC page are built from it.",
     "sources": [

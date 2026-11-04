@@ -13,6 +13,7 @@
 import { S, setState }                             from '../core/state.js';
 import { stopEngine, apuMaster, apuStart, apuFire } from '../core/engine.js';
 import { electricalLayout, elecCtl, elecCharge, elecSwitch, elecIdgDisconnect, elecBusTie, elecBusTieAuto } from '../core/electrical.js';
+import { hydCtl, hydPump }                         from '../core/hydraulics.js';
 import { pushButtonHTML, setPushButton }          from './pushbutton.js';
 
 /* ── DOM node ─────────────────────────────────────────────────── */
@@ -598,14 +599,14 @@ function _attachHandlers() {
     });
   }
 
-  /* Hydraulic electric pumps */
-  for (const [id, key] of [
-    ['pb-hyd-green',  'hydGreenElecOn'],
-    ['pb-hyd-blue',   'hydBlueElecOn'],
-    ['pb-hyd-yellow', 'hydYellowElecOn'],
+  /* Hydraulic electric pumps — through core/hydraulics.js (until the section is built from the layout) */
+  for (const [id, pump] of [
+    ['pb-hyd-green',  'greenElec'],
+    ['pb-hyd-blue',   'blueElec'],
+    ['pb-hyd-yellow', 'yellowElec'],
   ]) {
     document.getElementById(id)?.addEventListener('click', () => {
-      setState({ [key]: !(S[key] ?? false) });
+      hydPump(pump, hydCtl(pump) === 'on' ? 'off' : 'on');
       _updateSwitches();
     });
   }
@@ -711,12 +712,12 @@ function _updateSwitches() {
   }
 
   /* Hydraulics */
-  for (const [id, key] of [
-    ['hyd-green',  'hydGreenElecOn'],
-    ['hyd-blue',   'hydBlueElecOn'],
-    ['hyd-yellow', 'hydYellowElecOn'],
+  for (const [id, pump] of [
+    ['hyd-green',  'greenElec'],
+    ['hyd-blue',   'blueElec'],
+    ['hyd-yellow', 'yellowElec'],
   ]) {
-    setPushButton(id, { lower: S[key] ?? false });
+    setPushButton(id, { lower: hydCtl(pump) === 'on' });
   }
 
   if (!turbofan) return;

@@ -53,6 +53,16 @@ const electrical = object({ batCount: num, extPwrB: bool,          // the defaul
                            sources: arrayOf(elecSource), buses: arrayOf(elecBus), loads: arrayOf(elecLoad) },
                          { doc: { sources_doc: arrayOf(str) } });   // where the layout comes from
 
+const hydPump = object(
+  { id: str, type: oneOf('edp', 'acmp', 'adp', 'rat'), label: str,
+    driver: str,              // edp: 'eng1' …
+    bus: str,                 // acmp: an AC bus of the electrical layout (none — any AC power)
+    role: oneOf('primary', 'demand', 'standby') },   // normally on · AUTO on demand · off until switched on
+  { required: ['id', 'type'] },
+);
+const hydSystem = object({ id: str, label: str, psi: num, pumps: arrayOf(hydPump) }, { required: ['id', 'psi', 'pumps'] });
+const hydraulics = object({ systems: arrayOf(hydSystem) }, { required: ['systems'], doc: { sources_doc: arrayOf(str) } });
+
 const envelope = object(
   { cruiseAlt: num, cruiseSpd: num, maxSpd: num, spdProfile: mapOf(num) },
   { doc: { maxAlt: num } },   // the service ceiling — a fact, nothing enforces it
@@ -116,7 +126,7 @@ export const aircraft = object(
     autobrake: bool, fixedGear: bool, gridFins: bool, landingLegs: bool,
     /* systems */
     tanks: object({ left: num, right: num, unit: oneOf('L') }), fuelBurn: num, hasCarbHeat: bool,
-    battery: object({ capacityKwh: num, powerDrawKw: num }), electrical,
+    battery: object({ capacityKwh: num, powerDrawKw: num }), electrical, hydraulics,
     balance: object({ noseGearLoadShare: num }),     // nominal CG (core/airframe.js) until weight and balance
     cooling, coolingSystem: oneOf('liquid', 'air'),
     /* crew and callouts */
@@ -193,6 +203,19 @@ export const aircraft = object(
       if (d.vstabRudderRootChord >= d.vstabRootChord || d.vstabRudderTopHeight > d.vstabHeight) errs.push('dimensions: the rudder must fit inside the vertical tail');
       const share = a.balance?.noseGearLoadShare;
       if (share !== undefined && !(share > 0 && share < 0.5)) errs.push('balance.noseGearLoadShare must be between 0 and 0.5');
+      /* the hydraulic layout's references: unique pump ids, every EDP on an engine, every ACMP bus in the electrical layout */
+      const hy = a.hydraulics;
+      if (hy?.systems) {
+        const seen = new Set(), busIds = new Set((a.electrical?.buses ?? []).map(b => b.id));
+        for (const sys of hy.systems) for (const p of sys.pumps) {
+          if (seen.has(p.id)) errs.push(`hydraulics: pump id "${p.id}" used twice`);
+          seen.add(p.id);
+          const m = /^eng(\d+)$/.exec(p.driver ?? '');
+          if (p.type === 'edp' && !(m && +m[1] >= 1 && +m[1] <= (a.engine?.count ?? 0)))
+            errs.push(`hydraulics: ${p.id} driver "${p.driver}" is not an engine of this aircraft`);
+          if (p.bus && a.electrical?.buses && !busIds.has(p.bus)) errs.push(`hydraulics: ${p.id} names unknown bus "${p.bus}"`);
+        }
+      }
       /* a declared turbofan needs a sane idle */
       if (turbofan && a.engine.idleN1 !== undefined && !(a.engine.idleN1 >= 0 && a.engine.idleN1 <= 100)) errs.push('engine.idleN1 out of range 0…100');
       /* the A/THR detents read thrustProfiles: spdT >= 0 and a positive maximum (the lever denominator) */
