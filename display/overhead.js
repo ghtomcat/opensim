@@ -426,7 +426,7 @@ function _buildHTML() {
     <div class="ohp-section-hdr">HYDRAULICS</div>
     <div class="ohp-row" style="align-items:flex-start; gap:8px;">
       ${hydView().map((sys, i) => `${i ? '<div class="ohp-divider"></div>' : ''}${sys.pumps.filter(p => p.type !== 'rat').map(p =>
-        _sysPb(`hyd-${p.id}`, `${sys.label} ${p.label}`, { upper: 'FAULT', lower: hydRole(p.id) === 'demand' ? 'AUTO' : 'ON' })).join('')}`).join('')}
+        _sysPb(`hyd-${p.id}`, p.own ? p.label : `${sys.label} ${p.label}`, { upper: 'FAULT', lower: hydRole(p.id) === 'demand' ? 'AUTO' : 'ON' })).join('')}`).join('')}
     </div>
   </div>` : '';
 

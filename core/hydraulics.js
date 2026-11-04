@@ -21,9 +21,8 @@
 
    State: S.hyd = { systems: {id: {psi, pumps: {id: {running}}}} }, the
    switches in S.hydCtl (by pump: 'on' | 'off' | 'auto'), changed only
-   through hydPump(). The single fields the displays read today
-   (hydGreenPsi, hydGreenElecOn, hydGreenEdp …) are derived from it.
-   Display only — nothing in the sim depends on the pressures yet.
+   through hydPump(). The displays read hydView(). Display only —
+   nothing in the sim depends on the pressures yet.
    issues.md "One engine per aircraft", stage 4.
    ═══════════════════════════════════════════════════════════════ */
 
@@ -128,7 +127,7 @@ export function hydView(layout = hydraulicsLayout()) {
       const mode = p.type === 'rat' ? null : hydCtl(p.id, layout);
       const state = running ? 'run' : p.type === 'rat' || mode === 'off' ? 'off' : mode === 'auto' ? 'avail' : 'fault';
       const label = p.label ?? (_TYPE_LABEL[p.type] + (counts[p.type] > 1 ? ` ${nth[p.type]}` : ''));
-      return { id: p.id, type: p.type, label, state, mode };
+      return { id: p.id, type: p.type, label, own: !!p.label, state, mode };   // own: the layout names it (the 777's L ENG …)
     });
     return { id: sys.id, label: sys.label ?? sys.id.toUpperCase(), psi, nominal: sys.psi,
              lo: psi < sys.psi * 5 / 6, lost: psi < sys.psi / 6, pumps };
@@ -144,23 +143,9 @@ export function resetHydraulics() {
     const psi = engRunning && sys.pumps.some(p => p.type === 'edp') ? sys.psi : 0;
     systems[sys.id] = { psi, pumps: Object.fromEntries(sys.pumps.map(p => [p.id, { running: false }])) };
   }
-  setState({ hydCtl: {}, hyd: { systems }, ..._singleFields(layout, systems, {}) });
+  setState({ hydCtl: {}, hyd: { systems } });
 }
 onMissionReset(resetHydraulics);
-
-/* ── The single fields (hydGreenPsi …) for the systems the displays still read by name ── */
-const _NAMED = { green: 'Green', blue: 'Blue', yellow: 'Yellow' };
-function _singleFields(layout, systems, running) {
-  const out = {};
-  for (const sys of layout.systems) {
-    const N = _NAMED[sys.id];
-    if (!N) continue;
-    out[`hyd${N}Psi`]    = systems[sys.id].psi;
-    out[`hyd${N}Edp`]    = sys.pumps.some(p => p.type === 'edp' && running[p.id]);
-    out[`hyd${N}ElecOn`] = sys.pumps.some(p => p.type === 'acmp' && hydCtl(p.id, layout) === 'on');
-  }
-  return out;
-}
 
 export function tickHydraulics(dt) {
   const ac = S.aircraft;
@@ -179,5 +164,5 @@ export function tickHydraulics(dt) {
       pumps: Object.fromEntries(sys.pumps.map(p => [p.id, { running: running[p.id] }])),
     };
   }
-  setState({ hyd: { systems }, ..._singleFields(layout, systems, running) });
+  setState({ hyd: { systems } });
 }

@@ -5,7 +5,8 @@
  * every turbofan, the electric pump switches in single fields), kept here as a pure function. For
  * the A340 (its layout in aircraft/a340.json, and the default built from the engine count), the
  * A220, the 737 and the A350, random engine / AC power / switch / pressure states go through both;
- * every field the old code wrote must come out the same. Then the controls and the roles.
+ * every pressure and engine-pump state the old code wrote must come out the same in S.hyd. Then the
+ * controls and the roles, and the 777's layout against its source.
  *
  * Run:  node --test tests/hydraulics.test.mjs
  */
@@ -64,6 +65,12 @@ const asSolver = (st) => ({
   hyd: { systems: { green: { psi: st.hydGreenPsi }, blue: { psi: st.hydBluePsi }, yellow: { psi: st.hydYellowPsi } } },
 });
 
+/* The old fields, read from S.hyd */
+const fromHyd = () => {
+  const sy = S.hyd.systems, edp = (id) => Object.entries(sy[id].pumps).some(([k, p]) => k.endsWith('Edp') && p.running);
+  return { hydGreenPsi: sy.green.psi, hydBluePsi: sy.blue.psi, hydYellowPsi: sy.yellow.psi,
+           hydGreenEdp: edp('green'), hydBlueEdp: edp('blue'), hydYellowEdp: edp('yellow') };
+};
 const FIELDS = ['hydGreenPsi', 'hydBluePsi', 'hydYellowPsi', 'hydGreenEdp', 'hydBlueEdp', 'hydYellowEdp'];
 
 for (const [name, make] of [
@@ -81,9 +88,8 @@ for (const [name, make] of [
         const want = oracle(st, dt);
         setState(asSolver(st));
         tickHydraulics(dt);
-        for (const f of FIELDS) assert.equal(S[f], want[f], `${name}, state ${k}, dt ${dt}: ${f}`);
-        for (const [f, v] of [['hydGreenElecOn', st.hydGreenElecOn], ['hydBlueElecOn', st.hydBlueElecOn], ['hydYellowElecOn', st.hydYellowElecOn]])
-          assert.equal(S[f], v, `${name}, state ${k}: ${f} derived from the switch`);
+        const got = fromHyd();
+        for (const f of FIELDS) assert.equal(got[f], want[f], `${name}, state ${k}, dt ${dt}: ${f}`);
       }
     }
   });
@@ -154,4 +160,47 @@ test('the view the pages read: pump states and labels, LO below 5/6 of nominal, 
   setState({ acBusPowered: false });
   tickHydraulics(1 / 60);
   assert.equal(hydView()[0].pumps[0].state, 'fault', 'switched on, no AC power');
+});
+
+/* ── The 777's layout against its source ([H1] FAA-H-8083-31B ch. 12, in the layout's sources_doc) ── */
+const b777 = load('b777-300er');
+const elecUp = (l = true, r = true) => ({ buses: { lMain: { powered: l }, rMain: { powered: r } } });
+const run777 = (over = {}) => {
+  setState({ aircraft: b777, hydCtl: {}, ratDeployed: false, apuState: 'off', elec: elecUp(),
+             engines: [{ core: 95 }, { core: 95 }], hyd: null, ...over });
+  return solvePumps();
+};
+
+test('777 [H1]: three systems L, C, R at 3000 psi — 2 EDP, 4 ACMP, 2 ADP, 1 RAT', () => {
+  const l = hydraulicsLayout(b777);
+  assert.deepEqual(l.systems.map(s => [s.id, s.psi]), [['L', 3000], ['C', 3000], ['R', 3000]]);
+  const all = l.systems.flatMap(s => s.pumps.map(p => p.type)), n = (t) => all.filter(x => x === t).length;
+  assert.deepEqual([n('edp'), n('acmp'), n('adp'), n('rat')], [2, 4, 2, 1]);
+  assert.ok(l.sources_doc[0].includes('FAA-H-8083-31B'));
+});
+
+test('777 [H1]: normally the EDPs drive L and R, C1 and C2 drive C; the demand pumps stand by', () => {
+  assert.deepEqual(run777(), { lEdp: true, lAcmp: false, c1Acmp: true, c2Acmp: true, c1Adp: false, c2Adp: false, rat: false,
+                               rEdp: true, rAcmp: false });
+});
+
+test('777: ENG 1 lost — only the L EDP stops, the L ELEC demand pump takes over', () => {
+  const r = run777({ engines: [{ core: 0 }, { core: 95 }] });
+  assert.equal(r.lEdp, false);
+  assert.equal(r.lAcmp, true);
+  assert.equal(r.rEdp, true);
+  assert.equal(r.rAcmp, false);
+  assert.ok(r.c1Acmp && r.c2Acmp && !r.c1Adp && !r.c2Adp, 'C unaffected');
+});
+
+test('777: no AC on the mains — C1 / C2 stop, the air-driven pumps take over on bleed air', () => {
+  const r = run777({ elec: elecUp(false, false) });
+  assert.ok(!r.c1Acmp && !r.c2Acmp && r.c1Adp && r.c2Adp);
+  const cold = run777({ elec: elecUp(false, false), engines: [{ core: 0 }, { core: 0 }] });
+  assert.ok(!cold.c1Adp && !cold.c2Adp, 'no engine, no APU — no bleed air');
+  assert.ok(run777({ elec: elecUp(false, false), engines: [{ core: 0 }, { core: 0 }], apuState: 'running' }).c1Adp, 'the APU\'s bleed');
+});
+
+test('777 [H1]: the RAT\'s pump runs once the RAT is deployed', () => {
+  assert.equal(run777({ ratDeployed: true, engines: [{ core: 0 }, { core: 0 }], elec: elecUp(false, false) }).rat, true);
 });

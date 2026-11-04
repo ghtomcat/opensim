@@ -152,16 +152,6 @@ export const S = {
   /* ── Hydraulic system (turbofan aircraft) ── */
   hyd:      null,        // the hydraulic systems — core/hydraulics.js: { systems: {id: {psi, pumps}} }
   hydCtl:   {},          // the pump switches by pump id ('on' | 'off' | 'auto'), through hydPump()
-  /* derived from S.hyd for the displays that read them by name — not written elsewhere */
-  hydGreenPsi:     0,     // 0–3000 psi
-  hydBluePsi:      0,
-  hydYellowPsi:    0,
-  hydGreenElecOn:  false, // electric pump switches (overhead)
-  hydBlueElecOn:   false,
-  hydYellowElecOn: false,
-  hydGreenEdp:     false, // derived — engine-driven pump running
-  hydBlueEdp:      false,
-  hydYellowEdp:    false,
 
   /* ── ECAM lower page ── */
   ecamPage: 'status',    // 'status' | 'elec' | 'hyd'
