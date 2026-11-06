@@ -1900,7 +1900,7 @@ function _ecamHyd(ctx, x, y, w, h, f, grn, amb, dim, cyn) {
 /* ════════════════════════════════════════════════════════════
    FUEL PAGE — drawn from the aircraft's fuel layout (core/fuel-system.js fuelView): the fuel on
    board; the engines, each with the tank feeding it (amber SUCT when no pump does); the feed line
-   with its crossfeed valve (in line when open, across when closed); the tanks with their quantity
+   with its crossfeed valve(s) (in line when open, across when closed); the tanks with their quantity
    and a fill bar; the pumps under their tank — green running, dim off, amber LO PR (on, no power),
    white the tank empty. Display-only: kg, no starvation (issues.md "Airliner fuel system").
    ════════════════════════════════════════════════════════════ */
@@ -1939,12 +1939,17 @@ export function drawFuelPage(ctx, x, y, w, h, f, { grn, amb, dim, cyn }) {
     ctx.beginPath(); ctx.moveTo(e.ex, engY + h * 0.055); ctx.lineTo(e.ex, lineY); ctx.stroke();
   }
 
-  /* The feed line, split by the crossfeed valve in the middle */
-  const xf = v.valves.find(vv => vv.type === 'crossfeed');
-  const cx = x + w / 2, r = h * 0.025;
+  /* The feed line, split by the crossfeed valve(s) in the middle — side by side when there are several */
+  const xfs = v.valves.filter(vv => vv.type === 'crossfeed');
+  const r = h * 0.025, pitch = w * 0.16;
+  const vx = xfs.map((_, i) => x + w / 2 + (i - (xfs.length - 1) / 2) * pitch);
+  const stops = [x + w * 0.08, ...vx.flatMap(c => [c - r, c + r]), x + w * 0.92];
   ctx.strokeStyle = grn; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(x + w * 0.08, lineY); ctx.lineTo(cx - r, lineY); ctx.moveTo(cx + r, lineY); ctx.lineTo(x + w * 0.92, lineY); ctx.stroke();
-  if (xf) {
+  ctx.beginPath();
+  for (let i = 0; i < stops.length; i += 2) { ctx.moveTo(stops[i], lineY); ctx.lineTo(stops[i + 1], lineY); }
+  ctx.stroke();
+  xfs.forEach((xf, i) => {
+    const cx = vx[i];
     ctx.strokeStyle = xf.open ? grn : white; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(cx, lineY, r, 0, Math.PI * 2); ctx.stroke();
     ctx.beginPath();
@@ -1953,7 +1958,7 @@ export function drawFuelPage(ctx, x, y, w, h, f, { grn, amb, dim, cyn }) {
     ctx.stroke();
     ctx.font = `${h * 0.024}px ${f}`; ctx.fillStyle = xf.open ? grn : white;
     ctx.fillText(xf.label, cx, lineY - r - h * 0.012);
-  }
+  });
 
   /* Tanks, in layout order across the page; their pumps beneath */
   const n = v.tanks.length, top = y + h * 0.40, boxH = h * 0.24, gap = w * 0.03;

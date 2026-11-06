@@ -346,6 +346,33 @@
         { "id": "rAcmp", "type": "acmp", "label": "R ELEC", "bus": "rMain",   "role": "demand" } ] }
     ]
   },
+  "fuelSystem": {
+    "sources_doc": [
+      "[F1] Boeing, 777-200LR / -300ER / -Freighter Airplane Characteristics for Airport Planning, D6-58329-2 Rev G (Dec 2024), §2.1.1 'General Characteristics' — usable fuel (sources/boeing-acap-777-200lr-300er-f-rev-g.pdf)",
+      "[F2] AAIB, Aircraft Accident Report 1/2010, Boeing 777-236ER G-YMMM, §1.6.8 'Fuel System' and §1.6.4 (https://assets.publishing.service.gov.uk/media/5422f3dbe5274a1314000495/1-2010_G-YMMM.pdf; sources/aaib-1-2010-g-ymmm-777-236er.pdf)",
+      "[F3] FAA, Aviation Maintenance Technician Handbook — Airframe, vol. 2 (FAA-H-8083-31A, 2018), ch. 14, fig. 14-19 'Boeing 777 fuel tank locations and capacities' (https://www.faa.gov/sites/faa.gov/files/2022-06/amt_airframe_hb_vol_2.pdf; sources/faa-h-8083-31a-airframe-vol2.pdf)"
+    ],
+    "_note": "The 777's fuel system (core/fuel-system.js). From [F2]: three tanks — centre, left main, right main; two override / jettison pumps in the centre tank (they deliver at a higher pressure, so the centre tank empties first with all pumps on), two boost pumps FWD / AFT in each main tank; the feed manifold split left / right by two crossfeed valves FWD / AFT — closed, the left OJ feeds the left engine and the right OJ the right. Capacity: 145,570 kg usable in total [F1]; the split is not in [F1] — the main tanks from [F3] (9,560 US gal each, a -200ER-class figure), assumed unchanged on the -300ER, the rest (28,770 US gal) in the centre tank (assumed); US gal → kg at [F1]'s own ratio (145,570 kg / 47,890 gal = 3.0397 kg/gal). Assumed, not in the sources: the pumps' AC buses (left out — any AC power); the overhead labels (L FWD … CTR L … X FEED FWD — from memory). Left out: the surge tanks (vent only), the centre tank scavenge (jet pumps move the last centre fuel into the mains — [F2]), jettison, the crossfeed valves' DC power.",
+    "tanks": [
+      { "id": "left",   "label": "L",   "capacityKg": 29060 },
+      { "id": "center", "label": "CTR", "capacityKg": 87450 },
+      { "id": "right",  "label": "R",   "capacityKg": 29060 }
+    ],
+    "pumps": [
+      { "id": "lFwd", "label": "L FWD", "tank": "left",   "feeds": "left",  "role": "main" },
+      { "id": "lAft", "label": "L AFT", "tank": "left",   "feeds": "left",  "role": "main" },
+      { "id": "cL",   "label": "CTR L", "tank": "center", "feeds": "left",  "role": "override" },
+      { "id": "cR",   "label": "CTR R", "tank": "center", "feeds": "right", "role": "override" },
+      { "id": "rFwd", "label": "R FWD", "tank": "right",  "feeds": "right", "role": "main" },
+      { "id": "rAft", "label": "R AFT", "tank": "right",  "feeds": "right", "role": "main" }
+    ],
+    "engines": { "eng1": "left", "eng2": "right" },
+    "valves": [
+      { "id": "xfeedFwd", "label": "X FEED FWD", "type": "crossfeed" },
+      { "id": "xfeedAft", "label": "X FEED AFT", "type": "crossfeed" }
+    ],
+    "load": 0.6
+  },
   "electrical": {
     "_note": "The 777's electrical layout (core/electrical.js). Sources: [S1] L. Andrade (Sundstrand) and C. Tenning (Boeing Commercial Airplane Group), 'Design of the Boeing 777 Electric System', IEEE AES Magazine, July 1992 — AC main and backup system, overhead panel. [S2] 'Boeing B777 Systems Summary [Electrical]' (FCOM-structured study document, 'do not use for flight', ads-b.ca/777/B777-Electrical.pdf) — DC, standby, RAT. Simplified (issues.md, stage 2d part 4): the backup system feeds a transfer bus only when its main bus is dead — not the single-generator, autoland or self-test cases; no flight-control PSAs, utility or ground-handling buses, no load shedding; the main battery reaches the hot battery bus through the BATTERY switch (the real hot battery bus stays connected).",
     "sources_doc": [

@@ -188,3 +188,19 @@ test('a mission reset removes the last mission\'s fuel cautions — the others\'
   assert.equal(S.warnings.FUEL_L_FWD_LO_PR, undefined, 'gone with the reset');
   assert.equal(S.warnings.OIL_PRESS, true);
 });
+
+test('the 777\'s own layout: 145,570 kg usable (ACAP), the centre first, two crossfeed valves — either one joins the sides', () => {
+  const l = fuelLayout(load('b777-300er'));
+  assert.equal(l.tanks.reduce((a, t) => a + t.capacityKg, 0), 145570);
+  assert.deepEqual(l.valves.map(v => v.id), ['xfeedFwd', 'xfeedAft']);
+  start('b777-300er', [7000, 7000]);
+  const c0 = kg('center');
+  hour(600);
+  near(c0 - kg('center'), 14000 / 6, 1e-6, 'ten minutes, all from the centre');
+  setTanks({ center: { kg: 0 } });
+  fuelPump('lFwd', false); fuelPump('lAft', false); fuelValve('xfeedAft', true);
+  const l0 = kg('left');
+  hour(60);
+  assert.equal(kg('left'), l0);
+  assert.deepEqual(S.fuelSys.feeds.eng1, ['right']);
+});

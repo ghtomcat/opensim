@@ -15,21 +15,21 @@ const ids = (page) => page.locator('.gpb[id^="pb-fuel"]').evaluateAll(els => els
 const click = (page, id) => page.locator(`#${id}`).dispatchEvent('click');
 const ctl = (page) => page.evaluate(() => window.simGetState().fuelCtl);
 
-test('the 777: a control per pump of its layout, then the crossfeed', async ({ page }) => {
+test('the 777: a control per pump of its layout, then its two crossfeed valves', async ({ page }) => {
   await overhead(page, 'singapore-london');
-  expect(await ids(page)).toEqual(['pb-fuel-lFwd', 'pb-fuel-lAft', 'pb-fuel-cL', 'pb-fuel-cR', 'pb-fuel-rFwd', 'pb-fuel-rAft', 'pb-fuelv-xfeed']);
+  expect(await ids(page)).toEqual(['pb-fuel-lFwd', 'pb-fuel-lAft', 'pb-fuel-cL', 'pb-fuel-cR', 'pb-fuel-rFwd', 'pb-fuel-rAft', 'pb-fuelv-xfeedFwd', 'pb-fuelv-xfeedAft']);
   await expect(page.locator('#pb-fuel-lFwd-lower')).toHaveClass(/lit/);                  // on
-  await expect(page.locator('#pb-fuelv-xfeed-lower')).not.toHaveClass(/lit/);            // closed
+  await expect(page.locator('#pb-fuelv-xfeedFwd-lower')).not.toHaveClass(/lit/);         // closed
 });
 
-test('the controls send their commands: L pumps off and X FEED open — ENG 1 draws from the right', async ({ page }) => {
+test('the controls send their commands: L pumps off and X FEED FWD open — ENG 1 draws from the right', async ({ page }) => {
   await overhead(page, 'singapore-london');
   for (const id of ['pb-fuel-lFwd', 'pb-fuel-lAft', 'pb-fuel-cL', 'pb-fuel-cR']) await click(page, id);
-  await click(page, 'pb-fuelv-xfeed');
-  expect(await ctl(page)).toEqual({ lFwd: false, lAft: false, cL: false, cR: false, xfeed: true });
+  await click(page, 'pb-fuelv-xfeedFwd');
+  expect(await ctl(page)).toEqual({ lFwd: false, lAft: false, cL: false, cR: false, xfeedFwd: true });
   await page.evaluate(() => { window.simSetState({ paused: false }); window.simStep(60, 1 / 60); });
   expect(await page.evaluate(() => window.simGetState().fuelSys.feeds.eng1)).toEqual(['right']);
-  await expect(page.locator('#pb-fuelv-xfeed-lower')).toHaveClass(/lit/);
+  await expect(page.locator('#pb-fuelv-xfeedFwd-lower')).toHaveClass(/lit/);
   await expect(page.locator('#pb-fuel-lFwd-lower')).not.toHaveClass(/lit/);
 });
 

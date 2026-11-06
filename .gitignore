@@ -12,3 +12,6 @@ scripts/faa-cifp/
 data/procedures-data-xp.js
 scripts/ourairports/
 test-results/
+
+# Source documents (manufacturer and authority PDFs) — local only, copyright of their publishers
+sources/
