@@ -36,7 +36,6 @@ else if (panel === 'airbus' || panel === 'e190') {                   // data-dri
   renderPanel(ndCanvas, 1, _currentSpec(1));                         // right screen
   if (displays has screen 1) renderFCU(fcuCanvas);
 }
-else if (ecam)                        renderECAM(ecamCanvas);
 else                                  renderPFD(canvas);             // default glass PFD
 ```
 
@@ -51,7 +50,7 @@ else                                  renderPFD(canvas);             // default 
 | `bf109` | hand-drawn | `display/bf109.js` | Bf 109 G-4, MiG-15 |
 | `f4u` | hand-drawn | `display/f4u1a.js` | F4U-1A Corsair |
 | `velis-epsi` | hand-drawn | `display/velis_epsi.js` | Pipistrel Velis Electro |
-| *(none)* | default | `display/pfd.js` (`renderPFD`); ECAM mode `display/ecam.js` | AN-225, Avro 504, Tu-95MS, DC-8 |
+| *(none)* | default | `display/pfd.js` (`renderPFD`) | AN-225, Avro 504, Tu-95MS, DC-8 |
 
 ---
 

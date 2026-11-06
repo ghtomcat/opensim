@@ -1986,7 +1986,7 @@ export function drawFuelPage(ctx, x, y, w, h, f, { grn, amb, dim, cyn }) {
    HYD PAGE — drawn from the aircraft's hydraulic layout (core/hydraulics.js hydView): a column
    per system — its pressure bar (amber below 5/6 of nominal), the pressure, the name — and under
    it its pumps: green running, white standing by in AUTO, amber switched on but not delivering,
-   dim off. One drawer for every display (the glass cockpit's lower ECAM, display/ecam.js).
+   dim off. One drawer for every display (the glass cockpit's lower ECAM and right screen).
    ════════════════════════════════════════════════════════════ */
 const _HYD_COL = { green: '#5dd47e', blue: '#4dc5dc', yellow: '#ffb74d' };   // Airbus systems by colour; others white
 export function drawHydPage(ctx, x, y, w, h, f, { grn, amb, dim, cyn }) {

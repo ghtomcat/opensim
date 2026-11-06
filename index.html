@@ -76,13 +76,13 @@
     #earthrise-canvas  { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; }
 
     /* ── Display canvases — full viewport ── */
-    #pfd, #ecam {
+    #pfd {
       position: fixed; top: 0; left: 0;
       width: 100vw; height: 100vh;
       z-index: 1;
       pointer-events: none;
     }
-    #pfd.combined, #ecam.combined {
+    #pfd.combined {
       top: 50vh; height: 50vh;
     }
 
@@ -1695,7 +1695,6 @@
 <canvas id="nd"></canvas>
 
 <!-- ECAM canvas -->
-<canvas id="ecam" style="display:none"></canvas>
 
 <!-- FMA strip -->
 <div id="fma"></div>
@@ -1934,7 +1933,6 @@
   import { renderLM, handleLMClick } from './display/lm_display.js';
   import { renderDragon, handleDragonClick, isDragonTelemetry } from './display/dragon.js';
   import './display/g1000.js';  /* bridge exports used by panel_renderer */
-  import { renderECAM, initECAM, handleECAMClick } from './display/ecam.js';
   import { renderBf109 }       from './display/bf109.js';
   import { renderF4U1A }       from './display/f4u1a.js';
   import { initRobotArm, renderRobotArm, resetRobotArm } from './display/robot_arm.js';
@@ -1965,7 +1963,6 @@
   const canvas     = document.getElementById('pfd');
   const ndCanvas   = document.getElementById('nd');
   const fcuCanvas  = document.getElementById('fcu');
-  const ecamCanvas = document.getElementById('ecam');
   const fmaEl      = document.getElementById('fma');
 
   /* ── Panel display page state — which spec is active on each screen ── */
@@ -3540,16 +3537,6 @@
     if (!_hidecom) initCOM(_comEl);
     _comEl.style.display = _hidecom ? 'none' : '';
     initOverhead();
-    initECAM(ecamCanvas);
-    /* Route ndCanvas clicks to ECAM handler when airbus-ecam is the active spec */
-    _session.on(ndCanvas, 'click', (e) => {
-      if (_currentSpec(1) !== 'airbus-ecam') return;
-      const rect = ndCanvas.getBoundingClientRect();
-      handleECAMClick(
-        (e.clientX - rect.left) / rect.width,
-        (e.clientY - rect.top)  / rect.height,
-      );
-    });
     initPedestal();
     initLeftConsole();
     initRightConsole();
@@ -3758,7 +3745,6 @@
       const cislunar  = document.getElementById('cislunar');
       const earthrise = document.getElementById('earthrise');
       const pfd       = document.getElementById('pfd');
-      const ecam      = document.getElementById('ecam');
       const uiEls     = ['fma','panel','keys','ptt-indicator','com-container','checklist'];
       const nd = document.getElementById('nd');
       /* Mode 3 — cislunar map / Mode 4 — Earthrise view */
@@ -3768,7 +3754,7 @@
         if (earthrise) earthrise.classList[mode === 4 ? 'add' : 'remove']('visible');
         pfd.classList.remove('combined');
         if (nd) nd.classList.remove('combined');
-        pfd.style.display = 'none'; ecam.style.display = 'none';
+        pfd.style.display = 'none';
         document.body.classList.remove('outside-active');
         uiEls.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
         hideMap();
@@ -3782,7 +3768,7 @@
         outside.classList.remove('visible', 'combined');
         pfd.classList.remove('combined');
         if (nd) nd.classList.remove('combined');
-        pfd.style.display = ''; ecam.style.display = '';
+        pfd.style.display = '';
         document.body.classList.remove('outside-active');
         uiEls.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = ''; });
         _outsideCamMode = 0; setOutsideCamMode(0);
@@ -3790,7 +3776,7 @@
         outside.classList.add('visible', 'combined');
         pfd.classList.add('combined');
         if (nd) nd.classList.add('combined');
-        pfd.style.display = ''; ecam.style.display = 'none';
+        pfd.style.display = '';
         document.body.classList.add('outside-active');
         uiEls.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = ''; });
         if (S.aircraft?.vehicleType !== 'rocket' && _outsideCamMode === 0) {
@@ -3802,7 +3788,7 @@
         outside.classList.add('visible'); outside.classList.remove('combined');
         pfd.classList.remove('combined');
         if (nd) nd.classList.remove('combined');
-        pfd.style.display = 'none'; ecam.style.display = 'none';
+        pfd.style.display = 'none';
         document.body.classList.remove('outside-active');
         uiEls.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
         if (S.aircraft?.vehicleType !== 'rocket' && _outsideCamMode === 0) {
@@ -3846,7 +3832,6 @@
     startLoop([
       () => {
         canvas.style.display     = '';
-        ecamCanvas.style.display = 'none';
         const panel    = S.aircraft?.panel ?? 'pfd';
         const isRocket = S.aircraft?.vehicleType === 'rocket';
         const isDog    = S.aircraft?.vehicleType === 'robot-dog';
