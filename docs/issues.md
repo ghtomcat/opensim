@@ -283,6 +283,11 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 
 ## Tests
 
+### Timing-dependent tests fail under full-suite load
+*Noted 2026-11-05*
+
+A growing set of browser tests fails now and then in the full run (`npx playwright test`, parallel workers) and passes when run alone: `scenario-setup.spec.js:18` (weather), `fuel-engine-carb.spec.js:362` (Lycoming start), `check_loi.spec.js`, `check_browser_sim.spec.js` (Apollo LOI, the frame-rate variants), `briefing.spec.js:27`, `db601-sound.spec.js:74`. They wait on wall-clock time or real frames rather than stepping the sim (`window.simStep`), so a loaded machine changes the outcome. They mask real regressions in the summary (each run needs them re-checked by hand). **Fix:** step the sim deterministically in each, or move the frame-rate/timing ones into a separate project run with one worker. **Done when:** the full run is clean apart from the known failures, three runs in a row.
+
 ### DB 601 engine-off tests use an airborne mission
 *`tests/db601-sound.spec.js`* — "starts in off state" and "lader gain is zero at engine off" load Wolfskopf, which starts at 2 000 ft with the engine running. Use a ground start (`hahnweide-1944`).
 
@@ -317,6 +322,8 @@ The missions also have a `phase` (ground / departure / circuit / cruise / approa
 - `situations` (the quick-start states) can become a position + a configuration.
 
 **When.** After stages 2c/2d of *One engine per aircraft*: they make the systems (electrical layout, APU, generators at idle) data, so a configuration is "each system's controls in this position" instead of hard-coded switches. Until then the runway rule in `initialEngine()` stays as the stand-in — to be removed when this lands.
+
+**Note (Markus, 2026-11-06).** It isn't clear there will be any cold-and-dark missions; a stand start should come up with power on, at least partially (e.g. on ground power). Until this lands, a mission can set that itself (`fimp-takeoff` — the A340 at Dock E).
 
 **Done when.** The five places above are one configuration step at mission load; `singapore-london` lines up with the engines running, lights and transponder set and the APU off, from its configuration; a cruise and an approach start come up configured for their phase; and no rule in the code checks a panel name or the start position to set a switch.
 
@@ -498,6 +505,8 @@ The missions also have a `phase` (ground / departure / circuit / cruise / approa
 
 **Part 2 done (2026-11-04):** the FUEL page — one drawer (`drawFuelPage` in `display/pfd_instruments.js`) from `fuelView()`: the fuel on board, the engines with the tank feeding each (amber SUCT without a pump), the feed line with the crossfeed valve, the tanks with quantity and fill, their pumps (green running, dim off, amber LO PR, white empty); the glass cockpit's lower ECAM steps ELEC → HYD → FUEL (Tab and a click in the centre view — `SD_PAGES` / `nextSdPage`; the main-panel ECAM cycle has it too); `display/ecam.js` draws the same page, its FUEL column opens it, and its systems row shows the fuel on board (tonnes) instead of the invented `_fuelPct()`. Cautions from `fuelCautions()` — pump LO PR (on, no power, fuel in the tank), a feed tank LO LEVEL (below 5 % of its capacity, or the layout's `loLevelKg`), IMBALANCE (the sides apart by more than 2 % of the total, or `imbalanceKg`) — in `S.warnings` as this module's own `FUEL_…` keys (the glass E/WD shows them amber) and on the legacy page — none while the aircraft has no AC power at all (cold and dark the warning system is unpowered), and a mission reset removes them (both found by Markus on 2026-11-04: six LO PR on the cold A340, carried over to the A350). The thresholds are estimates. `tests/fuel-page.spec.js`, `tests/fuel-system.test.mjs`.
 
+**Part 3 done (2026-11-05):** the overhead's FUEL section is built from the layout — a group per tank with its pumps (ON/OFF, FAULT when on without pressure), then the crossfeed valve(s) (OPEN); every click goes through `fuelPump()` / `fuelValve()`; the old `xfeedOpen` / `fuelPumps` writes are gone (nothing read them). No FUEL section on an aircraft without the airliner fuel system (its fuel controls are on its pedestal or panel). The reset now also solves which pumps run, so the first frame shows no false FAULT. On the unpowered A340 every pump shows FAULT (on, no pressure — the same rule as the hydraulic engine pumps on the stand); real annunciators would be dark without power — logged under *Airliner electrical and hydraulics are display-only* (the screens and annunciators follow power), backlog. `tests/overhead-fuel.spec.js`.
+
 **Done when.** The 777 burns fuel from its tanks as its engines' fuel flow says — centre first, then the mains — the FUEL page and the ECAM show the real fuel on board, and the overhead's fuel pumps and crossfeed are the 777's and work; the light aircraft unchanged.
 
 ### Airliner electrical and hydraulics are display-only — not implemented yet (intentional)
@@ -506,6 +515,8 @@ The missions also have a `phase` (ground / departure / circuit / cruise / approa
 Bus states (AC/DC/essential, generators, APU, external power, batteries) and hydraulic pressures (GREEN/BLUE/YELLOW) are computed every frame, but only the ECAM, overhead, pedestal and PFD read them. Nothing in the simulation depends on them: gear, flaps, brakes, flight controls, autopilot, displays and COM keep working with all buses and hydraulics dead. **Status: intentional for now** — the systems are modelled for the cockpit first; coupling them to the simulation is future work.
 
 When it's taken up: decide which consumers depend on which bus/system (e.g. COM on DC ESS, gear and flaps on hydraulics, displays on AC), replace the per-panel COM power check in `core/crew.js` with the bus state, and make the hydraulic layout per aircraft (next entry).
+
+**The screens and annunciators too (Markus, 2026-11-06).** The A340 at its stand starts with every bus unpowered, yet PFD, ND and ECAM draw as normal and the overhead lights its annunciators — the six fuel pumps show FAULT with no power on the aircraft. Displays and annunciator lights should go dark without their bus: first one rule (AC power), later which bus feeds which display unit as data in the electrical layout. Backlog — whether there will be cold-and-dark missions at all is open (*The aircraft's starting configuration …*).
 
 ### Light-aircraft electrical is switches only — not implemented yet
 *Noted 2026-10-18 · `masterBat`, `masterAlt`, `avionicsOn` in `core/state.js`; `core/engine.js`, `core/crew.js`, `display/panel_renderer.js`, `display/outside.js`*

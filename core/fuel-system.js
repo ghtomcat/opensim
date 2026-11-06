@@ -88,7 +88,9 @@ export function resetFuelSystem() {
   if (!ac || ac.engine?.type !== 'turbofan') { setState({ fuelSys: null, fuelCtl: {} }); return; }
   const layout = fuelLayout(ac), load = layout.load ?? DEFAULT_LOAD;
   const tanks = Object.fromEntries(layout.tanks.map(t => [t.id, { kg: t.capacityKg * load }]));
-  setState({ fuelCtl: {}, fuelSys: _state(layout, tanks, {}, {}, {}) });
+  setState({ fuelCtl: {} });
+  const running = solveFuelPumps(layout, tanks);              // which pumps run already at the start — no FAULT before the first tick
+  setState({ fuelSys: _state(layout, tanks, Object.fromEntries(Object.entries(running).map(([id, r]) => [id, { running: r }])), {}, {}) });
 }
 onMissionReset(resetFuelSystem);
 

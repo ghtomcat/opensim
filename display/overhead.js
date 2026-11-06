@@ -15,6 +15,7 @@ import { stopEngine, apuMaster, apuStart, apuFire } from '../core/engine.js';
 import { electricalLayout, elecCtl, elecCharge, elecSwitch, elecIdgDisconnect, elecBusTie, elecBusTieAuto } from '../core/electrical.js';
 import { hydCtl, hydPump, hydView, hydraulicsLayout, hydRole } from '../core/hydraulics.js';
 import { tacSwitch }                                from '../core/yaw.js';
+import { fuelView, fuelLayout, fuelCtl, fuelPump, fuelValve } from '../core/fuel-system.js';
 import { pushButtonHTML, setPushButton, setPushButtonLower } from './pushbutton.js';
 
 /* ── DOM node ─────────────────────────────────────────────────── */
@@ -407,18 +408,18 @@ function _buildHTML() {
     </div>
   </div>`;
 
-  /* Fuel section */
-  const fuelPumps = Array.from({ length: n }, (_, i) =>
-    _sysPb(`fuel-${i + 1}`, `PMP ${i + 1}`, { upper: 'FAULT' })
-  ).join('');
-  const fuelSection = `<div class="ohp-section">
+  /* Fuel section — built from the fuel layout (core/fuel-system.js): a group per tank with its
+     pumps (ON/OFF, FAULT when on without pressure), then the crossfeed valve(s) (OPEN). Only where
+     the aircraft has the airliner fuel system; the light aircraft's fuel controls are elsewhere. */
+  const fv = fuelView();
+  const fuelSection = fv ? `<div class="ohp-section">
     <div class="ohp-section-hdr">FUEL</div>
-    <div class="ohp-row">
-      ${_sysPb('xfeed', 'X FEED', { upper: 'FAULT' })}
-      <div class="ohp-divider"></div>
-      ${fuelPumps}
+    <div class="ohp-row" style="align-items:flex-start; gap:8px;">
+      ${fv.tanks.map((t, i) => `${i ? '<div class="ohp-divider"></div>' : ''}${fv.pumps.filter(p => p.tank === t.id).map(p =>
+        _sysPb(`fuel-${p.id}`, p.label, { upper: 'FAULT' })).join('')}`).join('')}
+      ${fv.valves.length ? `<div class="ohp-divider"></div>${fv.valves.map(v => _sysPb(`fuelv-${v.id}`, v.label, { lower: 'OPEN' })).join('')}` : ''}
     </div>
-  </div>`;
+  </div>` : '';
 
   /* Hydraulics section — turbofan only; built from the hydraulic layout (core/hydraulics.js): a
      group per system, a control per pump (not the RAT) — primary and standby pumps ON/OFF, demand
@@ -585,20 +586,13 @@ function _attachHandlers() {
     _updateSwitches();
   });
 
-  /* X-feed */
-  document.getElementById('pb-xfeed')?.addEventListener('click', () => {
-    setState({ xfeedOpen: !(S.xfeedOpen ?? false) });
-    _updateSwitches();
-  });
-
-  /* Fuel pumps */
-  for (let i = 1; i <= n; i++) {
-    document.getElementById(`pb-fuel-${i}`)?.addEventListener('click', () => {
-      const pumps = [...(S.fuelPumps ?? Array(n).fill(true))];
-      pumps[i - 1] = !pumps[i - 1];
-      setState({ fuelPumps: pumps });
-      _updateSwitches();
-    });
+  /* Fuel pumps and valves — each control sends its element's command to core/fuel-system.js */
+  if (S.fuelSys) {
+    const fl = fuelLayout();
+    for (const p of fl.pumps)
+      document.getElementById(`pb-fuel-${p.id}`)?.addEventListener('click', () => { fuelPump(p.id, !fuelCtl(p.id)); _updateSwitches(); });
+    for (const v of fl.valves ?? [])
+      document.getElementById(`pb-fuelv-${v.id}`)?.addEventListener('click', () => { fuelValve(v.id, !fuelCtl(v.id)); _updateSwitches(); });
   }
 
   /* Hydraulic pumps — each control sends its pump's command to core/hydraulics.js:
@@ -661,7 +655,6 @@ function _sub(id, text) {
 function _updateSwitches() {
   const n        = _engCount();
   const turbofan = _isTurbofan();
-  const fuelPumps = S.fuelPumps ?? Array(n).fill(true);
 
   /* Engine fire handles + AGENT buttons */
   const fires  = S.engFireArmed ?? Array(n).fill(false);
@@ -706,10 +699,11 @@ function _updateSwitches() {
   /* Flight controls */
   setPushButton('tac', { lower: S.tacOff ?? false });
 
-  /* Fuel */
-  setPushButton('xfeed', { lower: S.xfeedOpen ?? false });
-  for (let i = 1; i <= n; i++) {
-    setPushButton(`fuel-${i}`, { lower: fuelPumps[i - 1] ?? true });
+  /* Fuel — from the solver's view: ON lit when switched on, FAULT when on without pressure; OPEN lit when open */
+  const fv = fuelView();
+  if (fv) {
+    for (const p of fv.pumps) setPushButton(`fuel-${p.id}`, { lower: p.state !== 'off', upper: p.state === 'fault' });
+    for (const v of fv.valves) setPushButton(`fuelv-${v.id}`, { lower: v.open });
   }
 
   /* Hydraulics — from the solver's view: FAULT when switched on but not delivering */
