@@ -10,9 +10,11 @@
 
 import { FAILURE } from '../core/vocab.js';
 
-/* How this aircraft is started and cut off — the keys the sim's key handler gives it. */
-function _startKeys(acd) {
+/* The keys that depend on the aircraft: how it starts and is cut off, and the airliners' screens —
+   as the sim's key handlers give them. */
+function _ownKeys(acd) {
   if (acd.engine?.type === 'turbofan') return [
+    { key: 'Tab', desc: 'Right screen: ND, then the ECAM pages (Shift+Tab: left screen)' },
     { key: 'D', desc: 'Engine start on the pedestal: power on, ENG MODE IGN/START, one ENG MASTER at a time' },
     { key: 'Q', desc: 'Fuel cutoff, all engines' },
   ];
@@ -37,10 +39,10 @@ function _startKeys(acd) {
   }
 }
 
-/** The aircraft's key map: its own list or the default one, plus how it starts (unless the list says). */
+/** The aircraft's key map: its own list or the default one, plus the keys particular to it (unless the list says). */
 export function keyList(acd = {}, defaults = []) {
   const list = acd.onboarding ?? defaults;
-  return [...list, ..._startKeys(acd).filter(r => !list.some(k => k.key === r.key))];
+  return [...list, ..._ownKeys(acd).filter(r => !list.some(k => k.key === r.key))];
 }
 
 /** The page's main content: the scanned orders, the airliner's charts, or the story text. */

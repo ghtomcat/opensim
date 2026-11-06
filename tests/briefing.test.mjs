@@ -159,5 +159,7 @@ test('the key map says how each aircraft starts, the way the key handler does', 
   assert.match(row('mig15', 'Q'), /cutoff/);
   assert.match(row('velis-hb-syc', 'Panel'), /PWR EN/);
   assert.equal(keyList(load('bf109'), []).filter(k => k.key === 'E').length, 1);   // its own row stays, no duplicate
+  assert.match(row('a340', 'Tab'), /ECAM/);                       // Tab only where it does something
+  assert.equal(row('c172', 'Tab'), undefined);
   assert.deepEqual(keyList({ sound: { engineType: 'rotary-9' } }, [{ key: 'P', desc: 'Pause' }]), [{ key: 'P', desc: 'Pause' }]);   // no start sequence
 });

@@ -9,7 +9,6 @@
 | `X` | Audio on / off — everything the sim plays, on every aircraft |
 | `V` | Cycle view: instruments → combined → outside (rockets in orbit: 5 views) |
 | `C` | Cycle outside camera (see [Cameras](#cameras)) |
-| `Tab` | Cycle display mode (PFD → ND → ECAM) |
 | `K` | Kneeboard (briefings, checklists, scratchpad) |
 | `N` | Mini-map (heading, track, wind) |
 | `Space` | PTT — push to talk |
@@ -123,6 +122,7 @@ Engine state: `off → starting → running → shutdown → off`
 | Key | Action |
 |-----|--------|
 | `Q` | Fuel cutoff |
+| `Tab` | Right screen: ND, then the ECAM pages (`Shift+Tab`: left screen; centre view: ELEC → HYD → FUEL) |
 
 No start key: the start is on the pedestal (`D`) — power on (APU or external), ENG MODE to
 IGN/START, then the ENG MASTER switches. A start from the keyboard would have to check the whole

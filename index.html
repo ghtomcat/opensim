@@ -1750,10 +1750,6 @@
     <div class="panel-label">Thrust</div>
     <div class="panel-value cyan" id="pv-thrust">---</div>
   </div>
-  <div class="panel-section">
-    <div class="panel-label">Display</div>
-    <div class="panel-value cyan" id="pv-mode">PFD</div>
-  </div>
   <div class="panel-section" id="ps-role">
     <div class="panel-label">Role</div>
     <div class="panel-value cyan" id="pv-role">PF</div>
@@ -1823,7 +1819,7 @@
   <span id="keys-spd">+ / − SPD</span><span id="keys-throttle" style="display:none">+ / − THROTTLE</span> · F1–F4 DETENT<br>
   f/F flaps ▼▲ · G gear · Q fuel sel<br>
   <span id="keys-carb" style="display:none">H carb heat<br></span>
-  TAB display · V outside · C cam (chase/side/wing/plume) · <span id="keys-overhead">O overhead · </span><span id="keys-pedestal">D pedestal · </span><span id="keys-left">L console · </span>P pause · <span id="keys-right">R console</span><span id="keys-role">R role</span><br>
+  V outside · C cam (chase/side/wing/plume) · <span id="keys-overhead">O overhead · </span><span id="keys-pedestal">D pedestal · </span><span id="keys-left">L console · </span>P pause · <span id="keys-right">R console</span><span id="keys-role">R role</span><br>
   SPACE PTT
 </div>
 
@@ -3238,7 +3234,6 @@
     { key: 'F1–F4',  desc: 'Thrust: IDLE · CLB · MCT · TOGA' },
     { key: 'f / F',  desc: 'Flaps ▼ extend / ▲ retract' },
     { key: 'G',      desc: 'Gear toggle' },
-    { key: 'Tab',    desc: 'Display: PFD ↔ ECAM' },
     { key: 'P',      desc: 'Pause' },
     { key: 'X',      desc: 'Audio on/off' },
     { key: 'R',     desc: 'Role: PF → PM → INSTRUCTOR' },
@@ -3850,9 +3845,8 @@
     /* Start loop */
     startLoop([
       () => {
-        const ecam = S.mode === 'ECAM';
-        canvas.style.display     = ecam ? 'none' : '';
-        ecamCanvas.style.display = ecam ? '' : 'none';
+        canvas.style.display     = '';
+        ecamCanvas.style.display = 'none';
         const panel    = S.aircraft?.panel ?? 'pfd';
         const isRocket = S.aircraft?.vehicleType === 'rocket';
         const isDog    = S.aircraft?.vehicleType === 'robot-dog';
@@ -3879,7 +3873,6 @@
           renderPanel(ndCanvas, 1, _currentSpec(1));
           if (S.aircraft?.displays?.some(d => d.screen === 1)) renderFCU(fcuCanvas);
         }
-        else if (ecam)               renderECAM(ecamCanvas);
         else                         renderPFD(canvas);
         /* AP disconnect chime */
         if (_prevAp && !S.ap) apDisconnectChime();
@@ -3995,7 +3988,6 @@
       ).label;
     }
     document.getElementById('pv-thrust').textContent = _active;
-    document.getElementById('pv-mode').textContent = S.mode;
     document.getElementById('pv-role').textContent = S.pilotCallsign ?? S.role;
     const pttNow = isPTTActive();
     pttEl.classList.toggle('active', pttNow);

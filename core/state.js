@@ -82,7 +82,6 @@ export const S = {
   ],
 
   /* ── Display mode ── */
-  mode:  'PFD',   // 'PFD' | 'ND' | 'ECAM'
   cockpitView: 'forward',  // 'forward' | 'overhead' | 'pedestal'
 
   /* ── Geographic position (dead reckoning from mission start) ── */

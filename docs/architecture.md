@@ -525,7 +525,7 @@ imported by almost every module. It holds about 170 top-level fields. The defaul
 | Automation | `ap`, `athr`, `navManaged`, `altManaged`, `spdManaged`, `autobrake`, `baroSet`, `baroStd` |
 | Engine & systems | `engineState`, `enginePower`, `n1`, `oilTempC`, `coolantTemp`, `fuelLeft`, `fuelRight`, `switches`, `lights`, `warnings`, … |
 | Vehicle-specific | `rocket*`, `dragon*`, `starship*`, `armJoints`, `dogJoints`, … |
-| Cockpit & UI | `mode`, `cockpitView`, `ecamPage`, `comPanelVisible` |
+| Cockpit & UI | `cockpitView`, `ecamPage`, `comPanelVisible` |
 | Session | `role`, `paused`, `warpFactor`, `roomId`, `emergLog` |
 | Loaded data | `aircraft` (full JSON + `cockpitCfg`), `mission` (full JSON), `metar` |
 

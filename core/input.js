@@ -271,16 +271,8 @@ function _onKeyDown(e) {
   /* Brakes — hold B */
   if (e.key === 'b' || e.key === 'B') { setState({ braking: true }); return; }
 
-  /* Cycle display mode: Tab — panel aircraft handle this in index.html */
-  if (e.key === 'Tab') {
-    e.preventDefault();
-    const panel = S.aircraft?.panel;
-    if (panel === 'airbus' || panel === 'e190') return;
-    const modes = ['PFD', 'ECAM'];
-    const i = modes.indexOf(S.mode);
-    setState({ mode: modes[(i + 1) % modes.length] });
-    return;
-  }
+  /* Tab pages the glass airliners' screens (index.html); it never moves the browser's focus */
+  if (e.key === 'Tab') { e.preventDefault(); return; }
 
   /* Throttle / speed. Turbofans drive the thrust lever (manual thrust); others set spdT,
      which is the throttle for props and the AP speed target otherwise. */
