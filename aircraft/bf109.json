@@ -159,20 +159,20 @@
       ]
     }
   ],
-
-  "onboarding": [
-    { "key": "Maus (gedrückt) / Pfeiltasten", "desc": "Steuerknüppel · Seitenruder" },
-    { "key": "F",               "desc": "Landeklappen (hochfahren)" },
-    { "key": "G",               "desc": "Fahrwerk (ein/aus)" },
-    { "key": "F1",               "desc": "Leerlauf (Gashebel zu)" },
-    { "key": "+ / −",           "desc": "Gashebel ±" },
-    { "key": "t / T",           "desc": "Höhenrudertrimm" },
-    { "key": "B (halten)",      "desc": "Bremsen" },
-    { "key": "V",               "desc": "Außenansicht" },
-    { "key": "K",               "desc": "Kniebeinkarte" },
-    { "key": "N",               "desc": "Karte" },
-    { "key": "E",               "desc": "Anlasser — Motor starten" },
-    { "key": "M",               "desc": "Motor abstellen" },
-    { "key": "P",               "desc": "Pause" }
-  ]
+  "keyLabels": {
+    "stick": "Steuerknüppel · am Boden ← → lenken",
+    "flaps-extend": "Landeklappen: eine Stufe ausfahren",
+    "flaps-retract": "Landeklappen: eine Stufe einfahren",
+    "gear": "Fahrwerk ein / aus (nicht am Boden)",
+    "thrust": "Gashebel ±",
+    "trim-up": "Höhenrudertrimmung: Nase hoch",
+    "trim-down": "Höhenrudertrimmung: Nase tief",
+    "brakes": "Bremsen",
+    "view-mode": "Ansicht: Instrumente → kombiniert → Außenansicht",
+    "kneeboard": "Kniebrett",
+    "map": "Karte",
+    "engine-start": "Anlasser: Motor starten",
+    "engine-cutoff": "Kraftstoffhahn zu: Motor aus",
+    "pause": "Pause"
+  }
 }

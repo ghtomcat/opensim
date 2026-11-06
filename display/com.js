@@ -11,6 +11,7 @@ import { RUNWAYS } from '../data/runways-data.js';
 import { gatesFor } from './stands-util.js';
 import { clearTaxiIn } from '../core/taxi.js';
 import { audioContext, audioOutput, audioElement } from '../core/audio.js';
+import { registerActions } from '../core/keymap.js';
 
 /* Nearest runway whose centreline is within `maxNm` (perpendicular distance, clamped to
    the thresholds) — on it, lined up, or holding short. Drives the takeoff and the
@@ -383,10 +384,7 @@ function _bindEvents(container) {
     _nudgeStandby(Number(btn.dataset.dir));
   });
 
-  /* Keyboard — Z swaps active ↔ standby (t/T is pitch trim) */
-  window.addEventListener('keydown', (e) => {
-    if ((e.key === 'z' || e.key === 'Z') && !e.ctrlKey && !e.metaKey) _transfer();
-  });
+  registerActions({ 'com-swap': _transfer });
 
   /* PTT */
   document.addEventListener('ptt', (e) => {

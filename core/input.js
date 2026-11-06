@@ -6,6 +6,7 @@
 
 import { S, setState } from './state.js';
 import { bbEvent } from './blackbox.js';
+import { initKeys, registerActions, isKeyHeld } from './keymap.js';
 
 /* Next upcoming timed event for any aircraft type */
 function _nextEvent() {
@@ -37,7 +38,6 @@ function _nextEvent() {
 let _mouseLast  = null;
 let _mouseDown  = false;
 let _pttActive  = false;
-const _held    = new Set();   /* currently held keys (for continuous manual input) */
 
 /* ── Gamepad config — Logitech Extreme 3D Pro ── */
 const GP = {
@@ -67,8 +67,8 @@ let _inputBound = false;
 export function initInput() {
   if (_inputBound) return;   // window listeners — bind once per page
   _inputBound = true;
-  window.addEventListener('keydown',   _onKeyDown);
-  window.addEventListener('keyup',     _onKeyUp);
+  initKeys();
+  registerActions(_keyActions);
   window.addEventListener('mousemove', _onMouseMove);
   window.addEventListener('mousedown', () => { _mouseDown = true;  _mouseLast = null; });
   window.addEventListener('mouseup',   () => { _mouseDown = false; _mouseLast = null; });
@@ -85,8 +85,8 @@ export function tickControls(dt) {
   const pitchRate = (h.pitchRate ?? 5)  * dt;
   const rollRelax = (h.rollRelax ?? 20) * dt;  // spring-back rate when stick released
 
-  const aileronIn  = (_held.has('ArrowRight') ? 1 : 0) - (_held.has('ArrowLeft')  ? 1 : 0);
-  const elevatorIn = (_held.has('ArrowUp')    ? 1 : 0) - (_held.has('ArrowDown')  ? 1 : 0);
+  const aileronIn  = (isKeyHeld('ArrowRight') ? 1 : 0) - (isKeyHeld('ArrowLeft')  ? 1 : 0);
+  const elevatorIn = (isKeyHeld('ArrowUp')    ? 1 : 0) - (isKeyHeld('ArrowDown')  ? 1 : 0);
 
   /* On ground the same left/right keys drive nose-wheel steering (the tiller), not
      ailerons — ramp `steer` toward ±1 while held, self-centre when released. Roll is
@@ -121,7 +121,7 @@ export function tickControls(dt) {
   }
 
   /* Rudder pedals — on the ground and in flight: keys, else the gamepad, else spring back */
-  const rudderIn = (_held.has('.') ? 1 : 0) - (_held.has(',') ? 1 : 0);
+  const rudderIn = (isKeyHeld('.') ? 1 : 0) - (isKeyHeld(',') ? 1 : 0);
   const rudder = S.rudder ?? 0;
   let nextRudder = rudder;
   if (rudderIn !== 0)      nextRudder = Math.max(-1, Math.min(1, rudder + rudderIn * RUDDER_RATE * dt));
@@ -209,155 +209,88 @@ function _btnPressed(buttons, idx) {
   return (buttons[idx]?.pressed ?? false) && !(_gpPrevButtons[idx] ?? false);
 }
 
-/* ── Keyboard ── */
-function _onKeyDown(e) {
-  /* Don't steal input from text fields */
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-  _held.add(e.key);
+/* ── Keyboard: what the keys do. Which key, and on which vehicle: core/keymap.js ── */
+const _flaps = (next) => { setState({ prevFlaps: S.flaps, flaps: next }); bbEvent({ type: 'flaps', flaps: next }); };
+const _view  = (view) => setState({ cockpitView: S.cockpitView === view ? 'forward' : view });
+const _ptt   = (active) => { _pttActive = active; document.dispatchEvent(new CustomEvent('ptt', { detail: { active } })); };
 
-  /* PTT */
-  if (e.code === 'Space' && !e.repeat) {
-    e.preventDefault();
-    _pttActive = true;
-    document.dispatchEvent(new CustomEvent('ptt', { detail: { active: true } }));
-    return;
-  }
+const _keyActions = {
+  ptt: { down: () => _ptt(true), up: () => _ptt(false) },
+  pause: () => setState({ paused: !S.paused }),
 
-  /* Pause */
-  if (e.key === 'p' || e.key === 'P') {
-    setState({ paused: !S.paused });
-    return;
-  }
-
-  /* Time warp, rockets only (core/loop.js) — w steps forward, W steps backward through 1×→2×→5×→10×→100×→next event */
-  /* J — jump: warp straight to the next mission event (press again to cancel) */
-  if ((e.key === 'j' || e.key === 'J') && !e.ctrlKey && S.aircraft?.vehicleType === 'rocket') {
+  /* Time warp, rockets only (core/loop.js) — w steps forward through 1×→2×→5×→10×→100×→next event, W back */
+  'warp-up': () => {
+    const steps = WARP_STEPS, idx = steps.indexOf(S.warpFactor ?? 1);
+    if (S.warpTarget != null) setState({ warpFactor: 1, warpTarget: null, warpTargetLabel: null });
+    else if (idx === steps.length - 1) {
+      const ev = _nextEvent();
+      if (ev) setState({ warpFactor: 1000, warpTarget: ev.t - 60, warpTargetLabel: ev.label });
+      else    setState({ warpFactor: 1, warpTarget: null });
+    } else setState({ warpFactor: steps[Math.max(0, idx + 1)], warpTarget: null });
+  },
+  'warp-down': () => {   // from next-event mode, drop to 100×
+    if (S.warpTarget != null) setState({ warpFactor: 100, warpTarget: null, warpTargetLabel: null });
+    else setState({ warpFactor: WARP_STEPS[Math.max(0, WARP_STEPS.indexOf(S.warpFactor ?? 1) - 1)], warpTarget: null });
+  },
+  'warp-jump': () => {   // straight to the next mission event (again: cancel)
     const ev = _nextEvent();
     if (ev) {
       const dist = ev.t - 60 - (S.time ?? 0);
       /* Scale warp so the skip takes ~5 s real time; min 1000×, max 200000× */
       const warpFactor = dist > 86_400 ? 200_000 : dist > 3_600 ? 10_000 : 1_000;
       setState({ warpFactor, warpTarget: ev.t - 60, warpTargetLabel: ev.label });
-    } else if (S.warpTarget != null) {
-      setState({ warpFactor: 1, warpTarget: null, warpTargetLabel: null });
-    }
-    return;
-  }
-  if ((e.key === 'w' || e.key === 'W') && S.aircraft?.vehicleType === 'rocket') {
-    const steps = [1, 2, 5, 10, 100];
-    const cur   = S.warpFactor ?? 1;
-    const idx   = steps.indexOf(cur);
-    if (e.key === 'w') {
-      if (S.warpTarget != null) {
-        setState({ warpFactor: 1, warpTarget: null, warpTargetLabel: null });
-      } else if (idx === steps.length - 1) {
-        const ev = _nextEvent();
-        if (ev) setState({ warpFactor: 1000, warpTarget: ev.t - 60, warpTargetLabel: ev.label });
-        else    setState({ warpFactor: 1, warpTarget: null });
-      } else {
-        setState({ warpFactor: steps[Math.max(0, idx + 1)], warpTarget: null });
-      }
-    } else {
-      /* Shift+W — step back; if in next-event mode, drop to 100× */
-      if (S.warpTarget != null) {
-        setState({ warpFactor: 100, warpTarget: null, warpTargetLabel: null });
-      } else {
-        setState({ warpFactor: steps[Math.max(0, idx - 1)], warpTarget: null });
-      }
-    }
-    return;
-  }
+    } else if (S.warpTarget != null) setState({ warpFactor: 1, warpTarget: null, warpTargetLabel: null });
+  },
 
-  /* Brakes — hold B */
-  if (e.key === 'b' || e.key === 'B') { setState({ braking: true }); return; }
+  brakes: { down: () => setState({ braking: true }), up: () => setState({ braking: false }) },
 
-  /* Tab pages the glass airliners' screens (index.html); it never moves the browser's focus */
-  if (e.key === 'Tab') { e.preventDefault(); return; }
-
-  /* Throttle / speed. Turbofans drive the thrust lever (manual thrust); others set spdT,
-     which is the throttle for props and the AP speed target otherwise. */
-  const _tf = S.aircraft?.engine?.type === 'turbofan';
-  const _up = e.key === '=' || e.key === '+', _dn = e.key === '-' || e.key === '_';
-  if (_up || _dn) {
-    if (_tf) setState({ thrustLever: Math.max(0, Math.min(1, (S.thrustLever ?? 0) + (_up ? 0.1 : -0.1))) });
+  /* Turbofans drive the thrust lever (manual thrust); others set spdT, which is the throttle for
+     props and the AP speed target otherwise. */
+  thrust: (e) => {
+    const up = e.key === '=' || e.key === '+';
+    if (S.aircraft?.engine?.type === 'turbofan') setState({ thrustLever: Math.max(0, Math.min(1, (S.thrustLever ?? 0) + (up ? 0.1 : -0.1))) });
     else {
-      const _spdStep = S.aircraft?.manualControl ? 20 : 5;
-      setState({ spdT: Math.max(0, Math.min(S.aircraft?.envelope.maxSpd ?? 350, S.spdT + (_up ? _spdStep : -_spdStep))) });
+      const step = S.aircraft?.manualControl ? 20 : 5;
+      setState({ spdT: Math.max(0, Math.min(S.aircraft?.envelope.maxSpd ?? 350, S.spdT + (up ? step : -step))) });
     }
-  }
-
-  /* Thrust detents — aircraft-specific profiles or hardcoded fallback */
-  const _fi = ['F1','F2','F3','F4'].indexOf(e.key);
-  if (_fi >= 0) {
-    e.preventDefault();
+  },
+  /* Aircraft-specific profiles or a fallback */
+  'thrust-detent': (e) => {
+    const i = ['F1', 'F2', 'F3', 'F4'].indexOf(e.key);
     const profiles = S.aircraft?.thrustProfiles;
-    const spdTv = profiles ? (profiles[Math.min(_fi, profiles.length - 1)]?.spdT ?? 0) : [0, 180, 280, 350][_fi];
-    if (_tf) {
+    const spdTv = profiles ? (profiles[Math.min(i, profiles.length - 1)]?.spdT ?? 0) : [0, 180, 280, 350][i];
+    if (S.aircraft?.engine?.type === 'turbofan') {
       const maxSpdT = profiles ? (Math.max(...profiles.map(p => p.spdT)) || 1) : 350;
       setState({ thrustLever: Math.max(0, Math.min(1, spdTv / maxSpdT)) });
-    } else {
-      setState({ spdT: spdTv });
-    }
-  }
-
-  /* Situation presets — number keys 1–5 (disabled when a mission is active) */
-  if (!S.mission) {
-    const _si = parseInt(e.key) - 1;
-    if (!isNaN(_si) && _si >= 0 && _si <= 4) {
-      const sit = S.aircraft?.situations?.[_si];
-      if (sit) setState({ alt: sit.alt, spd: sit.spd, hdg: sit.hdg, altT: sit.altT, spdT: sit.spdT });
-    }
-  }
-
-  /* Altitude / heading — AP mode only (manual mode uses held keys in tickControls) */
-  if (!S.aircraft?.manualControl) {
-    if (e.key === 'ArrowUp')    setState({ altT: Math.min(43000, S.altT + 500) });
-    if (e.key === 'ArrowDown')  setState({ altT: Math.max(0,     S.altT - 500) });
-    if (e.key === 'ArrowLeft')  setState({ hdgT: (S.hdgT - 5 + 360) % 360 });
-    if (e.key === 'ArrowRight') setState({ hdgT: (S.hdgT + 5) % 360 });
-  }
-
-  /* Rudder trim — < left, > right (manual aircraft) */
-  if ((e.key === '<' || e.key === '>') && S.aircraft?.manualControl) {
+    } else setState({ spdT: spdTv });
+  },
+  situation: (e) => {
+    const sit = S.aircraft?.situations?.[parseInt(e.key) - 1];
+    if (sit) setState({ alt: sit.alt, spd: sit.spd, hdg: sit.hdg, altT: sit.altT, spdT: sit.spdT });
+  },
+  /* The kinematic model's targets; manual aircraft hold the keys (tickControls) */
+  'alt-target': (e) => setState({ altT: e.key === 'ArrowUp' ? Math.min(43000, S.altT + 500) : Math.max(0, S.altT - 500) }),
+  'hdg-target': (e) => setState({ hdgT: (S.hdgT + (e.key === 'ArrowRight' ? 5 : 355)) % 360 }),
+  'rudder-trim': (e) => {
     const t = (S.rudderTrim ?? 0) + (e.key === '>' ? 1 : -1) * RUDDER_TRIM_STEP;
     setState({ rudderTrim: Math.round(Math.max(-RUDDER_TRIM_MAX, Math.min(RUDDER_TRIM_MAX, t)) * 100) / 100 });
-    return;
-  }
-
-  /* Trim — t nose up, T nose down */
-  if (e.key === 't') setState({ trim: Math.min(10, (S.trim ?? 0) + 0.5) });
-  if (e.key === 'T') setState({ trim: Math.max(-10, (S.trim ?? 0) - 0.5) });
-
-  /* Flaps — f extend, F retract */
-  if (e.key === 'f') { const next = Math.min(3, S.flaps + 1); setState({ prevFlaps: S.flaps, flaps: next }); bbEvent({ type: 'flaps', flaps: next }); }
-  if (e.key === 'F') { const next = Math.max(0, S.flaps - 1); setState({ prevFlaps: S.flaps, flaps: next }); bbEvent({ type: 'flaps', flaps: next }); }
-  if (e.key === 'g' && !S.aircraft?.fixedGear) { const next = !S.gear; if (next || !S.wow) { setState({ prevGear: S.gear, gear: next }); bbEvent({ type: 'gear', gear: next ? 'down' : 'up' }); } }   // squat lock: no gear-up on the ground
-
-  /* Speed brake / spoilers — s cycles RET → ARM → FULL → RET */
-  if (e.key === 's' || e.key === 'S') {
-    setState({ speedBrake: ((S.speedBrake ?? 0) + 1) % 3 });
-  }
-
-  /* R — right console if the aircraft has one, else crew-role toggle (solo sim) */
-  if (e.key === 'r') {
-    if (S.aircraft?.views?.includes('right')) {
-      setState({ cockpitView: S.cockpitView === 'right' ? 'forward' : 'right' });
-    } else {
-      const roles = ['PF', 'PM', 'INSTRUCTOR'];
-      const i = roles.indexOf(S.role);
-      setState({ role: roles[(i + 1) % roles.length] });
-    }
-  }
-}
-
-function _onKeyUp(e) {
-  _held.delete(e.key);
-  if (e.code === 'Space') {
-    _pttActive = false;
-    document.dispatchEvent(new CustomEvent('ptt', { detail: { active: false } }));
-  }
-  if (e.key === 'b' || e.key === 'B') setState({ braking: false });
-}
+  },
+  'trim-up':   () => setState({ trim: Math.min(10, (S.trim ?? 0) + 0.5) }),
+  'trim-down': () => setState({ trim: Math.max(-10, (S.trim ?? 0) - 0.5) }),
+  'flaps-extend':  () => _flaps(Math.min(3, S.flaps + 1)),
+  'flaps-retract': () => _flaps(Math.max(0, S.flaps - 1)),
+  gear: () => {   // squat lock: no gear-up on the ground
+    const next = !S.gear;
+    if (next || !S.wow) { setState({ prevGear: S.gear, gear: next }); bbEvent({ type: 'gear', gear: next ? 'down' : 'up' }); }
+  },
+  'speed-brake': () => setState({ speedBrake: ((S.speedBrake ?? 0) + 1) % 3 }),   // RET → ARM → FULL → RET
+  'right-console': () => _view('right'),
+  role: () => {
+    const roles = ['PF', 'PM', 'INSTRUCTOR'];
+    setState({ role: roles[(roles.indexOf(S.role) + 1) % roles.length] });
+  },
+};
+const WARP_STEPS = [1, 2, 5, 10, 100];
 
 /* ── Mouse — controls bank and pitch only while button held ── */
 function _onMouseMove(e) {

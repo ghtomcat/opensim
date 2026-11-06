@@ -108,7 +108,7 @@ test('no display module draws a pause text of its own', () => {
 
 test('in real play too: the first key closes the key map, then P pauses', async ({ page }) => {
   await page.goto('/?mission=wolfskopf-1942');
-  await expect(page.locator('#onboarding')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('#onboarding')).toHaveClass(/visible/, { timeout: 15_000 });   // up, not just in the page: a key before that is lost
   await page.keyboard.press('Shift');
   await expect(page.locator('#flag-paused')).toBeHidden();
   await page.keyboard.press('p');

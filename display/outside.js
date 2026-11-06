@@ -5,6 +5,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from '../core/state.js';
+import { registerActions, observeKeys } from '../core/keymap.js';
 import { renderTerrain } from './terrain.js?v=2';
 import { getMapReservedRight } from './map.js';
 
@@ -232,12 +233,12 @@ export function initOutside() {
     }
   }, { passive: false });
 
-  /* 0 key: reset orbit + zoom to default while paused */
-  window.addEventListener('keydown', e => {
-    if (e.key === '0' && S.paused && (_camMode === 1 || _camMode === 2 || _camMode === 5 || _camMode === 6)) {
+  /* Reset orbit + zoom to default while paused */
+  registerActions({ 'orbit-reset': () => {
+    if (_camMode === 1 || _camMode === 2 || _camMode === 5 || _camMode === 6) {
       _orbitInitAc = null; _bodyCamZoom = 1;  // force re-apply aircraft defaults on next frame
     }
-  });
+  } });
 }
 export function setOutsideCamMode(m) { _camMode = m; }
 export function outsideInvalidate()  { /* redraws every frame */ }
@@ -310,7 +311,7 @@ const _prof = { on: !!_profCfg.on, _inst: false, fps: 60, frameMs: 0, buildT0: 0
 export function tickOutside() {
   if (!_canvas || !_canvas.offsetWidth || !_canvas.offsetHeight) return;
   if (!_prof._inst) { _prof._inst = true;
-    addEventListener('keydown', e => {
+    observeKeys(e => {   // a dev tool with a configurable key: no binding
       if (e.key && e.key.toLowerCase() === (_profCfg.key || 'y').toLowerCase()) {
         _prof.on = !_prof.on;
         if (_prof.on) _prof.max = { render: 0, build: 0, rest: 0, faces: 0 };

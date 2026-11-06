@@ -141,19 +141,5 @@
         "Bring the Wasp home."
       ]
     }
-  ],
-
-  "onboarding": [
-    { "key": "Mouse (hold) / Arrow keys", "desc": "Stick · Rudder" },
-    { "key": "F",                         "desc": "Flaps (cycle)" },
-    { "key": "G",                         "desc": "Gear (toggle)" },
-    { "key": "F1",                        "desc": "Idle (throttle off)" },
-    { "key": "+ / −",                     "desc": "Throttle ±" },
-    { "key": "t / T",                     "desc": "Elevator trim" },
-    { "key": "B (hold)",                  "desc": "Brakes" },
-    { "key": "V",                         "desc": "External view" },
-    { "key": "K",                         "desc": "Kneeboard" },
-    { "key": "N",                         "desc": "Map" },
-    { "key": "P",                         "desc": "Pause" }
   ]
 }

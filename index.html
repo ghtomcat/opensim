@@ -353,6 +353,13 @@
       padding: 3px 7px;
     }
     .sim-flag[hidden] { display: none; }
+    .sim-keys {   /* not a state, the way to the key map on any device: quiet, and it can be tapped */
+      color: rgba(232,237,242,0.6);
+      border-color: rgba(232,237,242,0.25);
+      cursor: pointer;
+      pointer-events: auto;
+    }
+    .sim-keys:hover { color: var(--white); border-color: rgba(232,237,242,0.6); }
 
     .ck-housing {
       display: flex; flex-direction: column; align-items: center; gap: 6px;
@@ -999,18 +1006,6 @@
       font-size: 18px; cursor: pointer;
     }
 
-    /* ── Keybind help ── */
-    #keys {
-      position: fixed; bottom: 90px; right: 16px;
-      z-index: 20;
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 11px;
-      color: rgba(232,237,242,0.55);
-      text-align: right;
-      line-height: 2;
-      pointer-events: none;
-    }
-
     /* ── Mission selection screen ── */
     #mission-select {
       position: fixed; inset: 0; z-index: 300;
@@ -1242,11 +1237,13 @@
       opacity: 0;
       transition: opacity 0.5s ease;
       pointer-events: none;
+      overflow-y: auto;   /* a long key map in a small window scrolls rather than loses its top */
     }
     #onboarding.visible {
       opacity: 1;
       pointer-events: all;
     }
+    @media (max-height: 820px) { #ob-grid { row-gap: 2px !important; } #onboarding { justify-content: flex-start; padding-top: 12px; padding-bottom: 12px; } }
     .ob-title {
       font-family: "Syne", sans-serif;
       font-size: 13px; font-weight: 700;
@@ -1701,6 +1698,7 @@
   <span class="sim-flag" id="flag-paused" hidden>PAUSED</span>
   <span class="sim-flag" id="flag-audio" hidden>AUDIO OFF</span>
   <span class="sim-flag" id="flag-warp" hidden></span>
+  <button class="sim-flag sim-keys" id="btn-keys" tabindex="-1" title="Key map (?)">KEYS</button>
 </div>
 
 <div id="mission-clock">
@@ -1798,15 +1796,6 @@
 </div>
 
 <!-- Keybinds -->
-<div id="keys">
-  <span id="keys-ap">↑↓ ALT ±500 · ←→ HDG ±5<br></span>
-  <span id="keys-manual" style="display:none">↑↓ PITCH · ←→ BANK<br></span>
-  <span id="keys-spd">+ / − SPD</span><span id="keys-throttle" style="display:none">+ / − THROTTLE</span> · F1–F4 DETENT<br>
-  f/F flaps ▼▲ · G gear · Q fuel sel<br>
-  <span id="keys-carb" style="display:none">H carb heat<br></span>
-  V outside · C cam (chase/side/wing/plume) · <span id="keys-overhead">O overhead · </span><span id="keys-pedestal">D pedestal · </span><span id="keys-left">L console · </span>P pause · <span id="keys-right">R console</span><span id="keys-role">R role</span><br>
-  SPACE PTT
-</div>
 
 <!-- Engine type switcher -->
 
@@ -1905,7 +1894,8 @@
   import { startLoop, suspendLoop, tickSim } from './core/loop.js';
   import { seedRandom }   from './core/random.js';
   import { newSession }   from './app/session.js';
-  import { briefingLayout, setupChoices, ownWeatherLabel, WEATHER_PRESETS, failurePresets, buildSetup, keyList } from './app/briefing.js';
+  import { initKeys, registerActions, setKeyContext, onFirstKey, observeKeys, keyList, hasStartSequence } from './core/keymap.js';
+  import { briefingLayout, setupChoices, ownWeatherLabel, WEATHER_PRESETS, failurePresets, buildSetup } from './app/briefing.js';
   import { onMissionReset } from './core/lifecycle.js';
   import { resetSmooth }  from './display/smooth.js';
   import { hilInit }      from './core/hil.js';
@@ -1964,15 +1954,12 @@
     return pages[_screenPage[screenIdx] % pages.length] ?? null;
   }
 
+  initKeys();
+
   /* Tab: when ECAM is active on right screen → cycle ECAM sub-pages (status → elec → hyd → status).
            otherwise → switch right screen display (ND ↔ ECAM).
      Shift+Tab: always cycle left screen display. */
-  window.addEventListener('keydown', e => {
-    if (e.key !== 'Tab') return;
-    const panel = S.aircraft?.panel;
-    if (panel !== 'airbus' && panel !== 'e190') return;
-    e.preventDefault();
-    e.stopPropagation();
+  registerActions({ 'screen-page': (e) => {
     /* Centre (M) view: Tab cycles the lower SD synoptic (ELEC → HYD → FUEL). The upper E/WD is fixed —
        on a real Airbus it always shows engines + warnings + memo, so it doesn't page. */
     if (S.cockpitView === 'center') {
@@ -1998,7 +1985,7 @@
     const pages  = _panelDisplayPages(screen);
     if (pages.length < 2) return;
     _screenPage[screen] = (_screenPage[screen] + 1) % pages.length;
-  }, { capture: true });
+  } });
 
   /* Reset pages when aircraft changes */
   window.addEventListener('opensim:aircraft-loaded', () => {
@@ -2317,14 +2304,14 @@
     _trackingTimer      = setInterval(_pollTracking, TRACK_POLL_MS);
     _trackingBadgeTimer = setInterval(_renderTrackingBadge, 1000);
     _renderTrackingBadge();
-    window.addEventListener('keydown', _trackingUserInput, { passive: true });
+    _stopObservingKeys = observeKeys(_trackingUserInput);
   }
 
   function _stopTracking() {
     if (_trackingTimer)      { clearInterval(_trackingTimer);      _trackingTimer = null; }
     if (_trackingBadgeTimer) { clearInterval(_trackingBadgeTimer); _trackingBadgeTimer = null; }
     _trackingId = null;
-    window.removeEventListener('keydown', _trackingUserInput);
+    _stopObservingKeys?.(); _stopObservingKeys = null;
     if (S.aircraft?._fmaPhasesOrig !== undefined) {
       S.aircraft.fmaPhases = S.aircraft._fmaPhasesOrig;
       delete S.aircraft._fmaPhasesOrig;
@@ -2332,6 +2319,7 @@
     _renderTrackingBadge();
   }
 
+  let _stopObservingKeys = null;
   function _trackingUserInput(e) {
     if (!FLIGHT_KEYS.has(e.key)) return;   // ignore UI keys (K, T, V, Escape…)
     _trackingPausedAt = Date.now();
@@ -3207,21 +3195,6 @@
   /* ── Briefing page: the story, the airliner's charts and the setup on one page.
      Layout and choices come from app/briefing.js; Fly builds the setup and starts init(). ── */
 
-  /* Key list for aircraft without their own `onboarding` list (also the key map in init) */
-  const _DEFAULT_OB = [
-    { key: '↑ ↓',    desc: 'Altitude target ±500 ft' },
-    { key: '← →',    desc: 'Heading target ±5°' },
-    { key: ', .',    desc: 'Rudder left / right (springs back) · < > rudder trim' },
-    { key: '+ −',    desc: 'Speed ±5 kt' },
-    { key: '1–5',    desc: 'Situation: Ground · Takeoff · Climb · Cruise · Approach' },
-    { key: 'F1–F4',  desc: 'Thrust: IDLE · CLB · MCT · TOGA' },
-    { key: 'f / F',  desc: 'Flaps ▼ extend / ▲ retract' },
-    { key: 'G',      desc: 'Gear toggle' },
-    { key: 'P',      desc: 'Pause' },
-    { key: 'X',      desc: 'Audio on/off' },
-    { key: 'R',     desc: 'Role: PF → PM → INSTRUCTOR' },
-    { key: 'Space',  desc: 'PTT — Push to Talk' },
-  ];
 
   const _bp = { m: null };   // the briefing on screen: m, md, acd, choices, picks, keys
   const _esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -3241,9 +3214,10 @@
     const vt      = acd.vehicleType ?? '';
     const noKeys  = vt === 'rocket' || vt.startsWith('robot');   // launched or driven by sliders: no key map
     const crew    = [S.pilotId, S.role].find(id => choices.crew.some(c => c.id === id)) ?? choices.crew[0]?.id ?? null;
+    setKeyContext('briefing');
     Object.assign(_bp, { m, md, acd, choices,
       picks: { weather: 'LIVE', failure: 'CLEAN', when: 'random', fixedT: 120, engine: 'random', crew },
-      keys:  noKeys ? (acd.onboarding ?? []) : keyList(acd, _DEFAULT_OB) });
+      keys:  noKeys ? [] : keyList(acd) });
 
     const el   = document.getElementById('briefing');
     const lead = document.getElementById('bp-lead');
@@ -3272,6 +3246,7 @@
   }
 
   function _hideBriefing() {
+    setKeyContext('none');
     const el = document.getElementById('briefing');
     _bpClosePop();
     _bp.m = null;
@@ -3466,19 +3441,22 @@
     init(m.id, m.aircraft, null, setup).catch(console.error);
   }
 
-  window.addEventListener('keydown', e => {
-    if (!_bp.m) return;
-    if (e.key === 'Escape') {
+  registerActions({
+    'briefing-back': () => {
       if (!document.getElementById('bp-pop').hidden) _bpClosePop();
       else history.back();   // the briefing's history entry → the picker
-    }
-    const a = document.activeElement;
-    if (e.key === 'Enter' && a?.tagName !== 'INPUT' && !a?.closest('.bp-pop, .bp-strip, .fb-tabs, .fb-apt, .mb-lang-toggle')) { e.preventDefault(); _bpFly(); }
+    },
+    'briefing-fly': (e) => {
+      const a = document.activeElement;
+      if (a?.tagName !== 'INPUT' && !a?.closest('.bp-pop, .bp-strip, .fb-tabs, .fb-apt, .mb-lang-toggle')) { e.preventDefault(); _bpFly(); }
+    },
   });
   /* A click outside closes the popover (a picked card is already redrawn — detached — by then) */
   document.addEventListener('click', e => { if (_bp.m && e.target.isConnected && !e.target.closest('.bp-pop, .bp-chip')) _bpClosePop(); });
 
   /* ── Init ── */
+  let _openKeyMap = null;
+  document.getElementById('btn-keys').addEventListener('click', (e) => { e.currentTarget.blur(); _openKeyMap?.(); });
   let _session = null;   // the running mission's listeners/timers — stopped before the next init()
   async function init(missionId, aircraftId, inlineMission = null, setup = null) {
     _session?.stop();
@@ -3559,10 +3537,10 @@
     /* Populate mission title */
     document.getElementById('mission-title').textContent = S.mission?.title ?? '';
 
-    /* Populate onboarding key grid — the aircraft's list or the default set, with how it starts */
+    /* Populate onboarding key grid — generated from the key map */
     const obGrid = document.getElementById('ob-grid');
     obGrid.innerHTML = '';
-    keyList(S.aircraft ?? {}, _DEFAULT_OB).forEach(({ key, desc }) => {
+    keyList(S.aircraft ?? {}).forEach(({ key, desc }) => {
       const k = document.createElement('span'); k.className = 'ob-key'; k.textContent = key;
       const d = document.createElement('span'); d.className = 'ob-desc'; d.textContent = desc;
       obGrid.appendChild(k); obGrid.appendChild(d);
@@ -3599,7 +3577,27 @@
     /* Test mode (?test=1) skips it: nobody dismisses the overlay, and a paused sim never ticks */
     /* display reset: dismissing the previous mission's key map left it display:none */
     const _keyMapShown = !_noKeys && !_isTestMode;
-    if (_keyMapShown) { obEl.style.display = ''; obEl.classList.add('visible'); setState({ paused: true }); }
+    const _obHint = (what) => { obEl.querySelector('.ob-hint').textContent = `${navigator.maxTouchPoints > 0 ? 'Tap anywhere' : 'Press any key or click'} to ${what}`; };
+    if (_keyMapShown) { _obHint('begin'); obEl.style.display = ''; obEl.classList.add('visible'); setState({ paused: true }); }
+
+    /* The key map during a mission (? or the KEYS button): the sim waits while it covers the instruments,
+       and is as it was afterwards */
+    _openKeyMap = () => {
+      if (obEl.classList.contains('visible')) return;
+      const wasPaused = !!S.paused;
+      const close = () => {
+        obEl.classList.remove('visible');
+        _session.timeout(() => { if (!obEl.classList.contains('visible')) obEl.style.display = 'none'; }, 500);
+        onFirstKey(null);
+        obEl.removeEventListener('click', close);
+        setState({ paused: wasPaused });
+      };
+      _obHint('close');
+      obEl.style.display = ''; obEl.classList.add('visible');
+      setState({ paused: true });
+      onFirstKey(close, { swallow: true });
+      obEl.addEventListener('click', close);
+    };
     /* Init sound with default engine type from aircraft JSON */
     const engineType = S.aircraft?.sound?.engineType ?? 'geared-turbofan';
     if (engineType !== 'none') initSound(engineType);
@@ -3615,89 +3613,58 @@
     let _niflheimActive = false;
     let _viewBeforeNiflheim = 0;
 
-    const _isV12      = engineType === 'v12-supercharged';
-    const _isRadial    = engineType === 'radial-2000hp';
-    const _isLycoming  = engineType === 'lycoming-o360';
-    const _isElectric  = engineType === 'electric';
-    const _isTurbofan  = engineType === 'geared-turbofan';
-    const _isVK1       = engineType === 'turbojet-vk1';
-    /* Turbofan/VK-1 ground starts need the lifecycle (E=start, Q=cutoff);
-       dismissOnboarding already checks S.engineState to decide airborne vs ground start */
-    const _hasLifecycle = _isV12 || _isRadial || _isLycoming || _isElectric || _isTurbofan || _isVK1;
-    /* E starts the engine from the keyboard — not on airliners: their start belongs to the whole
-       aircraft (power, ENG MODE IGN/START, one ENG MASTER at a time on the pedestal), which a key
-       press can't check. */
-    const _keyStart = _hasLifecycle && S.aircraft?.engine?.type !== 'turbofan';
+    const _hasLifecycle = hasStartSequence(S.aircraft);
 
     const dismissOnboarding = () => {
       obEl.classList.remove('visible');
       _session.timeout(() => { obEl.style.display = 'none'; }, 500);
-      window.removeEventListener('keydown', dismissOnboarding);
+      onFirstKey(null);
       obEl.removeEventListener('click', dismissOnboarding);
       if (_keyMapShown) setState({ paused: false });   // only the key map paused it: without one (rockets, robots) this first key may be P
       /* AudioContext must start on user gesture. On a ground start the sound waits for the engine
          (airborne, the engine already runs: no startup sequence) */
       if (!_hasLifecycle || S.engineState === 'running') startSound(engineType);
     };
-    _session.on(window, 'keydown', dismissOnboarding);
+    onFirstKey(dismissOnboarding, { swallow: _keyMapShown });   // the key map up: any key closes it, and does nothing else
     _session.on(obEl, 'click', dismissOnboarding);
 
-    _session.on(window, 'keydown', (e) => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'L') {
-        e.preventDefault();
-        if (S.aircraft?.vehicleType === 'rocket') downloadTelemetryCSV();
-        else downloadTelemetry();
-        return;
-      }
-      if (e.ctrlKey && e.shiftKey && e.key === 'B') {
-        e.preventDefault();
-        downloadBlackbox();
-        return;
-      }
-      /* Escape — back to mission selector */
-      if (e.key === 'Escape') { history.back(); return; }
-      if (e.key === 'k' || e.key === 'K') { toggleKneeboard(); return; }
-      if (e.key === 'o' || e.key === 'O') { toggleOverhead(); return; }
-      if (e.key === 'd' || e.key === 'D') { togglePedestal(); return; }
-      if (e.key === 'n' || e.key === 'N') { if (S.aircraft?.map !== false) toggleMap(); return; }
-
-      /* E — Anlasser (v12 only) */
-      if ((e.key === 'e' || e.key === 'E') && _keyStart) {
+    registerActions({
+      'key-map': () => _openKeyMap(),
+      telemetry: () => { if (S.aircraft?.vehicleType === 'rocket') downloadTelemetryCSV(); else downloadTelemetry(); },
+      blackbox:  () => downloadBlackbox(),
+      back:      () => history.back(),
+      kneeboard: () => toggleKneeboard(),
+      overhead:  () => toggleOverhead(),
+      pedestal:  () => togglePedestal(),
+      map:       () => toggleMap(),
+      'center-view':  () => toggleCenter(),
+      'left-console': () => toggleLeftConsole(),
+      'lm-panel':     () => setState({ inLM: !(S.inLM ?? false) }),
+      'engine-start': () => {
         bbEvent({ type: 'engine_start_commanded', engineState: S.engineState });
         if (S.aircraft?.panel === 'g1000') setState({ magnetos: 'START' });
         startEngine();
-        return;
-      }
-
-      /* Q — engine cut-off: fuel cutoff on turbofan, mixture/Kraftstoffhahn on piston */
-      if ((e.key === 'q' || e.key === 'Q') && (_isV12 || _isRadial || _isTurbofan || _isVK1)) {
+      },
+      'engine-cutoff': () => {   // fuel cutoff on turbofan, mixture/Kraftstoffhahn on piston
         bbEvent({ type: 'engine_cutoff', method: 'mixture' });
         stopEngine();
-        return;
-      }
-
-      /* Q — fuel selector cycle (all manual aircraft with fuel system) */
-      if ((e.key === 'q' || e.key === 'Q') && S.aircraft?.manualControl && S.fuelLeft !== null) {
+      },
+      'fuel-selector': () => {
         cycleFuelSelector();
         bbEvent({ type: 'fuel_selector', selector: S.fuelSelector });
-        return;
-      }
-
-      /* H — carb heat toggle */
-      if ((e.key === 'h' || e.key === 'H') && S.aircraft?.hasCarbHeat) {
+      },
+      'carb-heat': () => {
         const next = !S.carbHeat;
         setState({ carbHeat: next });
         bbEvent({ type: 'carb_heat', carbHeat: next });
-      }
-
-      if (e.key === 'x' || e.key === 'X') setAudioMuted(!audioMuted());   // audio on/off: everything the sim plays (moved off M — M is free for the centre cockpit view)
-
-      if (e.key === 'v' || e.key === 'V') {
+      },
+      audio: () => setAudioMuted(!audioMuted()),   // everything the sim plays
+      'view-mode': () => {
         const nModes = (S.aircraft?.vehicleType === 'rocket' && S.rocketOrbit) ? 5 : 3;
         _viewMode = (_viewMode + 1) % nModes;
         _applyViewMode(_viewMode);
-      }
-      if (e.key === 'c' || e.key === 'C') {
+      },
+      camera: () => {
         if (S.aircraft?.vehicleType === 'rocket') {
           /* Saturn V has no booster cam (mode 5 uses F9 geometry).
              Starship mode 5 = body cam (IFT-style side mount).
@@ -3714,25 +3681,17 @@
           _outsideCamMode = (_outsideCamMode + 1) % 4;
         }
         setOutsideCamMode(_outsideCamMode);
-      }
-      /* L — toggle CM ↔ LM panel (Saturn V missions with LM only) */
-      if ((e.key === 'm' || e.key === 'M') && !e.ctrlKey && !e.shiftKey) {
-        if (S.aircraft?.views?.includes('center')) { toggleCenter(); return; }
-      }
-      if ((e.key === 'l' || e.key === 'L') && !e.ctrlKey && !e.shiftKey) {
-        if (S.aircraft?.views?.includes('left')) { toggleLeftConsole(); return; }
-        if (S.aircraft?.id === 'saturn-v' && S.mission?.hasLM && S.sivbSep) {
-          setState({ inLM: !(S.inLM ?? false) });
-        }
-      }
+      },
     });
+    setKeyContext('flight');
+    _session.onStop(() => setKeyContext('none'));
 
     function _applyViewMode(mode) {
       const outside   = document.getElementById('outside');
       const cislunar  = document.getElementById('cislunar');
       const earthrise = document.getElementById('earthrise');
       const pfd       = document.getElementById('pfd');
-      const uiEls     = ['fma','panel','keys','ptt-indicator','com-container','checklist'];
+      const uiEls     = ['fma','panel','ptt-indicator','com-container','checklist'];
       const nd = document.getElementById('nd');
       /* Mode 3 — cislunar map / Mode 4 — Earthrise view */
       if (mode === 3 || mode === 4) {
@@ -3874,7 +3833,6 @@
           _ce.left = _com.offset[0] + 'px'; _ce.bottom = _com.offset[1] + 'px'; _ce.right = 'auto';
         }
         document.getElementById('panel').style.display          = (isRocket || hasOwnUI || isArm) ? 'none' : '';
-        document.getElementById('keys').style.display           = (isRocket || isArm || isPanel) ? 'none' : '';
         document.getElementById('fma').style.display            = (isRocket || hasOwnUI || isArm || isPanel || isVintage) ? 'none' : '';
         document.getElementById('warning-lights').style.display = (hasOwnUI || isPanel || isArm) ? 'none' : '';
         document.getElementById('metar-strip').style.display    = (hasOwnUI || isPanel || isArm || isVintage) ? 'none' : '';
@@ -4074,20 +4032,6 @@
                        : (S.enginePower ?? 1) <= 0 ? 'NO POWER' : 'RUNNING';
     if (_engEl.dataset.shown !== _engText) { _engEl.innerHTML = _engText; _engEl.dataset.shown = _engText; }
     _engEl.className = !_engN1s && _engSt === 'running' && _hasRead ? 'panel-value green' : 'panel-value';
-
-    /* Keybind hint: AP vs manual */
-    const isManual = !!S.aircraft?.manualControl;
-    document.getElementById('keys-ap').style.display       = isManual ? 'none'   : '';
-    document.getElementById('keys-manual').style.display   = isManual ? 'inline' : 'none';
-    document.getElementById('keys-spd').style.display      = isManual ? 'none'   : '';
-    document.getElementById('keys-throttle').style.display = isManual ? 'inline' : 'none';
-    document.getElementById('keys-carb').style.display     = S.aircraft?.hasCarbHeat ? '' : 'none';
-    document.getElementById('keys-overhead').style.display = S.aircraft?.views?.includes('overhead') ? '' : 'none';
-    document.getElementById('keys-pedestal').style.display = S.aircraft?.views?.includes('pedestal') ? '' : 'none';
-    document.getElementById('keys-left').style.display     = S.aircraft?.views?.includes('left') ? '' : 'none';
-    const _hasRight = S.aircraft?.views?.includes('right');
-    document.getElementById('keys-right').style.display    = _hasRight ? '' : 'none';
-    document.getElementById('keys-role').style.display     = _hasRight ? 'none' : '';
   }
 
   /* ── Mission elapsed time counter ── */
@@ -4123,7 +4067,7 @@
       const _text = `TIME WARP ${_warp}×${_to ? (S.warpTargetLabel ? ` → ${_to}` : ` · ${_to}`) : ''}`;
       if (_warpEl.textContent !== _text) _warpEl.textContent = _text;
     }
-    if (_paused || _muted || _warp > 1) document.getElementById('sim-flags').style.top = `${el.getBoundingClientRect().bottom + 6}px`;
+    document.getElementById('sim-flags').style.top = `${el.getBoundingClientRect().bottom + 6}px`;
     el.classList.toggle('dragon', !!(S.mission?.dragonSepT));
     el.classList.toggle('velis',  S.aircraft?.panel === 'velis-epsi');
     el.classList.toggle('g1000',  S.aircraft?.panel === 'g1000');
@@ -4416,10 +4360,6 @@
 
   function _initOsk() {
     if (!_isTouchDevice) return;
-    /* Update onboarding hint for touch */
-    const hint = document.querySelector('.ob-hint');
-    if (hint) hint.textContent = 'Tap anywhere to begin';
-
     document.querySelectorAll('.osk-btn').forEach(btn => {
       const key  = btn.dataset.key;
       const held = btn.dataset.held === '1';

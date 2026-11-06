@@ -252,18 +252,5 @@
         "HB-SYC. Grenchen. The same one."
       ]
     }
-  ],
-
-  "onboarding": [
-    { "key": "Mouse (hold) / Arrow keys", "desc": "Stick · Rudder" },
-    { "key": "F",                         "desc": "Flaps (0° / 15°)" },
-    { "key": "F1",                        "desc": "Idle (power off)" },
-    { "key": "+ / −",                     "desc": "Throttle ±" },
-    { "key": "t / T",                     "desc": "Elevator trim" },
-    { "key": "B (hold)",                  "desc": "Brakes" },
-    { "key": "V",                         "desc": "External view" },
-    { "key": "K",                         "desc": "Kneeboard" },
-    { "key": "N",                         "desc": "Map" },
-    { "key": "P",                         "desc": "Pause" }
   ]
 }

@@ -10,41 +10,6 @@
 
 import { FAILURE } from '../core/vocab.js';
 
-/* The keys that depend on the aircraft: how it starts and is cut off, and the airliners' screens —
-   as the sim's key handlers give them. */
-function _ownKeys(acd) {
-  if (acd.engine?.type === 'turbofan') return [
-    { key: 'Tab', desc: 'Right screen: ND, then the ECAM pages (Shift+Tab: left screen)' },
-    { key: 'D', desc: 'Engine start on the pedestal: power on, ENG MODE IGN/START, one ENG MASTER at a time' },
-    { key: 'Q', desc: 'Fuel cutoff, all engines' },
-  ];
-  switch (acd.sound?.engineType) {
-    case 'v12-supercharged': return [
-      { key: 'E', desc: 'Anlasser — Motor starten' },
-      { key: 'Q', desc: 'Kraftstoffhahn zu — Motor aus' },
-    ];
-    case 'radial-2000hp':
-    case 'turbojet-vk1': return [
-      { key: 'E', desc: 'Engine start' },
-      { key: 'Q', desc: 'Engine cutoff' },
-    ];
-    case 'lycoming-o360': return [
-      { key: 'E', desc: acd.engine?.starter === 'electric' ? 'Engine start (battery on first)' : 'Engine start' },
-      { key: 'Q', desc: 'Fuel selector: BOTH → LEFT → RIGHT → OFF' },
-    ];
-    case 'electric': return [
-      { key: 'Panel', desc: 'Motor on: MASTER → BATT EN → PWR EN' },
-    ];
-    default: return [];
-  }
-}
-
-/** The aircraft's key map: its own list or the default one, plus the keys particular to it (unless the list says). */
-export function keyList(acd = {}, defaults = []) {
-  const list = acd.onboarding ?? defaults;
-  return [...list, ..._ownKeys(acd).filter(r => !list.some(k => k.key === r.key))];
-}
-
 /** The page's main content: the scanned orders, the airliner's charts, or the story text. */
 export function briefingLayout(m, acd = {}) {
   if (m.briefing?.document && m.briefing?.image) return 'doc';

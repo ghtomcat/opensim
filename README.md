@@ -98,13 +98,13 @@ No build step. No framework. No dependencies. Open `index.html` and fly.
 | `v` | Cycle view: instruments / combined / outside |
 | `c` | Cycle outside camera: cockpit fwd → chase → side → plume cam → booster cam → ship cam |
 | `o` · `l` · `m` · `r` · `d` | Cockpit views: overhead · left · centre · right · pedestal (where the aircraft has them) |
-| `Tab` | Cycle display mode |
+| `Tab` | Glass airliners: page the right screen (ND, ECAM pages) |
 | `p` | Pause |
 | `x` | Audio on/off |
 | `j` | Jump — warp straight to the next mission event |
 | `r` | Cycle role: PF → PM → INSTRUCTOR (aircraft without a right console) |
 | `Space` | PTT (push to talk) |
-| `w` / `W` | Time warp — rockets + glass cockpits: 1× → 2× → 5× → 10× → 100× → next event (`W` steps back) |
+| `w` / `W` | Time warp — rockets: 1× → 2× → 5× → 10× → 100× → next event (`W` steps back) |
 | `Esc` | Back to the mission selector |
 | `Ctrl+Shift+L` | Download flight telemetry (JSONL; CSV for rockets) |
 | `Ctrl+Shift+B` | Download the black box |

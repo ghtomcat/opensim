@@ -103,7 +103,7 @@ not draw. Grouped by role:
 | Aircraft systems | `fuel.js`, `fuel-system.js` (airliners), `electrical.js`, `battery.js`, `hydraulics.js`, `alerts.js` (the warning/caution levels in `S.warnings`, published per owner), `baro.js`, `failures.js`, `aircraft-config.js` |
 | Navigation & automation | `route.js` (full route: SID/airways/STAR/approach), `lnav.js`, `vnav.js`, `managed-speed.js`, `fma.js`, `airway-graph.js`, `taxi-graph.js`, `taxi.js` (the active taxi route + clearance), `flightplan.js` (the active flight plan) |
 | Crew, radio, sound | `crew.js` (PF/PM/ATC/GPWS voice dispatch), `radio.js` (comm-chain filtering), `audio.js` (the one AudioContext + worklet loading), `sound.js` (Web Audio engine synthesis), `*-processor.js` (AudioWorklet engine/crackle synthesizers: DB 605, Le Rhône 9J, Lycoming, R-2800) |
-| I/O | `input.js` (keyboard/mouse/gamepad), `telemetry.js` + `blackbox.js` (recording/export), `hil.js` (hardware-in-the-loop), `liveflight.js` (live ADS-B lookup) |
+| I/O | `keymap.js` (the one key map: which key does what, on which vehicle; the dispatcher; generates the key map and `docs/keybindings.md`), `input.js` (what the flight keys do; mouse and gamepad), `telemetry.js` + `blackbox.js` (recording/export), `hil.js` (hardware-in-the-loop), `liveflight.js` (live ADS-B lookup) |
 
 ### 1.3 `display/` — presentation
 
@@ -303,7 +303,7 @@ that simulates and draws it. Read these first when opening an unfamiliar aircraf
 | **Other vehicle models** | `specs` (robot), `joints`, `links` (robot arm/dog) | `display/robot_arm.js`, `display/yertle_quadruped.js` |
 | **Systems** | `tanks`, `fuelBurn`, `hasCarbHeat`; `cooling {type, ambient, normal, redline, …}` + `coolingSystem`; `electrical`; `hydraulics`; `fuelSystem`; `battery` | `core/fuel.js`, `core/physics.js` (heat balance), `core/failures.js`, `core/electrical.js`, `core/hydraulics.js`, `core/fuel-system.js`, `core/battery.js` |
 | **Cockpit** | `panel`, `displays`, `views`, `clock`, `left` / `right` / `pedestal` (control lists per zone), `com`, `cockpit` (config override, §3.3), `map` | `display/*`, `index.html` |
-| **Crew & procedures** | `pmCallouts`, `takeoffCallouts`, `gpws`, `checklist` (flap schedule callouts), `fmaPhases`, `kneeboard`, `situations` (quick-start states), `onboarding` (key help) | `core/crew.js`, `display/kneeboard.js`, `core/physics.js`, `index.html` |
+| **Crew & procedures** | `pmCallouts`, `takeoffCallouts`, `gpws`, `checklist` (flap schedule callouts), `fmaPhases`, `kneeboard`, `situations` (quick-start states), `keyLabels` (a key's text in the key map, by action — `core/keymap.js`) | `core/crew.js`, `display/kneeboard.js`, `core/physics.js`, `index.html` |
 | **Sound** | `sound {engineType}` | `core/sound.js` |
 | **Outside geometry** | `dimensions` (real measurements, mm), `nose`, `wing`, `geometry`, `gear`, `engine` (nacelle fields), `winglet`, `wingletGeom`, `vstab`, `dorsalFillet`, `bellyFairing`, `flapTracks`, `doors`, `cabinWindows`, `window*`, `overwingExits`, `cheatline`, `livery`, `propplane`, `rocketGeometry` | `display/outside*.js`; `gear` also `core/physics.js`, `core/mission-start.js` |
 
@@ -515,7 +515,7 @@ one state object and runs inside one frame loop.
 ### 6.1 `S`: the shared state (`core/state.js`)
 
 `S` is one plain, mutable JavaScript object, exported from `core/state.js` and
-imported by almost every module. It holds about 170 top-level fields. The defaults in
+imported by almost every module. It holds about 150 top-level fields. The defaults in
 `state.js` are the full inventory, with a comment per field:
 
 | Group | Examples |
@@ -534,8 +534,8 @@ with no validation, no change notification and no history. Readers see a change 
 their next read, and the loop reads everything every frame. Consequences:
 
 - A nested object must be replaced whole: `setState({ lights: { ...S.lights, nav: true } })`.
-- `setState` is the convention (about 280 calls), but direct assignment also occurs
-  (about 110, mostly `display/outside.js`, see 6.5). Nothing enforces the difference.
+- `setState` is the convention (about 250 calls), but direct assignment also occurs
+  (about 50, mostly `display/outside.js`, see 6.5). Nothing enforces the difference.
 - The comment at the top of `state.js` says only `physics.js`, `input.js` and
   `mission.js` write. That is out of date: systems, crew, failures, the shell and
   interactive cockpit displays all write.
@@ -1133,7 +1133,7 @@ of every key and click.
   - The Velis's `engineType: "electric"` has no `ENGINES` entry, so the electric motor
     gets the **geared-turbofan** preset (the console says so).
   - `COCKPIT_PROFILES` lists `cockpit-c172`, which isn't a radio profile.
-- **`crew.js` is 1,250 lines** covering callouts, two GPWS layers, the mission script,
+- **`crew.js` is about 1,120 lines** covering callouts, two GPWS layers, the mission script,
   rocket event detection, briefings, TTS voices and radio playback.
 
 ---
@@ -1147,15 +1147,17 @@ the sim talks to other machines.
 
 | Source | Where | What |
 |---|---|---|
-| Keyboard | `core/input.js` (`initInput`, `tickControls(dt)`), plus handlers in `index.html` (5 `keydown` listeners) and some displays (`outside.js`, `com.js`, robots) | Flight controls (held keys → `pitchT`/`rollT`, continuous), AP/FCU, flaps, gear, PTT, time warp and next-event warp (rockets), role, cockpit-zone keys (§5). Full list: [keybindings.md](keybindings.md). |
+| Keyboard | `core/keymap.js` (the table + dispatcher); actions in `core/input.js`, `index.html`, `display/com.js`, `display/outside.js`, the robots | Flight controls (held keys → `pitchT`/`rollT`, continuous), flaps, gear, PTT, time warp (rockets), role, cockpit-zone keys (§5). Full list: [keybindings.md](keybindings.md). |
 | Mouse | `core/input.js` | drag-to-fly stick |
 | Gamepad | `core/input.js` (`tickGamepad`, each frame) | axes: roll, pitch, rudder, throttle; trigger = PTT; buttons: flaps, gear. Fixed mapping (`GP`), dead zone 0.08 |
 | Cockpit clicks | `display/panel_renderer.js`, cockpit zones, Velis/Dragon/Apollo panels | switches, levers, knobs, all through `setState` (§5) |
 | Hardware | `core/hil.js` (12.3) | `rollT`, `pitchT`, `spdT`, `ap`; robot-arm telemetry |
 
 Input writes **targets** (`*T`) and switch states; physics and systems turn them into
-motion (§6.1). Keyboard handling is spread over `core/input.js`, `index.html` and
-several displays. There's no single key map.
+motion (§6.1). Every key goes through `core/keymap.js`: a table (key, the vehicles it
+applies to, its text) and one dispatcher, the first matching binding wins. Modules register what an
+action does (`registerActions`), and hold no key listeners. The key map on screen (`?` or the **KEYS** button under the
+mission clock, every vehicle and device) and the tables in `docs/keybindings.md` are generated from the table.
 
 ### 12.2 Recording
 
@@ -1206,7 +1208,6 @@ the type to a sim aircraft (overridden by bug, see `issues.md`).
 - **`CART_JOG` is dropped by the hub.** `sendCartJog()` in `core/hil.js` sends
   `CART_JOG`, and `robot_bridge.js` handles it, but `server/hub.js` relays only
   `STATE_PATCH` and `CREW_EVENT`.
-- **No single key map:** keys are handled in about six modules.
 
 All tracked in `issues.md` → *Input, recording and external links*, including
 multi-crew (not implemented yet).
@@ -1229,7 +1230,7 @@ exceptions are listed in 13.6.
 | Moving map | Leaflet `<div>` + overlay canvas | `display/map.js` |
 | Cislunar / earthrise views | `#cislunar-canvas`, `#earthrise-canvas` | `display/cislunar.js`, `display/earthrise.js` |
 | Cockpit zones, kneeboard, COM, FMA | DOM overlays | `overhead.js`, `pedestal.js`, `*console.js`, `kneeboard.js`, `com.js`, `fma.js` |
-| Flags (`PAUSED`, `AUDIO OFF`, `TIME WARP`), under the mission clock on every vehicle and view; shown only while true | `#sim-flags`, above the cockpit zones | `renderMissionClock()` in `index.html` |
+| Flags (`PAUSED`, `AUDIO OFF`, `TIME WARP`) and the **KEYS** button, under the mission clock on every vehicle and view; shown only while true | `#sim-flags`, above the cockpit zones | `renderMissionClock()` in `index.html` |
 | Mission picker, briefing charts, debrief | DOM + canvases in `index.html` | `index.html` |
 
 ### 13.2 Rendering technology
@@ -1315,7 +1316,7 @@ the EGPWS read (§7.4).
 ### 13.6 Observations
 
 - **`renderTerrain()` is one function of about 2,840 lines** (`terrain.js` lines
-  653–~3,490), drawing every layer in 13.4 and sharing local state across them.
+  615–~3,450), drawing every layer in 13.4 and sharing local state across them.
 - **Display modules do simulation work:** the camera pose written into `S`
   (`outside.js`, §6.5). (The Velis motor's engine state moved to `core/engine.js`, 2026-10-18.)
 - **Prop and warbird geometry is code, not data.** Airliners are data-driven (§3.4),
@@ -1341,9 +1342,9 @@ The single page that ties everything together. It's the top of the stack: it imp
 | Lines (approx.) | Content |
 |---|---|
 | 1–16 | `<head>`: fonts, Leaflet and Three.js from CDNs (§13.2) |
-| 17–1768 | CSS for the whole app (picker, briefing, panels, overlays, debrief) |
-| 1770–2213 | Markup: mission picker, briefing, canvases (§13.1), overlays, loading screen |
-| 2214–5217 | One `<script type="module">`: imports, then the application logic below |
+| 17–1578 | CSS for the whole app (picker, briefing, panels, overlays, debrief) |
+| 1579–1876 | Markup: mission picker, briefing, canvases (§13.1), overlays, loading screen |
+| 1877–4539 | One `<script type="module">`: imports, then the application logic below |
 
 ### 14.2 Boot and mission start
 
@@ -1380,7 +1381,7 @@ back/forward, `simLoad`). There's no page reload between missions, so what a mis
 sets up must not pile up:
 
 - **Per-mission wiring goes through the session.** Listeners and timers that close over
-  the mission (the shell key handler, ND click, onboarding) are registered with
+  the mission (ND click, onboarding) are registered with
   `_session.on()` / `_session.timeout()`; `stop()` removes them. The next `init()` and
   the Back button both stop the session.
 - **Page-lifetime setup is create-once.** Display `init*()` functions build their DOM and
@@ -1398,7 +1399,7 @@ Beyond wiring, the module script holds application features (see `issues.md` →
 | Mission picker, briefing page (story, setup strip, Fly) | `showSelect`, `showBriefing`, `_bpStrip`, `_bpOpenPop`, `_bpFly` (the screen; layout, choices and the setup they build are in `app/briefing.js`) |
 | Briefing charts on the airliners (route, airport, SID/STAR, nav log, weather) | `_fillChartBriefing`, `_briefingTab`, `_renderRouteChart`, `_renderProcChart`, … |
 | Live flight: radar picker, ADS-B tracking that drives the sim | `flyWithFlight`, `renderRadarMap`, `_startTracking`, `_pollTracking` |
-| Panel text updates, mission clock, METAR display | `updatePanel` (~175 lines), `renderMissionClock`, `updateMetar` |
+| Panel text updates, mission clock, METAR display | `updatePanel` (~130 lines), `renderMissionClock`, `updateMetar` |
 | Approach tracking and **scoring**, debrief, crash overlay | `_trackApproach`, `_computeApproachScore`, `_computeEmergScore`, `showDebrief`, `checkCrash` |
 | Mission-specific UI | Wolfskopf diary debrief |
 | The next event (the time-warp flag), on-screen keyboard | `_getNextEvent`, `_initOsk` |

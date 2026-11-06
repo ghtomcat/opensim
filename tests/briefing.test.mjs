@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { keyList, briefingLayout, setupChoices, ownWeatherLabel, WEATHER_PRESETS, crewPresets, failurePresets, failureTime, failureEntries, failureEngine, buildSetup }
+import { briefingLayout, setupChoices, ownWeatherLabel, WEATHER_PRESETS, crewPresets, failurePresets, failureTime, failureEntries, failureEngine, buildSetup }
   from '../app/briefing.js';
 import { check } from '../core/schema/check.js';
 import { mission as missionSchema } from '../core/schema/mission.js';
@@ -146,20 +146,4 @@ test('buildSetup: at V1 on ENG 2; carb icing ignores V1 and the engine', () => {
   const ice = buildSetup({ id: 'lszf-pattern' }, { weather: 'LIVE', failure: 'CARB ICE', timing: { v1: true }, engine: 1 },
                          { hasCarbHeat: true, engines: 1, rand: () => 0 });
   assert.deepEqual(ice.failures, [{ trigger: { type: 'time', t: 60 }, type: 'carb_ice' }]);
-});
-
-test('the key map says how each aircraft starts, the way the key handler does', () => {
-  const load = (id) => JSON.parse(readFileSync(new URL(`../aircraft/${id}.json`, import.meta.url)));
-  const row  = (id, key) => keyList(load(id), [])?.find(k => k.key === key)?.desc;
-  assert.match(row('a340', 'D'), /pedestal/);                     // no start key on an airliner
-  assert.equal(row('a340', 'E'), undefined);
-  assert.match(row('c172', 'E'), /battery/);                      // electric starter
-  assert.match(row('c172', 'Q'), /Fuel selector/);
-  assert.match(row('f4u1a', 'E'), /Engine start/);                // its own list doesn't say
-  assert.match(row('mig15', 'Q'), /cutoff/);
-  assert.match(row('velis-hb-syc', 'Panel'), /PWR EN/);
-  assert.equal(keyList(load('bf109'), []).filter(k => k.key === 'E').length, 1);   // its own row stays, no duplicate
-  assert.match(row('a340', 'Tab'), /ECAM/);                       // Tab only where it does something
-  assert.equal(row('c172', 'Tab'), undefined);
-  assert.deepEqual(keyList({ sound: { engineType: 'rotary-9' } }, [{ key: 'P', desc: 'Pause' }]), [{ key: 'P', desc: 'Pause' }]);   // no start sequence
 });

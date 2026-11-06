@@ -95,16 +95,5 @@
   ],
 
 
-  "pmCallouts": [],
-
-  "onboarding": [
-    { "key": "Mouse (drag) / Arrow keys", "desc": "Stick · Rudder" },
-    { "key": "F",                         "desc": "Flaps" },
-    { "key": "G",                         "desc": "Gear up/down" },
-    { "key": "+ / −",                     "desc": "Throttle ±" },
-    { "key": "t / T",                     "desc": "Pitch trim" },
-    { "key": "B (hold)",                  "desc": "Brakes" },
-    { "key": "V",                         "desc": "Outside view" },
-    { "key": "P",                         "desc": "Pause" }
-  ]
+  "pmCallouts": []
 }

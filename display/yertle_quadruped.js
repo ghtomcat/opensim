@@ -22,6 +22,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from '../core/state.js';
+import { registerActions } from '../core/keymap.js';
 
 const LEG_COLORS  = ['#58a6ff', '#3fb950', '#d29922', '#f85149'];  // LF RF LB RB
 const JOINT_NAMES = [
@@ -147,7 +148,7 @@ export function initYertleQuadruped(canvas) {
   _buildLinks();
   _loadSTLs();
 
-  window.addEventListener('keydown', _onKey);
+  registerActions({ 'dog-keys': _onKey });
   _loaded = true;
 }
 

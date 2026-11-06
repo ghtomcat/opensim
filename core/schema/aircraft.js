@@ -146,7 +146,7 @@ export const aircraft = object(
     fmaPhases: arrayOf(object({ minAlt: num, vals: arrayOf(str), cols: arrayOf(str) })),
     checklist, kneeboard: arrayOf(kneeboardPage),
     situations: arrayOf(object({ label: str, alt: num, altT: num, spd: num, spdT: num, hdg: num })),
-    onboarding: arrayOf(object({ key: str, desc: str })),
+    keyLabels: mapOf(str),   // a key's text in the key map, by action id (core/keymap.js) — e.g. in the crew's language
     /* cockpit */
     clock: oneOf('analog', 'digital', 'met'), map: bool, com,
     views: arrayOf(oneOf(...VIEW_ZONES)),

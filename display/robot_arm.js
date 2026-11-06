@@ -27,6 +27,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState }  from '../core/state.js';
+import { registerActions } from '../core/keymap.js';
 import { bbEvent }      from '../core/blackbox.js';
 import { sendCartJog }  from '../core/hil.js';
 
@@ -237,7 +238,7 @@ export function initRobotArm(canvas) {
   _buildLinks();
   _loadSTLs();
 
-  window.addEventListener('keydown', _onKey);
+  registerActions({ 'arm-keys': _onKey });
   _loaded = true;
 }
 
