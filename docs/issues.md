@@ -498,7 +498,7 @@ The missions also have a `phase` (ground / departure / circuit / cruise / approa
 
 **Done when.** A twin can lose one engine (failure or fuel cut) and keep flying on the other with the expected yaw and climb loss; the ECAM/EICAS shows the failed engine; single-engine aircraft behave as before.
 
-### Airliner fuel system — the layout as data, display-only (agreed 2026-11-04)
+### Airliner fuel system — the layout as data, display-only — done up to part 5 (2026-11-06)
 *`core/fuel-system.js` (new), `display/overhead.js` (FUEL section), the ECAM's FUEL figure (`_fuelPct()` in `display/ecam.js`); `core/fuel.js` stays for the light aircraft*
 
 **Today.** Two worlds. The light aircraft (C172, DR400, warbirds) have a simple, working model in `core/fuel.js` — left/right tanks, a selector, burn, starvation that stops the engine. The airliners have none (`S.fuelLeft` is null): the overhead's X FEED and PMP 1 … n buttons write `S` directly and nothing reads them; the ECAM's FUEL figure is invented from the elapsed time (`_fuelPct()`). Each turbofan already computes its own fuel flow (kg/h, `S.engines[i].ff`, stage 2c of *One engine per aircraft*).
@@ -526,7 +526,18 @@ The missions also have a `phase` (ground / departure / circuit / cruise / approa
 
 **Part 4 done (2026-11-06):** the 777's own layout in `aircraft/b777-300er.json` (`fuelSystem`, sources [F1] … [F3] in its `sources_doc`): left / right main 29,060 kg each, centre 87,450 kg — 145,570 kg in total (ACAP); the split assumed (the mains from the FAA figure, the rest in the centre); boost pumps L / R FWD and AFT, the centre's override / jettison pumps CTR L / R (role `override` — the centre first), two crossfeed valves X FEED FWD / AFT (either one joins the sides). Assumed: the pumps' buses (none — any AC power), the overhead labels. The FUEL page draws every crossfeed valve, side by side. `tests/fuel-system.test.mjs` (the 777's capacity, the centre first, the AFT crossfeed alone feeding ENG 1 from the right), `tests/overhead-fuel.spec.js`.
 
-**Done when.** The 777 burns fuel from its tanks as its engines' fuel flow says — centre first, then the mains — the FUEL page and the ECAM show the real fuel on board, and the overhead's fuel pumps and crossfeed are the 777's and work; the light aircraft unchanged.
+**Done when.** *(met 2026-11-06)* The 777 burns fuel from its tanks as its engines' fuel flow says — centre first, then the mains — the FUEL page and the ECAM show the real fuel on board, and the overhead's fuel pumps and crossfeed are the 777's and work; the light aircraft unchanged.
+
+**Open.** Part 5 — the A340's own layout, once a source turns up (an AAIB / BEA report on an A340 fuel event is the likeliest); until then the default. On the 777, two assumptions to replace when a source turns up: the pumps' AC buses and the split between the tanks.
+
+**Later — left out on purpose.**
+- Fuel into physics: an empty tank stops the engine, the burn lowers the mass and moves the CG (*The runtime has no seam for training-grade systems*, *Weight and balance*).
+- The crew side of centre-first: the 777 crew switch the centre pumps off when it runs low (FUEL LOW CTR); today they simply stop at empty.
+- Centre tank scavenge, jettison, refuelling, fuel temperature.
+- The fuel load per mission (today 60 % on every airliner) — with the named starting configuration or weight and balance.
+- Units per manufacturer: lb on the Boeing displays where the operator chooses it.
+- The other airliners (A350, 737, E190 …) on the default until each has a sourced layout.
+- The light aircraft onto the same layout (they keep `core/fuel.js`).
 
 ### Airliner electrical and hydraulics are display-only — not implemented yet (intentional)
 *Noted 2026-10-11 · `core/electrical.js`, `core/hydraulics.js`*
