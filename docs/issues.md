@@ -116,6 +116,8 @@ Both apply per frame, not per second — their strength depends on the frame rat
 
 `S.spdT` means two things: on turbofans it's the A/THR target speed (kt); on props it's the power lever — thrust uses `spdT / envelope.cruiseSpd`. The oil-temperature and coolant heat models then compute their own "throttle" as `spdT / envelope.maxSpd` for **every** aircraft: on a jet that's the selected speed, not the thrust (oil temperature follows the FCU speed knob, not N1); on a prop it's a different normalisation than the thrust uses (`maxSpd` vs `cruiseSpd`), so full power reads as 61–87 % of full heat depending on the type (F4U 61 %, Bf 109 84 %).
 
+**Also (2026-11-06):** `getCurrentRpm()` in `core/sound.js`, and through it the status bar's Engine cell, computes a piston engine's RPM from `spdT / envelope.maxSpd`, a third normalisation (see *The Engine cell's reading comes from the sound module*).
+
 **Fix.** One explicit power variable per engine (`thrustLever` already exists for jets; props get the same, keyed by the throttle input), used by thrust, oil temperature and the cooling heat input alike; `spdT` stays a speed. **Done when.** No code reads `spdT` as a power setting; the cooling model's heat input follows the same throttle as the thrust; Bf 109 / F4U cooling behaviour re-checked (normal temperatures, coolant leak → seizure timing).
 
 ### Turbulence: mission-level and from METAR gusts — enhancement
@@ -299,7 +301,12 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 ### Timing-dependent tests fail under full-suite load
 *Noted 2026-11-05*
 
-A growing set of browser tests fails now and then in the full run (`npx playwright test`, parallel workers) and passes when run alone: `scenario-setup.spec.js:18` (weather), `fuel-engine-carb.spec.js:362` (Lycoming start), `check_loi.spec.js`, `check_browser_sim.spec.js` (Apollo LOI, the frame-rate variants), `briefing.spec.js:27`, `db601-sound.spec.js:74`. They wait on wall-clock time or real frames rather than stepping the sim (`window.simStep`), so a loaded machine changes the outcome. They mask real regressions in the summary (each run needs them re-checked by hand). **Fix:** step the sim deterministically in each, or move the frame-rate/timing ones into a separate project run with one worker. **Done when:** the full run is clean apart from the known failures, three runs in a row.
+A growing set of browser tests fails now and then in the full run (`npx playwright test`, parallel workers) and passes when run alone: `scenario-setup.spec.js:18` (weather), `fuel-engine-carb.spec.js:362` and `:459` (Lycoming start), `check_loi.spec.js`, `check_browser_sim.spec.js` (Apollo LOI, the frame-rate variants), `briefing.spec.js:27`, `db601-sound.spec.js:74`, and since 2026-11-06 also `com.spec.js:74`, `physics.spec.js:355` (Tu-95 gear), `rocket.spec.js:85` and `:189` (peak G), `sound-output.spec.js:66` (audio level over a 300 ms window), `sim-flags.spec.js` (the real-play pause test, once). They wait on wall-clock time or real frames rather than stepping the sim (`window.simStep`), so a loaded machine changes the outcome. They mask real regressions in the summary (each run needs them re-checked by hand). **Fix:** step the sim deterministically in each, or move the frame-rate/timing ones into a separate project run with one worker. **Done when:** the full run is clean apart from the known failures, three runs in a row.
+
+### `waitForFunction` timeouts are passed as the argument, and ignored
+*Found 2026-11-06 · `tests/`, `tools/probe.mjs:23`*
+
+`page.waitForFunction(fn, { timeout })` passes the object as `fn`'s **argument**; the options are the third parameter (`waitForFunction(fn, null, { timeout })`). 55 calls in 32 files, plus `tools/probe.mjs`, write it the first way, so their 15 s never applies: they wait until the 30 s test limit. Probably not what makes tests flaky, but a load that hangs reads as a test timeout. **Fix:** move the options to the third parameter, or one shared `loadMission(page, id)` helper. **Done when:** a grep for the two-argument form finds nothing.
 
 ### DB 601 engine-off tests use an airborne mission
 *`tests/db601-sound.spec.js`* — "starts in off state" and "lader gain is zero at engine off" load Wolfskopf, which starts at 2 000 ft with the engine running. Use a ground start (`hahnweide-1944`).
@@ -631,7 +638,7 @@ The header describes the recorder as "tamper-evident". The download appends `{ t
 ### No single key map
 *Found 2026-10-11*
 
-Keys are handled in about six places: `core/input.js` (flight controls, AP, warp, role, …), `index.html` (5 `keydown` listeners: cockpit zones, telemetry download, Tab page cycling, onboarding, …), `display/outside.js`, `display/com.js`, `display/robot_arm.js`, `display/yertle_quadruped.js`. The same key can mean different things depending on aircraft and view (R = right console or role), and `docs/keybindings.md` has to be kept in step by hand. **Why it matters:** conflicts are hard to see; remappable controls, a cockpit-hardware key mapping, or a generated key reference need one table. **Fix:** one key map (key → action id, with conditions such as `views` or vehicle type) and one dispatcher; modules register actions, not listeners. **Done when:** a single `keydown` listener dispatches all keys; `docs/keybindings.md` can be generated from the map.
+Keys are handled in about six places: `core/input.js` (flight controls, AP, warp, role, …), `index.html` (5 `keydown` listeners: cockpit zones, telemetry download, Tab page cycling, onboarding, …), `display/outside.js`, `display/com.js`, `display/robot_arm.js`, `display/yertle_quadruped.js`. The same key can mean different things depending on aircraft and view (R = right console or role), and `docs/keybindings.md` has to be kept in step by hand. **Connected (2026-11-06):** most of a day's bugs came from here, each a key and its description or its gate defined in different places: `X` dead on most aircraft while the key map offered it, `Tab` blanking the cockpit, `W` / `J` selecting a warp that didn't run, the first key of a mission undoing `P` on rockets. `keyList()` in `app/briefing.js` is one more hand-kept copy of what the handlers do; it goes when the map exists. See also *The key hints describe the wrong keys*. **Why it matters:** conflicts are hard to see; remappable controls, a cockpit-hardware key mapping, or a generated key reference need one table. **Fix:** one key map (key → action id, with conditions such as `views` or vehicle type) and one dispatcher; modules register actions, not listeners. **Done when:** a single `keydown` listener dispatches all keys; `docs/keybindings.md` can be generated from the map.
 
 ---
 
@@ -666,6 +673,39 @@ Airliners are built from the aircraft JSON (`_acGeoFromJson()`, data-driven from
 **Now.** `core/alerts.js`: an alert's value in `S.warnings` is its level — `'warning'` (red) or `'caution'` (amber); the older writers' `true` keeps the name rule. `activeAlerts()` lists them warnings first; `publishAlerts(owner, …)` / `clearAlerts(owner)` let each module replace and clear only its own keys (the fuel system and the hydraulics use it). The E/WD in the Airbus layout: the engines on top (60 %), below them the messages on the left at memo size — red warnings first, amber cautions, `▼ n MORE` when they don't fit — and the memos in a column on the right; the glareshield lights read the levels. (The dim "NORMAL" with no alerts is gone — the real E/WD shows none.) `tests/alerts.test.mjs`.
 
 **Later.** The Boeing EICAS layout — the alert messages in a column at the upper right beside the engine gauges, warnings / cautions / advisories — with the per-manufacturer look (the 777 shows the Airbus glass for now — the accepted compromise). The older `true` writers (`core/fuel.js`: `OIL_PRESS`, `LOW_FUEL`, `FUEL_SHUTOFF`) onto levels; message texts separate from keys.
+
+### The key hints describe the wrong keys
+*Found 2026-11-06 · `_DEFAULT_OB` and `#keys` in `index.html`; the key handler in `core/input.js`*
+
+- **The default key map is wrong for 12 aircraft.** `_DEFAULT_OB` says `↑ ↓ Altitude target ±500 ft`, `← → Heading target ±5°` and `+ − Speed ±5 kt`, which is the kinematic model's (`!manualControl`, `core/input.js`). The aircraft using that list all have `manualControl`: the arrows move the stick, `+ / −` step by 20. A220, A340, A350, 737, 737 MAX 9, 777, E190, C172, DR400, An-225, Avro 504, Tu-95.
+- **The hint strip says `Q fuel sel` on every aircraft that shows it.** On the Bf 109, F4U and MiG-15, `Q` cuts the engine; on the Avro nothing.
+
+**Fix:** generate both from *No single key map*; until then, correct `_DEFAULT_OB` and take `Q` from the aircraft. **Done when:** every key the map and the strip name does what they say, on every aircraft.
+
+### The mission clock covers the left end of the FMA
+*Found 2026-11-06 · `#mission-clock` and `#mission-title` in `index.html`; the FMA strip of the PFD*
+
+On the glass airliners the clock sits at top 90 px, left 20 px, over the FMA's first column: `A/THR` can't be read behind it, and it touches `AP1` (A350 at 1600 × 900). That's flight information. **Done when:** the whole FMA can be read with the clock showing, on every glass cockpit and in the combined view.
+
+### The glass screens run underneath the status bar
+*Found 2026-11-06 · `#pfd`, `#nd` (`body.panel-dual … height: 91vh`), `#panel` (80 px, translucent) in `index.html`*
+
+Outside the combined view the screens go to the bottom of the window, under the strip. The bottom of the PFD's heading tape is cut off, and the ND's VOR and DME text shows through the strip's cells. The combined view already leaves room (`calc(50vh - 80px)`). **Done when:** no instrument is drawn under the strip, in any view.
+
+### A status bar cell wraps on the F4U
+*Found 2026-11-06 · `.panel-section` in `index.html`*
+
+The warbirds have two more cells (Fuel L/R, Fuel Sel). At 1280 px the F4U's `375 / 375 L` breaks onto two lines; the Bf 109 and MiG-15 no longer do, since the Display and Audio cells went (measured 2026-11-06). `tests/status-strip.spec.js` only checks that nothing overflows. **Done when:** every cell stays on one line at 1280 px, on every aircraft with the bar.
+
+### The Engine cell's reading comes from the sound module
+*Found 2026-11-06 · `getCurrentRpm()` in `core/sound.js`, the Engine cell in `index.html`*
+
+The cell shows real N1 only on the multi-engine turbofans. For the others the value comes from `getCurrentRpm()` in the sound synthesis: RPM from `spdT` (*`spdT` is both the speed target and the throttle*), the start curves hard-coded to match the recordings, and N1 from the throttle on the An-225. It returns null without a sound preset. A cockpit value depends on the audio code, against the rule that sound follows the engine (`core/engine.js`). **Fix:** RPM per engine in `S.engines[]` from `core/engine.js`, read by the display and the sound alike. **Done when:** `core/sound.js` exports no value that a display shows.
+
+### The METAR strip always says LSZH
+*Found 2026-11-06 · `updateMetar()` and `_rwyFromWind()` in `index.html`*
+
+The strip's text starts with a literal `LSZH`, and its runway comes from a table for Zürich (`28`, `10`, `34`, `16`), wherever the mission is. It shows on the default panel (Avro 504, An-225, Tu-95, DC-8): the Avro over the Marne reads `LSZH Z · RWY 28`, the An-225 at Hostomel `LSZH Z · RWY 16` (seen 2026-11-06). The time is empty too, without a live report. The strip sits under the mini-map's corner when the map is open. **Fix:** the station from the weather source, the runway from the mission or left out. **Done when:** the strip names the mission's own station, and no runway it doesn't have.
 
 ### The cloud layer is never drawn
 *Found 2026-10-15 · `display/terrain.js` ("Procedural cloud layer from METAR")*
@@ -724,6 +764,8 @@ The Velis's `sound.engineType` is `"electric"`, but `ENGINES` has no `electric` 
 **Reproduce.** In a checkout without the gitignored `audio/` folder (e.g. a fresh clone or `git worktree add`), run Inspiration5 in test mode for 1 200 s and log `[crew] ATC fire idx=`: 64 clearances fire, against 70 with the clips present. The six missing ones (idx 13, 17, 40, 55, 57, 75) are all `after` triggers whose predecessor has a missing clip (`gl_startup`, `mc_ldgo`, `gl_meco`, `mc_1bravo`, `mc_staging`, `mc_2bravo`).
 
 **Cause — verified in headless Chromium; not yet checked in a real browser.** `_atcEndedAt[idx]` — what `after` waits for — is set by the clip's `onEnded`, or in the fallback by the utterance's `u.onend`. If the utterance never ends normally, nothing sets it: `_safeSpeak()` returns silently when `speechSynthesis` is undefined, there's no `u.onerror` handler, and there's no time-based fallback. Headless Chromium's speech doesn't complete, so the chain stops there; in a real browser it could stop the same way on a speech error or on Chrome's known long-utterance `onend` bug.
+
+**Still so (checked 2026-11-06):** `core/crew.js` sets `onend` on its utterances and never `onerror`; `speak()` in `core/audio.js` only passes on what is there. Look at this together with *The audio switch (`X`)*, which replaces running lines.
 
 **Why it matters.** Anyone who clones the repo has no `audio/` folder, so mission scripts that chain with `after` lose lines silently. Tests can't see the chain either.
 
@@ -893,7 +935,7 @@ The data now has a schema (`core/schema/`, checked by `npm test` and at load), b
 **Fix:** one shape each — e.g. `engine` always an object (the description as `engine.model` / documentation), `timeOfDay` always hours, rocket anomalies under their own key. One field at a time; the schema then drops the second shape. **Done when:** none of them needs an `anyOf` in `core/schema/`.
 
 ### Name comparisons still spelled out by hand (data-contract stage 3b)
-*Noted 2026-10-13 · `core/vocab.js`; comparisons in `core/`, `display/`, `index.html`*
+*Noted 2026-10-13 · `core/vocab.js`; comparisons in `core/`, `display/`, `index.html`; since 2026-11-06 also `app/briefing.js` (`_ownKeys()`) and `updatePanel` in `index.html`*
 
 Stage 3a put the shared names in `core/vocab.js` and made the five dispatch points (triggers, rocket events, failures, comm profiles, engine sounds) check themselves against it. The plain comparisons were left for later: about 180 literals like `panel === 'airbus'` (53, in 8 files), `vehicleType === 'rocket'` (48, in 13 files) and `engineType === 'lycoming-o360'` (31, in 3 files), much of it in `index.html`. Each is a place where a typo compares silently false — two are already logged: *Velis COM ignores its power switches* (`'velis'` for `'velis-epsi'`) and *F4U Corsair starts up with the DB 605 start-up sound* (`'radial-2800hp'` for `'radial-2000hp'`). **Fix:** replace them with `PANEL.X` / `VEHICLE.X` / `ENGINE.X` from `core/vocab.js` (a misspelled name throws). The two known typos change behaviour when fixed, so each gets its own commit, not hidden in the bulk change. Can go together with the `index.html` rewrite. **Done when:** `grep -nE "(panel|vehicleType|engineType)\s*[!=]==\s*'" core display index.html` finds nothing.
 
