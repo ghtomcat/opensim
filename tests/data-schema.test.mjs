@@ -19,6 +19,7 @@ import { mission } from '../core/schema/mission.js';
 import { catalog } from '../core/schema/catalog.js';
 import { aircraft } from '../core/schema/aircraft.js';
 import { KNOWN, unknownErrors } from '../core/schema/known.js';
+import { electricalLayout } from '../core/electrical.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const load = (rel) => JSON.parse(readFileSync(join(root, rel), 'utf8'));
@@ -57,6 +58,15 @@ test('every mission is in the catalog, or explained in NOT_IN_PICKER', () => {
 test('every mission flies an aircraft that exists', () => {
   const have = jsonIn('aircraft').map(f => f.replace(/\.json$/, ''));
   assert.deepEqual(missionIds.filter(id => !have.includes(acId(load(`missions/${id}.json`).aircraft))), []);
+});
+test("a mission's start switches (initialState.elec) are sources of its aircraft's electrical layout", () => {
+  const bad = missionIds.flatMap(id => {
+    const m = load(`missions/${id}.json`), elec = m.initialState?.elec;
+    if (!elec) return [];
+    const ids = electricalLayout(load(`aircraft/${acId(m.aircraft)}.json`)).sources.map(s => s.id);
+    return Object.keys(elec).filter(k => !ids.includes(k)).map(k => `${id}: ${k}`);
+  });
+  assert.deepEqual(bad, []);
 });
 test("the catalog's aircraft is the mission's aircraft", () => {
   const mismatch = cards.filter(c => acId(load(`missions/${c.id}.json`).aircraft) !== c.aircraft).map(c => c.id);

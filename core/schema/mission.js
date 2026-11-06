@@ -34,7 +34,8 @@ const arrival = object({
 
 const initialState = object(
   { alt: num, spd: num, hdg: num, pitch: num, roll: num, lat: num, lon: num,
-    ap: bool, athr: bool, gear: bool, autobrake: str, spdManaged: bool, speedBrake: num },
+    ap: bool, athr: bool, gear: bool, autobrake: str, spdManaged: bool, speedBrake: num,
+    elec: mapOf(bool) },   // electrical sources switched on at the start, by element id — e.g. ground power at the stand
   { required: ['alt', 'spd', 'pitch', 'roll'] },
 );
 

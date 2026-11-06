@@ -6,6 +6,9 @@
 
 import { S, setState }   from './state.js';
 import { initialEngine }  from './engine.js';
+import { elecSwitch, electricalLayout, tickElectrical } from './electrical.js';
+import { tickHydraulics } from './hydraulics.js';
+import { tickFuelSystem } from './fuel-system.js';
 import { runMissionResets } from './lifecycle.js';
 import { setCrewLang }    from './crew.js';
 import { resolveStart }   from './mission-start.js';
@@ -208,6 +211,11 @@ export async function loadMission(missionPath, aircraftPath, setup = null) {
 
   runMissionResets();      // failures, fuel, battery, electrical, hydraulics, display lag — each module registers its own
 
+  /* Electrical switches set at the start (initialState.elec, e.g. ground power at the stand) — through
+     the owner's command; then the systems settle once (dt 0), so the first frame is already powered.
+     A stand-in for the named starting configurations (issues.md). */
+  _applyElecStart(mission.initialState.elec, aircraft);
+
   /* Reset cockpit switches — all off at mission start */
   S.switches.master   = false;
   S.switches.battEn   = false;
@@ -234,6 +242,16 @@ export function setLiveWeather(on) { _liveWeather = on; }
    Violations logged in issues.md (core/schema/known.js) pass in both modes. */
 let _strictData = false;
 export function setStrictData(on) { _strictData = on; }
+
+function _applyElecStart(elec, aircraft) {
+  if (!elec || aircraft.engine?.type !== 'turbofan') return;
+  const ids = new Set(electricalLayout(aircraft).sources.map(e => e.id));
+  for (const [id, on] of Object.entries(elec)) {
+    if (!ids.has(id)) { console.warn(`[data] missions/${S.mission?.id}.json: initialState.elec "${id}" is not a source of ${aircraft.id}'s electrical layout`); continue; }
+    elecSwitch(id, on);
+  }
+  tickElectrical(0); tickHydraulics(0); tickFuelSystem(0);
+}
 
 function _checkData(file, value, schema) {
   const errors = unknownErrors(file, check(value, schema));

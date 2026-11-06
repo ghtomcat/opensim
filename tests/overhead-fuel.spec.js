@@ -38,8 +38,8 @@ test('FAULT: a pump on without pressure (no power); none on the running 777', as
   await page.evaluate(() => window.simStep(2, 1 / 60));          // the electrical and fuel systems solved once
   await page.keyboard.press('o'); await page.keyboard.press('o');
   await expect(page.locator('#pb-fuel-lFwd-upper')).not.toHaveClass(/lit/);
-  await overhead(page, 'fimp-takeoff');                           // the A340 cold — no AC power
-  await page.evaluate(() => window.simStep(2, 1 / 60));
+  await overhead(page, 'fimp-takeoff');                           // the A340, its switches at their defaults — no AC power
+  await page.evaluate(() => { window.simSetState({ elecCtl: {} }); window.simStep(2, 1 / 60); });
   await page.keyboard.press('o'); await page.keyboard.press('o');
   await expect(page.locator('#pb-fuel-lFwd-upper')).toHaveClass(/lit/);
 });

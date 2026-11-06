@@ -27,7 +27,8 @@ test('the A340 with only GEN 1: the other mains are fed through the tie', async 
   await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
   await page.evaluate(() => {
     const s = window.simGetState();
-    window.simSetState({ engines: s.engines.map((e, i) => i === 0 ? { ...e, state: 'running', n1: 22, core: 60 } : e) });
+    window.simSetState({ elecCtl: {},                            // every switch at its default — no ground power (the mission starts on it)
+                         engines: s.engines.map((e, i) => i === 0 ? { ...e, state: 'running', n1: 22, core: 60 } : e) });
     window.simStep(2, 1 / 60);
   });
   const fedBy = await page.evaluate(() => Object.fromEntries(Object.entries(window.simGetState().elec.buses).map(([k, v]) => [k, v.fedBy])));

@@ -16,7 +16,8 @@
     "alt": 1416,
     "spd": 0,
     "pitch": 0,
-    "roll": 0
+    "roll": 0,
+    "elec": { "bat1": true, "bat2": true, "bat3": true, "extA": true, "extB": true }
   },
   "start": { "stand": "A05" },
   "weather": {

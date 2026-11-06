@@ -35,6 +35,7 @@ test('a twin: two generators, the default two batteries, one ground-power plug',
 
 test('the controls send their commands: BAT on powers the battery bus; GEN off takes the generator off line', async ({ page }) => {
   await overhead(page, 'fimp-takeoff');
+  await page.evaluate(() => window.simSetState({ elecCtl: {} }));   // every switch at its default — the mission starts on ground power
   await click(page, 'ohp-el-bat1');
   expect((await ctl(page)).bat1).toEqual({ on: true });
   await page.evaluate(() => window.simStep(2, 1 / 60));
@@ -43,6 +44,17 @@ test('the controls send their commands: BAT on powers the battery bus; GEN off t
   expect((await ctl(page)).gen2).toEqual({ on: false, idg: true });
   await click(page, 'pb-el-busTie');
   expect((await ctl(page)).busTie).toEqual({ on: false });
+});
+
+test('the A340 at its stand starts on ground power: BAT and EXT on, the AC mains powered, the fuel pumps running', async ({ page }) => {
+  await overhead(page, 'fimp-takeoff');                           // before the first tick — the start is already settled
+  const s = await page.evaluate(() => window.simGetState());
+  for (const id of ['bat1', 'bat2', 'bat3', 'extA', 'extB']) expect(s.elecCtl[id]).toEqual({ on: true });
+  for (const id of ['ac11', 'ac12', 'ac23', 'ac24']) expect(s.elec.buses[id].powered, id).toBe(true);
+  expect(s.acBusPowered).toBe(true);
+  expect(Object.values(s.fuelSys.pumps).every(p => p.running)).toBe(true);
+  await expect(page.locator('#pb-el-extA-lower')).toHaveClass(/lit/);
+  await expect(page.locator('#pb-fuel-lFwd-upper')).not.toHaveClass(/lit/);   // no FAULT
 });
 
 test('the IDG disconnect needs its guard lifted; external power needs the ground', async ({ page }) => {
