@@ -475,12 +475,6 @@ function _drawOverlayInfo(ctx, W, H, scale) {
   ctx.font = `${11 * scale}px ${FONT_MONO}`;
   ctx.textAlign = 'center';
 
-  /* Paused indicator */
-  if (S.paused) {
-    ctx.fillStyle = 'rgba(255,180,0,0.9)';
-    ctx.font = `bold ${18 * scale}px ${FONT_UI}`;
-    ctx.fillText('PAUSED  [P] to resume', W / 2, H / 2 + 200 * scale);
-  }
 
   /* A/P status */
   ctx.fillStyle  = S.ap ? C.green : C.amber;

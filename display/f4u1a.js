@@ -92,12 +92,6 @@ export function renderF4U1A(canvas) {
 
     drawAnalogClock(ctx, W * 0.06, Hu * 0.28, 44 * sc);   // clock — top-left
 
-    if (S.paused) {
-      ctx.fillStyle = 'rgba(240,200,80,0.92)';
-      ctx.font = `bold ${15 * sc}px ${SANS}`;
-      ctx.textAlign = 'center';
-      ctx.fillText('PAUSE  [P]', W / 2, Hu * 0.95);
-    }
   } else {
     const sc = Math.min(W, H) / 860;
     const cx = W / 2;
@@ -133,13 +127,6 @@ export function renderF4U1A(canvas) {
 
     drawAnalogClock(ctx, W * 0.11, H * 0.14, 48 * sc);   // clock — top-left
 
-    /* Paused */
-    if (S.paused) {
-      ctx.fillStyle = 'rgba(240,200,80,0.92)';
-      ctx.font = `bold ${14 * sc}px ${SANS}`;
-      ctx.textAlign = 'center';
-      ctx.fillText('PAUSE  [P]', cx, cy + rh * 1.68);
-    }
   }
 
   ctx.restore();

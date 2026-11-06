@@ -134,7 +134,7 @@ aircraft first (power, mode, fuel).
 |-----|--------|
 | `L` | Toggle CM ↔ LM panel (after S-IVB separation) |
 
-### Time warp — rockets and every aircraft with an instrument panel
+### Time warp — rockets
 
 | Key | Action |
 |-----|--------|

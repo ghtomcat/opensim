@@ -300,7 +300,7 @@
 
     #ptt-indicator.active { opacity: 1; }
 
-    /* ── Time controls bar ── */
+    /* ── Time controls bar: the frame rate on the glass cockpit ── */
     #time-controls {
       position: fixed; bottom: 88px; right: 16px;   /* just above the 80 px status strip (#panel) */
       z-index: 25;
@@ -315,30 +315,6 @@
     }
     body.panel-dual #time-controls { display: flex; }
     #fps-counter { color: #556677; min-width: 44px; }
-    .warp-sep { color: #1e2d3d; }
-    .warp-btn {
-      background: none; border: none; cursor: pointer;
-      font-family: inherit; font-size: 11px;
-      color: #556677; padding: 0 3px;
-    }
-    .warp-btn:hover { color: #aabbcc; }
-    .warp-btn.active { color: #f9ca24; }
-
-    /* ── Time warp indicator ── */
-    #warp-indicator {
-      position: fixed; bottom: 90px; right: 16px;
-      z-index: 25;
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 12px;
-      color: #f9ca24;
-      background: rgba(3,6,10,0.88);
-      border: 1px solid #f9ca24;
-      padding: 4px 10px;
-      opacity: 0;
-      transition: opacity 0.2s;
-      pointer-events: none;
-    }
-    #warp-indicator.active { opacity: 1; }
 
     /* ── Mission title ── */
     #mission-title {
@@ -361,6 +337,22 @@
       display: none;
     }
     #mission-clock.visible { display: flex; align-items: center; }
+    #sim-flags {
+      position: fixed; top: 175px; left: 20px;   /* top: set from the clock, whose height differs by cockpit */
+      z-index: 186;
+      display: flex; gap: 6px;
+      pointer-events: none;
+    }
+    .sim-flag {
+      font: 700 11px "IBM Plex Mono", monospace;
+      letter-spacing: 0.08em; white-space: nowrap;
+      color: var(--amber);
+      background: rgba(3,6,10,0.88);
+      border: 1px solid rgba(255,183,77,0.55);
+      border-radius: 3px;
+      padding: 3px 7px;
+    }
+    .sim-flag[hidden] { display: none; }
 
     .ck-housing {
       display: flex; flex-direction: column; align-items: center; gap: 6px;
@@ -1703,6 +1695,14 @@
 <div id="mission-title"></div>
 
 <!-- Mission elapsed time — Nixie tube clock -->
+<!-- What the sim is doing that isn't normal, under the clock: it is there on every vehicle.
+     A layer of its own: above the cockpit zones, which cover the clock; below the key map and the picker -->
+<div id="sim-flags">
+  <span class="sim-flag" id="flag-paused" hidden>PAUSED</span>
+  <span class="sim-flag" id="flag-audio" hidden>AUDIO OFF</span>
+  <span class="sim-flag" id="flag-warp" hidden></span>
+</div>
+
 <div id="mission-clock">
   <div class="ck-housing">
     <div class="ck-digits">
@@ -1773,10 +1773,6 @@
     <div class="panel-label">Carb Heat</div>
     <div class="panel-value" id="pv-carb">OFF</div>
   </div>
-  <div class="panel-section">
-    <div class="panel-label">Audio</div>
-    <div class="panel-value green" id="pv-audio">ON</div>
-  </div>
 </div>
 
 <!-- Warning lights -->
@@ -1796,19 +1792,9 @@
 <!-- PTT -->
 <div id="ptt-indicator">● TRANSMITTING</div>
 
-<!-- Time warp -->
-<div id="warp-indicator">⏩ 1×</div>
-
 <!-- Time controls + FPS -->
 <div id="time-controls">
   <span id="fps-counter">-- fps</span>
-  <span class="warp-sep">|</span>
-  <button class="warp-btn active" data-warp="1">1×</button>
-  <button class="warp-btn" data-warp="2">2×</button>
-  <button class="warp-btn" data-warp="5">5×</button>
-  <button class="warp-btn" data-warp="10">10×</button>
-  <button class="warp-btn" data-warp="100">100×</button>
-  <button class="warp-btn" id="warp-next-event" title="Skip to 1 min before next event">⏭</button>
 </div>
 
 <!-- Keybinds -->
@@ -3612,7 +3598,8 @@
     const _noKeys = S.aircraft?.vehicleType === 'rocket' || _isRobotArm;
     /* Test mode (?test=1) skips it: nobody dismisses the overlay, and a paused sim never ticks */
     /* display reset: dismissing the previous mission's key map left it display:none */
-    if (!_noKeys && !_isTestMode) { obEl.style.display = ''; obEl.classList.add('visible'); setState({ paused: true }); }
+    const _keyMapShown = !_noKeys && !_isTestMode;
+    if (_keyMapShown) { obEl.style.display = ''; obEl.classList.add('visible'); setState({ paused: true }); }
     /* Init sound with default engine type from aircraft JSON */
     const engineType = S.aircraft?.sound?.engineType ?? 'geared-turbofan';
     if (engineType !== 'none') initSound(engineType);
@@ -3647,7 +3634,7 @@
       _session.timeout(() => { obEl.style.display = 'none'; }, 500);
       window.removeEventListener('keydown', dismissOnboarding);
       obEl.removeEventListener('click', dismissOnboarding);
-      setState({ paused: false });
+      if (_keyMapShown) setState({ paused: false });   // only the key map paused it: without one (rockets, robots) this first key may be P
       /* AudioContext must start on user gesture. On a ground start the sound waits for the engine
          (airborne, the engine already runs: no startup sequence) */
       if (!_hasLifecycle || S.engineState === 'running') startSound(engineType);
@@ -4052,15 +4039,6 @@
     if (battLow      && !battLowWasActive)   _playWarnTone('amber');
     if (battCrit     && !battCritWasActive)  _playWarnTone('red');
 
-    /* Time warp indicator */
-    const warpEl = document.getElementById('warp-indicator');
-    const warp   = S.warpFactor ?? 1;
-    const warpLabel = S.warpTargetLabel
-      ? ` → ${S.warpTargetLabel}`
-      : (() => { const ev = _getNextEvent(); return ev ? `  ·  ${ev.label}` : ''; })();
-    warpEl.textContent = `⏩ ${warp}×${warpLabel}`;
-    warpEl.classList.toggle('active', warp > 1 && (S.aircraft?.vehicleType === 'rocket' || S.aircraft?.panel));
-
     /* FPS tracking — always */
     _fpsFrames++;
     const _now    = performance.now();
@@ -4073,15 +4051,6 @@
       _fpsLastTime = _now;
       const fpsEl = _fpsEl(); if (fpsEl) fpsEl.textContent = `${_fpsValue} fps`;
       if (ofpsEl) ofpsEl.textContent = `${_fpsValue} fps`;
-    }
-
-    /* Time controls bar — warp buttons (panel only) */
-    if (isPanel) {
-      document.querySelectorAll('.warp-btn[data-warp]').forEach(b => {
-        b.classList.toggle('active', Number(b.dataset.warp) === warp && !S.warpTarget);
-      });
-      document.getElementById('warp-next-event')
-        ?.classList.toggle('active', !!S.warpTarget);
     }
 
     /* Engine: its state, and its reading once there is one. How to start it is in the key map.
@@ -4105,11 +4074,6 @@
                        : (S.enginePower ?? 1) <= 0 ? 'NO POWER' : 'RUNNING';
     if (_engEl.dataset.shown !== _engText) { _engEl.innerHTML = _engText; _engEl.dataset.shown = _engText; }
     _engEl.className = !_engN1s && _engSt === 'running' && _hasRead ? 'panel-value green' : 'panel-value';
-
-    /* Audio: the X switch, nothing else */
-    const _audioEl = document.getElementById('pv-audio');
-    _audioEl.textContent = audioMuted() ? 'OFF' : 'ON';
-    _audioEl.className   = audioMuted() ? 'panel-value' : 'panel-value green';
 
     /* Keybind hint: AP vs manual */
     const isManual = !!S.aircraft?.manualControl;
@@ -4149,6 +4113,17 @@
     if (!S.mission) { el.classList.remove('visible'); return; }
     if (!_ckEls.h1) _ckInit();
     el.classList.add('visible');
+    const _paused = !!S.paused, _muted = audioMuted(), _warp = S.aircraft?.vehicleType === 'rocket' ? (S.warpFactor ?? 1) : 1;   // warp runs on rockets only (core/loop.js)
+    document.getElementById('flag-paused').hidden = !_paused;
+    document.getElementById('flag-audio').hidden  = !_muted;
+    const _warpEl = document.getElementById('flag-warp');
+    _warpEl.hidden = _warp <= 1;
+    if (_warp > 1) {
+      const _to = S.warpTargetLabel ?? _getNextEvent()?.label;
+      const _text = `TIME WARP ${_warp}×${_to ? (S.warpTargetLabel ? ` → ${_to}` : ` · ${_to}`) : ''}`;
+      if (_warpEl.textContent !== _text) _warpEl.textContent = _text;
+    }
+    if (_paused || _muted || _warp > 1) document.getElementById('sim-flags').style.top = `${el.getBoundingClientRect().bottom + 6}px`;
     el.classList.toggle('dragon', !!(S.mission?.dragonSepT));
     el.classList.toggle('velis',  S.aircraft?.panel === 'velis-epsi');
     el.classList.toggle('g1000',  S.aircraft?.panel === 'g1000');
@@ -4409,13 +4384,6 @@
 
   window.downloadBlackbox = downloadBlackbox;
 
-  /* ── Time controls — warp buttons ── */
-  document.querySelectorAll('.warp-btn[data-warp]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      setState({ warpFactor: Number(btn.dataset.warp), warpTarget: null });
-    });
-  });
-
   /* Returns the next upcoming timed event for any aircraft type, or null. */
   function _getNextEvent() {
     const mT    = S.time ?? 0;
@@ -4442,12 +4410,6 @@
     for (const e of (S.mission?.events ?? [])) events.push({ t: e.t, label: e.label });
     return events.filter(e => e.t > mT + 90).sort((a, b) => a.t - b.t)[0] ?? null;
   }
-
-  document.getElementById('warp-next-event')?.addEventListener('click', () => {
-    const ev = _getNextEvent();
-    if (!ev) return;
-    setState({ warpFactor: 1000, warpTarget: ev.t - 60, warpTargetLabel: ev.label });
-  });
 
   /* ── On-screen keyboard ── */
   const _isTouchDevice = navigator.maxTouchPoints > 0;

@@ -97,14 +97,6 @@ export function renderVelisEpsi(canvas) {
   _drawBackupASI(ctx, bkX, cy - Rs * 1.12, Rs);
   _drawBackupAlt(ctx, bkX, cy + Rs * 1.12, Rs);
 
-  /* Paused */
-  if (S.paused) {
-    ctx.fillStyle    = 'rgba(0,200,224,0.92)';
-    ctx.font         = `bold ${13*sc}px ${SANS}`;
-    ctx.textAlign    = 'center';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillText('PAUSE  [P]', W / 2, H - 16*sc);
-  }
 
   ctx.restore();
 }

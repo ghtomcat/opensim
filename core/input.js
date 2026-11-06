@@ -229,9 +229,9 @@ function _onKeyDown(e) {
     return;
   }
 
-  /* Time warp — w steps forward, W steps backward through 1×→2×→5×→10×→100×→next event */
+  /* Time warp, rockets only (core/loop.js) — w steps forward, W steps backward through 1×→2×→5×→10×→100×→next event */
   /* J — jump: warp straight to the next mission event (press again to cancel) */
-  if ((e.key === 'j' || e.key === 'J') && !e.ctrlKey && (S.aircraft?.vehicleType === 'rocket' || S.aircraft?.panel)) {
+  if ((e.key === 'j' || e.key === 'J') && !e.ctrlKey && S.aircraft?.vehicleType === 'rocket') {
     const ev = _nextEvent();
     if (ev) {
       const dist = ev.t - 60 - (S.time ?? 0);
@@ -243,7 +243,7 @@ function _onKeyDown(e) {
     }
     return;
   }
-  if ((e.key === 'w' || e.key === 'W') && (S.aircraft?.vehicleType === 'rocket' || S.aircraft?.panel)) {
+  if ((e.key === 'w' || e.key === 'W') && S.aircraft?.vehicleType === 'rocket') {
     const steps = [1, 2, 5, 10, 100];
     const cur   = S.warpFactor ?? 1;
     const idx   = steps.indexOf(cur);

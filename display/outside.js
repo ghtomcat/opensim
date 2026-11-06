@@ -2450,12 +2450,6 @@ function _drawPauseOverlay(canvas) {
   const W = canvas.width, H = canvas.height;
   ctx.save();
 
-  /* ⏸ top-right */
-  ctx.font      = `bold ${12 * dpr}px "IBM Plex Mono", monospace`;
-  ctx.fillStyle = 'rgba(255,210,60,0.92)';
-  ctx.textAlign = 'right';
-  ctx.fillText('⏸  PAUSED', W - 14 * dpr, 22 * dpr);
-
   /* orbit + hints — bottom-left */
   ctx.textAlign = 'left';
   ctx.font      = `${10 * dpr}px "IBM Plex Mono", monospace`;

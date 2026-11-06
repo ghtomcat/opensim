@@ -1,6 +1,5 @@
 /**
- * The bottom status strip: the Engine cell shows the engine, the Audio cell the X switch —
- * each only its own, and no instructions.
+ * The bottom status strip: the Engine cell shows the engine, and no instructions.
  */
 import { test, expect } from '@playwright/test';
 
@@ -10,18 +9,11 @@ async function load(page, mission) {
   await page.waitForTimeout(100);   // a rendered frame
 }
 const engine = (page) => page.locator('#pv-rpm').textContent();
-const audio  = (page) => page.locator('#pv-audio').textContent();
 
-test('A340 at its stand: all four engines off, audio ON — and X only changes the audio', async ({ page }) => {
+test('A340 at its stand: all four engines off', async ({ page }) => {
   await load(page, 'fimp-takeoff');
   await expect(page.locator('#pl-engine')).toHaveText('N1');
   expect(await engine(page)).toBe('-- -- -- --');
-  expect(await audio(page)).toBe('ON');
-  await page.keyboard.press('x');
-  await expect(page.locator('#pv-audio')).toHaveText('OFF');
-  expect(await engine(page)).toBe('-- -- -- --');
-  await page.keyboard.press('x');
-  await expect(page.locator('#pv-audio')).toHaveText('ON');
 });
 
 test('a twin shows each engine: a failed one is told apart, not hidden by the highest N1', async ({ page }) => {
@@ -54,11 +46,10 @@ for (const width of [1600, 1280]) {
   });
 }
 
-test('Bf 109 on the ground: Motor AUS in its own cell, the audio cell stays audio', async ({ page }) => {
+test('Bf 109 on the ground: Motor AUS in its own cell', async ({ page }) => {
   await load(page, 'hahnweide-1944');
   await expect(page.locator('#pl-engine')).toHaveText('Motor');
   expect(await engine(page)).toBe('AUS');
-  expect(await audio(page)).toBe('ON');
   await expect(page.locator('#ps-rpm')).toBeVisible();
 });
 

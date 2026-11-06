@@ -143,6 +143,19 @@ Ideas:
 
 **Done when.** The C172 (or DR400) swings left on a full-power takeoff roll unless right rudder holds the centreline, needs right rudder in a low-speed climb, and weathervanes into a crosswind on the ground.
 
+### Time warp works only on rockets — not implemented yet
+*Noted 2026-11-06 · `tickSim()` in `core/loop.js` (`warp = isRocket ? … : 1`), `core/input.js` (`W`, `J`)*
+
+**Today.** Aircraft fly in real time. `tickSim()` applies `warpFactor` to rockets only (measured: 10× gives 10 sim-seconds per real second on Demo-2, 1 on the A350 and the Bf 109). The glass airliners had warp buttons, and `W` / `J` worked on every aircraft with a panel, so 10× could be selected and shown while nothing sped up; they were removed on 2026-11-06, and `W`, `J` and the `TIME WARP` flag are now rockets only.
+
+**Why it matters.** A long-haul flight such as `singapore-london` is mostly hours of cruise.
+
+**Why it isn't a switch.** A bigger `dt` isn't enough. The flight model and the autopilot are tuned at frame-sized steps, and some terms still apply per frame (*High-alpha stall and turbulence are per frame*). Rockets needed fixed sub-steps for the same reason (`PHYS_DT`), and their ascent still fails at 1 s steps (*Ascent fails with 1-second physics steps*). What else runs on sim time has to follow: engines, LNAV sequencing, VNAV, the ATC script, failures. Systems (fuel, electrical …) tick with the unwarped `dt` today, so the fuel wouldn't burn with it.
+
+**Fix — to decide.** Sub-step the aircraft physics at a fixed small step, which limits the factor to what the machine can compute per frame; or a cruise-only warp, stable flight on the autopilot, that drops to 1× before the next waypoint constraint, a mode change, an event or a failure; or both. Bring back the controls with it.
+
+**Done when.** `singapore-london` cruises at a selected warp and arrives at the same waypoints, on the same flight path and with the same fuel as at 1× within a stated tolerance; warp drops out by itself when the flight needs the pilot; the flag and the controls are available on aircraft only where warp works.
+
 ### Runway condition: every runway is dry — not implemented yet
 *Noted 2026-10-23 · `performance.muRoll` / `muBrake` / `muSide` in the aircraft data, `core/physics.js` ground roll, `core/yaw.js` (the nosewheel's grip); the planned `landSurfaces`*
 
@@ -654,11 +667,6 @@ Airliners are built from the aircraft JSON (`_acGeoFromJson()`, data-driven from
 
 **Later.** The Boeing EICAS layout — the alert messages in a column at the upper right beside the engine gauges, warnings / cautions / advisories — with the per-manufacturer look (the 777 shows the Airbus glass for now — the accepted compromise). The older `true` writers (`core/fuel.js`: `OIL_PRESS`, `LOW_FUEL`, `FUEL_SHUTOFF`) onto levels; message texts separate from keys.
 
-### The pause hint depends on the panel
-*Found 2026-10-15 · `display/bf109.js`, `display/f4u1a.js`, `display/velis_epsi.js`, `display/pfd.js`, `display/outside.js`*
-
-Each cockpit panel draws its own pause hint when `S.paused`: "PAUSE [P]" in `bf109.js` and `f4u1a.js` (twice each, one per layout) and `velis_epsi.js`, "PAUSED [P] to resume" in the fallback `pfd.js`, "⏸ PAUSED" plus the orbit-camera hints in `outside.js`. The glass airliners (`panel_renderer.js`: A350, A340, 737, 777, E190), the G1000/C172 and DR400 cockpits and the rockets draw nothing — a paused A350 just looks frozen. Not a design choice: the hand-drawn panels each got a copy (same pattern as *Gauge helpers copied between the hand-drawn panels*). **Fix:** one pause indicator in the shell — an element in `index.html` shown while `S.paused`, the same on every panel and view; remove the copies from the panels. `outside.js` keeps only its orbit-camera hints (drag · zoom · 0 reset), which are specific to that view. Planned with step 5 of *Five screens between mission select and flying* (the non-blocking key map). **Done when:** pausing shows the same indicator on every aircraft and view, and no `display/` module draws a pause text.
-
 ### The cloud layer is never drawn
 *Found 2026-10-15 · `display/terrain.js` ("Procedural cloud layer from METAR")*
 
@@ -704,9 +712,9 @@ The Velis's `sound.engineType` is `"electric"`, but `ENGINES` has no `electric` 
 
 **Cause — not yet known.** The tests run the speech logic against a stand-in engine (`tests/audio-output.test.mjs`), since speech doesn't work in headless Chromium; the real browser behaves differently. To check there: which path the line took (speech, or a recording), and whether `speechSynthesis.cancel()` stops it.
 
-**Not tested yet — the orbital missions.** They mix all three sound paths: `inspiration5` (133 recordings, ambient audio), `apollo8` (12 ambient, 18 spoken), `apollo13`, `crew-demo2` (a webcast clip, 32 spoken), `crs1` (radio loops). Also check `X` during time warp. They hide the status strip, so **nothing on screen shows that the audio is off** — the mute carries over between missions, so a mission can start silent with no sign why. A rocket mission needs its own indicator.
+**Not tested yet — the orbital missions.** They mix all three sound paths: `inspiration5` (133 recordings, ambient audio), `apollo8` (12 ambient, 18 spoken), `apollo13`, `crew-demo2` (a webcast clip, 32 spoken), `crs1` (radio loops). Also check `X` during time warp. The mute carries over between missions; `AUDIO OFF` under the mission clock shows it on every vehicle.
 
-**Done when.** `X` silences a spoken line at once, in a real browser; the script's later lines still fire; every orbital mission above goes silent and comes back correctly; and the audio state is visible on every vehicle.
+**Done when.** `X` silences a spoken line at once, in a real browser; the script's later lines still fire; and every orbital mission above goes silent and comes back correctly.
 
 ### A missing audio clip can stop the `after` chain
 *Found 2026-10-12 · `atcClearances` dispatch in `core/crew.js` (the `clr.audio` branch, `_safeSpeak()`)*

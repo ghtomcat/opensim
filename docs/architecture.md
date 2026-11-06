@@ -1229,6 +1229,7 @@ exceptions are listed in 13.6.
 | Moving map | Leaflet `<div>` + overlay canvas | `display/map.js` |
 | Cislunar / earthrise views | `#cislunar-canvas`, `#earthrise-canvas` | `display/cislunar.js`, `display/earthrise.js` |
 | Cockpit zones, kneeboard, COM, FMA | DOM overlays | `overhead.js`, `pedestal.js`, `*console.js`, `kneeboard.js`, `com.js`, `fma.js` |
+| Flags (`PAUSED`, `AUDIO OFF`, `TIME WARP`), under the mission clock on every vehicle and view; shown only while true | `#sim-flags`, above the cockpit zones | `renderMissionClock()` in `index.html` |
 | Mission picker, briefing charts, debrief | DOM + canvases in `index.html` | `index.html` |
 
 ### 13.2 Rendering technology
@@ -1400,7 +1401,7 @@ Beyond wiring, the module script holds application features (see `issues.md` →
 | Panel text updates, mission clock, METAR display | `updatePanel` (~175 lines), `renderMissionClock`, `updateMetar` |
 | Approach tracking and **scoring**, debrief, crash overlay | `_trackApproach`, `_computeApproachScore`, `_computeEmergScore`, `showDebrief`, `checkCrash` |
 | Mission-specific UI | Wolfskopf diary debrief |
-| Time-warp buttons, on-screen keyboard | `_getNextEvent`, `_initOsk` |
+| The next event (the time-warp flag), on-screen keyboard | `_getNextEvent`, `_initOsk` |
 | FCU and glass-panel interaction, page cycling | `_fcuGeometry`, `_currentSpec`, Tab handler |
 | Test API | `window.simStep`, `simGetState`, `simSetState`, `simLoad` |
 
