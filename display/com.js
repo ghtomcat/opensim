@@ -10,7 +10,7 @@ import { bbEvent } from '../core/blackbox.js';
 import { RUNWAYS } from '../data/runways-data.js';
 import { gatesFor } from './stands-util.js';
 import { clearTaxiIn } from '../core/taxi.js';
-import { audioContext } from '../core/audio.js';
+import { audioContext, audioOutput, audioElement } from '../core/audio.js';
 
 /* Nearest runway whose centreline is within `maxNm` (perpendicular distance, clamped to
    the thresholds) — on it, lined up, or holding short. Drives the takeoff and the
@@ -460,7 +460,7 @@ function _onTune(freq) {
   /* Play audio file if defined */
   if (info.audio) {
     _tuneAudio?.pause();
-    const a = _tuneAudio = new Audio(info.audio);
+    const a = _tuneAudio = audioElement(info.audio);
     a.volume = 0.9;
     a.play().catch(() => {});
   }
@@ -583,7 +583,7 @@ function _bindLoopEvents(container) {
       _stopLoop();
       _activeLoop = id;
       if (lp.audio) {
-        const a   = new Audio(lp.audio);
+        const a   = audioElement(lp.audio);
         a.loop    = true;
         a.volume  = 0.75;
         a.play().catch(() => {});
@@ -656,7 +656,7 @@ function _squelch() {
   for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.15;
   const src = ctx.createBufferSource();
   src.buffer = buf;
-  src.connect(ctx.destination);
+  src.connect(audioOutput());
   src.start();
 }
 

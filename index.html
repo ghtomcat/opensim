@@ -180,6 +180,7 @@
       border-right: 1px solid rgba(255,255,255,0.08);
     }
     .panel-section:last-child { border-right: none; }
+    #ps-role, #ps-rpm { flex: 0 0 auto; white-space: nowrap; }   /* as wide as their text: the role is short, four engines' N1 aren't */
 
     .panel-label {
       font-size: 9px;
@@ -301,7 +302,7 @@
 
     /* ── Time controls bar ── */
     #time-controls {
-      position: fixed; bottom: 16px; right: 16px;
+      position: fixed; bottom: 88px; right: 16px;   /* just above the 80 px status strip (#panel) */
       z-index: 25;
       display: none;
       align-items: center; gap: 6px;
@@ -1753,12 +1754,12 @@
     <div class="panel-label">Display</div>
     <div class="panel-value cyan" id="pv-mode">PFD</div>
   </div>
-  <div class="panel-section">
+  <div class="panel-section" id="ps-role">
     <div class="panel-label">Role</div>
     <div class="panel-value cyan" id="pv-role">PF</div>
   </div>
   <div class="panel-section" id="ps-rpm">
-    <div class="panel-label">Engine</div>
+    <div class="panel-label" id="pl-engine">Engine</div>
     <div class="panel-value green" id="pv-rpm">---</div>
   </div>
   <div class="panel-section" id="ps-fuel" style="display:none">
@@ -1778,7 +1779,7 @@
     <div class="panel-value" id="pv-carb">OFF</div>
   </div>
   <div class="panel-section">
-    <div class="panel-label" id="pl-audio">Audio</div>
+    <div class="panel-label">Audio</div>
     <div class="panel-value green" id="pv-audio">ON</div>
   </div>
 </div>
@@ -1923,7 +1924,7 @@
   import { startLoop, suspendLoop, tickSim } from './core/loop.js';
   import { seedRandom }   from './core/random.js';
   import { newSession }   from './app/session.js';
-  import { briefingLayout, setupChoices, ownWeatherLabel, WEATHER_PRESETS, failurePresets, buildSetup } from './app/briefing.js';
+  import { briefingLayout, setupChoices, ownWeatherLabel, WEATHER_PRESETS, failurePresets, buildSetup, keyList } from './app/briefing.js';
   import { onMissionReset } from './core/lifecycle.js';
   import { resetSmooth }  from './display/smooth.js';
   import { hilInit }      from './core/hil.js';
@@ -1952,7 +1953,7 @@
   import { initCenterConsole, toggleCenter, renderCenterConsole } from './display/centerconsole.js';
   import { initSound, startSound, stopSound, switchEngine, tickSound, getCurrentRpm, silenceAll, apDisconnectChime } from './core/sound.js';
   import { startEngine, stopEngine, adoptEngineFields } from './core/engine.js';
-  import { audioContext } from './core/audio.js';
+  import { audioContext, audioOutput, audioMuted, setAudioMuted } from './core/audio.js';
   import { initOutside, tickOutside, outsideInvalidate, setOutsideCamMode } from './display/outside.js?v=6';
   import { initKneeboard, toggleKneeboard, closeKneeboard, tickKneeboard } from './display/kneeboard.js';
   import { initMap, renderMap, toggleMap, showMap, hideMap, initVelisMap, hideVelisMap, initG1000Map, hideG1000Map } from './display/map.js';
@@ -3240,9 +3241,7 @@
     { key: 'Tab',    desc: 'Display: PFD ↔ ECAM' },
     { key: 'P',      desc: 'Pause' },
     { key: 'X',      desc: 'Audio on/off' },
-    { key: 'E / Q',  desc: 'Anlasser / Kraftstoffhahn (Bf 109)' },
-    { key: 'Q',      desc: 'Fuel selector: BOTH → LEFT → RIGHT → OFF' },
-    { key: 'R',      desc: 'Role: PF → PM → INSTRUCTOR' },
+    { key: 'R',     desc: 'Role: PF → PM → INSTRUCTOR' },
     { key: 'Space',  desc: 'PTT — Push to Talk' },
   ];
 
@@ -3266,7 +3265,7 @@
     const crew    = [S.pilotId, S.role].find(id => choices.crew.some(c => c.id === id)) ?? choices.crew[0]?.id ?? null;
     Object.assign(_bp, { m, md, acd, choices,
       picks: { weather: 'LIVE', failure: 'CLEAN', when: 'random', fixedT: 120, engine: 'random', crew },
-      keys:  acd.onboarding ?? (noKeys ? [] : _DEFAULT_OB) });
+      keys:  noKeys ? (acd.onboarding ?? []) : keyList(acd, _DEFAULT_OB) });
 
     const el   = document.getElementById('briefing');
     const lead = document.getElementById('bp-lead');
@@ -3592,10 +3591,10 @@
     /* Populate mission title */
     document.getElementById('mission-title').textContent = S.mission?.title ?? '';
 
-    /* Populate onboarding key grid — from aircraft JSON or the default set (_DEFAULT_OB) */
+    /* Populate onboarding key grid — the aircraft's list or the default set, with how it starts */
     const obGrid = document.getElementById('ob-grid');
     obGrid.innerHTML = '';
-    (S.aircraft?.onboarding ?? _DEFAULT_OB).forEach(({ key, desc }) => {
+    keyList(S.aircraft ?? {}, _DEFAULT_OB).forEach(({ key, desc }) => {
       const k = document.createElement('span'); k.className = 'ob-key'; k.textContent = key;
       const d = document.createElement('span'); d.className = 'ob-desc'; d.textContent = desc;
       obGrid.appendChild(k); obGrid.appendChild(d);
@@ -3640,16 +3639,14 @@
     initVelisMap();
     initG1000Map();
 
-    let _audioOn  = true;
     let _viewMode       = 0;   /* 0=PFD · 1=Combined · 2=Outside */
     let _outsideCamMode = 0;   /* 0=cockpit forward · 1=chase cam */
     let _boosterCamAuto    = false;   // true while auto-switched to booster cam
     let _camBeforeBooster  = 1;       // cam mode to restore after booster phases
     let _niflheimActive = false;
     let _viewBeforeNiflheim = 0;
-    const audioEl = document.getElementById('pv-audio');
 
-    const _isV12       = engineType === 'v12-supercharged';
+    const _isV12      = engineType === 'v12-supercharged';
     const _isRadial    = engineType === 'radial-2000hp';
     const _isLycoming  = engineType === 'lycoming-o360';
     const _isElectric  = engineType === 'electric';
@@ -3669,22 +3666,9 @@
       window.removeEventListener('keydown', dismissOnboarding);
       obEl.removeEventListener('click', dismissOnboarding);
       setState({ paused: false });
-      if (_hasLifecycle) {
-        if (S.engineState === 'running') {
-          /* Airborne start — engine already running, skip startup sequence */
-          startSound(engineType);
-        } else {
-          /* Ground start — engine off, user presses E */
-          audioEl.textContent = _isV12      ? 'OFF · E=ANLASSER · Q=AUS'
-                              : _isElectric  ? 'OFF · MASTER → BATT EN → PWR EN'
-                              : _isTurbofan  ? 'OFF · START ON THE PEDESTAL (D) · Q=FUEL CUTOFF'
-                              : S.aircraft?.engine?.starter === 'electric' ? 'OFF · BAT ON · E=START'
-                              :                'OFF · E=START · Q=CUT OFF';
-          audioEl.className   = 'panel-value';
-        }
-      } else {
-        startSound(engineType);   /* AudioContext must start on user gesture */
-      }
+      /* AudioContext must start on user gesture. On a ground start the sound waits for the engine
+         (airborne, the engine already runs: no startup sequence) */
+      if (!_hasLifecycle || S.engineState === 'running') startSound(engineType);
     };
     _session.on(window, 'keydown', dismissOnboarding);
     _session.on(obEl, 'click', dismissOnboarding);
@@ -3737,13 +3721,7 @@
         bbEvent({ type: 'carb_heat', carbHeat: next });
       }
 
-      if (e.key === 'x' || e.key === 'X') {                 // audio mute (moved off M — M is free for the centre cockpit view)
-        if (!_hasLifecycle) {
-          _audioOn = !_audioOn;
-          if (_audioOn) { startSound(engineType); audioEl.textContent = 'ON';  audioEl.className = 'panel-value green'; }
-          else          { stopSound();            audioEl.textContent = 'OFF'; audioEl.className = 'panel-value'; }
-        }
-      }
+      if (e.key === 'x' || e.key === 'X') setAudioMuted(!audioMuted());   // audio on/off: everything the sim plays (moved off M — M is free for the centre cockpit view)
 
       if (e.key === 'v' || e.key === 'V') {
         const nModes = (S.aircraft?.vehicleType === 'rocket' && S.rocketOrbit) ? 5 : 3;
@@ -4019,9 +3997,6 @@
     document.getElementById('pv-thrust').textContent = _active;
     document.getElementById('pv-mode').textContent = S.mode;
     document.getElementById('pv-role').textContent = S.pilotCallsign ?? S.role;
-    /* RPM — only meaningful for piston engines */
-    const rpm = getCurrentRpm();
-    document.getElementById('pv-rpm').textContent = rpm ?? '---';
     const pttNow = isPTTActive();
     pttEl.classList.toggle('active', pttNow);
     /* Log first PTT press after a failure */
@@ -4132,33 +4107,32 @@
         ?.classList.toggle('active', !!S.warpTarget);
     }
 
-    /* Engine state display — lifecycle engines (v12 + radial) */
-    const _et        = S.aircraft?.sound?.engineType;
-    const isV12      = _et === 'v12-supercharged';
-    const isRadial   = _et === 'radial-2000hp';
-    const hasLifecycle = isV12 || isRadial;
-    document.getElementById('pl-audio').textContent = hasLifecycle ? 'Motor' : 'Audio';
-    document.getElementById('ps-rpm').style.display = hasLifecycle ? 'none' : '';
-    if (hasLifecycle) {
-      const st     = S.engineState ?? 'off';
-      const rpmNow = getCurrentRpm();
-      const hasRpm = rpmNow && !rpmNow.startsWith('---');
-      const labels = isV12 ? {
-        off:      'OFF · E=AN',
-        starting: hasRpm ? 'ANLASSER · ' + rpmNow : 'ANLASSER…',
-        running:  hasRpm ? rpmNow : 'RUNNING',
-        shutdown: 'MOTOR AUS…',
-      } : {
-        off:      'OFF · E=START',
-        starting: hasRpm ? 'STARTING · ' + rpmNow : 'STARTING…',
-        running:  hasRpm ? rpmNow : 'RUNNING',
-        shutdown: 'SHUTTING DOWN…',
-      };
-      const colors = { off: 'panel-value', starting: 'panel-value', running: 'panel-value green', shutdown: 'panel-value' };
-      const audioEl = document.getElementById('pv-audio');
-      audioEl.textContent = labels[st] ?? st.toUpperCase();
-      audioEl.className   = colors[st]  ?? 'panel-value';
-    }
+    /* Engine: its state, and its reading once there is one. How to start it is in the key map.
+       A multi-engine jet: every engine's N1, left to right — off --, failed or not yet running amber. */
+    const _engSt   = S.engineState ?? 'off';
+    const _isV12   = S.aircraft?.sound?.engineType === 'v12-supercharged';
+    const _engRead = S.aircraft?.engine?.type === 'turbofan' ? `N1 ${Math.round(S.n1 ?? 0)}%` : getCurrentRpm();
+    const _hasRead = !!_engRead && !_engRead.startsWith('---');
+    const _engEl   = document.getElementById('pv-rpm');
+    const _engs    = S.engines ?? [];
+    const _engN1s  = S.aircraft?.engine?.type === 'turbofan' && _engs.length > 1;
+    document.getElementById('pl-engine').textContent = _engN1s ? 'N1' : _isV12 ? 'Motor' : 'Engine';
+    const _engText = _engN1s ? _engs.map(e => {
+                         const ok = e.state === 'running' && (e.power ?? 1) >= 1;
+                         return `<span class="panel-value${ok ? ' green' : ''}">${e.state === 'off' ? '--' : Math.round(e.n1 ?? 0)}</span>`;
+                       }).join(' ')
+                       : _engSt === 'off'      ? (_isV12 ? 'AUS' : 'OFF')
+                       : _engSt === 'starting' ? (_hasRead ? _engRead : (_isV12 ? 'ANLASSER…' : 'STARTING…'))
+                       : _engSt === 'shutdown' ? (_isV12 ? 'MOTOR AUS…' : 'STOPPING…')
+                       : _hasRead              ? _engRead
+                       : (S.enginePower ?? 1) <= 0 ? 'NO POWER' : 'RUNNING';
+    if (_engEl.dataset.shown !== _engText) { _engEl.innerHTML = _engText; _engEl.dataset.shown = _engText; }
+    _engEl.className = !_engN1s && _engSt === 'running' && _hasRead ? 'panel-value green' : 'panel-value';
+
+    /* Audio: the X switch, nothing else */
+    const _audioEl = document.getElementById('pv-audio');
+    _audioEl.textContent = audioMuted() ? 'OFF' : 'ON';
+    _audioEl.className   = audioMuted() ? 'panel-value' : 'panel-value green';
 
     /* Keybind hint: AP vs manual */
     const isManual = !!S.aircraft?.manualControl;
@@ -4257,7 +4231,7 @@
       const ctx  = audioContext();
       const osc  = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
+      osc.connect(gain); gain.connect(audioOutput());
       osc.frequency.value = type === 'red' ? 880 : 660;
       osc.type = 'sine';
       gain.gain.setValueAtTime(0.18, ctx.currentTime);

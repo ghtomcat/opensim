@@ -7,7 +7,7 @@
 import { S, setState } from './state.js';
 import { playThroughChain, createRadioChain } from './radio.js';
 import { getAudioContext, getEngineBleedNode } from './sound.js';
-import { audioContext } from './audio.js';
+import { audioContext, audioOutput, audioElement, speak, cancelSpeech } from './audio.js';
 import { TRIGGER, ROCKET_EVENT, assertCovers, warnUnknown } from './vocab.js';
 import { elevM as terrainElevM } from './elevation.js';   // EGPWS look-ahead (3b) — same tile cache as the ND and the outside view
 
@@ -175,7 +175,7 @@ export function resetCrew() {
   for (const a of _ambientAudio) { try { if (typeof a.stop === 'function') a.stop(); else { a.pause(); a.src = ''; } } catch {} }
   _ambientAudio.length = 0;
   /* Kill any lingering TTS queue and radio atmosphere from previous mission */
-  try { if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel(); } catch {}
+  try { cancelSpeech(); } catch {}
   _stopRadioAtmosphere();
 
   _atcFired.clear();
@@ -395,7 +395,7 @@ function _whoopWhoop() {
   const whoop = 0.30, gap = 0.06;
   const out = ctx.createGain();
   out.gain.value = 0.7;
-  out.connect(ctx.destination);
+  out.connect(audioOutput());
   for (let i = 0; i < 2; i++) {
     const t = t0 + i * (whoop + gap);
     const osc = ctx.createOscillator();
@@ -486,7 +486,7 @@ async function _playGPWS(speech, red = false) {
   lp.connect(comp);
   comp.connect(shaper);
   shaper.connect(gain);
-  gain.connect(ctx.destination);
+  gain.connect(audioOutput());
   src.start();
 }
 
@@ -553,7 +553,7 @@ function _pttClick() {
   src.buffer = buf;
   hpf.type   = 'highpass'; hpf.frequency.value = 700;
   gain.gain.value = 0.28;
-  src.connect(hpf); hpf.connect(gain); gain.connect(ctx.destination);
+  src.connect(hpf); hpf.connect(gain); gain.connect(audioOutput());
   src.start();
 }
 
@@ -567,7 +567,7 @@ async function _startRadioAtmosphere(profileName) {
     const silence = ctx.createGain();
     silence.gain.value = 0;   // no voice source — only noise/crackle generators run
     silence.connect(chain.input);
-    chain.output.connect(ctx.destination);
+    chain.output.connect(audioOutput());
     _radioAtmosphere = chain;
   } catch (e) {
     console.warn('[crew] radio atmosphere:', e.message);
@@ -680,7 +680,7 @@ function _checkATC(prev, curr, ms) {
           const gain = ctx.createGain();
           gain.gain.value = vol;
           src.connect(gain);
-          gain.connect(ctx.destination);
+          gain.connect(audioOutput());
 
           const handle = { stop() { try { src.stop(); } catch {} try { gain.disconnect(); } catch {} } };
           _ambientAudio.push(handle);
@@ -1072,11 +1072,11 @@ function _makeUtt(text, voice, { rate = 1, pitch = 1, volume = 0.9 } = {}) {
 function _safeSpeak(utt) {
   if (typeof speechSynthesis === 'undefined') return;
   console.log(`[crew] speak: "${utt.text.slice(0, 60)}" pending=${speechSynthesis.pending} speaking=${speechSynthesis.speaking}`);
-  speechSynthesis.speak(utt);
+  speak(utt);
 }
 
 function _playFile(src, onended) {
-  const a = new Audio(src);
+  const a = audioElement(src);
   a.volume = 0.9;
   a.onended = onended ?? null;
   a.play().catch(() => { if (onended) onended(); });
@@ -1112,7 +1112,7 @@ export async function playRadio(src, { profile, onEnded } = {}) {
 
     await playThroughChain(ctx, src, {
       profileName,
-      destination:  ctx.destination,
+      destination:  audioOutput(),
       envBleedNode,
       bleedLevel:   bleedCfg?.bleedLevel ?? 0.08,
       onEnded,

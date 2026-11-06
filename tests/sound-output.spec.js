@@ -44,3 +44,40 @@ test('C172 cold start: the start-up and the running engine are audible', async (
   await page.waitForTimeout(1500);                                    // worklet hand-off
   expect(await level(page)).toBeGreaterThan(0.01);
 });
+
+test('X silences a running engine and brings it back, also on an aircraft with a start sequence', async ({ page }) => {
+  await tapDestination(page);
+  await page.goto('/?mission=lszf-pattern&test=1');
+  await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+  await page.evaluate(() => window.simSetState({ masterBat: true }));
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.simStep(180, 1 / 60));
+  await page.waitForTimeout(1500);
+  expect(await level(page)).toBeGreaterThan(0.01);
+  await page.keyboard.press('x');
+  await page.waitForTimeout(300);                                     // the analyser's window empties
+  expect(await level(page)).toBeLessThan(0.001);
+  expect((await page.evaluate(() => window.simGetState())).engineState).toBe('running');
+  await page.keyboard.press('x');
+  await page.waitForTimeout(300);
+  expect(await level(page)).toBeGreaterThan(0.01);
+});
+
+test('X reaches everything: any Web Audio voice, and clips playing or started later', async ({ page }) => {
+  await tapDestination(page);
+  await page.goto('/?mission=lszf-pattern&test=1');
+  await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+  await page.keyboard.press('x');
+  await page.evaluate(async () => {
+    const { audioContext, audioOutput, audioElement } = await import('/core/audio.js');
+    const ctx = audioContext(); await ctx.resume();
+    const o = ctx.createOscillator(); o.connect(audioOutput()); o.start();   // a voice that isn't the engine
+    window.__clip = audioElement('assets/gpws/pull_up.mp3');
+  });
+  await page.waitForTimeout(300);
+  expect(await level(page)).toBeLessThan(0.001);
+  expect(await page.evaluate(() => window.__clip.muted)).toBe(true);
+  await page.keyboard.press('x');
+  await page.waitForTimeout(300);
+  expect(await level(page)).toBeGreaterThan(0.01);
+});

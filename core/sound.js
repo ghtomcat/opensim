@@ -6,7 +6,7 @@
 
 import { S } from './state.js';
 import { ENGINE, assertCovers, warnUnknown } from './vocab.js';
-import { audioContext, loadWorklet } from './audio.js';
+import { audioContext, audioOutput, loadWorklet } from './audio.js';
 
 /* ── Engine type presets ── */
 const ENGINES = {
@@ -686,7 +686,7 @@ function _acquire() {
   if (!_ctx) {
     _ctx = audioContext();
     _out = _ctx.createGain();
-    _out.connect(_ctx.destination);   // the only sound.js connection to the speakers
+    _out.connect(audioOutput());   // the only sound.js connection to the speakers
   }
   return _ctx;
 }

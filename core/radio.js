@@ -5,7 +5,7 @@
    Usage:
      const chain = await createRadioChain(audioCtx, 'vhf-aviation');
      sourceNode.connect(chain.input);
-     chain.output.connect(audioCtx.destination);
+     chain.output.connect(audioOutput());
      chain.squelchTail();   // call when transmission ends
      chain.destroy();       // clean up when done
 
@@ -13,6 +13,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { COMM_PROFILE, assertCovers, warnUnknown } from './vocab.js';
+import { audioOutput } from './audio.js';
 
 /* ── Comm profile presets ── */
 const PROFILES = {
@@ -401,7 +402,7 @@ export async function createRadioChain(ctx, profileName = 'vhf-aviation') {
    ─────────────────────────────────────────────────────────────── */
 export async function playThroughChain(ctx, url, {
   profileName  = 'vhf-aviation',
-  destination  = ctx.destination,
+  destination  = audioOutput(),
   envBleedNode = null,
   bleedLevel   = 0.08,
   onEnded      = null,

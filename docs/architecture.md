@@ -1101,6 +1101,14 @@ Procedural synthesis. Nothing is a looped recording except the start-up sequence
 `tickSound()` runs in the renderer list (§6.3) and maps RPM/N1, throttle and state
 to the synthesis parameters.
 
+**One audio switch** (`core/audio.js`, the `X` key). Sound takes three paths, and all three go through
+this module: Web Audio connects to `audioOutput()` (never to `ctx.destination`), clips come from
+`audioElement()`, speech goes through `speak()`. `setAudioMuted()` silences them all, and muted sounds
+keep running: a line's end still fires, so what the mission script chains on it follows on time. A
+running utterance's volume can't change, so the switch replaces the spoken and waiting lines with the
+same lines at the new volume; the current line starts over. `tests/audio-output.test.mjs` keeps every
+output on these paths.
+
 **One AudioContext for the session** (`core/audio.js`). `audioContext()` creates it on
 first use and it is never closed; `loadWorklet(url)` adds each AudioWorklet module once.
 Engine, APU, fuel pump, radio chain, GPWS, COM squelch and the shell's warning tones all

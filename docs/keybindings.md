@@ -6,7 +6,7 @@
 |-----|--------|
 | `Escape` | Back to mission selector |
 | `P` | Pause / resume |
-| `X` | Audio on / off (aircraft without an engine start lifecycle — on cold-start aircraft the sound follows the engine) |
+| `X` | Audio on / off — everything the sim plays, on every aircraft |
 | `V` | Cycle view: instruments → combined → outside (rockets in orbit: 5 views) |
 | `C` | Cycle outside camera (see [Cameras](#cameras)) |
 | `Tab` | Cycle display mode (PFD → ND → ECAM) |

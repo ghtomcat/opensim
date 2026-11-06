@@ -697,6 +697,17 @@ The Velis's `sound.engineType` is `"electric"`, but `ENGINES` has no `electric` 
 
 **Done when.** Every `commProfile` value in missions/aircraft is a key of `PROFILES`; unknown names fail validation.
 
+### The audio switch (`X`): the line being spoken isn't cut off, and it's untested on the orbital missions
+*Found 2026-11-06 (Markus, in the browser) · `setAudioMuted()` / `_respeak()` in `core/audio.js`*
+
+**Symptom.** `X` during an ATC exchange lets the current line finish, then it goes quiet. It should go quiet at once: `_respeak()` cancels the spoken and waiting lines and speaks them again at volume 0. The later lines do stay silent, and ATC comes correctly once the sound is back on. `X` during an engine start works.
+
+**Cause — not yet known.** The tests run the speech logic against a stand-in engine (`tests/audio-output.test.mjs`), since speech doesn't work in headless Chromium; the real browser behaves differently. To check there: which path the line took (speech, or a recording), and whether `speechSynthesis.cancel()` stops it.
+
+**Not tested yet — the orbital missions.** They mix all three sound paths: `inspiration5` (133 recordings, ambient audio), `apollo8` (12 ambient, 18 spoken), `apollo13`, `crew-demo2` (a webcast clip, 32 spoken), `crs1` (radio loops). Also check `X` during time warp. They hide the status strip, so **nothing on screen shows that the audio is off** — the mute carries over between missions, so a mission can start silent with no sign why. A rocket mission needs its own indicator.
+
+**Done when.** `X` silences a spoken line at once, in a real browser; the script's later lines still fire; every orbital mission above goes silent and comes back correctly; and the audio state is visible on every vehicle.
+
 ### A missing audio clip can stop the `after` chain
 *Found 2026-10-12 · `atcClearances` dispatch in `core/crew.js` (the `clr.audio` branch, `_safeSpeak()`)*
 
