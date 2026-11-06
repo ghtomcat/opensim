@@ -177,7 +177,10 @@ picker click / ?mission=<id>
             8. runMissionResets()                    (core/lifecycle.js)
                  each module with per-mission state registered its reset once
                  (onMissionReset): failures, fuel, battery, electrical,
-                 hydraulics; the shell registers display smoothing
+                 hydraulics, fuel system, taxi, flight plan; the shell registers
+                 display smoothing
+            9. initialState.elec: the electrical sources switched on at the start,
+                 then the electrical, hydraulic and fuel systems settle once (dt 0)
 ```
 
 After loading, nothing copies mission data any further: modules read `S.mission.*`
@@ -196,7 +199,7 @@ Grouped by what each field controls. "Consumer" is the module that reads it at r
 | **Identity** | `id`, `title`, `description`, `author` | picker / HUD (`index.html`) |
 | **Vehicle** | `aircraft` — id (`"a350"`) or path (`"aircraft/a350.json"`) | `core/mission.js` |
 | **Place** | `departure {icao, name, runway, elevation}`, `arrival {icao, name, runway, elevation, ils {freq, course}, dock, surface, rwy*}` | start resolution, route building (`core/flightplan.js` → `core/route.js`), COM/ATC (`display/com.js`), terrain & airport scenery, arrival-gate assignment (`dock`) |
-| **Start** | `phase` (`ground`/`cruise`/`approach`), `start {runway, at}` or `start {stand}`, `initialState {lat, lon, alt, spd, hdg, pitch, roll, gear?, ap?, athr?, …Managed?, autobrake?, speedBrake?}`, `transitionAlt` | `core/mission.js`, `core/mission-start.js`; `phase` also feeds ATC check-ins |
+| **Start** | `phase` (`ground`/`cruise`/`approach`), `start {runway, at}` or `start {stand}`, `initialState {lat, lon, alt, spd, hdg, pitch, roll, gear?, ap?, athr?, …Managed?, autobrake?, speedBrake?, elec?}`, `transitionAlt` | `core/mission.js`, `core/mission-start.js`; `phase` also feeds ATC check-ins |
 | **Environment** | `weather {source: live\|manual, icao, manual, fallback}`, `timeOfDay`, `water` | `core/mission.js` (METAR), `display/terrain.js`, `display/outside.js`, `display/clock.js`, `display/map.js` |
 | **Radio & voice** | `com {title, active, standby, freqs, loops, xpdrLabel}`, `commProfile`, `characters {<speaker>: {commProfile}}`, `atcClearances [...]`, `approachBrief [...]` | `display/com.js`, `core/crew.js`, `core/radio.js` |
 | **Scripted events** | `failures [...]`, `engineFailures [...]` (rockets), `events [{t, label}]` (timeline markers) | `core/failures.js`, `core/rocket.js`, rocket displays |
@@ -298,7 +301,7 @@ that simulates and draws it. Read these first when opening an unfamiliar aircraf
 | **Flight model** | `performance {mass, wingArea, thrustMax, CL_0, CL_alpha, CL_max, CD_0, …}`, `envelope {cruiseAlt, maxAlt, cruiseSpd, maxSpd, spdProfile}`, `handling {rollRate, pitchRate, maxBank, maxPitch, rudderMaxDeg, rudderLimitKt}`, `inertia {Izz}`, `flaps [{label, dCL_0, dCL_max, dCD_0}]`, `thrustProfiles`, `approachSpeed`, `autobrake`, `rotaryEngine`; `balance {noseGearLoadShare}` (nominal CG) and the `dimensions` below that `core/airframe.js` reads | `core/physics.js`, `airframe.js`, `thrust.js`, `managed-speed.js`, `vnav.js`, `input.js`, pedestal/levers |
 | **Rocket model** | `performance {massWet, stages[], payload, fpaProfile[], recovery{}, …}`, `ignitionTime`, `staging`, `gridFins`, `landingLegs` | `core/rocket.js`, rocket displays |
 | **Other vehicle models** | `specs` (robot), `joints`, `links` (robot arm/dog) | `display/robot_arm.js`, `display/yertle_quadruped.js` |
-| **Systems** | `tanks`, `fuelBurn`, `hasCarbHeat`; `cooling {type, ambient, normal, redline, …}` + `coolingSystem`; `electrical`; `battery` | `core/fuel.js`, `core/physics.js` (heat balance), `core/failures.js`, `core/electrical.js`, `core/battery.js` |
+| **Systems** | `tanks`, `fuelBurn`, `hasCarbHeat`; `cooling {type, ambient, normal, redline, …}` + `coolingSystem`; `electrical`; `hydraulics`; `fuelSystem`; `battery` | `core/fuel.js`, `core/physics.js` (heat balance), `core/failures.js`, `core/electrical.js`, `core/hydraulics.js`, `core/fuel-system.js`, `core/battery.js` |
 | **Cockpit** | `panel`, `displays`, `views`, `clock`, `left` / `right` / `pedestal` (control lists per zone), `com`, `cockpit` (config override, §3.3), `map` | `display/*`, `index.html` |
 | **Crew & procedures** | `pmCallouts`, `takeoffCallouts`, `gpws`, `checklist` (flap schedule callouts), `fmaPhases`, `kneeboard`, `situations` (quick-start states), `onboarding` (key help) | `core/crew.js`, `display/kneeboard.js`, `core/physics.js`, `index.html` |
 | **Sound** | `sound {engineType}` | `core/sound.js` |
@@ -555,7 +558,8 @@ dt = time since last frame, capped at 0.1 s
 2. simulation   tickSim(dt) — skipped while S.paused, and always in test mode
      tickControls(dt)                held keys; roll/steer spring back when released
      tickFailures(warpDt)
-     tickFuel(dt), tickBattery(dt), tickElectrical(dt), tickHydraulics(dt)
+     tickFuel(dt), tickBattery(dt), tickElectrical(dt), tickHydraulics(dt), tickFuelSystem(dt)
+     tickElevation(), tickTaxi(), tickFlightPlan()
      vehicle physics, chosen per frame (§3.1):
         rocket      → tickRocket + tickBooster   (time warp, fixed steps; see below)
         robot-arm   → nothing (kinematics live in the display)
@@ -875,9 +879,8 @@ Consequences:
   the ECAM/E/WD engine displays read `S.engines` and show a failed engine (running, power
   below 1) in amber with FAIL, and the engine's core speed, EGT and fuel flow. OIL_PRESS on
   the airliners comes from each engine selected on with oil below 13 psi (a failed engine →
-  MASTER WARN; one shut down with its master off is inhibited, as on the ECAM). Still
-  missing: the per-aircraft system layouts — stage 2 of `issues.md` → *One engine per
-  aircraft*.
+  MASTER WARN; one shut down with its master off is inhibited, as on the ECAM). The system
+  layouts per aircraft are in §9.1.
 - **Power is composed from causes.** A failure ramp and carb ice multiply instead of
   overwriting each other; a restart doesn't heal a partial failure; an engine that is off
   makes no power (and burns no fuel). OIL_PRESS on aircraft without tanks (the airliners)
@@ -909,18 +912,23 @@ hand-off to the running engine sound on `running`, the run-down on `shutdown`.
 
 ### 9.3 Observations
 
-- **Airliner systems are a display model.** Bus and hydraulic states are computed
-  carefully, but nothing in the simulation reads them. Gear, flaps, brakes, flight
+- **Airliner systems are a display model.** Bus, hydraulic and fuel states are computed
+  carefully, but they barely reach the simulation: electrical power gates the engine and
+  APU starts and runs the electric hydraulic and fuel pumps; the hydraulic pressures and
+  the fuel quantities reach only the displays and cautions. Gear, flaps, brakes, flight
   controls and the COM radio work with all buses and hydraulics dead. This is intentional
   for now: the systems are modelled for the cockpit first, and coupling them is future work.
-- **One hydraulic layout for all turbofans.** The A340's GREEN/BLUE/YELLOW is used
-  for the A220, the Boeings and the E190 too (the 737 has A/B/standby, the E190
-  systems 1/2/3).
+- **Own layouts on few aircraft.** Hydraulics: the A340 and the 777; the other turbofans
+  use the default GREEN/BLUE/YELLOW (the 737 has A/B/standby, the E190 systems 1/2/3).
+  Fuel: the 777; the other turbofans use the default wing and centre tanks.
 - **Two different "battery" concepts.** `battery.js` is the Velis propulsion battery;
   airliner batteries are `bat1..3` inside `electrical.js`.
-- **Fuel only on four aircraft, and jets burn none.** `BURN_DEFAULTS` in `fuel.js`
-  is keyed partly by engine types no aircraft uses (`lycoming-o320`, `r-2800`); all
-  four fuel aircraft set `fuelBurn` explicitly.
+- **Two fuel models.** `fuel.js` (the four light aircraft and warbirds) reaches the
+  engine: an empty tank stops it. `fuel-system.js` (turbofans) only counts: the tanks
+  fall with each engine's fuel flow, but an empty tank doesn't stop an engine, and the
+  burn doesn't change the mass or the CG.
+- **`BURN_DEFAULTS` in `fuel.js`** is keyed partly by engine types no aircraft uses
+  (`lycoming-o320`, `r-2800`); all four fuel aircraft set `fuelBurn` explicitly.
 
 All of these, plus the engine points in 9.2, are tracked in `issues.md` → *Engine and
 systems*.
