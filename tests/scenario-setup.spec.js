@@ -39,3 +39,22 @@ test('an injected failure is added to the scripted ones, and the crew role is se
   expect(s.role).toBe('PM');
   expect(s.mission.weather.source).toBe('live');           // no weather in the setup → the mission's own
 });
+
+test("a mission's crew doesn't follow into the next mission", async ({ page }) => {
+  await page.goto('/?mission=crew-demo2&test=1');
+  await page.waitForFunction(() => window.simReady === true, null, { timeout: 15_000 });
+  await page.evaluate(() => window.simSetState({ role: 'CDR', pilotId: 'behnken', pilotName: 'Bob Behnken', pilotCallsign: 'BEHNKEN' }));
+  await page.evaluate(() => window.simLoad('nordmeer-1956'));
+  await page.waitForFunction(() => window.simGetState().mission?.id === 'nordmeer-1956', null, { timeout: 15_000 });
+  await expect(page.locator('#pv-role')).toHaveText('PF');
+});
+
+test("a rocket's flight doesn't follow into the next rocket", async ({ page }) => {
+  await page.goto('/?mission=crew-demo2&test=1');
+  await page.waitForFunction(() => window.simReady === true, null, { timeout: 15_000 });
+  await page.evaluate(() => { for (let i = 0; i < 1100; i++) window.simStep(1, 1); });
+  await page.evaluate(() => window.simLoad('apollo8'));
+  await page.waitForFunction(() => window.simGetState().mission?.id === 'apollo8', null, { timeout: 15_000 });
+  const s = await page.evaluate(() => { const s = window.simGetState(); return [s.rocketMECO, s.rocketS2Ignition, s.rocketOrbit]; });
+  expect(s).toEqual([false, false, false]);
+});

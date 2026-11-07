@@ -359,6 +359,20 @@ The missions also have a `phase` (ground / departure / circuit / cruise / approa
 
 **Done when.** Every mission's first frame shows its systems as they would be in that configuration: no caution on the Singapore–London runway start, the A340 at its stand on ground power with its electric pumps' systems pressurised, and the cold aircraft unchanged.
 
+### Mission load resets `S` field by field, so a flight's state can follow into the next mission
+*Found 2026-11-06 (Markus: the role cell read BEHNKEN on the Tu-95 after Demo-2) · `loadMission()` in `core/mission.js`, `core/state.js`*
+
+**Symptom.** `init()` runs again in the same page for each mission (`docs/architecture.md` §14.2), and `loadMission()` lists the fields it resets. Whatever isn't on its list stays. Comparing nine missions loaded fresh against the same missions loaded after another one (2026-11-06):
+
+| Left over | Does it matter |
+|---|---|
+| `role`, `pilotCallsign` … (the crew); on a rocket `rocketMECO`, `rocketMECO2`, `rocketS2Ignition`, `rocketS3Ignition`, read by the crew script's triggers, and `rocketOrbit`, `orbitVec` | Fixed 2026-11-06, one by one |
+| `locCaptured`, `gsCaptured`, `athrMode`, `athrDetent`, `athrN1`, `n1Cmd`, `thrustReverser` | On a runway start they clear themselves: 40 s later the same as a fresh load. An airborne start isn't checked |
+| `rocket*`, `dragon*`, `starship*`, `booster`, `sivbSep` … on an aircraft after a rocket; `armJoints` after the arm | No reader found on the aircraft path yet, not each checked |
+| `prevAlt`, `flapPos`, `fieldElev`, `groundRollT`, `lights`, `warnings` | Not checked |
+
+**Fix.** Keep a copy of the defaults in `core/state.js`; `loadMission()` first puts `S` back to them and removes what isn't in them, then applies the mission. A new field is then reset without anyone remembering. Check what must outlive a mission first (a module's `setState` when it first loads). **Done when.** A mission loaded after any other has the same `S` as one loaded fresh, by a test over the vehicle types (the comparison above), except what is listed as kept on purpose.
+
 ### Live flight always loads the A350
 *Found 2026-10-11 · `flyWithFlight()` in `index.html` (`const liveMission = { … aircraft: 'a350' … }`)*
 
