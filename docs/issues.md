@@ -636,6 +636,21 @@ The warbirds have two more cells (Fuel L/R, Fuel Sel). At 1280 px the F4U's `375
 
 The cell shows real N1 only on the multi-engine turbofans. For the others the value comes from `getCurrentRpm()` in the sound synthesis: RPM from `spdT` (*`spdT` is both the speed target and the throttle*), the start curves hard-coded to match the recordings, and N1 from the throttle on the An-225. It returns null without a sound preset. A cockpit value depends on the audio code, against the rule that sound follows the engine (`core/engine.js`). **Fix:** RPM per engine in `S.engines[]` from `core/engine.js`, read by the display and the sound alike. **Done when:** `core/sound.js` exports no value that a display shows.
 
+### The Avro 504, Tu-95 and An-225 fly on a leftover glass PFD — an analog panel each, as data
+*Found 2026-11-07 (Markus) · `display/pfd.js`, the renderer chain in `index.html` (`else renderPFD(canvas)`), `panels/`, `display/panel_renderer.js`*
+
+**Today.** An aircraft without a `panel` falls through to `renderPFD()` (`display/pfd.js`, 489 lines, used nowhere else): a generic glass PFD. That is the Avro 504 (1918), the Tu-95 (1956) and the An-225 — and the DC-8, which has no mission. On top they get the airliner mode strip (A/THR · AP1 · NAV · CRZ · ALT, "AP OFF"; `index.html` hides `#fma` only on the warbirds) and the METAR strip (*The METAR strip always says LSZH*). All three had round analog gauges.
+
+**Plan (agreed 2026-11-07).**
+1. **A panel per aircraft, as data** — JSON in `panels/` like the DR400's, from the widgets in `display/panel_renderer.js`; widgets that are missing (tachometer, compass …) added there.
+2. **The look per aircraft from the style** (`panels/styles/`): Soviet blue-grey faces with Cyrillic labels for the Tu-95 and the An-225, a wooden board for the Avro.
+3. **Stop-gap until each has its sourced panel:** the analog instruments the warbirds use, in that style.
+4. **Then** `display/pfd.js` and the fallback go; `panel` becomes required, so an aircraft without one fails the data check instead of getting a glass PFD.
+
+**Sources.** Each panel's instrument set from photos or manuals of the type — the Avro 504K (ASI, altimeter, tachometer, compass, oil pulsator, no attitude indicator), the Tu-95's and An-225's analog panels.
+
+**Done when.** The three fly on their own analog panels, without the airliner mode strip; `display/pfd.js` is gone; an aircraft without `panel` fails `tests/data-schema.test.mjs`.
+
 ### The METAR strip always says LSZH
 *Found 2026-11-06 · `updateMetar()` and `_rwyFromWind()` in `index.html`*
 
