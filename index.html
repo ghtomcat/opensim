@@ -3617,7 +3617,7 @@
 
     const dismissOnboarding = () => {
       obEl.classList.remove('visible');
-      _session.timeout(() => { obEl.style.display = 'none'; }, 500);
+      _session.timeout(() => { if (!obEl.classList.contains('visible')) obEl.style.display = 'none'; }, 500);   // not the key map opened since (?)
       onFirstKey(null);
       obEl.removeEventListener('click', dismissOnboarding);
       if (_keyMapShown) setState({ paused: false });   // only the key map paused it: without one (rockets, robots) this first key may be P
