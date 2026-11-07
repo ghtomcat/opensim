@@ -1916,8 +1916,7 @@
   import { renderLM, handleLMClick } from './display/lm_display.js';
   import { renderDragon, handleDragonClick, isDragonTelemetry } from './display/dragon.js';
   import './display/g1000.js';  /* bridge exports used by panel_renderer */
-  import { renderBf109 }       from './display/bf109.js';
-  import { renderF4U1A }       from './display/f4u1a.js';
+  import { renderAnalogPanel } from './display/analog_panel.js';
   import { initRobotArm, renderRobotArm, resetRobotArm } from './display/robot_arm.js';
   import { renderYertleQuadruped, resetYertleQuadruped } from './display/yertle_quadruped.js';
   import { renderVelisEpsi, handleVelisClick } from './display/velis_epsi.js';
@@ -3803,9 +3802,9 @@
         else if (isRocket)           renderRocket(canvas);
         else if (panel === 'dr400')  renderCockpit(canvas);
         else if (panel === 'g1000')  renderCockpit(canvas);
-        else if (panel === 'bf109')  renderBf109(canvas);
-        else if (panel === 'analog') renderBf109(canvas, S.aircraft?.panelStyle);   // the warbird gauges, styled per aircraft
-        else if (panel === 'f4u')    renderF4U1A(canvas);
+        else if (panel === 'bf109')  renderAnalogPanel(canvas, 'luftwaffe');
+        else if (panel === 'f4u')    renderAnalogPanel(canvas, 'usn');
+        else if (panel === 'analog') renderAnalogPanel(canvas, S.aircraft?.panelStyle);   // the analog gauges, styled per aircraft
         else if (panel === 'velis-epsi') renderVelisEpsi(canvas);
         else if (panel === 'airbus' || panel === 'e190') {
           renderPanel(canvas,   0, _currentSpec(0));

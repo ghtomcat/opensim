@@ -7,7 +7,7 @@ The cockpit is drawn on `<canvas>` elements. There are three kinds of cockpit di
 | Kind | What | Defined by |
 |---|---|---|
 | **Data-driven panels** | Glass airliner screens (PFD, ND, ECAM/EICAS) and GA panels (G1000, DR400) | JSON layout specs in `panels/` + styles in `panels/styles/`, drawn by `display/panel_renderer.js` |
-| **Hand-drawn panels** | Steam-gauge warbirds and the Velis Electro | One JS module per panel (`display/bf109.js`, `f4u1a.js`, `velis_epsi.js`) |
+| **Hand-drawn panels** | The analog panels and the Velis Electro | `display/analog_panel.js` — one analog panel in a style per aircraft (luftwaffe, soviet, usn: look, labels, units); `display/velis_epsi.js` |
 | **Cockpit zones** | Overhead, pedestal, left/right console, centre panel — slide-in views around the main panel | The aircraft's `views` list + per-zone modules (`display/overhead.js`, …) |
 
 Rockets and robots have their own displays and are not part of the panel
@@ -28,8 +28,9 @@ else if (isRocket && id==='saturn-v') renderApollo(canvas);          // / render
 else if (isRocket)                    renderRocket(canvas);
 else if (panel === 'dr400')           renderCockpit(canvas);         // data-driven GA
 else if (panel === 'g1000')           renderCockpit(canvas);         // data-driven GA
-else if (panel === 'bf109')           renderBf109(canvas);           // hand-drawn
-else if (panel === 'f4u')             renderF4U1A(canvas);           // hand-drawn
+else if (panel === 'bf109')           renderAnalogPanel(canvas, 'luftwaffe');   // hand-drawn, styled
+else if (panel === 'f4u')             renderAnalogPanel(canvas, 'usn');
+else if (panel === 'analog')          renderAnalogPanel(canvas, ac.panelStyle);
 else if (panel === 'velis-epsi')      renderVelisEpsi(canvas);       // hand-drawn
 else if (panel === 'airbus' || panel === 'e190') {                   // data-driven glass
   renderPanel(canvas,   0, _currentSpec(0));                         // left screen

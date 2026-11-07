@@ -1,15 +1,15 @@
 /* ═══════════════════════════════════════════════════════════════
-   OpenSim — display/bf109.js
-   Bf 109 E-4 vintage instrument panel.
+   OpenSim — display/analog_panel.js
+   The analog instrument panel: six flight instruments and an engine row, in a style per
+   aircraft — the look, the language and the unit system:
+     luftwaffe  feldgrau, ivory faces, red needles; German, metric   — Bf 109, MiG-15
+     soviet     turquoise, black faces, white needles; Russian, metric — Tu-95, An-225 (stop-gap)
+     usn        flat black, white faces; English, US units             — F4U
+   Merged 2026-11-07 from display/bf109.js and display/f4u1a.js, which were copies of each other
+   (issues.md: "Gauge helpers copied between the hand-drawn panels").
 
-   Aesthetic: feldgrau panel · aged cream/ivory dials · red needles
-   Arctic atmosphere — Wolfskopf 1942, Petsamo, -22°C, overcast.
-   German instrument labels, period-accurate (Luftwaffe 1942).
-
-   Unit conversions from sim (knots / feet / fpm):
-     speed    → km/h  (× 1.852)
-     altitude → m     (× 0.3048)
-     vs       → m/s   (× 0.00508)
+   Sim state is knots / feet / fpm. Metric gauges convert: km/h (× 1.852), m (× 0.3048),
+   m/s (× 0.00508). Imperial gauges read it as it is.
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from '../core/state.js';
@@ -35,11 +35,14 @@ const STYLES = {
       ndlBack:  '#28261e',   // needle counterweight — dark
       mark:     '#1c1914',   // index marks & numerals — near-black
       subdued:  '#80745a',   // secondary label — aged ink
+      shadowEdge: 'rgba(0,0,0,0.72)', ring: '#2a2c24', glintA: 0.55, glint0: 'rgba(210,230,255,0.22)', glint1: 'rgba(210,230,255,0.05)',
+      capOut: '#141610', label: '#1c1914', vignette: 'rgba(0,0,0,0.52)',
       shadow:   'rgba(0,0,0,0.65)',
     },
     sky: ['#3a5468', '#5878a0'],                 // Arctic sky — cold pale blue
     ground: ['#4a3c28', '#3c3020', '#c8c4b8'],   // tundra, snow on flat ground
     frost: true,                                 // Wolfskopf 1942, Petsamo, -22 °C
+    units: 'metric',
     L: {
       asi: 'Fahrtmesser', asiUnit: 'km/h', ai: 'Künstl. Horizont', alt: 'Höhenmesser', altUnit: '×100 m',
       turn: 'Wendezeiger', turnL: 'L', turnR: 'R', compass: 'Kompass', cards: ['N', 'O', 'S', 'W'],
@@ -59,16 +62,35 @@ const STYLES = {
       ndlBack:  '#2a2d30',
       mark:     '#e8e6dc',   // white markings
       subdued:  '#9aa3a6',
+      shadowEdge: 'rgba(0,0,0,0.72)', ring: '#2a2c24', glintA: 0.55, glint0: 'rgba(210,230,255,0.22)', glint1: 'rgba(210,230,255,0.05)',
+      capOut: '#121416', label: '#e8e6dc', vignette: 'rgba(0,0,0,0.52)',
       shadow:   'rgba(0,0,0,0.65)',
     },
     sky: ['#2c5a8a', '#4a80b8'],
     ground: ['#6a4a2a', '#5a3c22', '#4a3018'],
     frost: false,
+    units: 'metric',
     L: {
       asi: 'Скорость', asiUnit: 'км/ч', ai: 'Авиагоризонт', alt: 'Высотомер', altUnit: '×100 м',
       turn: 'Указатель поворота', turnL: 'Л', turnR: 'П', compass: 'Компас', cards: ['С', 'В', 'Ю', 'З'],
       vsi: 'Вариометр', vsiUnit: 'м/с', rpm: 'Тахометр', rpmUnit: '×100 об/мин', n1: 'Обороты', n1Unit: 'N1 %',
       oilT: 'Темп. масла', coolant: 'Темп. охл. жидк.', oilP: 'Давл. масла', oilPUnit: 'кгс/см²',
+    },
+  },
+  usn: {   // the F4U: flat black US Navy panel, white faces, white needles; English labels, US units
+    P: {
+      panel:   '#111314', rim: '#0a0b0c', faceHi: '#ffffff', face0: '#f8f8f8', face1: '#dcdcdc', capIn: '#3a3a3a',
+      needle:  '#f0f0e8', ndlBack: '#1e2020', mark: '#1a1a1a', subdued: '#666666', shadow: 'rgba(0,0,0,0.72)',
+      shadowEdge: 'rgba(0,0,0,0.80)', ring: '#222', glintA: 0.4, glint0: 'rgba(255,255,255,0.18)', glint1: 'rgba(255,255,255,0.04)',
+      capOut: '#222', label: '#cccccc', vignette: 'rgba(0,0,0,0.55)',
+    },
+    frost: false,
+    units: 'imperial',
+    L: {
+      asi: 'Airspeed', asiUnit: 'kt', ai: 'Artificial Horizon', alt: 'Altimeter', altUnit: '×1000 ft',
+      turn: 'Turn & Slip', turnL: 'L', turnR: 'R', compass: 'Compass', cards: ['N', 'E', 'S', 'W'],
+      vsi: 'Rate of Climb', vsiUnit: '×1000 fpm', map: 'Manifold Press.', mapUnit: 'in.Hg',
+      oilT: 'Oil Temp', cht: 'Cyl. Head', tempUnit: '°F', oilP: 'Oil Pressure', oilPUnit: 'PSI',
     },
   },
 };
@@ -83,7 +105,7 @@ const _r = d => (d - 90) * Math.PI / 180;
 /* ════════════════════════════════════════════════════════════
    MAIN ENTRY
    ════════════════════════════════════════════════════════════ */
-export function renderBf109(canvas, style = 'luftwaffe') {
+export function renderAnalogPanel(canvas, style = 'luftwaffe') {
   ST = STYLES[style] ?? STYLES.luftwaffe; P = ST.P; L = ST.L;
   const W = canvas.width  = canvas.offsetWidth  * devicePixelRatio;
   const H = canvas.height = canvas.offsetHeight * devicePixelRatio;
@@ -97,12 +119,17 @@ export function renderBf109(canvas, style = 'luftwaffe') {
   /* Vignette */
   const vg = ctx.createRadialGradient(W/2, H/2, H*0.18, W/2, H/2, H*0.72);
   vg.addColorStop(0, 'rgba(0,0,0,0)');
-  vg.addColorStop(1, 'rgba(0,0,0,0.52)');
+  vg.addColorStop(1, P.vignette);
   ctx.fillStyle = vg;
   ctx.fillRect(0, 0, W, H);
 
-  const _isJet  = S.aircraft?.sound?.engineType === 'turbojet-vk1';
-  const _eng    = _isJet ? _drawN1Messer : _drawDrehzahl;
+  /* The gauge set: metric (German, Soviet) or imperial (US) — the layout is the same */
+  const _isJet = S.aircraft?.sound?.engineType === 'turbojet-vk1';
+  const G = ST.units === 'imperial'
+    ? { asi: _drawAirspeed, ai: _drawHorizon, alt: _drawAltimeter, turn: _drawTurnSlip, compass: _drawCompass, vsi: _drawVSI,
+        eng: _drawManifold, temp2: _drawCHT, oilT: _drawOilTemp, oilP: _drawOilPressure }
+    : { asi: _drawFahrtmesser, ai: _drawHorizont, alt: _drawHoehenmesser, turn: _drawWendezeiger, compass: _drawKompass, vsi: _drawVariometer,
+        eng: _isJet ? _drawN1Messer : _drawDrehzahl, temp2: _drawKuehlstoffTemp, oilT: _drawOelTemp, oilP: _drawOelDruck };
 
   /* In the combined "cockpit + outside" view the panel is flat & wide — spread
      the gauges across the free side-space (2 flight rows left, engine block
@@ -118,24 +145,24 @@ export function renderBf109(canvas, style = 'luftwaffe') {
 
     /* Flight instruments — left / centre, 2×3 */
     const cxL = W * 0.33, cwL = W * 0.135;
-    _drawFahrtmesser( ctx, cxL - cwL, yTop, r1, sc);
-    _drawHorizont(    ctx, cxL,       yTop, r1, sc);
-    _drawHoehenmesser(ctx, cxL + cwL, yTop, r1, sc);
-    _drawWendezeiger( ctx, cxL - cwL, yBot, r1 * 0.85, sc);
-    _drawKompass(     ctx, cxL,       yBot, r1 * 0.85, sc);
-    _drawVariometer(  ctx, cxL + cwL, yBot, r1 * 0.85, sc);
+    G.asi(ctx, cxL - cwL, yTop, r1, sc);
+    G.ai(ctx, cxL,       yTop, r1, sc);
+    G.alt(ctx, cxL + cwL, yTop, r1, sc);
+    G.turn(ctx, cxL - cwL, yBot, r1 * 0.85, sc);
+    G.compass(ctx, cxL,       yBot, r1 * 0.85, sc);
+    G.vsi(ctx, cxL + cwL, yBot, r1 * 0.85, sc);
 
     /* Engine / temperature block — right */
     const cxR = W * 0.80, dxR = W * 0.085;
     if (S.aircraft?.cooling) {
-      _eng(               ctx, cxR - dxR, yTop, r2, sc);
-      _drawKuehlstoffTemp(ctx, cxR + dxR, yTop, r2, sc);
-      _drawOelTemp(       ctx, cxR - dxR, yBot, r2, sc);
-      _drawOelDruck(      ctx, cxR + dxR, yBot, r2, sc);
+      G.eng(ctx, cxR - dxR, yTop, r2, sc);
+      G.temp2(ctx, cxR + dxR, yTop, r2, sc);
+      G.oilT(ctx, cxR - dxR, yBot, r2, sc);
+      G.oilP(ctx, cxR + dxR, yBot, r2, sc);
     } else {
-      _eng(         ctx, cxR,       yTop, r2, sc);
-      _drawOelTemp( ctx, cxR - dxR, yBot, r2, sc);
-      _drawOelDruck(ctx, cxR + dxR, yBot, r2, sc);
+      G.eng(ctx, cxR,       yTop, r2, sc);
+      G.oilT(ctx, cxR - dxR, yBot, r2, sc);
+      G.oilP(ctx, cxR + dxR, yBot, r2, sc);
     }
 
     drawAnalogClock(ctx, W * 0.06, Hu * 0.28, 44 * sc);   // clock — top-left
@@ -158,23 +185,23 @@ export function renderBf109(canvas, style = 'luftwaffe') {
     const y2 = cy + rh * 0.15;   /* middle row */
     const y3 = cy + rh * 1.05;   /* engine strip */
 
-    _drawFahrtmesser(ctx, cx - cw, y1, r1, sc);
-    _drawHorizont(   ctx, cx,      y1, r1, sc);
-    _drawHoehenmesser(ctx, cx + cw, y1, r1, sc);
+    G.asi(ctx, cx - cw, y1, r1, sc);
+    G.ai(ctx, cx,      y1, r1, sc);
+    G.alt(ctx, cx + cw, y1, r1, sc);
 
-    _drawWendezeiger(ctx, cx - cw, y2, r1 * 0.85, sc);
-    _drawKompass(    ctx, cx,      y2, r1 * 0.85, sc);
-    _drawVariometer( ctx, cx + cw, y2, r1 * 0.85, sc);
+    G.turn(ctx, cx - cw, y2, r1 * 0.85, sc);
+    G.compass(ctx, cx,      y2, r1 * 0.85, sc);
+    G.vsi(ctx, cx + cw, y2, r1 * 0.85, sc);
 
     if (S.aircraft?.cooling) {   /* liquid-cooled → 4-gauge strip with Kühlstofftemp */
-      _eng(               ctx, cx - cw * 0.93, y3, r2, sc);
-      _drawKuehlstoffTemp(ctx, cx - cw * 0.31, y3, r2, sc);
-      _drawOelTemp(       ctx, cx + cw * 0.31, y3, r2, sc);
-      _drawOelDruck(      ctx, cx + cw * 0.93, y3, r2, sc);
+      G.eng(ctx, cx - cw * 0.93, y3, r2, sc);
+      G.temp2(ctx, cx - cw * 0.31, y3, r2, sc);
+      G.oilT(ctx, cx + cw * 0.31, y3, r2, sc);
+      G.oilP(ctx, cx + cw * 0.93, y3, r2, sc);
     } else {
-      _eng(         ctx, cx - cw * 0.62, y3, r2, sc);
-      _drawOelTemp( ctx, cx,             y3, r2, sc);
-      _drawOelDruck(ctx, cx + cw * 0.62, y3, r2, sc);
+      G.eng(ctx, cx - cw * 0.62, y3, r2, sc);
+      G.oilT(ctx, cx,             y3, r2, sc);
+      G.oilP(ctx, cx + cw * 0.62, y3, r2, sc);
     }
 
     drawAnalogClock(ctx, W * 0.11, H * 0.14, 48 * sc);   // clock — top-left
@@ -194,7 +221,7 @@ function _base(ctx, x, y, r) {
   /* Drop shadow */
   const sh = ctx.createRadialGradient(x + r*0.06, y + r*0.06, r*0.6, x, y, r*1.2);
   sh.addColorStop(0, 'rgba(0,0,0,0)');
-  sh.addColorStop(1, 'rgba(0,0,0,0.72)');
+  sh.addColorStop(1, P.shadowEdge);
   ctx.fillStyle = sh;
   ctx.beginPath(); ctx.arc(x, y, r * 1.18, 0, Math.PI*2); ctx.fill();
 
@@ -204,7 +231,7 @@ function _base(ctx, x, y, r) {
 
   /* Inner ring — slight lighter ring inside bezel */
   ctx.beginPath(); ctx.arc(x, y, r * 1.0, 0, Math.PI*2);
-  ctx.strokeStyle = '#2a2c24'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.strokeStyle = P.ring; ctx.lineWidth = 1.5; ctx.stroke();
 
   /* Cream face */
   const face = ctx.createRadialGradient(x - r*0.08, y - r*0.10, r*0.04, x, y, r);
@@ -216,10 +243,10 @@ function _base(ctx, x, y, r) {
 
   /* Glass glint — cold, top-left quadrant */
   ctx.save();
-  ctx.globalAlpha = 0.55;
+  ctx.globalAlpha = P.glintA;
   const gl = ctx.createRadialGradient(x - r*0.32, y - r*0.38, r*0.04, x - r*0.18, y - r*0.22, r*0.7);
-  gl.addColorStop(0,   'rgba(210,230,255,0.22)');
-  gl.addColorStop(0.5, 'rgba(210,230,255,0.05)');
+  gl.addColorStop(0,   P.glint0);
+  gl.addColorStop(0.5, P.glint1);
   gl.addColorStop(1,   'rgba(0,0,0,0)');
   ctx.fillStyle = gl;
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
@@ -228,7 +255,7 @@ function _base(ctx, x, y, r) {
 
 /* Centre cap */
 function _cap(ctx, x, y, r) {
-  ctx.beginPath(); ctx.arc(x, y, r,       0, Math.PI*2); ctx.fillStyle = P.rim;    ctx.fill();
+  ctx.beginPath(); ctx.arc(x, y, r,       0, Math.PI*2); ctx.fillStyle = P.capOut; ctx.fill();
   ctx.beginPath(); ctx.arc(x, y, r * 0.4, 0, Math.PI*2); ctx.fillStyle = P.capIn; ctx.fill();
 }
 
@@ -301,7 +328,7 @@ function _sublabel(ctx, x, y, r, text, sc) {
 
 /* Label below instrument */
 function _label(ctx, x, y, r, name, sc) {
-  ctx.fillStyle    = P.mark;
+  ctx.fillStyle    = P.label;
   ctx.font         = `${9.5 * sc}px ${SANS}`;
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'alphabetic';
@@ -851,4 +878,441 @@ function _drawFrost(ctx, W, H) {
   ctx.globalAlpha = 1.0;
 
   ctx.restore();
+}
+
+/* ═════════════ IMPERIAL GAUGES (from the F4U panel) ═════════════ */
+
+/* ════════════════════════════════════════════════════════════
+   AIRSPEED — 0–400 kt
+   ════════════════════════════════════════════════════════════ */
+function _drawAirspeed(ctx, x, y, r, sc) {
+  const spd  = S.spd ?? 0;
+  const maxV = 400;
+  const s0   = 220, sw = 280;
+
+  _base(ctx, x, y, r);
+
+  /* Red arc ≥ 362 kt (VNE) */
+  const aVne = _r(s0 + (362 / maxV) * sw);
+  const aMax = _r(s0 + sw);
+  ctx.save();
+  ctx.beginPath(); ctx.arc(x, y, r * 0.96, aVne, aMax);
+  ctx.strokeStyle = '#cc2200'; ctx.lineWidth = 5 * sc; ctx.stroke();
+  ctx.restore();
+
+  /* Yellow arc 200–250 kt (manoeuvre speed warning) */
+  const aY0 = _r(s0 + (200 / maxV) * sw);
+  const aY1 = _r(s0 + (250 / maxV) * sw);
+  ctx.save();
+  ctx.beginPath(); ctx.arc(x, y, r * 0.96, aY0, aY1);
+  ctx.strokeStyle = '#cc9900'; ctx.lineWidth = 4 * sc; ctx.stroke();
+  ctx.restore();
+
+  _ticks(ctx, x, y, r, s0, sw, 8, 5, sc);
+
+  ctx.textBaseline = 'middle';
+  for (let v = 0; v <= maxV; v += 50) _num(ctx, x, y, r, s0 + (v / maxV) * sw, String(v), 8.5, sc);
+  ctx.textBaseline = 'alphabetic';
+
+  _sublabel(ctx, x, y, r, L.asiUnit, sc);
+
+  const ang = s0 + Math.min(1, Math.max(0, spd / maxV)) * sw;
+  _needle(ctx, x, y, r, ang, 0.78, 0.22, sc);
+  _cap(ctx, x, y, 5.5 * sc);
+  _label(ctx, x, y, r, L.asi, sc);
+}
+
+/* ════════════════════════════════════════════════════════════
+   ARTIFICIAL HORIZON — Pacific atmosphere
+   ════════════════════════════════════════════════════════════ */
+function _drawHorizon(ctx, x, y, r, sc) {
+  _base(ctx, x, y, r);
+
+  const pitch = S.pitch ?? 0;
+  const roll  = S.roll  ?? 0;
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(roll * Math.PI / 180);
+
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.97, 0, Math.PI * 2); ctx.clip();
+
+  const pitchPx = pitch * 2.6 * sc;
+
+  /* Pacific sky — bright tropical blue */
+  const skyG = ctx.createLinearGradient(0, -r, 0, pitchPx);
+  skyG.addColorStop(0, '#2a6090');
+  skyG.addColorStop(1, '#5090c8');
+  ctx.fillStyle = skyG;
+  ctx.fillRect(-r, -r * 1.2, r * 2, r * 1.2 + pitchPx);
+
+  /* Pacific ocean */
+  const seaG = ctx.createLinearGradient(0, pitchPx, 0, r);
+  seaG.addColorStop(0,   '#1a5070');
+  seaG.addColorStop(0.5, '#164060');
+  seaG.addColorStop(1,   '#0a2030');
+  ctx.fillStyle = seaG;
+  ctx.fillRect(-r, pitchPx, r * 2, r * 1.2);
+
+  /* Horizon line */
+  ctx.strokeStyle = '#ffe080'; ctx.lineWidth = 1.8 * sc;
+  ctx.beginPath(); ctx.moveTo(-r, pitchPx); ctx.lineTo(r, pitchPx); ctx.stroke();
+
+  /* Pitch ladder */
+  ctx.strokeStyle = 'rgba(255,220,80,0.65)'; ctx.lineWidth = 1.0 * sc;
+  for (let d = -15; d <= 15; d += 5) {
+    if (d === 0) continue;
+    const py  = pitchPx - d * 2.6 * sc;
+    const hw  = (Math.abs(d) % 10 === 0 ? 0.38 : 0.22) * r;
+    ctx.beginPath(); ctx.moveTo(-hw, py); ctx.lineTo(hw, py); ctx.stroke();
+  }
+
+  ctx.restore();
+
+  /* Fixed aircraft symbol */
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.strokeStyle = '#ffe080'; ctx.lineWidth = 2.8 * sc; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.56, 0); ctx.lineTo(-r * 0.20, 0); ctx.lineTo(-r * 0.10, r * 0.09);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(r * 0.56, 0); ctx.lineTo(r * 0.20, 0); ctx.lineTo(r * 0.10, r * 0.09);
+  ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, 2.5 * sc, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffe080'; ctx.fill();
+  ctx.restore();
+
+  /* Roll scale */
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.strokeStyle = P.mark; ctx.lineWidth = 1.0 * sc;
+  for (const d of [-45, -30, -20, -10, 10, 20, 30, 45]) {
+    const rad = _r(d);
+    const len = (Math.abs(d) === 30 || Math.abs(d) === 45) ? r * 0.10 : r * 0.06;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(rad) * r * 0.97, Math.sin(rad) * r * 0.97);
+    ctx.lineTo(Math.cos(rad) * (r * 0.97 - len), Math.sin(rad) * (r * 0.97 - len));
+    ctx.stroke();
+  }
+  ctx.rotate(-roll * Math.PI / 180);
+  ctx.strokeStyle = '#ffe080'; ctx.lineWidth = 2 * sc;
+  ctx.beginPath();
+  ctx.moveTo(0, -r * 0.87);
+  ctx.lineTo(-5 * sc, -r * 0.97);
+  ctx.lineTo( 5 * sc, -r * 0.97);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
+
+  _cap(ctx, x, y, 4.5 * sc);
+  _label(ctx, x, y, r, L.ai, sc);
+}
+
+/* ════════════════════════════════════════════════════════════
+   ALTIMETER — 0–35,000 ft
+   Fine needle: 1 rev per 10,000 ft
+   Coarse stub: 1 rev per 100,000 ft
+   ════════════════════════════════════════════════════════════ */
+function _drawAltimeter(ctx, x, y, r, sc) {
+  const alt  = S.alt ?? 0;
+  const s0   = 220, sw = 300;
+
+  _base(ctx, x, y, r);
+  _ticks(ctx, x, y, r, s0, sw, 10, 5, sc);
+
+  ctx.textBaseline = 'middle';
+  for (let v = 0; v <= 9; v++) {
+    _num(ctx, x, y, r, s0 + (v / 10) * sw, String(v), 9, sc);
+  }
+  ctx.textBaseline = 'alphabetic';
+
+  _sublabel(ctx, x, y, r, L.altUnit, sc);
+
+  /* Coarse stub — 10,000 ft revolutions */
+  const angCoarse = s0 + ((alt / 100000) % 1) * sw;
+  const ac = _r(angCoarse);
+  ctx.strokeStyle = P.ndlBack; ctx.lineWidth = 2 * sc;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + Math.cos(ac) * r * 0.44, y + Math.sin(ac) * r * 0.44);
+  ctx.stroke();
+
+  /* Fine needle — 10,000 ft per revolution */
+  const angFine = s0 + ((alt % 10000) / 10000) * sw;
+  _needle(ctx, x, y, r, angFine, 0.78, 0.22, sc);
+  _cap(ctx, x, y, 5.5 * sc);
+  _label(ctx, x, y, r, L.alt, sc);
+}
+
+/* ════════════════════════════════════════════════════════════
+   TURN & SLIP
+   ════════════════════════════════════════════════════════════ */
+function _drawTurnSlip(ctx, x, y, r, sc) {
+  _base(ctx, x, y, r);
+
+  const arcR = r * 0.72;
+  ctx.strokeStyle = P.mark; ctx.lineWidth = 1.0 * sc;
+  ctx.beginPath();
+  ctx.arc(x, y - r * 0.12, arcR, Math.PI * 1.15, Math.PI * 1.85);
+  ctx.stroke();
+
+  for (const d of [-38, 0, 38]) {
+    const dx = d * sc;
+    ctx.beginPath();
+    ctx.moveTo(x + dx, y - r * 0.78);
+    ctx.lineTo(x + dx, y - r * 0.66);
+    ctx.strokeStyle = P.mark; ctx.lineWidth = 1.2 * sc;
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = P.mark; ctx.font = `bold ${9 * sc}px ${SANS}`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(L.turnL, x - r * 0.52, y - r * 0.48);
+  ctx.fillText(L.turnR, x + r * 0.52, y - r * 0.48);
+
+  const deflect = Math.max(-1, Math.min(1, (S.roll ?? 0) / 20));
+  const nx = x + deflect * 38 * sc;
+  ctx.strokeStyle = P.needle; ctx.lineWidth = 3 * sc; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(nx, y - r * 0.78);
+  ctx.lineTo(nx, y + r * 0.05);
+  ctx.stroke();
+
+  const ballY = y + r * 0.58;
+  ctx.strokeStyle = P.mark; ctx.lineWidth = 1.2 * sc;
+  ctx.beginPath(); ctx.arc(x, ballY, 20 * sc, Math.PI, Math.PI * 2); ctx.stroke();
+  /* Ball — from the lateral acceleration (core/yaw.js); centred while the aircraft has no yaw model */
+  ctx.beginPath(); ctx.arc(x + ballDeflection(S.latAccel) * 13.5 * sc, ballY, 6.5 * sc, 0, Math.PI * 2);
+  ctx.fillStyle = P.ndlBack; ctx.fill();
+  ctx.strokeStyle = P.mark; ctx.lineWidth = 0.8 * sc; ctx.stroke();
+
+  ctx.textBaseline = 'alphabetic';
+  _label(ctx, x, y, r, L.turn, sc);
+}
+
+/* ════════════════════════════════════════════════════════════
+   COMPASS — rotating rose, English cardinals
+   ════════════════════════════════════════════════════════════ */
+function _drawCompass(ctx, x, y, r, sc) {
+  _base(ctx, x, y, r);
+
+  const hdg = S.hdg ?? 0;
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(-hdg * Math.PI / 180);
+
+  for (let i = 0; i < 72; i++) {
+    const a   = (i / 72) * Math.PI * 2 - Math.PI / 2;
+    const maj = i % 2 === 0;
+    const len = maj ? r * 0.12 : r * 0.06;
+    ctx.strokeStyle = P.mark;
+    ctx.lineWidth   = maj ? 1.3 * sc : 0.7 * sc;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * r * 0.92, Math.sin(a) * r * 0.92);
+    ctx.lineTo(Math.cos(a) * (r * 0.92 - len), Math.sin(a) * (r * 0.92 - len));
+    ctx.stroke();
+  }
+
+  /* English cardinals — N red, E/S/W black */
+  const cards = L.cards;
+  for (let i = 0; i < 4; i++) {
+    const a  = (i / 4) * Math.PI * 2 - Math.PI / 2;
+    const nr = r * 0.66;
+    ctx.fillStyle    = i === 0 ? '#cc2200' : P.mark;
+    ctx.font         = `bold ${11 * sc}px ${SANS}`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(cards[i], Math.cos(a) * nr, Math.sin(a) * nr);
+  }
+
+  for (let i = 0; i < 12; i++) {
+    if (i % 3 === 0) continue;
+    const deg = i * 30;
+    const a   = (deg / 360) * Math.PI * 2 - Math.PI / 2;
+    const nr  = r * 0.66;
+    ctx.fillStyle    = P.subdued;
+    ctx.font         = `${8 * sc}px ${SANS}`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(deg / 10), Math.cos(a) * nr, Math.sin(a) * nr);
+  }
+
+  ctx.restore();
+
+  /* Lubber line */
+  ctx.strokeStyle = '#cc2200'; ctx.lineWidth = 2.2 * sc;
+  ctx.beginPath();
+  ctx.moveTo(x, y - r * 0.93);
+  ctx.lineTo(x, y - r * 0.78);
+  ctx.stroke();
+
+  ctx.fillStyle    = P.subdued;
+  ctx.font         = `${8 * sc}px ${SANS}`;
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(String(Math.round(hdg)).padStart(3, '0') + '°', x, y + r * 0.42);
+
+  _cap(ctx, x, y, 4.5 * sc);
+  _label(ctx, x, y, r, L.compass, sc);
+}
+
+/* ════════════════════════════════════════════════════════════
+   RATE OF CLIMB — ±2000 fpm
+   ════════════════════════════════════════════════════════════ */
+function _drawVSI(ctx, x, y, r, sc) {
+  const vs   = S.vs ?? 0;
+  const maxV = 2000;
+  const s0   = 225, sw = 270, mid = 360;
+
+  _base(ctx, x, y, r);
+  _ticks(ctx, x, y, r, s0, sw, 8, 5, sc);
+
+  ctx.textBaseline = 'middle';
+  for (const v of [-2000, -1000, 0, 1000, 2000]) {
+    const deg = mid + (v / maxV) * 135;
+    _num(ctx, x, y, r, deg, v === 0 ? '0' : String(Math.abs(v) / 1000), 8.5, sc);
+  }
+  ctx.textBaseline = 'alphabetic';
+
+  _sublabel(ctx, x, y, r, L.vsiUnit, sc);
+
+  const vsC  = Math.max(-maxV, Math.min(maxV, vs));
+  const angN = mid + (vsC / maxV) * 135;
+  _needle(ctx, x, y, r, angN, 0.78, 0.22, sc);
+  _cap(ctx, x, y, 4.5 * sc);
+  _label(ctx, x, y, r, L.vsi, sc);
+}
+
+/* ════════════════════════════════════════════════════════════
+   MANIFOLD PRESSURE — 0–60 in.Hg
+   ════════════════════════════════════════════════════════════ */
+function _drawManifold(ctx, x, y, r, sc) {
+  const maxSpd  = S.aircraft?.envelope?.maxSpd ?? 362;
+  const throttle = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
+  /* R-2800 at idle ~12 in.Hg, full throttle ~52 in.Hg */
+  const mp   = (S.wow || (S.spdT ?? 0) === 0) ? 12 : 12 + throttle * 40;
+  const maxP = 60;
+  const s0   = 220, sw = 280;
+
+  _base(ctx, x, y, r);
+  _ticks(ctx, x, y, r, s0, sw, 6, 5, sc);
+
+  ctx.textBaseline = 'middle';
+  for (let v = 0; v <= maxP; v += 10) _num(ctx, x, y, r, s0 + (v / maxP) * sw, String(v), 7.5, sc);
+  ctx.textBaseline = 'alphabetic';
+
+  /* Green arc 30–52 in.Hg */
+  const aG0 = _r(s0 + (30 / maxP) * sw);
+  const aG1 = _r(s0 + (52 / maxP) * sw);
+  ctx.save();
+  ctx.beginPath(); ctx.arc(x, y, r * 0.95, aG0, aG1);
+  ctx.strokeStyle = '#2a7a2a'; ctx.lineWidth = 4 * sc; ctx.stroke();
+  ctx.restore();
+
+  _sublabel(ctx, x, y, r, L.mapUnit, sc);
+
+  const ang = s0 + Math.min(1, mp / maxP) * sw;
+  _needle(ctx, x, y, r, ang, 0.76, 0.20, sc);
+  _cap(ctx, x, y, 4 * sc);
+  _label(ctx, x, y, r, L.map, sc);
+}
+
+/* ════════════════════════════════════════════════════════════
+   OIL TEMPERATURE — 0–300°F
+   ════════════════════════════════════════════════════════════ */
+function _drawOilTemp(ctx, x, y, r, sc) {
+  /* Convert oilTempC (°C) to °F */
+  const oilF = Math.max(0, Math.min(300, ((S.oilTempC ?? 15) * 9/5) + 32));
+  const maxT = 300;
+  const s0   = 220, sw = 280;
+
+  _base(ctx, x, y, r);
+  _ticks(ctx, x, y, r, s0, sw, 6, 5, sc);
+
+  ctx.textBaseline = 'middle';
+  for (let v = 0; v <= maxT; v += 50) _num(ctx, x, y, r, s0 + (v / maxT) * sw, String(v), 7, sc);
+  ctx.textBaseline = 'alphabetic';
+
+  /* Green arc 140–230°F */
+  const aG0 = _r(s0 + (140 / maxT) * sw);
+  const aG1 = _r(s0 + (230 / maxT) * sw);
+  ctx.save();
+  ctx.beginPath(); ctx.arc(x, y, r * 0.95, aG0, aG1);
+  ctx.strokeStyle = '#2a7a2a'; ctx.lineWidth = 4 * sc; ctx.stroke();
+  ctx.restore();
+
+  _sublabel(ctx, x, y, r, L.tempUnit, sc);
+
+  const ang = s0 + Math.min(1, oilF / maxT) * sw;
+  _needle(ctx, x, y, r, ang, 0.76, 0.20, sc);
+  _cap(ctx, x, y, 4 * sc);
+  _label(ctx, x, y, r, L.oilT, sc);
+}
+
+/* ════════════════════════════════════════════════════════════
+   CYLINDER HEAD TEMP — R-2800 air-cooled, coolantTemp state (°C) in °F
+   ════════════════════════════════════════════════════════════ */
+function _drawCHT(ctx, x, y, r, sc) {
+  const maxT = 500;
+  const chtF = Math.max(0, Math.min(maxT, ((S.coolantTemp ?? 15) * 9/5) + 32));
+  const cF   = c => c * 9/5 + 32;
+  const norm = S.aircraft?.cooling?.normal  ?? [180, 230];
+  const redC = S.aircraft?.cooling?.redline ?? 232;
+  const s0   = 220, sw = 280;
+
+  _base(ctx, x, y, r);
+  _ticks(ctx, x, y, r, s0, sw, 6, 5, sc);
+
+  ctx.textBaseline = 'middle';
+  for (let v = 0; v <= maxT; v += 100) _num(ctx, x, y, r, s0 + (v / maxT) * sw, String(v), 7, sc);
+  ctx.textBaseline = 'alphabetic';
+
+  ctx.save();
+  ctx.beginPath(); ctx.arc(x, y, r * 0.95, _r(s0 + (cF(norm[0]) / maxT) * sw), _r(s0 + (cF(norm[1]) / maxT) * sw));
+  ctx.strokeStyle = '#2a7a2a'; ctx.lineWidth = 4 * sc; ctx.stroke();
+  ctx.beginPath(); ctx.arc(x, y, r * 0.95, _r(s0 + (cF(redC) / maxT) * sw), _r(s0 + sw));
+  ctx.strokeStyle = '#9a2a2a'; ctx.lineWidth = 4 * sc; ctx.stroke();
+  ctx.restore();
+
+  _sublabel(ctx, x, y, r, L.tempUnit, sc);
+
+  const ang = s0 + Math.min(1, chtF / maxT) * sw;
+  _needle(ctx, x, y, r, ang, 0.76, 0.20, sc);
+  _cap(ctx, x, y, 4 * sc);
+  _label(ctx, x, y, r, L.cht, sc);
+}
+
+/* ════════════════════════════════════════════════════════════
+   OIL PRESSURE — 0–100 PSI
+   ════════════════════════════════════════════════════════════ */
+function _drawOilPressure(ctx, x, y, r, sc) {
+  const maxSpd  = S.aircraft?.envelope?.maxSpd ?? 362;
+  const throttle = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
+  const oilP = (S.enginePower ?? 1) > 0.1 ? 40 + throttle * 35 : 0;
+  const maxP = 100;
+  const s0   = 220, sw = 280;
+
+  _base(ctx, x, y, r);
+  _ticks(ctx, x, y, r, s0, sw, 10, 5, sc);
+
+  ctx.textBaseline = 'middle';
+  for (let v = 0; v <= maxP; v += 20) _num(ctx, x, y, r, s0 + (v / maxP) * sw, String(v), 7.5, sc);
+  ctx.textBaseline = 'alphabetic';
+
+  /* Green arc 50–85 PSI */
+  const aG0 = _r(s0 + (50 / maxP) * sw);
+  const aG1 = _r(s0 + (85 / maxP) * sw);
+  ctx.save();
+  ctx.beginPath(); ctx.arc(x, y, r * 0.95, aG0, aG1);
+  ctx.strokeStyle = '#2a7a2a'; ctx.lineWidth = 4 * sc; ctx.stroke();
+  ctx.restore();
+
+  _sublabel(ctx, x, y, r, L.oilPUnit, sc);
+
+  const ang = s0 + Math.min(1, oilP / maxP) * sw;
+  _needle(ctx, x, y, r, ang, 0.76, 0.20, sc);
+  _cap(ctx, x, y, 4 * sc);
+  _label(ctx, x, y, r, L.oilP, sc);
 }

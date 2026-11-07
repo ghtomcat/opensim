@@ -649,6 +649,8 @@ The cell shows real N1 only on the multi-engine turbofans. For the others the va
 
 **Sources.** Each panel's instrument set from photos or manuals of the type — the Avro 504K (ASI, altimeter, tachometer, compass, oil pulsator, no attitude indicator), the Tu-95's and An-225's analog panels.
 
+**Progress (2026-11-07).** Step 3 for the Tu-95 and the An-225: `panel: "analog"`, `panelStyle: "soviet"` (`1b07552`). The Bf 109 and F4U panels are one module now, `display/analog_panel.js`, with a style per aircraft (luftwaffe, soviet, usn: look, labels, unit system) — so the Avro needs a `wood` style on the imperial gauges, no new gauge code. After the three: the airliner mode strip (`#fma`, `display/fma.js`) shows on no aircraft and can go too — `core/fma.js` stays (the glass PFDs); `fmaPhases` on the non-glass aircraft becomes dead data (and the override in `index.html` ~2380 to check).
+
 **Done when.** The three fly on their own analog panels, without the airliner mode strip; `display/pfd.js` is gone; an aircraft without `panel` fails `tests/data-schema.test.mjs`.
 
 ### The METAR strip always says LSZH
@@ -958,7 +960,9 @@ Also in `display/` (`outside.js` 4×, `terrain.js`, `cislunar.js`) — less of a
 **Affects.** The four data-driven airliners now; every airliner rolled out to the method later. Props/warbirds keep their scaled hand-authored geometry until they get a data-driven build.
 
 ### Gauge helpers copied between the hand-drawn panels
-*Found 2026-10-11 · `display/bf109.js`, `display/f4u1a.js`, `display/velis_epsi.js`*
+*Found 2026-10-11 · `display/analog_panel.js`, `display/velis_epsi.js`*
+
+**Progress (2026-11-07).** `bf109.js` and `f4u1a.js` are merged into `display/analog_panel.js` — one set of helpers, the differing colours in the style's palette; both panels pixel-identical before and after. Left: the Velis's copy.
 
 Each hand-drawn panel has its own copy of the gauge-drawing helpers: `_base` / `_bezel`, `_cap`, `_needle`, `_ticks`, `_num`, `_label` (and `_roundRect`, also in `panel_renderer.js`). `_ticks` is identical in `bf109.js` and `f4u1a.js`; the others have drifted slightly (the Velis versions take a colour argument). A fix to one gauge doesn't reach the others, and each new warbird panel adds another copy.
 

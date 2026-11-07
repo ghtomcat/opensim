@@ -111,7 +111,7 @@ Everything that draws. Three kinds of files live here:
 
 | Kind | Files |
 |---|---|
-| Instruments & cockpit panels | `pfd.js`, `pfd_instruments.js`, `panel_renderer.js` (data-driven, reads `panels/`), `g1000.js`, `fma.js`, `com.js`, `clock.js`, `smooth.js` (display-lag smoothing); type-specific panels `bf109.js`, `f4u1a.js`, `velis_epsi.js`, `rocket_display.js`, `dragon.js`, `lm_display.js`, `dsky.js`; cockpit zones `overhead.js`, `pedestal.js`, `leftconsole.js`, `rightconsole.js`, `centerconsole.js`, `pushbutton.js` |
+| Instruments & cockpit panels | `pfd.js`, `pfd_instruments.js`, `panel_renderer.js` (data-driven, reads `panels/`), `g1000.js`, `fma.js`, `com.js`, `clock.js`, `smooth.js` (display-lag smoothing); type-specific panels `analog_panel.js` (the analog gauges, styled per aircraft: Bf 109, MiG-15, F4U, Tu-95, An-225), `velis_epsi.js`, `rocket_display.js`, `dragon.js`, `lm_display.js`, `dsky.js`; cockpit zones `overhead.js`, `pedestal.js`, `leftconsole.js`, `rightconsole.js`, `centerconsole.js`, `pushbutton.js` |
 | World & views | `outside.js` (3D outside view entry) with `outside-*.js` (per-type airframes, engines, gear, livery, rockets, space), `terrain.js`, `terrain-color.js`, `night-lights.js`, `map.js`, `cislunar.js`, `earthrise.js`, `kneeboard.js`, `robot_arm.js`, `yertle_quadruped.js` |
 | Helpers | `stands-util.js` (stand lookups over `data/stands-data.js`) |
 
