@@ -267,7 +267,7 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 
 **Symptom.** Ten `atcClearances` entries name different moments ("Track 2 — Go for TLI", "Track 9 — Christmas Eve", "Track 13 — Re-entry"), but all play the same 22-minute reel with `startTime: 0`. Each restarts the reel's opening (the launch), and clips can overlap: seen 3–4 playing at once when jumping between events.
 
-**The launch is done (2026-11-07).** The repeat Markus heard during the ascent was in `assets/apollo8/launch.mp3` itself: a stitched file with the liftoff roar three times. It's no longer played (and could be deleted). Track 1 of the reel replaces it, set by ear: 12 → 81 s from T−4, then 80 → 226 s from the sim's `stagesep`, because the archive cut the track at 1:21 and its staging talk would come 90 s early. Only Tracks 2–13 below are still open.
+**The launch is done (2026-11-07).** The repeat Markus heard during the ascent was in `assets/apollo8/launch.mp3` itself: a stitched file with the liftoff roar three times. It was deleted (2026-11-07). Track 1 of the reel replaces it, set by ear: 12 → 81 s from T−4, then 80 → 226 s from the sim's `stagesep`, because the archive cut the track at 1:21 and its staging talk would come 90 s early. Only Tracks 2–13 below are still open.
 
 **Source.** [archive.org/details/Apollo8Highlights](https://archive.org/details/Apollo8Highlights): one file with 15 tracks, in the order of the entries' numbers. The file's silences (`ffmpeg silencedetect`) give these starts, in seconds:
 
