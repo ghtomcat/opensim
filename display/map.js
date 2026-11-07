@@ -254,6 +254,9 @@ function _createPanelMap(id) {
 
 function _updatePanelMap(pm, canvas, devX, devY, devW, devH) {
   if (!pm) return;
+  /* A panel map is HTML floating above the canvas: only on the forward panel. A pedestal or console
+     view covers the panel, so the map would hang over it (the Velis EPSI, the DR400's GTN — 2026-11-07). */
+  if (S.cockpitView && S.cockpitView !== 'forward') { pm.el.style.display = 'none'; return; }
   const dpr  = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
   const x = rect.left + devX / dpr;

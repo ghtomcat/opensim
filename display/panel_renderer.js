@@ -464,10 +464,7 @@ function _drawG1000Screen(ctx, box, style, cfg) {
   if (powered) {
     drawG1000PFD(ctx, x + bzP,        y + bzT, pfdW - bzP*2, h - bzT*2);
     drawG1000MFD(ctx, _currentCanvas, mfdX + bzP, y + bzT, mfdW - bzP*2, h - bzT*2);
-    /* The MFD map is an HTML overlay floating above the canvas (z 8000). Only show it on the
-       forward panel — a pedestal/console view covers the panel, so hide it there or it hangs
-       over the pedestal. */
-    if (S.cockpitView && S.cockpitView !== 'forward') hideG1000Map();
+    /* The MFD map (an HTML overlay) hides itself outside the forward panel — _updatePanelMap() in map.js */
   } else {
     ctx.fillStyle = '#000';
     ctx.fillRect(x + bzP,    y + bzT, pfdW - bzP*2, h - bzT*2);
