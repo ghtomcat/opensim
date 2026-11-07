@@ -1109,15 +1109,22 @@ running utterance's volume can't change, so the switch replaces the spoken and w
 same lines at the new volume; the current line starts over. `tests/audio-output.test.mjs` keeps every
 output on these paths.
 
+**Pause holds the sound** (`setAudioPaused()` in `core/audio.js`, set from `S.paused` by the loop every
+frame, so `P` and the key map both reach it). Every sound belongs to mission time, so pause stops it with
+the clock: the context is suspended (each voice holds mid-sample, and scheduled stops and fades keep their
+place), playing clips are paused and played on, speech is paused and resumed. `X` is the other way round:
+the sound goes, time runs. A key press doesn't wake a paused context (`resumeAudio()`), and leaving a
+mission ends the pause.
+
 **One AudioContext for the session** (`core/audio.js`). `audioContext()` creates it on
 first use and it is never closed; `loadWorklet(url)` adds each AudioWorklet module once.
 Engine, APU, fuel pump, radio chain, GPWS, COM squelch and the shell's warning tones all
 play on it. `sound.js` sends its nodes through one output gain: `stopSound()` stops its
 long-running sources by name, tells the engine worklets to stop, and disconnects that
 gain, so a transmission or callout playing during an engine (re)start keeps playing.
-`getAudioContext()` in `sound.js` returns the context only while sound is on (`null`
-after `stopSound()`), and the crew's GPWS, PTT click and radio atmosphere stay silent
-then. Browsers only let a context run when it's created or resumed inside a user
+The crew's sounds (recordings, radio, GPWS, PTT click, radio atmosphere) use
+`audioContext()` too, whether the engine sound is on or not; `resetCrew()` stops the
+recordings and transmissions when a mission is left. Browsers only let a context run when it's created or resumed inside a user
 gesture, and the engine sound starts a frame after the key press (it follows
 `engineState`), so `core/audio.js` creates or resumes the context in the capture phase
 of every key and click.

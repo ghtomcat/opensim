@@ -679,6 +679,24 @@ The Velis's `sound.engineType` is `"electric"`, but `ENGINES` has no `electric` 
 
 **Fix.** Mark the clearance ended on every way speech can finish: `onend`, `onerror`, no `speechSynthesis` (immediately), and a fallback timer from the text length and rate (whichever comes first, once). **Done when.** Inspiration5 without `audio/` fires the same clearances as with it (70), in test mode.
 
+### Pause holds the sound — done; recordings in Safari not yet heard
+*Found 2026-11-07 · `setAudioPaused()` in `core/audio.js`, called from `core/loop.js`*
+
+**Symptom (confirmed by Markus, 2026-11-07).** A pause during a running clip, with `P` or with the key map up, let the recording run on while the clock stood; afterwards it was ahead by the length of the pause.
+
+**Fix (built 2026-11-07, Markus: pause stops *all* sound).** The loop sets `setAudioPaused(S.paused)` every frame. Pause suspends the one context (engine, recordings, radio, GPWS, tones hold mid-sample), pauses the playing clips and the speech; unpause continues all of them where they stood. A key during a pause doesn't wake the context; leaving a mission ends the pause. Test: `pause holds every sound with the clock…` in `tests/sound-output.spec.js` (fails on the old code).
+
+**Heard correct (Markus, 2026-11-07).** Apollo 8, paused during the launch commentary: it stops, and is on the clock afterwards. TTS callouts stop and continue, in Safari too (macOS).
+
+**Still to hear.** A recording or the engine in Safari: the loop resumes the context a frame after the key, outside the key press, which Safari may refuse. Speech on other platforms: `speechSynthesis.pause()` is known to cancel instead on some (a line would be lost, or its `after` chain stop). **Done when.** A recording paused and resumed in Safari plays on.
+
+### Smaller sound items
+*Found 2026-11-07, in the check that all sound goes through `core/audio.js` (it does)*
+
+- **`getAudioContext()` in `core/sound.js` has no callers left.** Crew audio used it until 2026-11-07, and was silent whenever the engine sound was off. Remove it so nothing new picks it up; `audioContext()` in `core/audio.js` is the one context.
+- **`_streamAudio` in `display/com.js` (the LiveATC stream) is cleared but never set.** `_stopStream()` and the `com-live-ind` indicator are left over; remove them, or bring the stream back on purpose.
+- **One-shot sounds aren't stopped when a mission is left:** the GPWS voice, the whoop, the PTT click and the warning tone. They last a second or two and just finish, so it doesn't matter; noted so the list of what `resetCrew()` stops is complete.
+
 ---
 
 ## Training

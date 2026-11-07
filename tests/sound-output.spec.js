@@ -90,9 +90,50 @@ test("a mission's transmission stops when the mission is left", async ({ page })
   await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
   await page.keyboard.press('Shift');                                  // a gesture: the context runs
   await page.evaluate(() => window.simStep(1, 1));                     // t=0 → the webcast entry fires
-  await expect.poll(() => level(page), { timeout: 10_000 }).toBeGreaterThan(0.01);
+  await expect.poll(() => level(page), { timeout: 20_000 }).toBeGreaterThan(0.01);   // fetch + decode of 250 s: >10 s under full-suite load
   await page.evaluate(() => window.simLoad('lszf-pattern'));          // cold and dark: nothing should sound
   await page.waitForFunction(() => window.simGetState().mission?.id === 'lszf-pattern', null, { timeout: 15_000 });
   await page.waitForTimeout(600);                                      // the radio chain's squelch tail
   expect(await level(page)).toBeLessThan(0.001);
+});
+
+test('pause holds every sound with the clock, and unpausing plays it on from where it stood', async ({ page }) => {
+  // A recording on the clock ran on through P and the key map, and was ahead afterwards (2026-11-07).
+  // A suspended context's analyser keeps its last frame, so the hold is read from the context's clock.
+  await tapDestination(page);
+  await page.goto('/?mission=lszf-pattern&test=1');
+  await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+  await page.evaluate(() => window.simSetState({ masterBat: true }));
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.simStep(180, 1 / 60));
+  await page.evaluate(async () => {
+    const { audioElement } = await import('/core/audio.js');
+    window.__clip = audioElement('assets/apollo8/day1.mp3');
+    await window.__clip.play();
+  });
+  await page.waitForTimeout(1000);
+  expect(await level(page)).toBeGreaterThan(0.01);
+
+  await page.evaluate(() => window.simSetState({ paused: true }));
+  await page.waitForTimeout(300);                                     // the next frame applies it
+  const held = await page.evaluate(() => ({ ctx: window.__ctxs[0].currentTime, clip: window.__clip.currentTime }));
+  await page.waitForTimeout(700);
+  const after = await page.evaluate(() => ({ state: window.__ctxs[0].state, ctx: window.__ctxs[0].currentTime, clip: window.__clip.currentTime, paused: window.__clip.paused }));
+  expect(after.state).toBe('suspended');
+  expect(after.ctx).toBe(held.ctx);                                   // Web Audio stands
+  expect(after.paused).toBe(true);
+  expect(after.clip).toBe(held.clip);                                 // the clip stands
+
+  await page.keyboard.press('Shift');                                 // a key during a pause doesn't wake the sound
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.__ctxs[0].state)).toBe('suspended');
+
+  await page.evaluate(() => window.simSetState({ paused: false }));
+  await page.waitForTimeout(700);
+  const on = await page.evaluate(() => ({ state: window.__ctxs[0].state, paused: window.__clip.paused, clip: window.__clip.currentTime }));
+  expect(on.state).toBe('running');
+  expect(on.paused).toBe(false);
+  expect(on.clip).toBeGreaterThan(held.clip);                         // on from where it stood
+  expect(on.clip).toBeLessThan(held.clip + 1.5);                      // not from where it would have been
+  expect(await level(page)).toBeGreaterThan(0.01);
 });

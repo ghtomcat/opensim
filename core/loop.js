@@ -25,6 +25,7 @@ import { tickHIL }                  from './hil.js';
 import { tickElevation }            from './elevation.js';
 import { tickTaxi }                 from './taxi.js';
 import { tickFlightPlan }           from './flightplan.js';
+import { setAudioPaused }           from './audio.js';
 
 /* Fixed physics timestep for rocket simulation.
    At any warp level ≥ PHYS_DT, the accumulator ensures every
@@ -61,7 +62,9 @@ export function suspendLoop() {
 
 function _tick(now) {
   requestAnimationFrame(_tick);
-  if (_suspended) { _prevTime = null; return; }   // resume without a stale dt
+  if (_suspended) { _prevTime = null; setAudioPaused(false); return; }   // resume without a stale dt; the selector isn't a pause
+
+  setAudioPaused(!!S.paused);   // P and the key map: the sound stands with the clock (core/audio.js)
 
   if (!_prevTime) { _prevTime = now; return; }
   const dt = Math.min((now - _prevTime) / 1000, 0.1);   // cap at 100ms

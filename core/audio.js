@@ -53,11 +53,47 @@ export function setAudioMuted(muted) {
   _respeak();
 }
 
-/** A clip (recording, looped radio) that follows the audio switch. */
+/* ── Pause (P, the key map): the mission's time stands, and its sound with it ──
+   Every sound belongs to mission time: a recording on the clock would run ahead of it,
+   the engine would drone on at a frozen state. Unlike X (sound off, time runs), pause stops
+   both and resumes both in step. The loop sets it from S.paused every frame (core/loop.js).
+   Web Audio: the one context is suspended, every voice holds mid-sample (and the context's
+   clock with it, so scheduled stops and fades keep their place). Clips: paused, then played on.
+   Speech: speechSynthesis.pause()/resume() — some platforms cancel instead (not checked). */
+let _paused = false;
+const _held = new Set();   // clips the pause stopped, to play on
+
+export const audioPaused = () => _paused;
+
+export function setAudioPaused(paused) {
+  if (paused === _paused) return;
+  _paused = paused;
+  if (_ctx && _ctx.state !== 'closed') (paused ? _ctx.suspend() : _ctx.resume()).catch(() => {});
+  if (paused) {
+    for (const a of _elements) { _held.add(a); a.pause(); }
+  } else {
+    for (const a of _held) a.play().catch(() => {});
+    _held.clear();
+  }
+  if (typeof speechSynthesis !== 'undefined') paused ? speechSynthesis.pause() : speechSynthesis.resume();
+}
+
+/** Resume the context unless the mission is paused — for a sound that starts on a key press. */
+export function resumeAudio() {
+  const ctx = audioContext();
+  if (!_paused && ctx.state === 'suspended') return ctx.resume();
+  return Promise.resolve();
+}
+
+/** A clip (recording, looped radio) that follows the audio switch and the pause. */
 export function audioElement(src) {
   const a = new Audio(src);
   a.muted = _muted;
-  a.addEventListener('play',  () => { a.muted = _muted; _elements.add(a); });
+  a.addEventListener('play',  () => {
+    a.muted = _muted;
+    if (_paused) { _held.add(a); a.pause(); return; }   // started during a pause: plays on with it
+    _elements.add(a);
+  });
   a.addEventListener('pause', () => _elements.delete(a));   // also fires when it ends
   return a;
 }
@@ -97,6 +133,7 @@ function _respeak() {
   });
   speechSynthesis.cancel();
   again.forEach(speak);
+  if (_paused) speechSynthesis.pause();   // X during a pause: the lines wait for the pause to end
 }
 
 /** Add an AudioWorklet module once; later calls return the same promise. A failed load is retried next time. */
@@ -118,7 +155,7 @@ if (typeof document !== 'undefined') {
   const _wake = () => {
     try {
       const ctx = audioContext();
-      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+      if (ctx.state === 'suspended' && !_paused) ctx.resume().catch(() => {});   // a paused mission stays silent
     } catch {}   // no Web Audio in this browser — the sim runs silent
   };
   document.addEventListener('keydown',     _wake, { capture: true });

@@ -6,7 +6,7 @@
 
 import { S } from './state.js';
 import { ENGINE, assertCovers, warnUnknown } from './vocab.js';
-import { audioContext, audioOutput, loadWorklet } from './audio.js';
+import { audioContext, audioOutput, loadWorklet, resumeAudio } from './audio.js';
 
 /* ── Engine type presets ── */
 const ENGINES = {
@@ -2076,7 +2076,7 @@ function _followApu() {
 
 function _playApuStart() {
   _acquire();
-  if (_ctx.state === 'suspended') _ctx.resume().catch(() => {});
+  resumeAudio().catch(() => {});   // not during a pause (core/audio.js)
   _stopApuStart();
   const buf = _assembleAPUStartup(_ctx.sampleRate);
   const ab  = _ctx.createBuffer(1, buf.length, _ctx.sampleRate);
@@ -2311,7 +2311,7 @@ async function _ensureLifecycleOut() {
     _master.gain.value = 0;
     _master.connect(_out);
   }
-  if (_ctx.state === 'suspended') await _ctx.resume();
+  await resumeAudio();   // not during a pause (core/audio.js)
 }
 
 function _stopStartRecording() {
@@ -2497,7 +2497,7 @@ export async function startFuelPump() {
     _master.gain.value = 1;
     _master.connect(_out);
   }
-  if (_ctx.state === 'suspended') await _ctx.resume();
+  await resumeAudio();   // not during a pause (core/audio.js)
   if (_master.gain.value < 0.05) _master.gain.setTargetAtTime(1, _ctx.currentTime, 0.2);
 
   const now = _ctx.currentTime;
