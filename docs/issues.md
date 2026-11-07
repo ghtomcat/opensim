@@ -867,6 +867,22 @@ The aircraft says *what* it has, the manufacturer *where* it goes, the style *ho
 
 **Progress (checked 2026-11-06).** The first instance is done for the overhead: its ELECTRICAL section (stage 2d), HYDRAULICS section (stage 4), FUEL section (*Airliner fuel system*, part 3) and FLIGHT CONTROLS section (the TAC switch, only where the data has a TAC — stage 3d) are built from the aircraft's layouts, one control per element, each sending a command to its owner (*node + action*). The 777 and the A340 show their own generators and hydraulic pumps, and the 777 its own fuel pumps and crossfeed valves (the A340's fuel, and all of the A350's systems, still the default structure — no layout of their own yet); the ELEC, HYD and FUEL pages come from the same layouts. Still code: APU, the fire handles (they also write `S` directly — see *`S` has no field ownership*), the placement into zones (layer 3 — no manufacturer rules yet), the pedestal, the consoles and the centre view.
 
+**Where switches are drawn today (checked 2026-11-07).** Five places, two techniques (canvas, HTML), each with its own state names:
+
+| Where | Aircraft | Drawn | A click |
+|---|---|---|---|
+| `display/velis_epsi.js` — `_velisKey()`, `_velisToggle()` | Velis | canvas, positions in the module | writes `S.switches.master / battEn / pwrEn / avionics` |
+| `display/pedestal.js` — `_toggle()`, `.ped-toggle` CSS | C172 (`pedestal` tokens `switches`, `lights`, `breakers`, `magneto` …) | HTML | writes `S.masterBat / masterAlt / avionicsOn / fuelPump`, `S.lights` |
+| `display/panel_renderer.js` — `_drawRockerStrip()`, `_drawBottomSwitches()`, `_drawMagnetoKnob()` | DR400 (widgets in `panels/dr400.json`) | canvas widgets, placed by the panel JSON | `_toggleSwitch(key)`, writes `S` |
+| `display/overhead.js` + `display/pushbutton.js` | airliners | HTML pushbuttons, one per element of the system layout | a command to the owner (`elecSwitch()`, `hydPump()`, `fuelPump()`) |
+| `display/leftconsole.js`, `rightconsole.js` | Bf 109, F4U, MiG-15 (`left` / `right` tokens) | HTML | writes `S` (fuel cock, cooling flaps, breakers, oxygen …) |
+
+- **The looks may differ — they are layer 4.** The duplication is the problem: the Velis toggle and the C172 toggle are one design (bat handle, LED, label, lever `#9eaabf`) written twice, on a canvas and in CSS, so a fix to one doesn't reach the other (the Velis labels were 5 px while the C172's were fine — fixed 2026-11-07).
+- **One switch, several names.** The battery master is `S.switches.master` on the Velis and `S.masterBat` on the C172, so readers branch on the panel (`_isComPowered()` in `core/crew.js`).
+- **Only the overhead is node + action.** The others write `S` directly (*`S` has no field ownership*).
+- **Missing:** one switch component per technique (canvas, HTML), its look a parameter from the style; every control a command to its owner.
+- **First step:** the Velis onto the electrical solver (`core/electrical.js`) — its four switches become `elecSwitch()` commands; the C172's follow.
+
 ### Overloaded fields in the JSON data
 *Found 2026-10-11 · `aircraft/*.json`, `missions/*.json`; left over from the data-contract work (2026-10-13)*
 
