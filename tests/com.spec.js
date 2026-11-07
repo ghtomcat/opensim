@@ -102,10 +102,10 @@ test.describe('COM resets on mission switch', () => {
   });
 });
 
-/* ── COM power: the Velis radio needs MASTER, BATT EN and AVIONICS ── */
+/* ── COM power: the Velis radio needs MASTER and AVIONICS — not BATT EN (POH 4-9) ── */
 
 test.describe('COM power — Velis', () => {
-  test('the radio is silent until MASTER, BATT EN and AVIONICS are on', async ({ page }) => {
+  test('the radio is silent until MASTER and AVIONICS are on — BATT EN not needed', async ({ page }) => {
     // lszg-velis's first call waits for the COM to come on (com_active). The check compared the
     // panel against 'velis' — the Velis is 'velis-epsi' — so the radio was always on (2026-11-07).
     const fired = [];
@@ -116,11 +116,11 @@ test.describe('COM power — Velis', () => {
 
     await step();
     expect(fired).not.toContain(0);                                     // cold and dark: no call
-    await sw({ master: true, battEn: true });
-    await step();
-    expect(fired).not.toContain(0);                                     // the avionics are still off
     await sw({ avionics: true });
     await step();
-    await expect.poll(() => fired).toContain(0);                        // the radio is on: the first call goes out
+    expect(fired).not.toContain(0);                                     // AVIONICS without MASTER: no power
+    await sw({ master: true });
+    await step();
+    await expect.poll(() => fired).toContain(0);                        // on the 14 V battery, BATT EN still off: the first call goes out
   });
 });

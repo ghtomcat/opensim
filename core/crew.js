@@ -590,9 +590,9 @@ function _stopRadioAtmosphere() {
 function _isComPowered() {
   const ac = S.aircraft;
   if (!ac) return true;
-  if (ac.panel === PANEL.VELIS) {
+  if (ac.panel === PANEL.VELIS) {   // the avionics bus: MASTER (the 14 V battery) and AVIONICS — not BATT EN, the traction batteries (POH 7-27, 4-9)
     const sw = S.switches;
-    return !!(sw?.master && sw?.battEn && sw?.avionics);
+    return !!(sw?.master && sw?.avionics);
   }
   if (ac.panel === PANEL.G1000) {
     return S.masterBat !== false && S.avionicsOn !== false;

@@ -1,6 +1,7 @@
 /**
  * The Velis cockpit: the switches can be clicked where they are drawn, in any window, and the
- * instruments (NESIS, EPSI and its map, COM) are dark until MASTER, BATT EN and AVIONICS are on.
+ * instruments (NESIS, EPSI and its map, COM) are dark until MASTER and AVIONICS are on (BATT EN is
+ * the traction batteries — the checklist reads the charge on the EPSI before it, POH 4-9).
  * Found 2026-11-07 (Markus): the EPSI showed altitude, V/S and the map with everything off, and
  * the switches sat low with 5-pixel labels.
  */
@@ -48,10 +49,10 @@ test('the EPSI and its map are dark until the avionics have power', async ({ pag
   await load(page);
   const map = page.locator('#velis-map-overlay');
   await expect(map).toBeHidden();                                         // cold and dark
-  await click(page, 'master'); await click(page, 'battEn');
-  await expect(map).toBeHidden();                                         // AVIONICS still off
   await click(page, 'avionics');
-  await expect(map).toBeVisible();
-  await click(page, 'avionics');
+  await expect(map).toBeHidden();                                         // AVIONICS without MASTER: no power
+  await click(page, 'master');
+  await expect(map).toBeVisible();                                        // on the 14 V battery, BATT EN still off
+  await click(page, 'master');
   await expect(map).toBeHidden();
 });

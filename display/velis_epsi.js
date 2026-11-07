@@ -44,10 +44,12 @@ const _r   = d => (d - 90) * Math.PI / 180;
 /* ── Hit regions for click handling — rebuilt each frame ── */
 let _hitRegions = [];
 
-/* The instruments (NESIS, EPSI, COM) are on the avionics: MASTER, BATT EN and AVIONICS on — the same
-   rule as the COM power in core/crew.js. A stand-in until the Velis is on the electrical solver
-   (core/electrical.js) and they read its avionics bus. */
-const _avionicsPowered = () => !!(S.switches?.master && S.switches?.battEn && S.switches?.avionics);
+/* The instruments (NESIS, EPSI, COM) are on the avionics bus: MASTER connects the 14 V auxiliary
+   battery to the main bus, AVIONICS the main bus to the avionics bus. BATT EN (the traction
+   batteries) isn't needed: the start-up checklist reads the charge on the EPSI before it (POH 4-9,
+   7-27). The same rule as the COM power in core/crew.js — a stand-in until the Velis is on the
+   electrical solver (core/electrical.js) and they read its avionics bus. */
+const _avionicsPowered = () => !!(S.switches?.master && S.switches?.avionics);
 
 /* ════════════════════════════════════════════════════════════
    MAIN ENTRY
@@ -697,21 +699,19 @@ function _drawEPSI(ctx, canvas, cx, cy, w, h, sc) {
 
   const soc      = S.batteryCharge ?? 0;
   const masterOn = S.switches.master;
-  const battOn   = S.switches.battEn;
   const pwrOn    = S.switches.pwrEn;
   const kw       = pwrOn
     ? (S.aircraft?.battery?.powerDrawKw ?? 25) * (S.enginePower ?? 0)
     : 0;
   const socColor = soc > 27 ? P.green : soc > 20 ? P.amber : soc > 10 ? '#ff8800' : P.red;
-  const online   = masterOn && battOn;   // always, once the screen has power (_avionicsPowered)
 
   /* SOC % — large */
   const socY = y0 + 72*sc;
-  ctx.fillStyle    = online ? socColor : P.dim;
+  ctx.fillStyle    = socColor;   // the BMS reports the charge with BATT EN off too — checked before it (POH 4-9)
   ctx.font         = `bold ${52*sc}px ${MONO}`;
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(online ? Math.round(soc) + '%' : '---', cx, socY);
+  ctx.fillText(Math.round(soc) + '%', cx, socY);
   ctx.fillStyle    = P.dim;
   ctx.font         = `${8*sc}px ${SANS}`;
   ctx.fillText('STATE OF CHARGE', cx, socY + 34*sc);
@@ -725,11 +725,8 @@ function _drawEPSI(ctx, canvas, cx, cy, w, h, sc) {
   ctx.fillStyle = 'rgba(255,255,255,0.07)';
   _roundRect(ctx, barX, barY, barW, barH, 4*sc); ctx.fill();
 
-  if (online) {
-    const fillW = barW * Math.max(0, soc/100);
-    ctx.fillStyle = socColor;
-    _roundRect(ctx, barX, barY, fillW, barH, 4*sc); ctx.fill();
-  }
+  ctx.fillStyle = socColor;
+  _roundRect(ctx, barX, barY, barW * Math.max(0, soc/100), barH, 4*sc); ctx.fill();
 
   /* 27% marker */
   const m27x = barX + barW * 0.27;
@@ -757,9 +754,9 @@ function _drawEPSI(ctx, canvas, cx, cy, w, h, sc) {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = P.dim;    ctx.font = `${8*sc}px ${SANS}`;
   ctx.fillText('MOTOR POWER', cx - col/2, row2Y);
-  ctx.fillStyle = pwrOn && online ? P.cyan : P.dim;
+  ctx.fillStyle = pwrOn ? P.cyan : P.dim;
   ctx.font      = `bold ${24*sc}px ${MONO}`;
-  ctx.fillText(pwrOn && online ? Math.round(kw) + ' kW' : '---', cx - col/2, row2Y + 18*sc);
+  ctx.fillText(pwrOn ? Math.round(kw) + ' kW' : '---', cx - col/2, row2Y + 18*sc);
 
   ctx.fillStyle = P.dim;    ctx.font = `${8*sc}px ${SANS}`;
   ctx.fillText('ALTITUDE', cx + col/2, row2Y);
@@ -832,9 +829,9 @@ function _drawEPSI(ctx, canvas, cx, cy, w, h, sc) {
   ctx.beginPath(); ctx.moveTo(x0+pad, warnY-10*sc); ctx.lineTo(x0+w-pad, warnY-10*sc); ctx.stroke();
 
   const warns = [
-    { label: 'BATT LOW',  active: online && soc <= 20 && soc > 10, color: P.amber },
-    { label: 'BATT CRIT', active: online && soc <= 10,             color: P.red   },
-    { label: 'GO-AROUND', active: online && soc <= 27 && soc > 10, color: P.amber },
+    { label: 'BATT LOW',  active: soc <= 20 && soc > 10, color: P.amber },
+    { label: 'BATT CRIT', active: soc <= 10,             color: P.red   },
+    { label: 'GO-AROUND', active: soc <= 27 && soc > 10, color: P.amber },
     { label: 'MOTOR OFF', active: masterOn && !pwrOn,              color: P.red   },
   ];
   const warnW = (w - pad*2) / warns.length;
