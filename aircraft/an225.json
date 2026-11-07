@@ -62,6 +62,8 @@
     "muBrake":         0.30
   },
 
+  "spoilers": { "drag": 0.06 },
+
   "flaps": [
     { "deg":  0, "dCL_max": 0.00, "dCD_0": 0.000 },
     { "deg": 15, "dCL_max": 0.40, "dCD_0": 0.015 },

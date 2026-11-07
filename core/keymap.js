@@ -116,7 +116,7 @@ export const KEYS = [
   { id: 'gear', group: 'Engine and systems', show: 'G', desc: 'Gear up / down (not on the ground)',
     keys: ['g', 'G'], when: (ac) => flown(ac) && !ac.fixedGear },
   { id: 'speed-brake', group: 'Engine and systems', show: 'S', desc: 'Speed brake: RET → ARM → FULL',
-    keys: ['s', 'S'], when: flown, listed: turbofan },
+    keys: ['s', 'S'], when: (ac) => flown(ac) && !!ac?.spoilers },   // the aircraft data has spoilers
   { id: 'start-pedestal', group: 'Engine and systems', info: true, show: 'D',
     desc: 'Engine start on the pedestal: power, ENG MODE IGN/START, ENG MASTERs', when: turbofan },
   { id: 'start-panel', group: 'Engine and systems', info: true, show: 'Panel',

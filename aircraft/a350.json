@@ -241,9 +241,9 @@
     "Vr": 165,
     "muRoll": 0.02,
     "muBrake": 0.4,
-    "gearDrag": 0.012,
-    "spoilerDrag": 0.08
+    "gearDrag": 0.012
   },
+  "spoilers": { "drag": 0.08 },
   "flaps": [
     {
       "label": "0",

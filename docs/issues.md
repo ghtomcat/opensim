@@ -546,6 +546,7 @@ Rejected: three numbers in `startTime` (`cold` / `warm` / `hot`) — smaller, bu
 ### Smaller systems items
 *Found 2026-10-11*
 
+- **The MiG-15 has no airbrakes yet.** Its fuselage airbrakes (in / out) aren't modelled. The `spoilers` field (2026-11-07) is the airliners' RET / ARM / FULL with ground spoilers and touchdown auto-deploy, which doesn't fit an in/out dive brake, so the MiG-15 has none — no SPD BRK on its pedestal, `S` does nothing. Needs a shape for the field (e.g. `spoilers.positions`, or an `airbrakes` block with its drag) and a source for the drag.
 - **Most turbofans have no hydraulic layout of their own.** The A340 and the 777 have theirs (`aircraft.hydraulics`); the A220, A350, 737, 737 MAX 9 and E190 use the default in `core/hydraulics.js` (GREEN / BLUE / YELLOW, the structure once hard-coded for every turbofan), which isn't theirs (737: A/B/standby; E190: systems 1/2/3; A350: GREEN/YELLOW). Give each a sourced layout when it is needed.
 - **`BURN_DEFAULTS` keyed by unused engine types.** `core/fuel.js` has `lycoming-o320` and `r-2800`, but no aircraft uses those engine types (the DR400 is `lycoming-o360`, the F4U `radial-2000hp`); all four fuel aircraft set `fuelBurn` explicitly, so the defaults are never used. Remove them or key them correctly.
 - **"Battery" means two things.** `core/battery.js` is the Velis propulsion battery (`batteryCharge`); airliner batteries are `bat1..3` inside `core/electrical.js`. Rename (e.g. `tractionBattery`) to keep them apart.

@@ -96,7 +96,7 @@ const performance = object({
   /* fixed-wing force model */
   mass: num, wingArea: num, wingSpan: num, thrustMax: num, Vr: num,
   CL_0: num, CL_alpha: num, CL_max: num, CD_0: num, inducedK: num,
-  gearDrag: num, spoilerDrag: num, coolFlapDrag: num, muRoll: num, muBrake: num, muSide: num,
+  gearDrag: num, coolFlapDrag: num, muRoll: num, muBrake: num, muSide: num,
   /* rockets */
   massWet: num, payload: num, Cd: num, area: num, gLimit: num, qLimit: num, cegCutoffG: num,
   guidanceDuration: num, lesJettisonT: num, stages: arrayOf(stage),
@@ -135,6 +135,7 @@ export const aircraft = object(
     inertia: object({ Izz: num }),                   // kg·m² — overrides core/yaw.js's estimate from mass, span and length
     flaps: arrayOf(flapSetting), thrustProfiles: arrayOf(thrustProfile), approachSpeed: num,
     autobrake: bool, fixedGear: bool, gridFins: bool, landingLegs: bool,
+    spoilers: object({ drag: num }),                 // spoilers / speed brake (RET · ARM · FULL, ground spoilers) — absent: none
     /* systems */
     tanks: object({ left: num, right: num, unit: oneOf('L') }), fuelBurn: num, hasCarbHeat: bool,
     battery: object({ capacityKwh: num, powerDrawKw: num }), electrical, hydraulics, fuelSystem,

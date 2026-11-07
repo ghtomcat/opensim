@@ -541,6 +541,7 @@
       "spdT": 330
     }
   ],
+  "spoilers": { "drag": 0.06 },
   "flaps": [
     {
       "label": "0",

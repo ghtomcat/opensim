@@ -671,7 +671,8 @@ the centre of mass; attitude isn't produced by moments.
   model.
 - **Aerodynamics:** `CL = CL_0 + CL_alpha·α`, capped at `CL_max`, with α = pitch
   attitude (see issues). Drag is `CD_0` plus induced, gear, propeller-damage,
-  cooling-flap and spoiler drag. Flap coefficients ramp over ~9 s per stage. Ground
+  cooling-flap and spoiler drag (spoilers only where the aircraft has `spoilers` — the same
+  field gates SPD BRK on the pedestal and the `S` key). Flap coefficients ramp over ~9 s per stage. Ground
   effect cuts induced drag and adds up to ~4 % lift within one wingspan.
 - **Thrust:** summed over the engines (`S.engines`), each running engine contributing its
   share of `T_max`. Turbofans `(N1/100)^1.8·ρ/ρ₀` — a turbofan's power acts through its N1

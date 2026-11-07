@@ -283,7 +283,7 @@ const _keyActions = {
     const next = !S.gear;
     if (next || !S.wow) { setState({ prevGear: S.gear, gear: next }); bbEvent({ type: 'gear', gear: next ? 'down' : 'up' }); }
   },
-  'speed-brake': () => setState({ speedBrake: ((S.speedBrake ?? 0) + 1) % 3 }),   // RET → ARM → FULL → RET
+  'speed-brake': () => { if (S.aircraft?.spoilers) setState({ speedBrake: ((S.speedBrake ?? 0) + 1) % 3 }); },   // RET → ARM → FULL → RET — only with spoilers
   'right-console': () => _view('right'),
   role: () => {
     const roles = ['PF', 'PM', 'INSTRUCTOR'];

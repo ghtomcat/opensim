@@ -341,8 +341,8 @@ export function tickPhysics(dt) {
 
     /* Ground spoilers (speedBrake = 2, deployed on touchdown): dump lift to plant the jet on
        its wheels + add drag to slow the roll-out. Without this they were cosmetic. */
-    const _sb     = S.speedBrake ?? 0;
-    const sbCD    = _sb >= 2 ? (perf.spoilerDrag ?? 0.06) * _sbRamp : 0;
+    const _sb     = ac.spoilers ? (S.speedBrake ?? 0) : 0;              // no spoilers in the aircraft data: none
+    const sbCD    = _sb >= 2 ? (ac.spoilers.drag ?? 0.06) * _sbRamp : 0;
     const sbLift  = _sb >= 2 ? 1 - 0.5 * _sbRamp : 1;                   // spoil up to ~50% of the lift
 
     /* Aerodynamics */
@@ -673,7 +673,7 @@ export function tickPhysics(dt) {
                   && _lever >= (newWow ? 0.4 : 0.95);
   const _sbPatch = justTouched
     ? { thrustLever: 0,                                     // levers to idle on touchdown (no spool-up to hold speed)
-        ...((S.speedBrake ?? 0) === 1 ? { speedBrake: 2 } : {}) }
+        ...(ac.spoilers && (S.speedBrake ?? 0) === 1 ? { speedBrake: 2 } : {}) }
     : _sbRetract ? { speedBrake: 0 } : {};
 
   /* Gear animation — 12-second transit (not for fixed-gear aircraft) */

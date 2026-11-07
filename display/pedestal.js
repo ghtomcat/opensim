@@ -543,7 +543,7 @@ function _mcduHTML() {
    layout so every existing aircraft renders byte-identical (no JSON churn). */
 function _pedestalTokens() {
   if (Array.isArray(S.aircraft?.pedestal)) return S.aircraft.pedestal;
-  const t = ['thrust', 'flaps', 'speedbrake'];
+  const t = ['thrust', 'flaps', ...(S.aircraft?.spoilers ? ['speedbrake'] : [])];   // SPD BRK only with spoilers in the data
   /* AUTO BRK lives on the centre panel (M view), not the pedestal — see centerconsole.js */
   t.push('parkbrake');
   if (S.aircraft?.engine?.type === 'turbofan') t.push('engstart');
