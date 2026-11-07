@@ -262,6 +262,25 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 
 **Affects.** Inspiration5 only.
 
+### Apollo 8 plays the opening of its audio reel for every event
+*Found 2026-11-06 · `missions/apollo8.json`, `assets/apollo8/highlights.mp3`; since `7a4185f` (2026-05-15)*
+
+**Symptom.** Ten `atcClearances` entries name different moments ("Track 2 — Go for TLI", "Track 9 — Christmas Eve", "Track 13 — Re-entry"), but all play the same 22-minute reel with `startTime: 0`. Each restarts the reel's opening (the launch), and clips can overlap: seen 3–4 playing at once when jumping between events.
+
+**The launch is done (2026-11-07).** The repeat Markus heard during the ascent was in `assets/apollo8/launch.mp3` itself: a stitched file with the liftoff roar three times. It's no longer played (and could be deleted). Track 1 of the reel replaces it, set by ear: 12 → 81 s from T−4, then 80 → 226 s from the sim's `stagesep`, because the archive cut the track at 1:21 and its staging talk would come 90 s early. Only Tracks 2–13 below are still open.
+
+**Source.** [archive.org/details/Apollo8Highlights](https://archive.org/details/Apollo8Highlights): one file with 15 tracks, in the order of the entries' numbers. The file's silences (`ffmpeg silencedetect`) give these starts, in seconds:
+
+| Track | Start | Confidence |
+|---|---|---|
+| 1 Launch | 0 (cut at 81) | done, two entries |
+| 2 Go for TLI · 3 TLI burn | 226 · 267 | short gaps, by length |
+| 4 Earth from midway | 301 | short gap, by length |
+| 5 Before LOI · 6 After LOI · 7 Lovell, Earth · 8 Live from the Moon | somewhere in 373 … 701 (gaps at 373, 495 only) | **to be found by ear** |
+| 9 Genesis · 10 Before TEI · 11 Santa Claus · 12 Pre-separation · 13 Re-entry · 14 Post-splashdown · 15 President Johnson | 701 · 818 · 881 · 964 · 1012 · 1046 · 1108 | 5 s gaps, seven gaps for seven tracks; **to confirm by ear** |
+
+**Fix.** `startTime` and `duration` per entry from the table. The present durations are estimates (Genesis: 260 s in the data, about 117 s in the file). **Done when.** Each entry plays its own track and ends with it, checked by ear.
+
 ### The Earth doesn't rotate in the rocket model
 *Found 2026-10-11 · `core/rocket.js` — no rotation rate anywhere in the model*
 
@@ -636,16 +655,14 @@ The Velis's `sound.engineType` is `"electric"`, but `ENGINES` has no `electric` 
 
 **Done when.** Every `commProfile` value in missions/aircraft is a key of `PROFILES`; unknown names fail validation.
 
-### The audio switch (`X`): the line being spoken isn't cut off, and it's untested on the orbital missions
-*Found 2026-11-06 (Markus, in the browser) · `setAudioMuted()` / `_respeak()` in `core/audio.js`*
+### The audio switch (`X`) is untested on most orbital missions
+*Noted 2026-11-06 · `setAudioMuted()` / `_respeak()` in `core/audio.js`*
 
-**Symptom.** `X` during an ATC exchange lets the current line finish, then it goes quiet. It should go quiet at once: `_respeak()` cancels the spoken and waiting lines and speaks them again at volume 0. The later lines do stay silent, and ATC comes correctly once the sound is back on. `X` during an engine start works.
+**Tested in the browser (Markus, 2026-11-06).** `X` cuts a line at once and the script carries on: spoken on Demo-2, a recording on `nordmeer-1956`, ATC callouts on aircraft, and an engine start. (One earlier run where a line played on to its end didn't repeat.) The tests can't cover this: speech doesn't work in headless Chromium, so `tests/audio-output.test.mjs` uses a stand-in engine.
 
-**Cause — not yet known.** The tests run the speech logic against a stand-in engine (`tests/audio-output.test.mjs`), since speech doesn't work in headless Chromium; the real browser behaves differently. To check there: which path the line took (speech, or a recording), and whether `speechSynthesis.cancel()` stops it.
+**Not tested yet.** The other orbital missions mix the sound paths: `inspiration5` (133 recordings, ambient audio), `apollo8` (12 ambient, 18 spoken), `apollo13`, `crs1` (radio loops). Also `X` during time warp. The mute carries over between missions; `AUDIO OFF` under the mission clock shows it on every vehicle.
 
-**Not tested yet — the orbital missions.** They mix all three sound paths: `inspiration5` (133 recordings, ambient audio), `apollo8` (12 ambient, 18 spoken), `apollo13`, `crew-demo2` (a webcast clip, 32 spoken), `crs1` (radio loops). Also check `X` during time warp. The mute carries over between missions; `AUDIO OFF` under the mission clock shows it on every vehicle.
-
-**Done when.** `X` silences a spoken line at once, in a real browser; the script's later lines still fire; and every orbital mission above goes silent and comes back correctly.
+**Done when.** Every orbital mission above goes silent and comes back correctly, and the script's later lines still fire.
 
 ### A missing audio clip can stop the `after` chain
 *Found 2026-10-12 · `atcClearances` dispatch in `core/crew.js` (the `clr.audio` branch, `_safeSpeak()`)*

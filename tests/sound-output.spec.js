@@ -81,3 +81,18 @@ test('X reaches everything: any Web Audio voice, and clips playing or started la
   await page.waitForTimeout(300);
   expect(await level(page)).toBeGreaterThan(0.01);
 });
+
+test("a mission's transmission stops when the mission is left", async ({ page }) => {
+  // Demo-2's 250 s webcast plays through playRadio. Since the AudioContext stays open across
+  // missions (a53f750), nothing stopped it: it ran on into the next mission (2026-11-07).
+  await tapDestination(page);
+  await page.goto('/?mission=crew-demo2&test=1');
+  await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+  await page.keyboard.press('Shift');                                  // a gesture: the context runs
+  await page.evaluate(() => window.simStep(1, 1));                     // t=0 → the webcast entry fires
+  await expect.poll(() => level(page), { timeout: 10_000 }).toBeGreaterThan(0.01);
+  await page.evaluate(() => window.simLoad('lszf-pattern'));          // cold and dark: nothing should sound
+  await page.waitForFunction(() => window.simGetState().mission?.id === 'lszf-pattern', null, { timeout: 15_000 });
+  await page.waitForTimeout(600);                                      // the radio chain's squelch tail
+  expect(await level(page)).toBeLessThan(0.001);
+});

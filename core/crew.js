@@ -6,7 +6,7 @@
 
 import { S, setState } from './state.js';
 import { playThroughChain, createRadioChain } from './radio.js';
-import { getAudioContext, getEngineBleedNode } from './sound.js';
+import { getEngineBleedNode } from './sound.js';
 import { audioContext, audioOutput, audioElement, speak, cancelSpeech } from './audio.js';
 import { TRIGGER, ROCKET_EVENT, assertCovers, warnUnknown } from './vocab.js';
 import { elevM as terrainElevM } from './elevation.js';   // EGPWS look-ahead (3b) — same tile cache as the ND and the outside view
@@ -43,6 +43,8 @@ let _egpwsLvl = 0, _egpwsScanAt = 0;
 
 /* ── Active ambient Audio elements (stopped on resetCrew) ── */
 const _ambientAudio = [];
+/* ── Transmissions and clips playing (playRadio, _playFile) — stopped on resetCrew ── */
+const _radio = new Set();
 let _crewGen = 0;   // incremented on every resetCrew(); captured by pending timeouts
 let _prevWarpFactor = 1;
 
@@ -174,6 +176,8 @@ export function resetCrew() {
   _crewGen++;
   for (const a of _ambientAudio) { try { if (typeof a.stop === 'function') a.stop(); else { a.pause(); a.src = ''; } } catch {} }
   _ambientAudio.length = 0;
+  for (const r of _radio) { try { r.stop(); } catch {} }
+  _radio.clear();
   /* Kill any lingering TTS queue and radio atmosphere from previous mission */
   try { cancelSpeech(); } catch {}
   _stopRadioAtmosphere();
@@ -389,7 +393,7 @@ function _checkPredictiveTerrain() {
 /* ── "WHOOP WHOOP" siren (synthesised) — two fast upward sweeps that precede the PULL UP voice,
    the way the Sundstrand/Honeywell GPWS does. Pure Web Audio, no sample needed. ── */
 function _whoopWhoop() {
-  const ctx = getAudioContext();
+  const ctx = audioContext();
   if (!ctx) return;
   const t0 = ctx.currentTime;
   const whoop = 0.30, gap = 0.06;
@@ -434,7 +438,7 @@ function _buildGPWSCurve() {
 
 async function _playGPWS(speech, red = false) {
   const slug = _gpwsSlug(speech);
-  const ctx  = getAudioContext();
+  const ctx  = audioContext();
 
   let buf = _gpwsCache.get(slug);
 
@@ -540,7 +544,7 @@ function _voiceFor(voiceName) {
 
 /* ── PTT click — short filtered noise transient, heard in cockpit ── */
 function _pttClick() {
-  const ctx = getAudioContext();
+  const ctx = audioContext();
   if (!ctx) return;
   const dur  = 0.009;
   const buf  = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * dur), ctx.sampleRate);
@@ -561,7 +565,7 @@ function _pttClick() {
 async function _startRadioAtmosphere(profileName) {
   _stopRadioAtmosphere();
   try {
-    const ctx = getAudioContext();
+    const ctx = audioContext();
     if (!ctx) return;
     const chain  = await createRadioChain(ctx, profileName);
     const silence = ctx.createGain();
@@ -656,7 +660,8 @@ function _checkATC(prev, curr, ms) {
     if (clr.audio !== undefined && clr.voice === 'ambient') {
       /* Skip playback during time warp — audio duration is wall-clock, not sim-time */
       if ((S.warpFactor ?? 1) > 1) { _atcEndedAt[capturedIdx] = S.time; return; }
-      const _gen = _crewGen;
+      const _gen   = _crewGen;
+      const _dueAt = (S.time ?? 0) + (clr.delay ?? 0) / 1000;   // mission time the recording should start
       setTimeout(async () => {
         if (_crewGen !== _gen) return;
         try {
@@ -664,14 +669,18 @@ function _checkATC(prev, curr, ms) {
           if (!resp.ok || _crewGen !== _gen) return;
           const ab  = await resp.arrayBuffer();
           if (_crewGen !== _gen) return;
-          const ctx = getAudioContext();
+          const ctx = audioContext();
           if (!ctx) return;
           const buf = await ctx.decodeAudioData(ab);
           if (_crewGen !== _gen) return;
 
-          const startOff = clr.startTime ?? 0;
+          /* Fetch + decode take seconds on a long file (Apollo 8's 22-min reel: ~3 s).
+             Skip the mission time that passed meanwhile, so the recording stays on the clock. */
+          const lag      = Math.max(0, (S.time ?? 0) - _dueAt);
+          const startOff = (clr.startTime ?? 0) + lag;
           const maxPlay  = Math.min(buf.duration - startOff,
-                                    clr.duration ?? (buf.duration - startOff));
+                                    (clr.duration ?? (buf.duration - (clr.startTime ?? 0))) - lag);
+          if (maxPlay <= 0) { _atcEndedAt[capturedIdx] = S.time; return; }
           const vol      = clr.volume ?? 0.2;
 
           const src  = ctx.createBufferSource();
@@ -1077,9 +1086,12 @@ function _safeSpeak(utt) {
 
 function _playFile(src, onended) {
   const a = audioElement(src);
+  const _gen = _crewGen;
+  const handle = { stop() { a.pause(); a.src = ''; } };
+  _radio.add(handle);
   a.volume = 0.9;
-  a.onended = onended ?? null;
-  a.play().catch(() => { if (onended) onended(); });
+  a.onended = () => { _radio.delete(handle); if (_crewGen === _gen) onended?.(); };
+  a.play().catch(() => { _radio.delete(handle); if (_crewGen === _gen) onended?.(); });
 }
 
 /* ── Radio chain playback ───────────────────────────────────────
@@ -1101,6 +1113,10 @@ export async function playRadio(src, { profile, onEnded } = {}) {
     ?? S.mission?.commProfile
     ?? 'vhf-aviation';
 
+  /* The transmission belongs to this mission: resetCrew() stops it, and a stopped one
+     doesn't report its end into the next mission's script */
+  const _gen  = _crewGen;
+  const _done = () => { if (_crewGen === _gen) onEnded?.(); };
   try {
     /* The shared context (core/audio.js) — the same one sound.js plays the engine on,
        so the engine bleed node can be mixed in */
@@ -1110,15 +1126,18 @@ export async function playRadio(src, { profile, onEnded } = {}) {
 
     if (!ctx) throw new Error('no AudioContext');
 
-    await playThroughChain(ctx, src, {
+    let handle = null;
+    handle = await playThroughChain(ctx, src, {
       profileName,
       destination:  audioOutput(),
       envBleedNode,
       bleedLevel:   bleedCfg?.bleedLevel ?? 0.08,
-      onEnded,
+      onEnded: () => { if (handle) _radio.delete(handle); _done(); },
     });
+    if (_crewGen !== _gen) { handle.stop(); return; }   // the mission ended while it loaded
+    _radio.add(handle);
   } catch (e) {
     console.warn('[crew] radio chain failed, falling back:', e.message);
-    _playFile(src, onEnded);
+    if (_crewGen === _gen) _playFile(src, onEnded);
   }
 }
