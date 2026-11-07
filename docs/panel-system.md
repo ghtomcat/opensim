@@ -37,8 +37,10 @@ else if (panel === 'airbus' || panel === 'e190') {                   // data-dri
   renderPanel(ndCanvas, 1, _currentSpec(1));                         // right screen
   if (displays has screen 1) renderFCU(fcuCanvas);
 }
-else                                  renderPFD(canvas);             // default glass PFD
 ```
+
+There is no fallback: every aircraft has a `panel` (rockets and robots pick their display by
+`vehicleType`), and `panel: "analog"` needs a `panelStyle` — `tests/data-schema.test.mjs` fails otherwise.
 
 ## Panels in use
 
@@ -48,10 +50,10 @@ else                                  renderPFD(canvas);             // default 
 | `e190` | data-driven glass | `renderPanel()` — specs `e190-pfd`, `e190-nd` (+ `airbus-ecam` page) | E190-E2 |
 | `g1000` | data-driven GA | `renderCockpit()` — spec `g1000` (draws via `display/g1000.js`) | C172 |
 | `dr400` | data-driven GA | `renderCockpit()` — spec `dr400` | Robin DR400 |
-| `bf109` | hand-drawn | `display/bf109.js` | Bf 109 G-4, MiG-15 |
-| `f4u` | hand-drawn | `display/f4u1a.js` | F4U-1A Corsair |
+| `bf109` | hand-drawn | `display/analog_panel.js`, style `luftwaffe` | Bf 109 G-4, MiG-15 |
+| `f4u` | hand-drawn | `display/analog_panel.js`, style `usn` | F4U-1A Corsair |
+| `analog` | hand-drawn | `display/analog_panel.js`, style from `panelStyle` | Tu-95MS, An-225 (`soviet`), Avro 504 (`wood`), DC-8 (`usn`) — stop-gaps until each has its own panel |
 | `velis-epsi` | hand-drawn | `display/velis_epsi.js` | Pipistrel Velis Electro |
-| *(none)* | default | `display/pfd.js` (`renderPFD`) | AN-225, Avro 504, Tu-95MS, DC-8 |
 
 ---
 

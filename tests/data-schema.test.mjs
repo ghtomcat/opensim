@@ -116,6 +116,13 @@ test('glass jets still need a turbofan (rule from the old aircraft-data lint)', 
   const errs = errorsAfter('aircraft/a350.json', aircraft, a => { delete a.engine.type; });
   assert.ok(errs.some(e => e.includes('needs engine.type "turbofan"')), errs.join('\n'));
 });
+test('every aircraft has a panel — no glass-PFD fallback any more; analog needs its style', () => {
+  const none = errorsAfter('aircraft/tu95ms.json', aircraft, a => { delete a.panel; delete a.panelStyle; });
+  assert.ok(none.some(e => e.endsWith('panel is required (an aircraft without one draws no instruments)')), none.join('\n'));
+  const bare = errorsAfter('aircraft/tu95ms.json', aircraft, a => { delete a.panelStyle; });
+  assert.ok(bare.some(e => e.endsWith('panel "analog" needs a panelStyle')), bare.join('\n'));
+  assert.deepEqual(errorsAfter('aircraft/falcon9-b5.json', aircraft, () => {}), []);   // rockets pick their display by vehicleType
+});
 test('engine is an object — the old description string fails', () => {
   const errs = errorsAfter('aircraft/c172.json', aircraft, a => { a.engine = 'Lycoming IO-360, 180hp'; });
   assert.ok(errs.some(e => e.startsWith('engine:')), errs.join('\n'));

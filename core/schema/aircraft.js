@@ -251,6 +251,10 @@ export const aircraft = object(
         if (a.thrustProfiles.some(p => !(p.spdT >= 0))) errs.push('thrustProfiles: every spdT must be >= 0');
         if (a.thrustProfiles.length && !(Math.max(...a.thrustProfiles.map(p => p.spdT)) > 0)) errs.push('thrustProfiles need a positive max spdT');
       }
+      /* every aircraft has a panel (rockets and robots pick their display by vehicleType) — there
+         is no fallback display any more; the analog panel needs its style */
+      if (!a.vehicleType && !a.panel) errs.push('panel is required (an aircraft without one draws no instruments)');
+      if (a.panel === PANEL.ANALOG && !a.panelStyle) errs.push('panel "analog" needs a panelStyle');
       /* glass-cockpit jets must declare a turbofan, or N1/N2 stay 0 forever */
       if (GLASS_JET.includes(a.panel)) {
         if (!turbofan) errs.push(`glass jet (panel ${a.panel}) needs engine.type "turbofan"`);

@@ -1908,7 +1908,6 @@
   import { hilInit }      from './core/hil.js';
   import { startTelemetry, downloadTelemetry, downloadTelemetryCSV } from './core/telemetry.js';
   import { initBlackbox, bbEvent, downloadBlackbox } from './core/blackbox.js';
-  import { renderPFD }         from './display/pfd.js';
   import { renderPanel, renderFCU, renderCockpit, handleCockpitClick } from './display/panel_renderer.js';
   import { qnhHitRegion, fcuButtonRegions, nextSdPage } from './display/pfd_instruments.js';
   import { indicatedAlt } from './core/baro.js';
@@ -3811,7 +3810,6 @@
           renderPanel(ndCanvas, 1, _currentSpec(1));
           if (S.aircraft?.displays?.some(d => d.screen === 1)) renderFCU(fcuCanvas);
         }
-        else                         renderPFD(canvas);
         /* AP disconnect chime */
         if (_prevAp && !S.ap) apDisconnectChime();
         _prevAp = S.ap;

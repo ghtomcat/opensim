@@ -34,7 +34,7 @@ aircraft/
 |---|---|---|---|
 | `id` | string | ✓ | Matches filename without `.json`. Used in mission refs. |
 | `name` | string | ✓ | Full display name shown in the mission selector. |
-| `panel` | string | ✓ | Selects cockpit renderer — see Panel types below. |
+| `panel` | string | ✓ | Selects cockpit renderer — see Panel types below. There is no default: rockets and robots go by `vehicleType` instead. |
 | `callsign` | string | ✓ | ATC callsign used by crew voices. |
 | `icaoType` | string | ✓ | ICAO designator (e.g. `"A359"`, `"C172"`). |
 | `approachSpeed` | number | ✓ | Vref in knots — used by PM callout logic. |
@@ -60,6 +60,7 @@ The `panel` field controls which 3D cockpit and instrument renderer is used.
 | `"bf109"` | Bf 109 analog steam gauges | Bf 109 |
 | `"f4u"` | F4U Corsair analog gauges | F4U-1A |
 | `"velis-epsi"` | Velis Electro EPSI panel | Velis HB-SYC |
+| `"analog"` | the analog gauges in the style named by `panelStyle` (`soviet`, `wood`, `usn`, `luftwaffe`) — required with it | Tu-95MS, An-225, Avro 504, DC-8 |
 
 The 3D outside model (fuselage, wings, engines) is also driven by `panel`:
 - `"airbus"` or `"e190"` → wide-body jet renderer (`_buildWB`) with twin turbofan engines, swept wings, proper aileron/flap animation.

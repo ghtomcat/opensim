@@ -6,6 +6,8 @@
   "manufacturer": "douglas",
   "family": "dc-8",
   "model": "dc-8",
+  "panel": "analog",
+  "panelStyle": "usn",
   "_status": "stub — nose profile only; full geometry TBD",
   "spoilers": { "drag": 0.06 },
   "nose": {

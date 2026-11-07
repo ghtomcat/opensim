@@ -485,7 +485,7 @@ app/
   session.js                  — mission session: listeners/timers a mission registers; stop() removes them (next mission, Esc/Back)
 
 display/
-  pfd.js · pfd_instruments.js — PFD + reusable instrument primitives (attitude, tape, HSI, FMA)
+  pfd_instruments.js          — reusable glass instrument primitives (attitude, tape, HSI, FMA)
   panel_renderer.js           — drives Airbus PFD/ND/ECAM and E190 PFD/ND from panel JSON
   fma.js                      — FMA
   overhead.js · leftconsole.js · centerconsole.js · rightconsole.js · pedestal.js
