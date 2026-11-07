@@ -28,7 +28,7 @@
       { "w": 0.37, "widget": "grid", "config": {
         "layout": [
           { "h": 0.5, "cols": [{ "w": 1.0, "widget": "analog_alt"  }] },
-          { "h": 0.5, "cols": [{ "w": 1.0, "widget": "radio_stack" }] }
+          { "h": 0.5, "cols": [] }
         ]
       }}
     ]},

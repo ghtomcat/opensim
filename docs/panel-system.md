@@ -123,7 +123,7 @@ function and register it there.
 | Group | Widgets |
 |---|---|
 | Glass (from `pfd_instruments.js`) | `fma`, `ai`, `speed_tape`, `alt_tape`, `vsi`, `hdg_tape`, `nd_map`, `ecam_ewd` (ECAM, or EICAS for Boeing), `spacer` |
-| GA | `grid`, `analog_asi`, `analog_ai`, `analog_alt`, `rocker_strip`, `bottom_switches`, `g1000_screen`, `garmin_gtn`, `magneto_knob`, `fuel_selector`, `radio_stack`, `aircraft_tag` |
+| GA | `grid`, `analog_asi`, `analog_ai`, `analog_alt`, `rocker_strip`, `bottom_switches`, `g1000_screen`, `garmin_gtn`, `magneto_knob`, `fuel_selector`, `aircraft_tag` |
 
 When the panel is squished (the outside view halves its height), `renderPanel()`
 enlarges the fonts while the geometry stays. The ECAM schematic is scaled as a whole

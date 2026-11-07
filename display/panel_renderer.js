@@ -584,37 +584,6 @@ function _drawFuelSelector(ctx, box, style, cfg) {
   });
 }
 
-/* ── radio_stack ── */
-function _drawRadioStack(ctx, box, style, cfg) {
-  ctx.fillStyle = '#0a0c12';
-  _roundRect(ctx, box.x + 2, box.y + 2, box.w - 4, box.h - 4, 4);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.lineWidth = 1;
-  ctx.stroke();
-
-  const devices = [
-    { label: 'COM', val: '122.275' },
-    { label: 'XPDR', val: '7000' },
-  ];
-  const slotH = (box.h - 8) / (devices.length + 1);
-  devices.forEach((d, i) => {
-    const dy = box.y + 4 + slotH * (i + 0.4);
-    const dh = slotH * 0.72;
-    ctx.fillStyle = '#111318';
-    _roundRect(ctx, box.x + 8, dy, box.w - 16, dh, 3);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 0.8; ctx.stroke();
-
-    const fs = Math.max(8, Math.round(dh * 0.38));
-    ctx.fillStyle = 'rgba(180,200,210,0.45)';
-    ctx.font = `${fs}px ${MONO}`;
-    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText(d.label, box.x + 14, dy + dh / 2);
-    ctx.textAlign = 'right';
-    ctx.fillText(d.val, box.x + box.w - 14, dy + dh / 2);
-  });
-}
-
 /* ── grid (recursive sub-layout) ── */
 function _drawGrid(ctx, box, style, cfg) {
   let rowY = box.y;
@@ -691,7 +660,6 @@ const _WIDGETS = {
   garmin_gtn:      _drawGarminGTN,
   magneto_knob:    _drawMagnetoKnob,
   fuel_selector:   _drawFuelSelector,
-  radio_stack:     _drawRadioStack,
   aircraft_tag:    _drawAircraftTag,
 };
 
