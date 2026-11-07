@@ -143,7 +143,7 @@ export function tickCrew(prevAlt, currAlt) {
 
   _prevSpd        = S.spd ?? 0;
   _prevWow        = S.wow ?? false;
-  _prevComPowered = _isComPowered();
+  _prevComPowered = comPowered();
 
   /* Advance rocket prev-state for event edge detection */
   if (ac.vehicleType === 'rocket') {
@@ -586,15 +586,15 @@ function _stopRadioAtmosphere() {
   setTimeout(() => chain.destroy(), 500);
 }
 
-/* ── COM power state — panel-aware ── */
-function _isComPowered() {
+/* ── COM power state — panel-aware. The radio panel (display/com.js) goes dark with it. ── */
+export function comPowered() {
   const ac = S.aircraft;
   if (!ac) return true;
   if (ac.panel === PANEL.VELIS) {   // the avionics bus: MASTER (the 14 V battery) and AVIONICS — not BATT EN, the traction batteries (POH 7-27, 4-9)
     const sw = S.switches;
     return !!(sw?.master && sw?.avionics);
   }
-  if (ac.panel === PANEL.G1000) {
+  if (ac.panel === PANEL.G1000 || ac.panel === PANEL.DR400) {   // BAT and AVIONICS (C172, DR400)
     return S.masterBat !== false && S.avionicsOn !== false;
   }
   return true;   // rockets, autopilot aircraft — COM always available
@@ -618,7 +618,7 @@ const _TRIGGERS = {
   [TRIGGER.TLI]:         ()   => !!(S.rocketTLI),
   [TRIGGER.LOI]:         ()   => !!(S.rocketLOI),
   [TRIGGER.TEI]:         ()   => !!(S.rocketTEI),
-  [TRIGGER.COM_ACTIVE]:  ()   => _isComPowered() && !_prevComPowered,
+  [TRIGGER.COM_ACTIVE]:  ()   => comPowered() && !_prevComPowered,
   [TRIGGER.AFTER]:       (tr) => {
     const endT = _atcEndedAt[tr.idx];
     return endT !== undefined && (S.time ?? 0) >= endT + (tr.delay ?? 1);
@@ -766,7 +766,7 @@ function _checkATC(prev, curr, ms) {
     const profile  = clr.commProfile ?? S.mission?.commProfile ?? 'vhf-aviation';
     const _gen = _crewGen;
 
-    if (!_isComPowered()) return;
+    if (!comPowered()) return;
 
     const _head = url => fetch(url, { method: 'HEAD' }).then(r => r.ok).catch(() => false);
 

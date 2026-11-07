@@ -807,6 +807,13 @@
       left: auto; right: 20px; bottom: 110px;
     }
     body.panel-dual #com-container { display: none !important; }
+    /* No power to the radio (comPowered() in core/crew.js): the panel is dark, its controls off */
+    #com-container.com-off .com-panel { position: relative; }
+    #com-container.com-off .com-panel > *, #com-container.com-off .req-section { visibility: hidden; }
+    #com-container.com-off .com-panel::after {
+      content: 'NO POWER'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      font: 11px "IBM Plex Mono", monospace; letter-spacing: 0.12em; color: rgba(255,255,255,0.18);
+    }
     /* WB/NB radio docks onto the pedestal — lifted above the #ped overlay (z 180), overriding
        the panel-dual hide. Position (left/bottom) comes from cockpitCfg.comPanel, set inline. */
     body.pedestal-active #com-container {
@@ -1915,7 +1922,7 @@
   import { renderYertleQuadruped, resetYertleQuadruped } from './display/yertle_quadruped.js';
   import { renderVelisEpsi, handleVelisClick } from './display/velis_epsi.js';
   import { initFMA, renderFMA } from './display/fma.js';
-  import { initCOM, stopCOM }  from './display/com.js';
+  import { initCOM, stopCOM, tickCOMPower } from './display/com.js';
   import { initOverhead, toggleOverhead, renderOverhead } from './display/overhead.js';
   import { initPedestal, togglePedestal, renderPedestal } from './display/pedestal.js';
   import { initLeftConsole, toggleLeftConsole, renderLeftConsole } from './display/leftconsole.js';
@@ -3841,6 +3848,7 @@
       () => renderFMA(),
       () => renderOverhead(),
       () => renderPedestal(),
+      () => tickCOMPower(),   // the radio panel dark without power
       () => renderLeftConsole(),
       () => renderRightConsole(),
       () => renderCenterConsole(),

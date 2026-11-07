@@ -73,6 +73,7 @@ test.describe('Default COM fallback', () => {
 test.describe('COM transfer', () => {
   test('transfer swaps active and standby', async ({ page }) => {
     await loadMission(page, 'lszf-pattern');
+    await page.evaluate(() => window.simSetState({ masterBat: true, avionicsOn: true }));   // the C172 starts cold and dark
     const activeBefore  = (await getActiveFreq(page)).trim();
     const standbyBefore = (await getStandbyFreq(page)).trim();
 
@@ -124,3 +125,24 @@ test.describe('COM power — Velis', () => {
     await expect.poll(() => fired).toContain(0);                        // on the 14 V battery, BATT EN still off: the first call goes out
   });
 });
+
+/* ── COM power: the radio panel is dark without power, and its controls do nothing ── */
+
+for (const [what, mission] of [['C172', 'lszf-pattern'], ['DR400', 'grenchen-circuit']]) {
+  test(`${what}: the COM panel is dark and Z does nothing until BAT and AVIONICS are on`, async ({ page }) => {
+    await loadMission(page, mission);
+    const off = () => page.evaluate(() => document.getElementById('com-container').classList.contains('com-off'));
+    const active = async () => (await getActiveFreq(page)).trim();
+    await expect.poll(off).toBe(true);                                  // cold and dark
+    const before = await active();
+    await page.keyboard.press('z');
+    expect(await active()).toBe(before);                                // no swap without power
+    await page.evaluate(() => window.simSetState({ masterBat: true }));
+    await page.keyboard.press('z');
+    expect(await active()).toBe(before);                                // BAT alone: the avionics are off
+    await page.evaluate(() => window.simSetState({ avionicsOn: true }));
+    await expect.poll(off).toBe(false);
+    await page.keyboard.press('z');
+    expect(await active()).not.toBe(before);                            // powered: Z swaps
+  });
+}

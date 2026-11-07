@@ -5,7 +5,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from '../core/state.js';
-import { speakATC, speakPM } from '../core/crew.js';
+import { speakATC, speakPM, comPowered } from '../core/crew.js';
 import { bbEvent } from '../core/blackbox.js';
 import { RUNWAYS } from '../data/runways-data.js';
 import { gatesFor } from './stands-util.js';
@@ -103,6 +103,7 @@ const XPDR = {
 let _streamAudio = null;   // currently playing LiveATC stream
 let _tuneAudio   = null;   // one-shot audio played on tuning a frequency (greeting, ATIS clip)
 let _bound       = false;  // event listeners registered once only
+let _container   = null;   // #com-container — dark (com-off) while the radio has no power
 
 /* ── Loop mode (rocket/mission audio) ── */
 let _loopAudio  = null;    // currently playing mission audio loop
@@ -130,6 +131,7 @@ export function getCOMState() {
 }
 
 export function initCOM(container) {
+  _container = container;
   _stopStream();
   _stopLoop();
 
@@ -155,6 +157,13 @@ export function initCOM(container) {
   _render();
   if (!_bound) { _bindEvents(container); _bound = true; }
   _onTune(COM.active);   // start stream if active freq has one
+}
+
+/** Each frame: the panel goes dark without power (comPowered() in core/crew.js — MASTER + AVIONICS on
+    the Velis, BAT + AVIONICS on the C172 and DR400), and its controls do nothing. */
+export function tickCOMPower() {
+  const off = !comPowered();
+  if (_container && _container.classList.contains('com-off') !== off) _container.classList.toggle('com-off', off);
 }
 
 /* ═══ Private — DOM ════════════════════════════════════════════ */
@@ -352,6 +361,7 @@ function _toggleReqPopup() {
 }
 
 function _runRequest(id) {
+  if (!comPowered()) return;
   const r = _REQUESTS.find(x => x.id === id); if (!r) return;
   const pop = document.getElementById('com-req-popup'); if (pop) pop.hidden = true;
   const cs = S.aircraft?.callsign ?? S.mission?.callsign ?? 'Aircraft';
@@ -406,6 +416,7 @@ function _bindEvents(container) {
 /* ── Frequency logic ── */
 
 function _transfer() {
+  if (!comPowered()) return;
   [COM.active, COM.standby] = [COM.standby, COM.active];
   _render();
   _squelch();
@@ -413,11 +424,13 @@ function _transfer() {
 }
 
 function _tuneStandby(freq) {
+  if (!comPowered()) return;
   COM.standby = freq;
   _render();
 }
 
 function _nudgeStandby(dir) {
+  if (!comPowered()) return;
   const list = Object.keys(_freqs());
   const i = list.indexOf(COM.standby);
   COM.standby = list[(i + dir + list.length) % list.length];
@@ -594,6 +607,7 @@ function _bindLoopEvents(container) {
 
 /* ── IDENT ── */
 function _ident() {
+  if (!comPowered()) return;
   XPDR.ident = true;
   const btn = document.getElementById('xpdr-ident');
   if (btn) btn.classList.add('active');
