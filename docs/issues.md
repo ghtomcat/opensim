@@ -510,6 +510,44 @@ The C172, DR400 and Velis switches are plain fields: no battery charge, no alter
 
 **Done when.** `core/engine.js` and the displays read every engine value from the catalogue (generic or per model); the GE90-115B (the first engine-out aircraft, the 777) has its own file from its TCDS; the E/WD's EGT redline is the engine's.
 
+### A warm engine start is as long as a cold one — the start's phases belong to the engine
+*Found 2026-11-07 · `engine.startTime` in `aircraft/bf109.json`, `f4u1a.json`; `tickEngine()` in `core/engine.js`; `startRecording()`, `_assembleStartup()`, `_assembleR2800Startup()` and the R-2800 RPM reading (~line 202) in `core/sound.js`*
+
+**Symptom.** On a warm or hot start the engine stays `starting` for the cold start's length, while the start-up sound is already at idle. R-2800, hot: the sound ends at 37.8 s, the engine runs at 64.1 s — 26 s with no power behind an idling sound.
+
+**Cause — verified (code, measured).** The start's length is kept in three places that agree only when cold:
+
+| Where | Knows |
+|---|---|
+| `engine.startTime` (aircraft file) | one number — the cold start |
+| `startRecording()` in `core/sound.js` | three recordings by oil temperature (< 30 °C, < 60 °C, else) |
+| the R-2800 RPM reading in `core/sound.js` | its own copy of the phase times (flywheel 26 / 12 / 0 s …) |
+
+Measured 2026-11-07 (oil 15 / 45 / 75 °C): DB 601 71.16 / 57.16 / 44.86 s, R-2800 64.10 / 50.10 / 37.80 s. The Lycoming (2.8 s), VK-1 (28.5 s) and turbofan (54.7 s) starts have one length and aren't affected. `tests/engine.test.mjs` checks the recording against `startTime` cold only.
+
+**Why the lengths differ is real.** Only the inertia starter's flywheel wind-up changes — thick cold oil, a longer wind-up; a hot engine skips it. Engage, motoring and the run-up stay the same.
+
+**Fix — the engine owns the start's phases.** The start as a sequence of phases in the aircraft data, the oil temperature setting only the one that varies. Shape to decide; with the R-2800's numbers from the sound code (64.1 / 50.1 / 37.8 s):
+
+```json
+"engine": { …, "start": {
+  "phases": [
+    { "id": "flywheel", "time": { "oilBelow30": 26.0, "oilBelow60": 12.0, "else": 0 } },
+    { "id": "engage",   "time": 0.30 },
+    { "id": "motoring", "time": 2.86 },
+    { "id": "runup",    "time": 35.0 }
+  ] } }
+```
+
+- `core/engine.js` reads the oil temperature once when the start begins, fixes the phase lengths for that start, and keeps the current phase in the engine's state (e.g. `S.engines[i].startPhase`); running when the last phase ends.
+- `core/sound.js` plays the phases the engine chose; it no longer reads the oil temperature, and the R-2800 RPM reading reads the phase from the engine instead of its copy of the times — a first piece of *The Engine cell's reading comes from the sound module*.
+- `engine.startTime` goes for these two engines (the one-length starts can keep it, or become a single phase).
+- `tests/engine.test.mjs` checks each recording against the phases at all three temperatures.
+
+Rejected: three numbers in `startTime` (`cold` / `warm` / `hot`) — smaller, but the thresholds would live in the engine and in the sound, and the RPM reading keeps its copy.
+
+**Done when.** A warm and a hot restart of the Bf 109 and the F4U run when their start-up sound reaches idle; the oil-temperature thresholds and the phase times exist only in the aircraft data; the engine test covers cold, warm and hot.
+
 ### Smaller systems items
 *Found 2026-10-11*
 
