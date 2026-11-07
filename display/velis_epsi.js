@@ -109,6 +109,9 @@ export function renderVelisEpsi(canvas) {
 /* ════════════════════════════════════════════════════════════
    CLICK HANDLER — call once from index.html
    ════════════════════════════════════════════════════════════ */
+/** The click areas drawn last frame, by name (master, battEn, pwrEn, avionics, comSwap), in canvas px — for tests. */
+export const velisHitRegions = () => _hitRegions.map(({ name, x, y, w, h }) => ({ name, x, y, w, h }));
+
 export function handleVelisClick(canvas, evt) {
   const rect = canvas.getBoundingClientRect();
   const dpr  = devicePixelRatio;
@@ -332,7 +335,7 @@ function _drawCOMRadio(ctx, x0, y0, w, h, sc) {
 
   /* Register FLIP hit region only when powered */
   _hitRegions.push({
-    x: flipX, y: flipY, w: flipW, h: flipH,
+    name: 'comSwap', x: flipX, y: flipY, w: flipW, h: flipH,
     action: () => comTransfer()
   });
 
@@ -364,50 +367,63 @@ function _drawMasterSwitches(ctx, x0, y0, w, h, sc) {
   ctx.moveTo(x0, y0); ctx.lineTo(x0 + w, y0);
   ctx.stroke();
 
+  const dpr = devicePixelRatio;
+  const reg = (name, cx, sy, tw, th, action) =>
+    _hitRegions.push({ name, x: cx - tw / 2, y: sy, w: tw, h: th, action });
+
+  /* The switches use the space between the clock (and its KEYS button, HTML on top of the
+     canvas) and the COM radio below — measured, not a fixed offset, so they stay whole and
+     readable in a short window. In units u: key 4, label 0.6, toggles 2.4, gap 0.4, label 0.6, toggle 2.4. */
+  const top = Math.max(y0 + 8 * sc, _overlayBottom(ctx.canvas) + 10 * dpr);
+  const u   = Math.max(0, (y0 + h - 8 * sc) - top) / 10.4;
+  const fs  = Math.round(Math.min(w / 6, Math.max(10 * dpr, u * 0.38)));   // labels: readable, never wider than a toggle
+
   const swW = Math.round(w * 0.42);
-  const swH = Math.round(h * 0.07);
+  const swH = Math.round(u * 2.4);
   const cx1 = x0 + w * 0.28;
   const cx2 = x0 + w * 0.72;
 
-  const reg = (cx, sy, tw, th, action) =>
-    _hitRegions.push({ x: cx - tw / 2, y: sy, w: tw, h: th, action });
-
   const secLabel = (text, ly) => {
-    ctx.fillStyle    = 'rgba(255,255,255,0.20)';
-    ctx.font         = `${Math.round(h * 0.026)}px ${MONO}`;
+    ctx.fillStyle    = 'rgba(255,255,255,0.32)';
+    ctx.font         = `${fs}px ${MONO}`;
     ctx.textAlign    = 'center'; ctx.textBaseline = 'top';
     ctx.fillText(text, cpx, ly);
   };
 
-  /* Start below MET clock. h = switch zone height (H*0.65).
-     h*0.42 clears the ~170px clock for viewports ≥ 600px; DPR floor catches smaller screens. */
-  let sy = y0 + Math.max(h * 0.42, 185 * devicePixelRatio);
-
-  /* ── MASTER key rotary ──
-     keyR = min(w*0.15, h*0.09) ensures everything fits after the h*0.42 offset. */
-  const keyR = Math.min(w * 0.15, h * 0.09);
+  /* ── MASTER key rotary — 4 u: the housing (±1.58 r) and its label ── */
+  let sy = top;
+  const keyR = Math.min(w * 0.15, u * 0.95);
   const keyY = sy + keyR * 1.60;
-  _velisKey(ctx, cpx, keyY, keyR, sw.master);
-  reg(cpx, sy, keyR * 3.4, keyR * 3.6,
+  _velisKey(ctx, cpx, keyY, keyR, sw.master, fs);
+  reg('master', cpx, sy, keyR * 3.4, keyR * 3.6,
     () => { S.switches.master = !S.switches.master });
-  sy = keyY + keyR * 2.15 + h * 0.010;
+  sy += u * 4;
 
   /* ── POWER: BATT EN + PWR EN ── */
-  secLabel('POWER', sy); sy += h * 0.032;
-  _velisToggle(ctx, cx1, sy, swW, swH, sw.battEn, 'BATT EN');
-  reg(cx1, sy, swW, swH, () => { S.switches.battEn = !S.switches.battEn });
-  _velisToggle(ctx, cx2, sy, swW, swH, sw.pwrEn,  'PWR EN');
-  reg(cx2, sy, swW, swH, () => { S.switches.pwrEn  = !S.switches.pwrEn;  });
-  sy += swH + h * 0.010;
+  secLabel('POWER', sy); sy += u * 0.6;
+  _velisToggle(ctx, cx1, sy, swW, swH, sw.battEn, 'BATT EN', fs);
+  reg('battEn', cx1, sy, swW, swH, () => { S.switches.battEn = !S.switches.battEn });
+  _velisToggle(ctx, cx2, sy, swW, swH, sw.pwrEn,  'PWR EN', fs);
+  reg('pwrEn', cx2, sy, swW, swH, () => { S.switches.pwrEn  = !S.switches.pwrEn;  });
+  sy += swH + u * 0.4;
 
   /* ── AVIONICS ── */
-  secLabel('AVIONICS', sy); sy += h * 0.032;
-  _velisToggle(ctx, cpx, sy, swW, swH, sw.avionics, 'AVNCS');
-  reg(cpx, sy, swW, swH, () => { S.switches.avionics = !S.switches.avionics; });
+  secLabel('AVIONICS', sy); sy += u * 0.6;
+  _velisToggle(ctx, cpx, sy, swW, swH, sw.avionics, 'AVNCS', fs);
+  reg('avionics', cpx, sy, swW, swH, () => { S.switches.avionics = !S.switches.avionics; });
+}
+
+/* The lowest edge of the HTML drawn over the panel's top left (the mission clock, the KEYS
+   button), in canvas pixels — 0 when neither is shown. */
+function _overlayBottom(canvas) {
+  const top = canvas.getBoundingClientRect().top;
+  const bottoms = ['mission-clock', 'btn-keys'].map(id => document.getElementById(id)?.getBoundingClientRect())
+    .filter(r => r && r.height > 0).map(r => r.bottom);
+  return bottoms.length ? Math.max(0, (Math.max(...bottoms) - top) * devicePixelRatio) : 0;
 }
 
 /* Key rotary switch — MASTER only (OFF / RUN) */
-function _velisKey(ctx, cx, cy, r, on) {
+function _velisKey(ctx, cx, cy, r, on, fs = Math.round(r * 0.34)) {
   const degOFF = 225, degRUN = 315;
   const curDeg = on ? degRUN : degOFF;
 
@@ -470,13 +486,13 @@ function _velisKey(ctx, cx, cy, r, on) {
 
   /* MASTER label below */
   ctx.fillStyle    = on ? 'rgba(255,255,255,0.55)' : P.dim;
-  ctx.font         = `${Math.round(r * 0.34)}px ${MONO}`;
+  ctx.font         = `${fs}px ${MONO}`;
   ctx.textAlign    = 'center'; ctx.textBaseline = 'top';
   ctx.fillText('MASTER', cx, cy + r * 1.70);
 }
 
 /* Real aviation bat-handle toggle switch */
-function _velisToggle(ctx, cx, y, w, h, on, label) {
+function _velisToggle(ctx, cx, y, w, h, on, label, fs = Math.round(Math.min(w * 0.46, h * 0.115))) {
   /* Housing (recessed dark plate) */
   const hw = w * 0.60, hh = h * 0.38;
   const hx = cx - hw / 2, hy = y + h * 0.18;
@@ -507,8 +523,8 @@ function _velisToggle(ctx, cx, y, w, h, on, label) {
   }
 
   /* Label */
-  ctx.fillStyle    = on ? 'rgba(255,255,255,0.62)' : 'rgba(255,255,255,0.24)';
-  ctx.font         = `${Math.round(Math.min(w * 0.46, h * 0.115))}px ${MONO}`;
+  ctx.fillStyle    = on ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.45)';
+  ctx.font         = `${fs}px ${MONO}`;
   ctx.textAlign    = 'center'; ctx.textBaseline = 'bottom';
   ctx.fillText(label, cx, y + h);
 }
