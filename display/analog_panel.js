@@ -5,6 +5,7 @@
      luftwaffe  feldgrau, ivory faces, red needles; German, metric   — Bf 109, MiG-15
      soviet     turquoise, black faces, white needles; Russian, metric — Tu-95, An-225 (stop-gap)
      usn        flat black, white faces; English, US units             — F4U
+     wood       wooden board, brass bezels, black faces; English, mph  — Avro 504 (stop-gap)
    Merged 2026-11-07 from display/bf109.js and display/f4u1a.js, which were copies of each other
    (issues.md: "Gauge helpers copied between the hand-drawn panels").
 
@@ -93,6 +94,29 @@ const STYLES = {
       oilT: 'Oil Temp', cht: 'Cyl. Head', tempUnit: '°F', oilP: 'Oil Pressure', oilPUnit: 'PSI',
     },
   },
+  wood: {   // the Avro 504K (1918), a stop-gap: a varnished wooden board, brass bezels, black faces with
+            // white figures; English labels, mph and feet — no coloured arcs on the dials of the time
+    P: {
+      panel:   '#5a3a1e', rim: '#8a6a32', faceHi: '#2a2622', face0: '#171512', face1: '#0d0c0a', capIn: '#b08a40',
+      needle:  '#efe6cc', ndlBack: '#2a2420', mark: '#ece2c8', subdued: '#a89a7c', shadow: 'rgba(0,0,0,0.72)',
+      shadowEdge: 'rgba(0,0,0,0.75)', ring: '#5a4420', glintA: 0.45, glint0: 'rgba(255,240,210,0.16)', glint1: 'rgba(255,240,210,0.04)',
+      capOut: '#8a6a32', label: '#f0e2c0', vignette: 'rgba(0,0,0,0.50)',
+    },
+    woodGrain: true,
+    sky: ['#4a74a0', '#8aaccc'],                 // a hazy summer sky over the Marne
+    ground: ['#5e5030', '#4c4028', '#3a3020'],   // fields and earth
+    frost: false,
+    units: 'imperial',
+    engineGauge: 'rpm',                                            // a rotary: revolutions, no manifold pressure
+    asi: { factor: 1.15078, max: 120, step: 20, arcs: false },     // knots → mph
+    rpm: { idle: 500, max: 1200, dial: 1600, step: 200 },          // Le Rhône 9J: 110 hp at 1,200 rpm
+    L: {
+      asi: 'Air Speed', asiUnit: 'M.P.H.', ai: 'Horizon', alt: 'Altimeter', altUnit: '×1000 ft',
+      turn: 'Turn Indicator', turnL: 'L', turnR: 'R', compass: 'Compass', cards: ['N', 'E', 'S', 'W'],
+      vsi: 'Rate of Climb', vsiUnit: '×1000 ft/min', rpm: 'Revolutions', rpmUnit: '×100 R.P.M.',
+      oilT: 'Oil Temp', cht: 'Cyl. Head', tempUnit: '°F', oilP: 'Oil Pressure', oilPUnit: 'lb/sq in',
+    },
+  },
 };
 let ST = STYLES.luftwaffe, P = ST.P, L = ST.L;   // the active style — set by each render
 
@@ -115,6 +139,7 @@ export function renderAnalogPanel(canvas, style = 'luftwaffe') {
   /* Panel */
   ctx.fillStyle = P.panel;
   ctx.fillRect(0, 0, W, H);
+  if (ST.woodGrain) _drawWoodGrain(ctx, W, H);
 
   /* Vignette */
   const vg = ctx.createRadialGradient(W/2, H/2, H*0.18, W/2, H/2, H*0.72);
@@ -127,7 +152,7 @@ export function renderAnalogPanel(canvas, style = 'luftwaffe') {
   const _isJet = S.aircraft?.sound?.engineType === 'turbojet-vk1';
   const G = ST.units === 'imperial'
     ? { asi: _drawAirspeed, ai: _drawHorizon, alt: _drawAltimeter, turn: _drawTurnSlip, compass: _drawCompass, vsi: _drawVSI,
-        eng: _drawManifold, temp2: _drawCHT, oilT: _drawOilTemp, oilP: _drawOilPressure }
+        eng: ST.engineGauge === 'rpm' ? _drawDrehzahl : _drawManifold, temp2: _drawCHT, oilT: _drawOilTemp, oilP: _drawOilPressure }
     : { asi: _drawFahrtmesser, ai: _drawHorizont, alt: _drawHoehenmesser, turn: _drawWendezeiger, compass: _drawKompass, vsi: _drawVariometer,
         eng: _isJet ? _drawN1Messer : _drawDrehzahl, temp2: _drawKuehlstoffTemp, oilT: _drawOelTemp, oilP: _drawOelDruck };
 
@@ -333,6 +358,29 @@ function _label(ctx, x, y, r, name, sc) {
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'alphabetic';
   ctx.fillText(name, x, y + r * 1.28);
+}
+
+/* A varnished wooden board: darker grain lines and a few knots, the same every frame */
+function _drawWoodGrain(ctx, W, H) {
+  ctx.save();
+  const lines = 46;
+  for (let i = 0; i < lines; i++) {
+    const y0 = (i + 0.5) * H / lines;
+    const a  = 0.05 + 0.07 * ((i * 37) % 11) / 10;           // varying darkness, no randomness
+    ctx.strokeStyle = `rgba(30,16,6,${a.toFixed(3)})`;
+    ctx.lineWidth   = (1 + (i * 13) % 3) * devicePixelRatio;
+    ctx.beginPath();
+    for (let x = 0; x <= W; x += W / 60) {
+      const y = y0 + Math.sin(x / W * 6.3 + i * 1.7) * H * 0.006 + Math.sin(x / W * 17 + i) * H * 0.002;
+      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  /* Varnish sheen from the top */
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, 'rgba(255,220,170,0.10)'); g.addColorStop(0.5, 'rgba(255,220,170,0)'); g.addColorStop(1, 'rgba(0,0,0,0.12)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.restore();
 }
 
 /* Medium pictograms on the dial face — distinguish the two temp gauges at a glance.
@@ -711,15 +759,18 @@ function _drawDrehzahl(ctx, x, y, r, sc) {
   const throttle  = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
   const liveRpm   = (running || starting || shuttingDown) ? (getRpmValue() ?? 0) : 0;
   /* Scale by engine health — a seizing/damaged engine loses RPM even with the throttle up */
-  const rpm       = running ? Math.round((400 + (2800 - 400) * throttle) * (S.enginePower ?? 1)) : liveRpm;
-  const maxR = 2800;
+  const R = ST.rpm ?? {};                                      // the style's range — default the DB 601's
+  const rIdle = R.idle ?? 400, rMax = R.max ?? 2800;
+  const rpm       = running ? Math.round((rIdle + (rMax - rIdle) * throttle) * (S.enginePower ?? 1)) : liveRpm;
+  const maxR = R.dial ?? 2800;
+  const step = R.step ?? 400;
   const s0   = 220, sw = 280;
 
   _base(ctx, x, y, r);
-  _ticks(ctx, x, y, r, s0, sw, 14, 2, sc);   /* 200 U/min per major, 100 minor */
+  _ticks(ctx, x, y, r, s0, sw, maxR / 200, 2, sc);   /* 200 rpm per major, 100 minor */
 
   ctx.textBaseline = 'middle';
-  for (let v = 0; v <= maxR; v += 400) {
+  for (let v = 0; v <= maxR; v += step) {
     _num(ctx, x, y, r, s0 + (v / maxR) * sw, v === 0 ? '0' : String(v / 100), 7.5, sc);
   }
   ctx.textBaseline = 'alphabetic';
@@ -886,11 +937,14 @@ function _drawFrost(ctx, W, H) {
    AIRSPEED — 0–400 kt
    ════════════════════════════════════════════════════════════ */
 function _drawAirspeed(ctx, x, y, r, sc) {
-  const spd  = S.spd ?? 0;
-  const maxV = 400;
+  const A    = ST.asi ?? {};                                   // the style's scale — default the F4U's (kt, 0–400, arcs)
+  const spd  = (S.spd ?? 0) * (A.factor ?? 1);
+  const maxV = A.max ?? 400;
+  const step = A.step ?? 50;
   const s0   = 220, sw = 280;
 
   _base(ctx, x, y, r);
+  if (A.arcs !== false) {
 
   /* Red arc ≥ 362 kt (VNE) */
   const aVne = _r(s0 + (362 / maxV) * sw);
@@ -907,11 +961,12 @@ function _drawAirspeed(ctx, x, y, r, sc) {
   ctx.beginPath(); ctx.arc(x, y, r * 0.96, aY0, aY1);
   ctx.strokeStyle = '#cc9900'; ctx.lineWidth = 4 * sc; ctx.stroke();
   ctx.restore();
+  }
 
-  _ticks(ctx, x, y, r, s0, sw, 8, 5, sc);
+  _ticks(ctx, x, y, r, s0, sw, maxV / step, 5, sc);
 
   ctx.textBaseline = 'middle';
-  for (let v = 0; v <= maxV; v += 50) _num(ctx, x, y, r, s0 + (v / maxV) * sw, String(v), 8.5, sc);
+  for (let v = 0; v <= maxV; v += step) _num(ctx, x, y, r, s0 + (v / maxV) * sw, String(v), 8.5, sc);
   ctx.textBaseline = 'alphabetic';
 
   _sublabel(ctx, x, y, r, L.asiUnit, sc);
@@ -941,16 +996,18 @@ function _drawHorizon(ctx, x, y, r, sc) {
 
   /* Pacific sky — bright tropical blue */
   const skyG = ctx.createLinearGradient(0, -r, 0, pitchPx);
-  skyG.addColorStop(0, '#2a6090');
-  skyG.addColorStop(1, '#5090c8');
+  const sky = ST.sky ?? ['#2a6090', '#5090c8'];               // the style's — default the F4U's Pacific
+  skyG.addColorStop(0, sky[0]);
+  skyG.addColorStop(1, sky[1]);
   ctx.fillStyle = skyG;
   ctx.fillRect(-r, -r * 1.2, r * 2, r * 1.2 + pitchPx);
 
   /* Pacific ocean */
   const seaG = ctx.createLinearGradient(0, pitchPx, 0, r);
-  seaG.addColorStop(0,   '#1a5070');
-  seaG.addColorStop(0.5, '#164060');
-  seaG.addColorStop(1,   '#0a2030');
+  const gnd = ST.ground ?? ['#1a5070', '#164060', '#0a2030'];   // the Pacific ocean, or the style's ground
+  seaG.addColorStop(0,   gnd[0]);
+  seaG.addColorStop(0.5, gnd[1]);
+  seaG.addColorStop(1,   gnd[2]);
   ctx.fillStyle = seaG;
   ctx.fillRect(-r, pitchPx, r * 2, r * 1.2);
 

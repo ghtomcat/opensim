@@ -1,5 +1,7 @@
 {
   "id": "avro504",
+  "panel": "analog",
+  "panelStyle": "wood",
   "name": "Avro 504K",
   "manufacturer": "avro",
   "family": "avro-504",

@@ -129,7 +129,7 @@ export const aircraft = object(
   {
     id: str, name: str, manufacturer: str, family: str, icaoType: str, registration: str, callsign: str,
     vehicleType: oneOf(...valuesOf(VEHICLE)), manualControl: bool, panel: oneOf(...valuesOf(PANEL)),
-    panelStyle: oneOf('luftwaffe', 'soviet', 'usn'),   // panel 'analog': the look, language and units of display/analog_panel.js
+    panelStyle: oneOf('luftwaffe', 'soviet', 'usn', 'wood'),   // panel 'analog': the look, language and units of display/analog_panel.js
     engine, apu, sound: object({ engineType: oneOf(...valuesOf(ENGINE)) }), ignitionTime: num, staging: oneOf('hot'),
     envelope, performance, handling: object({ rollRate: num, pitchRate: num, maxBank: num, maxPitch: num, rudderMaxDeg: num, rudderLimitKt: num, pedalSteerDeg: num,
       tac: object({ thresholdFrac: num, minKt: num, lagS: num }) }),
