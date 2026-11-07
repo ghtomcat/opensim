@@ -8,7 +8,7 @@ import { S, setState } from './state.js';
 import { playThroughChain, createRadioChain } from './radio.js';
 import { getEngineBleedNode } from './sound.js';
 import { audioContext, audioOutput, audioElement, speak, cancelSpeech } from './audio.js';
-import { TRIGGER, ROCKET_EVENT, assertCovers, warnUnknown } from './vocab.js';
+import { TRIGGER, ROCKET_EVENT, PANEL, assertCovers, warnUnknown } from './vocab.js';
 import { elevM as terrainElevM } from './elevation.js';   // EGPWS look-ahead (3b) — same tile cache as the ND and the outside view
 
 /* ── Voice handles ── */
@@ -590,11 +590,11 @@ function _stopRadioAtmosphere() {
 function _isComPowered() {
   const ac = S.aircraft;
   if (!ac) return true;
-  if (ac.panel === 'velis') {
+  if (ac.panel === PANEL.VELIS) {
     const sw = S.switches;
     return !!(sw?.master && sw?.battEn && sw?.avionics);
   }
-  if (ac.panel === 'g1000') {
+  if (ac.panel === PANEL.G1000) {
     return S.masterBat !== false && S.avionicsOn !== false;
   }
   return true;   // rockets, autopilot aircraft — COM always available
