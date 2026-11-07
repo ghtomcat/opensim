@@ -553,6 +553,16 @@ Rejected: three numbers in `startTime` (`cold` / `warm` / `hot`) — smaller, bu
 
 ---
 
+### The oil system — quantity, consumption, pressure
+*Logged 2026-11-07 (Markus) · `core/engine.js` (`e.oil`, `engineOilLow`), `oilTempC` in `core/physics.js`, the analog panels*
+
+Oil pressure exists only on the turbofans (`e.oil` from core speed); there is no oil quantity anywhere, and the warbird oil pressure dial is a formula in the drawing code (see *The analog panels draw a borrowed fighter panel*). **Plan — a system of its own, not now:** per engine type in the data `engine.oil` (capacity, consumption, pressure limits — from the manuals); per engine in the state `oilQty`, falling with consumption, a leak or damage; pressure from rpm (engine-driven pump), oil temperature (cold → high) and quantity (low → the pump starves); no pressure → the engine seizes after a while (like the Bf 109's coolant leak). It pays off beyond the gauge: the Avro's Le Rhône is a total-loss system — the castor oil burns, the tank sets the endurance, and the oil pulsator pulses while oil flows; the airliners get OIL QTY and a cause for OIL PRESS. **Done when:** every engine's oil pressure and quantity come from this system, and an oil leak ends like the coolant leak.
+
+### The supercharger — manifold pressure and boost
+*Logged 2026-11-07 (Markus) · `core/engine.js`, `core/physics.js` (thrust), the analog panels*
+
+Manifold pressure is drawn from a formula in the drawing code (`_drawManifold`: `12 + throttle × 40` inHg); the power comes straight from the throttle. **Plan — a system of its own, not now:** `S.engines[i].map` (one unit, kPa; the panel shows ata or inHg by its style) from the throttle, the rpm, the ambient pressure (altitude, QNH) and the supercharger in the data — e.g. `engine.supercharger: { type, criticalAlt, maxBoost, unit }`: the DB 601A single-stage with a fluid coupling and a boost regulator (ata; take-off about 1.3–1.35 ata — to source from the Bedienungsvorschrift), the R-2800 two-stage two-speed (inHg; take-off about 54), the Lycomings without (below ambient, falling with altitude). In two stages: first the value (shown, not yet driving anything), then the power from manifold pressure and rpm — weaker above the full-throttle height, overboost with consequences; this touches the thrust and every piston aircraft's calibration. **Done when:** the boost gauge reads `S.engines[i].map`, and the power falls above the full-throttle height.
+
 ## Input, recording and external links
 
 ### The hub drops `CART_JOG` messages
@@ -644,41 +654,55 @@ The cell shows real N1 only on the multi-engine turbofans. For the others the va
 - **the dial ranges are the Bf 109's and the F4U's:** the metric airspeed dial is fixed at 0–800 km/h with the Bf 109's red arc from 620 (`_drawFahrtmesser`), on the Tu-95, the An-225 and the MiG-15 — which flies past its end; the DC-8 shows the F4U's VNE arc at 362 kt. The Avro's own scale sits in the `wood` style, the wrong place;
 - every engine dial reads `getCurrentRpm()` from `core/sound.js` (*The Engine cell's reading comes from the sound module*), on one engine or four.
 
-**Decided (2026-11-07, Markus; mockup `docs/mockups/analog-panel-config.html`, local).**
-- **Two paths: round gauges → analog (`analog_panel.js`), screens → glass (`panel_renderer.js` + `panels/`).** This replaces the earlier plan to draw the analog panels as `panels/` JSON with `panel_renderer.js` widgets. Open: the DR400 is mixed (round gauges + GTN, today on `panel_renderer.js` with gauge widgets of its own) — stays as it is for now. The Velis EPSI is its own hand-drawn path (with the electrical solver).
-- **The style is the look** (palette, labels, unit system, wood grain, frost) — no scales, no instrument choice.
-- **The aircraft data is the content:** an instrument list for the flight block and one for the engine block, each entry with its size class and its scale:
+**Today, also:** two dials are drawn from a formula in the drawing code, not from the sim — oil pressure (`1.5 + throttle × 6`) and manifold pressure (`12 + throttle × 40`), both from `spdT` (`_drawOelDruck`, `_drawManifold`).
+
+**Decided (2026-11-07, Markus; mockup `docs/mockups/analog-panel-config.html`, local; sources `sources/*-panel-notes.md`).**
+- **Two paths: round gauges → analog (`analog_panel.js`), screens → glass (`panel_renderer.js` + `panels/`).** Replaces the earlier plan to draw the analog panels as `panels/` JSON. Open: the DR400 is mixed (round gauges + GTN, on `panel_renderer.js`) — stays for now; the Velis EPSI is its own hand-drawn path (with the electrical solver).
+- **The style is the look** (palette, labels, unit system, wood grain, frost) — no scales, no instrument choice. Styles follow the era and the airframe, not only the nation: D-FEML's dials are black with white figures (not ivory); the early Tu-95's panels were matte black, the Tu-95MS's emerald green (not turquoise).
+- **The aircraft data is the content — what is there, grouped and in order; not where.** The layout places it per view: the panel view and the combined view (a strip under the outside view) need different arrangements, so the layout flows. The goal is as close to the real cockpit as the view allows, not a copy. The groups are the real panel's parts (the Bf 109 E's upper and lower panel; the Avro's one board); the order inside a group is the photo's, read left to right, top to bottom. Each entry: `id`, `kind`, `size`, `scale`; plus `unconfirmed` (with the reason — for the docs, drawn like any other) and an `absent` list (what the type did not have):
   ```json
-  "panel": "analog", "panelStyle": "soviet",
+  "panel": "analog", "panelStyle": "luftwaffe",
   "analogPanel": {
-    "flight": [{ "id": "asi", "size": "L", "max": 1000, "step": 100, "redFrom": 950 }, { "id": "ai", "size": "L" }, …],
-    "engine": [{ "id": "n1", "size": "XS" }, { "id": "egt", "size": "XS" }]
+    "groups": [
+      { "name": "upper", "items": [{ "id": "clock", "kind": "clock", "size": "S" }, { "id": "alt", "size": "L", "scale": { "unit": "km" } }, …] },
+      { "name": "lower", "items": [{ "id": "fuel", "size": "S", "scale": { "max": 400, "unit": "l" } }, …] }
+    ],
+    "absent": ["attitude indicator", "variometer"],
+    "decorative": ["…"]
   }
   ```
-- **The engine block repeats per engine** from `engine.count` (no second count in the panel): one column per engine, one row per quantity, the engine numbers on top; one engine → the dials in rows.
-- **Sizes are the real size classes:** L 80 mm (≈ 3⅛″, primary), S 57 mm (≈ 2¼″, secondary), XS for the small multi-engine dials — the mm values to be confirmed from sources. The layout keeps the proportions and scales the whole panel to fit the screen; an entry without a size gets one computed from the space.
-- **Scales from the aircraft data:** range, step, arcs per entry; the red line from the aircraft's own limits where the data has them.
-- **Engine values from `S.engines[]`**, never from the sound code — for every aircraft, one engine or six.
-- **The An-225's main panel: N1 and EGT only** (6 × 2). The full engine set (N1, N2, EGT, fuel flow, oil …) belongs to a flight engineer station — a cockpit view of its own, a feature for later, not part of this.
-- **One panel name:** the Bf 109, MiG-15 and F4U move to `panel: "analog"` too, with the rest; `bf109` and `f4u` leave `PANEL`, and the code that knows them (the renderer chain and `isVintage` in `index.html`, the clock in `display/terrain.js`) checks `analog` only.
-- **No pixel identity needed:** the warbird panels are not sourced from a real cockpit either (Markus, 2026-11-07) — they may move to the flowing layout and change; they get their sourced set like the others.
+- **Instrument kinds** (from the sources): dial with one needle; dial with two needles (fuel/oil pressure); scales that do not start at 0 (the Avro's airspeed: a 0 mark, then 40–160; the Bf 109's rpm from 600); turn & slip (needle and ball — the Bf 109 E has no horizon); clock faces (clock, propeller pitch); lamps and lamp groups (reserve fuel, four gear lamps); the oil pulsator (a sight glass); the bubble level.
+- **Every drawn instrument reads a sim value** (Markus: an unconnected instrument is decoration). Relaxed until the systems exist: a named sim value (`S` / `S.engines[i]`), even a simple one — never a formula in the drawing code. So every real instrument gets at least a simple value; **only a purely decorative one is left out** (nothing in the sim it could ever show), listed in the data so the omission is visible. An instrument on a simple value is marked `simple` with what replaces it later (e.g. *The oil system*).
+- **The engine instruments repeat per engine** from `engine.count`: one column per engine, one row per quantity. The An-225's main panel: N1 and EGT only (6 × 2); the full engine set belongs to a flight engineer station — a feature for later. The early Tu-95 likewise: the flight engineer had the engine panel.
+- **Sizes are size classes** (L, S, XS, T for lamps) — relative, from the photos; mm not found for any type. The layout keeps the ratios and scales to fit.
+- **One panel name, `analog`,** for all seven; `bf109` and `f4u` leave `PANEL`, and the code that knows them (the renderer chain and `isVintage` in `index.html`, the clock in `display/terrain.js`) checks `analog` only. No pixel identity needed — the warbird panels were not sourced either.
 
-**Order (2026-11-07).** Sources first, before any code: the instruments, sizes, scales and arrangement of three types that span the range — the Avro 504K (few instruments, a wooden board), the Bf 109 G (a full single-engine German panel), the Tu-95 (multi-engine, Soviet, turboprop) — as notes per type in `sources/`. From them the data shape: instrument positions on the panel in mm (scaled to fit), a flowing layout, or both (flow as the fallback for an unsourced panel); one real panel in the mockup first. Then the instrument registry for the instruments the sources show, the layout, the `analogPanel` schema with all seven on `analog`, the scales, the engine values from `S.engines[]`, the multi-engine block (Tu-95; the An-225 after its move to the turbofan path), and the other types with their research.
+**Sourced so far (2026-11-07).**
+- **Bf 109 E-4 — D-FEML** (both Bf 109 missions): from a photo of the aircraft (© Phil Glover) and the Bf 109 E cockpit profile (deutscheluftwaffe.de). Upper panel: clock (beside the gunsight mount); altimeter · compass · airspeed · turn & slip · boost · rpm. Lower panel: ammeter · propeller pitch · gear lamps; reserve fuel lamp · fuel contents (400 l) · oil temperature (160 °C) · coolant temperature. Not fitted: horizon, variometer, homing indicator. The fuel/oil pressure dial of the E profile is not seen in the photo.
+- **Avro 504K — E2977 / G-EBHB:** from a photo (key.aero, *504 Reborn*; "a very fine range of genuine instruments, and an original 504K control column"). One board: air pressure · compass; bubble level; airspeed (mph — reasoned: a 0 mark, then 40–160) · watch · altimeter · oil pulsator · rev counter. Not fitted: horizon, turn & slip, rate of climb.
+- **Tu-95:** panel colour by era and the engineer's role only; the pilots' instruments not found.
+- Not researched: MiG-15, F4U, An-225, DC-8.
 
-**Per aircraft.**
+**The instruments of the two sourced types against the sim (2026-11-07).**
+| | Instruments |
+|---|---|
+| a sim value exists | airspeed, altimeter, compass, clock, coolant temp (`coolantTemp`), oil temp (`oilTempC`), fuel contents (`fuelLeft`/`fuelRight`), gear lamps (`gear`), reserve lamp (from fuel), turn & slip and the bubble level (turn rate, sideslip) |
+| through the sound code | rpm → per engine in `S.engines[]` (*The Engine cell's reading comes from the sound module*) |
+| formula in the drawing code | oil pressure, boost → a simple sim value per engine until *The oil system* and *The supercharger* exist |
+| no value yet → a simple one | ammeter (from the electrical state), propeller pitch (the Bf 109's electric pitch setting — `propPitch` is the F4U's lever), the Avro's air pressure (tank pressure), the oil pulsator (oil flowing: engine running → later *The oil system*) |
+| purely decorative | none so far |
 
-| Aircraft | Flight block | Engine block |
-|---|---|---|
-| Bf 109, F4U | six (to be sourced) | today's gauges (to be sourced) |
-| MiG-15 | six, its own style (Soviet), airspeed past 1 000 km/h | jet: rpm, EGT |
-| Tu-95 | six | 4 × prop rpm, TGT, torque (NK-12 turboprop — new dials) |
-| An-225 | six | 6 × N1, EGT (needs the turbofan path) |
-| Avro 504 | airspeed, altimeter, compass, sideslip — no horizon | rpm, oil pulsator (a glass bubble, a widget of its own) |
-| DC-8 | six | 4 × EPR, N1, EGT, fuel flow — a stub without a mission, last |
+**Steps.**
+1. **Instrument registry** — the kinds above; each kind names its sim value.
+2. **Flowing layout** from groups and order, for both views, keeping the size ratios; the rules (when a group breaks into a new row, groups side by side or stacked, what may shrink in the combined view) tried in the mockup first.
+3. **Schema** — `analogPanel` (groups, entries, `absent`, `decorative`, `simple`), the data check; all seven on `analog`.
+4. **Scales from the data.**
+5. **The Avro 504K and the Bf 109 E-4 from their sources**, with the style corrections (black faces for the E-4).
+6. **Sim values for the panel:** rpm per engine from `core/engine.js`; a simple value for every instrument without one — oil pressure, boost, ammeter, propeller pitch, the Avro's air pressure and pulsator — in the sim, not in the drawing code, until their systems exist.
+7. **Multi-engine block:** the Tu-95, then the An-225 after its move to the turbofan path — each with its research.
+8. **The rest:** MiG-15, F4U, DC-8, with their research.
 
-**Sources.** Each instrument set, size and scale from photos or manuals of the type — all seven: the Bf 109 G, the F4U-1A, the MiG-15, the Avro 504K, the Tu-95's, the An-225's and the DC-8's panels. None is sourced yet, the warbirds included.
-
-**Done when.** Every analog aircraft draws its own sourced instruments, sizes and scales from its data; one panel name, `analog`; no engine dial reads the sound module.
+**Done when.** Every analog aircraft draws its sourced instruments, in its groups and order, flowing in both views; every drawn instrument reads a sim value; one panel name, `analog`; no engine dial reads the sound module or a formula in the drawing code.
 
 ### The METAR strip always says LSZH
 *Found 2026-11-06 · `updateMetar()` and `_rwyFromWind()` in `index.html`*
