@@ -132,7 +132,25 @@ To try something without writing a test, `tools/probe.mjs` loads a mission in te
 
 **Step size matters.** Aircraft run at `dt = 1/60`. Rocket specs step at `dt = 1.0` for speed — coarse steps change the ascent, so compare against a fine-step run before trusting a rocket result. Rockets go through the fixed-step accumulator like in time warp: any `dt` ≥ 1 s is split into 1 s steps (`dt = 10` → ten steps).
 
-**Keep loops cheap.** The default timeout is 30 s. A loop of `page.evaluate(() => simStep(1))` per frame costs a round trip each time; for long runs, step inside one `evaluate` and return what you need.
+**Keep loops cheap.** A loop of `page.evaluate(() => simStep(1))` per frame costs a round trip each time; for long runs, step inside one `evaluate` and return what you need.
+
+**A busy machine must not change the result.** Another project using the CPU makes every test slower, never different, if it follows these rules:
+
+- **Step the sim, never wait for it.** Nothing in the sim moves between calls (test mode), so a wait can't make the sim do anything; a test that needs sim time calls `simStep`.
+- **Time limits catch a hang; they don't measure speed.** The limit per test is 120 s, an assertion retries for 20 s (`playwright.config.js`). A long simulation sets its own for the file: `test.describe.configure({ timeout: 600_000 })` (the `check_*` files: up to 115 s under load). Measured 2026-11-07 with twice as many busy processes as cores: normal tests took up to 32 s, against ~10 s on a quiet machine.
+- **"Loaded" has no clock of its own.** `page.waitForFunction(() => window.simReady === true)`, `locator('#mission-clock.visible').waitFor()`: as long as the load takes, within the test's limit. Options to `waitForFunction` are its **third** argument (`fn, arg, { timeout }`); in the second they are passed to `fn` and ignored.
+- **"The page has drawn" is frames, not milliseconds.** `frames(page, n)` from `tests/frames.js` waits for `n` rendered frames.
+- **Real audio is on the wall clock: poll it.** `expect.poll(() => level(page), { timeout }).toBeLessThan(…)` instead of a sleep and one reading (`tests/sound-output.spec.js`).
+- **A fixed wait is only right for "nothing happens in this time"** — the engine start that mustn't advance without sim steps, a paused clip that must stand. Load can't make that kind fail.
+- **Present or not is a fact on disk**, not how fast something loads: `flightplan.spec.js` skips without the CIFP bundle by checking the file, then waits for it to load.
+
+To check a change against load, run the suite with the CPU busy:
+
+```bash
+for i in $(seq 16); do yes > /dev/null & done     # twice the cores of an 8-core Mac
+npx playwright test
+pkill -x yes
+```
 
 **Keys are real keys.** `page.keyboard.press('h')` goes through the same handlers as a player — check [keybindings.md](keybindings.md) when a test presses a key.
 

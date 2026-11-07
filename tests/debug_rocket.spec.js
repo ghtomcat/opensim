@@ -1,8 +1,12 @@
 import { test, expect } from '@playwright/test';
 
+// A long simulation: hundreds of thousands of sim seconds, stepped. It takes as long as the machine needs —
+// over 100 s with the CPU busy elsewhere — and the result doesn't depend on it.
+test.describe.configure({ timeout: 600_000 });
+
 async function loadSim(page, missionId) {
   await page.goto(`/?mission=${missionId}&test=1`);
-  await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+  await page.waitForFunction(() => window.simReady === true);
 }
 
 test('trace F9 CRS-1 trajectory', async ({ page }) => {

@@ -22,7 +22,7 @@ const MCC_TARGET = MOON_R + 113_000;   // 1 850 000 m — Apollo 8 periapsis tar
 test('calibrate moonRefAngle for Apollo 8 TLI trajectory', async ({ page }) => {
   /* Load apollo8 in test mode */
   await page.goto('/?mission=apollo8&test=1');
-  await page.waitForFunction(() => window.simReady === true, { timeout: 20_000 });
+  await page.waitForFunction(() => window.simReady === true);
 
   /* Fast-forward past TLI.  tliT=11991 → step to t=12200 (TLI+~200s safety margin).
      Use dt=1 for the launch phase (attitude control needs fine steps) then

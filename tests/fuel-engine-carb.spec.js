@@ -25,7 +25,7 @@ const MISSION = 'lszf-pattern';
 
 async function loadSim(page) {
   await page.goto(`/?mission=${MISSION}&test=1`);
-  await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+  await page.waitForFunction(() => window.simReady === true);
 }
 
 async function step(page, seconds, dt = 1 / 60) {
@@ -590,7 +590,7 @@ test.describe('Carb ice — recovery with carb heat', () => {
 test.describe('Bf 109 — single left tank (V12)', () => {
   test('starts with 400 L in left tank, 0 in right', async ({ page }) => {
     await page.goto('/?mission=wolfskopf-1942&test=1');
-    await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+    await page.waitForFunction(() => window.simReady === true);
     const s = await getState(page);
     expect(s.fuelLeft).toBeCloseTo(400, 0);
     expect(s.fuelRight).toBeCloseTo(0, 0);
@@ -598,13 +598,13 @@ test.describe('Bf 109 — single left tank (V12)', () => {
 
   test('starts with selector BOTH', async ({ page }) => {
     await page.goto('/?mission=wolfskopf-1942&test=1');
-    await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+    await page.waitForFunction(() => window.simReady === true);
     expect((await getState(page)).fuelSelector).toBe('BOTH');
   });
 
   test('fuel burns from left tank only (right always 0)', async ({ page }) => {
     await page.goto('/?mission=wolfskopf-1942&test=1');
-    await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+    await page.waitForFunction(() => window.simReady === true);
     await setState(page, { enginePower: 1.0, engineState: 'running', fuelLeft: 100, fuelRight: 0 });
     await step(page, 60);
     const s = await getState(page);
@@ -614,7 +614,7 @@ test.describe('Bf 109 — single left tank (V12)', () => {
 
   test('engine dies when left tank empties', async ({ page }) => {
     await page.goto('/?mission=wolfskopf-1942&test=1');
-    await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+    await page.waitForFunction(() => window.simReady === true);
     await setState(page, {
       enginePower: 1.0, engineState: 'running',
       fuelLeft: 0.001, fuelRight: 0,
@@ -626,7 +626,7 @@ test.describe('Bf 109 — single left tank (V12)', () => {
 
   test('V12 burn rate — 60s before t=115 failure', async ({ page }) => {
     await page.goto('/?mission=wolfskopf-1942&test=1');
-    await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+    await page.waitForFunction(() => window.simReady === true);
     await setState(page, { enginePower: 1.0, engineState: 'running', fuelLeft: 200, fuelRight: 0 });
     await step(page, 60);    // 1 min — well before the t=115s gunfire failure
     const s = await getState(page);
@@ -639,7 +639,7 @@ test.describe('Bf 109 — single left tank (V12)', () => {
 
   test('Q does NOT cycle fuel selector (V12 stops engine lifecycle instead)', async ({ page }) => {
     await page.goto('/?mission=wolfskopf-1942&test=1');
-    await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+    await page.waitForFunction(() => window.simReady === true);
     const before = (await getState(page)).fuelSelector;
     await page.keyboard.press('q');
     const after = (await getState(page)).fuelSelector;
@@ -649,7 +649,7 @@ test.describe('Bf 109 — single left tank (V12)', () => {
 
   test('LOW_FUEL fires below 10% of 400 L (< 40 L)', async ({ page }) => {
     await page.goto('/?mission=wolfskopf-1942&test=1');
-    await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+    await page.waitForFunction(() => window.simReady === true);
     await setState(page, { fuelLeft: 30, fuelRight: 0, fuelSelector: 'BOTH', enginePower: 1.0 });
     await step(page, 0.1);
     expect((await getState(page)).warnings?.LOW_FUEL).toBe(true);
@@ -666,13 +666,13 @@ test.describe('Bf 109 — single left tank (V12)', () => {
 test.describe('No-tank aircraft — A350 (no fuel system)', () => {
   test('fuelLeft is null — no fuel system', async ({ page }) => {
     await page.goto('/?mission=lszh-approach&test=1');
-    await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+    await page.waitForFunction(() => window.simReady === true);
     expect((await getState(page)).fuelLeft).toBeNull();
   });
 
   test('OIL_PRESS fires when an engine fails in flight — its oil pressure follows the windmilling core', async ({ page }) => {
     await page.goto('/?mission=lszh-approach&test=1');
-    await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+    await page.waitForFunction(() => window.simReady === true);
     await page.evaluate(async () => (await import('/core/engine.js')).setEngineFactor('failure', 0, 0));   // ENG 1 fails
     await step(page, 60);
     const s = await getState(page);
@@ -682,7 +682,7 @@ test.describe('No-tank aircraft — A350 (no fuel system)', () => {
 
   test('OIL_PRESS stays off with the engines running normally', async ({ page }) => {
     await page.goto('/?mission=lszh-approach&test=1');
-    await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+    await page.waitForFunction(() => window.simReady === true);
     await setState(page, { enginePower: 0.8 });
     await step(page, 0.1);
     expect((await getState(page)).warnings?.OIL_PRESS).toBe(false);
@@ -690,14 +690,14 @@ test.describe('No-tank aircraft — A350 (no fuel system)', () => {
 
   test('LOW_FUEL warning is not set (no tanks)', async ({ page }) => {
     await page.goto('/?mission=lszh-approach&test=1');
-    await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+    await page.waitForFunction(() => window.simReady === true);
     await step(page, 0.5);
     expect((await getState(page)).warnings?.LOW_FUEL).toBeFalsy();
   });
 
   test('FUEL_SHUTOFF warning is not set (no fuel system)', async ({ page }) => {
     await page.goto('/?mission=lszh-approach&test=1');
-    await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+    await page.waitForFunction(() => window.simReady === true);
     await step(page, 0.5);
     expect((await getState(page)).warnings?.FUEL_SHUTOFF).toBeFalsy();
   });

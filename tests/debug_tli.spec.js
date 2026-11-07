@@ -1,8 +1,12 @@
 import { test, expect } from '@playwright/test';
 
+// A long simulation: hundreds of thousands of sim seconds, stepped. It takes as long as the machine needs —
+// over 100 s with the CPU busy elsewhere — and the result doesn't depend on it.
+test.describe.configure({ timeout: 600_000 });
+
 test('trace orbit state around TLI', async ({ page }) => {
   await page.goto('/?mission=apollo8&test=1');
-  await page.waitForFunction(() => window.simReady === true, { timeout: 20_000 });
+  await page.waitForFunction(() => window.simReady === true);
 
   const snap = async (label) => {
     const s = await page.evaluate(() => window.simGetState());

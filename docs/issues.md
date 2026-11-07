@@ -317,16 +317,6 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 
 ## Tests
 
-### Timing-dependent tests fail under full-suite load
-*Noted 2026-11-05*
-
-A growing set of browser tests fails now and then in the full run (`npx playwright test`, parallel workers) and passes when run alone: `scenario-setup.spec.js:18` (weather), `fuel-engine-carb.spec.js:362` and `:459` (Lycoming start), `check_loi.spec.js`, `check_browser_sim.spec.js` (Apollo LOI, the frame-rate variants), `briefing.spec.js:27`, `db601-sound.spec.js:74`, and since 2026-11-06 also `com.spec.js:74`, `physics.spec.js:355` (Tu-95 gear), `rocket.spec.js:85` and `:189` (peak G), `sound-output.spec.js:66` (audio level over a 300 ms window), `sim-flags.spec.js` (the real-play pause test, once). They wait on wall-clock time or real frames rather than stepping the sim (`window.simStep`), so a loaded machine changes the outcome. They mask real regressions in the summary (each run needs them re-checked by hand). **Fix:** step the sim deterministically in each, or move the frame-rate/timing ones into a separate project run with one worker. **Done when:** the full run is clean apart from the known failures, three runs in a row.
-
-### `waitForFunction` timeouts are passed as the argument, and ignored
-*Found 2026-11-06 · `tests/`, `tools/probe.mjs:23`*
-
-`page.waitForFunction(fn, { timeout })` passes the object as `fn`'s **argument**; the options are the third parameter (`waitForFunction(fn, null, { timeout })`). 55 calls in 32 files, plus `tools/probe.mjs`, write it the first way, so their 15 s never applies: they wait until the 30 s test limit. Probably not what makes tests flaky, but a load that hangs reads as a test timeout. **Fix:** move the options to the third parameter, or one shared `loadMission(page, id)` helper. **Done when:** a grep for the two-argument form finds nothing.
-
 ### DB 601 engine-off tests use an airborne mission
 *`tests/db601-sound.spec.js`* — "starts in off state" and "lader gain is zero at engine off" load Wolfskopf, which starts at 2 000 ft with the engine running. Use a ground start (`hahnweide-1944`).
 

@@ -3,6 +3,7 @@
  * while true. No panel draws its own pause text.
  */
 import { test, expect } from '@playwright/test';
+import { frames } from './frames.js';
 import { readFileSync, readdirSync } from 'node:fs';
 
 const VEHICLES = [
@@ -14,7 +15,7 @@ const VEHICLES = [
 
 async function load(page, mission) {
   await page.goto(`/?mission=${mission}&test=1`);
-  await page.waitForFunction(() => window.simReady === true, null, { timeout: 15_000 });
+  await page.waitForFunction(() => window.simReady === true);
 }
 
 /** The flag is on screen and nothing covers its centre. */
@@ -51,7 +52,7 @@ for (const [what, mission, key] of [['overhead', 'lszh-approach', 'o'], ['pedest
   test(`the ${what} view doesn't cover them`, async ({ page }) => {
     await load(page, mission);
     await page.keyboard.press(key);
-    await page.waitForTimeout(500);
+    await frames(page);
     await page.evaluate(() => window.simSetState({ paused: true }));
     await page.keyboard.press('x');
     expect(await shown(page, '#flag-paused')).toBe(true);
@@ -76,7 +77,7 @@ for (const [what, mission] of [['airliner', 'lszh-approach'], ['warbird', 'wolfs
     await page.keyboard.press('j');
     expect((await page.evaluate(() => window.simGetState())).warpFactor ?? 1).toBe(1);
     await page.evaluate(() => window.simSetState({ warpFactor: 10 }));   // even if it were set: the sim runs at 1×
-    await page.waitForTimeout(200);
+    await frames(page);
     await expect(page.locator('#flag-warp')).toBeHidden();
     await expect(page.locator('.warp-btn')).toHaveCount(0);
   });
@@ -108,7 +109,7 @@ test('no display module draws a pause text of its own', () => {
 
 test('in real play too: the first key closes the key map, then P pauses', async ({ page }) => {
   await page.goto('/?mission=wolfskopf-1942');
-  await expect(page.locator('#onboarding')).toHaveClass(/visible/, { timeout: 15_000 });   // up, not just in the page: a key before that is lost
+  await page.locator('#onboarding.visible').waitFor();   // up, not just in the page: a key before that is lost
   await page.keyboard.press('Shift');
   await expect(page.locator('#flag-paused')).toBeHidden();
   await page.keyboard.press('p');
@@ -120,8 +121,8 @@ test('in real play too: the first key closes the key map, then P pauses', async 
 for (const [what, mission] of [['rocket', 'crew-demo2'], ['Apollo', 'apollo8'], ['robot', 'so101-workspace']]) {
   test(`no key map on a ${what}: the first P pauses`, async ({ page }) => {
     await page.goto(`/?mission=${mission}`);                            // real play: test mode skips the key map on every vehicle
-    await expect(page.locator('#mission-clock')).toBeVisible({ timeout: 15_000 });
-    await page.waitForTimeout(500);                                     // the mission's key listeners are on
+    await page.locator('#mission-clock.visible').waitFor();   // loaded: as long as the load takes
+    await frames(page);                                     // the mission's key listeners are on
     await page.keyboard.press('p');
     await expect(page.locator('#flag-paused')).toBeVisible();
     await page.keyboard.press('p');

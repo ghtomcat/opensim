@@ -3,11 +3,12 @@
  * do what the table says. The table's own rules: keymap.test.mjs.
  */
 import { test, expect } from '@playwright/test';
+import { frames } from './frames.js';
 
 async function load(page, mission, query = '&test=1') {
   await page.goto(`/?mission=${mission}${query}`);
-  await expect(page.locator('#mission-clock')).toBeVisible({ timeout: 15_000 });
-  await page.waitForTimeout(400);
+  await page.locator('#mission-clock.visible').waitFor();   // loaded: as long as the load takes
+  await frames(page);
 }
 const field = (page, f) => page.evaluate(async (f) => (await import('/core/state.js')).S[f], f);
 
@@ -80,7 +81,7 @@ test('the button is there on every view, and Space after a click is still PTT', 
   await load(page, 'lszh-approach');
   await page.keyboard.press('Shift');
   await page.keyboard.press('o');
-  await page.waitForTimeout(400);
+  await frames(page);
   await expect(page.locator('#btn-keys')).toBeVisible();
   await page.locator('#btn-keys').click();
   await expect(page.locator('#onboarding')).toHaveClass(/visible/);
@@ -112,7 +113,7 @@ test('typing in the scratchpad types', async ({ page }) => {
 
 test('the picker and the briefing have their own keys, not the flight keys', async ({ page }) => {
   await page.goto('/');
-  await page.locator('.ms-card').first().waitFor({ timeout: 15_000 });
+  await page.locator('.ms-card').first().waitFor();
   await page.keyboard.press('p');
   expect(await field(page, 'paused')).toBe(false);
   await page.locator('.ms-card').first().click();

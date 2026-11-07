@@ -2,11 +2,12 @@
  * The bottom status strip: the Engine cell shows the engine, and no instructions.
  */
 import { test, expect } from '@playwright/test';
+import { frames } from './frames.js';
 
 async function load(page, mission) {
   await page.goto(`/?mission=${mission}&test=1`);
-  await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
-  await page.waitForTimeout(100);   // a rendered frame
+  await page.waitForFunction(() => window.simReady === true);
+  await frames(page);   // a rendered frame
 }
 const engine = (page) => page.locator('#pv-rpm').textContent();
 

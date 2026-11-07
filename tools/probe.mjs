@@ -20,6 +20,6 @@ const body = readFileSync(0, 'utf8');
 const browser = await chromium.launch();
 const page    = await browser.newPage();
 await page.goto(`http://localhost:8080/?mission=${mission}&test=1`);
-await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+await page.waitForFunction(() => window.simReady === true);
 console.log(JSON.stringify(await page.evaluate(new Function(body))));
 await browser.close();

@@ -5,6 +5,7 @@
  * only GEN 1 online, AC BUS 1-2 is fed through the tie.
  */
 import { test, expect } from '@playwright/test';
+import { frames } from './frames.js';
 
 const AIRLINER_MISSIONS = ['fimp-takeoff', 'lsgg-takeoff', 'singapore-london', 'lszh-approach', 'egll-approach', 'evra-approach'];
 
@@ -13,10 +14,10 @@ for (const id of AIRLINER_MISSIONS) {
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
     await page.goto(`/?mission=${id}&test=1`);
-    await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+    await page.waitForFunction(() => window.simReady === true);
     await page.evaluate(() => window.simStep(2, 1 / 60));
     await page.keyboard.press('m');                               // the centre view: E/WD + ELEC
-    await page.waitForTimeout(600);
+    await frames(page);
     expect(errors).toEqual([]);
     expect(await page.evaluate(() => Object.keys(window.simGetState().elec?.buses ?? {}).length)).toBeGreaterThan(0);
   });
@@ -24,7 +25,7 @@ for (const id of AIRLINER_MISSIONS) {
 
 test('the A340 with only GEN 1: the other mains are fed through the tie', async ({ page }) => {
   await page.goto('/?mission=fimp-takeoff&test=1');
-  await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+  await page.waitForFunction(() => window.simReady === true);
   await page.evaluate(() => {
     const s = window.simGetState();
     window.simSetState({ elecCtl: {},                            // every switch at its default — no ground power (the mission starts on it)

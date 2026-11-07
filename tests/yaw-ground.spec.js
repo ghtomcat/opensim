@@ -9,7 +9,7 @@ import { test, expect } from '@playwright/test';
 
 async function takeoffRoll(page, { fail, pilot = false, after = 4, tacOff = true }) {
   await page.goto('/?mission=singapore-london&test=1');
-  await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+  await page.waitForFunction(() => window.simReady === true);
   return page.evaluate(async ({ fail, pilot, after, tacOff }) => {
     const S = () => window.simGetState();
     window.simSetState({ paused: false, thrustLever: 1, parkBrake: false, tacOff });

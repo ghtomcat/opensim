@@ -16,6 +16,10 @@
  */
 import { test, expect } from '@playwright/test';
 
+// A long simulation: hundreds of thousands of sim seconds, stepped. It takes as long as the machine needs —
+// over 100 s with the CPU busy elsewhere — and the result doesn't depend on it.
+test.describe.configure({ timeout: 600_000 });
+
 const PHYS_DT = 1.0;   // must match loop.js
 
 function effectiveDt(warp, fps) {
@@ -55,7 +59,7 @@ for (const sc of SCENARIOS) {
     });
 
     await page.goto('/?mission=apollo8&test=1');
-    await page.waitForFunction(() => window.simReady === true, { timeout: 20_000 });
+    await page.waitForFunction(() => window.simReady === true);
 
     // Phase 1 — launch at real-time dt (warp=1, 60 fps).  Same for all scenarios.
     await page.evaluate(() => window.simStep(720000, 1 / 60));   // → t ≈ 12 000 s

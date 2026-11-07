@@ -16,7 +16,7 @@ const RE = 6_371_000;
 
 async function loadSim(page, missionId) {
   await page.goto(`/?mission=${missionId}&test=1`);
-  await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+  await page.waitForFunction(() => window.simReady === true);
 }
 
 /** Step n seconds at dt=1s (fast-forward for autonomous vehicles). */

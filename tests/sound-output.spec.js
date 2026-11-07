@@ -22,6 +22,10 @@ async function tapDestination(page) {
   });
 }
 
+/* Real audio runs on its own thread and on the wall clock: wait until the sound gets where it
+   should, never a fixed time — on a loaded machine the same change takes longer to be heard. */
+const AUDIO = { timeout: 10_000 };
+
 /** RMS at the speakers, summed over all contexts */
 function level(page) {
   return page.evaluate(() => (window.__ctxs ?? []).reduce((sum, c) => {
@@ -34,39 +38,36 @@ function level(page) {
 test('C172 cold start: the start-up and the running engine are audible', async ({ page }) => {
   await tapDestination(page);
   await page.goto('/?mission=lszf-pattern&test=1');
-  await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+  await page.waitForFunction(() => window.simReady === true);
   await page.evaluate(() => window.simSetState({ masterBat: true }));   // electric starter
   await page.keyboard.press('e');
-  await page.waitForTimeout(800);                                     // the starter is turning (real audio time)
-  expect(await level(page)).toBeGreaterThan(0.01);
+  await expect.poll(() => level(page), AUDIO).toBeGreaterThan(0.01);  // the starter is turning (real audio time)
   await page.evaluate(() => window.simStep(180, 1 / 60));             // 3 s of sim time — past the 2.8 s start
   expect((await page.evaluate(() => window.simGetState())).engineState).toBe('running');
-  await page.waitForTimeout(1500);                                    // worklet hand-off
-  expect(await level(page)).toBeGreaterThan(0.01);
+  await page.waitForTimeout(1500);                                    // past the worklet hand-off …
+  await expect.poll(() => level(page), AUDIO).toBeGreaterThan(0.01);  // … the running engine sounds
 });
 
 test('X silences a running engine and brings it back, also on an aircraft with a start sequence', async ({ page }) => {
   await tapDestination(page);
   await page.goto('/?mission=lszf-pattern&test=1');
-  await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+  await page.waitForFunction(() => window.simReady === true);
   await page.evaluate(() => window.simSetState({ masterBat: true }));
   await page.keyboard.press('e');
   await page.evaluate(() => window.simStep(180, 1 / 60));
-  await page.waitForTimeout(1500);
-  expect(await level(page)).toBeGreaterThan(0.01);
+  await page.waitForTimeout(1500);                                    // past the worklet hand-off
+  await expect.poll(() => level(page), AUDIO).toBeGreaterThan(0.01);
   await page.keyboard.press('x');
-  await page.waitForTimeout(300);                                     // the analyser's window empties
-  expect(await level(page)).toBeLessThan(0.001);
+  await expect.poll(() => level(page), AUDIO).toBeLessThan(0.001);    // once the analyser's window has emptied
   expect((await page.evaluate(() => window.simGetState())).engineState).toBe('running');
   await page.keyboard.press('x');
-  await page.waitForTimeout(300);
-  expect(await level(page)).toBeGreaterThan(0.01);
+  await expect.poll(() => level(page), AUDIO).toBeGreaterThan(0.01);
 });
 
 test('X reaches everything: any Web Audio voice, and clips playing or started later', async ({ page }) => {
   await tapDestination(page);
   await page.goto('/?mission=lszf-pattern&test=1');
-  await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+  await page.waitForFunction(() => window.simReady === true);
   await page.keyboard.press('x');
   await page.evaluate(async () => {
     const { audioContext, audioOutput, audioElement } = await import('/core/audio.js');
@@ -74,12 +75,10 @@ test('X reaches everything: any Web Audio voice, and clips playing or started la
     const o = ctx.createOscillator(); o.connect(audioOutput()); o.start();   // a voice that isn't the engine
     window.__clip = audioElement('assets/gpws/pull_up.mp3');
   });
-  await page.waitForTimeout(300);
-  expect(await level(page)).toBeLessThan(0.001);
+  await expect.poll(() => level(page), AUDIO).toBeLessThan(0.001);
   expect(await page.evaluate(() => window.__clip.muted)).toBe(true);
   await page.keyboard.press('x');
-  await page.waitForTimeout(300);
-  expect(await level(page)).toBeGreaterThan(0.01);
+  await expect.poll(() => level(page), AUDIO).toBeGreaterThan(0.01);
 });
 
 test("a mission's transmission stops when the mission is left", async ({ page }) => {
@@ -87,14 +86,13 @@ test("a mission's transmission stops when the mission is left", async ({ page })
   // missions (a53f750), nothing stopped it: it ran on into the next mission (2026-11-07).
   await tapDestination(page);
   await page.goto('/?mission=crew-demo2&test=1');
-  await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+  await page.waitForFunction(() => window.simReady === true);
   await page.keyboard.press('Shift');                                  // a gesture: the context runs
   await page.evaluate(() => window.simStep(1, 1));                     // t=0 → the webcast entry fires
-  await expect.poll(() => level(page), { timeout: 20_000 }).toBeGreaterThan(0.01);   // fetch + decode of 250 s: >10 s under full-suite load
+  await expect.poll(() => level(page), { timeout: 60_000 }).toBeGreaterThan(0.01);   // fetch + decode of 250 s: >10 s under full-suite load, more on a busy machine
   await page.evaluate(() => window.simLoad('lszf-pattern'));          // cold and dark: nothing should sound
-  await page.waitForFunction(() => window.simGetState().mission?.id === 'lszf-pattern', null, { timeout: 15_000 });
-  await page.waitForTimeout(600);                                      // the radio chain's squelch tail
-  expect(await level(page)).toBeLessThan(0.001);
+  await page.waitForFunction(() => window.simGetState().mission?.id === 'lszf-pattern');
+  await expect.poll(() => level(page), AUDIO).toBeLessThan(0.001);    // after the radio chain's squelch tail
 });
 
 test('pause holds every sound with the clock, and unpausing plays it on from where it stood', async ({ page }) => {
@@ -102,7 +100,7 @@ test('pause holds every sound with the clock, and unpausing plays it on from whe
   // A suspended context's analyser keeps its last frame, so the hold is read from the context's clock.
   await tapDestination(page);
   await page.goto('/?mission=lszf-pattern&test=1');
-  await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+  await page.waitForFunction(() => window.simReady === true);
   await page.evaluate(() => window.simSetState({ masterBat: true }));
   await page.keyboard.press('e');
   await page.evaluate(() => window.simStep(180, 1 / 60));
@@ -111,13 +109,12 @@ test('pause holds every sound with the clock, and unpausing plays it on from whe
     window.__clip = audioElement('assets/apollo8/day1.mp3');
     await window.__clip.play();
   });
-  await page.waitForTimeout(1000);
-  expect(await level(page)).toBeGreaterThan(0.01);
+  await expect.poll(() => level(page), AUDIO).toBeGreaterThan(0.01);
 
   await page.evaluate(() => window.simSetState({ paused: true }));
-  await page.waitForTimeout(300);                                     // the next frame applies it
+  await expect.poll(() => page.evaluate(() => window.__ctxs[0].state), AUDIO).toBe('suspended');   // the next frame applies it
   const held = await page.evaluate(() => ({ ctx: window.__ctxs[0].currentTime, clip: window.__clip.currentTime }));
-  await page.waitForTimeout(700);
+  await page.waitForTimeout(700);                                     // a while on the wall clock: nothing may move in it
   const after = await page.evaluate(() => ({ state: window.__ctxs[0].state, ctx: window.__ctxs[0].currentTime, clip: window.__clip.currentTime, paused: window.__clip.paused }));
   expect(after.state).toBe('suspended');
   expect(after.ctx).toBe(held.ctx);                                   // Web Audio stands
@@ -129,11 +126,8 @@ test('pause holds every sound with the clock, and unpausing plays it on from whe
   expect(await page.evaluate(() => window.__ctxs[0].state)).toBe('suspended');
 
   await page.evaluate(() => window.simSetState({ paused: false }));
-  await page.waitForTimeout(700);
-  const on = await page.evaluate(() => ({ state: window.__ctxs[0].state, paused: window.__clip.paused, clip: window.__clip.currentTime }));
-  expect(on.state).toBe('running');
-  expect(on.paused).toBe(false);
-  expect(on.clip).toBeGreaterThan(held.clip);                         // on from where it stood
-  expect(on.clip).toBeLessThan(held.clip + 1.5);                      // not from where it would have been
-  expect(await level(page)).toBeGreaterThan(0.01);
+  const playing = () => page.evaluate(() => ({ state: window.__ctxs[0].state, paused: window.__clip.paused, clip: window.__clip.currentTime }));
+  await expect.poll(async () => { const p = await playing(); return p.state === 'running' && !p.paused && p.clip > held.clip; }, AUDIO).toBe(true);   // on from where it stood
+  expect((await playing()).clip).toBeLessThan(held.clip + 1.5);      // not from where it would have been
+  await expect.poll(() => level(page), AUDIO).toBeGreaterThan(0.01);
 });

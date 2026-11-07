@@ -89,7 +89,7 @@ async function runSim(page, burnDuration, fpaProfile, dtPerTick = 1.0) {
   fs.writeFileSync(STARSHIP_JSON, JSON.stringify(ac, null, 2));
 
   await page.goto('/?mission=ift-12&test=1');
-  await page.waitForFunction(() => window.simReady === true, { timeout: 20_000 });
+  await page.waitForFunction(() => window.simReady === true);
 
   const ticksPerCall     = dtPerTick <= 0.2 ? Math.round(10 / dtPerTick) : 10;
   const simSecondsPerCall = ticksPerCall * dtPerTick;
@@ -162,7 +162,7 @@ async function runSimSplash(page, burnDuration, fpaProfile) {
   fs.writeFileSync(STARSHIP_JSON, JSON.stringify(ac, null, 2));
 
   await page.goto('/?mission=ift-12&test=1');
-  await page.waitForFunction(() => window.simReady === true, { timeout: 20_000 });
+  await page.waitForFunction(() => window.simReady === true);
 
   let dt = 0.1;
   const maxSim = 6000;

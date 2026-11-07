@@ -6,16 +6,14 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { existsSync } from 'node:fs';
 
 test('a new arrival runway in flight reaches the MCDU and LNAV', async ({ page }) => {
+  // Present or not is the file on disk — not how fast it loads: a load timer would skip the test on a busy machine
+  test.skip(!existsSync(new URL('../data/procedures-data-xp.js', import.meta.url)), 'CIFP procedure bundle not present');
   await page.goto('/?mission=evra-approach&test=1');
-  await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
-  const hasCifp = await page.evaluate(async () => {
-    const { getProcedures } = await import('/core/route.js');
-    for (let i = 0; i < 100 && !getProcedures().EVRA; i++) await new Promise(r => setTimeout(r, 50));
-    return !!getProcedures().EVRA;
-  });
-  test.skip(!hasCifp, 'CIFP procedure bundle not present');
+  await page.waitForFunction(() => window.simReady === true);
+  await page.waitForFunction(async () => !!(await import('/core/route.js')).getProcedures().EVRA);   // core/route.js loads it after start
 
   await page.evaluate(() => window.simSetState({ cockpitView: 'pedestal', ap: true, navManaged: true }));
   await page.evaluate(() => window.simStep(2));
@@ -41,7 +39,7 @@ test('a new arrival runway in flight reaches the MCDU and LNAV', async ({ page }
    first fix. evra-approach starts at FL350 inbound Riga, ~55.0 N 21.1 E, heading 045°. */
 test('mid-route start: managed NAV flies on toward the destination', async ({ page }) => {
   await page.goto('/?mission=evra-approach&test=1');
-  await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+  await page.waitForFunction(() => window.simReady === true);
   expect(await page.evaluate(() => window.simGetState().flightPlan.activeIdx)).toBeGreaterThan(1);
 
   await page.evaluate(() => window.simSetState({ ap: true, navManaged: true }));

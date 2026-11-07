@@ -8,7 +8,7 @@ import { test, expect } from '@playwright/test';
 
 async function load(page, mission) {
   await page.goto(`/?mission=${mission}&test=1`);
-  await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+  await page.waitForFunction(() => window.simReady === true);
   await page.evaluate(() => window.simSetState({ paused: false }));
 }
 const st = (page) => page.evaluate(() => window.simGetState());

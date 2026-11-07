@@ -3,6 +3,7 @@
    registry / per-aircraft draw dispatch in display/outside.js. One mission per
    profile; "wb" is the default JSON-driven body. */
 import { test, expect } from '@playwright/test';
+import { frames } from './frames.js';
 
 const CASES = [
   { profile: 'c172',     mission: 'lszf-pattern'      },
@@ -23,13 +24,13 @@ for (const c of CASES) {
     page.on('console', m => { if (m.type() === 'error') errors.push('console.error: ' + m.text()); });
 
     await page.goto(`/?mission=${c.mission}&test=1`);
-    await page.waitForFunction(() => window.simReady === true, { timeout: 20_000 });
+    await page.waitForFunction(() => window.simReady === true);
 
     // Cycle view modes (PFD → combined → outside) so the rAF loop renders the
     // outside canvas at least once. Errors during any render frame are captured.
     for (let i = 0; i < 3; i++) {
       await page.keyboard.press('v');
-      await page.waitForTimeout(250);
+      await frames(page);
     }
 
     const fatal = errors.filter(e =>

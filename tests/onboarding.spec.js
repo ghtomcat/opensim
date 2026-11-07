@@ -14,7 +14,7 @@ test('the key map shows again on the next mission, and a click dismisses it', as
   const ob = page.locator('#onboarding');
 
   await page.goto('/?mission=lszf-pattern');
-  await expect(ob).toHaveClass(/visible/, { timeout: 15_000 });
+  await page.locator('#onboarding.visible').waitFor();             // loaded: as long as the load takes
   await expect(ob).toBeVisible();
   expect(await paused(page)).toBe(true);
   await page.keyboard.press('Shift');                       // any key dismisses
@@ -23,7 +23,7 @@ test('the key map shows again on the next mission, and a click dismisses it', as
 
   await page.goBack();                                      // selector
   await page.goForward();                                   // the same mission, loaded again
-  await expect(ob).toHaveClass(/visible/, { timeout: 15_000 });
+  await page.locator('#onboarding.visible').waitFor();             // loaded: as long as the load takes
   await expect(ob).toBeVisible();
   expect(await paused(page)).toBe(true);
   await ob.click();

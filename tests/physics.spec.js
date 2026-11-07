@@ -13,7 +13,7 @@ import { test, expect } from '@playwright/test';
 
 async function loadSim(page, missionId) {
   await page.goto(`/?mission=${missionId}&test=1`);
-  await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+  await page.waitForFunction(() => window.simReady === true);
 }
 
 async function stepSeconds(page, seconds, dt = 1/60) {

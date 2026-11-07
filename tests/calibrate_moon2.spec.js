@@ -11,7 +11,7 @@ import { test, expect } from '@playwright/test';
 
 test('calibrate moonRefAngle from cislunar position', async ({ page }) => {
   await page.goto('/?mission=apollo8&test=1');
-  await page.waitForFunction(() => window.simReady === true, { timeout: 20_000 });
+  await page.waitForFunction(() => window.simReady === true);
 
   /* Step to just before MCC-1 fires (mcc1T=39780) */
   await page.evaluate(() => window.simStep(2000, 1));    // t=2000 — past SECO

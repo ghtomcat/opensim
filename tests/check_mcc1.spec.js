@@ -1,8 +1,12 @@
 import { test, expect } from '@playwright/test';
 
+// A long simulation: hundreds of thousands of sim seconds, stepped. It takes as long as the machine needs —
+// over 100 s with the CPU busy elsewhere — and the result doesn't depend on it.
+test.describe.configure({ timeout: 600_000 });
+
 test('MCC-1 ΔV should be small for correctly targeted trajectory', async ({ page }) => {
   await page.goto('/?mission=apollo8&test=1');
-  await page.waitForFunction(() => window.simReady === true, { timeout: 20_000 });
+  await page.waitForFunction(() => window.simReady === true);
 
   // Use dt=1 for launch (attitude control), dt=10 for orbital coast
   await page.evaluate(() => window.simStep(2000, 1));    // t=2000 — past SECO

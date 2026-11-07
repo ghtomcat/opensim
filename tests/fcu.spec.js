@@ -45,7 +45,7 @@ for (const layout of ['top', 'middle']) {
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
     await page.goto('/?mission=fimp-takeoff&test=1');
-    await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+    await page.waitForFunction(() => window.simReady === true);
     await setCombined(page, layout === 'middle');
     await expect.poll(async () => (await regions(page)).length).toBe(4);   // drawn on the first panel frame
 

@@ -7,7 +7,7 @@ import { test, expect } from '@playwright/test';
 
 async function overhead(page, mission) {
   await page.goto(`/?mission=${mission}&test=1`);
-  await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+  await page.waitForFunction(() => window.simReady === true);
   await page.keyboard.press('o');
 }
 const ids = (page) => page.locator('.gpb[id^="pb-hyd-"]').evaluateAll(els => els.map(e => e.id));

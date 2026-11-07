@@ -22,7 +22,7 @@ async function openBriefing(page, id) {
 }
 
 const chips = (page) => page.locator('#bp-strip .bp-chip').evaluateAll(cs => cs.map(c => c.dataset.kind));
-const flying = (page, id) => page.waitForFunction(id => window.simReady === true && window.simGetState().mission?.id === id, id, { timeout: 15_000 });
+const flying = (page, id) => page.waitForFunction(id => window.simReady === true && window.simGetState().mission?.id === id, id);
 
 test('a fixed-story mission offers nothing to choose: Controls and Fly', async ({ page }) => {
   await openBriefing(page, 'wolfskopf-1942');
@@ -119,9 +119,9 @@ test('a takeoff offers the failure at V1 and the engine — and the 777 flies wi
 
   /* the takeoff roll: nothing fails below V1 (= VR, 165 kt, for now); at V1 ENG 1 loses its power, ENG 2 doesn't */
   await page.evaluate(() => window.simSetState({ paused: false, engineState: 'running', enginePower: 1, thrustLever: 1, parkBrake: false, braking: false, athr: false }));
-  await page.waitForFunction(() => { window.simStep(6, 1 / 60); return window.simGetState().spd >= 150; }, null, { polling: 10, timeout: 20_000 });
+  await page.waitForFunction(() => { window.simStep(6, 1 / 60); return window.simGetState().spd >= 150; }, null, { polling: 10 });
   expect((await page.evaluate(() => window.simGetState())).engines.map(e => e.factors.failure)).toEqual([1, 1]);
-  await page.waitForFunction(() => { window.simStep(6, 1 / 60); return window.simGetState().spd >= 170; }, null, { polling: 10, timeout: 20_000 });
+  await page.waitForFunction(() => { window.simStep(6, 1 / 60); return window.simGetState().spd >= 170; }, null, { polling: 10 });
   await page.evaluate(() => window.simStep(1200, 1 / 60));         // the ramp (15 s) has run
   const after = await page.evaluate(() => window.simGetState());
   expect(after.engines[0].factors.failure).toBe(0);

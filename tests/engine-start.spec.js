@@ -7,7 +7,7 @@ import { test, expect } from '@playwright/test';
 
 async function load(page) {
   await page.goto('/?mission=lsgg-takeoff&test=1');
-  await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+  await page.waitForFunction(() => window.simReady === true);
 }
 const state = (page) => page.evaluate(() => window.simGetState());
 const step  = (page, s) => page.evaluate((n) => window.simStep(n, 1 / 60), Math.round(s * 60));
@@ -46,7 +46,7 @@ test('ENG MASTER positions do not carry over to the next mission, and match its 
   await load(page);
   await page.evaluate(() => window.simSetState({ engMasters: [true, true] }));
   await page.evaluate(() => window.simLoad('fimp-takeoff'));           // cold A340, same page
-  await page.waitForFunction(() => window.simGetState().aircraft?.id === 'a340', { timeout: 15_000 });
+  await page.waitForFunction(() => window.simGetState().aircraft?.id === 'a340');
   expect((await state(page)).engMasters).toEqual([false, false, false, false]);
 });
 

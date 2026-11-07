@@ -9,7 +9,7 @@ import { test, expect } from '@playwright/test';
 
 test('V_MCA: the 777 is held on one engine at 125 kt, departs at 105 kt', async ({ page }) => {
   await page.goto('/?mission=singapore-london&test=1');
-  await page.waitForFunction(() => window.simReady === true, { timeout: 15_000 });
+  await page.waitForFunction(() => window.simReady === true);
   const r = await page.evaluate(async () => {
     window.simSetState({ paused: false, thrustLever: 1, parkBrake: false, tacOff: true });   // the airframe alone, without TAC
     window.simStep(40 * 60, 1 / 60);
