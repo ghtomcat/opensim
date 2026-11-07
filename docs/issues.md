@@ -636,18 +636,49 @@ The warbirds have two more cells (Fuel L/R, Fuel Sel). At 1280 px the F4U's `375
 
 The cell shows real N1 only on the multi-engine turbofans. For the others the value comes from `getCurrentRpm()` in the sound synthesis: RPM from `spdT` (*`spdT` is both the speed target and the throttle*), the start curves hard-coded to match the recordings, and N1 from the throttle on the An-225. It returns null without a sound preset. A cockpit value depends on the audio code, against the rule that sound follows the engine (`core/engine.js`). **Fix:** RPM per engine in `S.engines[]` from `core/engine.js`, read by the display and the sound alike. **Done when:** `core/sound.js` exports no value that a display shows.
 
-### The Avro 504, Tu-95, An-225 and DC-8 fly on a borrowed fighter panel — an analog panel each, as data
-*Found 2026-11-07 (Markus) · `display/analog_panel.js`, `panels/`, `display/panel_renderer.js`*
+### The analog panels draw a borrowed fighter panel — one renderer, configured per aircraft as data
+*Found 2026-11-07 (Markus) · `display/analog_panel.js`, the renderer chain in `index.html`, `core/vocab.js` (`PANEL`), `aircraft/*.json`*
 
-**Today.** They flew on a leftover glass PFD (`display/pfd.js`) with the airliner mode strip. Now each draws the analog panel of the warbirds (`display/analog_panel.js`, the Bf 109's and F4U's layout) in a style of its own: `panel: "analog"` with `panelStyle` `soviet` (Tu-95, An-225: black faces on Soviet turquoise, Russian labels, metric), `wood` (Avro 504: varnished board, brass bezels, mph 0–120 without arcs, a tachometer for the Le Rhône rotary) and `usn` (the DC-8, a nose-only stub without a mission). The glass PFD, the mode strip (`#fma`, `display/fma.js`) and every `fmaPhases` table are gone; `panel` is required (`tests/data-schema.test.mjs`). Stop-gaps, all four: the six flight instruments and engine gauges of a 1940s fighter, not the type's own — the Avro had no attitude indicator, the An-225 shows a tachometer instead of fan speed, the DC-8 jet a manifold pressure gauge.
+**Today.** Seven aircraft draw their round gauges with `renderAnalogPanel()` (`display/analog_panel.js`): the Bf 109 and the MiG-15 (`panel: "bf109"`, style luftwaffe), the F4U (`panel: "f4u"`, style usn), and on `panel: "analog"` with a `panelStyle` the Tu-95 and the An-225 (soviet), the Avro 504 (wood) and the DC-8 (usn, a nose-only stub without a mission). They flew on a leftover glass PFD with the airliner mode strip until `cf15abc`/`d85bc90`. The style sets the look, the labels and the units; the instruments and their places are the same for all — the Bf 109's and the F4U's six flight instruments and engine gauges:
+- the Avro shows an attitude indicator it never had, the An-225 a tachometer instead of N1, the DC-8 jet a manifold pressure gauge, the MiG-15 German labels;
+- **the dial ranges are the Bf 109's and the F4U's:** the metric airspeed dial is fixed at 0–800 km/h with the Bf 109's red arc from 620 (`_drawFahrtmesser`), on the Tu-95, the An-225 and the MiG-15 — which flies past its end; the DC-8 shows the F4U's VNE arc at 362 kt. The Avro's own scale sits in the `wood` style, the wrong place;
+- every engine dial reads `getCurrentRpm()` from `core/sound.js` (*The Engine cell's reading comes from the sound module*), on one engine or four.
 
-**Plan (agreed 2026-11-07), what is left.**
-1. **A panel per aircraft, as data** — JSON in `panels/` like the DR400's, from the widgets in `display/panel_renderer.js`; widgets that are missing (tachometer, compass …) added there.
-2. **The look per aircraft from the style** (`panels/styles/`), carrying over the styles of `analog_panel.js`.
+**Decided (2026-11-07, Markus; mockup `docs/mockups/analog-panel-config.html`, local).**
+- **Two paths: round gauges → analog (`analog_panel.js`), screens → glass (`panel_renderer.js` + `panels/`).** This replaces the earlier plan to draw the analog panels as `panels/` JSON with `panel_renderer.js` widgets. Open: the DR400 is mixed (round gauges + GTN, today on `panel_renderer.js` with gauge widgets of its own) — stays as it is for now. The Velis EPSI is its own hand-drawn path (with the electrical solver).
+- **The style is the look** (palette, labels, unit system, wood grain, frost) — no scales, no instrument choice.
+- **The aircraft data is the content:** an instrument list for the flight block and one for the engine block, each entry with its size class and its scale:
+  ```json
+  "panel": "analog", "panelStyle": "soviet",
+  "analogPanel": {
+    "flight": [{ "id": "asi", "size": "L", "max": 1000, "step": 100, "redFrom": 950 }, { "id": "ai", "size": "L" }, …],
+    "engine": [{ "id": "n1", "size": "XS" }, { "id": "egt", "size": "XS" }]
+  }
+  ```
+- **The engine block repeats per engine** from `engine.count` (no second count in the panel): one column per engine, one row per quantity, the engine numbers on top; one engine → the dials in rows.
+- **Sizes are the real size classes:** L 80 mm (≈ 3⅛″, primary), S 57 mm (≈ 2¼″, secondary), XS for the small multi-engine dials — the mm values to be confirmed from sources. The layout keeps the proportions and scales the whole panel to fit the screen; an entry without a size gets one computed from the space.
+- **Scales from the aircraft data:** range, step, arcs per entry; the red line from the aircraft's own limits where the data has them.
+- **Engine values from `S.engines[]`**, never from the sound code — for every aircraft, one engine or six.
+- **The An-225's main panel: N1 and EGT only** (6 × 2). The full engine set (N1, N2, EGT, fuel flow, oil …) belongs to a flight engineer station — a cockpit view of its own, a feature for later, not part of this.
+- **One panel name:** the Bf 109, MiG-15 and F4U move to `panel: "analog"` too, with the rest; `bf109` and `f4u` leave `PANEL`, and the code that knows them (the renderer chain and `isVintage` in `index.html`, the clock in `display/terrain.js`) checks `analog` only.
+- **No pixel identity needed:** the warbird panels are not sourced from a real cockpit either (Markus, 2026-11-07) — they may move to the flowing layout and change; they get their sourced set like the others.
 
-**Sources.** Each panel's instrument set from photos or manuals of the type — the Avro 504K (ASI, altimeter, tachometer, compass, oil pulsator, no attitude indicator), the Tu-95's and An-225's analog panels, the DC-8's.
+**Order (2026-11-07).** Sources first, before any code: the instruments, sizes, scales and arrangement of three types that span the range — the Avro 504K (few instruments, a wooden board), the Bf 109 G (a full single-engine German panel), the Tu-95 (multi-engine, Soviet, turboprop) — as notes per type in `sources/`. From them the data shape: instrument positions on the panel in mm (scaled to fit), a flowing layout, or both (flow as the fallback for an unsourced panel); one real panel in the mockup first. Then the instrument registry for the instruments the sources show, the layout, the `analogPanel` schema with all seven on `analog`, the scales, the engine values from `S.engines[]`, the multi-engine block (Tu-95; the An-225 after its move to the turbofan path), and the other types with their research.
 
-**Done when.** Each flies on its own sourced panel.
+**Per aircraft.**
+
+| Aircraft | Flight block | Engine block |
+|---|---|---|
+| Bf 109, F4U | six (to be sourced) | today's gauges (to be sourced) |
+| MiG-15 | six, its own style (Soviet), airspeed past 1 000 km/h | jet: rpm, EGT |
+| Tu-95 | six | 4 × prop rpm, TGT, torque (NK-12 turboprop — new dials) |
+| An-225 | six | 6 × N1, EGT (needs the turbofan path) |
+| Avro 504 | airspeed, altimeter, compass, sideslip — no horizon | rpm, oil pulsator (a glass bubble, a widget of its own) |
+| DC-8 | six | 4 × EPR, N1, EGT, fuel flow — a stub without a mission, last |
+
+**Sources.** Each instrument set, size and scale from photos or manuals of the type — all seven: the Bf 109 G, the F4U-1A, the MiG-15, the Avro 504K, the Tu-95's, the An-225's and the DC-8's panels. None is sourced yet, the warbirds included.
+
+**Done when.** Every analog aircraft draws its own sourced instruments, sizes and scales from its data; one panel name, `analog`; no engine dial reads the sound module.
 
 ### The METAR strip always says LSZH
 *Found 2026-11-06 · `updateMetar()` and `_rwyFromWind()` in `index.html`*
