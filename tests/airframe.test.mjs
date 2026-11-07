@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { nominalCg, engineY, vstab, DEFAULT_NOSE_GEAR_SHARE } from '../core/airframe.js';
+import { nominalCg, engineY, vstab, DEFAULT_NOSE_GEAR_SHARE, flapLabel } from '../core/airframe.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const load = (id) => JSON.parse(readFileSync(join(root, 'aircraft', `${id}.json`), 'utf8'));
@@ -58,4 +58,12 @@ test('not measured → null; no balance block → the default nose-gear share', 
   near(nominalCg(a350), (d.noseTipToMainGear - DEFAULT_NOSE_GEAR_SHARE * (d.noseTipToMainGear - d.noseTipToNoseGear)) / 1000, 1e-9, 'A350 CG');
   assert.equal(nominalCg({}), null);
   assert.equal(engineY(load('a340')), null);                    // four engines: not measured yet
+});
+
+test('flapLabel: the label where the data has one, else UP and the angle', () => {
+  assert.equal(flapLabel({ label: '0' }, 0), '0');                    // airliners keep their own names
+  assert.equal(flapLabel({ label: '1+F' }, 1), '1+F');
+  assert.equal(flapLabel({ deg: 0 }, 0), 'UP');                        // light aircraft: no label (was "undefined" on the pedestal)
+  assert.equal(flapLabel({ deg: 15 }, 1), '15°');
+  assert.equal(flapLabel(undefined, 0), 'UP');
 });

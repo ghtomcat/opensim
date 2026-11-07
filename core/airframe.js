@@ -12,6 +12,14 @@
    puts it that fraction of the wheelbase ahead of the main gear.
    ═══════════════════════════════════════════════════════════════ */
 
+/** The name of flap position `i` — its `label` (airliners: "0", "1+F" …), else UP when retracted
+    and its angle above ("15°"). One rule for the pedestal, the EPSI and the G1000. */
+export function flapLabel(f, i) {
+  if (f?.label != null) return f.label;
+  if (i === 0 || f?.deg === 0) return 'UP';
+  return f?.deg != null ? `${f.deg}°` : String(i);
+}
+
 /** Typical static nose-gear share of an airliner (6–12 %) when the aircraft gives none. */
 export const DEFAULT_NOSE_GEAR_SHARE = 0.08;
 

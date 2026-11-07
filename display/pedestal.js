@@ -9,6 +9,7 @@ import { S, setState } from '../core/state.js';
 import { startFuelPump, stopFuelPump } from '../core/sound.js';
 import { startEngine, stopEngine, engineMaster } from '../core/engine.js';
 import { altLabel } from '../core/route.js';
+import { flapLabel } from '../core/airframe.js';
 import { buildDescentPath } from '../core/vnav.js';
 
 let _el = null;
@@ -629,7 +630,7 @@ function _buildHTML() {
 
   /* ── Flex row: flaps / spd brk / fuel / elec / lights / park brk ── */
   const flapBtns = flapCfgs.map((f, i) =>
-    `<div class="ped-flap-pos" data-flap="${i}">${f.label}</div>`
+    `<div class="ped-flap-pos" data-flap="${i}">${flapLabel(f, i)}</div>`
   ).join('');
   const sbBtns = ['RET', 'ARM', 'FULL'].map((lbl, i) =>
     `<div class="ped-spdbk-pos" data-sb="${i}">${lbl}</div>`

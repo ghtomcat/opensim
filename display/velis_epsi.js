@@ -17,6 +17,7 @@
 
 import { S, setState }               from '../core/state.js';
 import { updateVelisMapOverlay, hideVelisMap } from './map.js';
+import { flapLabel } from '../core/airframe.js';
 
 /* ── Palette ── */
 const P = {
@@ -656,9 +657,7 @@ function _drawEPSI(ctx, canvas, cx, cy, w, h, sc) {
   const vs    = S.vs ?? 0;
   const flaps = S.aircraft?.flaps ?? [];
   const flapsIdx   = S.flaps ?? 0;
-  const flapsLabel = flaps[flapsIdx]?.deg !== undefined
-    ? flaps[flapsIdx].deg + '°'
-    : (flaps[flapsIdx]?.label ?? 'UP');
+  const flapsLabel = flapLabel(flaps[flapsIdx], flapsIdx);
 
   ctx.fillStyle = P.dim;   ctx.font = `${8*sc}px ${SANS}`;
   ctx.fillText('V/S', cx - col/2, row3Y);
@@ -679,7 +678,7 @@ function _drawEPSI(ctx, canvas, cx, cy, w, h, sc) {
   const segY   = row3Y + 11*sc;
   flaps.forEach((fp, i) => {
     const active = i === flapsIdx;
-    const lbl    = i === 0 ? 'UP' : (fp.deg !== undefined ? fp.deg + '°' : fp.label ?? 'DN');
+    const lbl    = flapLabel(fp, i);
     const sx     = segX0 + i * (segW + segGap);
     ctx.fillStyle = active
       ? (i > 0 ? 'rgba(0,200,224,0.18)' : 'rgba(255,255,255,0.08)')

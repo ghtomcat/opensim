@@ -8,6 +8,7 @@
 import { S }                    from '../core/state.js';
 import { updateG1000MapOverlay } from './map.js';
 import { getCOMState }           from './com.js';
+import { flapLabel }             from '../core/airframe.js';
 
 const G = {
   bg:      'rgba(18,20,26,0.65)',
@@ -457,7 +458,7 @@ function _hsi(ctx, x, y, w, h) {
   if (flaps_arr.length > 1) {
     const fi  = S.flaps ?? 0;
     const fp  = flaps_arr[fi];
-    const lbl = fi === 0 ? 'UP' : (fp?.deg !== undefined ? fp.deg + '°' : fp?.label ?? 'DN');
+    const lbl = flapLabel(fp, fi);
     const dep = fi > 0;
     const bw  = r * 0.62;
     const bh  = r * 0.32;
