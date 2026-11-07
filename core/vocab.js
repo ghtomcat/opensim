@@ -62,6 +62,7 @@ export const VEHICLE = names({ ROCKET: 'rocket', ROBOT_ARM: 'robot-arm', ROBOT_D
 export const PANEL = names({
   AIRBUS: 'airbus', E190: 'e190', G1000: 'g1000', DR400: 'dr400',
   BF109: 'bf109', F4U: 'f4u', VELIS: 'velis-epsi', F9: 'f9',
+  ANALOG: 'analog',   // the warbird analog panel (display/bf109.js) in the aircraft's panelStyle — the Tu-95, the An-225
 });
 
 /** aircraft.sound.engineType — the presets in core/sound.js (ENGINES), plus 'electric' and 'none' */

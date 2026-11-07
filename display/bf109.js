@@ -17,18 +17,62 @@ import { getRpmValue, getCurrentRpm } from '../core/sound.js';
 import { drawAnalogClock } from './clock.js';
 import { ballDeflection } from '../core/yaw.js';
 
-/* ── Palette ── */
-const P = {
-  panel:    '#22261d',   // feldgrau — dark olive-grey Luftwaffe panel
-  rim:      '#141610',   // bezel ring — blackened steel
-  face0:    '#f0e9d4',   // dial face centre — warm ivory
-  face1:    '#d8cead',   // dial face edge shadow
-  needle:   '#c41e00',   // Luftwaffe red
-  ndlBack:  '#28261e',   // needle counterweight — dark
-  mark:     '#1c1914',   // index marks & numerals — near-black
-  subdued:  '#80745a',   // secondary label — aged ink
-  shadow:   'rgba(0,0,0,0.65)',
+/* ── Styles — the look and the language of the panel. luftwaffe: the Bf 109 (and the MiG-15, which
+   borrows this panel). soviet: a stop-gap for the Tu-95 and the An-225 until each has its own
+   sourced panel (issues.md, "The Avro 504, Tu-95 and An-225 fly on a leftover glass PFD") — black
+   faces with white markings on the turquoise Soviet cockpit paint, Russian labels; metric like the
+   German instruments, so the scales stay. ── */
+const STYLES = {
+  luftwaffe: {
+    P: {
+      panel:    '#22261d',   // feldgrau — dark olive-grey Luftwaffe panel
+      rim:      '#141610',   // bezel ring — blackened steel
+      faceHi:   '#f8f2e0',   // dial face highlight
+      face0:    '#f0e9d4',   // dial face centre — warm ivory
+      face1:    '#d8cead',   // dial face edge shadow
+      capIn:    '#3c3a2e',   // centre cap, inner
+      needle:   '#c41e00',   // Luftwaffe red
+      ndlBack:  '#28261e',   // needle counterweight — dark
+      mark:     '#1c1914',   // index marks & numerals — near-black
+      subdued:  '#80745a',   // secondary label — aged ink
+      shadow:   'rgba(0,0,0,0.65)',
+    },
+    sky: ['#3a5468', '#5878a0'],                 // Arctic sky — cold pale blue
+    ground: ['#4a3c28', '#3c3020', '#c8c4b8'],   // tundra, snow on flat ground
+    frost: true,                                 // Wolfskopf 1942, Petsamo, -22 °C
+    L: {
+      asi: 'Fahrtmesser', asiUnit: 'km/h', ai: 'Künstl. Horizont', alt: 'Höhenmesser', altUnit: '×100 m',
+      turn: 'Wendezeiger', turnL: 'L', turnR: 'R', compass: 'Kompass', cards: ['N', 'O', 'S', 'W'],
+      vsi: 'Variometer', vsiUnit: 'm/s', rpm: 'Drehzahlmesser', rpmUnit: '×100 U/min', n1: 'Verdichter', n1Unit: 'N1 %',
+      oilT: 'Öltemperatur', coolant: 'Kühlstoff', oilP: 'Öldruck', oilPUnit: 'atü',
+    },
+  },
+  soviet: {
+    P: {
+      panel:    '#2e6a72',   // Soviet cockpit turquoise
+      rim:      '#121416',   // black bezel
+      faceHi:   '#2a2e33',
+      face0:    '#16191c',   // black face
+      face1:    '#0c0e10',
+      capIn:    '#4a4e52',
+      needle:   '#f2efe4',   // white needle
+      ndlBack:  '#2a2d30',
+      mark:     '#e8e6dc',   // white markings
+      subdued:  '#9aa3a6',
+      shadow:   'rgba(0,0,0,0.65)',
+    },
+    sky: ['#2c5a8a', '#4a80b8'],
+    ground: ['#6a4a2a', '#5a3c22', '#4a3018'],
+    frost: false,
+    L: {
+      asi: 'Скорость', asiUnit: 'км/ч', ai: 'Авиагоризонт', alt: 'Высотомер', altUnit: '×100 м',
+      turn: 'Указатель поворота', turnL: 'Л', turnR: 'П', compass: 'Компас', cards: ['С', 'В', 'Ю', 'З'],
+      vsi: 'Вариометр', vsiUnit: 'м/с', rpm: 'Тахометр', rpmUnit: '×100 об/мин', n1: 'Обороты', n1Unit: 'N1 %',
+      oilT: 'Темп. масла', coolant: 'Темп. охл. жидк.', oilP: 'Давл. масла', oilPUnit: 'кгс/см²',
+    },
+  },
 };
+let ST = STYLES.luftwaffe, P = ST.P, L = ST.L;   // the active style — set by each render
 
 /* ── Fonts ── */
 const SANS = '"Helvetica Neue", Helvetica, Arial, sans-serif';
@@ -39,7 +83,8 @@ const _r = d => (d - 90) * Math.PI / 180;
 /* ════════════════════════════════════════════════════════════
    MAIN ENTRY
    ════════════════════════════════════════════════════════════ */
-export function renderBf109(canvas) {
+export function renderBf109(canvas, style = 'luftwaffe') {
+  ST = STYLES[style] ?? STYLES.luftwaffe; P = ST.P; L = ST.L;
   const W = canvas.width  = canvas.offsetWidth  * devicePixelRatio;
   const H = canvas.height = canvas.offsetHeight * devicePixelRatio;
   const ctx = canvas.getContext('2d');
@@ -95,7 +140,7 @@ export function renderBf109(canvas) {
 
     drawAnalogClock(ctx, W * 0.06, Hu * 0.28, 44 * sc);   // clock — top-left
 
-    _drawFrost(ctx, W, H);
+    if (ST.frost) _drawFrost(ctx, W, H);
 
   } else {
     const sc = Math.min(W, H) / 860;
@@ -135,7 +180,7 @@ export function renderBf109(canvas) {
     drawAnalogClock(ctx, W * 0.11, H * 0.14, 48 * sc);   // clock — top-left
 
     /* Frost vignette — Arctic, -22°C */
-    _drawFrost(ctx, W, H);
+    if (ST.frost) _drawFrost(ctx, W, H);
 
   }
 
@@ -163,7 +208,7 @@ function _base(ctx, x, y, r) {
 
   /* Cream face */
   const face = ctx.createRadialGradient(x - r*0.08, y - r*0.10, r*0.04, x, y, r);
-  face.addColorStop(0,    '#f8f2e0');
+  face.addColorStop(0,    P.faceHi);
   face.addColorStop(0.72, P.face0);
   face.addColorStop(1,    P.face1);
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2);
@@ -184,7 +229,7 @@ function _base(ctx, x, y, r) {
 /* Centre cap */
 function _cap(ctx, x, y, r) {
   ctx.beginPath(); ctx.arc(x, y, r,       0, Math.PI*2); ctx.fillStyle = P.rim;    ctx.fill();
-  ctx.beginPath(); ctx.arc(x, y, r * 0.4, 0, Math.PI*2); ctx.fillStyle = '#3c3a2e'; ctx.fill();
+  ctx.beginPath(); ctx.arc(x, y, r * 0.4, 0, Math.PI*2); ctx.fillStyle = P.capIn; ctx.fill();
 }
 
 /* Needle — tapered red body + dark counterweight */
@@ -332,12 +377,12 @@ function _drawFahrtmesser(ctx, x, y, r, sc) {
   for (let v = 0; v <= maxV; v += 100) _num(ctx, x, y, r, s0 + (v / maxV) * sw, v === 0 ? '0' : String(v), 8.5, sc);
   ctx.textBaseline = 'alphabetic';
 
-  _sublabel(ctx, x, y, r, 'km/h', sc);
+  _sublabel(ctx, x, y, r, L.asiUnit, sc);
 
   const ang = s0 + Math.min(1, Math.max(0, kmh / maxV)) * sw;
   _needle(ctx, x, y, r, ang, 0.78, 0.22, sc);
   _cap(ctx, x, y, 5.5 * sc);
-  _label(ctx, x, y, r, 'Fahrtmesser', sc);
+  _label(ctx, x, y, r, L.asi, sc);
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -360,16 +405,16 @@ function _drawHorizont(ctx, x, y, r, sc) {
 
   /* Arctic sky — cold pale blue */
   const skyG = ctx.createLinearGradient(0, -r, 0, pitchPx);
-  skyG.addColorStop(0,   '#3a5468');
-  skyG.addColorStop(1,   '#5878a0');
+  skyG.addColorStop(0,   ST.sky[0]);
+  skyG.addColorStop(1,   ST.sky[1]);
   ctx.fillStyle = skyG;
   ctx.fillRect(-r, -r * 1.2, r * 2, r * 1.2 + pitchPx);
 
   /* Tundra / ice below */
   const gndG = ctx.createLinearGradient(0, pitchPx, 0, r);
-  gndG.addColorStop(0,   '#4a3c28');
-  gndG.addColorStop(0.5, '#3c3020');
-  gndG.addColorStop(1,   '#c8c4b8');   /* snow on flat ground */
+  gndG.addColorStop(0,   ST.ground[0]);
+  gndG.addColorStop(0.5, ST.ground[1]);
+  gndG.addColorStop(1,   ST.ground[2]);   /* luftwaffe: snow on flat ground */
   ctx.fillStyle = gndG;
   ctx.fillRect(-r, pitchPx, r * 2, r * 1.2);
 
@@ -433,7 +478,7 @@ function _drawHorizont(ctx, x, y, r, sc) {
   ctx.restore();
 
   _cap(ctx, x, y, 4.5 * sc);
-  _label(ctx, x, y, r, 'Künstl. Horizont', sc);
+  _label(ctx, x, y, r, L.ai, sc);
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -455,7 +500,7 @@ function _drawHoehenmesser(ctx, x, y, r, sc) {
   }
   ctx.textBaseline = 'alphabetic';
 
-  _sublabel(ctx, x, y, r, '×100 m', sc);
+  _sublabel(ctx, x, y, r, L.altUnit, sc);
 
   /* Coarse 10 000 m stub — short, dark */
   const angCoarse = s0 + ((altM / 10000) % 1) * sw;
@@ -470,7 +515,7 @@ function _drawHoehenmesser(ctx, x, y, r, sc) {
   const angFine = s0 + ((altM % 1000) / 1000) * sw;
   _needle(ctx, x, y, r, angFine, 0.78, 0.22, sc);
   _cap(ctx, x, y, 5.5 * sc);
-  _label(ctx, x, y, r, 'Höhenmesser', sc);
+  _label(ctx, x, y, r, L.alt, sc);
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -499,8 +544,8 @@ function _drawWendezeiger(ctx, x, y, r, sc) {
   /* L / R labels */
   ctx.fillStyle = P.mark; ctx.font = `bold ${9 * sc}px ${SANS}`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('L', x - r * 0.52, y - r * 0.48);
-  ctx.fillText('R', x + r * 0.52, y - r * 0.48);
+  ctx.fillText(L.turnL, x - r * 0.52, y - r * 0.48);
+  ctx.fillText(L.turnR, x + r * 0.52, y - r * 0.48);
 
   /* Turn needle — vertical bar shifted by roll proxy */
   const deflect = Math.max(-1, Math.min(1, S.roll / 20));
@@ -521,7 +566,7 @@ function _drawWendezeiger(ctx, x, y, r, sc) {
   ctx.strokeStyle = P.mark; ctx.lineWidth = 0.8 * sc; ctx.stroke();
 
   ctx.textBaseline = 'alphabetic';
-  _label(ctx, x, y, r, 'Wendezeiger', sc);
+  _label(ctx, x, y, r, L.turn, sc);
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -551,7 +596,7 @@ function _drawKompass(ctx, x, y, r, sc) {
   }
 
   /* Cardinal directions */
-  const cards = ['N', 'O', 'S', 'W'];
+  const cards = L.cards;
   for (let i = 0; i < 4; i++) {
     const a  = (i / 4) * Math.PI * 2 - Math.PI / 2;
     const nr = r * 0.66;
@@ -592,7 +637,7 @@ function _drawKompass(ctx, x, y, r, sc) {
   ctx.fillText(String(Math.round(hdg)).padStart(3, '0') + '°', x, y + r * 0.42);
 
   _cap(ctx, x, y, 4.5 * sc);
-  _label(ctx, x, y, r, 'Kompass', sc);
+  _label(ctx, x, y, r, L.compass, sc);
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -617,13 +662,13 @@ function _drawVariometer(ctx, x, y, r, sc) {
   }
   ctx.textBaseline = 'alphabetic';
 
-  _sublabel(ctx, x, y, r, 'm/s', sc);
+  _sublabel(ctx, x, y, r, L.vsiUnit, sc);
 
   const vsC   = Math.max(-20, Math.min(20, vsMs));
   const angN  = mid + (vsC / 20) * 135;
   _needle(ctx, x, y, r, angN, 0.78, 0.22, sc);
   _cap(ctx, x, y, 4.5 * sc);
-  _label(ctx, x, y, r, 'Variometer', sc);
+  _label(ctx, x, y, r, L.vsi, sc);
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -652,12 +697,12 @@ function _drawDrehzahl(ctx, x, y, r, sc) {
   }
   ctx.textBaseline = 'alphabetic';
 
-  _sublabel(ctx, x, y, r, '×100 U/min', sc);
+  _sublabel(ctx, x, y, r, L.rpmUnit, sc);
 
   const ang = s0 + Math.min(1, rpm / maxR) * sw;
   _needle(ctx, x, y, r, ang, 0.76, 0.20, sc);
   _cap(ctx, x, y, 4 * sc);
-  _label(ctx, x, y, r, 'Drehzahlmesser', sc);
+  _label(ctx, x, y, r, L.rpm, sc);
 }
 
 /* N1 Verdichter — turbojet N1 % (replaces Drehzahlmesser when engine is jet) */
@@ -672,11 +717,11 @@ function _drawN1Messer(ctx, x, y, r, sc) {
   for (let v = 0; v <= maxN1; v += 20)
     _num(ctx, x, y, r, s0 + (v / maxN1) * sw, String(v), 7.5, sc);
   ctx.textBaseline = 'alphabetic';
-  _sublabel(ctx, x, y, r, 'N1 %', sc);
+  _sublabel(ctx, x, y, r, L.n1Unit, sc);
   const ang = s0 + Math.min(1, n1 / maxN1) * sw;
   _needle(ctx, x, y, r, ang, 0.76, 0.20, sc);
   _cap(ctx, x, y, 4 * sc);
-  _label(ctx, x, y, r, 'Verdichter', sc);
+  _label(ctx, x, y, r, L.n1, sc);
 }
 
 /* Öltemperatur — 0–130°C. Thermally lagged state from physics.js. */
@@ -706,7 +751,7 @@ function _drawOelTemp(ctx, x, y, r, sc) {
   const ang = s0 + Math.min(1, oilT / maxT) * sw;
   _needle(ctx, x, y, r, ang, 0.76, 0.20, sc);
   _cap(ctx, x, y, 4 * sc);
-  _label(ctx, x, y, r, 'Öltemperatur', sc);
+  _label(ctx, x, y, r, L.oilT, sc);
 }
 
 /* Kühlstofftemperatur — coolant temp (DB605); heat-balance state from physics.js.
@@ -740,7 +785,7 @@ function _drawKuehlstoffTemp(ctx, x, y, r, sc) {
   const ang = s0 + Math.min(1, cT / maxT) * sw;
   _needle(ctx, x, y, r, ang, 0.76, 0.20, sc);
   _cap(ctx, x, y, 4 * sc);
-  _label(ctx, x, y, r, 'Kühlstoff', sc);
+  _label(ctx, x, y, r, L.coolant, sc);
 }
 
 /* Öldruck — 0–10 atü */
@@ -774,12 +819,12 @@ function _drawOelDruck(ctx, x, y, r, sc) {
   ctx.strokeStyle = '#3a7a3a'; ctx.lineWidth = 4 * sc; ctx.stroke();
   ctx.restore();
 
-  _sublabel(ctx, x, y, r, 'atü', sc);
+  _sublabel(ctx, x, y, r, L.oilPUnit, sc);
 
   const ang = s0 + Math.min(1, oilP / maxP) * sw;
   _needle(ctx, x, y, r, ang, 0.76, 0.20, sc);
   _cap(ctx, x, y, 4 * sc);
-  _label(ctx, x, y, r, 'Öldruck', sc);
+  _label(ctx, x, y, r, L.oilP, sc);
 }
 
 /* ════════════════════════════════════════════════════════════
