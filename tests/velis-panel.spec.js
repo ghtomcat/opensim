@@ -33,7 +33,7 @@ for (const [w, h] of [[1440, 900], [1280, 720], [1280, 600]]) {
     const box  = await page.locator('#pfd').boundingBox();
     const dpr  = await page.evaluate(() => devicePixelRatio);
     const keys = await page.locator('#btn-keys').boundingBox();
-    const sw   = (await regions(page)).filter(r => r.name !== 'comSwap');
+    const sw   = await regions(page);                                     // the radio is on the pedestal: no COM in the cockpit
     expect(sw.map(r => r.name).sort()).toEqual(['avionics', 'battEn', 'master', 'pwrEn']);
     for (const r of sw) {
       expect(box.y + r.y / dpr, `${r.name} below the KEYS button`).toBeGreaterThanOrEqual(keys.y + keys.height);
@@ -55,4 +55,17 @@ test('the EPSI and its map are dark until the avionics have power', async ({ pag
   await expect(map).toBeVisible();                                        // on the 14 V battery, BATT EN still off
   await click(page, 'master');
   await expect(map).toBeHidden();
+});
+
+test('the radio is the COM panel on the pedestal: dark until MASTER and AVIONICS are on', async ({ page }) => {
+  // The Velis drew a second COM on its cockpit canvas — a leftover, removed 2026-11-07 (Markus)
+  await load(page);
+  await page.keyboard.press('d');                                         // the pedestal
+  const com = page.locator('#com-container');
+  await expect(com).toBeVisible();
+  await expect(com).toHaveClass(/com-off/);
+  await page.keyboard.press('d');                                         // back to the cockpit
+  await click(page, 'master'); await click(page, 'avionics');
+  await page.keyboard.press('d');
+  await expect(com).not.toHaveClass(/com-off/);
 });

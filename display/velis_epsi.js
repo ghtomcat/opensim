@@ -3,20 +3,19 @@
    Pipistrel Velis Electro HB-SYC — full canvas cockpit.
 
    Four zones (left → right):
-     SWITCHES  Kanardia COM + master switches + breakers
+     SWITCHES  MASTER key, BATT EN, PWR EN, AVIONICS
      NESIS 4   Digital AH — primary flight instruments
      EPSI 570  Energy management display
      BACKUP    Analog ASI + altimeter
 
    Click handling: canvas click toggles switches in the left zone.
-   COM swap: click the standby frequency.
+   The radio is the COM panel on the pedestal (display/com.js), as on the other aircraft.
 
    All HTML overlays (#panel, #fma, #metar-strip, #com-container,
    #warning-lights) are hidden by index.html when this panel is active.
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState }               from '../core/state.js';
-import { getCOMState, comTransfer }  from './com.js';
 import { updateVelisMapOverlay, hideVelisMap } from './map.js';
 
 /* ── Palette ── */
@@ -44,7 +43,7 @@ const _r   = d => (d - 90) * Math.PI / 180;
 /* ── Hit regions for click handling — rebuilt each frame ── */
 let _hitRegions = [];
 
-/* The instruments (NESIS, EPSI, COM) are on the avionics bus: MASTER connects the 14 V auxiliary
+/* The instruments (NESIS, EPSI) are on the avionics bus: MASTER connects the 14 V auxiliary
    battery to the main bus, AVIONICS the main bus to the avionics bus. BATT EN (the traction
    batteries) isn't needed: the start-up checklist reads the charge on the EPSI before it (POH 4-9,
    7-27). The same rule as the COM power in core/crew.js — a stand-in until the Velis is on the
@@ -76,7 +75,7 @@ export function renderVelisEpsi(canvas) {
   const sc = Math.min(W, H) / 700;
 
   /* Zone widths */
-  const swW  = W * 0.18;   // switches + COM
+  const swW  = W * 0.18;   // switches
   const nhW  = W * 0.27;   // NESIS 4
   const epW  = W * 0.33;   // EPSI 570
   const bkW  = W * 0.22;   // backup gauges
@@ -91,7 +90,7 @@ export function renderVelisEpsi(canvas) {
   const R  = Math.min(nhW, H) * 0.40;
   const Rs = Math.min(bkW * 0.44, H * 0.22);
 
-  /* ── ZONE 1: Switches + COM ── */
+  /* ── ZONE 1: Switches ── */
   _drawSwitchPanel(ctx, swX, cy, swW, H, sc);
 
   /* ── ZONE 2: NESIS 4 ── */
@@ -111,7 +110,7 @@ export function renderVelisEpsi(canvas) {
 /* ════════════════════════════════════════════════════════════
    CLICK HANDLER — call once from index.html
    ════════════════════════════════════════════════════════════ */
-/** The click areas drawn last frame, by name (master, battEn, pwrEn, avionics, comSwap), in canvas px — for tests. */
+/** The click areas drawn last frame, by name (master, battEn, pwrEn, avionics), in canvas px — for tests. */
 export const velisHitRegions = () => _hitRegions.map(({ name, x, y, w, h }) => ({ name, x, y, w, h }));
 
 export function handleVelisClick(canvas, evt) {
@@ -229,132 +228,15 @@ function _roundRect(ctx, x, y, w, h, r) {
 }
 
 /* ════════════════════════════════════════════════════════════
-   ZONE 1: Switch panel + COM radio
+   ZONE 1: Switch panel
    ════════════════════════════════════════════════════════════ */
 function _drawSwitchPanel(ctx, cx, cy, zoneW, H, sc) {
   const pad  = 10 * sc;
   const x0   = cx - zoneW/2 + pad;
   const w    = zoneW - pad*2;
 
-  /* ── Master switches (top 65%) ── */
-  const swH = Math.floor(H * 0.65);
-  const swY = cy - H/2 + pad;
-  _drawMasterSwitches(ctx, x0, swY, w, swH, sc);
-
-  /* ── COM radio (bottom 33%) ── */
-  const comY = swY + swH + pad;
-  const comH = Math.floor(H * 0.33 - pad);
-  _drawCOMRadio(ctx, x0, comY, w, comH, sc);
-}
-
-function _drawCOMRadio(ctx, x0, y0, w, h, sc) {
-  const on  = _avionicsPowered();
-  const com = getCOMState();
-
-  ctx.save();
-  _roundRect(ctx, x0, y0, w, h, 6*sc);
-  ctx.fillStyle   = P.recess;
-  ctx.fill();
-  ctx.strokeStyle = on ? 'rgba(0,200,224,0.15)' : 'rgba(255,255,255,0.05)';
-  ctx.lineWidth   = 1.2;
-  ctx.stroke();
-  ctx.clip();
-
-  if (!on) {
-    /* Dark screen — COM unpowered */
-    ctx.fillStyle    = 'rgba(255,255,255,0.08)';
-    ctx.font         = `${8*sc}px ${SANS}`;
-    ctx.textAlign    = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('COM', x0 + w/2, y0 + h/2 - 8*sc);
-    ctx.fillStyle    = 'rgba(255,255,255,0.04)';
-    ctx.font         = `${6.5*sc}px ${SANS}`;
-    ctx.fillText('NO POWER', x0 + w/2, y0 + h/2 + 8*sc);
-    ctx.restore();
-    return;
-  }
-
-  /* Header */
-  ctx.fillStyle    = 'rgba(0,200,224,0.08)';
-  ctx.fillRect(x0, y0, w, 22*sc);
-  ctx.fillStyle    = P.cyan;
-  ctx.font         = `bold ${8.5*sc}px ${SANS}`;
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(com.title, x0 + w/2, y0 + 11*sc);
-
-  /* Active freq */
-  const actY = y0 + 38*sc;
-  ctx.fillStyle    = P.dim;
-  ctx.font         = `${7*sc}px ${SANS}`;
-  ctx.textAlign    = 'left';
-  ctx.fillText('ACTIVE', x0 + 8*sc, actY - 8*sc);
-  ctx.fillStyle    = P.white;
-  ctx.font         = `bold ${18*sc}px ${MONO}`;
-  ctx.fillText(com.active, x0 + 8*sc, actY + 8*sc);
-
-  /* Active label */
-  ctx.fillStyle    = P.cyan;
-  ctx.font         = `${7.5*sc}px ${SANS}`;
-  ctx.fillText(com.activeLabel, x0 + 8*sc, actY + 22*sc);
-
-  /* Divider */
-  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
-  ctx.lineWidth   = 1;
-  ctx.beginPath();
-  ctx.moveTo(x0 + 8*sc, actY + 30*sc);
-  ctx.lineTo(x0 + w - 8*sc, actY + 30*sc);
-  ctx.stroke();
-
-  /* Standby freq — clickable */
-  const stbY = actY + 46*sc;
-  ctx.fillStyle    = P.dim;
-  ctx.font         = `${7*sc}px ${SANS}`;
-  ctx.fillText('STANDBY', x0 + 8*sc, stbY - 8*sc);
-  ctx.fillStyle    = 'rgba(232,237,242,0.6)';
-  ctx.font         = `bold ${14*sc}px ${MONO}`;
-  ctx.fillText(com.standby, x0 + 8*sc, stbY + 6*sc);
-  ctx.fillStyle    = P.dim;
-  ctx.font         = `${7*sc}px ${SANS}`;
-  ctx.fillText(com.standbyLabel, x0 + 8*sc, stbY + 18*sc);
-
-  /* FLIP button */
-  const flipX = x0 + w - 28*sc;
-  const flipY = stbY - 4*sc;
-  const flipW = 22*sc;
-  const flipH = 18*sc;
-  _roundRect(ctx, flipX, flipY, flipW, flipH, 3*sc);
-  ctx.fillStyle   = 'rgba(0,200,224,0.15)';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(0,200,224,0.4)';
-  ctx.lineWidth   = 1;
-  ctx.stroke();
-  ctx.fillStyle    = P.cyan;
-  ctx.font         = `bold ${9*sc}px ${SANS}`;
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('⇅', flipX + flipW/2, flipY + flipH/2);
-
-  /* Register FLIP hit region only when powered */
-  _hitRegions.push({
-    name: 'comSwap', x: flipX, y: flipY, w: flipW, h: flipH,
-    action: () => comTransfer()
-  });
-
-  /* XPDR */
-  const xpY = stbY + 34*sc;
-  ctx.fillStyle    = P.dim;
-  ctx.font         = `${7*sc}px ${SANS}`;
-  ctx.textAlign    = 'left';
-  ctx.fillText(com.xpdrLabel, x0 + 8*sc, xpY);
-  ctx.fillStyle    = P.white;
-  ctx.font         = `bold ${14*sc}px ${MONO}`;
-  ctx.fillText(com.xpdrCode, x0 + 8*sc, xpY + 14*sc);
-  ctx.fillStyle    = P.dim;
-  ctx.font         = `${7*sc}px ${SANS}`;
-  ctx.fillText(com.xpdrMode, x0 + 8*sc, xpY + 26*sc);
-
-  ctx.restore();
+  /* ── Master switches — the whole zone; the radio is the COM panel on the pedestal (display/com.js) ── */
+  _drawMasterSwitches(ctx, x0, cy - H/2 + pad, w, H - pad*2, sc);
 }
 
 function _drawMasterSwitches(ctx, x0, y0, w, h, sc) {
@@ -374,10 +256,10 @@ function _drawMasterSwitches(ctx, x0, y0, w, h, sc) {
     _hitRegions.push({ name, x: cx - tw / 2, y: sy, w: tw, h: th, action });
 
   /* The switches use the space between the clock (and its KEYS button, HTML on top of the
-     canvas) and the COM radio below — measured, not a fixed offset, so they stay whole and
+     canvas) and the bottom of the zone — measured, not a fixed offset, so they stay whole and
      readable in a short window. In units u: key 4, label 0.6, toggles 2.4, gap 0.4, label 0.6, toggle 2.4. */
   const top = Math.max(y0 + 8 * sc, _overlayBottom(ctx.canvas) + 10 * dpr);
-  const u   = Math.max(0, (y0 + h - 8 * sc) - top) / 10.4;
+  const u   = Math.min(34 * sc, Math.max(0, (y0 + h - 8 * sc) - top) / 10.4);   // tall zone: no giant switches
   const fs  = Math.round(Math.min(w / 6, Math.max(10 * dpr, u * 0.38)));   // labels: readable, never wider than a toggle
 
   const swW = Math.round(w * 0.42);
