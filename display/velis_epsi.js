@@ -17,7 +17,7 @@
 
 import { S, setState }               from '../core/state.js';
 import { getCOMState, comTransfer }  from './com.js';
-import { updateVelisMapOverlay }     from './map.js';
+import { updateVelisMapOverlay, hideVelisMap } from './map.js';
 
 /* ── Palette ── */
 const P = {
@@ -43,6 +43,11 @@ const _r   = d => (d - 90) * Math.PI / 180;
 
 /* ── Hit regions for click handling — rebuilt each frame ── */
 let _hitRegions = [];
+
+/* The instruments (NESIS, EPSI, COM) are on the avionics: MASTER, BATT EN and AVIONICS on — the same
+   rule as the COM power in core/crew.js. A stand-in until the Velis is on the electrical solver
+   (core/electrical.js) and they read its avionics bus. */
+const _avionicsPowered = () => !!(S.switches?.master && S.switches?.battEn && S.switches?.avionics);
 
 /* ════════════════════════════════════════════════════════════
    MAIN ENTRY
@@ -238,8 +243,7 @@ function _drawSwitchPanel(ctx, cx, cy, zoneW, H, sc) {
 }
 
 function _drawCOMRadio(ctx, x0, y0, w, h, sc) {
-  const sw  = S.switches;
-  const on  = sw.master && sw.battEn && sw.avionics;
+  const on  = _avionicsPowered();
   const com = getCOMState();
 
   ctx.save();
@@ -513,7 +517,7 @@ function _velisToggle(ctx, cx, y, w, h, on, label) {
    ZONE 2: Kanardia NESIS 4 — digital AH
    ════════════════════════════════════════════════════════════ */
 function _drawNESIS(ctx, x, y, r, sc) {
-  const avionicsOn = S.switches.avionics;
+  const avionicsOn = _avionicsPowered();
 
   _bezel(ctx, x, y, r, '#0d1117', '#080c10');
 
@@ -647,6 +651,20 @@ function _drawEPSI(ctx, canvas, cx, cy, w, h, sc) {
   ctx.stroke();
   ctx.clip();
 
+  /* Without power the whole screen is dark, its map too — as the NESIS */
+  if (!_avionicsPowered()) {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(x0, y0, w, h);
+    ctx.fillStyle    = 'rgba(255,255,255,0.12)';
+    ctx.font         = `${10*sc}px ${SANS}`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('AVIONICS OFF', cx, cy);
+    ctx.restore();
+    hideVelisMap();
+    return;
+  }
+
   /* Header */
   ctx.fillStyle    = 'rgba(0,200,224,0.08)';
   ctx.fillRect(x0, y0, w, 28*sc);
@@ -669,7 +687,7 @@ function _drawEPSI(ctx, canvas, cx, cy, w, h, sc) {
     ? (S.aircraft?.battery?.powerDrawKw ?? 25) * (S.enginePower ?? 0)
     : 0;
   const socColor = soc > 27 ? P.green : soc > 20 ? P.amber : soc > 10 ? '#ff8800' : P.red;
-  const online   = masterOn && battOn;
+  const online   = masterOn && battOn;   // always, once the screen has power (_avionicsPowered)
 
   /* SOC % — large */
   const socY = y0 + 72*sc;
