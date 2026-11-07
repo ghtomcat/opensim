@@ -2383,8 +2383,8 @@ export function startRecording(engineType, sr) {
     case 'geared-turbofan': return _assembleCFM56Startup(sr);
     case 'lycoming-o360':   return _assembleLycomingStartup(sr);
     case 'turbojet-vk1':    return _assembleVK1Startup(sr);
-    case 'radial-2800hp':   return _assembleR2800Startup(sr);   // never matches: the F4U is 'radial-2000hp' (issues.md)
-    default:                return _assembleStartup(sr);        // DB 601 — also played for the F4U today
+    case 'radial-2000hp':   return _assembleR2800Startup(sr);
+    default:                return _assembleStartup(sr);        // DB 601
   }
 }
 

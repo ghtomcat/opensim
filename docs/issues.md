@@ -625,12 +625,6 @@ Leaflet 1.9.4 (JS + CSS) and Three.js r134 (+ `STLLoader`, `OrbitControls`) load
 
 ## Sound
 
-### F4U Corsair starts up with the DB 605 start-up sound
-*Found 2026-10-11 · `startRecording()` in `core/sound.js` (`case 'radial-2800hp'`)*
-
-The check compares against `'radial-2800hp'`, but the F4U's engine type (and every other check in the code) is `'radial-2000hp'`. It never matches, so the Corsair falls through to `_assembleStartup()`, the DB 605 sequence; `_assembleR2800Startup()` is never called. **Cause — verified (code + history).** `21d56de` (14 Apr, Lycoming start-up) changed `'radial-2000hp'` to `'radial-2800hp'` on that line — most likely a typo. **Fix:** `'radial-2000hp'` (in `startRecording()`), and set the F4U's `engine.startTime` to the R-2800 recording, 64.1 s (`tests/engine.test.mjs` fails until the two agree). **Done when:** an F4U cold start (E key, `bougainville-1943` or another ground start) plays the R-2800 start-up. One of the hand-spelled comparisons in *Name comparisons still spelled out by hand*.
-
-
 ### Velis electric motor plays the geared-turbofan sound
 *Found 2026-10-11 · `ENGINES` in `core/sound.js`; `startSound('electric')` when the motor runs*
 
@@ -853,7 +847,7 @@ The data now has a schema (`core/schema/`, checked by `npm test` and at load), b
 ### Name comparisons still spelled out by hand (data-contract stage 3b)
 *Noted 2026-10-13 · `core/vocab.js`; comparisons in `core/`, `display/`, `index.html`; since 2026-11-06 also `app/briefing.js` (`_ownKeys()`) and `updatePanel` in `index.html`*
 
-Stage 3a put the shared names in `core/vocab.js` and made the five dispatch points (triggers, rocket events, failures, comm profiles, engine sounds) check themselves against it. The plain comparisons were left for later: about 90 literals (counted 2026-11-06; about 180 when noted) like `panel === 'airbus'` (32), `vehicleType === 'rocket'` (43) and `engineType === 'lycoming-o360'` (16), much of it in `index.html`. Each is a place where a typo compares silently false — two are already logged: *Velis COM ignores its power switches* (`'velis'` for `'velis-epsi'`) and *F4U Corsair starts up with the DB 605 start-up sound* (`'radial-2800hp'` for `'radial-2000hp'`). **Fix:** replace them with `PANEL.X` / `VEHICLE.X` / `ENGINE.X` from `core/vocab.js` (a misspelled name throws). The two known typos change behaviour when fixed, so each gets its own commit, not hidden in the bulk change. Can go together with the `index.html` rewrite. **Done when:** `grep -nE "(panel|vehicleType|engineType)\s*[!=]==\s*'" core display index.html` finds nothing.
+Stage 3a put the shared names in `core/vocab.js` and made the five dispatch points (triggers, rocket events, failures, comm profiles, engine sounds) check themselves against it. The plain comparisons were left for later: about 90 literals (counted 2026-11-06; about 180 when noted) like `panel === 'airbus'` (32), `vehicleType === 'rocket'` (43) and `engineType === 'lycoming-o360'` (16), much of it in `index.html`. Each is a place where a typo compares silently false — two have been found: *Velis COM ignores its power switches* (`'velis'` for `'velis-epsi'`), and the F4U's start-up sound (`'radial-2800hp'` for `'radial-2000hp'` — the Corsair played the DB 601 start; fixed 2026-11-07). **Fix:** replace them with `PANEL.X` / `VEHICLE.X` / `ENGINE.X` from `core/vocab.js` (a misspelled name throws). The Velis typo changes behaviour when fixed, so it gets its own commit, not hidden in the bulk change. Can go together with the `index.html` rewrite. **Done when:** `grep -nE "(panel|vehicleType|engineType)\s*[!=]==\s*'" core display index.html` finds nothing.
 
 ### Vehicle- and mission-specific special cases in generic core modules
 *Found 2026-10-11 · architecture review*
