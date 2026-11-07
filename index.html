@@ -116,53 +116,6 @@
     body.panel-dual #pfd { width: 50vw; }
     body.panel-dual #nd  { display: block; }
 
-    /* ── FMA strip ── */
-    #fma {
-      position: fixed;
-      top: 12px; left: 50%;
-      transform: translateX(-50%);
-      z-index: 20;
-      display: flex; gap: 3px;
-      pointer-events: none;
-    }
-
-    .fma-box {
-      width: 110px; min-height: 42px;
-      background: rgba(3,6,10,0.88);
-      border: 1px solid rgba(255,255,255,0.15);
-      padding: 3px 6px;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      gap: 1px;
-    }
-
-    .fma-box.flash { border-color: rgba(255,255,255,0.85); }
-
-    .fma-sub {
-      font-family: "Syne", sans-serif;
-      font-size: 8px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      color: rgba(232,237,242,0.45);
-      text-transform: uppercase;
-    }
-
-    .fma-val {
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-    }
-
-    .fma-val2 {
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      line-height: 1.1;
-    }
-    .fma-val2:empty { display: none; }
-
     /* ── Instrument panel (bottom bar) ── */
     #panel {
       position: fixed; bottom: 0; left: 0; right: 0;
@@ -1692,9 +1645,6 @@
 
 <!-- ECAM canvas -->
 
-<!-- FMA strip -->
-<div id="fma"></div>
-
 <!-- Mission title -->
 <div id="mission-title"></div>
 
@@ -1919,7 +1869,6 @@
   import { initRobotArm, renderRobotArm, resetRobotArm } from './display/robot_arm.js';
   import { renderYertleQuadruped, resetYertleQuadruped } from './display/yertle_quadruped.js';
   import { renderVelisEpsi, handleVelisClick } from './display/velis_epsi.js';
-  import { initFMA, renderFMA } from './display/fma.js';
   import { initCOM, stopCOM, tickCOMPower } from './display/com.js';
   import { initOverhead, toggleOverhead, renderOverhead } from './display/overhead.js';
   import { initPedestal, togglePedestal, renderPedestal } from './display/pedestal.js';
@@ -1944,7 +1893,6 @@
   const canvas     = document.getElementById('pfd');
   const ndCanvas   = document.getElementById('nd');
   const fcuCanvas  = document.getElementById('fcu');
-  const fmaEl      = document.getElementById('fma');
 
   /* ── Panel display page state — which spec is active on each screen ── */
   const _screenPage = { 0: 0, 1: 0 };  // screen index → page index
@@ -2317,10 +2265,6 @@
     if (_trackingBadgeTimer) { clearInterval(_trackingBadgeTimer); _trackingBadgeTimer = null; }
     _trackingId = null;
     _stopObservingKeys?.(); _stopObservingKeys = null;
-    if (S.aircraft?._fmaPhasesOrig !== undefined) {
-      S.aircraft.fmaPhases = S.aircraft._fmaPhasesOrig;
-      delete S.aircraft._fmaPhasesOrig;
-    }
     _renderTrackingBadge();
   }
 
@@ -2363,37 +2307,11 @@
       });
       _trackingLastF  = f;
       _trackingLastAt = Date.now();
-      _patchTrackingFMA(f);
       _renderTrackingBadge();
     } catch {
       /* Aircraft may have landed or left ADS-B coverage */
       _renderTrackingBadge(null, true);
     }
-  }
-
-  function _patchTrackingFMA(f) {
-    if (!S.aircraft) return;
-    /* Save original once */
-    if (S.aircraft._fmaPhasesOrig === undefined)
-      S.aircraft._fmaPhasesOrig = S.aircraft.fmaPhases ?? null;
-
-    const vs  = f.vs ?? 0;
-    const alt = f.alt ?? 0;
-
-    /* Vertical mode label based on phase */
-    const vert = alt > 10000 ? (vs < -200 ? 'DES' : vs > 200 ? 'CLB' : 'CRZ')
-               : alt > 3000  ? (vs < -200 ? 'PATH' : 'LEVEL')
-               : 'SYNC';
-
-    /* Lateral: show approach modes on final */
-    const lat  = alt < 3000 ? 'LOC' : 'TRACK';
-    const latC = alt < 3000 ? 'green' : 'cyan';
-
-    S.aircraft.fmaPhases = [{
-      minAlt: 0,
-      vals: ['SYNC', 'ADS-B', lat,   vert,  'LIVE'],
-      cols: ['cyan', 'cyan',  latC, 'cyan', 'cyan'],
-    }];
   }
 
   function _renderTrackingBadge(f, lost) {
@@ -3533,7 +3451,6 @@
     resetCrew();
     initCrew();
     initInput();
-    initFMA(fmaEl);
     initOutside();
 
     loadBar.style.width = '90%';
@@ -3696,7 +3613,7 @@
       const cislunar  = document.getElementById('cislunar');
       const earthrise = document.getElementById('earthrise');
       const pfd       = document.getElementById('pfd');
-      const uiEls     = ['fma','panel','ptt-indicator','com-container','checklist'];
+      const uiEls     = ['panel','ptt-indicator','com-container','checklist'];
       const nd = document.getElementById('nd');
       /* Mode 3 — cislunar map / Mode 4 — Earthrise view */
       if (mode === 3 || mode === 4) {
@@ -3838,12 +3755,10 @@
           _ce.left = _com.offset[0] + 'px'; _ce.bottom = _com.offset[1] + 'px'; _ce.right = 'auto';
         }
         document.getElementById('panel').style.display          = (isRocket || hasOwnUI || isArm) ? 'none' : '';
-        document.getElementById('fma').style.display            = (isRocket || hasOwnUI || isArm || isPanel || isVintage) ? 'none' : '';
         document.getElementById('warning-lights').style.display = (hasOwnUI || isPanel || isArm) ? 'none' : '';
         document.getElementById('metar-strip').style.display    = (hasOwnUI || isPanel || isArm || isVintage) ? 'none' : '';
         _oskUpdate(S.aircraft?.manualControl);
       },
-      () => renderFMA(),
       () => renderOverhead(),
       () => renderPedestal(),
       () => tickCOMPower(),   // the radio panel dark without power

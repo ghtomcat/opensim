@@ -145,7 +145,6 @@ export const aircraft = object(
     /* crew and callouts */
     crewLang: str, gpws: arrayOf(gpwsCallout), pmCallouts: arrayOf(altCallout),
     takeoffCallouts: arrayOf(object({ spd: num, speech: str, voice: str })),
-    fmaPhases: arrayOf(object({ minAlt: num, vals: arrayOf(str), cols: arrayOf(str) })),
     checklist, kneeboard: arrayOf(kneeboardPage),
     situations: arrayOf(object({ label: str, alt: num, altT: num, spd: num, spdT: num, hdg: num })),
     keyLabels: mapOf(str),   // a key's text in the key map, by action id (core/keymap.js) — e.g. in the crew's language

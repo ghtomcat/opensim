@@ -393,29 +393,6 @@ AP aircraft (A350, A220, E190) have no `tanks` — they use `fuelLeft: null` and
 
 ---
 
-## FMA phases
-
-Defines the Flight Mode Annunciator text for each altitude band, shown on the PFD. Evaluated top-to-bottom — first match wins.
-
-```json
-"fmaPhases": [
-  {
-    "minAlt": 10000,
-    "vals": ["A/THR", "AP1", "NAV", "CRZ", "ALT"],
-    "cols": ["white", "green", "green", "cyan", "white"]
-  },
-  {
-    "minAlt": 0,
-    "vals": ["SPEED", "", "LOC", "ROLLOUT", ""],
-    "cols": ["white", "white", "green", "green", "white"]
-  }
-]
-```
-
-Five columns left to right: thrust mode, lateral AP, lateral nav, vertical mode, approach phase. Colors: `"white"`, `"green"`, `"cyan"`, `"amber"`.
-
----
-
 ## Crew callouts
 
 ### Checklist callouts (approach)

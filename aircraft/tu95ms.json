@@ -78,12 +78,6 @@
     "engineType": "nk12-turboprop"
   },
 
-  "fmaPhases": [
-    { "minAlt": 26000, "vals": ["MAN", "", "HDG", "CRZ", ""], "cols": ["white","white","green","cyan","white"] },
-    { "minAlt":  3000, "vals": ["MAN", "", "HDG", "CLB", ""], "cols": ["white","white","green","cyan","white"] },
-    { "minAlt":     0, "vals": ["MAN", "", "HDG", "CLB", ""], "cols": ["white","white","green","cyan","white"] }
-  ],
-
   "takeoffCallouts": [
     { "spd": 185, "speech": "Взлётная",  "voice": "pm" },
     { "spd": 210, "speech": "Набор",     "voice": "pm" }

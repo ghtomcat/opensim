@@ -111,7 +111,7 @@ Everything that draws. Three kinds of files live here:
 
 | Kind | Files |
 |---|---|
-| Instruments & cockpit panels | `pfd_instruments.js`, `panel_renderer.js` (data-driven, reads `panels/`), `g1000.js`, `fma.js`, `com.js`, `clock.js`, `smooth.js` (display-lag smoothing); type-specific panels `analog_panel.js` (the analog gauges, styled per aircraft: Bf 109, MiG-15, F4U, Tu-95, An-225, Avro 504, DC-8), `velis_epsi.js`, `rocket_display.js`, `dragon.js`, `lm_display.js`, `dsky.js`; cockpit zones `overhead.js`, `pedestal.js`, `leftconsole.js`, `rightconsole.js`, `centerconsole.js`, `pushbutton.js` |
+| Instruments & cockpit panels | `pfd_instruments.js`, `panel_renderer.js` (data-driven, reads `panels/`), `g1000.js`, `com.js`, `clock.js`, `smooth.js` (display-lag smoothing); type-specific panels `analog_panel.js` (the analog gauges, styled per aircraft: Bf 109, MiG-15, F4U, Tu-95, An-225, Avro 504, DC-8), `velis_epsi.js`, `rocket_display.js`, `dragon.js`, `lm_display.js`, `dsky.js`; cockpit zones `overhead.js`, `pedestal.js`, `leftconsole.js`, `rightconsole.js`, `centerconsole.js`, `pushbutton.js` |
 | World & views | `outside.js` (3D outside view entry) with `outside-*.js` (per-type airframes, engines, gear, livery, rockets, space), `terrain.js`, `terrain-color.js`, `night-lights.js`, `map.js`, `cislunar.js`, `earthrise.js`, `kneeboard.js`, `robot_arm.js`, `yertle_quadruped.js` |
 | Helpers | `stands-util.js` (stand lookups over `data/stands-data.js`) |
 
@@ -303,7 +303,7 @@ that simulates and draws it. Read these first when opening an unfamiliar aircraf
 | **Other vehicle models** | `specs` (robot), `joints`, `links` (robot arm/dog) | `display/robot_arm.js`, `display/yertle_quadruped.js` |
 | **Systems** | `tanks`, `fuelBurn`, `hasCarbHeat`; `cooling {type, ambient, normal, redline, …}` + `coolingSystem`; `electrical`; `hydraulics`; `fuelSystem`; `battery` | `core/fuel.js`, `core/physics.js` (heat balance), `core/failures.js`, `core/electrical.js`, `core/hydraulics.js`, `core/fuel-system.js`, `core/battery.js` |
 | **Cockpit** | `panel`, `displays`, `views`, `clock`, `left` / `right` / `pedestal` (control lists per zone), `com`, `cockpit` (config override, §3.3), `map` | `display/*`, `index.html` |
-| **Crew & procedures** | `pmCallouts`, `takeoffCallouts`, `gpws`, `checklist` (flap schedule callouts), `fmaPhases`, `kneeboard`, `situations` (quick-start states), `keyLabels` (a key's text in the key map, by action — `core/keymap.js`) | `core/crew.js`, `display/kneeboard.js`, `core/physics.js`, `index.html` |
+| **Crew & procedures** | `pmCallouts`, `takeoffCallouts`, `gpws`, `checklist` (flap schedule callouts), `kneeboard`, `situations` (quick-start states), `keyLabels` (a key's text in the key map, by action — `core/keymap.js`) | `core/crew.js`, `display/kneeboard.js`, `core/physics.js`, `index.html` |
 | **Sound** | `sound {engineType}` | `core/sound.js` |
 | **Outside geometry** | `dimensions` (real measurements, mm), `nose`, `wing`, `geometry`, `gear`, `engine` (nacelle fields), `winglet`, `wingletGeom`, `vstab`, `dorsalFillet`, `bellyFairing`, `flapTracks`, `doors`, `cabinWindows`, `window*`, `overwingExits`, `cheatline`, `livery`, `propplane`, `rocketGeometry` | `display/outside*.js`; `gear` also `core/physics.js`, `core/mission-start.js` |
 
@@ -592,7 +592,7 @@ dt = time since last frame, capped at 0.1 s
 `index.html` passes about 30 closures to `startLoop()`. Despite the name, they're
 "everything else that runs each frame":
 
-- **drawing:** the main panel dispatch ([panel-system.md](panel-system.md)), FMA,
+- **drawing:** the main panel dispatch ([panel-system.md](panel-system.md)),
   cockpit zones, outside view (`tickOutside`), kneeboard, mission clock, map, cislunar
   and earthrise views;
 - **non-drawing work:** `tickSound()`, `checkCrash()`, `checkDebrief()`,
@@ -649,7 +649,7 @@ ILS           LOC/GS deviation from the arrival runway threshold; LOC/GS capture
 vacate        on the ground: has the aircraft left the landing runway? (taxi-in trigger)
 model         manualControl → force-based flight model (7.2)
               otherwise     → kinematic convergence on the targets (7.3)
-FMA           Airbus/Boeing phase model (core/fma.js) or the aircraft's fmaPhases
+FMA           Airbus/Boeing phase model (core/fma.js), glass panels only
 wind          from the mission weather source (manual / live METAR / fallback)
 navigation    ground velocity = TAS along heading + wind (no wind drift on the ground) → lat/lon
 crash         hard landing, overspeed, terrain (CFIT)
@@ -1004,8 +1004,8 @@ vertical axis: glideslope (once captured) > selected V/S > VNAV / FCU altitude.
 `climb`, `cruise`, `descent`, `approach`, from weight on wheels, N1, vertical speed,
 altitude vs target, gear) is translated into each manufacturer's words:
 `computeAirbusFMA()` (5 columns) or `computeBoeingFMA()` (3 fields), chosen by
-`manufacturer`. Aircraft without a glass panel use their own altitude-banded
-`fmaPhases` table instead.
+`manufacturer`. The glass PFDs draw it (the `fma` widget, `pfd_instruments.js`); the
+other panels have no mode annunciator.
 
 ### 10.4 Ground navigation
 
@@ -1237,7 +1237,7 @@ exceptions are listed in 13.6.
 | Right screen, FCU | `#nd`, `#fcu` | `display/panel_renderer.js` |
 | Moving map | Leaflet `<div>` + overlay canvas | `display/map.js` |
 | Cislunar / earthrise views | `#cislunar-canvas`, `#earthrise-canvas` | `display/cislunar.js`, `display/earthrise.js` |
-| Cockpit zones, kneeboard, COM, FMA | DOM overlays | `overhead.js`, `pedestal.js`, `*console.js`, `kneeboard.js`, `com.js`, `fma.js` |
+| Cockpit zones, kneeboard, COM | DOM overlays | `overhead.js`, `pedestal.js`, `*console.js`, `kneeboard.js`, `com.js` |
 | Flags (`PAUSED`, `AUDIO OFF`, `TIME WARP`) and the **KEYS** button, under the mission clock on every vehicle and view; shown only while true | `#sim-flags`, above the cockpit zones | `renderMissionClock()` in `index.html` |
 | Mission picker, briefing charts, debrief | DOM + canvases in `index.html` | `index.html` |
 
@@ -1375,7 +1375,7 @@ init()
   loadMission(…, setup)                 (§2.2; setup = the scenario choices: weather, failures, crew —
                                          applied to the mission before anything reads it)
   test mode: seedRandom(1) · otherwise: initBlackbox()
-  init displays: COM, overhead, ECAM, crew, input, FMA, outside view, kneeboard, map, …
+  init displays: COM, overhead, ECAM, crew, input, outside view, kneeboard, map, …
   initSound(engineType); onboarding overlay (pauses the sim until dismissed)
   keyboard listener for shell keys (K, O, D, N, E, Q, H, X, V, C, M, L, Esc, Ctrl+Shift+L/B)
   view mode (cockpit / combined / outside); rockets start combined

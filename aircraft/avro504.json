@@ -80,11 +80,6 @@
     "engineType": "rotary-9"
   },
 
-  "fmaPhases": [
-    { "minAlt": 3000, "vals": ["BLIP", "",  "VISUAL", "ALT",    ""], "cols": ["white","white","green","cyan", "white"] },
-    { "minAlt": 500,  "vals": ["BLIP", "",  "VISUAL", "CRUISE", ""], "cols": ["white","white","green","cyan", "white"] },
-    { "minAlt": 0,    "vals": ["FULL", "",  "VISUAL", "CLIMB",  ""], "cols": ["white","white","green","cyan", "white"] }
-  ],
 
 
   "pmCallouts": [

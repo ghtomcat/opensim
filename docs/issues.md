@@ -636,22 +636,18 @@ The warbirds have two more cells (Fuel L/R, Fuel Sel). At 1280 px the F4U's `375
 
 The cell shows real N1 only on the multi-engine turbofans. For the others the value comes from `getCurrentRpm()` in the sound synthesis: RPM from `spdT` (*`spdT` is both the speed target and the throttle*), the start curves hard-coded to match the recordings, and N1 from the throttle on the An-225. It returns null without a sound preset. A cockpit value depends on the audio code, against the rule that sound follows the engine (`core/engine.js`). **Fix:** RPM per engine in `S.engines[]` from `core/engine.js`, read by the display and the sound alike. **Done when:** `core/sound.js` exports no value that a display shows.
 
-### The Avro 504, Tu-95 and An-225 fly on a leftover glass PFD — an analog panel each, as data
-*Found 2026-11-07 (Markus) · `display/pfd.js`, the renderer chain in `index.html` (`else renderPFD(canvas)`), `panels/`, `display/panel_renderer.js`*
+### The Avro 504, Tu-95, An-225 and DC-8 fly on a borrowed fighter panel — an analog panel each, as data
+*Found 2026-11-07 (Markus) · `display/analog_panel.js`, `panels/`, `display/panel_renderer.js`*
 
-**Today.** An aircraft without a `panel` falls through to `renderPFD()` (`display/pfd.js`, 489 lines, used nowhere else): a generic glass PFD. That is the Avro 504 (1918), the Tu-95 (1956) and the An-225 — and the DC-8, which has no mission. On top they get the airliner mode strip (A/THR · AP1 · NAV · CRZ · ALT, "AP OFF"; `index.html` hides `#fma` only on the warbirds) and the METAR strip (*The METAR strip always says LSZH*). All three had round analog gauges.
+**Today.** They flew on a leftover glass PFD (`display/pfd.js`) with the airliner mode strip. Now each draws the analog panel of the warbirds (`display/analog_panel.js`, the Bf 109's and F4U's layout) in a style of its own: `panel: "analog"` with `panelStyle` `soviet` (Tu-95, An-225: black faces on Soviet turquoise, Russian labels, metric), `wood` (Avro 504: varnished board, brass bezels, mph 0–120 without arcs, a tachometer for the Le Rhône rotary) and `usn` (the DC-8, a nose-only stub without a mission). The glass PFD, the mode strip (`#fma`, `display/fma.js`) and every `fmaPhases` table are gone; `panel` is required (`tests/data-schema.test.mjs`). Stop-gaps, all four: the six flight instruments and engine gauges of a 1940s fighter, not the type's own — the Avro had no attitude indicator, the An-225 shows a tachometer instead of fan speed, the DC-8 jet a manifold pressure gauge.
 
-**Plan (agreed 2026-11-07).**
+**Plan (agreed 2026-11-07), what is left.**
 1. **A panel per aircraft, as data** — JSON in `panels/` like the DR400's, from the widgets in `display/panel_renderer.js`; widgets that are missing (tachometer, compass …) added there.
-2. **The look per aircraft from the style** (`panels/styles/`): Soviet blue-grey faces with Cyrillic labels for the Tu-95 and the An-225, a wooden board for the Avro.
-3. **Stop-gap until each has its sourced panel:** the analog instruments the warbirds use, in that style.
-4. **Then** `display/pfd.js` and the fallback go; `panel` becomes required, so an aircraft without one fails the data check instead of getting a glass PFD.
+2. **The look per aircraft from the style** (`panels/styles/`), carrying over the styles of `analog_panel.js`.
 
-**Sources.** Each panel's instrument set from photos or manuals of the type — the Avro 504K (ASI, altimeter, tachometer, compass, oil pulsator, no attitude indicator), the Tu-95's and An-225's analog panels.
+**Sources.** Each panel's instrument set from photos or manuals of the type — the Avro 504K (ASI, altimeter, tachometer, compass, oil pulsator, no attitude indicator), the Tu-95's and An-225's analog panels, the DC-8's.
 
-**Progress (2026-11-07).** Step 3 for the Tu-95 and the An-225: `panel: "analog"`, `panelStyle: "soviet"` (`1b07552`). The Bf 109 and F4U panels are one module now, `display/analog_panel.js`, with a style per aircraft (luftwaffe, soviet, usn: look, labels, unit system) — and the Avro has it now: `panelStyle: "wood"` — the imperial gauges with a wooden board and brass bezels, airspeed in mph (0–120, no coloured arcs), a tachometer for the rotary (the Le Rhône 9J: 110 hp at 1,200 rpm) instead of manifold pressure, a sky over fields. Stop-gaps all three: the six flight instruments of a 1940s fighter, not the type's own (the Avro had no attitude indicator). `display/pfd.js` now draws only the DC-8, which has no mission. After the three: the airliner mode strip (`#fma`, `display/fma.js`) shows on no aircraft and can go too — `core/fma.js` stays (the glass PFDs); `fmaPhases` on the non-glass aircraft becomes dead data (and the override in `index.html` ~2380 to check).
-
-**Done when.** The three fly on their own analog panels, without the airliner mode strip; `display/pfd.js` is gone; an aircraft without `panel` fails `tests/data-schema.test.mjs`.
+**Done when.** Each flies on its own sourced panel.
 
 ### The METAR strip always says LSZH
 *Found 2026-11-06 · `updateMetar()` and `_rwyFromWind()` in `index.html`*

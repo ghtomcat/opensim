@@ -575,59 +575,6 @@
   "sound": {
     "engineType": "geared-turbofan"
   },
-  "fmaPhases": [
-    {
-      "minAlt": 10000,
-      "vals": [
-        "SPD",
-        "AP",
-        "LNAV",
-        "VNAV CRZ",
-        "ALTS"
-      ],
-      "cols": [
-        "white",
-        "green",
-        "green",
-        "cyan",
-        "white"
-      ]
-    },
-    {
-      "minAlt": 3000,
-      "vals": [
-        "SPD",
-        "AP",
-        "LNAV",
-        "VNAV DES",
-        ""
-      ],
-      "cols": [
-        "white",
-        "green",
-        "green",
-        "cyan",
-        "white"
-      ]
-    },
-    {
-      "minAlt": 0,
-      "vals": [
-        "SPD",
-        "AP",
-        "LOC",
-        "G/S",
-        ""
-      ],
-      "cols": [
-        "white",
-        "green",
-        "green",
-        "green",
-        "white"
-      ]
-    }
-  ],
   "gpws": [
     {
       "alt": 2500,

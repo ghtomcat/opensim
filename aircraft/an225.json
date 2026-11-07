@@ -83,12 +83,6 @@
     "engineType": "high-bypass"
   },
 
-  "fmaPhases": [
-    { "minAlt": 10000, "vals": ["MAN", "", "HDG", "ALT",   ""], "cols": ["white","white","green","cyan","white"] },
-    { "minAlt":  1000, "vals": ["MAN", "", "HDG", "CLB",   ""], "cols": ["white","white","green","cyan","white"] },
-    { "minAlt":     0, "vals": ["MAN", "", "HDG", "CLIMB", ""], "cols": ["white","white","green","cyan","white"] }
-  ],
-
   "takeoffCallouts": [
     { "spd": 175, "speech": "rotate",         "voice": "pm" },
     { "spd": 195, "speech": "positive climb", "voice": "pm" }

@@ -82,11 +82,6 @@
     { "label": "CRUISE", "spdT": 92 }
   ],
 
-  "fmaPhases": [
-    { "minAlt": 2000, "vals": ["MAN","","HDG","ALT",""],  "cols": ["white","white","green","cyan","white"] },
-    { "minAlt":    0, "vals": ["MAN","","HDG","CLB",""],  "cols": ["white","white","green","cyan","white"] }
-  ],
-
   "takeoffCallouts": [
     { "spd": 55, "speech": "rotate",    "voice": "pm" },
     { "spd": 70, "speech": "best rate", "voice": "pm" }

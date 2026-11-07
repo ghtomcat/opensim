@@ -487,7 +487,6 @@ app/
 display/
   pfd_instruments.js          — reusable glass instrument primitives (attitude, tape, HSI, FMA)
   panel_renderer.js           — drives Airbus PFD/ND/ECAM and E190 PFD/ND from panel JSON
-  fma.js                      — FMA
   overhead.js · leftconsole.js · centerconsole.js · rightconsole.js · pedestal.js
                               — data-driven cockpit views (O / L / M / R / D)
   pushbutton.js               — generic Airbus pushbutton

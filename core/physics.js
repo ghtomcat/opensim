@@ -534,8 +534,8 @@ export function tickPhysics(dt) {
   const ilsLoc = ilsLocNow;
   const ilsGs  = ilsGsNow;
 
-  /* ── FMA ── glass airliners drive it from the shared phase model; other aircraft keep
-     their altitude-banded fmaPhases strip. ── */
+  /* ── FMA ── the glass airliners drive it from the shared phase model (core/fma.js); the
+     other panels have no mode annunciator, so S.fma stays as it is. ── */
   let fma = S.fma;
   if (ac.panel === 'airbus' || ac.panel === 'e190') {
     const fieldElev = _grdElev;   // nearer airport — shared with the shadow renderer (outside.js)
@@ -546,16 +546,6 @@ export function tickPhysics(dt) {
                  athrMode: S.athrMode, athrDetent: S.athrDetent,
                  locCap, gsCap };
     fma = ac.manufacturer === 'boeing' ? computeBoeingFMA(fp) : computeAirbusFMA(fp);
-  } else if (ac.fmaPhases) {
-    const phase = ac.fmaPhases.find(p => newAlt >= p.minAlt);
-    if (phase) {
-      fma = phase.vals.map((val, i) => ({
-        sub:   S.fma[i]?.sub ?? '',
-        val,
-        col:   phase.cols[i] ?? 'white',
-        flash: 0,
-      }));
-    }
   }
 
   /* ── Wind ── */

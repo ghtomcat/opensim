@@ -91,10 +91,6 @@
 
   "sound": { "engineType": "none" },
 
-  "fmaPhases": [
-    { "minAlt": 0, "vals": ["MAN", "", "", "", ""], "cols": ["white","white","white","white","white"] }
-  ],
-
   "gpws": [],
   "pmCallouts": [],
   "ambient": {

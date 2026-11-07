@@ -103,11 +103,6 @@
     { "label": "EMERGENCY", "spdT": 362 }
   ],
 
-  "fmaPhases": [
-    { "minAlt": 5000, "vals": ["MAN", "", "HDG", "CLB", ""], "cols": ["white","white","green","cyan","white"] },
-    { "minAlt": 1000, "vals": ["MAN", "", "HDG", "DES", ""], "cols": ["white","white","green","cyan","white"] },
-    { "minAlt": 0,    "vals": ["MAN", "", "HDG", "APP", ""], "cols": ["white","white","green","green","white"] }
-  ],
 
 
   "pmCallouts": [],
