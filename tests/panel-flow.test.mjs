@@ -81,3 +81,11 @@ test('an engine group is a fixed grid: a row per quantity, a column per engine',
   assert.deepEqual(n1.map(i => i.x), egt.map(i => i.x));
   assert.deepEqual(lay.labels.slice(0, 6).map(l => l.text), ['1', '2', '3', '4', '5', '6']);
 });
+
+test('footprints by kind: a lamp reserves no room for a name, a bubble level is wide and flat', () => {
+  const lay = flowLayout([{ name: 'g', rows: [[{ id: 'lamp', size: 'T', kind: 'lamp' }, { id: 'level', size: 'L', kind: 'level' }, { id: 'asi', size: 'L' }]] }],
+                         { w: 1440, h: 370 }, { view: 'panel' });
+  const [lamp, level, asi] = ['lamp', 'level', 'asi'].map(id => lay.items.find(i => i.id === id));
+  assert.ok(level.x - lamp.x > lamp.d / 2 + SIZES.L * lay.scale * 1.3 / 2 - 1e-6, 'the level is wider than its size class');
+  assert.ok(asi.x - level.x >= SIZES.L * lay.scale * (1.3 + 1) / 2, 'and the next item starts after it');
+});

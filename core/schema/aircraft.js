@@ -134,7 +134,8 @@ const VIEW_ZONES = ['overhead', 'left', 'center', 'right', 'pedestal'];
    spacing, how far round it runs, a 0 mark before the scale, the coloured arcs. Absent → the dial's default. */
 const dialScale = object({
   unit: oneOf('km/h', 'kt', 'mph'), min: num, max: num, step: num, tick: num, minor: num, div: num, sweep: num, start: num, zero: bool,
-  red: anyOf(num, arrayOf(num)), yellow: arrayOf(num), green: arrayOf(num), redLine: anyOf(num, arrayOf(num)),
+  red: anyOf(num, arrayOf(num)), yellow: arrayOf(num), green: arrayOf(num), redLine: anyOf(num, arrayOf(num)), yellowLine: anyOf(num, arrayOf(num)),
+  figuresTo: num, endMark: bool,
 }, { required: ['max', 'step'] });
 const analogItem = object({ id: oneOf(...valuesOf(INSTRUMENT)), size: oneOf(...valuesOf(INSTRUMENT_SIZE)), scale: dialScale, unconfirmed: str },
                           { required: ['id', 'size'] });

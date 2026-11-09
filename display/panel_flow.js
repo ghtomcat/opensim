@@ -24,8 +24,10 @@ export const PREFER = 0.85;     // combined view: keep the own rows if they reac
 const GAP = 8, SEP = 26, PAD = 12, LBLCOL = 26, HDR = 10, LAMP_GAP = 4;
 const BELOW = 0.22;
 
-const wOf = e => e.kind === 'lamps' ? e.n * SIZES[e.size] + (e.n - 1) * LAMP_GAP : SIZES[e.size];
-const hOf = e => SIZES[e.size] * (1 + (e.kind === 'lamp' || e.kind === 'lamps' ? 0 : BELOW));
+/* An item's footprint by its kind (given by the caller — display/analog_panel.js takes it from its registry): a lamp
+   has no name under it, a bubble level is wide and flat */
+const wOf = e => e.kind === 'lamps' ? e.n * SIZES[e.size] + (e.n - 1) * LAMP_GAP : SIZES[e.size] * (e.kind === 'level' ? 1.3 : 1);
+const hOf = e => SIZES[e.size] * (e.kind === 'level' ? 0.5 : 1 + (e.kind === 'lamp' || e.kind === 'lamps' ? 0 : BELOW));
 
 /** k rows of about equal width, in order */
 function _splitK(items, k) {
@@ -121,7 +123,7 @@ function _place(groups, pick, s, area, engines) {
             for (let q = 0; q < e.n; q++)
               items.push({ id: e.id, item: e, group: g.name, lamp: q, d: d * s, x: ox + (rx + q * (d + LAMP_GAP) + d / 2) * s, y: oy + cy * s });
           } else {
-            items.push({ id: e.id, item: e, group: g.name, d: d * s, x: ox + (rx + d / 2) * s, y: oy + cy * s });
+            items.push({ id: e.id, item: e, group: g.name, d: d * s, x: ox + (rx + wOf(e) / 2) * s, y: oy + cy * s });   // centred in its footprint
           }
           rx += wOf(e) + GAP;
         }

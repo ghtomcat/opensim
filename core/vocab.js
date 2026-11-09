@@ -69,6 +69,7 @@ export const PANEL = names({
     and their size classes (display/panel_flow.js, SIZES) */
 export const INSTRUMENT = namesFrom([
   'asi', 'ai', 'alt', 'turn', 'compass', 'vsi', 'clock', 'rpm', 'n1', 'map', 'oilT', 'coolant', 'oilP',
+  'amps', 'fuel', 'fuelLow', 'gear', 'fuelOilP', 'pitch', 'airP', 'pulsator', 'level',
 ]);
 export const INSTRUMENT_SIZE = namesFrom(['L', 'S', 'XS', 'T']);
 

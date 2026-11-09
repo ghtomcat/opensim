@@ -48,12 +48,14 @@ const STYLES = {
     sky: ['#3a5468', '#5878a0'],                 // Arctic sky — cold pale blue
     ground: ['#4a3c28', '#3c3020', '#c8c4b8'],   // tundra, snow on flat ground
     frost: true,                                 // Wolfskopf 1942, Petsamo, -22 °C
+    rings: { fuel: '#d8b030', oil: '#9a5a28', oilPress: '#b02a18', coolant: '#3a8a6a' },   // the German colour code by medium (D-FEML)
     units: 'metric',
     L: {
       asi: 'Fahrtmesser', asiUnit: 'km/h', ai: 'Künstl. Horizont', alt: 'Höhenmesser', altUnit: '×100 m',
       turn: 'Wendezeiger', turnL: 'L', turnR: 'R', compass: 'Kompass', cards: ['N', 'O', 'S', 'W'],
       vsi: 'Variometer', vsiUnit: 'm/s', rpm: 'Drehzahlmesser', rpmUnit: '×100 U/min', n1: 'Verdichter', n1Unit: 'N1 %',
       oilT: 'Öltemperatur', coolant: 'Kühlstoff', oilP: 'Öldruck', oilPUnit: 'atü',
+      map: 'Ladedruck', amps: 'Strommesser', fuel: 'Kraftstoffvorrat', fuelOilP: 'Kraftstoff- u. Öldruck', pitch: 'Luftschraube',
     },
   },
   soviet: {
@@ -117,6 +119,7 @@ const STYLES = {
       turn: 'Turn Indicator', turnL: 'L', turnR: 'R', compass: 'Compass', cards: ['N', 'E', 'S', 'W'],
       vsi: 'Rate of Climb', vsiUnit: '×1000 ft/min', rpm: 'Revolutions', rpmUnit: '×100 R.P.M.',
       oilT: 'Oil Temp', cht: 'Cyl. Head', tempUnit: '°F', oilP: 'Oil Pressure', oilPUnit: 'lb/sq in',
+      airP: 'Air Pressure', pulsator: 'Oil Pulsator', watch: 'Watch',
     },
   },
 };
@@ -168,11 +171,37 @@ function _simpleManifold() {
   return (S.wow || (S.spdT ?? 0) === 0) ? 12 : 12 + _throttle() * 40;
 }
 
+const _fuelLitres = () => (S.fuelLeft ?? 0) + (S.fuelRight ?? 0);
+const _fuelFlows  = () => !S.fuelShutoff && _fuelLitres() > 0;
+
+/** fuel pressure, kg/cm² — the engine-driven pump: normal while running with fuel (1.3, unconfirmed), building on the
+    start, falling over the starvation run-down once the cock is closed or the tank empty → "The fuel system" */
+function _simpleFuelPress() {
+  const st = S.engineState, normal = 1.3;
+  if (st === 'starting') return Math.min(normal, (getRpmValue() ?? 0) / 400 * normal);
+  if (st !== 'running') return 0;
+  if (_fuelFlows() && S.fuelStarveT == null) return normal;
+  return normal * Math.max(0, Math.min(1, (S.fuelStarveT ?? 0) / 10));
+}
+
+/** generator current, A — charging while the engine runs, nothing at rest → an electrical model for the warbirds */
+function _simpleAmps() { return S.engineState === 'running' ? 18 : 0; }
+
+/** the propeller pitch in "clock hours" from 12:00 — S.propPitch 1 fine … 0 coarse; the hours per degree are not
+    known (sources/bf109-panel-notes.md) → the propeller's blade angle */
+function _simplePitchHours() { return (1 - (S.propPitch ?? 1)) * 6; }
+
+/** the fuel tank's air pressure, lb/sq in — the Avro's hand-pumped tank, kept at about 3 while there is fuel → "The fuel system" */
+function _simpleTankPress() { return _fuelFlows() ? 3.0 : 0; }
+
 /* ════════════════════════════════════════════════════════════
    INSTRUMENT REGISTRY — what each instrument shows and how it is drawn.
    `read` takes the value from the sim (never the drawing code); `value` names it; `simple` marks a
    stand-in and what replaces it. `draw` per unit system gets (ctx, x, y, r, sc, value).
    ════════════════════════════════════════════════════════════ */
+/** the same drawing in both unit systems — the kinds whose scale is the instrument's own, not the style's */
+function _both(fn) { return { metric: fn, imperial: fn }; }
+
 export const INSTRUMENTS = {
   asi:     { value: 'S.spd (kt)',                         read: () => S.spd ?? 0,
              draw: { metric: _drawFahrtmesser, imperial: _drawAirspeed } },
@@ -191,14 +220,36 @@ export const INSTRUMENTS = {
              draw: { metric: _drawDrehzahl, imperial: _drawDrehzahl } },
   n1:      { value: 'N1 (%)',                             read: _simpleN1, simple: 'S.engines[i].n1 (core/engine.js)',
              draw: { metric: _drawN1Messer } },
-  map:     { value: 'manifold pressure (in.Hg)',          read: _simpleManifold, simple: 'The supercharger (issues.md)',
-             draw: { imperial: _drawManifold } },
   oilT:    { value: 'S.oilTempC (°C)',                    read: () => S.oilTempC ?? 15,
-             draw: { metric: _drawOelTemp, imperial: _drawOilTemp } },
+             draw: { metric: (ctx, x, y, r, sc, v, scale) => scale ? _drawGauge(ctx, x, y, r, sc, v, scale, { max: 130, step: 20, ring: 'oil', big: '°C', name: 'oilT' })
+                                                                    : _drawOelTemp(ctx, x, y, r, sc, v),
+                     imperial: _drawOilTemp } },
   coolant: { value: 'S.coolantTemp (°C) — coolant, or CHT on an air-cooled engine', read: () => S.coolantTemp ?? 15,
-             draw: { metric: _drawKuehlstoffTemp, imperial: _drawCHT } },
+             draw: { metric: (ctx, x, y, r, sc, v, scale) => scale ? _drawGauge(ctx, x, y, r, sc, v, scale, { max: 130, step: 20, ring: 'coolant', big: '°C', name: 'coolant' })
+                                                                    : _drawKuehlstoffTemp(ctx, x, y, r, sc, v),
+                     imperial: _drawCHT } },
   oilP:    { value: 'oil pressure (kg/cm²)',              read: _simpleOilPress, simple: 'The oil system (issues.md)',
              draw: { metric: _drawOelDruck, imperial: _drawOilPressure } },
+  map:     { value: 'manifold pressure (in.Hg)',          read: _simpleManifold, simple: 'The supercharger (issues.md)',
+             draw: { imperial: _drawManifold, metric: _drawLadedruck } },
+  amps:    { value: 'generator current (A)',              read: _simpleAmps, simple: 'an electrical model for the warbirds',
+             draw: _both((ctx, x, y, r, sc, v, scale) => _drawGauge(ctx, x, y, r, sc, v, scale, { min: -40, max: 60, step: 20, start: 310, sweep: 100, big: 'A', name: 'amps' })) },
+  fuel:    { value: 'fuel on board (l): S.fuelLeft + S.fuelRight', read: _fuelLitres,
+             draw: _both((ctx, x, y, r, sc, v, scale) => _drawGauge(ctx, x, y, r, sc, v, scale, { max: 400, step: 100, div: 100, start: 290, sweep: 140, ring: 'fuel', big: 'L', sub: '×100', name: 'fuel' })) },
+  fuelLow: { value: 'the fuel below the reserve (40 l, unconfirmed)', read: () => S.engineState !== 'off' && _fuelLitres() < 40, kind: 'lamp',
+             draw: _both((ctx, x, y, r, sc, on) => _drawLamp(ctx, x, y, r, on, LAMP.red)) },
+  gear:    { value: 'S.gearAnim — EIN lit retracted, AUS lit extended', read: () => S.gearAnim ?? (S.gear ? 1 : 0),
+             draw: _both(_drawGearLamps) },
+  fuelOilP:{ value: 'fuel and oil pressure (kg/cm²)',     read: () => ({ fuel: _simpleFuelPress(), oil: _simpleOilPress() }),
+             simple: 'The fuel system, The oil system (issues.md)', draw: _both(_drawDoppeldruck) },
+  pitch:   { value: 'propeller pitch in clock hours',     read: _simplePitchHours, simple: 'the propeller\'s blade angle',
+             draw: _both(_drawPitchClock) },
+  airP:    { value: 'fuel tank air pressure (lb/sq in)',  read: _simpleTankPress, simple: 'The fuel system (issues.md)',
+             draw: _both((ctx, x, y, r, sc, v, scale) => _drawGauge(ctx, x, y, r, sc, v, scale, { max: 5, step: 1, start: 310, sweep: 100, big: 'lb/sq in', name: 'airP' })) },
+  pulsator:{ value: 'oil flowing — the rotary running (rpm)', read: () => S.engineState === 'running' ? _simpleRpm() : 0,
+             simple: 'The oil system (issues.md)', kind: 'glass', draw: _both(_drawPulsator) },
+  level:   { value: 'the ball (S.latAccel)',              read: () => ballDeflection(S.latAccel), kind: 'level',
+             draw: _both(_drawLevel) },
   clock:   { value: 'the clock time (display/clock.js)',  read: () => null,
              draw: { metric: (ctx, x, y, r) => drawAnalogClock(ctx, x, y, r), imperial: (ctx, x, y, r) => drawAnalogClock(ctx, x, y, r) } },
 };
@@ -266,7 +317,10 @@ export function renderAnalogPanel(canvas, style = 'luftwaffe') {
   const view = canvas.classList.contains('combined') ? 'combined' : 'panel';
   const side = _overlayInset(canvas) * dpr;          // keep clear of the map and the mission title / timer
   const area = { w: W - 2 * side, h: H - 80 * dpr };
-  const groups = S.aircraft?.analogPanel?.groups ?? [];   // the aircraft's instruments (core/schema/aircraft.js)
+  const groups = (S.aircraft?.analogPanel?.groups ?? []).map(g => {   // the aircraft's instruments, each with its kind's footprint
+    const k = e => ({ ...e, kind: INSTRUMENTS[e.id]?.kind });
+    return g.rows ? { ...g, rows: g.rows.map(r => r.map(k)) } : { ...g, perEngine: g.perEngine.map(k) };
+  });
   const lay  = flowLayout(groups, area, { view, engines: S.aircraft?.engine?.count ?? 1, maxL: MAX_L * dpr });
   const sc   = (SIZES.L * lay.scale / 2) / 90;        // the text scale: 1 at a large dial of radius 90 px
   for (const it of lay.items) _inst(it.id, ctx, side + it.x, it.y, it.d / 2, sc, it.item?.scale);
@@ -368,9 +422,9 @@ function _ticks(ctx, x, y, r, startDeg, sweep, majCount, minPerMaj, sc) {
 }
 
 /* Numeral at angle */
-function _num(ctx, x, y, r, deg, text, sz, sc) {
+function _num(ctx, x, y, r, deg, text, sz, sc, rr = 0.70) {
   const a  = _r(deg);
-  const nr = r * 0.70;
+  const nr = r * rr;
   ctx.font         = `bold ${sz * sc}px ${SANS}`;
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
@@ -387,7 +441,8 @@ function _num(ctx, x, y, r, deg, text, sz, sc) {
      sweep        degrees the scale runs round the dial (default 280)
      start        where the scale (min) begins, degrees from 12 o'clock — default: the sweep centred on the bottom
      zero         a 0 mark before min — an airspeed dial reads nothing useful below the stall
-     red          from → max, or [a, b];   yellow, green   [a, b];   redLine  a red radial mark at a value (or several)
+     red          from → max, or [a, b];   yellow, green   [a, b];   redLine / yellowLine  a radial mark at a value (or several)
+     figuresTo    the last figure (the scale may run on past it);   endMark  a small triangle at the end of the scale
    An aircraft's scale brings its own arcs: the dial's default arcs apply only without one.
    ════════════════════════════════════════════════════════════ */
 function _scale(ctx, x, y, r, sc, scale, def) {
@@ -405,20 +460,29 @@ function _scale(ctx, x, y, r, sc, scale, def) {
   if (A.red != null)  band(Array.isArray(A.red) ? A.red : [A.red, A.max], A.redCol ?? '#a02200', 5);
   if (A.yellow)       band(A.yellow, '#cc9900', 4);
   if (A.green)        band(A.green,  '#3a7a3a', 4);
-  for (const v of [A.redLine ?? []].flat()) {                          // a red radial line — a limit mark
+  const radial = (v, col) => {                                          // a radial line — a limit or caution mark
     const a = _r(ang(v));
-    ctx.save(); ctx.strokeStyle = A.redCol ?? '#a02200'; ctx.lineWidth = 3 * sc; ctx.beginPath();
+    ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = 3 * sc; ctx.beginPath();
     ctx.moveTo(x + Math.cos(a) * r * 0.99, y + Math.sin(a) * r * 0.99);
     ctx.lineTo(x + Math.cos(a) * r * 0.80, y + Math.sin(a) * r * 0.80); ctx.stroke(); ctx.restore();
+  };
+  for (const v of [A.yellowLine ?? []].flat()) radial(v, '#d8b030');
+  for (const v of [A.redLine ?? []].flat())    radial(v, A.redCol ?? '#a02200');
+  if (A.endMark) {                                                      // a small triangle at the end of the scale
+    const a = _r(ang(A.max)), n = a + Math.PI / 2, tx = x + Math.cos(a) * r * 0.9, ty = y + Math.sin(a) * r * 0.9;
+    ctx.save(); ctx.fillStyle = P.mark; ctx.beginPath();
+    ctx.moveTo(x + Math.cos(a) * r * 0.76, y + Math.sin(a) * r * 0.76);
+    ctx.lineTo(tx + Math.cos(n) * r * 0.06, ty + Math.sin(n) * r * 0.06); ctx.lineTo(tx - Math.cos(n) * r * 0.06, ty - Math.sin(n) * r * 0.06);
+    ctx.fill(); ctx.restore();
   }
 
   _ticks(ctx, x, y, r, sMin, sw, (A.max - A.min) / tick, A.minor, sc);
   ctx.textBaseline = 'middle';
   const marks = [A.min];
-  for (let v = Math.floor(A.min / A.step) * A.step + A.step; v <= A.max + 1e-9; v += A.step)
+  for (let v = Math.floor(A.min / A.step) * A.step + A.step; v <= (A.figuresTo ?? A.max) + 1e-9; v += A.step)
     if (v - A.min >= A.step / 2) marks.push(v);                     // a figure too close to the start would collide with it
   if (A.zero) { _ticks(ctx, x, y, r, s0, 0, 1, 1, sc); marks.unshift(0); }
-  for (const v of marks) _num(ctx, x, y, r, ang(v), v === 0 ? '0' : String(+(v / A.div).toFixed(2)), A.numSize ?? 8.5, sc);
+  for (const v of marks) _num(ctx, x, y, r, ang(v), v === 0 ? '0' : String(+(v / A.div).toFixed(2)), A.numSize ?? 8.5, sc, A.numR);
   ctx.textBaseline = 'alphabetic';
   return ang;
 }
@@ -918,6 +982,151 @@ function _drawOelDruck(ctx, x, y, r, sc, oilP) {                 // kg/cm² (at�
   _needle(ctx, x, y, r, ang, 0.76, 0.20, sc);
   _cap(ctx, x, y, 4 * sc);
   _label(ctx, x, y, r, L.oilP, sc);
+}
+
+/* ════════════════════════════════════════════════════════════
+   THE KINDS FROM THE SOURCES (step 5) — D-FEML's lower panel, the Avro's board
+   (sources/bf109-panel-notes.md, sources/avro-504k-panel-notes.md; tried in docs/mockups/analog-instrument-kinds.html)
+   ════════════════════════════════════════════════════════════ */
+
+/** The bezel ring in the German colour code by medium — fuel yellow, oil brown, oil pressure red, coolant green
+    (D-FEML); only where the style has one (ST.rings) */
+function _ring(ctx, x, y, r, medium, a0 = 0, a1 = Math.PI * 2) {
+  const col = ST.rings?.[medium];
+  if (!col) return;
+  ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = r * 0.07;
+  ctx.beginPath(); ctx.arc(x, y, r * 1.0, a0, a1); ctx.stroke(); ctx.restore();
+}
+
+/** A needle from a pivot below the centre to a point on the scale — the dials whose scale is an arc across the top
+    (D-FEML's ammeter, fuel, oil and coolant; the Avro's air pressure) */
+function _lowNeedle(ctx, x, y, r, deg, sc) {
+  const py = y + r * 0.2, a = _r(deg), tx = x + Math.cos(a) * r * 0.8, ty = y + Math.sin(a) * r * 0.8;
+  const len = Math.hypot(tx - x, ty - py), d = Math.atan2(ty - py, tx - x) * 180 / Math.PI + 90;
+  _needle(ctx, x, py, len, d, 1, 0.18, sc);
+  _cap(ctx, x, py, 4 * sc);
+}
+
+/** A dial drawn from its scale — the default (`def`) under the aircraft's `scale`. An arc of up to a half circle
+    across the top gets the low pivot. `big`: the unit in large letters (A, L, °C); `ring`: the medium's colour. */
+function _drawGauge(ctx, x, y, r, sc, v, scale, def) {
+  _base(ctx, x, y, r);
+  if (def.ring) _ring(ctx, x, y, r, def.ring);
+  const sweep = scale?.sweep ?? def.sweep ?? 280, low = sweep <= 180;
+  const ang = _scale(ctx, x, y, r, sc, scale, { numSize: 7.5, minor: 4, ...def, numR: low ? 0.66 : 0.70 });
+  if (def.sub) _sublabel(ctx, x, y - r * (low ? 0.0 : 0.85), r, def.sub, sc);
+  if (def.big) {
+    ctx.fillStyle = P.mark; ctx.font = `bold ${(def.big.length > 2 ? 8 : 15) * sc}px ${SANS}`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(def.big, x, y + r * 0.6);
+  }
+  if (low) _lowNeedle(ctx, x, y, r, ang(v), sc);
+  else { _needle(ctx, x, y, r, ang(v), 0.76, 0.20, sc); _cap(ctx, x, y, 4 * sc); }
+  if (def.name && L[def.name]) _label(ctx, x, y, r, L[def.name], sc);
+}
+
+/** Boost (Ladedruck) in ata — the metric twin of the manifold gauge; the value comes in in.Hg */
+function _drawLadedruck(ctx, x, y, r, sc, inHg, scale) {
+  _drawGauge(ctx, x, y, r, sc, inHg / 28.959, scale, { min: 0.6, max: 1.8, step: 0.2, minor: 4, sub: 'ata', name: 'map' });
+}
+
+/** Fuel and oil pressure on one face (D-FEML, Fl 20512-2): two half dials, two hands from the centre; 0 at the
+    bottom, fuel 0–2 up the left (yellow), oil 0–10 up the right (red), kg/cm² */
+function _drawDoppeldruck(ctx, x, y, r, sc, p) {
+  _base(ctx, x, y, r);
+  _ring(ctx, x, y, r, 'fuel', Math.PI / 2, Math.PI * 1.5);
+  _ring(ctx, x, y, r, 'oilPress', -Math.PI / 2, Math.PI / 2);
+  const fuelA = v => 180 + Math.max(0, Math.min(1, v / 2)) * 150, oilA = v => 180 - Math.max(0, Math.min(1, v / 10)) * 150;
+  _ticks(ctx, x, y, r, 180, 150, 4, 5, sc);
+  _ticks(ctx, x, y, r, 30, 150, 5, 4, sc);
+  ctx.textBaseline = 'middle';
+  for (const v of [0.5, 1, 1.5, 2]) _num(ctx, x, y, r, fuelA(v), String(v), 7, sc);
+  for (const v of [2, 4, 6, 8, 10]) _num(ctx, x, y, r, oilA(v), String(v), 7, sc);
+  _num(ctx, x, y, r, 180, '0', 7.5, sc);
+  ctx.textBaseline = 'alphabetic';
+  _sublabel(ctx, x, y - r * 0.75, r, 'kg/cm²', sc);
+  _needle(ctx, x, y, r, fuelA(p.fuel), 0.74, 0.16, sc);
+  _needle(ctx, x, y, r, oilA(p.oil), 0.74, 0.16, sc);
+  _cap(ctx, x, y, 4 * sc);
+  if (L.fuelOilP) _label(ctx, x, y, r, L.fuelOilP, sc);
+}
+
+/** The propeller pitch indicator (Fl 18503-2): a clock face, two hands, from 12:00 */
+function _drawPitchClock(ctx, x, y, r, sc, hours) {
+  _base(ctx, x, y, r);
+  _ticks(ctx, x, y, r, 0, 360, 12, 5, sc);
+  ctx.textBaseline = 'middle';
+  for (let h = 1; h <= 12; h++) _num(ctx, x, y, r, h * 30, String(h), 7, sc);
+  ctx.textBaseline = 'alphabetic';
+  const t = ((hours % 12) + 12) % 12;
+  _needle(ctx, x, y, r, t * 30, 0.5, 0.14, sc);
+  _needle(ctx, x, y, r, (t * 60 % 60) * 6, 0.78, 0.18, sc);
+  _cap(ctx, x, y, 4 * sc);
+  if (L.pitch) _label(ctx, x, y, r, L.pitch, sc);
+}
+
+const LAMP = { red: { on: ['#ff5a3a', '#a01808'], off: ['#4a1a12', '#200806'] },
+               green: { on: ['#6aff7a', '#108a20'], off: ['#173a1c', '#08160a'] } };
+function _drawLamp(ctx, x, y, r, on, col) {
+  ctx.fillStyle = '#0c0c0c'; ctx.beginPath(); ctx.arc(x, y, r * 1.0, 0, Math.PI * 2); ctx.fill();
+  const c = on ? col.on : col.off, g = ctx.createRadialGradient(x - r * 0.25, y - r * 0.25, r * 0.08, x, y, r * 0.8);
+  g.addColorStop(0, on ? '#ffffff' : c[0]); g.addColorStop(0.35, c[0]); g.addColorStop(1, c[1]);
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 0.8, 0, Math.PI * 2); ctx.fill();
+  if (on) { ctx.save(); ctx.globalAlpha = 0.3; ctx.fillStyle = c[0]; ctx.beginPath(); ctx.arc(x, y, r * 1.5, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
+}
+
+/** The gear indicator (D-FEML, "Fahrgestell"): EIN red (retracted) and AUS green (extended), left and right;
+    dark while the gear travels */
+function _drawGearLamps(ctx, x, y, r, sc, anim) {
+  const w = r * 1.9, h = r * 1.7;
+  ctx.save();
+  ctx.fillStyle = '#121312'; ctx.strokeStyle = P.rim; ctx.lineWidth = 2 * sc;
+  ctx.beginPath(); ctx.roundRect(x - w / 2, y - h / 2, w, h, r * 0.1); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#c8c0a8'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = `${7 * sc}px ${SANS}`; ctx.fillText(L.gear ?? 'Fahrgestell', x, y - h * 0.38);
+  const up = anim <= 0.01, dn = anim >= 0.99, lr = r * 0.22;
+  for (const dx of [-0.45, 0.45]) {
+    _drawLamp(ctx, x + dx * r, y - h * 0.1, lr, up, LAMP.red);
+    _drawLamp(ctx, x + dx * r, y + h * 0.27, lr, dn, LAMP.green);
+    ctx.fillStyle = '#c8c0a8'; ctx.font = `bold ${5.5 * sc}px ${SANS}`;
+    ctx.fillText('EIN', x + dx * r, y - h * 0.1 + lr * 1.45); ctx.fillText('AUS', x + dx * r, y + h * 0.27 + lr * 1.45);
+  }
+  ctx.restore();
+}
+
+/** The Avro's oil pulsator: castor oil pulsing through a sight glass with each pump stroke while the rotary runs */
+function _drawPulsator(ctx, x, y, r, sc, rpm) {
+  ctx.save();
+  ctx.fillStyle = P.rim; ctx.beginPath(); ctx.arc(x, y, r * 1.04, 0, Math.PI * 2); ctx.fill();
+  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.05, x, y, r * 0.95);
+  g.addColorStop(0, 'rgba(255,248,225,0.55)'); g.addColorStop(0.4, 'rgba(160,130,60,0.45)'); g.addColorStop(1, 'rgba(30,20,4,0.95)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 0.9, 0, Math.PI * 2); ctx.fill();
+  if (rpm > 0) {
+    const beat = (performance.now() / 1000 * (rpm / 600)) % 1;           // a pulse per pump stroke, faster with rpm
+    const lvl = 0.25 + 0.5 * Math.pow(Math.sin(beat * Math.PI), 2);
+    ctx.beginPath(); ctx.arc(x, y, r * 0.88, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = 'rgba(200,140,30,0.85)'; ctx.fillRect(x - r, y + r * (0.88 - lvl * 1.76), r * 2, r * 2);
+  }
+  ctx.restore();
+  ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = r * 0.05;
+  ctx.beginPath(); ctx.arc(x, y, r * 0.66, _r(-60), _r(-10)); ctx.stroke(); ctx.restore();
+  if (L.pulsator) _label(ctx, x, y, r, L.pulsator, sc);
+}
+
+/** The Avro's bubble level: a curved glass tube; the bubble moves opposite to a ball */
+function _drawLevel(ctx, x, y, r, sc, ball) {
+  const R = r * 2.6, cy = y + R - r * 0.25, a0 = -Math.PI / 2 - 0.36, a1 = -Math.PI / 2 + 0.36;
+  ctx.save(); ctx.lineCap = 'round';
+  ctx.strokeStyle = P.rim; ctx.lineWidth = r * 0.42; ctx.beginPath(); ctx.arc(x, cy, R, a0, a1); ctx.stroke();
+  ctx.strokeStyle = 'rgba(200,215,170,0.9)'; ctx.lineWidth = r * 0.26; ctx.beginPath(); ctx.arc(x, cy, R, a0, a1); ctx.stroke();
+  for (const d of [-0.07, 0.07]) {
+    ctx.strokeStyle = '#222'; ctx.lineWidth = 1.5 * sc; ctx.beginPath();
+    ctx.moveTo(x + Math.cos(-Math.PI / 2 + d) * (R - r * 0.13), cy + Math.sin(-Math.PI / 2 + d) * (R - r * 0.13));
+    ctx.lineTo(x + Math.cos(-Math.PI / 2 + d) * (R + r * 0.13), cy + Math.sin(-Math.PI / 2 + d) * (R + r * 0.13)); ctx.stroke();
+  }
+  const b = -Math.PI / 2 - Math.max(-1, Math.min(1, ball)) * 0.3;
+  ctx.fillStyle = 'rgba(255,255,240,0.95)'; ctx.beginPath();
+  ctx.ellipse(x + Math.cos(b) * R, cy + Math.sin(b) * R, r * 0.17, r * 0.1, b + Math.PI / 2, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
 }
 
 /* ════════════════════════════════════════════════════════════
