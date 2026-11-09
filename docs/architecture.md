@@ -529,9 +529,12 @@ display/analog_panel.js     STYLES[style] → P (palette), L (labels), units (me
 
 **Today** the style is everything: the instruments and their places are the same for all
 (the six flight instruments and the engine gauges of a 1940s fighter), in two fixed
-layouts — the panel view and the combined view (a strip under the outside view). Rpm
-comes from the sound code (`getCurrentRpm()`), oil and manifold pressure from formulas
-in the drawing code.
+layouts — the panel view and the combined view (a strip under the outside view). An
+**instrument registry** (`INSTRUMENTS`) says what each instrument shows: `read` takes the
+value from the sim, the draw functions only draw what they are given
+(`tests/analog-registry.test.mjs`). Rpm, N1, oil and manifold pressure are still
+stand-ins (rpm and N1 through the sound code, the pressures from the throttle), each marked
+with what replaces it.
 
 **Planned** (docs/issues.md, *The analog panels draw a borrowed fighter panel*):
 - the **style is only the look** (palette, labels, units — by era and airframe);

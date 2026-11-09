@@ -11,6 +11,10 @@
 
    Sim state is knots / feet / fpm. Metric gauges convert: km/h (× 1.852), m (× 0.3048),
    m/s (× 0.00508). Imperial gauges read it as it is.
+
+   The instrument registry (INSTRUMENTS) says what each instrument shows: `read` takes the value from
+   the sim, the draw functions only draw the value they are given (tests/analog-registry.test.mjs).
+   Values the sim does not have yet are stand-ins (SIMPLE VALUES), each marked with what replaces it.
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from '../core/state.js';
@@ -127,6 +131,84 @@ const SANS = '"Helvetica Neue", Helvetica, Arial, sans-serif';
 const _r = d => (d - 90) * Math.PI / 180;
 
 /* ════════════════════════════════════════════════════════════
+   SIMPLE VALUES — stand-ins until the sim has the real ones (issues.md, "The analog panels draw a
+   borrowed fighter panel", step 6). They live here, not in the drawing code; each says what replaces it.
+   ════════════════════════════════════════════════════════════ */
+const _throttle = () => Math.max(0, Math.min(1, (S.spdT ?? 0) / (S.aircraft?.envelope?.maxSpd ?? 335)));
+
+/** rpm — from the throttle while running (the style's idle…max, scaled by engine health), else the sound
+    code's start/stop curve → S.engines[i].rpm from core/engine.js */
+function _simpleRpm() {
+  const st = S.engineState;
+  if (st === 'running') {
+    const R = ST.rpm ?? {}, rIdle = R.idle ?? 400, rMax = R.max ?? 2800;
+    return Math.round((rIdle + (rMax - rIdle) * _throttle()) * (S.enginePower ?? 1));
+  }
+  return (st === 'starting' || st === 'shutdown') ? (getRpmValue() ?? 0) : 0;
+}
+
+/** N1 % — parsed from the sound code's readout → S.engines[i].n1 */
+function _simpleN1() {
+  const str = getCurrentRpm();
+  return str && str.startsWith('N1 ') ? (parseInt(str.slice(3), 10) || 0) : 0;
+}
+
+/** oil pressure, kg/cm² — builds with rpm on the start, decays on the stop → "The oil system" */
+function _simpleOilPress() {
+  const st = S.engineState, dyn = getRpmValue() ?? 0;
+  return st === 'running'  ? 1.5 + _throttle() * 6.0
+       : st === 'starting' ? Math.min(1.5, dyn / 400 * 1.5)
+       : st === 'shutdown' ? Math.max(0, dyn / 2800 * 7.5)
+       : 0;
+}
+
+/** manifold pressure, in.Hg — idle ~12, full throttle ~52 → "The supercharger" */
+function _simpleManifold() {
+  return (S.wow || (S.spdT ?? 0) === 0) ? 12 : 12 + _throttle() * 40;
+}
+
+/* ════════════════════════════════════════════════════════════
+   INSTRUMENT REGISTRY — what each instrument shows and how it is drawn.
+   `read` takes the value from the sim (never the drawing code); `value` names it; `simple` marks a
+   stand-in and what replaces it. `draw` per unit system gets (ctx, x, y, r, sc, value).
+   ════════════════════════════════════════════════════════════ */
+export const INSTRUMENTS = {
+  asi:     { value: 'S.spd (kt)',                         read: () => S.spd ?? 0,
+             draw: { metric: _drawFahrtmesser, imperial: _drawAirspeed } },
+  ai:      { value: 'S.pitch, S.roll (°)',                 read: () => ({ pitch: S.pitch ?? 0, roll: S.roll ?? 0 }),
+             draw: { metric: _drawHorizont, imperial: _drawHorizon } },
+  alt:     { value: 'S.alt (ft)',                         read: () => S.alt ?? 0,
+             draw: { metric: _drawHoehenmesser, imperial: _drawAltimeter } },
+  turn:    { value: 'turn rate, ball (S.latAccel)',         read: () => ({ rate: (S.roll ?? 0) / 20, ball: ballDeflection(S.latAccel) }),
+             simple: 'the turn rate from the bank angle → the rate of heading change',
+             draw: { metric: _drawWendezeiger, imperial: _drawTurnSlip } },
+  compass: { value: 'S.hdg (°)',                          read: () => S.hdg ?? 0,
+             draw: { metric: _drawKompass, imperial: _drawCompass } },
+  vsi:     { value: 'S.vs (fpm)',                         read: () => S.vs ?? 0,
+             draw: { metric: _drawVariometer, imperial: _drawVSI } },
+  rpm:     { value: 'rpm',                                read: _simpleRpm, simple: 'S.engines[i].rpm (core/engine.js)',
+             draw: { metric: _drawDrehzahl, imperial: _drawDrehzahl } },
+  n1:      { value: 'N1 (%)',                             read: _simpleN1, simple: 'S.engines[i].n1 (core/engine.js)',
+             draw: { metric: _drawN1Messer } },
+  map:     { value: 'manifold pressure (in.Hg)',          read: _simpleManifold, simple: 'The supercharger (issues.md)',
+             draw: { imperial: _drawManifold } },
+  oilT:    { value: 'S.oilTempC (°C)',                    read: () => S.oilTempC ?? 15,
+             draw: { metric: _drawOelTemp, imperial: _drawOilTemp } },
+  coolant: { value: 'S.coolantTemp (°C) — coolant, or CHT on an air-cooled engine', read: () => S.coolantTemp ?? 15,
+             draw: { metric: _drawKuehlstoffTemp, imperial: _drawCHT } },
+  oilP:    { value: 'oil pressure (kg/cm²)',              read: _simpleOilPress, simple: 'The oil system (issues.md)',
+             draw: { metric: _drawOelDruck, imperial: _drawOilPressure } },
+  clock:   { value: 'the clock time (display/clock.js)',  read: () => null,
+             draw: { metric: (ctx, x, y, r) => drawAnalogClock(ctx, x, y, r), imperial: (ctx, x, y, r) => drawAnalogClock(ctx, x, y, r) } },
+};
+
+/** Draw one instrument of the registry in the active style's unit system */
+function _inst(id, ctx, x, y, r, sc) {
+  const def = INSTRUMENTS[id];
+  def.draw[ST.units ?? 'metric'](ctx, x, y, r, sc, def.read());
+}
+
+/* ════════════════════════════════════════════════════════════
    MAIN ENTRY
    ════════════════════════════════════════════════════════════ */
 export function renderAnalogPanel(canvas, style = 'luftwaffe') {
@@ -148,13 +230,13 @@ export function renderAnalogPanel(canvas, style = 'luftwaffe') {
   ctx.fillStyle = vg;
   ctx.fillRect(0, 0, W, H);
 
-  /* The gauge set: metric (German, Soviet) or imperial (US) — the layout is the same */
+  /* Which instrument in each place of today's fixed layout (step 2 makes the layout data) */
   const _isJet = S.aircraft?.sound?.engineType === 'turbojet-vk1';
-  const G = ST.units === 'imperial'
-    ? { asi: _drawAirspeed, ai: _drawHorizon, alt: _drawAltimeter, turn: _drawTurnSlip, compass: _drawCompass, vsi: _drawVSI,
-        eng: ST.engineGauge === 'rpm' ? _drawDrehzahl : _drawManifold, temp2: _drawCHT, oilT: _drawOilTemp, oilP: _drawOilPressure }
-    : { asi: _drawFahrtmesser, ai: _drawHorizont, alt: _drawHoehenmesser, turn: _drawWendezeiger, compass: _drawKompass, vsi: _drawVariometer,
-        eng: _isJet ? _drawN1Messer : _drawDrehzahl, temp2: _drawKuehlstoffTemp, oilT: _drawOelTemp, oilP: _drawOelDruck };
+  const eng   = ST.units === 'imperial' ? (ST.engineGauge === 'rpm' ? 'rpm' : 'map') : (_isJet ? 'n1' : 'rpm');
+  const SLOTS = { asi: 'asi', ai: 'ai', alt: 'alt', turn: 'turn', compass: 'compass', vsi: 'vsi',
+                  eng, temp2: 'coolant', oilT: 'oilT', oilP: 'oilP' };
+  const G = Object.fromEntries(Object.entries(SLOTS).map(([slot, id]) =>
+    [slot, (ctx, x, y, r, sc) => _inst(id, ctx, x, y, r, sc)]));
 
   /* In the combined "cockpit + outside" view the panel is flat & wide — spread
      the gauges across the free side-space (2 flight rows left, engine block
@@ -190,7 +272,7 @@ export function renderAnalogPanel(canvas, style = 'luftwaffe') {
       G.oilP(ctx, cxR + dxR, yBot, r2, sc);
     }
 
-    drawAnalogClock(ctx, W * 0.06, Hu * 0.28, 44 * sc);   // clock — top-left
+    _inst('clock', ctx, W * 0.06, Hu * 0.28, 44 * sc, sc);   // clock — top-left
 
     if (ST.frost) _drawFrost(ctx, W, H);
 
@@ -229,7 +311,7 @@ export function renderAnalogPanel(canvas, style = 'luftwaffe') {
       G.oilP(ctx, cx + cw * 0.62, y3, r2, sc);
     }
 
-    drawAnalogClock(ctx, W * 0.11, H * 0.14, 48 * sc);   // clock — top-left
+    _inst('clock', ctx, W * 0.11, H * 0.14, 48 * sc, sc);   // clock — top-left
 
     /* Frost vignette — Arctic, -22°C */
     if (ST.frost) _drawFrost(ctx, W, H);
@@ -430,8 +512,8 @@ function _symCoolant(ctx, x, y, s, sc) {    /* thermometer over waves */
    FAHRTMESSER — Airspeed · 0–800 km/h
    7 o'clock (220°) to 5 o'clock (220°+280°)
    ════════════════════════════════════════════════════════════ */
-function _drawFahrtmesser(ctx, x, y, r, sc) {
-  const kmh  = S.spd * 1.852;
+function _drawFahrtmesser(ctx, x, y, r, sc, spd) {
+  const kmh  = spd * 1.852;
   const maxV = 800;
   const s0   = 220, sw = 280;
 
@@ -463,11 +545,11 @@ function _drawFahrtmesser(ctx, x, y, r, sc) {
 /* ════════════════════════════════════════════════════════════
    KÜNSTLICHER HORIZONT — Artificial Horizon
    ════════════════════════════════════════════════════════════ */
-function _drawHorizont(ctx, x, y, r, sc) {
+function _drawHorizont(ctx, x, y, r, sc, att) {
   _base(ctx, x, y, r);
 
-  const pitch = S.pitch;
-  const roll  = S.roll;
+  const pitch = att.pitch;
+  const roll  = att.roll;
 
   ctx.save();
   ctx.translate(x, y);
@@ -561,8 +643,8 @@ function _drawHorizont(ctx, x, y, r, sc) {
    Fine needle: 1-revolution per 1000 m
    Coarse stub: 1-revolution per 10 000 m
    ════════════════════════════════════════════════════════════ */
-function _drawHoehenmesser(ctx, x, y, r, sc) {
-  const altM = S.alt * 0.3048;
+function _drawHoehenmesser(ctx, x, y, r, sc, alt) {
+  const altM = alt * 0.3048;
   const s0   = 220, sw = 300;
 
   _base(ctx, x, y, r);
@@ -596,7 +678,7 @@ function _drawHoehenmesser(ctx, x, y, r, sc) {
 /* ════════════════════════════════════════════════════════════
    WENDEZEIGER — Turn & Slip
    ════════════════════════════════════════════════════════════ */
-function _drawWendezeiger(ctx, x, y, r, sc) {
+function _drawWendezeiger(ctx, x, y, r, sc, turn) {
   _base(ctx, x, y, r);
 
   /* Turn arc — upper half */
@@ -623,7 +705,7 @@ function _drawWendezeiger(ctx, x, y, r, sc) {
   ctx.fillText(L.turnR, x + r * 0.52, y - r * 0.48);
 
   /* Turn needle — vertical bar shifted by roll proxy */
-  const deflect = Math.max(-1, Math.min(1, S.roll / 20));
+  const deflect = Math.max(-1, Math.min(1, turn.rate));
   const nx = x + deflect * 38 * sc;
   ctx.strokeStyle = P.needle; ctx.lineWidth = 3 * sc; ctx.lineCap = 'round';
   ctx.beginPath();
@@ -636,7 +718,7 @@ function _drawWendezeiger(ctx, x, y, r, sc) {
   ctx.strokeStyle = P.mark; ctx.lineWidth = 1.2 * sc;
   ctx.beginPath(); ctx.arc(x, ballY, 20 * sc, Math.PI, Math.PI * 2); ctx.stroke();
   /* Ball — from the lateral acceleration (core/yaw.js); centred while the aircraft has no yaw model */
-  ctx.beginPath(); ctx.arc(x + ballDeflection(S.latAccel) * 13.5 * sc, ballY, 6.5 * sc, 0, Math.PI * 2);
+  ctx.beginPath(); ctx.arc(x + turn.ball * 13.5 * sc, ballY, 6.5 * sc, 0, Math.PI * 2);
   ctx.fillStyle = P.ndlBack; ctx.fill();
   ctx.strokeStyle = P.mark; ctx.lineWidth = 0.8 * sc; ctx.stroke();
 
@@ -648,10 +730,9 @@ function _drawWendezeiger(ctx, x, y, r, sc) {
    KOMPASS — rotating rose, fixed lubber line
    Labels: N O S W (German cardinal directions)
    ════════════════════════════════════════════════════════════ */
-function _drawKompass(ctx, x, y, r, sc) {
+function _drawKompass(ctx, x, y, r, sc, hdg) {
   _base(ctx, x, y, r);
 
-  const hdg = S.hdg;
 
   ctx.save();
   ctx.translate(x, y);
@@ -719,8 +800,8 @@ function _drawKompass(ctx, x, y, r, sc) {
    VARIOMETER — vertical speed · ±20 m/s
    0 m/s = 12 o'clock; +20 = 5 o'clock (135°); -20 = 7 o'clock (225°)
    ════════════════════════════════════════════════════════════ */
-function _drawVariometer(ctx, x, y, r, sc) {
-  const vsMs = S.vs * 0.00508;
+function _drawVariometer(ctx, x, y, r, sc, vs) {
+  const vsMs = vs * 0.00508;
   /* sweep: 0° (top) ± 135° = total 270° */
   const s0   = 225;   /* -20 m/s at 225° (7 o'clock) */
   const sw   = 270;   /* total sweep */
@@ -751,17 +832,8 @@ function _drawVariometer(ctx, x, y, r, sc) {
    ════════════════════════════════════════════════════════════ */
 
 /* Drehzahlmesser — DB 601 max ~2600 U/min */
-function _drawDrehzahl(ctx, x, y, r, sc) {
-  const running   = S.engineState === 'running';
-  const starting  = S.engineState === 'starting';
-  const shuttingDown = S.engineState === 'shutdown';
-  const maxSpd    = S.aircraft?.envelope?.maxSpd ?? 335;
-  const throttle  = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
-  const liveRpm   = (running || starting || shuttingDown) ? (getRpmValue() ?? 0) : 0;
-  /* Scale by engine health — a seizing/damaged engine loses RPM even with the throttle up */
-  const R = ST.rpm ?? {};                                      // the style's range — default the DB 601's
-  const rIdle = R.idle ?? 400, rMax = R.max ?? 2800;
-  const rpm       = running ? Math.round((rIdle + (rMax - rIdle) * throttle) * (S.enginePower ?? 1)) : liveRpm;
+function _drawDrehzahl(ctx, x, y, r, sc, rpm) {
+  const R = ST.rpm ?? {};                                      // the style's dial — default the DB 601's
   const maxR = R.dial ?? 2800;
   const step = R.step ?? 400;
   const s0   = 220, sw = 280;
@@ -784,10 +856,7 @@ function _drawDrehzahl(ctx, x, y, r, sc) {
 }
 
 /* N1 Verdichter — turbojet N1 % (replaces Drehzahlmesser when engine is jet) */
-function _drawN1Messer(ctx, x, y, r, sc) {
-  const rpmStr = getCurrentRpm();
-  let n1 = 0;
-  if (rpmStr && rpmStr.startsWith('N1 ')) n1 = parseInt(rpmStr.slice(3), 10) || 0;
+function _drawN1Messer(ctx, x, y, r, sc, n1) {
   const maxN1 = 100, s0 = 220, sw = 280;
   _base(ctx, x, y, r);
   _ticks(ctx, x, y, r, s0, sw, 10, 4, sc);   /* 10% per major, 2.5% minor */
@@ -803,8 +872,8 @@ function _drawN1Messer(ctx, x, y, r, sc) {
 }
 
 /* Öltemperatur — 0–130°C. Thermally lagged state from physics.js. */
-function _drawOelTemp(ctx, x, y, r, sc) {
-  const oilT = Math.max(0, Math.min(130, S.oilTempC ?? 15));
+function _drawOelTemp(ctx, x, y, r, sc, oilC) {
+  const oilT = Math.max(0, Math.min(130, oilC));
   const maxT = 130;
   const s0   = 220, sw = 280;
 
@@ -834,9 +903,9 @@ function _drawOelTemp(ctx, x, y, r, sc) {
 
 /* Kühlstofftemperatur — coolant temp (DB605); heat-balance state from physics.js.
    Green band from aircraft.cooling.normal, red from redline up. */
-function _drawKuehlstoffTemp(ctx, x, y, r, sc) {
+function _drawKuehlstoffTemp(ctx, x, y, r, sc, coolC) {
   const maxT = 130;
-  const cT   = Math.max(0, Math.min(maxT, S.coolantTemp ?? 15));
+  const cT   = Math.max(0, Math.min(maxT, coolC));
   const s0   = 220, sw = 280;
   const norm = S.aircraft?.cooling?.normal  ?? [80, 100];
   const red  = S.aircraft?.cooling?.redline ?? 115;
@@ -867,18 +936,7 @@ function _drawKuehlstoffTemp(ctx, x, y, r, sc) {
 }
 
 /* Öldruck — 0–10 atü */
-function _drawOelDruck(ctx, x, y, r, sc) {
-  const running      = S.engineState === 'running';
-  const starting     = S.engineState === 'starting';
-  const shuttingDown = S.engineState === 'shutdown';
-  const maxSpd       = S.aircraft?.envelope?.maxSpd ?? 335;
-  const throttle     = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
-  const dynRpm       = (starting || shuttingDown) ? (getRpmValue() ?? 0) : 0;
-  /* Builds with RPM during startup, decays during shutdown */
-  const oilP = running     ? 1.5 + throttle * 6.0
-             : starting    ? Math.min(1.5, dynRpm / 400 * 1.5)
-             : shuttingDown ? Math.max(0, dynRpm / 2800 * 7.5)
-             : 0;
+function _drawOelDruck(ctx, x, y, r, sc, oilP) {                 // kg/cm² (atü)
   const maxP = 10;
   const s0   = 220, sw = 280;
 
@@ -936,9 +994,9 @@ function _drawFrost(ctx, W, H) {
 /* ════════════════════════════════════════════════════════════
    AIRSPEED — 0–400 kt
    ════════════════════════════════════════════════════════════ */
-function _drawAirspeed(ctx, x, y, r, sc) {
+function _drawAirspeed(ctx, x, y, r, sc, kt) {
   const A    = ST.asi ?? {};                                   // the style's scale — default the F4U's (kt, 0–400, arcs)
-  const spd  = (S.spd ?? 0) * (A.factor ?? 1);
+  const spd  = kt * (A.factor ?? 1);
   const maxV = A.max ?? 400;
   const step = A.step ?? 50;
   const s0   = 220, sw = 280;
@@ -980,11 +1038,11 @@ function _drawAirspeed(ctx, x, y, r, sc) {
 /* ════════════════════════════════════════════════════════════
    ARTIFICIAL HORIZON — Pacific atmosphere
    ════════════════════════════════════════════════════════════ */
-function _drawHorizon(ctx, x, y, r, sc) {
+function _drawHorizon(ctx, x, y, r, sc, att) {
   _base(ctx, x, y, r);
 
-  const pitch = S.pitch ?? 0;
-  const roll  = S.roll  ?? 0;
+  const pitch = att.pitch;
+  const roll  = att.roll;
 
   ctx.save();
   ctx.translate(x, y);
@@ -1071,8 +1129,7 @@ function _drawHorizon(ctx, x, y, r, sc) {
    Fine needle: 1 rev per 10,000 ft
    Coarse stub: 1 rev per 100,000 ft
    ════════════════════════════════════════════════════════════ */
-function _drawAltimeter(ctx, x, y, r, sc) {
-  const alt  = S.alt ?? 0;
+function _drawAltimeter(ctx, x, y, r, sc, alt) {
   const s0   = 220, sw = 300;
 
   _base(ctx, x, y, r);
@@ -1105,7 +1162,7 @@ function _drawAltimeter(ctx, x, y, r, sc) {
 /* ════════════════════════════════════════════════════════════
    TURN & SLIP
    ════════════════════════════════════════════════════════════ */
-function _drawTurnSlip(ctx, x, y, r, sc) {
+function _drawTurnSlip(ctx, x, y, r, sc, turn) {
   _base(ctx, x, y, r);
 
   const arcR = r * 0.72;
@@ -1128,7 +1185,7 @@ function _drawTurnSlip(ctx, x, y, r, sc) {
   ctx.fillText(L.turnL, x - r * 0.52, y - r * 0.48);
   ctx.fillText(L.turnR, x + r * 0.52, y - r * 0.48);
 
-  const deflect = Math.max(-1, Math.min(1, (S.roll ?? 0) / 20));
+  const deflect = Math.max(-1, Math.min(1, turn.rate));
   const nx = x + deflect * 38 * sc;
   ctx.strokeStyle = P.needle; ctx.lineWidth = 3 * sc; ctx.lineCap = 'round';
   ctx.beginPath();
@@ -1140,7 +1197,7 @@ function _drawTurnSlip(ctx, x, y, r, sc) {
   ctx.strokeStyle = P.mark; ctx.lineWidth = 1.2 * sc;
   ctx.beginPath(); ctx.arc(x, ballY, 20 * sc, Math.PI, Math.PI * 2); ctx.stroke();
   /* Ball — from the lateral acceleration (core/yaw.js); centred while the aircraft has no yaw model */
-  ctx.beginPath(); ctx.arc(x + ballDeflection(S.latAccel) * 13.5 * sc, ballY, 6.5 * sc, 0, Math.PI * 2);
+  ctx.beginPath(); ctx.arc(x + turn.ball * 13.5 * sc, ballY, 6.5 * sc, 0, Math.PI * 2);
   ctx.fillStyle = P.ndlBack; ctx.fill();
   ctx.strokeStyle = P.mark; ctx.lineWidth = 0.8 * sc; ctx.stroke();
 
@@ -1151,10 +1208,9 @@ function _drawTurnSlip(ctx, x, y, r, sc) {
 /* ════════════════════════════════════════════════════════════
    COMPASS — rotating rose, English cardinals
    ════════════════════════════════════════════════════════════ */
-function _drawCompass(ctx, x, y, r, sc) {
+function _drawCompass(ctx, x, y, r, sc, hdg) {
   _base(ctx, x, y, r);
 
-  const hdg = S.hdg ?? 0;
 
   ctx.save();
   ctx.translate(x, y);
@@ -1218,8 +1274,7 @@ function _drawCompass(ctx, x, y, r, sc) {
 /* ════════════════════════════════════════════════════════════
    RATE OF CLIMB — ±2000 fpm
    ════════════════════════════════════════════════════════════ */
-function _drawVSI(ctx, x, y, r, sc) {
-  const vs   = S.vs ?? 0;
+function _drawVSI(ctx, x, y, r, sc, vs) {
   const maxV = 2000;
   const s0   = 225, sw = 270, mid = 360;
 
@@ -1245,11 +1300,7 @@ function _drawVSI(ctx, x, y, r, sc) {
 /* ════════════════════════════════════════════════════════════
    MANIFOLD PRESSURE — 0–60 in.Hg
    ════════════════════════════════════════════════════════════ */
-function _drawManifold(ctx, x, y, r, sc) {
-  const maxSpd  = S.aircraft?.envelope?.maxSpd ?? 362;
-  const throttle = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
-  /* R-2800 at idle ~12 in.Hg, full throttle ~52 in.Hg */
-  const mp   = (S.wow || (S.spdT ?? 0) === 0) ? 12 : 12 + throttle * 40;
+function _drawManifold(ctx, x, y, r, sc, mp) {                  // in.Hg
   const maxP = 60;
   const s0   = 220, sw = 280;
 
@@ -1279,9 +1330,9 @@ function _drawManifold(ctx, x, y, r, sc) {
 /* ════════════════════════════════════════════════════════════
    OIL TEMPERATURE — 0–300°F
    ════════════════════════════════════════════════════════════ */
-function _drawOilTemp(ctx, x, y, r, sc) {
+function _drawOilTemp(ctx, x, y, r, sc, oilC) {
   /* Convert oilTempC (°C) to °F */
-  const oilF = Math.max(0, Math.min(300, ((S.oilTempC ?? 15) * 9/5) + 32));
+  const oilF = Math.max(0, Math.min(300, (oilC * 9/5) + 32));
   const maxT = 300;
   const s0   = 220, sw = 280;
 
@@ -1311,9 +1362,9 @@ function _drawOilTemp(ctx, x, y, r, sc) {
 /* ════════════════════════════════════════════════════════════
    CYLINDER HEAD TEMP — R-2800 air-cooled, coolantTemp state (°C) in °F
    ════════════════════════════════════════════════════════════ */
-function _drawCHT(ctx, x, y, r, sc) {
+function _drawCHT(ctx, x, y, r, sc, coolC) {
   const maxT = 500;
-  const chtF = Math.max(0, Math.min(maxT, ((S.coolantTemp ?? 15) * 9/5) + 32));
+  const chtF = Math.max(0, Math.min(maxT, (coolC * 9/5) + 32));
   const cF   = c => c * 9/5 + 32;
   const norm = S.aircraft?.cooling?.normal  ?? [180, 230];
   const redC = S.aircraft?.cooling?.redline ?? 232;
@@ -1344,10 +1395,8 @@ function _drawCHT(ctx, x, y, r, sc) {
 /* ════════════════════════════════════════════════════════════
    OIL PRESSURE — 0–100 PSI
    ════════════════════════════════════════════════════════════ */
-function _drawOilPressure(ctx, x, y, r, sc) {
-  const maxSpd  = S.aircraft?.envelope?.maxSpd ?? 362;
-  const throttle = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
-  const oilP = (S.enginePower ?? 1) > 0.1 ? 40 + throttle * 35 : 0;
+function _drawOilPressure(ctx, x, y, r, sc, oilKg) {
+  const oilP = oilKg * 14.223;                                   // kg/cm² → PSI
   const maxP = 100;
   const s0   = 220, sw = 280;
 

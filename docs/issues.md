@@ -701,7 +701,7 @@ The cell shows real N1 only on the multi-engine turbofans. For the others the va
 | purely decorative | none so far |
 
 **Steps.**
-1. **Instrument registry** — the kinds above; each kind names its sim value.
+1. **Instrument registry** — the kinds above; each kind names its sim value. *Started 2026-11-09:* `INSTRUMENTS` in `analog_panel.js` for today's instruments — `read` from the sim, the draw functions only draw the value they are given (`tests/analog-registry.test.mjs`); the formulas moved out of the drawing code into marked stand-ins (rpm, N1, oil and manifold pressure — one oil pressure value in kg/cm² now, also on the imperial dials). The new kinds (two-needle dial, lamps, sight glass, bubble level, clock face as an instrument) come with the aircraft that use them (step 5).
 2. **Flowing layout** from groups and order, for both views, by the layout rules above (tried in the mockup).
 3. **Schema** — `analogPanel` (groups, entries, `absent`, `decorative`, `simple`), the data check; all seven on `analog`.
 4. **Scales from the data.**
