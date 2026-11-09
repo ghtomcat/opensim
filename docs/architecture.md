@@ -551,9 +551,9 @@ largest dials; a large dial at most 200 CSS px; in the panel view clear of the m
 mission title at the top corners. An
 **instrument registry** (`INSTRUMENTS`) says what each instrument shows: `read` takes the
 value from the sim, the draw functions only draw what they are given
-(`tests/analog-registry.test.mjs`). Rpm, N1, oil and manifold pressure are still
-stand-ins (rpm and N1 through the sound code, the pressures from the throttle), each marked
-with what replaces it.
+(`tests/analog-registry.test.mjs`). Rpm and N1 are the engine model's (`core/engine.js`
+`engineRpm`, read by the sound as well); oil, fuel and manifold pressure, the ammeter, the
+pitch and the Avro's tank pressure are still stand-ins, each marked with what replaces it.
 
 **Planned** (docs/issues.md, *The analog panels draw a borrowed fighter panel*):
 - the **style is only the look** (palette, labels, units — by era and airframe);

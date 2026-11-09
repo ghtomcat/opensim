@@ -9,6 +9,7 @@ import { S }                    from '../core/state.js';
 import { updateG1000MapOverlay } from './map.js';
 import { getCOMState }           from './com.js';
 import { flapLabel }             from '../core/airframe.js';
+import { engineRpm }             from '../core/engine.js';
 
 const G = {
   bg:      'rgba(18,20,26,0.65)',
@@ -499,8 +500,8 @@ function _engineStrip(ctx, x, y, w, h) {
   const throttle = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
   const _engOff  = S.engineState === 'off' || S.engineState === 'shutdown';
   const ePow     = _engOff ? 0 : (S.enginePower ?? 1.0);
-  const rpm      = ePow <= 0 ? 0 : Math.round((700 + 2000 * throttle) * ePow);
-  const rpmText  = ePow <= 0 ? '---' : rpm.toString();
+  const rpm      = Math.round(engineRpm(0) ?? 0);                    // the engine model's (core/engine.js)
+  const rpmText  = rpm < 5 ? '---' : rpm.toString();
   const warns    = S.warnings ?? {};
 
   ctx.fillStyle = G.panel;

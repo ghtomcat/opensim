@@ -18,7 +18,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from '../core/state.js';
-import { getRpmValue, getCurrentRpm } from '../core/sound.js';
+import { engineRpm } from '../core/engine.js';
 import { drawAnalogClock } from './clock.js';
 import { ballDeflection } from '../core/yaw.js';
 import { indicatedAlt, baroSubscale } from '../core/baro.js';
@@ -143,26 +143,15 @@ const _frac = v => ((v % 1) + 1) % 1;
    ════════════════════════════════════════════════════════════ */
 const _throttle = () => Math.max(0, Math.min(1, (S.spdT ?? 0) / (S.aircraft?.envelope?.maxSpd ?? 335)));
 
-/** rpm — from the throttle while running (engine.idleRpm…maxRpm, scaled by engine health), else the sound
-    code's start/stop curve → S.engines[i].rpm from core/engine.js */
-function _simpleRpm() {
-  const st = S.engineState;
-  if (st === 'running') {
-    const e = S.aircraft?.engine ?? {}, rIdle = e.idleRpm ?? 400, rMax = e.maxRpm ?? 2800;
-    return Math.round((rIdle + (rMax - rIdle) * _throttle()) * (S.enginePower ?? 1));
-  }
-  return (st === 'starting' || st === 'shutdown') ? (getRpmValue() ?? 0) : 0;
-}
+/** rpm — the engine's own (core/engine.js: running, the start sequence, the run-down) */
+const _rpm = () => engineRpm(0) ?? 0;
 
-/** N1 % — parsed from the sound code's readout → S.engines[i].n1 */
-function _simpleN1() {
-  const str = getCurrentRpm();
-  return str && str.startsWith('N1 ') ? (parseInt(str.slice(3), 10) || 0) : 0;
-}
+/** N1 % of a turbojet — its rpm as a share of the maximum (the VK-1: 11 560 rpm = 100 %) */
+function _n1Pct() { return _rpm() / (S.aircraft?.engine?.maxRpm ?? 1) * 100; }
 
 /** oil pressure, kg/cm² — builds with rpm on the start, decays on the stop → "The oil system" */
 function _simpleOilPress() {
-  const st = S.engineState, dyn = getRpmValue() ?? 0;
+  const st = S.engineState, dyn = _rpm();
   return st === 'running'  ? 1.5 + _throttle() * 6.0
        : st === 'starting' ? Math.min(1.5, dyn / 400 * 1.5)
        : st === 'shutdown' ? Math.max(0, dyn / 2800 * 7.5)
@@ -181,7 +170,7 @@ const _fuelFlows  = () => !S.fuelShutoff && _fuelLitres() > 0;
     start, falling over the starvation run-down once the cock is closed or the tank empty → "The fuel system" */
 function _simpleFuelPress() {
   const st = S.engineState, normal = 1.3;
-  if (st === 'starting') return Math.min(normal, (getRpmValue() ?? 0) / 400 * normal);
+  if (st === 'starting') return Math.min(normal, _rpm() / 400 * normal);
   if (st !== 'running') return 0;
   if (_fuelFlows() && S.fuelStarveT == null) return normal;
   return normal * Math.max(0, Math.min(1, (S.fuelStarveT ?? 0) / 10));
@@ -222,9 +211,9 @@ export const INSTRUMENTS = {
                      imperial: (ctx, x, y, r, sc, v, scale, variant) => (variant === 'bubble' ? _drawBubbleCompass : _drawCompass)(ctx, x, y, r, sc, v) } },
   vsi:     { value: 'S.vs (fpm)',                         read: () => S.vs ?? 0,
              draw: { metric: _drawVariometer, imperial: _drawVSI } },
-  rpm:     { value: 'rpm',                                read: _simpleRpm, simple: 'S.engines[i].rpm (core/engine.js)',
+  rpm:     { value: 'rpm — engineRpm() (core/engine.js)',  read: _rpm,
              draw: { metric: _drawDrehzahl, imperial: _drawDrehzahl } },
-  n1:      { value: 'N1 (%)',                             read: _simpleN1, simple: 'S.engines[i].n1 (core/engine.js)',
+  n1:      { value: 'N1 % — a turbojet\'s rpm / maxRpm (core/engine.js)', read: _n1Pct,
              draw: { metric: _drawN1Messer } },
   oilT:    { value: 'S.oilTempC (°C)',                    read: () => S.oilTempC ?? 15,
              draw: { metric: (ctx, x, y, r, sc, v, scale) => scale ? _drawGauge(ctx, x, y, r, sc, v, scale, { max: 130, step: 20, ring: 'oil', big: '°C', name: 'oilT' })
@@ -252,7 +241,7 @@ export const INSTRUMENTS = {
              draw: _both(_drawPitchClock) },
   airP:    { value: 'fuel tank air pressure (lb/sq in)',  read: _simpleTankPress, simple: 'The fuel system (issues.md)',
              draw: _both((ctx, x, y, r, sc, v, scale) => _drawGauge(ctx, x, y, r, sc, v, scale, { max: 5, step: 1, start: 310, sweep: 100, big: 'lb/sq in', name: 'airP' })) },
-  pulsator:{ value: 'oil flowing — the rotary running (rpm)', read: () => S.engineState === 'running' ? _simpleRpm() : 0,
+  pulsator:{ value: 'oil flowing — the rotary running (rpm)', read: () => S.engineState === 'running' ? _rpm() : 0,
              simple: 'The oil system (issues.md)', kind: 'glass', draw: _both(_drawPulsator) },
   level:   { value: 'the ball (S.latAccel)',              read: () => ballDeflection(S.latAccel), kind: 'level',
              draw: _both(_drawLevel) },
@@ -447,6 +436,7 @@ function _num(ctx, x, y, r, deg, text, sz, sc, rr = 0.70) {
      sweep        degrees the scale runs round the dial (default 280)
      start        where the scale (min) begins, degrees from 12 o'clock — default: the sweep centred on the bottom
      zero         a 0 mark before min — an airspeed dial reads nothing useful below the stall
+     zeroFigure   false: the 0 is the needle's rest position only, no tick or figure (D-FEML's rev counter)
      red          from → max, or [a, b];   yellow, green   [a, b];   redLine / yellowLine  a radial mark at a value (or several)
      figuresTo    the last figure (the scale may run on past it);   endMark  a small triangle at the end of the scale
    An aircraft's scale brings its own arcs: the dial's default arcs apply only without one.
@@ -488,7 +478,7 @@ function _scale(ctx, x, y, r, sc, scale, def) {
   const marks = [A.min];
   for (let v = Math.floor(A.min / A.step) * A.step + A.step; v <= (A.figuresTo ?? A.max) + 1e-9; v += A.step)
     if (v - A.min >= A.step / 2) marks.push(v);                     // a figure too close to the start would collide with it
-  if (A.zero) { _ticks(ctx, x, y, r, s0, 0, 1, 1, sc); marks.unshift(0); }
+  if (A.zero && A.zeroFigure !== false) { _ticks(ctx, x, y, r, s0, 0, 1, 1, sc); marks.unshift(0); }   // zeroFigure false: a rest position, unmarked
   for (const v of marks) _num(ctx, x, y, r, ang(v), v === 0 ? '0' : String(+(v / A.div).toFixed(2)), A.numSize ?? 8.5, sc, A.numR);
   ctx.textBaseline = 'alphabetic';
   return ang;

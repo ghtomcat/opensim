@@ -1875,8 +1875,23 @@
   import { initLeftConsole, toggleLeftConsole, renderLeftConsole } from './display/leftconsole.js';
   import { initRightConsole, renderRightConsole } from './display/rightconsole.js';
   import { initCenterConsole, toggleCenter, renderCenterConsole } from './display/centerconsole.js';
-  import { initSound, startSound, stopSound, switchEngine, tickSound, getCurrentRpm, silenceAll, apDisconnectChime } from './core/sound.js';
-  import { startEngine, stopEngine, adoptEngineFields } from './core/engine.js';
+  import { initSound, startSound, stopSound, switchEngine, tickSound, silenceAll, apDisconnectChime } from './core/sound.js';
+
+  /* The engine reading for the status bar and window.simGetRpm — from the engine model (core/engine.js), not
+     the sound: a turbofan's N1; a turbojet's N1 % (rpm / maxRpm); an engine with an rpm range in its data, rpm;
+     the others (Tu-95, An-225, DC-8 — no engine data yet) the N1-like share they showed before. */
+  function _engineReadout() {
+    const eng = S.aircraft?.engine ?? {};
+    if (eng.type === 'turbofan') return `N1 ${Math.round(S.n1 ?? 0)}%`;
+    const rpm = engineRpm(0);
+    if (rpm == null) return null;                                         // an electric motor
+    if ((S.engineState ?? 'off') === 'off') return '---';
+    if (eng.type === 'turbojet') return rpm / eng.maxRpm < 0.005 ? '---' : `N1 ${Math.round(rpm / eng.maxRpm * 100)}%`;
+    if (eng.idleRpm != null) return rpm < 5 ? '--- RPM' : `${Math.round(rpm)} RPM`;
+    const r = rpmRange();
+    return rpm <= 0 ? '---' : `N1 ${Math.round(20 + 80 * Math.max(0, (rpm - r.idle) / (r.max - r.idle)))}%`;
+  }
+  import { startEngine, stopEngine, adoptEngineFields, engineRpm, rpmRange } from './core/engine.js';
   import { audioContext, audioOutput, audioMuted, setAudioMuted } from './core/audio.js';
   import { initOutside, tickOutside, outsideInvalidate, setOutsideCamMode } from './display/outside.js?v=6';
   import { initKneeboard, toggleKneeboard, closeKneeboard, tickKneeboard } from './display/kneeboard.js';
@@ -3934,7 +3949,7 @@
        A multi-engine jet: every engine's N1, left to right — off --, failed or not yet running amber. */
     const _engSt   = S.engineState ?? 'off';
     const _isV12   = S.aircraft?.sound?.engineType === 'v12-supercharged';
-    const _engRead = S.aircraft?.engine?.type === 'turbofan' ? `N1 ${Math.round(S.n1 ?? 0)}%` : getCurrentRpm();
+    const _engRead = _engineReadout();
     const _hasRead = !!_engRead && !_engRead.startsWith('---');
     const _engEl   = document.getElementById('pv-rpm');
     const _engs    = S.engines ?? [];
@@ -4442,7 +4457,7 @@
   if (_isTestMode) {
     window.simGetState    = () => ({ ...S });
     window.simSetState    = (patch) => { setState(patch); adoptEngineFields(patch); };   // single engine fields → every engine (core/engine.js)
-    window.simGetRpm      = () => getCurrentRpm();
+    window.simGetRpm      = () => _engineReadout();
     window.simEngineState = () => S.engineState ?? 'off';
     window.simStep     = (n = 1, dt = 1/60) => {
       for (let i = 0; i < n; i++) tickSim(dt);   // the game loop's own step

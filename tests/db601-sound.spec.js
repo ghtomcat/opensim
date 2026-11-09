@@ -45,7 +45,7 @@ test.describe('DB 601 engine state machine', () => {
   });
 
   test('rpm string is absent (null) for non-impulse aircraft', async ({ page }) => {
-    /* getCurrentRpm() returns null only when _cfg is not set.
+    /* The reading is null only for an electric motor (core/engine.js rpmOf).
        For v12-supercharged the instrument always shows RPM — even engine off — so we
        just verify the format is correct when the engine is configured. */
     await loadMission(page, 'wolfskopf-1942');
@@ -61,7 +61,7 @@ test.describe('DB 601 engine state machine', () => {
 
 test.describe('DB 601 RPM calculation', () => {
   const CFG = {
-    rpmIdle: 400,
+    rpmIdle: 550,   // aircraft/bf109.json engine.idleRpm (the DB 601 A idles at 500–600)
     rpmMax:  2800,
     maxSpd:  335,   // bf109 envelope.maxSpd
   };
@@ -71,17 +71,17 @@ test.describe('DB 601 RPM calculation', () => {
     return Math.round(CFG.rpmIdle + (CFG.rpmMax - CFG.rpmIdle) * throttle);
   }
 
-  test('getCurrentRpm() returns idle RPM at spdT=0 after engine running', async ({ page }) => {
+  test('the engine rpm (simGetRpm, core/engine.js) is idle at spdT=0 after engine running', async ({ page }) => {
     await loadMission(page, 'wolfskopf-1942');
     /* Put engine in running state without audio (set state directly) */
     await setState(page, { engineState: 'running', spdT: 0 });
     const rpmStr = await getRpm(page);
     expect(rpmStr).not.toBeNull();
     const rpm = parseInt(rpmStr);
-    expect(rpm).toBe(expectedRpm(0));   // 400 RPM at idle
+    expect(rpm).toBe(expectedRpm(0));   // 550 RPM at idle
   });
 
-  test('getCurrentRpm() rises with spdT', async ({ page }) => {
+  test('the engine rpm rises with spdT', async ({ page }) => {
     await loadMission(page, 'wolfskopf-1942');
     await setState(page, { engineState: 'running', spdT: 0 });
     const rpmIdle = parseInt(await getRpm(page));
@@ -92,13 +92,13 @@ test.describe('DB 601 RPM calculation', () => {
     await setState(page, { spdT: 335 });   // full throttle
     const rpmFull = parseInt(await getRpm(page));
 
-    expect(rpmIdle).toBe(400);
+    expect(rpmIdle).toBe(550);
     expect(rpmHalf).toBeGreaterThan(rpmIdle);
     expect(rpmFull).toBe(2800);
     expect(rpmFull).toBeGreaterThan(rpmHalf);
   });
 
-  test('getCurrentRpm() stays within rpmIdle–rpmMax for any spdT', async ({ page }) => {
+  test('the engine rpm stays within idleRpm–maxRpm for any spdT', async ({ page }) => {
     await loadMission(page, 'wolfskopf-1942');
     await setState(page, { engineState: 'running' });
 

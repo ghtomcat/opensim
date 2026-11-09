@@ -68,8 +68,9 @@ test('every analog aircraft names only instruments its style can draw (a manifol
   assert.deepEqual(bad, []);
 });
 
-test('the stand-ins are marked: rpm, N1, manifold and oil pressure say what replaces them', () => {
-  for (const id of ['rpm', 'n1', 'map', 'oilP']) assert.match(INSTRUMENTS[id].simple ?? '', /\S/, id);
+test('the stand-ins are marked and say what replaces them; rpm and N1 are the engine model\'s, no stand-in', () => {
+  for (const id of ['map', 'oilP', 'amps', 'fuelOilP', 'pitch', 'airP', 'pulsator']) assert.match(INSTRUMENTS[id].simple ?? '', /\S/, id);
+  for (const id of ['rpm', 'n1']) assert.equal(INSTRUMENTS[id].simple, undefined, id);
 });
 
 test('the two sourced panels keep to their sources: D-FEML (Bf 109 E-4) and G-EBHB (Avro 504K)', () => {

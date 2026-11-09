@@ -63,7 +63,7 @@ const _idleN1    = () => _eng().idleN1 ?? 22;
 const _count     = (eng = _eng()) => Math.max(1, eng.count ?? 1);
 
 /* ── The engines ─────────────────────────────────────────────────
-   S.engines[i] = { state, startT, stopT, n1, core, egt, ff, oil, factors, power } — one per engine.
+   S.engines[i] = { state, startT, stopT, n1, core, egt, ff, oil, factors, power, rpm } — one per engine (rpm: not a turbofan).
    The single fields the rest of the sim still reads (engineState, enginePower, n1,
    engineStartT, engineStopT, engineFactors) are derived from the array on every change;
    what must tell the engines apart (thrust, generators, pumps, the engine displays) reads
@@ -306,7 +306,7 @@ export function stopEngine(i) {
   const engines = _engines();
   const hit  = _hits(i);
   const next = engines.map((e, k) => (!hit(k) || e.state === 'off' || e.state === 'shutdown')
-                                   ? e : _withState(e, { state: 'shutdown', startT: null, stopT: 0 }));
+                                   ? e : _withState(e, { state: 'shutdown', startT: null, stopT: 0, rpm0: rpmOf(e) }));
   if (next.every((e, k) => e === engines[k])) return;
   const extra = {};
   if (_turbofan()) extra.engMasters = Array.from({ length: _count() }, (_, k) => hit(k) ? false : !!S.engMasters?.[k]);
@@ -391,6 +391,64 @@ function _stepLifecycle(e, dt, eng) {
   return e;
 }
 
+/* ── RPM (piston, rotary, turbojet, turboprop) ─────────────────────
+   Every engine that is not a turbofan or electric has its rpm here — S.engines[i].rpm, and
+   engineRpm(i) for any moment (a reader that sets the state and reads at once). The analog
+   panels, the G1000, the status bar and the sound's synthesis all read it; the sound no longer
+   computes its own (issues.md, "The Engine cell's reading comes from the sound module").
+     running   (engine.idleRpm + (maxRpm − idleRpm) × throttle) × the engine's power; a turbojet
+               maxRpm × (0.2 + 0.8 × throttle) while it has power (the VK-1's 11 560 rpm = 100 %)
+     starting  the start sequence: the curves the start-up recordings are cut to, by the
+               engine's sound type; else a plain ramp to idle over engine.startTime
+     shutdown  a run-down from the rpm at cutoff (the impulse engines 1.2 s, a turbojet 4.5 s)
+   The throttle is spdT / envelope.maxSpd (issues.md, "envelope.maxSpd is three values at once"). */
+const _rpmRange = (eng = _eng()) => ({ idle: eng.idleRpm ?? 400, max: eng.maxRpm ?? 2800 });
+/** The idle and maximum rpm the engine model uses for the aircraft's engine (defaults where the data has none) */
+export const rpmRange = () => _rpmRange();
+const _throttleFrac = () => Math.max(0, Math.min(1, (S.spdT ?? 0) / (S.aircraft?.envelope?.maxSpd ?? 350)));
+
+/* The start curves — moved here from core/sound.js unchanged: the start-up recordings are cut to them */
+const START_RPM = {
+  /* DB 601: the flywheel spun up (26 s), the clutch "klonk", motoring 65 → 47 (2.8 s), the run-up 80 → idle (42 s) */
+  'v12-supercharged': (t, r) => {
+    const runStart = 26.0 + 0.06 + 0.18 + 0.06 + 2.8 + 0.06;
+    if (t < 26.0) return 0;
+    if (t < runStart) return 65 - Math.min(1, (t - 26.0 - 0.06 - 0.18 - 0.06) / 2.8) * 18;
+    return 80 + (r.idle - 80) * Math.pow(Math.min(1, (t - runStart) / 42.0), 0.55);
+  },
+  /* R-2800: the flywheel (cold 26 s / warm 12 s / hot none, by the oil temperature), motoring 65 → 47, run-up 65 → idle (35 s) */
+  'radial-2000hp': (t, r) => {
+    const oilC = S.oilTempC ?? 15;
+    const flywheel = oilC >= 60 ? 0 : oilC >= 30 ? 12.0 : 26.0;
+    const motorStart = oilC >= 60 ? 0 : flywheel + 0.06 + 0.18 + 0.06, runStart = motorStart + 2.8 + 0.06;
+    if (t < motorStart) return 0;
+    if (t < runStart) return 65 - Math.min(1, (t - motorStart) / 2.8) * 18;
+    return 65 + (r.idle - 65) * Math.pow(Math.min(1, (t - runStart) / 35.0), 0.6);
+  },
+  /* VK-1: N1 0 → 22 % over the 28.5 s start sequence */
+  'turbojet-vk1': (t, r) => r.max * 0.22 * Math.min(1, t / 28.5),
+};
+
+/** The rpm of engine `e` now (null for a turbofan or an electric motor) */
+export function rpmOf(e, eng = _eng()) {
+  if (!e || eng.type === 'turbofan' || eng.type === 'electric') return null;
+  const r = _rpmRange(eng), jet = eng.type === 'turbojet';
+  if (e.state === 'starting') {
+    const curve = START_RPM[S.aircraft?.sound?.engineType];
+    return curve ? curve(e.startT ?? 0, r) : r.idle * Math.min(1, (e.startT ?? 0) / Math.max(0.1, eng.startTime ?? 1));
+  }
+  if (e.state === 'running') {
+    const p = e.power ?? 1;
+    return jet ? (p > 0 ? r.max * (0.2 + 0.8 * _throttleFrac()) : 0)
+               : (r.idle + (r.max - r.idle) * _throttleFrac()) * p;
+  }
+  if (e.state === 'shutdown') return Math.max(0, (e.rpm0 ?? 0) * Math.exp(-(e.stopT ?? 0) / (jet ? 4.5 : 1.2)));
+  return 0;
+}
+
+/** Engine i's rpm now (null for a turbofan or an electric motor) */
+export function engineRpm(i = 0) { return rpmOf(_engines()[i]); }
+
 /** One sim step — called from tickSim() right before physics: the turbofan spool, then the lifecycle. */
 export function tickEngine(dt) {
   const eng = _eng();
@@ -408,6 +466,8 @@ export function tickEngine(dt) {
                              : e);
   } else {
     engines = engines.map(e => _stepLifecycle(e, dt, eng));
+    /* the rpm, stored for the readers that take the array (a change of half a turn or more) */
+    engines = engines.map(e => { const rpm = rpmOf(e, eng); return rpm == null || Math.abs((e.rpm ?? -1) - rpm) < 0.5 ? e : { ...e, rpm }; });
   }
   if (engines.every((e, k) => e === before[k])) return;
 

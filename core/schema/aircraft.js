@@ -133,7 +133,7 @@ const VIEW_ZONES = ['overhead', 'left', 'center', 'right', 'pedestal'];
 /* A dial's scale, in the dial's own unit (display/analog_panel.js, _scale): the ends, the numeral and tick
    spacing, how far round it runs, a 0 mark before the scale, the coloured arcs. Absent → the dial's default. */
 const dialScale = object({
-  unit: oneOf('km/h', 'kt', 'mph'), min: num, max: num, step: num, tick: num, minor: num, div: num, sweep: num, start: num, zero: bool,
+  unit: oneOf('km/h', 'kt', 'mph'), min: num, max: num, step: num, tick: num, minor: num, div: num, sweep: num, start: num, zero: bool, zeroFigure: bool,
   red: anyOf(num, arrayOf(num)), yellow: arrayOf(num), green: arrayOf(num), redLine: anyOf(num, arrayOf(num)), yellowLine: anyOf(num, arrayOf(num)),
   figuresTo: num, endMark: bool,
 }, { required: ['max', 'step'] });

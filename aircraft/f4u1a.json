@@ -29,7 +29,7 @@
     ]
   },
   "name": "Vought F4U-1A Corsair",
-  "engine": { "type": "piston", "count": 1, "model": "r-2800-8", "description": "Pratt & Whitney R-2800-8 Double Wasp, 18-cylinder radial", "startTime": 64.1, "stopTime": 5.5 },
+  "engine": { "type": "piston", "count": 1, "model": "r-2800-8", "idleRpm": 750, "maxRpm": 2700, "description": "Pratt & Whitney R-2800-8 Double Wasp, 18-cylinder radial", "startTime": 64.1, "stopTime": 5.5 },
   "manufacturer": "vought",
   "family": "f4u-corsair",
   "model": "f4u-1a",

@@ -13,7 +13,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { S, setState } from '../core/state.js';
 import { startEngine, stopEngine, engineQuit, tickEngine, initialEngine, hasStartSequence, setEngineFactor,
-         apuMaster, apuStart, apuFire, engineMaster, adoptEngineFields, engineAvailable, coreAtN1, engineOilLow } from '../core/engine.js';
+         apuMaster, apuStart, apuFire, engineMaster, adoptEngineFields, engineAvailable, coreAtN1, engineOilLow,
+         engineRpm } from '../core/engine.js';
 import { startRecording, apuStartRecording } from '../core/sound.js';
 import { tickThrust } from '../core/thrust.js';
 import { tickElectrical } from '../core/electrical.js';
@@ -525,4 +526,49 @@ test('a failed engine in flight: oil pressure low → OIL_PRESS; one shut down (
   for (let t = 0; t < 120; t += 0.1) tickEngine(0.1);
   tickFuel(0.1);
   assert.equal(S.warnings.OIL_PRESS, false);
+});
+
+
+/* ── RPM — the engine's own (core/engine.js), read by the panels, the status bar and the sound ── */
+
+test('rpm running: idle to max with the throttle, scaled by the engine\'s power (the DB 601: 550–2800)', () => {
+  const bf = load('bf109'), step = cold(bf);
+  set({ engineState: 'running', enginePower: 1, spdT: 0 });
+  assert.equal(Math.round(engineRpm(0)), 550);
+  set({ spdT: bf.envelope.maxSpd });
+  assert.equal(Math.round(engineRpm(0)), 2800);
+  set({ spdT: bf.envelope.maxSpd / 2 });
+  assert.equal(Math.round(engineRpm(0)), 1675);
+  step(0.1);
+  assert.equal(Math.round(S.engines[0].rpm), 1675, 'stored on the tick for the readers of the array');
+});
+
+test('rpm starting: the DB 601\'s start curve — the flywheel (0 rpm, 26 s), motoring, the run-up to idle at the end', () => {
+  const bf = load('bf109'), step = cold(bf, { spdT: 0 });
+  startEngine();
+  step(20);  assert.equal(engineRpm(0), 0, 'the flywheel is being spun up — the engine stands');
+  step(8);   assert.ok(engineRpm(0) > 40 && engineRpm(0) < 70, `motoring: ${engineRpm(0)}`);
+  step(40);  assert.ok(engineRpm(0) > 300, `the run-up: ${engineRpm(0)}`);
+  step(4);   assert.equal(S.engineState, 'running');
+  assert.equal(Math.round(engineRpm(0)), 550, 'idle once it runs');
+});
+
+test('rpm shutdown: it runs down from the rpm at cutoff; off is 0', () => {
+  const bf = load('bf109'), step = cold(bf);
+  set({ engineState: 'running', enginePower: 1, spdT: bf.envelope.maxSpd });
+  stopEngine();
+  assert.equal(Math.round(engineRpm(0)), 2800, 'from the rpm it had');
+  step(1.2); assert.ok(Math.abs(engineRpm(0) - 2800 / Math.E) < 60, `one time constant: ${engineRpm(0)}`);
+  step(5);   assert.equal(S.engineState, 'off');
+  assert.equal(engineRpm(0), 0);
+});
+
+test('rpm of a turbojet: the VK-1 at 22 % at the end of its start, 20–100 % of 11 560 running; a turbofan has none', () => {
+  const mig = load('mig15'), step = cold(mig, { spdT: 0 });
+  startEngine(); step(28);
+  assert.ok(Math.abs(engineRpm(0) / 11560 - 0.22) < 0.01, `start: ${engineRpm(0)}`);
+  set({ engineState: 'running', enginePower: 1, spdT: 0 });
+  assert.equal(Math.round(engineRpm(0)), Math.round(0.2 * 11560));
+  cold(load('a350'));
+  assert.equal(engineRpm(0), null);
 });

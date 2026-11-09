@@ -5,6 +5,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from './state.js';
+import { engineRpm } from './engine.js';
 import { ENGINE, assertCovers, warnUnknown } from './vocab.js';
 import { audioContext, audioOutput, loadWorklet, resumeAudio } from './audio.js';
 
@@ -186,86 +187,16 @@ function _preset(type) {
 
 export const ENGINE_TYPES = Object.keys(ENGINES);
 
-export function getCurrentRpm() {
-  if (!_cfg) return null;
-  if (S.engineState === 'off') return '---';
-
-  /* During engine startup: compute RPM from the sim time since the start (core/engine.js),
-     matching the synthesis curves of the recording */
-  if (S.engineState === 'starting' && S.engineStartT != null) {
-    const elapsed = S.engineStartT;
-    if (_engineType === 'turbojet-vk1') {
-      /* VK-1: N1 climbs 0→22% over 28.5s startup sequence */
-      const p = Math.min(1, elapsed / 28.5);
-      return 'N1 ' + Math.round(p * 22) + '%';
-    }
-    if (_engineType === 'radial-2000hp') {
-      /* R-2800: flywheel(cold26s/warm12s/hot0s) → klonk(0.18s) → motoring(2.8s) → runup(35s) */
-      const oilC       = S.oilTempC ?? 15;
-      const flywheelDur = oilC >= 60 ? 0 : oilC >= 30 ? 12.0 : 26.0;
-      const motorStart  = oilC >= 60 ? 0 : flywheelDur + 0.06 + 0.18 + 0.06;
-      const runStart    = motorStart + 2.8 + 0.06;
-      if (elapsed < motorStart) return '--- RPM';                    // flywheel phase
-      if (elapsed < runStart) {
-        const p = Math.min(1, (elapsed - motorStart) / 2.8);
-        return Math.round(65 - p * 18) + ' RPM';                    // motoring 65→47
-      }
-      const p = Math.min(1, (elapsed - runStart) / 35.0);
-      const idleRpm = _cfg?.rpmIdle ?? 750;
-      return Math.round(65 + (idleRpm - 65) * Math.pow(p, 0.6)) + ' RPM';  // runup 65→idle
-    }
-    /* v12-supercharged: flywheel(cold26s) → klonk → motoring(2.8s) → runup(42s) */
-    const runStart = 26.0 + 0.06 + 0.18 + 0.06 + 2.8 + 0.06;   // 29.16s
-    if (elapsed < 26.0) return '--- RPM';                          // flywheel only
-    if (elapsed < runStart) {
-      const p = Math.min(1, (elapsed - 26.0 - 0.06 - 0.18 - 0.06) / 2.8);
-      return Math.round(65 - p * 18) + ' RPM';                     // motoring 65→47
-    }
-    const p = Math.min(1, (elapsed - runStart) / 42.0);
-    const idleRpm = _cfg?.rpmIdle ?? 1000;
-    return Math.round(80 + (idleRpm - 80) * Math.pow(p, 0.55)) + ' RPM';  // runup 80→idle
-  }
-
-  /* During shutdown: exponential decay from _shutdownRpm */
-  if (S.engineState === 'shutdown') {
-    if (_engineType === 'turbojet-vk1' && S.engineStopT != null) {
-      const elapsed = S.engineStopT;
-      const n1 = Math.max(0, _shutdownN1 * Math.exp(-elapsed / 4.5));
-      if (n1 < 0.5) return '---';
-      return 'N1 ' + Math.round(n1) + '%';
-    }
-    if (_IMPULSE_LIFECYCLE.includes(_engineType) && S.engineStopT != null) {
-      const elapsed = S.engineStopT;
-      const rpm = Math.max(0, _shutdownRpm * Math.exp(-elapsed / 1.2));
-      if (rpm < 5) return '--- RPM';
-      return Math.round(rpm) + ' RPM';
-    }
-    return '---';
-  }
-
-  const ePow     = S.enginePower ?? 1.0;
-  if (ePow <= 0) return '---';
-  /* Turbofan N1 readout reflects the actual fan speed, not the FCU SPD/MACH selection. */
-  if (S.aircraft?.engine?.type === 'turbofan' && !_cfg.impulse && !_cfg.showRpm) {
-    return 'N1 ' + Math.round(S.n1 ?? 0) + '%';
-  }
-  const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 350;
-  const throttle = Math.max(0, Math.min(1, S.spdT / maxSpd));
-  if (_cfg.impulse || _cfg.showRpm) {
-    const rpm = Math.round((_cfg.rpmIdle + (_cfg.rpmMax - _cfg.rpmIdle) * throttle) * ePow);
-    return rpm + ' RPM';
-  } else {
-    const n1 = Math.round(20 + 80 * throttle);
-    return 'N1 ' + n1 + '%';
-  }
+/** The preset for the aircraft's engine: an impulse engine's idle and maximum rpm from the aircraft data
+    (engine.idleRpm / maxRpm — the engine model's, core/engine.js), so the start run-up and the running sound
+    end where the needle does; the preset's own where the data has none */
+function _engineCfg(type) {
+  const p = _preset(type), e = S.aircraft?.engine ?? {};
+  return p.impulse ? { ...p, rpmIdle: e.idleRpm ?? p.rpmIdle, rpmMax: e.maxRpm ?? p.rpmMax } : p;
 }
 
-/* Numeric RPM for gauges — null if engine off or non-RPM display */
-export function getRpmValue() {
-  const str = getCurrentRpm();
-  if (!str || str.startsWith('---') || str.startsWith('N1')) return null;
-  return parseInt(str, 10) || null;
-}
+/* The rpm is the engine's (core/engine.js, engineRpm) — the displays and the synthesis read it there; the start
+   curves the recordings are cut to live there too (issues.md, "The Engine cell's reading comes from the sound module"). */
 
 /* ── Internal state — oscillator path ── */
 let _ctx          = null;   // the shared context (core/audio.js) while sound is on; null = sound off
@@ -290,8 +221,6 @@ let _workletReady = false;
 
 /* ── Engine lifecycle sound (the lifecycle itself is core/engine.js's) ── */
 let _lastRpm         = 1000;   // last computed RPM — used by shutdown synth
-let _shutdownRpm     = 0;      // RPM at moment of shutdown — for gauge decay
-let _shutdownN1      = 0;      // VK-1: N1% at fuel cutoff — decays over S.engineStopT
 let _engineType      = null;   // current engine type string
 let _lifecycleSrc    = null;   // BufferSource playing startup sequence
 let _workletLoadDone = false;  // flag: worklet loaded during startup
@@ -351,7 +280,7 @@ let _niflheimOn   = false;
 
 export function initSound(engineType) {
   _engineType = engineType ?? ENGINE.GEARED_TURBOFAN;
-  _cfg = _preset(_engineType);
+  _cfg = _engineCfg(_engineType);
   _seenEngineState = S.engineState ?? 'off';   // the mission's initial state — no transition to play
   _seenApuState    = S.apuState ?? 'off';
 }
@@ -702,7 +631,7 @@ export function startSound(engineType) {
     _acquire();
     return;
   }
-  if (engineType) _cfg = _preset(engineType);
+  if (engineType) _cfg = _engineCfg(engineType);
   if (!_cfg) _cfg = _preset(ENGINE.GEARED_TURBOFAN);
   if (_started) _teardown();
 
@@ -760,7 +689,7 @@ export function silenceAll() {
 export function switchEngine(type) {
   const wasRunning = _started;
   _teardown();
-  _cfg = _preset(type);
+  _cfg = _engineCfg(type);
   if (wasRunning) startSound();
 }
 
@@ -802,7 +731,7 @@ export function tickSound() {
     const ePow  = S.enginePower ?? 1.0;
     const dead  = ePow <= 0;
     const rpm   = dead ? _cfg.rpmIdle * 0.3
-                       : _cfg.rpmIdle + (_cfg.rpmMax - _cfg.rpmIdle) * throttle * ePow;
+                       : (engineRpm(0) ?? _cfg.rpmIdle);                // the engine's rpm (core/engine.js)
     _lastRpm    = rpm;
     const gain  = dead ? 0
                        : _cfg.masterGain * (0.4 + 0.6 * throttle) * Math.max(0.05, ePow);
@@ -2446,11 +2375,8 @@ function _playStop() {
      descending spool-down whine; the teardown happens at 'off' (in tickSound).
      If nothing is running yet (mid-startup), just stop. */
   if (_engineType === 'geared-turbofan') { if (!_started) stopSound(); return; }
-  /* VK-1: fuel cutoff — the N1 readout decays from here (getCurrentRpm) */
+  /* VK-1: fuel cutoff — the run-down of the N1 readout is the engine model's (core/engine.js) */
   if (_engineType === 'turbojet-vk1') {
-    const maxSpd = S.aircraft?.envelope?.maxSpd ?? 567;
-    const throttle = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
-    _shutdownN1 = Math.round(20 + 80 * throttle);
     stopSound();
     return;
   }
@@ -2458,7 +2384,6 @@ function _playStop() {
 
   _workletReady = false;
   _started      = false;
-  _shutdownRpm  = _lastRpm;
 
   if (_ctx) {
     const shutBuf = _engineType === 'radial-2000hp'
