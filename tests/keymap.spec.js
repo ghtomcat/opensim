@@ -13,7 +13,7 @@ async function load(page, mission, query = '&test=1') {
 const field = (page, f) => page.evaluate(async (f) => (await import('/core/state.js')).S[f], f);
 
 for (const [what, mission] of [['A350', 'lszh-approach'], ['777', 'singapore-london'], ['E190', 'lsgg-takeoff'], ['C172', 'lszf-pattern'],
-  ['DR400', 'grenchen-circuit'], ['Velis', 'lszg-velis'], ['Bf 109', 'wolfskopf-1942'], ['F4U', 'bougainville-1943'], ['MiG-15', 'deblin-1955'],
+  ['DR400', 'grenchen-circuit'], ['Velis', 'lszg-velis'], ['Bf 109', 'wolfskopf-1942'], ['F4U', 'bougainville-1943'], ['MiG-15bis', 'deblin-1955'],
   ['Avro', 'melun-1918'], ['An-225', 'hostomel-2022'], ['Tu-95', 'nordmeer-1956'], ['Dragon', 'crew-demo2'], ['Apollo', 'apollo8'],
   ['Falcon 1', 'falcon1-omelek'], ['Starship', 'ift-12'], ['SO-101', 'so101-workspace'], ['Yertle', 'yertle-lab']]) {
   test(`${what}: every key offered has an action`, async ({ page }) => {

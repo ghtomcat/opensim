@@ -564,7 +564,7 @@ test('rpm shutdown: it runs down from the rpm at cutoff; off is 0', () => {
 });
 
 test('rpm of a turbojet: the VK-1 at 22 % at the end of its start, 20–100 % of 11 560 running; a turbofan has none', () => {
-  const mig = load('mig15'), step = cold(mig, { spdT: 0 });
+  const mig = load('mig15bis'), step = cold(mig, { spdT: 0 });
   startEngine(); step(28);
   assert.ok(Math.abs(engineRpm(0) / 11560 - 0.22) < 0.01, `start: ${engineRpm(0)}`);
   set({ engineState: 'running', enginePower: 1, spdT: 0 });

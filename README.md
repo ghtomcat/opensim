@@ -134,7 +134,7 @@ axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1
 | Pipistrel Velis Electro HB-SYC | Pipistrel E-811 · 57.6 kW | EPSI panel, battery SOC management, Grenchen |
 | Vought F4U-1A Corsair | Pratt & Whitney R-2800 · 2000hp | Bent-wing bird, Pacific theatre |
 | Messerschmitt Bf 109 E-4 | Daimler-Benz DB 601 · 1175hp | AudioWorklet 12-cylinder impulse model, radiator flap + coolant temp |
-| MiG-15 'Fagot' | Klimov VK-1 | Centrifugal compressor intake, splitter vane |
+| MiG-15bis 'Fagot-B' | Klimov VK-1 | Centrifugal compressor intake, splitter vane |
 | Avro 504K | Le Rhône 9J · 110hp | Gyroscopic precession, rotary blip switch |
 | Tupolev Tu-95 Bear-A | Kuznetsov NK-12 × 4 · 37 200 kW | Russian crew voices, contra-rotation LFO |
 | Antonov An-225 Mriya | ZMKB Progress D-18T × 6 · 1 377 kN | Ukrainian crew voices, 500 t, Hostomel 2022 |
@@ -224,7 +224,7 @@ Autobrake (LO/MED/MAX) is armed from pushbuttons on the centre panel and disarms
 | Operation Wolfskopf | Bf 109 E-4 | 1942 | Arctic, scripted engine failure, NIFLHEIM |
 | The Wasp · Bougainville | F4U-1A Corsair | 1943 | Pacific patrol, R-2800, ARC-5 radio |
 | No Bomber Lost · Rabaul | F4U-1A Corsair | 1943 | Ground attack, Rabaul harbour |
-| Przechwycenie · Dęblin | MiG-15 | 1955 | Polish interceptor. Twelve years ago a Spitfire. Today a red fifteen |
+| Przechwycenie · Dęblin | MiG-15bis | 1955 | Polish interceptor. Twelve years ago a Spitfire. Today a red fifteen |
 | Aufklärungsflug Nordmeer | Tu-95 Bear-A | 1956 | Olenya AB, Soviet ATC, Cold War dossier |
 | Mriya — Die letzte Reise | An-225 | 2022 | Hostomel, Ukrainian ATC, 3 February 2022 |
 

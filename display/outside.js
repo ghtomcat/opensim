@@ -106,7 +106,7 @@ function _renderProfile(ac) {
   if (ac?.id?.startsWith('falcon9') || ac?.vehicleType === 'rocket') return 'falcon9';
   if (ac?.id === 'bf109') return 'bf109';
   if (ac?.id === 'f4u1a') return 'f4u';
-  if (ac?.id === 'mig15') return 'mig15';
+  if (ac?.id === 'mig15bis') return 'mig15';
   return 'wb';
 }
 
