@@ -135,15 +135,17 @@ const VIEW_ZONES = ['overhead', 'left', 'center', 'right', 'pedestal'];
    spacing, how far round it runs, a 0 mark before the scale, the coloured arcs. Absent → the dial's default.
    unit: the airspeed dial's km/h / kt / mph; '%' on the rpm dial — the rpm as a share of engine.maxRpm (a turbine's tachometer). */
 const dialScale = object({
-  unit: oneOf('km/h', 'kt', 'mph', '%'), min: num, max: num, step: num, tick: num, minor: num, div: num, sweep: num, start: num, zero: bool, zeroFigure: bool,
+  unit: oneOf('km/h', 'kt', 'mph', '%', 'gal'), major: num, min: num, max: num, step: num, tick: num, minor: num, div: num, sweep: num, start: num, zero: bool, zeroFigure: bool,
   red: anyOf(num, arrayOf(num)), yellow: arrayOf(num), green: arrayOf(num), redLine: anyOf(num, arrayOf(num)), yellowLine: anyOf(num, arrayOf(num)),
   figuresTo: num, endMark: bool,
 }, { required: ['max', 'step'] });
 /* `variant`: which build of an instrument (the registry lists each one's — tests/analog-registry.test.mjs):
    compass card | bubble (the older magnetic compass), alt standard | kmWindow (one turn per km, km in a window) */
 const analogItem = object({ id: oneOf(...valuesOf(INSTRUMENT)), size: oneOf(...valuesOf(INSTRUMENT_SIZE)), scale: dialScale,
-                            variant: oneOf('card', 'bubble', 'gyro', 'standard', 'kmWindow', 'vd15', 'kus', 'agk47', 'var75', 'turnAndHalf', 'achkho', 'mig'),
+                            variant: oneOf('card', 'bubble', 'gyro', 'remote', 'standard', 'kmWindow', 'vd15', 'threePointer', 'kus', 'twoTurn', 'agk47', 'sperry', 'var75', 'climb6',
+                                     'turnAndHalf', 'achkho', '24h', 'mig'),
                             below: num,   // a lamp's threshold (fuelLow: litres)
+                            tank: oneOf('left', 'right'),   // a fuel gauge reading one tank (the F4U: the main tank)
                             unconfirmed: str },
                           { required: ['id', 'size'] });
 const analogPanel = object({

@@ -86,6 +86,7 @@ export const mission = object(
     id: str, title: str, phase: oneOf('ground', 'departure', 'cruise', 'approach', 'circuit', 'launch'),
     aircraft: str,
     initialState, start: object({ runway: str, at: str, stand: str }),
+    course: num,   // the course to fly (°) — the F4U's remote compass course setter; absent → the start heading
     departure: nullable(departure), arrival: nullable(arrival),
     weather, timeOfDay: num, water: bool,
     com, commProfile, characters: mapOf(object({ commProfile })),

@@ -518,7 +518,7 @@ spec's own `style` field.
 
 One module, `display/analog_panel.js` (`renderAnalogPanel(canvas, style)`), draws the
 round gauges of every analog aircraft — `panel: "analog"`, with the aircraft's `panelStyle`
-(`luftwaffe`: Bf 109; `usn`: F4U, DC-8; `soviet`: An-225; `soviet-1956`: Tu-95, MiG-15bis; `wood`: Avro 504).
+(`luftwaffe`: Bf 109; `usn` (black faces, °C): F4U, DC-8; `soviet`: An-225; `soviet-1956`: Tu-95, MiG-15bis; `wood`: Avro 504).
 
 ```
 aircraft/<id>.json          "panel": "analog", "panelStyle": "soviet",
