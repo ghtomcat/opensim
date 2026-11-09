@@ -11,7 +11,7 @@
 
 import { S, setState } from './state.js';
 import { bbEvent } from './blackbox.js';
-import { engineQuit, engineOilLow } from './engine.js';
+import { engineQuit, engineOilLow, fuelFlowKgH } from './engine.js';
 import { onMissionReset } from './lifecycle.js';
 
 /* Default fuel burn rates litres/hour at full power */
@@ -82,10 +82,14 @@ export function tickFuel(dt) {
     return;
   }
 
-  /* Burn rate — litres/hour → litres/second */
+  /* Burn rate — litres/hour → litres/second. An engine with a fuel flow of its own (core/engine.js — the turbojet)
+     burns that, kg/h ÷ the fuel's density (tanks.density, kg/l): it follows the throttle. The others a fixed rate ×
+     the engine's power (not the throttle — issues.md, "The light aircraft's fuel burn ignores the throttle"). */
+  const flowKgH    = fuelFlowKgH();
   const engineType = S.aircraft?.sound?.engineType ?? 'default';
   const burnLph    = S.aircraft?.fuelBurn ?? BURN_DEFAULTS[engineType] ?? BURN_DEFAULTS.default;
-  const burnRate   = (burnLph / 3600) * power * dt;
+  const burnRate   = flowKgH != null ? flowKgH / (S.aircraft?.tanks?.density ?? 0.8) / 3600 * dt
+                                     : (burnLph / 3600) * power * dt;
 
   let left  = S.fuelLeft;
   let right = S.fuelRight;

@@ -451,6 +451,23 @@ export function rpmOf(e, eng = _eng()) {
 /** Engine i's rpm now (null for a turbofan or an electric motor) */
 export function engineRpm(i = 0) { return rpmOf(_engines()[i]); }
 
+/* ── Fuel flow (turbojet) ──────────────────────────────────────────
+   As the turbofan's (S.engines[i].ff, kg/h): engine.ffMax at full rpm, ffMax · (rpm/maxRpm)^2.2 between, less in thin
+   air — the same curve as the turbofan's on N1 (not calibrated for a turbojet; the MiG's patrol check in
+   sources/mig15-panel-notes.md). ffMax from the data (the VK-1: 26.5 kN × 109.1 kg/(kN·h) ≈ 2 890 kg/h). Nothing while it
+   is not running with power. core/fuel.js burns it. Pistons, turboprops: no fuel flow yet (fuel.js: a fixed rate). */
+function _turbojetFf(e, rpm, eng) {
+  if (e.state !== 'running' || !(e.power > 0) || !eng.ffMax) return 0;
+  return eng.ffMax * Math.pow(Math.max(0, rpm) / (eng.maxRpm ?? 1), 2.2) * (0.4 + 0.6 * _rhoRatio());
+}
+
+/** The fuel flow of all engines now, kg/h — null where the engine model has none (pistons, turboprops, electric) */
+export function fuelFlowKgH() {
+  const t = _eng().type;
+  if (t !== 'turbofan' && t !== 'turbojet') return null;
+  return _engines().reduce((sum, e) => sum + (e.ff ?? 0), 0);
+}
+
 /** One sim step — called from tickSim() right before physics: the turbofan spool, then the lifecycle. */
 export function tickEngine(dt) {
   const eng = _eng();
@@ -470,6 +487,9 @@ export function tickEngine(dt) {
     engines = engines.map(e => _stepLifecycle(e, dt, eng));
     /* the rpm, stored for the readers that take the array (a change of half a turn or more) */
     engines = engines.map(e => { const rpm = rpmOf(e, eng); return rpm == null || Math.abs((e.rpm ?? -1) - rpm) < 0.5 ? e : { ...e, rpm }; });
+    /* a turbojet's fuel flow, from its rpm (a change of 1 kg/h or more) */
+    if (eng.type === 'turbojet')
+      engines = engines.map(e => { const ff = _turbojetFf(e, e.rpm ?? 0, eng); return Math.abs((e.ff ?? 0) - ff) < 1 ? e : { ...e, ff }; });
   }
   if (engines.every((e, k) => e === before[k])) return;
 
