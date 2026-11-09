@@ -3870,7 +3870,8 @@
       const fL = Math.round(S.fuelLeft);
       const fR = Math.round(S.fuelRight);
       const fuelEl = document.getElementById('pv-fuel');
-      document.getElementById('pl-fuel').textContent = twoTanks ? 'Fuel L/R' : 'Fuel';
+      const tl = S.aircraft?.tanks?.labels;
+      document.getElementById('pl-fuel').textContent = twoTanks ? `Fuel ${tl ? `${tl.left}/${tl.right}` : 'L/R'}` : 'Fuel';
       fuelEl.textContent = twoTanks ? `${fL} / ${fR} L` : `${fL} L`;
       const cap = S.aircraft?.tanks?.left ?? 0;
       fuelEl.className = 'panel-value ' + ((fL + fR) < 20 ? 'score-fail'

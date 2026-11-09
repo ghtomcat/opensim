@@ -741,6 +741,11 @@ The warbirds have two more cells (Fuel L/R, Fuel Sel). At 1280 px the F4U's `375
 
 **Done when.** Every analog aircraft draws its sourced instruments, in its groups and order, flowing in both views; every drawn instrument reads a sim value; one panel name, `analog`; no engine dial reads the sound module or a formula in the drawing code.
 
+### The analog instruments have no knobs
+*Logged 2026-11-09 (Markus, from the F4U's remote compass — step 8) · `display/analog_panel.js`, the cockpit views, `core/keymap.js`*
+
+No knob on an analog instrument does anything in the sim. The real ones did: the F4U's remote compass has a course-setting knob (it turns the course setter, two parallel arrows — fly with the heading pointer between them); the altimeters' setting knobs (the F4U's in. Hg window, the MiG's mm Hg window, D-FEML's pressure window); the directional gyro's caging and setting knob; the АГК-47Б's cage and pitch knobs; the clocks' winding and stopwatch buttons. Meanwhile the F4U's course setter shows the mission's course (Markus). **Plan — a feature, not now:** the knobs as controls — a click on the dial in the panel view (or keys), each setting a value in the sim (`S.courseSet`, the altimeter setting already in `core/baro.js`, a gyro's caged state). **Done when:** the course setter and an altimeter's setting can be turned in the cockpit and the dial follows.
+
 ### The METAR strip always says LSZH
 *Found 2026-11-06 · `updateMetar()` and `_rwyFromWind()` in `index.html`*
 

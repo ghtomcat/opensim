@@ -166,7 +166,7 @@ export const aircraft = object(
     autobrake: bool, fixedGear: bool, gridFins: bool, landingLegs: bool,
     spoilers: object({ drag: num }),                 // spoilers / speed brake (RET · ARM · FULL, ground spoilers) — absent: none
     /* systems */
-    tanks: object({ left: num, right: num, unit: oneOf('L'), density: num }), fuelBurn: num, hasCarbHeat: bool,
+    tanks: object({ left: num, right: num, unit: oneOf('L'), density: num, labels: object({ left: str, right: str }) }), fuelBurn: num, hasCarbHeat: bool,   // tanks.labels: the two tanks' names (the status bar)
     battery: object({ capacityKwh: num, powerDrawKw: num }), electrical, hydraulics, fuelSystem,
     balance: object({ noseGearLoadShare: num }),     // nominal CG (core/airframe.js) until weight and balance
     cooling, coolingSystem: oneOf('liquid', 'air'),

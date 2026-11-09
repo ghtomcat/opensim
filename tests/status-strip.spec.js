@@ -63,7 +63,7 @@ test('F4U: the label is Engine, not Motor', async ({ page }) => {
 for (const [what, mission, label, value, sel] of [
   ['Bf 109 (one tank)', 'wolfskopf-1942', 'Fuel', /^\d+ L$/, false],
   ['MiG-15bis (one tank)', 'deblin-1955', 'Fuel', /^1400 L$/, false],
-  ['F4U (two tanks)', 'rabaul-1943', 'Fuel L/R', /^\d+ \/ \d+ L$/, true],
+  ['F4U (two tanks: main and wings)', 'rabaul-1943', 'Fuel Main/Wing', /^897 \/ 460 L$/, true],
 ]) {
   test(`${what}: the Fuel cell shows as many values as tanks`, async ({ page }) => {
     await load(page, mission);
