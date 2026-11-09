@@ -80,6 +80,7 @@ test('an engine group is a fixed grid: a row per quantity, a column per engine',
   assert.ok(n1.every(i => Math.abs(i.y - n1[0].y) < 1e-9) && egt[0].y > n1[0].y);
   assert.deepEqual(n1.map(i => i.x), egt.map(i => i.x));
   assert.deepEqual(lay.labels.slice(0, 6).map(l => l.text), ['1', '2', '3', '4', '5', '6']);
+  assert.deepEqual(lay.labels.filter(l => l.id).map(l => l.id), ['n1', 'egt'], 'the row names carry their instrument (the style names them)');
 });
 
 test('footprints by kind: a lamp reserves no room for a name, a bubble level is wide and flat', () => {

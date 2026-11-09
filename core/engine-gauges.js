@@ -16,6 +16,7 @@
      oilFlowing(i)        rpm       → "The oil system" (the Avro's pulsator)
      propPitchHours()     h from 12 → the propeller's blade angle (one lever for the aircraft)
      tankAirPressure()    lb/sq in  → "The fuel system" (the Avro's hand-pumped tank)
+     gasTemp(i)           °C        a turbofan's own EGT; else → a turboprop / turbojet engine model
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from './state.js';
@@ -30,6 +31,7 @@ export const STAND_INS = {
   oilFlowing:       'The oil system (issues.md)',
   propPitchHours:   'the propeller\'s blade angle',
   tankAirPressure:  'The fuel system (issues.md)',
+  gasTemp:          'a gas temperature from the turboprop\'s / turbojet\'s fuel flow (a turbofan has its own)',
 };
 
 /** Engine i's lifecycle state ('off' before the first mission load) */
@@ -79,3 +81,17 @@ export function propPitchHours() { return (1 - (S.propPitch ?? 1)) * 6; }
 
 /** The fuel tank's air pressure, lb/sq in — the Avro's hand-pumped tank, kept at about 3 while there is fuel → "The fuel system" */
 export function tankAirPressure() { return _fuelFlows() ? 3.0 : 0; }
+
+/** The exhaust gas temperature, °C — a turbofan's own (S.engines[i].egt, core/engine.js); for the other turbines a
+    stand-in: the outside air at rest, rising with the rpm to engine.egtIdle on the start, egtIdle → egtTakeoff with
+    the throttle while running, falling with the rpm on the run-down. Defaults 400 / 650 °C — not sourced (the NK-12's
+    2ТВГ-366 scale and limits not found, sources/tu95-panel-notes.md) → a gas temperature from the fuel flow */
+export function gasTemp(i = 0) {
+  const e = S.engines?.[i], eng = S.aircraft?.engine ?? {};
+  if (eng.type === 'turbofan') return e?.egt ?? 15;
+  const cold = 15, idle = eng.egtIdle ?? 400, top = eng.egtTakeoff ?? 650, st = _state(i), r = rpmRange();
+  const toward = (t) => cold + (t - cold) * Math.max(0, Math.min(1, _rpm(i) / r.idle));
+  return st === 'running'  ? idle + (top - idle) * throttleFrac()
+       : st === 'starting' || st === 'shutdown' ? toward(idle)
+       : cold;
+}

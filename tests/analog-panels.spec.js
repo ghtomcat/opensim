@@ -6,7 +6,7 @@
 import { test, expect } from '@playwright/test';
 import { frames } from './frames.js';
 
-for (const [what, mission, style] of [['Tu-95', 'nordmeer-1956', 'soviet'], ['An-225', 'hostomel-2022', 'soviet'], ['Avro 504', 'melun-1918', 'wood']]) {
+for (const [what, mission, style] of [['Tu-95', 'nordmeer-1956', 'soviet-1956'], ['An-225', 'hostomel-2022', 'soviet'], ['Avro 504', 'melun-1918', 'wood']]) {
   test(`${what}: the analog panel, ${style} style — no METAR strip`, async ({ page }) => {
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));

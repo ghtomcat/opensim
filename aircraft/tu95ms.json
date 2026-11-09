@@ -2,18 +2,22 @@
   "id": "tu95ms",
   "views": ["overhead", "left", "center", "right", "pedestal"],
   "panel": "analog",
-  "panelStyle": "soviet",
+  "panelStyle": "soviet-1956",
   "analogPanel": {
-    "_note": "Today's instrument set, the same on every analog aircraft until each gets its sourced set (docs/issues.md, step 5).",
+    "_note": "The pilots' main panel (2026-11-09): the flight block, and per engine rpm, gas temperature, oil temperature and pressure, plus the clock. The real NK-12 set sits mostly at the flight engineer's station; until it exists the main panel takes them as they fit (Markus). Types from ru.wikipedia Ту-95 (КУС-1200, ВД-20, ВАР-30, АГД-1; 2ТЭ9-1М, 2ТВГ-366); placement and sizes not sourced (sources/tu95-panel-notes.md).",
     "groups": [
       { "name": "flight", "rows": [
-        [{ "id": "asi", "size": "L" }, { "id": "ai", "size": "L" }, { "id": "alt", "size": "L" }],
-        [{ "id": "turn", "size": "L" }, { "id": "compass", "size": "L" }, { "id": "vsi", "size": "L" }]
+        [{ "id": "asi", "size": "L", "scale": { "unit": "km/h", "min": 150, "max": 1200, "step": 100, "tick": 50, "minor": 5, "div": 10 } },
+         { "id": "ai", "size": "L" }, { "id": "alt", "size": "L" }],
+        [{ "id": "turn", "size": "S" }, { "id": "compass", "size": "S" }, { "id": "vsi", "size": "S" }, { "id": "clock", "size": "XS" }]
       ] },
-      { "name": "engine", "rows": [
-        [{ "id": "clock", "size": "XS" }],
-        [{ "id": "rpm", "size": "S" }],
-        [{ "id": "oilT", "size": "S" }, { "id": "oilP", "size": "S" }]
+      { "name": "engines", "perEngine": [
+        { "id": "rpm", "size": "XS", "scale": { "unit": "%", "max": 110, "step": 20, "tick": 10, "minor": 2, "div": 1 },
+          "unconfirmed": "the 2ТЭ9-1М's scale not found — % as on the Soviet turbine tachometers" },
+        { "id": "tgt", "size": "XS", "scale": { "max": 800, "step": 100, "div": 100, "minor": 5 },
+          "unconfirmed": "the 2ТВГ-366's scale not found" },
+        { "id": "oilT", "size": "XS", "unconfirmed": "the 2ТУЭ-11's scale not found — the default dial" },
+        { "id": "oilP", "size": "XS", "unconfirmed": "the oil pressure gauge's type and scale not confirmed — the default dial" }
       ] }
     ]
   },
@@ -26,7 +30,9 @@
   "icaoType": "TU95",
   "landSurfaces": ["runway"],
   "era": "Cold War · 1956",
-  "engine": { "type": "turboprop", "count": 4, "model": "nk-12mv", "description": "Kuznetsov NK-12MV × 4 · Contra-rotating turboprop · 44740kW" },
+  "engine": { "type": "turboprop", "count": 4, "model": "nk-12mv", "description": "Kuznetsov NK-12MV × 4 · Contra-rotating turboprop · 44740kW",
+              "maxRpm": 9250, "idleRpm": 6500,
+              "_rpm": "maxRpm 9 250: the NK-12MV's rotational speed (en.wikipedia, Kuznetsov NK-12; shaft not stated). idleRpm 6 500 (~70 %) a placeholder, not sourced — the NK-12 is a constant-speed turboprop, the rpm model still runs idle → max with the throttle (sources/tu95-panel-notes.md)" },
 
   "manualControl": true,
   "crewLang": "ru-RU",

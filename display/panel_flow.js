@@ -73,7 +73,7 @@ function* _combos(lists, i = 0, acc = []) {
  * @param opts    { view: 'panel' | 'combined', engines = 1, maxL = Infinity (px) }
  * @returns { scale (px per mm), arrangement: 'side' | 'stack', groups: [{ name, label, x, y, w, h }],
  *            items: [{ id, x, y, d, group, engine? }] — x, y the dial's centre in px, d its diameter;
- *            labels: [{ text, x, y }] — the engine numbers and quantity names of a grid }
+ *            labels: [{ text, x, y, id? }] — the engine numbers and quantity names of a grid (id: the quantity's instrument) }
  */
 export function flowLayout(groups, area, { view = 'panel', engines = 1, maxL = Infinity } = {}) {
   const lists = groups.map(g => _candidates(g, engines));
@@ -107,7 +107,7 @@ function _place(groups, pick, s, area, engines) {
         labels.push({ text: String(k + 1), x: ox + (gx + LBLCOL + k * (c.cell + GAP) + c.cell / 2) * s, y: oy + (gy + HDR / 2) * s });
       g.perEngine.forEach((e, r) => {
         const cy = gy + HDR + r * (c.rowH + GAP) + SIZES[e.size] / 2;
-        labels.push({ text: e.id.toUpperCase(), x: ox + (gx + LBLCOL / 2) * s, y: oy + cy * s });
+        labels.push({ text: e.id.toUpperCase(), id: e.id, x: ox + (gx + LBLCOL / 2) * s, y: oy + cy * s });
         for (let k = 0; k < engines; k++)
           items.push({ id: e.id, item: e, group: g.name, engine: k, d: SIZES[e.size] * s,
                        x: ox + (gx + LBLCOL + k * (c.cell + GAP) + c.cell / 2) * s, y: oy + cy * s });

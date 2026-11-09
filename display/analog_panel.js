@@ -3,7 +3,8 @@
    The analog instrument panel: six flight instruments and an engine row, in a style per
    aircraft — the look, the language and the unit system:
      luftwaffe  feldgrau, ivory faces, red needles; German, metric   — Bf 109, MiG-15
-     soviet     turquoise, black faces, white needles; Russian, metric — Tu-95, An-225 (stop-gap)
+     soviet     turquoise, black faces, white needles; Russian, metric — An-225 (stop-gap)
+     soviet-1956  the same on the early Tu-95's matte black panels                  — Tu-95
      usn        flat black, white faces; English, US units             — F4U
      wood       wooden board, brass bezels, black faces; English, mph  — Avro 504 (stop-gap)
    Merged 2026-11-07 from display/bf109.js and display/f4u1a.js, which were copies of each other
@@ -21,7 +22,7 @@
 import { S } from '../core/state.js';
 import { engineRpm } from '../core/engine.js';
 import { oilPressure, manifoldPressure, fuelPressure, generatorAmps, oilFlowing, propPitchHours, tankAirPressure,
-         fuelLitres, STAND_INS } from '../core/engine-gauges.js';
+         fuelLitres, gasTemp, STAND_INS } from '../core/engine-gauges.js';
 import { drawAnalogClock } from './clock.js';
 import { ballDeflection } from '../core/yaw.js';
 import { indicatedAlt, baroSubscale } from '../core/baro.js';
@@ -86,7 +87,8 @@ const STYLES = {
       asi: 'Скорость', asiUnit: 'км/ч', ai: 'Авиагоризонт', alt: 'Высотомер', altUnit: '×100 м',
       turn: 'Указатель поворота', turnL: 'Л', turnR: 'П', compass: 'Компас', cards: ['С', 'В', 'Ю', 'З'],
       vsi: 'Вариометр', vsiUnit: 'м/с', rpm: 'Тахометр', rpmUnit: '×100 об/мин', n1: 'Обороты', n1Unit: 'N1 %',
-      oilT: 'Темп. масла', coolant: 'Темп. охл. жидк.', oilP: 'Давл. масла', oilPUnit: 'кгс/см²',
+      oilT: 'Темп. масла', coolant: 'Темп. охл. жидк.', oilP: 'Давл. масла', oilPUnit: 'кгс/см²', tgt: 'Т газов',
+      grid: { rpm: 'Обороты', tgt: 'Т газов', n1: 'N1', oilT: 'Т масла', oilP: 'Д масла' },   // an engine grid's row names
     },
   },
   usn: {   // the F4U: flat black US Navy panel, white faces, white needles; English labels, US units
@@ -127,6 +129,10 @@ const STYLES = {
     },
   },
 };
+/* soviet-1956: the early Tu-95's matte black panels (ru.wikipedia, Ту-95: "Все приборные доски имели матовый чёрный
+   цвет"; sources/tu95-panel-notes.md) — the soviet faces and labels on a black panel instead of the Tu-95MS's green */
+STYLES['soviet-1956'] = { ...STYLES.soviet, P: { ...STYLES.soviet.P, panel: '#1c1e20', rim: '#0c0d0e' } };
+
 /** Each style's unit system — the registry draws an instrument per unit system (tests/analog-registry.test.mjs) */
 export const STYLE_UNITS = Object.fromEntries(Object.entries(STYLES).map(([k, v]) => [k, v.units]));
 
@@ -173,7 +179,7 @@ export const INSTRUMENTS = {
                      imperial: (ctx, x, y, r, sc, v, scale, variant) => (variant === 'bubble' ? _drawBubbleCompass : _drawCompass)(ctx, x, y, r, sc, v) } },
   vsi:     { value: 'S.vs (fpm)',                         read: () => S.vs ?? 0,
              draw: { metric: _drawVariometer, imperial: _drawVSI } },
-  rpm:     { value: 'rpm — engineRpm() (core/engine.js)',  read: _rpm,
+  rpm:     { value: 'rpm — engineRpm() (core/engine.js); a scale in % shows it as a share of engine.maxRpm',  read: _rpm,
              draw: { metric: _drawDrehzahl, imperial: _drawDrehzahl } },
   n1:      { value: 'N1 % — a turbojet\'s rpm / maxRpm (core/engine.js)', read: _n1Pct,
              draw: { metric: _drawN1Messer } },
@@ -207,6 +213,8 @@ export const INSTRUMENTS = {
              simple: STAND_INS.oilFlowing, kind: 'glass', draw: _both(_drawPulsator) },
   level:   { value: 'the ball (S.latAccel)',              read: () => ballDeflection(S.latAccel), kind: 'level',
              draw: _both(_drawLevel) },
+  tgt:     { value: 'exhaust gas temperature (°C) — gasTemp() (core/engine-gauges.js)', read: gasTemp, simple: STAND_INS.gasTemp,
+             draw: { metric: (ctx, x, y, r, sc, v, scale) => _drawGauge(ctx, x, y, r, sc, v, scale, { max: 800, step: 100, div: 100, sub: '×100 °C', name: 'tgt' }) } },
   clock:   { value: 'the clock time (display/clock.js)',  read: () => null,
              draw: { metric: (ctx, x, y, r) => drawAnalogClock(ctx, x, y, r), imperial: (ctx, x, y, r) => drawAnalogClock(ctx, x, y, r) } },
 };
@@ -280,9 +288,25 @@ export function renderAnalogPanel(canvas, style = 'luftwaffe') {
   });
   const lay  = flowLayout(groups, area, { view, engines: S.aircraft?.engine?.count ?? 1, maxL: MAX_L * dpr });
   const sc   = (SIZES.L * lay.scale / 2) / 90;        // the text scale: 1 at a large dial of radius 90 px
-  for (const it of lay.items) _inst(it.id, ctx, side + it.x, it.y, it.d / 2, sc, it.item?.scale, it.item?.variant, it.engine ?? 0);
+  for (const it of lay.items) {
+    _inGrid = it.engine != null;
+    _inst(it.id, ctx, side + it.x, it.y, it.d / 2, sc, it.item?.scale, it.item?.variant, it.engine ?? 0);
+  }
+  _inGrid = false;
+  _gridLabels(ctx, lay.labels, side, sc);
 
   if (ST.frost) _drawFrost(ctx, W, H);              // frost vignette — Arctic, -22 °C
+  ctx.restore();
+}
+
+/** An engine grid's labels: the engine numbers above the columns, the quantity names left of the rows */
+function _gridLabels(ctx, labels, side, sc) {
+  ctx.save();
+  ctx.fillStyle = P.label; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const lb of labels) {
+    ctx.font = `${(lb.id ? 8.5 : 10) * sc}px ${SANS}`;
+    ctx.fillText(lb.id ? (L.grid?.[lb.id] ?? L[lb.id] ?? lb.text) : lb.text, side + lb.x, lb.y);
+  }
   ctx.restore();
 }
 
@@ -454,7 +478,9 @@ function _sublabel(ctx, x, y, r, text, sc) {
 }
 
 /* Label below instrument */
+let _inGrid = false;
 function _label(ctx, x, y, r, name, sc) {
+  if (_inGrid) return;                               // an engine grid names its rows once, at the left
   ctx.fillStyle    = P.label;
   ctx.font         = `${9.5 * sc}px ${SANS}`;
   ctx.textAlign    = 'center';
@@ -832,9 +858,10 @@ function _drawVariometer(ctx, x, y, r, sc, vs) {
 /* Drehzahlmesser — DB 601 max ~2600 U/min */
 function _drawDrehzahl(ctx, x, y, r, sc, rpm, scale) {
   _base(ctx, x, y, r);
+  const pct = scale?.unit === '%';                    // a turbine's tachometer: the rpm as a share of engine.maxRpm
   const ang = _scale(ctx, x, y, r, sc, scale, { max: 2800, step: 400, tick: 200, minor: 2, div: 100, numSize: 7.5 });
-  _sublabel(ctx, x, y, r, L.rpmUnit, sc);
-  _needle(ctx, x, y, r, ang(rpm), 0.76, 0.20, sc);
+  _sublabel(ctx, x, y, r, pct ? '%' : L.rpmUnit, sc);
+  _needle(ctx, x, y, r, ang(pct ? rpm / (S.aircraft?.engine?.maxRpm ?? 1) * 100 : rpm), 0.76, 0.20, sc);
   _cap(ctx, x, y, 4 * sc);
   _label(ctx, x, y, r, L.rpm, sc);
 }

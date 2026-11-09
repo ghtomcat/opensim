@@ -13,7 +13,7 @@ import { dirname, join } from 'node:path';
 import { S, setState } from '../core/state.js';
 import { adoptEngineFields, tickEngine, stopEngine } from '../core/engine.js';
 import { oilPressure, manifoldPressure, fuelPressure, generatorAmps, oilFlowing, propPitchHours, tankAirPressure,
-         fuelLitres, STAND_INS } from '../core/engine-gauges.js';
+         fuelLitres, gasTemp, STAND_INS } from '../core/engine-gauges.js';
 import { INSTRUMENTS } from '../display/analog_panel.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -95,4 +95,20 @@ test('the panel\'s stand-ins come from here, marked with what replaces them; the
   for (const [id, mark] of Object.entries(marks)) assert.equal(INSTRUMENTS[id].simple, mark, id);
   const src = readFileSync(join(here, '..', 'display', 'analog_panel.js'), 'utf8');
   assert.doesNotMatch(src, /function _simple\w+|SIMPLE VALUES/, 'no stand-in left in display/analog_panel.js');
+});
+
+test('gas temperature: a turbofan reads its own EGT; the Tu-95\'s NK-12 a stand-in — outside air at rest, 400 → 650 °C with the throttle, per engine', () => {
+  const tu = load('tu95ms');
+  on(tu, 'off');
+  assert.equal(gasTemp(0), 15);
+  on(tu, 'running', 0);
+  assert.equal(gasTemp(0), 400);
+  on(tu, 'running', 1);
+  assert.equal(gasTemp(0), 650);
+  setState({ engines: S.engines.map((e, k) => k === 3 ? { ...e, state: 'off', power: 0 } : e) });
+  assert.equal(gasTemp(3), 15, 'engine 4 stopped');
+  assert.equal(INSTRUMENTS.tgt.simple, STAND_INS.gasTemp);
+  const a = load('a340');
+  setState({ aircraft: a, engines: [{ state: 'running', egt: 512 }, { state: 'running', egt: 498 }] });
+  assert.equal(gasTemp(1), 498, 'a turbofan: S.engines[i].egt');
 });

@@ -131,9 +131,10 @@ const VIEW_ZONES = ['overhead', 'left', 'center', 'right', 'pedestal'];
    reflow) or `perEngine` (repeated per engine.count, a fixed grid). Where they go is the layout's
    (display/panel_flow.js). `unconfirmed`: why the source leaves it open (drawn like any other). */
 /* A dial's scale, in the dial's own unit (display/analog_panel.js, _scale): the ends, the numeral and tick
-   spacing, how far round it runs, a 0 mark before the scale, the coloured arcs. Absent → the dial's default. */
+   spacing, how far round it runs, a 0 mark before the scale, the coloured arcs. Absent → the dial's default.
+   unit: the airspeed dial's km/h / kt / mph; '%' on the rpm dial — the rpm as a share of engine.maxRpm (a turbine's tachometer). */
 const dialScale = object({
-  unit: oneOf('km/h', 'kt', 'mph'), min: num, max: num, step: num, tick: num, minor: num, div: num, sweep: num, start: num, zero: bool, zeroFigure: bool,
+  unit: oneOf('km/h', 'kt', 'mph', '%'), min: num, max: num, step: num, tick: num, minor: num, div: num, sweep: num, start: num, zero: bool, zeroFigure: bool,
   red: anyOf(num, arrayOf(num)), yellow: arrayOf(num), green: arrayOf(num), redLine: anyOf(num, arrayOf(num)), yellowLine: anyOf(num, arrayOf(num)),
   figuresTo: num, endMark: bool,
 }, { required: ['max', 'step'] });
@@ -152,7 +153,7 @@ export const aircraft = object(
   {
     id: str, name: str, manufacturer: str, family: str, icaoType: str, registration: str, callsign: str,
     vehicleType: oneOf(...valuesOf(VEHICLE)), manualControl: bool, panel: oneOf(...valuesOf(PANEL)),
-    panelStyle: oneOf('luftwaffe', 'soviet', 'usn', 'wood'),   // panel 'analog': the look, language and units of display/analog_panel.js
+    panelStyle: oneOf('luftwaffe', 'soviet', 'soviet-1956', 'usn', 'wood'),   // panel 'analog': the look, language and units of display/analog_panel.js
     analogPanel,                                                // panel 'analog': the instruments, in groups and in order
     engine, apu, sound: object({ engineType: oneOf(...valuesOf(ENGINE)) }), ignitionTime: num, staging: oneOf('hot'),
     envelope, performance, handling: object({ rollRate: num, pitchRate: num, maxBank: num, maxPitch: num, rudderMaxDeg: num, rudderLimitKt: num, pedalSteerDeg: num,
