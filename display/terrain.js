@@ -3381,7 +3381,7 @@ export function renderTerrain(canvas, { outsideView = false, cxOverride = null, 
       ctx.fillText(`MET  ${sign}${mm}:${ss}`, W / 2, 8 * DPR);
       ctx.restore();
       _clockBottomY = 24 * DPR;
-    } else if (clockType === 'analog' && !['f4u', 'bf109', 'analog'].includes(S.aircraft?.panel)) {   // these draw their own clock
+    } else if (clockType === 'analog' && S.aircraft?.panel !== 'analog') {   // the analog panel draws its own clock
       /* F4U / Bf 109 draw the clock as a cockpit instrument (top-left) in their
          own panel renderer — no top-centre overlay for them. */
       const _h   = _clockTotal % 12;

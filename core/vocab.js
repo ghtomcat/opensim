@@ -61,9 +61,16 @@ export const VEHICLE = names({ ROCKET: 'rocket', ROBOT_ARM: 'robot-arm', ROBOT_D
 /** aircraft.panel — the cockpit display set. 'f9' is a label only: rockets pick their display by vehicleType. */
 export const PANEL = names({
   AIRBUS: 'airbus', E190: 'e190', G1000: 'g1000', DR400: 'dr400',
-  BF109: 'bf109', F4U: 'f4u', VELIS: 'velis-epsi', F9: 'f9',
-  ANALOG: 'analog',   // the analog panel (display/analog_panel.js) in the aircraft's panelStyle — the Tu-95, the An-225
+  VELIS: 'velis-epsi', F9: 'f9',
+  ANALOG: 'analog',   // the round gauges (display/analog_panel.js): panelStyle the look, analogPanel the instruments
 });
+
+/** aircraft.analogPanel — the instruments the analog panel can draw (display/analog_panel.js, INSTRUMENTS)
+    and their size classes (display/panel_flow.js, SIZES) */
+export const INSTRUMENT = namesFrom([
+  'asi', 'ai', 'alt', 'turn', 'compass', 'vsi', 'clock', 'rpm', 'n1', 'map', 'oilT', 'coolant', 'oilP',
+]);
+export const INSTRUMENT_SIZE = namesFrom(['L', 'S', 'XS', 'T']);
 
 /** aircraft.sound.engineType — the presets in core/sound.js (ENGINES), plus 'electric' and 'none' */
 export const ENGINE = namesFrom([

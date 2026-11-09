@@ -28,9 +28,7 @@ else if (isRocket && id==='saturn-v') renderApollo(canvas);          // / render
 else if (isRocket)                    renderRocket(canvas);
 else if (panel === 'dr400')           renderCockpit(canvas);         // data-driven GA
 else if (panel === 'g1000')           renderCockpit(canvas);         // data-driven GA
-else if (panel === 'bf109')           renderAnalogPanel(canvas, 'luftwaffe');   // hand-drawn, styled
-else if (panel === 'f4u')             renderAnalogPanel(canvas, 'usn');
-else if (panel === 'analog')          renderAnalogPanel(canvas, ac.panelStyle);
+else if (panel === 'analog')          renderAnalogPanel(canvas, ac.panelStyle);   // round gauges: the look by style, the instruments from analogPanel
 else if (panel === 'velis-epsi')      renderVelisEpsi(canvas);       // hand-drawn
 else if (panel === 'airbus' || panel === 'e190') {                   // data-driven glass
   renderPanel(canvas,   0, _currentSpec(0));                         // left screen
@@ -40,7 +38,7 @@ else if (panel === 'airbus' || panel === 'e190') {                   // data-dri
 ```
 
 There is no fallback: every aircraft has a `panel` (rockets and robots pick their display by
-`vehicleType`), and `panel: "analog"` needs a `panelStyle` — `tests/data-schema.test.mjs` fails otherwise.
+`vehicleType`), and `panel: "analog"` needs a `panelStyle` and an `analogPanel` (its instruments) — `tests/data-schema.test.mjs` fails otherwise.
 
 ## Panels in use
 
@@ -50,9 +48,7 @@ There is no fallback: every aircraft has a `panel` (rockets and robots pick thei
 | `e190` | data-driven glass | `renderPanel()` — specs `e190-pfd`, `e190-nd` (+ `airbus-ecam` page) | E190-E2 |
 | `g1000` | data-driven GA | `renderCockpit()` — spec `g1000` (draws via `display/g1000.js`) | C172 |
 | `dr400` | data-driven GA | `renderCockpit()` — spec `dr400` | Robin DR400 |
-| `bf109` | hand-drawn | `display/analog_panel.js`, style `luftwaffe` | Bf 109 G-4, MiG-15 |
-| `f4u` | hand-drawn | `display/analog_panel.js`, style `usn` | F4U-1A Corsair |
-| `analog` | hand-drawn | `display/analog_panel.js`, style from `panelStyle` | Tu-95MS, An-225 (`soviet`), Avro 504 (`wood`), DC-8 (`usn`) — stop-gaps until each has its own panel |
+| `analog` | hand-drawn | `display/analog_panel.js`: the look from `panelStyle`, the instruments from `analogPanel`, placed by `display/panel_flow.js` | Bf 109, MiG-15 (`luftwaffe`), F4U-1A, DC-8 (`usn`), Tu-95MS, An-225 (`soviet`), Avro 504 (`wood`) — today's set on all until each gets its sourced one |
 | `velis-epsi` | hand-drawn | `display/velis_epsi.js` | Pipistrel Velis Electro |
 
 ---

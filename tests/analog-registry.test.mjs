@@ -13,7 +13,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { INSTRUMENTS } from '../display/analog_panel.js';
+import { INSTRUMENTS, STYLE_UNITS } from '../display/analog_panel.js';
+import { readdirSync } from 'node:fs';
+import { INSTRUMENT, valuesOf } from '../core/vocab.js';
 
 const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'display', 'analog_panel.js'), 'utf8');
 
@@ -47,6 +49,23 @@ test('every registry entry names its value, reads it, and draws in at least one 
     assert.ok(units.length && units.every(u => ['metric', 'imperial'].includes(u)), `${id}: draw per unit system`);
     assert.ok(units.every(u => typeof def.draw[u] === 'function'), `${id}: draw functions`);
   }
+});
+
+test('the registry draws exactly the instruments the aircraft data may name (core/vocab.js INSTRUMENT)', () => {
+  assert.deepEqual(Object.keys(INSTRUMENTS).sort(), valuesOf(INSTRUMENT).sort());
+});
+
+test('every analog aircraft names only instruments its style can draw (a manifold gauge has no metric dial)', () => {
+  const dir = join(dirname(fileURLToPath(import.meta.url)), '..', 'aircraft');
+  const bad = [];
+  for (const f of readdirSync(dir).filter(f => f.endsWith('.json'))) {
+    const a = JSON.parse(readFileSync(join(dir, f), 'utf8'));
+    if (a.panel !== 'analog') continue;
+    const units = STYLE_UNITS[a.panelStyle];
+    for (const g of a.analogPanel.groups) for (const e of [...(g.rows ?? []).flat(), ...(g.perEngine ?? [])])
+      if (!INSTRUMENTS[e.id]?.draw[units]) bad.push(`${f}: ${e.id} in ${units}`);
+  }
+  assert.deepEqual(bad, []);
 });
 
 test('the stand-ins are marked: rpm, N1, manifold and oil pressure say what replaces them', () => {

@@ -3,6 +3,20 @@
   "views": ["overhead", "left", "center", "right", "pedestal"],
   "panel": "analog",
   "panelStyle": "soviet",
+  "analogPanel": {
+    "_note": "Today's instrument set, the same on every analog aircraft until each gets its sourced set (docs/issues.md, step 5).",
+    "groups": [
+      { "name": "flight", "rows": [
+        [{ "id": "asi", "size": "L" }, { "id": "ai", "size": "L" }, { "id": "alt", "size": "L" }],
+        [{ "id": "turn", "size": "L" }, { "id": "compass", "size": "L" }, { "id": "vsi", "size": "L" }]
+      ] },
+      { "name": "engine", "rows": [
+        [{ "id": "clock", "size": "XS" }],
+        [{ "id": "rpm", "size": "S" }],
+        [{ "id": "oilT", "size": "S" }, { "id": "oilP", "size": "S" }]
+      ] }
+    ]
+  },
   "name": "Antonov An-225 Mriya",
   "manufacturer": "antonov",
   "family": "an-225",

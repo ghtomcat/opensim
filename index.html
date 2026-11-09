@@ -3718,9 +3718,7 @@
         else if (isRocket)           renderRocket(canvas);
         else if (panel === 'dr400')  renderCockpit(canvas);
         else if (panel === 'g1000')  renderCockpit(canvas);
-        else if (panel === 'bf109')  renderAnalogPanel(canvas, 'luftwaffe');
-        else if (panel === 'f4u')    renderAnalogPanel(canvas, 'usn');
-        else if (panel === 'analog') renderAnalogPanel(canvas, S.aircraft?.panelStyle);   // the analog gauges, styled per aircraft
+        else if (panel === 'analog') renderAnalogPanel(canvas, S.aircraft?.panelStyle);   // the round gauges: panelStyle the look, analogPanel the instruments
         else if (panel === 'velis-epsi') renderVelisEpsi(canvas);
         else if (panel === 'airbus' || panel === 'e190') {
           renderPanel(canvas,   0, _currentSpec(0));
@@ -3737,7 +3735,7 @@
         const isPanel  = panel === 'airbus' || panel === 'e190';
         const hasDual  = isPanel && !!(S.aircraft?.displays?.some(d => d.screen === 1));
         const isDR400  = panel === 'dr400';
-        const isVintage = panel === 'f4u' || panel === 'bf109' || panel === 'analog';   // steam gauges: the warbirds, the Tu-95, the An-225
+        const isVintage = panel === 'analog';   // the round gauges: the warbirds, the Avro, the Tu-95, the An-225, the DC-8
         const hasOwnUI = isVelis || isG1000 || isDR400;
         const isDragon = isRocket && !!(S.mission?.dragonSepT);
         const isApollo = isRocket && S.aircraft?.id === 'saturn-v';

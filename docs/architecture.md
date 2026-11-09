@@ -285,8 +285,9 @@ that simulates and draws it. Read these first when opening an unfamiliar aircraf
 |---|---|---|---|
 | `vehicleType` | Physics model | `vehicleType: "rocket"` → `tickRocket()`; `vehicleType: "robot-arm"` → no physics (kinematics in the display); anything else → `tickPhysics()` | `core/loop.js` |
 | `manualControl` | Inside `tickPhysics()`: the force-based flight model (`true`), or a simple kinematic model that converges on the autopilot targets (absent) | `true` on every flyable aircraft; absent only on `dc8` (stub) | `core/physics.js` |
-| `panel` | Cockpit instrument panel — required on every aircraft (rockets and robots go by `vehicleType`) | glass: `airbus` (also used by the Boeings), `e190`, `g1000`, `dr400`; analog: `analog` (with `panelStyle`), `bf109` (also MiG-15), `f4u`; hand-drawn: `velis-epsi` | `index.html`, `display/panel_renderer.js`, `display/analog_panel.js`, many `core/` modules (see issues) |
+| `panel` | Cockpit instrument panel — required on every aircraft (rockets and robots go by `vehicleType`) | glass: `airbus` (also used by the Boeings), `e190`, `g1000`, `dr400`; analog: `analog` (with `panelStyle` and `analogPanel`); hand-drawn: `velis-epsi` | `index.html`, `display/panel_renderer.js`, `display/analog_panel.js`, many `core/` modules (see issues) |
 | `panelStyle` | The look of the analog panel: palette, labels, unit system | `luftwaffe`, `soviet`, `usn`, `wood` | `display/analog_panel.js` |
+| `analogPanel` | The analog panel's instruments: `groups` (the real panel's parts), each `rows` (ordered, the photo's row breaks) or `perEngine`; items `{id, size}`; `absent`, `decorative` | every `panel: "analog"` aircraft | `display/analog_panel.js`, `display/panel_flow.js` |
 | `displays` | Glass screens and their page specs from `panels/` | Airbus-family aircraft | `display/panel_renderer.js` |
 | `views` | Which cockpit zones exist and which keys toggle them | `overhead`, `left`, `center`, `right`, `pedestal` | `index.html`, `display/*console.js`, `overhead.js`, `pedestal.js` |
 | `render` | 3D outside model builder, when not the generic airliner builder | `bf109`, `f4u`, `mig15`, `propplane` (C172), `c172` (DR400), `falcon1`, `falcon9`, `saturn-v`, `starship` | `display/outside.js` |
@@ -404,7 +405,7 @@ pending.
   `count` is required; `model` and `description` are documentation. Rockets and robots
   have no `engine` (their engines live in `performance.stages`).
 - **`panel` is shared across manufacturers:** the Boeings use `"airbus"` (the shared
-  glass renderer), and the MiG-15 uses `"bf109"`.
+  glass renderer).
 
 ---
 
@@ -516,20 +517,22 @@ spec's own `style` field.
 ### 5.2 The analog path
 
 One module, `display/analog_panel.js` (`renderAnalogPanel(canvas, style)`), draws the
-round gauges of every analog aircraft. The renderer chain in `index.html` picks it by
-`panel`: `bf109` → style `luftwaffe` (Bf 109, MiG-15), `f4u` → `usn`, `analog` → the
-aircraft's `panelStyle` (`soviet`: Tu-95, An-225; `wood`: Avro 504; `usn`: DC-8).
+round gauges of every analog aircraft — `panel: "analog"`, with the aircraft's `panelStyle`
+(`luftwaffe`: Bf 109, MiG-15; `usn`: F4U, DC-8; `soviet`: Tu-95, An-225; `wood`: Avro 504).
 
 ```
-aircraft/<id>.json          "panel": "analog", "panelStyle": "soviet"
+aircraft/<id>.json          "panel": "analog", "panelStyle": "soviet",
+                            "analogPanel": { "groups": [{ "name", "rows": [[{ "id", "size" }…]…] | "perEngine" }] }
 display/analog_panel.js     STYLES[style] → P (palette), L (labels), units (metric | imperial),
-                            optional asi / rpm scales, engineGauge, sky / ground, woodGrain, frost
-                            gauge set G by units → the draw functions (_drawFahrtmesser, _drawAirspeed, …)
+                            optional asi / rpm scales, sky / ground, woodGrain, frost
+                            INSTRUMENTS[id] → read (the sim value) + draw per unit system
+display/panel_flow.js       the groups → positions, per view
 ```
 
-**Today** the style is everything: the instruments are the same for all (the six flight
-instruments and the engine gauges of a 1940s fighter), as two groups — flight, and the clock
-with the engine gauges. A **flowing layout** (`display/panel_flow.js`, pure arithmetic,
+**Today** the style sets the look and the aircraft data the instruments
+(`analogPanel.groups`, checked by `core/schema/aircraft.js`; the ids in `core/vocab.js`
+`INSTRUMENT`). Every aircraft still has the same set — the six flight instruments of a 1940s
+fighter; the clock and the engine gauges — until its sourced set (step 5). A **flowing layout** (`display/panel_flow.js`, pure arithmetic,
 `tests/panel-flow.test.mjs`) places them for the view: the panel view in the groups' own
 rows, the combined view (a strip under the outside view) in the arrangement with the
 largest dials; a large dial at most 200 CSS px; in the panel view clear of the map and the
@@ -542,13 +545,10 @@ with what replaces it.
 
 **Planned** (docs/issues.md, *The analog panels draw a borrowed fighter panel*):
 - the **style is only the look** (palette, labels, units — by era and airframe);
-- the **aircraft data is the content**: `analogPanel.groups` — the real panel's parts,
-  each an ordered list of instruments (`id`, `kind`, `size` class, `scale`), with the
-  photo's row breaks as a hint; engine instruments repeat per `engine.count`;
-- an **instrument registry**: each kind (dial, two-needle dial, turn & slip, clock face,
-  lamps, sight glass, bubble level) draws one named sim value — never a formula in the
-  drawing code; only purely decorative instruments are left out;
-- **one panel name**, `analog` — `bf109` and `f4u` go.
+- each aircraft's **sourced set** in its `analogPanel`, with `scale` per instrument;
+- new instrument **kinds** (two-needle dial, lamps, sight glass, bubble level, clock face)
+  with the aircraft that use them; only purely decorative instruments are left out;
+- the stand-in values replaced by the sim's own (`S.engines[]`, the oil system, the supercharger).
 
 Sources per type: `sources/*-panel-notes.md` (local); the mockup
 `docs/mockups/analog-panel-config.html` (local).

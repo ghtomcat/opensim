@@ -8,6 +8,20 @@
   "model": "dc-8",
   "panel": "analog",
   "panelStyle": "usn",
+  "analogPanel": {
+    "_note": "Today's instrument set, the same on every analog aircraft until each gets its sourced set (docs/issues.md, step 5).",
+    "groups": [
+      { "name": "flight", "rows": [
+        [{ "id": "asi", "size": "L" }, { "id": "ai", "size": "L" }, { "id": "alt", "size": "L" }],
+        [{ "id": "turn", "size": "L" }, { "id": "compass", "size": "L" }, { "id": "vsi", "size": "L" }]
+      ] },
+      { "name": "engine", "rows": [
+        [{ "id": "clock", "size": "XS" }],
+        [{ "id": "map", "size": "S" }],
+        [{ "id": "oilT", "size": "S" }, { "id": "oilP", "size": "S" }]
+      ] }
+    ]
+  },
   "_status": "stub — nose profile only; full geometry TBD",
   "spoilers": { "drag": 0.06 },
   "nose": {

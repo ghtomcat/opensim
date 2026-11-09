@@ -112,7 +112,6 @@ const STYLES = {
     ground: ['#5e5030', '#4c4028', '#3a3020'],   // fields and earth
     frost: false,
     units: 'imperial',
-    engineGauge: 'rpm',                                            // a rotary: revolutions, no manifold pressure
     asi: { factor: 1.15078, max: 120, step: 20, arcs: false },     // knots → mph
     rpm: { idle: 500, max: 1200, dial: 1600, step: 200 },          // Le Rhône 9J: 110 hp at 1,200 rpm
     L: {
@@ -123,6 +122,9 @@ const STYLES = {
     },
   },
 };
+/** Each style's unit system — the registry draws an instrument per unit system (tests/analog-registry.test.mjs) */
+export const STYLE_UNITS = Object.fromEntries(Object.entries(STYLES).map(([k, v]) => [k, v.units]));
+
 let ST = STYLES.luftwaffe, P = ST.P, L = ST.L;   // the active style — set by each render
 
 /* ── Fonts ── */
@@ -205,28 +207,15 @@ export const INSTRUMENTS = {
 
 /** Draw one instrument of the registry in the active style's unit system */
 function _inst(id, ctx, x, y, r, sc) {
-  const def = INSTRUMENTS[id];
-  def.draw[ST.units ?? 'metric'](ctx, x, y, r, sc, def.read());
+  const def = INSTRUMENTS[id], draw = def?.draw[ST.units ?? 'metric'];
+  if (!draw) { _warnOnce(`analog panel: no ${ST.units} drawing of "${id}"`); return; }
+  draw(ctx, x, y, r, sc, def.read());
 }
+const _warned = new Set();
+function _warnOnce(msg) { if (!_warned.has(msg)) { _warned.add(msg); console.warn(msg); } }
 
 /** A large (L) dial at most this many CSS px — a bigger screen gets more room, not bigger dials */
 const MAX_L = 200;
-
-/** Today's instrument set as groups — the same for every aircraft until its data has its own (step 3):
-    the six flight instruments; the clock and the engine gauges (with the coolant gauge when the
-    aircraft has a cooling model). */
-function _defaultGroups() {
-  const jet = S.aircraft?.sound?.engineType === 'turbojet-vk1';
-  const eng = ST.units === 'imperial' ? (ST.engineGauge === 'rpm' ? 'rpm' : 'map') : (jet ? 'n1' : 'rpm');
-  const at  = (id, size) => ({ id, size });
-  return [
-    { name: 'flight', rows: [[at('asi', 'L'), at('ai', 'L'), at('alt', 'L')],
-                             [at('turn', 'L'), at('compass', 'L'), at('vsi', 'L')]] },
-    { name: 'engine', rows: [[at('clock', 'XS')],
-                             S.aircraft?.cooling ? [at(eng, 'S'), at('coolant', 'S')] : [at(eng, 'S')],
-                             [at('oilT', 'S'), at('oilP', 'S')]] },
-  ];
-}
 
 /* The HTML overlays at the panel's top corners — the map (top right), the mission title, timer and the
    KEYS button (top left). The layout keeps clear of those over the canvas, the same on both sides so
@@ -272,14 +261,15 @@ export function renderAnalogPanel(canvas, style = 'luftwaffe') {
   ctx.fillStyle = vg;
   ctx.fillRect(0, 0, W, H);
 
-  /* The instruments and where they go: the groups (today's set until the aircraft data has its own —
-     step 3), laid out by the flowing layout for the view (display/panel_flow.js). The status bar
+  /* The instruments and where they go: the aircraft's groups (analogPanel), laid out by the flowing
+     layout for the view (display/panel_flow.js). The status bar
      (#panel, 80 px) covers the bottom of both views; a large dial is at most MAX_L CSS px. */
   const dpr  = devicePixelRatio;
   const view = canvas.classList.contains('combined') ? 'combined' : 'panel';
   const side = _overlayInset(canvas) * dpr;          // keep clear of the map and the mission title / timer
   const area = { w: W - 2 * side, h: H - 80 * dpr };
-  const lay  = flowLayout(_defaultGroups(), area, { view, engines: S.aircraft?.engine?.count ?? 1, maxL: MAX_L * dpr });
+  const groups = S.aircraft?.analogPanel?.groups ?? [];   // the aircraft's instruments (core/schema/aircraft.js)
+  const lay  = flowLayout(groups, area, { view, engines: S.aircraft?.engine?.count ?? 1, maxL: MAX_L * dpr });
   const sc   = (SIZES.L * lay.scale / 2) / 90;        // the text scale: 1 at a large dial of radius 90 px
   for (const it of lay.items) _inst(it.id, ctx, side + it.x, it.y, it.d / 2, sc);
 

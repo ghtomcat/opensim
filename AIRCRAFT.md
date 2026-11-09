@@ -57,15 +57,13 @@ The `panel` field controls which 3D cockpit and instrument renderer is used.
 | `"e190"` | Embraer Primus-style EFIS | E190 |
 | `"g1000"` | Garmin G1000 glass cockpit (data-driven) | C172 |
 | `"dr400"` | Robin DR-400 cockpit — Garmin GTN + analog gauges (data-driven) | Robin DR-400 |
-| `"bf109"` | Bf 109 analog steam gauges | Bf 109 |
-| `"f4u"` | F4U Corsair analog gauges | F4U-1A |
 | `"velis-epsi"` | Velis Electro EPSI panel | Velis HB-SYC |
-| `"analog"` | the analog gauges in the style named by `panelStyle` (`soviet`, `wood`, `usn`, `luftwaffe`) — required with it | Tu-95MS, An-225, Avro 504, DC-8 |
+| `"analog"` | the round gauges: the look by `panelStyle` (`luftwaffe`, `usn`, `soviet`, `wood`), the instruments by `analogPanel` (groups of `{ "id", "size" }` in rows, or `perEngine`) — both required | Bf 109, MiG-15, F4U-1A, Tu-95MS, An-225, Avro 504, DC-8 |
 
 The 3D outside model (fuselage, wings, engines) is also driven by `panel`:
 - `"airbus"` or `"e190"` → wide-body jet renderer (`_buildWB`) with twin turbofan engines, swept wings, proper aileron/flap animation.
 - `"g1000"` or `"dr400"` → piston-single high-wing geometry (C172 base model).
-- `"bf109"` → Bf 109 propeller fighter geometry.
+- the warbirds' geometry (Bf 109, F4U, MiG-15) is chosen by the aircraft `id` and `render`, not by `panel`.
 - Everything else → default wide-body fallback.
 
 For `"airbus"` panel you must also add a `displays` array (see below).

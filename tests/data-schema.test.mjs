@@ -123,6 +123,16 @@ test('every aircraft has a panel — no glass-PFD fallback any more; analog need
   assert.ok(bare.some(e => e.endsWith('panel "analog" needs a panelStyle')), bare.join('\n'));
   assert.deepEqual(errorsAfter('aircraft/falcon9-b5.json', aircraft, () => {}), []);   // rockets pick their display by vehicleType
 });
+test('the analog panel needs its instruments: known ids and sizes, rows or perEngine', () => {
+  const none = errorsAfter('aircraft/bf109.json', aircraft, a => { delete a.analogPanel; });
+  assert.ok(none.some(e => e.endsWith('panel "analog" needs an analogPanel (its instruments)')), none.join('\n'));
+  const id = errorsAfter('aircraft/bf109.json', aircraft, a => { a.analogPanel.groups[0].rows[0][0].id = 'horizon'; });
+  assert.ok(id.some(e => e.includes('groups[0].rows[0][0].id')), id.join('\n'));
+  const both = errorsAfter('aircraft/bf109.json', aircraft, a => { a.analogPanel.groups[0].perEngine = [{ id: 'rpm', size: 'XS' }]; });
+  assert.ok(both.some(e => e.endsWith('analogPanel.groups[0]: rows or perEngine, one of them')), both.join('\n'));
+  const old = errorsAfter('aircraft/bf109.json', aircraft, a => { a.panel = 'bf109'; });
+  assert.ok(old.some(e => e.startsWith('panel:')), 'the old panel name is gone: ' + old.join('\n'));
+});
 test('engine is an object — the old description string fails', () => {
   const errs = errorsAfter('aircraft/c172.json', aircraft, a => { a.engine = 'Lycoming IO-360, 180hp'; });
   assert.ok(errs.some(e => e.startsWith('engine:')), errs.join('\n'));

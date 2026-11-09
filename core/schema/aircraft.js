@@ -12,7 +12,7 @@
 
 import { str, num, bool, open, oneOf, arrayOf, mapOf, object } from './check.js';
 import { com } from './mission.js';
-import { ENGINE, ENGINE_TYPE, PANEL, VEHICLE, valuesOf } from '../vocab.js';
+import { ENGINE, ENGINE_TYPE, INSTRUMENT, INSTRUMENT_SIZE, PANEL, VEHICLE, valuesOf } from '../vocab.js';
 
 const GLASS_JET = [PANEL.AIRBUS, PANEL.E190];   // panels that drive the turbofan A/THR + N1 system
 
@@ -125,11 +125,24 @@ const checklist = object({
 });
 const VIEW_ZONES = ['overhead', 'left', 'center', 'right', 'pedestal'];
 
+/* The analog panel's content (docs/issues.md, "The analog panels draw a borrowed fighter panel"): the real
+   panel's parts as groups, each an ordered list — `rows` (the photo's row breaks, a hint the layout may
+   reflow) or `perEngine` (repeated per engine.count, a fixed grid). Where they go is the layout's
+   (display/panel_flow.js). `unconfirmed`: why the source leaves it open (drawn like any other). */
+const analogItem = object({ id: oneOf(...valuesOf(INSTRUMENT)), size: oneOf(...valuesOf(INSTRUMENT_SIZE)), unconfirmed: str },
+                          { required: ['id', 'size'] });
+const analogPanel = object({
+  groups: arrayOf(object({ name: str, rows: arrayOf(arrayOf(analogItem)), perEngine: arrayOf(analogItem) }, { required: ['name'] })),
+  absent:     arrayOf(str),   // what the type did not have (sources/*-panel-notes.md)
+  decorative: arrayOf(str),   // real instruments left out because nothing in the sim could drive them
+}, { required: ['groups'] });
+
 export const aircraft = object(
   {
     id: str, name: str, manufacturer: str, family: str, icaoType: str, registration: str, callsign: str,
     vehicleType: oneOf(...valuesOf(VEHICLE)), manualControl: bool, panel: oneOf(...valuesOf(PANEL)),
     panelStyle: oneOf('luftwaffe', 'soviet', 'usn', 'wood'),   // panel 'analog': the look, language and units of display/analog_panel.js
+    analogPanel,                                                // panel 'analog': the instruments, in groups and in order
     engine, apu, sound: object({ engineType: oneOf(...valuesOf(ENGINE)) }), ignitionTime: num, staging: oneOf('hot'),
     envelope, performance, handling: object({ rollRate: num, pitchRate: num, maxBank: num, maxPitch: num, rudderMaxDeg: num, rudderLimitKt: num, pedalSteerDeg: num,
       tac: object({ thresholdFrac: num, minKt: num, lagS: num }) }),
@@ -254,6 +267,11 @@ export const aircraft = object(
          is no fallback display any more; the analog panel needs its style */
       if (!a.vehicleType && !a.panel) errs.push('panel is required (an aircraft without one draws no instruments)');
       if (a.panel === PANEL.ANALOG && !a.panelStyle) errs.push('panel "analog" needs a panelStyle');
+      if (a.panel === PANEL.ANALOG && !a.analogPanel) errs.push('panel "analog" needs an analogPanel (its instruments)');
+      for (const [i, g] of (a.analogPanel?.groups ?? []).entries()) {
+        if (!!g.rows === !!g.perEngine) errs.push(`analogPanel.groups[${i}]: rows or perEngine, one of them`);
+        if ((g.rows ?? []).some(r => !r.length) || (g.rows ?? g.perEngine ?? [1]).length === 0) errs.push(`analogPanel.groups[${i}]: an empty row or group`);
+      }
       /* glass-cockpit jets must declare a turbofan, or N1/N2 stay 0 forever */
       if (GLASS_JET.includes(a.panel)) {
         if (!turbofan) errs.push(`glass jet (panel ${a.panel}) needs engine.type "turbofan"`);

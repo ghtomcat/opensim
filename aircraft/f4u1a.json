@@ -12,7 +12,22 @@
   },
   "render": "f4u",
   "gear": { "fixed": true, "tires": [[1, 0.000273], [3, 0.000273], [5, 0.000141]] },
-  "panel": "f4u",
+  "panel": "analog",
+  "panelStyle": "usn",
+  "analogPanel": {
+    "_note": "Today's instrument set, the same on every analog aircraft until each gets its sourced set (docs/issues.md, step 5).",
+    "groups": [
+      { "name": "flight", "rows": [
+        [{ "id": "asi", "size": "L" }, { "id": "ai", "size": "L" }, { "id": "alt", "size": "L" }],
+        [{ "id": "turn", "size": "L" }, { "id": "compass", "size": "L" }, { "id": "vsi", "size": "L" }]
+      ] },
+      { "name": "engine", "rows": [
+        [{ "id": "clock", "size": "XS" }],
+        [{ "id": "map", "size": "S" }, { "id": "coolant", "size": "S" }],
+        [{ "id": "oilT", "size": "S" }, { "id": "oilP", "size": "S" }]
+      ] }
+    ]
+  },
   "name": "Vought F4U-1A Corsair",
   "engine": { "type": "piston", "count": 1, "model": "r-2800-8", "description": "Pratt & Whitney R-2800-8 Double Wasp, 18-cylinder radial", "startTime": 64.1, "stopTime": 5.5 },
   "manufacturer": "vought",

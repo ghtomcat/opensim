@@ -10,7 +10,22 @@
   "family": "mig-15",
   "model": "mig-15",
   "clock": "analog",
-  "panel": "bf109",
+  "panel": "analog",
+  "panelStyle": "luftwaffe",
+  "analogPanel": {
+    "_note": "Today's instrument set, the same on every analog aircraft until each gets its sourced set (docs/issues.md, step 5).",
+    "groups": [
+      { "name": "flight", "rows": [
+        [{ "id": "asi", "size": "L" }, { "id": "ai", "size": "L" }, { "id": "alt", "size": "L" }],
+        [{ "id": "turn", "size": "L" }, { "id": "compass", "size": "L" }, { "id": "vsi", "size": "L" }]
+      ] },
+      { "name": "engine", "rows": [
+        [{ "id": "clock", "size": "XS" }],
+        [{ "id": "n1", "size": "S" }],
+        [{ "id": "oilT", "size": "S" }, { "id": "oilP", "size": "S" }]
+      ] }
+    ]
+  },
   "callsign": "Red 15",
   "icaoType": "MG15",
   "landSurfaces": ["runway"],

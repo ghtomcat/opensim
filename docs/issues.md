@@ -703,7 +703,7 @@ The cell shows real N1 only on the multi-engine turbofans. For the others the va
 **Steps.**
 1. **Instrument registry** — the kinds above; each kind names its sim value. *Started 2026-11-09:* `INSTRUMENTS` in `analog_panel.js` for today's instruments — `read` from the sim, the draw functions only draw the value they are given (`tests/analog-registry.test.mjs`); the formulas moved out of the drawing code into marked stand-ins (rpm, N1, oil and manifold pressure — one oil pressure value in kg/cm² now, also on the imperial dials). The new kinds (two-needle dial, lamps, sight glass, bubble level, clock face as an instrument) come with the aircraft that use them (step 5).
 2. **Flowing layout** from groups and order, for both views, by the layout rules above (tried in the mockup). *Done 2026-11-09:* `display/panel_flow.js` (pure, `tests/panel-flow.test.mjs`) replaces the two fixed layouts; today's instruments as two default groups in code (flight; clock + engine) until step 3 puts them in the data; in the panel view the layout keeps clear of the map and the mission title / timer at the top corners (measured from the DOM).
-3. **Schema** — `analogPanel` (groups, entries, `absent`, `decorative`, `simple`), the data check; all seven on `analog`.
+3. **Schema** — `analogPanel` (groups, entries, `absent`, `decorative`, `simple`), the data check; all seven on `analog`. *Done 2026-11-09:* `analogPanel` in `core/schema/aircraft.js` (groups with `rows` or `perEngine`, items `{id, size, unconfirmed}`, `absent`, `decorative`; required with `panel: "analog"`), the ids in `core/vocab.js` `INSTRUMENT`; `tests/analog-registry.test.mjs` checks the registry draws them all and each aircraft names only what its style's unit system can draw. All seven on `panel: "analog"` with today's set as data; `bf109` and `f4u` are gone from `PANEL`, the renderer chain, `isVintage` and the terrain clock. (`simple` stays in the registry — it marks the code's stand-in, not the data.)
 4. **Scales from the data.**
 5. **The Avro 504K and the Bf 109 E-4 from their sources**, with the style corrections (black faces for the E-4).
 6. **Sim values for the panel:** rpm per engine from `core/engine.js`; a simple value for every instrument without one — oil pressure, boost, ammeter, propeller pitch, the Avro's air pressure and pulsator — in the sim, not in the drawing code, until their systems exist.
@@ -896,7 +896,7 @@ The declared layering (data → simulation → presentation → shell) is also n
 
 **Symptom.** One JSON shape and one `S` cover aircraft, rockets and robots, and each vehicle type is handled by `if` branches spread across modules:
 - rockets reuse fields with different meanings (`S.pitch` = flight-path angle, `S.spd` = total velocity);
-- selectors are inconsistent: `so101.json` and `yertle.json` still carry a top-level `type` no code reads (since the hovercraft removal, `vehicleType` is the only physics selector), `panel: "airbus"` on the Boeings and `"bf109"` on the MiG-15, `engine` as object or string;
+- selectors are inconsistent: `so101.json` and `yertle.json` still carry a top-level `type` no code reads (since the hovercraft removal, `vehicleType` is the only physics selector), `panel: "airbus"` on the Boeings, `engine` as object or string;
 - specific ids are checked in generic modules (*Vehicle- and mission-specific special cases in generic core modules*).
 
 **Why it matters.** Each new vehicle kind adds branches in the loop, mission load, sound, displays and crew. The hovercraft's removal (2026-10-12) was partly this cost.
