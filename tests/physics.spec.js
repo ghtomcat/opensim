@@ -241,12 +241,13 @@ test.describe('Bf 109 — Wolfskopf', () => {
 /* ── An-225 Mriya ────────────────────────────────────────────── */
 
 test.describe('An-225 Mriya — Hostomel 2022', () => {
+  /* A turbofan since 2026-11-09: the thrust lever sets the thrust (spdT is the autothrust's speed, not a throttle) */
 
   test('rotates between 165–215 kt (flaps 15°)', async ({ page }) => {
     await loadSim(page, 'hostomel-2022');
     await readyForTakeoff(page);
 
-    await setState(page, { spdT: 460, flaps: 1 });
+    await setState(page, { thrustLever: 1, flaps: 1 });
     await stepSeconds(page, 5);
     await setState(page, { pitchT: 8 });
 
@@ -261,7 +262,7 @@ test.describe('An-225 Mriya — Hostomel 2022', () => {
     await loadSim(page, 'hostomel-2022');
     await readyForTakeoff(page);
 
-    await setState(page, { spdT: 460, pitchT: 8 });
+    await setState(page, { thrustLever: 1, pitchT: 8 });
     await stepSeconds(page, 120);
 
     const s = await getState(page);
@@ -272,7 +273,7 @@ test.describe('An-225 Mriya — Hostomel 2022', () => {
     await loadSim(page, 'hostomel-2022');
     await readyForTakeoff(page);
 
-    await setState(page, { spdT: 460, pitchT: 8 });
+    await setState(page, { thrustLever: 1, pitchT: 8 });
     await stepSeconds(page, 120);
 
     const airborne = await getState(page);

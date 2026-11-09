@@ -151,8 +151,9 @@ const _frac = v => ((v % 1) + 1) % 1;
 /** rpm of engine i — the engine's own (core/engine.js: running, the start sequence, the run-down) */
 const _rpm = (i = 0) => engineRpm(i) ?? 0;
 
-/** N1 % of a turbojet — its rpm as a share of the maximum (the VK-1: 11 560 rpm = 100 %) */
-const _n1Pct = (i = 0) => _rpm(i) / (S.aircraft?.engine?.maxRpm ?? 1) * 100;
+/** N1 % — a turbofan's own fan speed (S.engines[i].n1); a turbojet's rpm as a share of the maximum (the VK-1: 11 560 rpm = 100 %) */
+const _n1Pct = (i = 0) => S.aircraft?.engine?.type === 'turbofan' ? (S.engines?.[i]?.n1 ?? 0)
+                                                                 : _rpm(i) / (S.aircraft?.engine?.maxRpm ?? 1) * 100;
 
 /* ════════════════════════════════════════════════════════════
    INSTRUMENT REGISTRY — what each instrument shows and how it is drawn.
@@ -181,7 +182,7 @@ export const INSTRUMENTS = {
              draw: { metric: _drawVariometer, imperial: _drawVSI } },
   rpm:     { value: 'rpm — engineRpm() (core/engine.js); a scale in % shows it as a share of engine.maxRpm',  read: _rpm,
              draw: { metric: _drawDrehzahl, imperial: _drawDrehzahl } },
-  n1:      { value: 'N1 % — a turbojet\'s rpm / maxRpm (core/engine.js)', read: _n1Pct,
+  n1:      { value: 'N1 % — a turbofan\'s S.engines[i].n1, a turbojet\'s rpm / maxRpm (core/engine.js)', read: _n1Pct,
              draw: { metric: _drawN1Messer } },
   oilT:    { value: 'S.oilTempC (°C)',                    read: () => S.oilTempC ?? 15,
              draw: { metric: (ctx, x, y, r, sc, v, scale) => scale ? _drawGauge(ctx, x, y, r, sc, v, scale, { max: 130, step: 20, ring: 'oil', big: '°C', name: 'oilT' })

@@ -4,16 +4,17 @@
   "panel": "analog",
   "panelStyle": "soviet",
   "analogPanel": {
-    "_note": "Today's instrument set, the same on every analog aircraft until each gets its sourced set (docs/issues.md, step 5).",
+    "_note": "The pilots' main panel (2026-11-09): the flight block with the clock, and per engine N1, EGT, oil temperature and pressure. The full D-18T set belongs at the flight engineer's station; until it exists the main panel carries them as they fit (Markus; the mockup's An-225: N1 + EGT). The cockpit's instruments not sourced — no panel description found (sources/tu95-panel-notes.md has the Soviet types).",
     "groups": [
       { "name": "flight", "rows": [
         [{ "id": "asi", "size": "L" }, { "id": "ai", "size": "L" }, { "id": "alt", "size": "L" }],
-        [{ "id": "turn", "size": "L" }, { "id": "compass", "size": "L" }, { "id": "vsi", "size": "L" }]
+        [{ "id": "turn", "size": "S" }, { "id": "compass", "size": "S" }, { "id": "vsi", "size": "S" }, { "id": "clock", "size": "XS" }]
       ] },
-      { "name": "engine", "rows": [
-        [{ "id": "clock", "size": "XS" }],
-        [{ "id": "rpm", "size": "S" }],
-        [{ "id": "oilT", "size": "S" }, { "id": "oilP", "size": "S" }]
+      { "name": "engines", "perEngine": [
+        { "id": "n1", "size": "XS" },
+        { "id": "tgt", "size": "XS", "scale": { "max": 800, "step": 100, "div": 100, "minor": 5 }, "unconfirmed": "the EGT indicator's scale not found" },
+        { "id": "oilT", "size": "XS", "unconfirmed": "the default dial" },
+        { "id": "oilP", "size": "XS", "unconfirmed": "the default dial" }
       ] }
     ]
   },
@@ -27,7 +28,7 @@
   "icaoType": "A225",
   "landSurfaces": ["runway"],
   "era": "Cargo · 1988",
-  "engine": { "count": 6, "model": "d-18t", "description": "ZMKB Progress D-18T × 6 · 229.5 kN each · 1 377 kN total" },
+  "engine": { "type": "turbofan", "idleN1": 22, "count": 6, "model": "d-18t", "description": "ZMKB Progress D-18T × 6 · 229.5 kN each · 1 377 kN total" },
 
   "manualControl": true,
   "crewLang": "uk-UA",

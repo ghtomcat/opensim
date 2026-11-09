@@ -28,7 +28,7 @@ The tables below are generated from the key map (`core/keymap.js`): edit the tab
 | `F` | Flaps: retract one stage | every aircraft |
 | `G` | Gear up / down (not on the ground) | a220, a340, a350, an225, b737, b737max9, b777-300er, bf109, dc8, e190, f4u1a, mig15, tu95 |
 | `S` | Speed brake: RET → ARM → FULL | a220, a340, a350, an225, b737, b737max9, b777-300er, dc8, e190 |
-| `D` | Engine start on the pedestal: power, ENG MODE IGN/START, ENG MASTERs | a220, a340, a350, b737, b737max9, b777-300er, e190 |
+| `D` | Engine start on the pedestal: power, ENG MODE IGN/START, ENG MASTERs | a220, a340, a350, an225, b737, b737max9, b777-300er, e190 |
 | `Panel` | Motor on: MASTER → BATT EN → PWR EN | velis-hb-syc |
 | `E` | Engine start · Engine start (battery on first) | bf109, c172, dc8, f4u1a, mig15, robin-dr400 |
 | `Q` | Fuel cutoff, all engines · Engine cutoff | a220, a340, a350, b737, b737max9, b777-300er, bf109, dc8, e190, f4u1a, mig15 |

@@ -9,7 +9,7 @@
    They read the engine model (core/engine.js: the lifecycle state, the rpm, the throttle) and the
    fuel state; they own no state and change nothing.
 
-     oilPressure(i)       kg/cm²    → "The oil system"
+     oilPressure(i)       kg/cm²    a turbofan's own (e.oil); else → "The oil system"
      manifoldPressure(i)  in.Hg     → "The supercharger"
      fuelPressure(i)      kg/cm²    → "The fuel system"
      generatorAmps(i)     A         → an electrical model for the warbirds
@@ -42,9 +42,12 @@ const _rpm   = (i) => engineRpm(i) ?? 0;
 export const fuelLitres = () => (S.fuelLeft ?? 0) + (S.fuelRight ?? 0);
 const _fuelFlows = () => !S.fuelShutoff && fuelLitres() > 0;
 
-/** Oil pressure, kg/cm² — 1.5 at idle to 7.5 at full throttle while running; building with the rpm
-    to idle on the start, falling with it on the run-down → "The oil system" */
+/** Oil pressure, kg/cm² — a turbofan's own (S.engines[i].oil, psi, from its core — core/engine.js); the others a
+    stand-in: 1.5 at idle to 7.5 at full throttle while running; building with the rpm to idle on the start,
+    falling with it on the run-down → "The oil system" */
+const PSI_PER_KGCM2 = 14.223;
 export function oilPressure(i = 0) {
+  if (S.aircraft?.engine?.type === 'turbofan') return (S.engines?.[i]?.oil ?? 0) / PSI_PER_KGCM2;
   const st = _state(i), rpm = _rpm(i), r = rpmRange();
   return st === 'running'  ? 1.5 + throttleFrac() * 6.0
        : st === 'starting' ? Math.min(1.5, rpm / r.idle * 1.5)
