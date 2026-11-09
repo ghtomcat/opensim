@@ -27,12 +27,12 @@
     "_note": "Today's instrument set, the same on every analog aircraft until each gets its sourced set (docs/issues.md, step 5).",
     "groups": [
       { "name": "flight", "rows": [
-        [{ "id": "asi", "size": "L" }, { "id": "ai", "size": "L" }, { "id": "alt", "size": "L" }],
+        [{ "id": "asi", "size": "L", "scale": { "unit": "km/h", "min": 80, "max": 750, "step": 100, "tick": 10, "minor": 1, "sweep": 330 } }, { "id": "ai", "size": "L" }, { "id": "alt", "size": "L" }],
         [{ "id": "turn", "size": "L" }, { "id": "compass", "size": "L" }, { "id": "vsi", "size": "L" }]
       ] },
       { "name": "engine", "rows": [
         [{ "id": "clock", "size": "XS" }],
-        [{ "id": "rpm", "size": "S" }, { "id": "coolant", "size": "S" }],
+        [{ "id": "rpm", "size": "S", "scale": { "min": 600, "max": 3500, "step": 500, "tick": 100, "minor": 1, "div": 100, "sweep": 330, "redLine": 2400 } }, { "id": "coolant", "size": "S" }],
         [{ "id": "oilT", "size": "S" }, { "id": "oilP", "size": "S" }]
       ] }
     ]

@@ -112,8 +112,6 @@ const STYLES = {
     ground: ['#5e5030', '#4c4028', '#3a3020'],   // fields and earth
     frost: false,
     units: 'imperial',
-    asi: { factor: 1.15078, max: 120, step: 20, arcs: false },     // knots → mph
-    rpm: { idle: 500, max: 1200, dial: 1600, step: 200 },          // Le Rhône 9J: 110 hp at 1,200 rpm
     L: {
       asi: 'Air Speed', asiUnit: 'M.P.H.', ai: 'Horizon', alt: 'Altimeter', altUnit: '×1000 ft',
       turn: 'Turn Indicator', turnL: 'L', turnR: 'R', compass: 'Compass', cards: ['N', 'E', 'S', 'W'],
@@ -139,12 +137,12 @@ const _r = d => (d - 90) * Math.PI / 180;
    ════════════════════════════════════════════════════════════ */
 const _throttle = () => Math.max(0, Math.min(1, (S.spdT ?? 0) / (S.aircraft?.envelope?.maxSpd ?? 335)));
 
-/** rpm — from the throttle while running (the style's idle…max, scaled by engine health), else the sound
+/** rpm — from the throttle while running (engine.idleRpm…maxRpm, scaled by engine health), else the sound
     code's start/stop curve → S.engines[i].rpm from core/engine.js */
 function _simpleRpm() {
   const st = S.engineState;
   if (st === 'running') {
-    const R = ST.rpm ?? {}, rIdle = R.idle ?? 400, rMax = R.max ?? 2800;
+    const e = S.aircraft?.engine ?? {}, rIdle = e.idleRpm ?? 400, rMax = e.maxRpm ?? 2800;
     return Math.round((rIdle + (rMax - rIdle) * _throttle()) * (S.enginePower ?? 1));
   }
   return (st === 'starting' || st === 'shutdown') ? (getRpmValue() ?? 0) : 0;
@@ -206,10 +204,10 @@ export const INSTRUMENTS = {
 };
 
 /** Draw one instrument of the registry in the active style's unit system */
-function _inst(id, ctx, x, y, r, sc) {
+function _inst(id, ctx, x, y, r, sc, scale) {
   const def = INSTRUMENTS[id], draw = def?.draw[ST.units ?? 'metric'];
   if (!draw) { _warnOnce(`analog panel: no ${ST.units} drawing of "${id}"`); return; }
-  draw(ctx, x, y, r, sc, def.read());
+  draw(ctx, x, y, r, sc, def.read(), scale);
 }
 const _warned = new Set();
 function _warnOnce(msg) { if (!_warned.has(msg)) { _warned.add(msg); console.warn(msg); } }
@@ -271,7 +269,7 @@ export function renderAnalogPanel(canvas, style = 'luftwaffe') {
   const groups = S.aircraft?.analogPanel?.groups ?? [];   // the aircraft's instruments (core/schema/aircraft.js)
   const lay  = flowLayout(groups, area, { view, engines: S.aircraft?.engine?.count ?? 1, maxL: MAX_L * dpr });
   const sc   = (SIZES.L * lay.scale / 2) / 90;        // the text scale: 1 at a large dial of radius 90 px
-  for (const it of lay.items) _inst(it.id, ctx, side + it.x, it.y, it.d / 2, sc);
+  for (const it of lay.items) _inst(it.id, ctx, side + it.x, it.y, it.d / 2, sc, it.item?.scale);
 
   if (ST.frost) _drawFrost(ctx, W, H);              // frost vignette — Arctic, -22 °C
   ctx.restore();
@@ -381,6 +379,49 @@ function _num(ctx, x, y, r, deg, text, sz, sc) {
 }
 
 /* Sub-label inside dial */
+/* ════════════════════════════════════════════════════════════
+   SCALE — a dial's arcs, ticks and numerals, from the instrument's `scale` in the aircraft data over the
+   dial's defaults. Returns value → angle (degrees from 12 o'clock, clockwise).
+     min, max     the scale's ends (in the dial's unit)       step   numerals every …   tick  major ticks every …
+     minor        minor ticks per major                        div    numeral = value ÷ div (rpm × 100)
+     sweep        degrees the scale runs round the dial (default 280)
+     start        where the scale (min) begins, degrees from 12 o'clock — default: the sweep centred on the bottom
+     zero         a 0 mark before min — an airspeed dial reads nothing useful below the stall
+     red          from → max, or [a, b];   yellow, green   [a, b];   redLine  a red radial mark at a value (or several)
+   An aircraft's scale brings its own arcs: the dial's default arcs apply only without one.
+   ════════════════════════════════════════════════════════════ */
+function _scale(ctx, x, y, r, sc, scale, def) {
+  const arcs = scale ? {} : { red: def.red, yellow: def.yellow, green: def.green };
+  const A = { min: 0, minor: 5, div: 1, sweep: 280, ...def, red: undefined, yellow: undefined, green: undefined, ...arcs, ...scale };
+  const tick = A.tick ?? A.step, zeroGap = A.zero ? 24 : 0;
+  const sMin = A.start ?? 180 + (360 - A.sweep) / 2 + zeroGap, s0 = sMin - zeroGap, sw = A.sweep - (A.start == null ? zeroGap : 0);
+  const ang = v => (A.zero && v < A.min) ? s0 + Math.max(0, v / A.min) * zeroGap
+                 : sMin + Math.min(1, A.noClampLow ? (v - A.min) / (A.max - A.min) : Math.max(0, (v - A.min) / (A.max - A.min))) * sw;
+
+  const band = ([a, b], col, lw) => {
+    ctx.save(); ctx.beginPath(); ctx.arc(x, y, r * 0.96, _r(ang(a)), _r(ang(b)));
+    ctx.strokeStyle = col; ctx.lineWidth = lw * sc; ctx.stroke(); ctx.restore();
+  };
+  if (A.red != null)  band(Array.isArray(A.red) ? A.red : [A.red, A.max], A.redCol ?? '#a02200', 5);
+  if (A.yellow)       band(A.yellow, '#cc9900', 4);
+  if (A.green)        band(A.green,  '#3a7a3a', 4);
+  for (const v of [A.redLine ?? []].flat()) {                          // a red radial line — a limit mark
+    const a = _r(ang(v));
+    ctx.save(); ctx.strokeStyle = A.redCol ?? '#a02200'; ctx.lineWidth = 3 * sc; ctx.beginPath();
+    ctx.moveTo(x + Math.cos(a) * r * 0.99, y + Math.sin(a) * r * 0.99);
+    ctx.lineTo(x + Math.cos(a) * r * 0.80, y + Math.sin(a) * r * 0.80); ctx.stroke(); ctx.restore();
+  }
+
+  _ticks(ctx, x, y, r, sMin, sw, (A.max - A.min) / tick, A.minor, sc);
+  ctx.textBaseline = 'middle';
+  const marks = [A.min];
+  for (let v = Math.floor(A.min / A.step) * A.step + A.step; v <= A.max + 1e-9; v += A.step)
+    if (v - A.min >= A.step / 2) marks.push(v);                     // a figure too close to the start would collide with it
+  if (A.zero) { _ticks(ctx, x, y, r, s0, 0, 1, 1, sc); marks.unshift(0); }
+  for (const v of marks) _num(ctx, x, y, r, ang(v), v === 0 ? '0' : String(+(v / A.div).toFixed(2)), A.numSize ?? 8.5, sc);
+  ctx.textBaseline = 'alphabetic';
+  return ang;
+}
 function _sublabel(ctx, x, y, r, text, sc) {
   ctx.fillStyle    = P.subdued;
   ctx.font         = `${7.5 * sc}px ${SANS}`;
@@ -468,34 +509,8 @@ function _symCoolant(ctx, x, y, s, sc) {    /* thermometer over waves */
    FAHRTMESSER — Airspeed · 0–800 km/h
    7 o'clock (220°) to 5 o'clock (220°+280°)
    ════════════════════════════════════════════════════════════ */
-function _drawFahrtmesser(ctx, x, y, r, sc, spd) {
-  const kmh  = spd * 1.852;
-  const maxV = 800;
-  const s0   = 220, sw = 280;
-
-  _base(ctx, x, y, r);
-
-  /* Danger arc ≥ 620 km/h — thin red stripe on rim */
-  const a620 = _r(s0 + (620 / maxV) * sw);
-  const aMax = _r(s0 + sw);
-  ctx.save();
-  ctx.beginPath(); ctx.arc(x, y, r * 0.96, a620, aMax);
-  ctx.strokeStyle = '#882200'; ctx.lineWidth = 5 * sc; ctx.stroke();
-  ctx.restore();
-
-  _ticks(ctx, x, y, r, s0, sw, 8, 5, sc);   /* major every 100, minor every 20 */
-
-  /* Numerals 0 100 … 800 */
-  ctx.textBaseline = 'middle';
-  for (let v = 0; v <= maxV; v += 100) _num(ctx, x, y, r, s0 + (v / maxV) * sw, v === 0 ? '0' : String(v), 8.5, sc);
-  ctx.textBaseline = 'alphabetic';
-
-  _sublabel(ctx, x, y, r, L.asiUnit, sc);
-
-  const ang = s0 + Math.min(1, Math.max(0, kmh / maxV)) * sw;
-  _needle(ctx, x, y, r, ang, 0.78, 0.22, sc);
-  _cap(ctx, x, y, 5.5 * sc);
-  _label(ctx, x, y, r, L.asi, sc);
+function _drawFahrtmesser(ctx, x, y, r, sc, kt, scale) {
+  _drawAsi(ctx, x, y, r, sc, kt, scale, { unit: 'km/h', max: 800, step: 100, red: 620, redCol: '#882200' });
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -788,25 +803,11 @@ function _drawVariometer(ctx, x, y, r, sc, vs) {
    ════════════════════════════════════════════════════════════ */
 
 /* Drehzahlmesser — DB 601 max ~2600 U/min */
-function _drawDrehzahl(ctx, x, y, r, sc, rpm) {
-  const R = ST.rpm ?? {};                                      // the style's dial — default the DB 601's
-  const maxR = R.dial ?? 2800;
-  const step = R.step ?? 400;
-  const s0   = 220, sw = 280;
-
+function _drawDrehzahl(ctx, x, y, r, sc, rpm, scale) {
   _base(ctx, x, y, r);
-  _ticks(ctx, x, y, r, s0, sw, maxR / 200, 2, sc);   /* 200 rpm per major, 100 minor */
-
-  ctx.textBaseline = 'middle';
-  for (let v = 0; v <= maxR; v += step) {
-    _num(ctx, x, y, r, s0 + (v / maxR) * sw, v === 0 ? '0' : String(v / 100), 7.5, sc);
-  }
-  ctx.textBaseline = 'alphabetic';
-
+  const ang = _scale(ctx, x, y, r, sc, scale, { max: 2800, step: 400, tick: 200, minor: 2, div: 100, numSize: 7.5, noClampLow: true });
   _sublabel(ctx, x, y, r, L.rpmUnit, sc);
-
-  const ang = s0 + Math.min(1, rpm / maxR) * sw;
-  _needle(ctx, x, y, r, ang, 0.76, 0.20, sc);
+  _needle(ctx, x, y, r, ang(rpm), 0.76, 0.20, sc);
   _cap(ctx, x, y, 4 * sc);
   _label(ctx, x, y, r, L.rpm, sc);
 }
@@ -950,43 +951,19 @@ function _drawFrost(ctx, W, H) {
 /* ════════════════════════════════════════════════════════════
    AIRSPEED — 0–400 kt
    ════════════════════════════════════════════════════════════ */
-function _drawAirspeed(ctx, x, y, r, sc, kt) {
-  const A    = ST.asi ?? {};                                   // the style's scale — default the F4U's (kt, 0–400, arcs)
-  const spd  = kt * (A.factor ?? 1);
-  const maxV = A.max ?? 400;
-  const step = A.step ?? 50;
-  const s0   = 220, sw = 280;
+function _drawAirspeed(ctx, x, y, r, sc, kt, scale) {
+  _drawAsi(ctx, x, y, r, sc, kt, scale, { unit: 'kt', max: 400, step: 50, red: 362, yellow: [200, 250], redCol: '#cc2200' });
+}
 
+/** The airspeed dial — metric and imperial alike; the scale (unit, range, arcs) from the aircraft's data,
+    else the dial's defaults (today's: the Bf 109's 0–800 km/h, the F4U's 0–400 kt) */
+const ASI_FACTOR = { kt: 1, 'km/h': 1.852, mph: 1.15078 };
+function _drawAsi(ctx, x, y, r, sc, kt, scale, def) {
   _base(ctx, x, y, r);
-  if (A.arcs !== false) {
-
-  /* Red arc ≥ 362 kt (VNE) */
-  const aVne = _r(s0 + (362 / maxV) * sw);
-  const aMax = _r(s0 + sw);
-  ctx.save();
-  ctx.beginPath(); ctx.arc(x, y, r * 0.96, aVne, aMax);
-  ctx.strokeStyle = '#cc2200'; ctx.lineWidth = 5 * sc; ctx.stroke();
-  ctx.restore();
-
-  /* Yellow arc 200–250 kt (manoeuvre speed warning) */
-  const aY0 = _r(s0 + (200 / maxV) * sw);
-  const aY1 = _r(s0 + (250 / maxV) * sw);
-  ctx.save();
-  ctx.beginPath(); ctx.arc(x, y, r * 0.96, aY0, aY1);
-  ctx.strokeStyle = '#cc9900'; ctx.lineWidth = 4 * sc; ctx.stroke();
-  ctx.restore();
-  }
-
-  _ticks(ctx, x, y, r, s0, sw, maxV / step, 5, sc);
-
-  ctx.textBaseline = 'middle';
-  for (let v = 0; v <= maxV; v += step) _num(ctx, x, y, r, s0 + (v / maxV) * sw, String(v), 8.5, sc);
-  ctx.textBaseline = 'alphabetic';
-
+  const unit = scale?.unit ?? def.unit;
+  const ang  = _scale(ctx, x, y, r, sc, scale, { ...def, numSize: 8.5 });
   _sublabel(ctx, x, y, r, L.asiUnit, sc);
-
-  const ang = s0 + Math.min(1, Math.max(0, spd / maxV)) * sw;
-  _needle(ctx, x, y, r, ang, 0.78, 0.22, sc);
+  _needle(ctx, x, y, r, ang(kt * ASI_FACTOR[unit]), 0.78, 0.22, sc);
   _cap(ctx, x, y, 5.5 * sc);
   _label(ctx, x, y, r, L.asi, sc);
 }

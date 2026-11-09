@@ -10,7 +10,7 @@
    "Aircraft geometry is derived when authored").
    ═══════════════════════════════════════════════════════════════ */
 
-import { str, num, bool, open, oneOf, arrayOf, mapOf, object } from './check.js';
+import { str, num, bool, open, oneOf, arrayOf, mapOf, anyOf, object } from './check.js';
 import { com } from './mission.js';
 import { ENGINE, ENGINE_TYPE, INSTRUMENT, INSTRUMENT_SIZE, PANEL, VEHICLE, valuesOf } from '../vocab.js';
 
@@ -23,6 +23,7 @@ const engine = object(
     starter: oneOf('electric'),      // what turns the engine over: 'electric' needs BAT on; absent → no condition
     coreIdle: num, spools: num,      // turbofan core: % at idle (default 60); 3 → the core is N3 (core/engine.js)
     egtIdle: num, egtTakeoff: num, egtStart: num, ffMax: num,   // °C at idle / 100 % N1 / the start peak; kg/h at takeoff
+    idleRpm: num, maxRpm: num,       // a piston or rotary engine's rpm at idle and at full throttle (the analog panel's stand-in)
     chevrons: bool, nacellePaint: arrayOf(num) },   // last two: 3D model
   { doc: { model: str, description: str }, required: ['count'] },
 );
@@ -129,7 +130,13 @@ const VIEW_ZONES = ['overhead', 'left', 'center', 'right', 'pedestal'];
    panel's parts as groups, each an ordered list — `rows` (the photo's row breaks, a hint the layout may
    reflow) or `perEngine` (repeated per engine.count, a fixed grid). Where they go is the layout's
    (display/panel_flow.js). `unconfirmed`: why the source leaves it open (drawn like any other). */
-const analogItem = object({ id: oneOf(...valuesOf(INSTRUMENT)), size: oneOf(...valuesOf(INSTRUMENT_SIZE)), unconfirmed: str },
+/* A dial's scale, in the dial's own unit (display/analog_panel.js, _scale): the ends, the numeral and tick
+   spacing, how far round it runs, a 0 mark before the scale, the coloured arcs. Absent → the dial's default. */
+const dialScale = object({
+  unit: oneOf('km/h', 'kt', 'mph'), min: num, max: num, step: num, tick: num, minor: num, div: num, sweep: num, start: num, zero: bool,
+  red: anyOf(num, arrayOf(num)), yellow: arrayOf(num), green: arrayOf(num), redLine: anyOf(num, arrayOf(num)),
+}, { required: ['max', 'step'] });
+const analogItem = object({ id: oneOf(...valuesOf(INSTRUMENT)), size: oneOf(...valuesOf(INSTRUMENT_SIZE)), scale: dialScale, unconfirmed: str },
                           { required: ['id', 'size'] });
 const analogPanel = object({
   groups: arrayOf(object({ name: str, rows: arrayOf(arrayOf(analogItem)), perEngine: arrayOf(analogItem) }, { required: ['name'] })),

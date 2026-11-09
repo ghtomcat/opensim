@@ -524,14 +524,16 @@ round gauges of every analog aircraft — `panel: "analog"`, with the aircraft's
 aircraft/<id>.json          "panel": "analog", "panelStyle": "soviet",
                             "analogPanel": { "groups": [{ "name", "rows": [[{ "id", "size" }…]…] | "perEngine" }] }
 display/analog_panel.js     STYLES[style] → P (palette), L (labels), units (metric | imperial),
-                            optional asi / rpm scales, sky / ground, woodGrain, frost
+                            sky / ground, woodGrain, frost
                             INSTRUMENTS[id] → read (the sim value) + draw per unit system
 display/panel_flow.js       the groups → positions, per view
 ```
 
 **Today** the style sets the look and the aircraft data the instruments
 (`analogPanel.groups`, checked by `core/schema/aircraft.js`; the ids in `core/vocab.js`
-`INSTRUMENT`). Every aircraft still has the same set — the six flight instruments of a 1940s
+`INSTRUMENT`), each instrument with an optional `scale` in its own unit — the ends, numeral
+and tick spacing, how far round and from where it runs, a 0 mark, the red / yellow / green
+arcs and red limit lines (`_scale()`); without one, the dial's default. Every aircraft still has the same set — the six flight instruments of a 1940s
 fighter; the clock and the engine gauges — until its sourced set (step 5). A **flowing layout** (`display/panel_flow.js`, pure arithmetic,
 `tests/panel-flow.test.mjs`) places them for the view: the panel view in the groups' own
 rows, the combined view (a strip under the outside view) in the arrangement with the
@@ -545,7 +547,7 @@ with what replaces it.
 
 **Planned** (docs/issues.md, *The analog panels draw a borrowed fighter panel*):
 - the **style is only the look** (palette, labels, units — by era and airframe);
-- each aircraft's **sourced set** in its `analogPanel`, with `scale` per instrument;
+- each aircraft's **sourced set** in its `analogPanel`;
 - new instrument **kinds** (two-needle dial, lamps, sight glass, bubble level, clock face)
   with the aircraft that use them; only purely decorative instruments are left out;
 - the stand-in values replaced by the sim's own (`S.engines[]`, the oil system, the supercharger).

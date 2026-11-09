@@ -6,12 +6,12 @@
     "_note": "Today's instrument set, the same on every analog aircraft until each gets its sourced set (docs/issues.md, step 5).",
     "groups": [
       { "name": "flight", "rows": [
-        [{ "id": "asi", "size": "L" }, { "id": "ai", "size": "L" }, { "id": "alt", "size": "L" }],
+        [{ "id": "asi", "size": "L", "scale": { "unit": "mph", "zero": true, "min": 40, "max": 160, "step": 10, "minor": 2, "start": 0, "sweep": 320 } }, { "id": "ai", "size": "L" }, { "id": "alt", "size": "L" }],
         [{ "id": "turn", "size": "L" }, { "id": "compass", "size": "L" }, { "id": "vsi", "size": "L" }]
       ] },
       { "name": "engine", "rows": [
         [{ "id": "clock", "size": "XS" }],
-        [{ "id": "rpm", "size": "S" }],
+        [{ "id": "rpm", "size": "S", "scale": { "max": 1600, "step": 200 } }],
         [{ "id": "oilT", "size": "S" }, { "id": "oilP", "size": "S" }]
       ] }
     ]
@@ -26,7 +26,7 @@
   "landSurfaces": ["runway", "grass"],
   "gearRuggedness": 0.7,
   "era": "WWI / 1918",
-  "engine": { "type": "piston", "count": 1, "model": "le-rhone-9j", "description": "Le Rhône 9J rotary, 110hp" },
+  "engine": { "type": "piston", "count": 1, "model": "le-rhone-9j", "idleRpm": 500, "maxRpm": 1200, "description": "Le Rhône 9J rotary, 110hp" },
 
   "envelope": {
     "cruiseAlt":  5000,

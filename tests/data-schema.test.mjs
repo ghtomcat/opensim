@@ -133,6 +133,12 @@ test('the analog panel needs its instruments: known ids and sizes, rows or perEn
   const old = errorsAfter('aircraft/bf109.json', aircraft, a => { a.panel = 'bf109'; });
   assert.ok(old.some(e => e.startsWith('panel:')), 'the old panel name is gone: ' + old.join('\n'));
 });
+test('a dial scale needs its end and step; the unit is one the airspeed dial converts', () => {
+  const noMax = errorsAfter('aircraft/avro504.json', aircraft, a => { delete a.analogPanel.groups[0].rows[0][0].scale.max; });
+  assert.ok(noMax.some(e => e.includes('scale') && e.includes('max')), noMax.join('\n'));
+  const unit = errorsAfter('aircraft/avro504.json', aircraft, a => { a.analogPanel.groups[0].rows[0][0].scale.unit = 'knots'; });
+  assert.ok(unit.some(e => e.includes('scale.unit')), unit.join('\n'));
+});
 test('engine is an object — the old description string fails', () => {
   const errs = errorsAfter('aircraft/c172.json', aircraft, a => { a.engine = 'Lycoming IO-360, 180hp'; });
   assert.ok(errs.some(e => e.startsWith('engine:')), errs.join('\n'));
