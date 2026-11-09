@@ -228,6 +228,16 @@ export function sndCrew(pfText, pmText, delayMs = 750) {
 
 /* ═══ Private ════════════════════════════════════════════════ */
 
+/**
+ * The takeoff callouts whose speed the indicated airspeed has just passed (upward, not yet fired): each with
+ * `speak` — false for a callout at or below Vr ("rotate") passed with the wheels off the ground. Such a callout
+ * belongs to the takeoff roll: an aircraft that lifted off below it would hear "rotate" in the air.
+ */
+export function takeoffCalloutsCrossed(callouts, prevSpd, spd, wow, vr, fired = new Set()) {
+  return (callouts ?? []).filter(c => prevSpd < c.spd && spd >= c.spd && !fired.has(c.spd))
+                         .map(c => ({ ...c, speak: wow || vr == null || c.spd > vr }));
+}
+
 function _checkTakeoffCallouts(ac) {
   const currSpd = S.spd ?? 0;
   const currWow = S.wow ?? false;
@@ -239,14 +249,11 @@ function _checkTakeoffCallouts(ac) {
   }
 
   /* Speed-based callouts (ascending) */
-  if (ac.takeoffCallouts) {
-    for (const { spd, speech, voice } of ac.takeoffCallouts) {
-      if (_prevSpd < spd && currSpd >= spd && !_takeoffFired.has(spd)) {
-        _takeoffFired.add(spd);
-        const speak = voice === 'pf' ? speakPF : speakPM;
-        setTimeout(() => speak(speech), 200);
-      }
-    }
+  for (const c of takeoffCalloutsCrossed(ac.takeoffCallouts, _prevSpd, currSpd, currWow, ac.performance?.Vr, _takeoffFired)) {
+    _takeoffFired.add(c.spd);
+    if (!c.speak) continue;                              // passed in the air — a "rotate" after lift-off says nothing
+    const speak = c.voice === 'pf' ? speakPF : speakPM;
+    setTimeout(() => speak(c.speech), 200);
   }
 
   /* Positive rate: WoW releases with climbing VS */
