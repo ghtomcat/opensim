@@ -285,7 +285,8 @@ that simulates and draws it. Read these first when opening an unfamiliar aircraf
 |---|---|---|---|
 | `vehicleType` | Physics model | `vehicleType: "rocket"` → `tickRocket()`; `vehicleType: "robot-arm"` → no physics (kinematics in the display); anything else → `tickPhysics()` | `core/loop.js` |
 | `manualControl` | Inside `tickPhysics()`: the force-based flight model (`true`), or a simple kinematic model that converges on the autopilot targets (absent) | `true` on every flyable aircraft; absent only on `dc8` (stub) | `core/physics.js` |
-| `panel` | Cockpit instrument panel | `airbus` (also used by the Boeings), `e190`, `g1000`, `dr400`, `bf109` (also MiG-15), `f4u`, `velis-epsi`; absent → default PFD | `index.html`, `display/panel_renderer.js`, many `core/` modules (see issues) |
+| `panel` | Cockpit instrument panel — required on every aircraft (rockets and robots go by `vehicleType`) | glass: `airbus` (also used by the Boeings), `e190`, `g1000`, `dr400`; analog: `analog` (with `panelStyle`), `bf109` (also MiG-15), `f4u`; hand-drawn: `velis-epsi` | `index.html`, `display/panel_renderer.js`, `display/analog_panel.js`, many `core/` modules (see issues) |
+| `panelStyle` | The look of the analog panel: palette, labels, unit system | `luftwaffe`, `soviet`, `usn`, `wood` | `display/analog_panel.js` |
 | `displays` | Glass screens and their page specs from `panels/` | Airbus-family aircraft | `display/panel_renderer.js` |
 | `views` | Which cockpit zones exist and which keys toggle them | `overhead`, `left`, `center`, `right`, `pedestal` | `index.html`, `display/*console.js`, `overhead.js`, `pedestal.js` |
 | `render` | 3D outside model builder, when not the generic airliner builder | `bf109`, `f4u`, `mig15`, `propplane` (C172), `c172` (DR400), `falcon1`, `falcon9`, `saturn-v`, `starship` | `display/outside.js` |
@@ -472,8 +473,21 @@ Reference data shared by both layers lives in `data/`; terrain elevation is a
 
 ## 5. Cockpit Panel Specs
 
-The last piece of the data layer describes **what the cockpit screens show**. Glass
-airliner screens and GA panels are not coded per aircraft. They are composed from
+The last piece of the data layer describes **what the cockpit panels show**. There are
+two paths, split by what the cockpit is made of:
+
+| Path | For | Renderer | Data |
+|---|---|---|---|
+| **Glass** — screens | the airliners (Airbus, Boeing, E190), the C172's G1000; the DR400 (round gauges + GTN — the open mixed case) | `display/panel_renderer.js` | `panels/<spec>.json` layouts + `panels/styles/` (§5.1) |
+| **Analog** — round gauges | the Bf 109, MiG-15, F4U, Tu-95, An-225, Avro 504, DC-8 | `display/analog_panel.js` | `panel`, `panelStyle` in the aircraft file (§5.2) |
+
+The Velis EPSI (`display/velis_epsi.js`) is a third, hand-drawn path; the vehicle
+displays (rockets, robots) are chosen by `vehicleType`. Every aircraft has a `panel`;
+there is no fallback display (`tests/data-schema.test.mjs`).
+
+### 5.1 The glass path
+
+Glass airliner screens and GA panels are not coded per aircraft. They are composed from
 JSON and drawn by one renderer, `display/panel_renderer.js`. Full reference:
 [panel-system.md](panel-system.md).
 
@@ -492,18 +506,54 @@ display/panel_renderer.js   _WIDGETS registry: widget name → draw function
 
 **What is data and what is code.** A new airliner or GA aircraft that fits the
 existing widgets needs only JSON: `panel`, `displays`, and if necessary a new spec or
-style. A new kind of instrument needs a new widget (code). Cockpits that don't fit the
-widget model (the warbirds, the Velis) are hand-drawn modules selected by `panel`
-(§3.1), and so are the vehicle displays (rockets, robots).
-
-The slide-in **cockpit zones** (overhead, pedestal, consoles, centre) are configured
-by the aircraft's `views` list and per-zone token lists (`left`, `right`,
-`pedestal`), not by `panels/` specs.
+style. A new kind of instrument needs a new widget (code).
 
 Two loading details matter. Specs and styles are **fetched on first render** of an
 aircraft and cached by aircraft id, not loaded by `loadMission()`; the screen stays
 blank until they arrive. The style is chosen by the aircraft's `panel`, not by the
 spec's own `style` field.
+
+### 5.2 The analog path
+
+One module, `display/analog_panel.js` (`renderAnalogPanel(canvas, style)`), draws the
+round gauges of every analog aircraft. The renderer chain in `index.html` picks it by
+`panel`: `bf109` → style `luftwaffe` (Bf 109, MiG-15), `f4u` → `usn`, `analog` → the
+aircraft's `panelStyle` (`soviet`: Tu-95, An-225; `wood`: Avro 504; `usn`: DC-8).
+
+```
+aircraft/<id>.json          "panel": "analog", "panelStyle": "soviet"
+display/analog_panel.js     STYLES[style] → P (palette), L (labels), units (metric | imperial),
+                            optional asi / rpm scales, engineGauge, sky / ground, woodGrain, frost
+                            gauge set G by units → the draw functions (_drawFahrtmesser, _drawAirspeed, …)
+```
+
+**Today** the style is everything: the instruments and their places are the same for all
+(the six flight instruments and the engine gauges of a 1940s fighter), in two fixed
+layouts — the panel view and the combined view (a strip under the outside view). Rpm
+comes from the sound code (`getCurrentRpm()`), oil and manifold pressure from formulas
+in the drawing code.
+
+**Planned** (docs/issues.md, *The analog panels draw a borrowed fighter panel*):
+- the **style is only the look** (palette, labels, units — by era and airframe);
+- the **aircraft data is the content**: `analogPanel.groups` — the real panel's parts,
+  each an ordered list of instruments (`id`, `kind`, `size` class, `scale`), with the
+  photo's row breaks as a hint; engine instruments repeat per `engine.count`;
+- an **instrument registry**: each kind (dial, two-needle dial, turn & slip, clock face,
+  lamps, sight glass, bubble level) draws one named sim value — never a formula in the
+  drawing code; only purely decorative instruments are left out;
+- a **flowing layout** per view: the photo's rows in the panel view; the arrangement with
+  the largest dials in the combined view (the photo's rows if within 85 %); size ratios
+  kept; a large dial at most 200 CSS px;
+- **one panel name**, `analog` — `bf109` and `f4u` go.
+
+Sources per type: `sources/*-panel-notes.md` (local); the mockup
+`docs/mockups/analog-panel-config.html` (local).
+
+### 5.3 Cockpit zones
+
+The slide-in **cockpit zones** (overhead, pedestal, consoles, centre) are configured
+by the aircraft's `views` list and per-zone token lists (`left`, `right`,
+`pedestal`), not by `panels/` specs.
 
 ---
 
