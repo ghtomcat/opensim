@@ -1713,7 +1713,7 @@
     <div class="panel-value green" id="pv-rpm">---</div>
   </div>
   <div class="panel-section" id="ps-fuel" style="display:none">
-    <div class="panel-label">Fuel L/R</div>
+    <div class="panel-label" id="pl-fuel">Fuel L/R</div>
     <div class="panel-value green" id="pv-fuel">--- / ---</div>
   </div>
   <div class="panel-section" id="ps-fsel" style="display:none">
@@ -3861,16 +3861,21 @@
       bbEvent({ type: 'mayday_call' });
     }
 
-    /* Fuel display */
+    /* Fuel display — as many values as the aircraft has tanks (tanks.right 0 or absent: one tank, no selector) */
     const hasFuel = S.fuelLeft !== null;
+    const twoTanks = (S.aircraft?.tanks?.right ?? 0) > 0;
     document.getElementById('ps-fuel').style.display = hasFuel ? '' : 'none';
-    document.getElementById('ps-fsel').style.display = hasFuel ? '' : 'none';
+    document.getElementById('ps-fsel').style.display = hasFuel && twoTanks ? '' : 'none';
     if (hasFuel) {
       const fL = Math.round(S.fuelLeft);
       const fR = Math.round(S.fuelRight);
       const fuelEl = document.getElementById('pv-fuel');
-      fuelEl.textContent = `${fL} / ${fR} L`;
-      fuelEl.className = 'panel-value ' + ((fL + fR) < 20 ? 'score-fail' : fL < 10 || fR < 10 ? 'amber' : 'green');
+      document.getElementById('pl-fuel').textContent = twoTanks ? 'Fuel L/R' : 'Fuel';
+      fuelEl.textContent = twoTanks ? `${fL} / ${fR} L` : `${fL} L`;
+      const cap = S.aircraft?.tanks?.left ?? 0;
+      fuelEl.className = 'panel-value ' + ((fL + fR) < 20 ? 'score-fail'
+                                         : twoTanks ? (fL < 10 || fR < 10 ? 'amber' : 'green')
+                                         : (fL < 0.1 * cap ? 'amber' : 'green'));
       const fselEl = document.getElementById('pv-fsel');
       const sel = S.fuelSelector ?? 'BOTH';
       fselEl.textContent = sel;

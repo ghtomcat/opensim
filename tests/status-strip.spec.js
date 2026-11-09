@@ -58,3 +58,17 @@ test('F4U: the label is Engine, not Motor', async ({ page }) => {
   await load(page, 'bougainville-1943');
   await expect(page.locator('#pl-engine')).toHaveText('Engine');
 });
+
+/* The Fuel cell follows the tanks (aircraft.tanks): one tank — "Fuel" and one value, no selector cell; two — L / R */
+for (const [what, mission, label, value, sel] of [
+  ['Bf 109 (one tank)', 'wolfskopf-1942', 'Fuel', /^\d+ L$/, false],
+  ['MiG-15bis (one tank)', 'deblin-1955', 'Fuel', /^1400 L$/, false],
+  ['F4U (two tanks)', 'rabaul-1943', 'Fuel L/R', /^\d+ \/ \d+ L$/, true],
+]) {
+  test(`${what}: the Fuel cell shows as many values as tanks`, async ({ page }) => {
+    await load(page, mission);
+    await expect(page.locator('#pl-fuel')).toHaveText(label);
+    expect(await page.locator('#pv-fuel').textContent()).toMatch(value);
+    await expect(page.locator('#ps-fsel')).toBeVisible({ visible: sel });
+  });
+}
