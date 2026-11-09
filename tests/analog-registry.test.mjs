@@ -71,3 +71,13 @@ test('every analog aircraft names only instruments its style can draw (a manifol
 test('the stand-ins are marked: rpm, N1, manifold and oil pressure say what replaces them', () => {
   for (const id of ['rpm', 'n1', 'map', 'oilP']) assert.match(INSTRUMENTS[id].simple ?? '', /\S/, id);
 });
+
+test('the two sourced panels keep to their sources: D-FEML (Bf 109 E-4) and G-EBHB (Avro 504K)', () => {
+  const dir = join(dirname(fileURLToPath(import.meta.url)), '..', 'aircraft');
+  const ids = f => JSON.parse(readFileSync(join(dir, f), 'utf8')).analogPanel.groups.flatMap(g => [...(g.rows ?? []).flat(), ...(g.perEngine ?? [])]).map(e => e.id);
+  const bf = ids('bf109.json'), avro = ids('avro504.json');
+  for (const id of ['ai', 'vsi']) assert.ok(!bf.includes(id), `D-FEML has no ${id} (sources/bf109-panel-notes.md)`);
+  for (const id of ['amps', 'fuelOilP', 'gear', 'fuelLow', 'fuel', 'oilT', 'coolant', 'map', 'pitch', 'turn']) assert.ok(bf.includes(id), `D-FEML: ${id}`);
+  for (const id of ['ai', 'vsi', 'turn']) assert.ok(!avro.includes(id), `G-EBHB has no ${id} (sources/avro-504k-panel-notes.md)`);
+  for (const id of ['airP', 'level', 'pulsator', 'clock', 'rpm']) assert.ok(avro.includes(id), `G-EBHB: ${id}`);
+});

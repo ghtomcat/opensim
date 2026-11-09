@@ -24,18 +24,19 @@
   "panel": "analog",
   "panelStyle": "luftwaffe",
   "analogPanel": {
-    "_note": "Today's instrument set, the same on every analog aircraft until each gets its sourced set (docs/issues.md, step 5).",
+    "_note": "D-FEML (Bf 109 E-4, Wk.Nr. 1983) from a photo of the aircraft (© Phil Glover) and the Bf 109 E cockpit profile — sources/bf109-panel-notes.md",
     "groups": [
-      { "name": "flight", "rows": [
-        [{ "id": "asi", "size": "L", "scale": { "unit": "km/h", "min": 80, "max": 750, "step": 100, "tick": 10, "minor": 1, "sweep": 330 } }, { "id": "ai", "size": "L" }, { "id": "alt", "size": "L" }],
-        [{ "id": "turn", "size": "L" }, { "id": "compass", "size": "L" }, { "id": "vsi", "size": "L" }]
+      { "name": "upper panel", "rows": [
+        [{ "id": "clock", "size": "S" }],
+        [{ "id": "alt", "size": "L" }, { "id": "compass", "size": "L", "unconfirmed": "a later fit on D-FEML — the repeater compass (Führertochterkompass, Fl 23334) of the G and later; the E-4 as built had a magnetic compass (Führerkompass, Fl 23211), its place on the E panel not known (Markus)" }, { "id": "map", "size": "L", "scale": { "min": 0.6, "max": 1.8, "step": 0.2, "redLine": 1.3 }, "unconfirmed": "D-FEML's figures are not readable: 0.6–1.8 ata is the K-4's Fl 20555 (the E's Fl 20550 to source); 1.30 ata the DB 601 A's take-off boost" }],
+        [{ "id": "asi", "size": "L", "scale": { "unit": "km/h", "min": 80, "max": 750, "step": 100, "tick": 10, "minor": 1, "sweep": 330 } }, { "id": "turn", "size": "L" }, { "id": "rpm", "size": "L", "scale": { "min": 600, "max": 3500, "step": 500, "tick": 100, "minor": 1, "div": 100, "sweep": 330, "redLine": 2400 } }, { "id": "pitch", "size": "S", "unconfirmed": "right of the rpm gauge, hidden in the photo (Markus); how the clock hours follow the blade angle is not known" }]
       ] },
-      { "name": "engine", "rows": [
-        [{ "id": "clock", "size": "XS" }],
-        [{ "id": "rpm", "size": "S", "scale": { "min": 600, "max": 3500, "step": 500, "tick": 100, "minor": 1, "div": 100, "sweep": 330, "redLine": 2400 } }, { "id": "coolant", "size": "S" }],
-        [{ "id": "oilT", "size": "S" }, { "id": "oilP", "size": "S" }]
+      { "name": "lower panel", "rows": [
+        [{ "id": "amps", "size": "S", "scale": { "min": -40, "max": 60, "step": 20, "start": 310, "sweep": 100 }, "unconfirmed": "the figures are not readable — the range is a guess" }, { "id": "fuelOilP", "size": "S" }, { "id": "gear", "size": "S" }],
+        [{ "id": "fuelLow", "size": "T", "unconfirmed": "lit below 40 l — the reserve is not sourced" }, { "id": "fuel", "size": "S", "scale": { "max": 400, "step": 100, "div": 100, "start": 290, "sweep": 140 } }, { "id": "oilT", "size": "S", "scale": { "max": 160, "step": 40, "start": 290, "sweep": 140, "yellowLine": 85, "redLine": 95 }, "unconfirmed": "the yellow and red marks 'around 90' (Markus, from the photo)" }, { "id": "coolant", "size": "S", "scale": { "max": 120, "step": 20, "figuresTo": 100, "endMark": true, "start": 290, "sweep": 140, "redLine": 100 }, "unconfirmed": "the scale runs a little past 100 to a white triangle — 120 is a guess" }]
       ] }
-    ]
+    ],
+    "absent": ["attitude indicator (horizon)", "variometer", "AFN 2 homing indicator"]
   },
   "callsign": "Rote 12",
   "icaoType": "ME09",

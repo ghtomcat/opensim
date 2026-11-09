@@ -539,7 +539,9 @@ dials the registry draws the kinds the sources showed (step 5): a generic scale-
 from the style), the split fuel / oil pressure dial, the pitch clock face, the gear lamp unit,
 a lamp, the oil pulsator's sight glass, the bubble level; the layout takes each kind's
 footprint from the registry. Every aircraft still has the same set — the six flight instruments of a 1940s
-fighter; the clock and the engine gauges — until its sourced set (step 5). A **flowing layout** (`display/panel_flow.js`, pure arithmetic,
+fighter; the clock and the engine gauges — except the two with a sourced set (step 5): the
+Bf 109 E-4 D-FEML (upper and lower panel, from a photo of the aircraft) and the Avro 504K
+G-EBHB (one board, from a photo of its genuine instruments). A **flowing layout** (`display/panel_flow.js`, pure arithmetic,
 `tests/panel-flow.test.mjs`) places them for the view: the panel view in the groups' own
 rows, the combined view (a strip under the outside view) in the arrangement with the
 largest dials; a large dial at most 200 CSS px; in the panel view clear of the map and the

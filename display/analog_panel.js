@@ -23,8 +23,8 @@ import { drawAnalogClock } from './clock.js';
 import { ballDeflection } from '../core/yaw.js';
 import { flowLayout, SIZES } from './panel_flow.js';
 
-/* ── Styles — the look and the language of the panel. luftwaffe: the Bf 109 (and the MiG-15, which
-   borrows this panel). soviet: a stop-gap for the Tu-95 and the An-225 until each has its own
+/* ── Styles — the look and the language of the panel. luftwaffe: the Bf 109 E-4 D-FEML's black faces with
+   white figures and needles (and the MiG-15, which borrows it until its own step). soviet: a stop-gap for the Tu-95 and the An-225 until each has its own
    sourced panel (issues.md, "The Avro 504, Tu-95 and An-225 fly on a leftover glass PFD") — black
    faces with white markings on the turquoise Soviet cockpit paint, Russian labels; metric like the
    German instruments, so the scales stay. ── */
@@ -33,16 +33,16 @@ const STYLES = {
     P: {
       panel:    '#22261d',   // feldgrau — dark olive-grey Luftwaffe panel
       rim:      '#141610',   // bezel ring — blackened steel
-      faceHi:   '#f8f2e0',   // dial face highlight
-      face0:    '#f0e9d4',   // dial face centre — warm ivory
-      face1:    '#d8cead',   // dial face edge shadow
-      capIn:    '#3c3a2e',   // centre cap, inner
-      needle:   '#c41e00',   // Luftwaffe red
-      ndlBack:  '#28261e',   // needle counterweight — dark
-      mark:     '#1c1914',   // index marks & numerals — near-black
-      subdued:  '#80745a',   // secondary label — aged ink
-      shadowEdge: 'rgba(0,0,0,0.72)', ring: '#2a2c24', glintA: 0.55, glint0: 'rgba(210,230,255,0.22)', glint1: 'rgba(210,230,255,0.05)',
-      capOut: '#141610', label: '#1c1914', vignette: 'rgba(0,0,0,0.52)',
+      faceHi:   '#2c2c2a',   // dial face highlight — D-FEML's faces are black (photo, 2026-11-09)
+      face0:    '#191918',   // dial face centre
+      face1:    '#0b0b0a',   // dial face edge shadow
+      capIn:    '#3c3a36',   // centre cap, inner
+      needle:   '#ece6d4',   // white needles, as the figures
+      ndlBack:  '#222220',   // needle counterweight — dark
+      mark:     '#ece6d6',   // index marks & numerals — white
+      subdued:  '#9a9488',   // secondary label
+      shadowEdge: 'rgba(0,0,0,0.72)', ring: '#2a2c24', glintA: 0.35, glint0: 'rgba(210,230,255,0.16)', glint1: 'rgba(210,230,255,0.04)',
+      capOut: '#141410', label: '#c8c0a4', vignette: 'rgba(0,0,0,0.52)',
       shadow:   'rgba(0,0,0,0.65)',
     },
     sky: ['#3a5468', '#5878a0'],                 // Arctic sky — cold pale blue
@@ -52,7 +52,7 @@ const STYLES = {
     units: 'metric',
     L: {
       asi: 'Fahrtmesser', asiUnit: 'km/h', ai: 'Künstl. Horizont', alt: 'Höhenmesser', altUnit: '×100 m',
-      turn: 'Wendezeiger', turnL: 'L', turnR: 'R', compass: 'Kompass', cards: ['N', 'O', 'S', 'W'],
+      turn: 'Wendezeiger', turnL: 'L', turnR: 'R', turnTop: 'DREHT', turnBottom: 'HÄNGT', compass: 'Kompass', cards: ['N', 'O', 'S', 'W'],
       vsi: 'Variometer', vsiUnit: 'm/s', rpm: 'Drehzahlmesser', rpmUnit: '×100 U/min', n1: 'Verdichter', n1Unit: 'N1 %',
       oilT: 'Öltemperatur', coolant: 'Kühlstoff', oilP: 'Öldruck', oilPUnit: 'atü',
       map: 'Ladedruck', amps: 'Strommesser', fuel: 'Kraftstoffvorrat', fuelOilP: 'Kraftstoff- u. Öldruck', pitch: 'Luftschraube',
@@ -450,8 +450,9 @@ function _scale(ctx, x, y, r, sc, scale, def) {
   const A = { min: 0, minor: 5, div: 1, sweep: 280, ...def, red: undefined, yellow: undefined, green: undefined, ...arcs, ...scale };
   const tick = A.tick ?? A.step, zeroGap = A.zero ? 24 : 0;
   const sMin = A.start ?? 180 + (360 - A.sweep) / 2 + zeroGap, s0 = sMin - zeroGap, sw = A.sweep - (A.start == null ? zeroGap : 0);
+  /* below the scale's start the needle rests at the start — on its stop pin — unless the dial has a 0 mark */
   const ang = v => (A.zero && v < A.min) ? s0 + Math.max(0, v / A.min) * zeroGap
-                 : sMin + Math.min(1, A.noClampLow ? (v - A.min) / (A.max - A.min) : Math.max(0, (v - A.min) / (A.max - A.min))) * sw;
+                 : sMin + Math.min(1, Math.max(0, (v - A.min) / (A.max - A.min))) * sw;
 
   const band = ([a, b], col, lw) => {
     ctx.save(); ctx.beginPath(); ctx.arc(x, y, r * 0.96, _r(ang(a)), _r(ang(b)));
@@ -738,6 +739,10 @@ function _drawWendezeiger(ctx, x, y, r, sc, turn) {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(L.turnL, x - r * 0.52, y - r * 0.48);
   ctx.fillText(L.turnR, x + r * 0.52, y - r * 0.48);
+  /* D-FEML: "DREHT" over the turn needle, "HÄNGT" under the ball */
+  ctx.font = `bold ${7 * sc}px ${SANS}`;
+  if (L.turnTop)    ctx.fillText(L.turnTop, x, y - r * 0.9);
+  if (L.turnBottom) ctx.fillText(L.turnBottom, x, y + r * 0.84);
 
   /* Turn needle — vertical bar shifted by roll proxy */
   const deflect = Math.max(-1, Math.min(1, turn.rate));
@@ -869,7 +874,7 @@ function _drawVariometer(ctx, x, y, r, sc, vs) {
 /* Drehzahlmesser — DB 601 max ~2600 U/min */
 function _drawDrehzahl(ctx, x, y, r, sc, rpm, scale) {
   _base(ctx, x, y, r);
-  const ang = _scale(ctx, x, y, r, sc, scale, { max: 2800, step: 400, tick: 200, minor: 2, div: 100, numSize: 7.5, noClampLow: true });
+  const ang = _scale(ctx, x, y, r, sc, scale, { max: 2800, step: 400, tick: 200, minor: 2, div: 100, numSize: 7.5 });
   _sublabel(ctx, x, y, r, L.rpmUnit, sc);
   _needle(ctx, x, y, r, ang(rpm), 0.76, 0.20, sc);
   _cap(ctx, x, y, 4 * sc);
@@ -886,7 +891,7 @@ function _drawN1Messer(ctx, x, y, r, sc, n1) {
     _num(ctx, x, y, r, s0 + (v / maxN1) * sw, String(v), 7.5, sc);
   ctx.textBaseline = 'alphabetic';
   _sublabel(ctx, x, y, r, L.n1Unit, sc);
-  const ang = s0 + Math.min(1, n1 / maxN1) * sw;
+  const ang = s0 + Math.max(0, Math.min(1, n1 / maxN1)) * sw;
   _needle(ctx, x, y, r, ang, 0.76, 0.20, sc);
   _cap(ctx, x, y, 4 * sc);
   _label(ctx, x, y, r, L.n1, sc);
@@ -978,7 +983,7 @@ function _drawOelDruck(ctx, x, y, r, sc, oilP) {                 // kg/cm² (at�
 
   _sublabel(ctx, x, y, r, L.oilPUnit, sc);
 
-  const ang = s0 + Math.min(1, oilP / maxP) * sw;
+  const ang = s0 + Math.max(0, Math.min(1, oilP / maxP)) * sw;
   _needle(ctx, x, y, r, ang, 0.76, 0.20, sc);
   _cap(ctx, x, y, 4 * sc);
   _label(ctx, x, y, r, L.oilP, sc);
@@ -1463,7 +1468,7 @@ function _drawManifold(ctx, x, y, r, sc, mp) {                  // in.Hg
 
   _sublabel(ctx, x, y, r, L.mapUnit, sc);
 
-  const ang = s0 + Math.min(1, mp / maxP) * sw;
+  const ang = s0 + Math.max(0, Math.min(1, mp / maxP)) * sw;
   _needle(ctx, x, y, r, ang, 0.76, 0.20, sc);
   _cap(ctx, x, y, 4 * sc);
   _label(ctx, x, y, r, L.map, sc);
@@ -1559,7 +1564,7 @@ function _drawOilPressure(ctx, x, y, r, sc, oilKg) {
 
   _sublabel(ctx, x, y, r, L.oilPUnit, sc);
 
-  const ang = s0 + Math.min(1, oilP / maxP) * sw;
+  const ang = s0 + Math.max(0, Math.min(1, oilP / maxP)) * sw;
   _needle(ctx, x, y, r, ang, 0.76, 0.20, sc);
   _cap(ctx, x, y, 4 * sc);
   _label(ctx, x, y, r, L.oilP, sc);
