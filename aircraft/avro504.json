@@ -6,7 +6,7 @@
     "_note": "G-EBHB (Avro 504K E2977) from a photo of its genuine instruments (key.aero, '504 Reborn') — sources/avro-504k-panel-notes.md",
     "groups": [
       { "name": "board", "rows": [
-        [{ "id": "airP", "size": "XS", "scale": { "max": 5, "step": 1, "start": 310, "sweep": 100 }, "unconfirmed": "the figures are not readable; a 504K pilot kept 2.5–4 psi — 0–5 lb/sq in is a guess" }, { "id": "compass", "size": "L" }],
+        [{ "id": "airP", "size": "XS", "scale": { "max": 5, "step": 1, "start": 310, "sweep": 100 }, "unconfirmed": "the figures are not readable; a 504K pilot kept 2.5–4 psi — 0–5 lb/sq in is a guess" }, { "id": "compass", "size": "L", "variant": "bubble" }],
         [{ "id": "level", "size": "L" }],
         [{ "id": "asi", "size": "L", "scale": { "unit": "mph", "zero": true, "min": 40, "max": 160, "step": 10, "minor": 2, "start": 0, "sweep": 320 } }, { "id": "clock", "size": "XS" }, { "id": "alt", "size": "S" }, { "id": "pulsator", "size": "XS" }, { "id": "rpm", "size": "L", "scale": { "max": 1600, "step": 200, "redLine": 1200 } }]
       ] }

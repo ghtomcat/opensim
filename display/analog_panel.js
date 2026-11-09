@@ -21,6 +21,7 @@ import { S } from '../core/state.js';
 import { getRpmValue, getCurrentRpm } from '../core/sound.js';
 import { drawAnalogClock } from './clock.js';
 import { ballDeflection } from '../core/yaw.js';
+import { indicatedAlt, baroSubscale } from '../core/baro.js';
 import { flowLayout, SIZES } from './panel_flow.js';
 
 /* ── Styles — the look and the language of the panel. luftwaffe: the Bf 109 E-4 D-FEML's black faces with
@@ -133,6 +134,8 @@ const SANS = '"Helvetica Neue", Helvetica, Arial, sans-serif';
 
 /* ── Angle helper: degrees from 12-o'clock, clockwise → canvas radians ── */
 const _r = d => (d - 90) * Math.PI / 180;
+/* ── The fractional part, also below zero (an altimeter below sea level turns back, not into a gap) ── */
+const _frac = v => ((v % 1) + 1) % 1;
 
 /* ════════════════════════════════════════════════════════════
    SIMPLE VALUES — stand-ins until the sim has the real ones (issues.md, "The analog panels draw a
@@ -207,13 +210,16 @@ export const INSTRUMENTS = {
              draw: { metric: _drawFahrtmesser, imperial: _drawAirspeed } },
   ai:      { value: 'S.pitch, S.roll (°)',                 read: () => ({ pitch: S.pitch ?? 0, roll: S.roll ?? 0 }),
              draw: { metric: _drawHorizont, imperial: _drawHorizon } },
-  alt:     { value: 'S.alt (ft)',                         read: () => S.alt ?? 0,
-             draw: { metric: _drawHoehenmesser, imperial: _drawAltimeter } },
+  alt:     { value: 'indicated altitude (ft) and the subscale (hPa) — core/baro.js', variants: ['standard', 'kmWindow'],
+             read: () => ({ ft: indicatedAlt(S.alt ?? 0), hpa: baroSubscale() }),
+             draw: { metric: (ctx, x, y, r, sc, v, scale, variant) => variant === 'kmWindow' ? _drawKmWindowAlt(ctx, x, y, r, sc, v) : _drawHoehenmesser(ctx, x, y, r, sc, v.ft),
+                     imperial: (ctx, x, y, r, sc, v, scale, variant) => variant === 'kmWindow' ? _drawKmWindowAlt(ctx, x, y, r, sc, v) : _drawAltimeter(ctx, x, y, r, sc, v.ft) } },
   turn:    { value: 'turn rate, ball (S.latAccel)',         read: () => ({ rate: (S.roll ?? 0) / 20, ball: ballDeflection(S.latAccel) }),
              simple: 'the turn rate from the bank angle → the rate of heading change',
              draw: { metric: _drawWendezeiger, imperial: _drawTurnSlip } },
-  compass: { value: 'S.hdg (°)',                          read: () => S.hdg ?? 0,
-             draw: { metric: _drawKompass, imperial: _drawCompass } },
+  compass: { value: 'S.hdg (°)',                          read: () => S.hdg ?? 0, variants: ['card', 'bubble'],
+             draw: { metric: (ctx, x, y, r, sc, v, scale, variant) => (variant === 'bubble' ? _drawBubbleCompass : _drawKompass)(ctx, x, y, r, sc, v),
+                     imperial: (ctx, x, y, r, sc, v, scale, variant) => (variant === 'bubble' ? _drawBubbleCompass : _drawCompass)(ctx, x, y, r, sc, v) } },
   vsi:     { value: 'S.vs (fpm)',                         read: () => S.vs ?? 0,
              draw: { metric: _drawVariometer, imperial: _drawVSI } },
   rpm:     { value: 'rpm',                                read: _simpleRpm, simple: 'S.engines[i].rpm (core/engine.js)',
@@ -255,10 +261,10 @@ export const INSTRUMENTS = {
 };
 
 /** Draw one instrument of the registry in the active style's unit system */
-function _inst(id, ctx, x, y, r, sc, scale) {
+function _inst(id, ctx, x, y, r, sc, scale, variant) {
   const def = INSTRUMENTS[id], draw = def?.draw[ST.units ?? 'metric'];
   if (!draw) { _warnOnce(`analog panel: no ${ST.units} drawing of "${id}"`); return; }
-  draw(ctx, x, y, r, sc, def.read(), scale);
+  draw(ctx, x, y, r, sc, def.read(), scale, variant);
 }
 const _warned = new Set();
 function _warnOnce(msg) { if (!_warned.has(msg)) { _warned.add(msg); console.warn(msg); } }
@@ -323,7 +329,7 @@ export function renderAnalogPanel(canvas, style = 'luftwaffe') {
   });
   const lay  = flowLayout(groups, area, { view, engines: S.aircraft?.engine?.count ?? 1, maxL: MAX_L * dpr });
   const sc   = (SIZES.L * lay.scale / 2) / 90;        // the text scale: 1 at a large dial of radius 90 px
-  for (const it of lay.items) _inst(it.id, ctx, side + it.x, it.y, it.d / 2, sc, it.item?.scale);
+  for (const it of lay.items) _inst(it.id, ctx, side + it.x, it.y, it.d / 2, sc, it.item?.scale, it.item?.variant);
 
   if (ST.frost) _drawFrost(ctx, W, H);              // frost vignette — Arctic, -22 °C
   ctx.restore();
@@ -681,7 +687,7 @@ function _drawHorizont(ctx, x, y, r, sc, att) {
    ════════════════════════════════════════════════════════════ */
 function _drawHoehenmesser(ctx, x, y, r, sc, alt) {
   const altM = alt * 0.3048;
-  const s0   = 220, sw = 300;
+  const s0   = 0, sw = 360;                 // a full circle, 0 at the top — no gap, no jump at each turn
 
   _base(ctx, x, y, r);
   _ticks(ctx, x, y, r, s0, sw, 10, 5, sc);   /* major every 100m, minor every 20m */
@@ -696,16 +702,16 @@ function _drawHoehenmesser(ctx, x, y, r, sc, alt) {
   _sublabel(ctx, x, y, r, L.altUnit, sc);
 
   /* Coarse 10 000 m stub — short, dark */
-  const angCoarse = s0 + ((altM / 10000) % 1) * sw;
+  const angCoarse = s0 + _frac(altM / 10000) * sw;
   const ac = _r(angCoarse);
-  ctx.strokeStyle = P.ndlBack; ctx.lineWidth = 2 * sc;
+  ctx.strokeStyle = P.subdued; ctx.lineWidth = 2.4 * sc;
   ctx.beginPath();
   ctx.moveTo(x, y);
   ctx.lineTo(x + Math.cos(ac) * r * 0.44, y + Math.sin(ac) * r * 0.44);
   ctx.stroke();
 
   /* Fine 1 000 m needle */
-  const angFine = s0 + ((altM % 1000) / 1000) * sw;
+  const angFine = s0 + _frac(altM / 1000) * sw;
   _needle(ctx, x, y, r, angFine, 0.78, 0.22, sc);
   _cap(ctx, x, y, 5.5 * sc);
   _label(ctx, x, y, r, L.alt, sc);
@@ -1134,6 +1140,72 @@ function _drawLevel(ctx, x, y, r, sc, ball) {
   ctx.restore();
 }
 
+/** The Fein- und Grobhöhenmesser (Fl 22320, D-FEML — variant "kmWindow"): a full circle, one needle turn per
+    kilometre (figures every 100 m, 0.0–1.0 km); the whole kilometres on a turning disc behind a cutout in the lower
+    face — black, one big figure; the pressure setting (930–1050 mbar) behind a cutout at the top
+    (deutscheluftwaffe.de, "Funktionsweise Höhenmesser Fl.22320"; Markus, from photos) */
+function _drawKmWindowAlt(ctx, x, y, r, sc, v) {
+  const km = Math.max(0, v.ft * 0.0003048), s0 = 180;          // 0 and 1 together at the bottom (D-FEML)
+  _base(ctx, x, y, r);
+  _ticks(ctx, x, y, r, s0, 360, 10, 5, sc);
+  ctx.textBaseline = 'middle';
+  for (let k = 1; k <= 9; k++) _num(ctx, x, y, r, s0 + k * 36, (k / 10).toFixed(1), 7, sc);
+  _num(ctx, x, y, r, s0, '0-1', 7.5, sc);
+  /* the pressure window at the top: white, the subscale in mbar */
+  const pw = r * 0.42, ph = r * 0.18, py = y - r * 0.4;
+  ctx.fillStyle = '#e8e4d8'; ctx.fillRect(x - pw / 2, py - ph / 2, pw, ph);
+  ctx.fillStyle = '#111'; ctx.font = `bold ${7 * sc}px ${SANS}`; ctx.textAlign = 'center';
+  ctx.fillText(String(Math.round(v.hpa)), x, py);
+  ctx.strokeStyle = P.rim; ctx.lineWidth = 1.2 * sc; ctx.strokeRect(x - pw / 2, py - ph / 2, pw, ph);
+  /* the kilometre window in the lower face: black, one big figure, rolling on over the last 100 m of each km */
+  const ww = r * 0.3, wh = r * 0.32, wy = y + r * 0.36;
+  ctx.save();
+  ctx.fillStyle = '#060606'; ctx.fillRect(x - ww / 2, wy - wh / 2, ww, wh);
+  ctx.beginPath(); ctx.rect(x - ww / 2, wy - wh / 2, ww, wh); ctx.clip();
+  const whole = Math.floor(km), roll = Math.max(0, (_frac(km) - 0.9) / 0.1);
+  ctx.fillStyle = P.mark; ctx.font = `bold ${14 * sc}px ${SANS}`;
+  ctx.fillText(String(whole), x, wy - roll * wh);
+  ctx.fillText(String(whole + 1), x, wy + (1 - roll) * wh);
+  ctx.restore();
+  ctx.strokeStyle = P.rim; ctx.lineWidth = 1.2 * sc; ctx.strokeRect(x - ww / 2, wy - wh / 2, ww, wh);
+  ctx.textBaseline = 'alphabetic';
+  _needle(ctx, x, y, r, s0 + _frac(km) * 360, 0.78, 0.22, sc);
+  _cap(ctx, x, y, 5.5 * sc);
+  _label(ctx, x, y, r, L.alt, sc);
+}
+
+/** The Führerkompass (Fl 23211, D-FEML — variant "bubble"): the older magnetic compass — a domed window with a plain
+    compass strip behind a lubber line, read straight ahead */
+function _drawBubbleCompass(ctx, x, y, r, sc, hdg) {
+  _base(ctx, x, y, r);
+  const ww = r * 1.5, wh = r * 0.5;
+  ctx.save();
+  ctx.fillStyle = '#d8d0b8';
+  ctx.beginPath(); ctx.ellipse(x, y, ww / 2, wh / 2, 0, 0, Math.PI * 2); ctx.fill(); ctx.clip();
+  /* the strip: 10° per tick, figures every 30°, cardinals in bold; 60° visible across the window */
+  const pxPerDeg = ww / 60;
+  ctx.fillStyle = '#141414'; ctx.strokeStyle = '#141414'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (let d = Math.floor((hdg - 40) / 5) * 5; d <= hdg + 40; d += 5) {
+    const px = x + (d - hdg) * pxPerDeg, n = ((d % 360) + 360) % 360;
+    ctx.lineWidth = (n % 10 === 0 ? 1.4 : 0.7) * sc;
+    ctx.beginPath(); ctx.moveTo(px, y + wh * 0.5); ctx.lineTo(px, y + wh * (n % 10 === 0 ? 0.18 : 0.32)); ctx.stroke();
+    if (n % 30 === 0) {
+      const c = { 0: L.cards[0], 90: L.cards[1], 180: L.cards[2], 270: L.cards[3] }[n];
+      ctx.font = `${c ? 'bold ' : ''}${(c ? 10 : 8) * sc}px ${SANS}`;
+      ctx.fillText(c ?? String(n / 10), px, y - wh * 0.12);
+    }
+  }
+  /* the dome's glint */
+  const g = ctx.createLinearGradient(x, y - wh / 2, x, y + wh / 2);
+  g.addColorStop(0, 'rgba(255,255,255,0.35)'); g.addColorStop(0.4, 'rgba(255,255,255,0.05)'); g.addColorStop(1, 'rgba(0,0,0,0.25)');
+  ctx.fillStyle = g; ctx.fillRect(x - ww / 2, y - wh / 2, ww, wh);
+  ctx.restore();
+  ctx.strokeStyle = P.rim; ctx.lineWidth = 3 * sc; ctx.beginPath(); ctx.ellipse(x, y, ww / 2, wh / 2, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = '#b02a18'; ctx.lineWidth = 2 * sc;                     // the lubber line
+  ctx.beginPath(); ctx.moveTo(x, y - wh * 0.62); ctx.lineTo(x, y + wh * 0.62); ctx.stroke();
+  _label(ctx, x, y, r, L.compass, sc);
+}
+
 /* ════════════════════════════════════════════════════════════
    FROST VIGNETTE — Arctic atmosphere, -22°C
    ════════════════════════════════════════════════════════════ */
@@ -1277,7 +1349,7 @@ function _drawHorizon(ctx, x, y, r, sc, att) {
    Coarse stub: 1 rev per 100,000 ft
    ════════════════════════════════════════════════════════════ */
 function _drawAltimeter(ctx, x, y, r, sc, alt) {
-  const s0   = 220, sw = 300;
+  const s0   = 0, sw = 360;                 // a full circle, 0 at the top — no gap, no jump at each turn
 
   _base(ctx, x, y, r);
   _ticks(ctx, x, y, r, s0, sw, 10, 5, sc);
@@ -1291,16 +1363,16 @@ function _drawAltimeter(ctx, x, y, r, sc, alt) {
   _sublabel(ctx, x, y, r, L.altUnit, sc);
 
   /* Coarse stub — 10,000 ft revolutions */
-  const angCoarse = s0 + ((alt / 100000) % 1) * sw;
+  const angCoarse = s0 + _frac(alt / 100000) * sw;
   const ac = _r(angCoarse);
-  ctx.strokeStyle = P.ndlBack; ctx.lineWidth = 2 * sc;
+  ctx.strokeStyle = P.subdued; ctx.lineWidth = 2.4 * sc;
   ctx.beginPath();
   ctx.moveTo(x, y);
   ctx.lineTo(x + Math.cos(ac) * r * 0.44, y + Math.sin(ac) * r * 0.44);
   ctx.stroke();
 
   /* Fine needle — 10,000 ft per revolution */
-  const angFine = s0 + ((alt % 10000) / 10000) * sw;
+  const angFine = s0 + _frac(alt / 10000) * sw;
   _needle(ctx, x, y, r, angFine, 0.78, 0.22, sc);
   _cap(ctx, x, y, 5.5 * sc);
   _label(ctx, x, y, r, L.alt, sc);

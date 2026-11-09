@@ -137,7 +137,10 @@ const dialScale = object({
   red: anyOf(num, arrayOf(num)), yellow: arrayOf(num), green: arrayOf(num), redLine: anyOf(num, arrayOf(num)), yellowLine: anyOf(num, arrayOf(num)),
   figuresTo: num, endMark: bool,
 }, { required: ['max', 'step'] });
-const analogItem = object({ id: oneOf(...valuesOf(INSTRUMENT)), size: oneOf(...valuesOf(INSTRUMENT_SIZE)), scale: dialScale, unconfirmed: str },
+/* `variant`: which build of an instrument (the registry lists each one's — tests/analog-registry.test.mjs):
+   compass card | bubble (the older magnetic compass), alt standard | kmWindow (one turn per km, km in a window) */
+const analogItem = object({ id: oneOf(...valuesOf(INSTRUMENT)), size: oneOf(...valuesOf(INSTRUMENT_SIZE)), scale: dialScale,
+                            variant: oneOf('card', 'bubble', 'standard', 'kmWindow'), unconfirmed: str },
                           { required: ['id', 'size'] });
 const analogPanel = object({
   groups: arrayOf(object({ name: str, rows: arrayOf(arrayOf(analogItem)), perEngine: arrayOf(analogItem) }, { required: ['name'] })),

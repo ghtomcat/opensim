@@ -81,3 +81,14 @@ test('the two sourced panels keep to their sources: D-FEML (Bf 109 E-4) and G-EB
   for (const id of ['ai', 'vsi', 'turn']) assert.ok(!avro.includes(id), `G-EBHB has no ${id} (sources/avro-504k-panel-notes.md)`);
   for (const id of ['airP', 'level', 'pulsator', 'clock', 'rpm']) assert.ok(avro.includes(id), `G-EBHB: ${id}`);
 });
+
+test('a variant in the data is one its instrument knows (INSTRUMENTS[id].variants)', () => {
+  const dir = join(dirname(fileURLToPath(import.meta.url)), '..', 'aircraft');
+  const bad = [];
+  for (const f of readdirSync(dir).filter(f => f.endsWith('.json'))) {
+    const a = JSON.parse(readFileSync(join(dir, f), 'utf8'));
+    for (const g of a.analogPanel?.groups ?? []) for (const e of [...(g.rows ?? []).flat(), ...(g.perEngine ?? [])])
+      if (e.variant && !(INSTRUMENTS[e.id].variants ?? []).includes(e.variant)) bad.push(`${f}: ${e.id} has no variant "${e.variant}"`);
+  }
+  assert.deepEqual(bad, []);
+});

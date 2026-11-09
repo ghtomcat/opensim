@@ -28,7 +28,7 @@
     "groups": [
       { "name": "upper panel", "rows": [
         [{ "id": "clock", "size": "S" }],
-        [{ "id": "alt", "size": "L" }, { "id": "compass", "size": "L", "unconfirmed": "a later fit on D-FEML — the repeater compass (Führertochterkompass, Fl 23334) of the G and later; the E-4 as built had a magnetic compass (Führerkompass, Fl 23211), its place on the E panel not known (Markus)" }, { "id": "map", "size": "L", "scale": { "min": 0.6, "max": 1.8, "step": 0.2, "redLine": 1.3 }, "unconfirmed": "D-FEML's figures are not readable: 0.6–1.8 ata is the K-4's Fl 20555 (the E's Fl 20550 to source); 1.30 ata the DB 601 A's take-off boost" }],
+        [{ "id": "alt", "size": "L", "variant": "kmWindow" }, { "id": "compass", "size": "L", "variant": "bubble" }, { "id": "map", "size": "L", "scale": { "min": 0.6, "max": 1.8, "step": 0.2, "redLine": 1.3 }, "unconfirmed": "D-FEML's figures are not readable: 0.6–1.8 ata is the K-4's Fl 20555 (the E's Fl 20550 to source); 1.30 ata the DB 601 A's take-off boost" }],
         [{ "id": "asi", "size": "L", "scale": { "unit": "km/h", "min": 80, "max": 750, "step": 100, "tick": 10, "minor": 1, "sweep": 330 } }, { "id": "turn", "size": "L" }, { "id": "rpm", "size": "L", "scale": { "min": 600, "max": 3500, "step": 500, "tick": 100, "minor": 1, "div": 100, "sweep": 330, "redLine": 2400 } }, { "id": "pitch", "size": "S", "unconfirmed": "right of the rpm gauge, hidden in the photo (Markus); how the clock hours follow the blade angle is not known" }]
       ] },
       { "name": "lower panel", "rows": [
