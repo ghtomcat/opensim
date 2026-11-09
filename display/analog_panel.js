@@ -130,7 +130,7 @@ const STYLES = {
   },
 };
 /* soviet-1956: the early Tu-95's matte black panels (ru.wikipedia, Ту-95: "Все приборные доски имели матовый чёрный
-   цвет"; sources/tu95-panel-notes.md) — the soviet faces and labels on a black panel instead of the Tu-95MS's green */
+   цвет"; sources/tu95-panel-notes.md) — the soviet faces and labels on a black panel instead of the later Tu-95MS's green */
 STYLES['soviet-1956'] = { ...STYLES.soviet, P: { ...STYLES.soviet.P, panel: '#1c1e20', rim: '#0c0d0e' } };
 
 /** Each style's unit system — the registry draws an instrument per unit system (tests/analog-registry.test.mjs) */

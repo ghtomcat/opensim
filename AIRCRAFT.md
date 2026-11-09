@@ -58,7 +58,7 @@ The `panel` field controls which 3D cockpit and instrument renderer is used.
 | `"g1000"` | Garmin G1000 glass cockpit (data-driven) | C172 |
 | `"dr400"` | Robin DR-400 cockpit — Garmin GTN + analog gauges (data-driven) | Robin DR-400 |
 | `"velis-epsi"` | Velis Electro EPSI panel | Velis HB-SYC |
-| `"analog"` | the round gauges: the look by `panelStyle` (`luftwaffe`, `usn`, `soviet`, `wood`), the instruments by `analogPanel` (groups of `{ "id", "size" }` in rows, or `perEngine`) — both required | Bf 109, MiG-15, F4U-1A, Tu-95MS, An-225, Avro 504, DC-8 |
+| `"analog"` | the round gauges: the look by `panelStyle` (`luftwaffe`, `usn`, `soviet`, `soviet-1956`, `wood`), the instruments by `analogPanel` (groups of `{ "id", "size" }` in rows, or `perEngine`) — both required | Bf 109, MiG-15, F4U-1A, Tu-95, An-225, Avro 504, DC-8 |
 
 The 3D outside model (fuselage, wings, engines) is also driven by `panel`:
 - `"airbus"` or `"e190"` → wide-body jet renderer (`_buildWB`) with twin turbofan engines, swept wings, proper aileron/flap animation.

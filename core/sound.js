@@ -97,7 +97,7 @@ const ENGINES = {
     supercharger:     false,
   },
   'nk12-turboprop': {
-    // Kuznetsov NK-12MV — contra-rotating turboprop, Tu-95 Bear
+    // Kuznetsov NK-12 — contra-rotating turboprop, Tu-95 Bear
     // Four engines × 15,000hp. Audible at 800km. NATO submarines tracked by sound alone.
     // Contra-rotating prop banks (6+6 blades) create a ~3.8Hz beat — the Bear heartbeat.
     // Four engines never perfectly in sync → second LFO at 3.5Hz creates the warbling

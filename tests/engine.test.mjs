@@ -170,7 +170,7 @@ test('the electric motor follows MASTER + BATT EN + PWR EN', () => {
 });
 
 test('engines without a start sequence ignore start and stop', () => {
-  cold(load('tu95ms'), { engineState: 'running', enginePower: 1 });
+  cold(load('tu95'), { engineState: 'running', enginePower: 1 });
   stopEngine();
   assert.equal(S.engineState, 'running');
 });
@@ -179,7 +179,7 @@ test('initial state: cold on the ground with a start sequence, running otherwise
   assert.equal(initialEngine(load('c172'), { onGround: true,  spd: 0 }).engineState, 'off');
   assert.equal(initialEngine(load('c172'), { onGround: false, spd: 100 }).engineState, 'running');
   assert.equal(initialEngine(load('velis-hb-syc'), { onGround: true, spd: 0 }).engineState, 'off');
-  assert.equal(initialEngine(load('tu95ms'), { onGround: true, spd: 0 }).engineState, 'running');
+  assert.equal(initialEngine(load('tu95'), { onGround: true, spd: 0 }).engineState, 'running');
   const a350 = load('a350');
   const air  = initialEngine(a350, { onGround: false, spd: 250 });
   assert.equal(air.engineState, 'running');
@@ -286,7 +286,7 @@ test('APU: MASTER + battery power, START, running after apu.startTime; MASTER of
 });
 
 test('no APU in the data → START does nothing', () => {
-  cold(load('tu95ms'), { apuMasterOn: true, essentialBusPowered: true, apuState: 'off' });
+  cold(load('tu95'), { apuMasterOn: true, essentialBusPowered: true, apuState: 'off' });
   apuStart();
   assert.equal(S.apuState, 'off');
 });

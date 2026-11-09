@@ -1,5 +1,5 @@
 {
-  "id": "tu95ms",
+  "id": "tu95",
   "views": ["overhead", "left", "center", "right", "pedestal"],
   "panel": "analog",
   "panelStyle": "soviet-1956",
@@ -21,18 +21,18 @@
       ] }
     ]
   },
-  "name": "Tupolev Tu-95MS Bear H",
+  "name": "Tupolev Tu-95 Bear-A",
   "manufacturer": "tupolev",
   "family": "tu-95",
-  "model": "tu-95ms",
+  "model": "tu-95",
   "clock": "analog",
   "callsign": "Борт 11",
   "icaoType": "TU95",
   "landSurfaces": ["runway"],
   "era": "Cold War · 1956",
-  "engine": { "type": "turboprop", "count": 4, "model": "nk-12mv", "description": "Kuznetsov NK-12MV × 4 · Contra-rotating turboprop · 44740kW",
+  "engine": { "type": "turboprop", "count": 4, "model": "nk-12", "description": "Kuznetsov NK-12 × 4 · Contra-rotating turboprop · 37 200 kW",
               "maxRpm": 9250, "idleRpm": 6500,
-              "_rpm": "maxRpm 9 250: the NK-12MV's rotational speed (en.wikipedia, Kuznetsov NK-12; shaft not stated). idleRpm 6 500 (~70 %) a placeholder, not sourced — the NK-12 is a constant-speed turboprop, the rpm model still runs idle → max with the throttle (sources/tu95-panel-notes.md)" },
+              "_rpm": "maxRpm 9 250: the NK-12MV's rotational speed (en.wikipedia, Kuznetsov NK-12 — the specifications are the NK-12MV's, shaft not stated; the original NK-12's not found, taken as the same). idleRpm 6 500 (~70 %) a placeholder, not sourced — the NK-12 is a constant-speed turboprop, the rpm model still runs idle → max with the throttle (sources/tu95-panel-notes.md)" },
 
   "manualControl": true,
   "crewLang": "ru-RU",
@@ -127,7 +127,7 @@
         "Olenya AB · Runway 01 · Kola Peninsula",
         "Departure: track 015 climbing to FL260",
         "Vr 155kt · Vy 180kt",
-        "Four NK-12MV engines. Spool time 8–12 seconds. Flaps 20° for takeoff.",
+        "Four NK-12 engines. Spool time 8–12 seconds. Flaps 20° for takeoff.",
         "Radio silence after coast-out at Nordkap.",
         "No rescue in the Barents Sea."
       ]

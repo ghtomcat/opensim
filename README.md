@@ -136,7 +136,7 @@ axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1
 | Messerschmitt Bf 109 E-4 | Daimler-Benz DB 601 · 1175hp | AudioWorklet 12-cylinder impulse model, radiator flap + coolant temp |
 | MiG-15 'Fagot' | Klimov VK-1 | Centrifugal compressor intake, splitter vane |
 | Avro 504K | Le Rhône 9J · 110hp | Gyroscopic precession, rotary blip switch |
-| Tupolev Tu-95MS Bear H | Kuznetsov NK-12MV × 4 · 44740kW | Russian crew voices, contra-rotation LFO |
+| Tupolev Tu-95 Bear-A | Kuznetsov NK-12 × 4 · 37 200 kW | Russian crew voices, contra-rotation LFO |
 | Antonov An-225 Mriya | ZMKB Progress D-18T × 6 · 1 377 kN | Ukrainian crew voices, 500 t, Hostomel 2022 |
 
 ### Orbit
@@ -225,7 +225,7 @@ Autobrake (LO/MED/MAX) is armed from pushbuttons on the centre panel and disarms
 | The Wasp · Bougainville | F4U-1A Corsair | 1943 | Pacific patrol, R-2800, ARC-5 radio |
 | No Bomber Lost · Rabaul | F4U-1A Corsair | 1943 | Ground attack, Rabaul harbour |
 | Przechwycenie · Dęblin | MiG-15 | 1955 | Polish interceptor. Twelve years ago a Spitfire. Today a red fifteen |
-| Aufklärungsflug Nordmeer | Tu-95MS Bear H | 1956 | Olenya AB, Soviet ATC, Cold War dossier |
+| Aufklärungsflug Nordmeer | Tu-95 Bear-A | 1956 | Olenya AB, Soviet ATC, Cold War dossier |
 | Mriya — Die letzte Reise | An-225 | 2022 | Hostomel, Ukrainian ATC, 3 February 2022 |
 
 Story missions (Wolfskopf) run with a fixed scenario and skip the scenario chooser.

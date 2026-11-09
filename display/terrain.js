@@ -3580,7 +3580,7 @@ function _drawCockpitBorder(ctx, W, H, DPR, acId, dayFrac, hdgDeg) {
     iL = 0.04; iR = 0.04; iT = 0.06; iB = 0.03;
   } else if (acId === 'bf109' || acId === 'f4u1a') {
     iL = 0.13; iR = 0.13; iT = 0.11; iB = 0.05; hasPost = true;
-  } else if (acId === 'tu95ms' || acId === 'an225') {
+  } else if (acId === 'tu95' || acId === 'an225') {
     iL = 0.09; iR = 0.09; iT = 0.09; iB = 0.04; hasPost = true;
   } else if (acId === 'avro504') {
     iL = 0.15; iR = 0.15; iT = 0.13; iB = 0.05;

@@ -79,7 +79,7 @@ test('fuel: the pressure falls over the starvation run-down once the cock is shu
 });
 
 test('per engine: a stopped engine beside a running one shows its own values (the Tu-95, engine 3 off)', () => {
-  on(load('tu95ms'), 'running', 0.5);
+  on(load('tu95'), 'running', 0.5);
   setState({ engines: S.engines.map((e, k) => k === 2 ? { ...e, state: 'off', power: 0 } : e) });
   assert.ok(oilPressure(0) > 1.5);
   assert.equal(oilPressure(2), 0);
@@ -98,7 +98,7 @@ test('the panel\'s stand-ins come from here, marked with what replaces them; the
 });
 
 test('gas temperature: a turbofan reads its own EGT; the Tu-95\'s NK-12 a stand-in — outside air at rest, 400 → 650 °C with the throttle, per engine', () => {
-  const tu = load('tu95ms');
+  const tu = load('tu95');
   on(tu, 'off');
   assert.equal(gasTemp(0), 15);
   on(tu, 'running', 0);

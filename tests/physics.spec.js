@@ -292,7 +292,7 @@ test.describe('Ground spawn — all missions start on the runway', () => {
   const GROUND_MISSIONS = [
     { id: 'lszf-pattern',     name: 'C172',    elev: 1788 },
     { id: 'grenchen-circuit', name: 'Robin',   elev: 1411 },
-    { id: 'nordmeer-1956',    name: 'Tu-95MS', elev:  492 },
+    { id: 'nordmeer-1956',    name: 'Tu-95', elev:  492 },
     { id: 'hostomel-2022',   name: 'An-225',  elev:  394 },
     // wolfskopf-1942 intentionally starts airborne (patrol, alt=2000, departure=null)
     // lszh-approach intentionally starts airborne (ILS intercept)
@@ -348,9 +348,9 @@ test.describe('Fixed gear — C172 and Robin', () => {
 
 });
 
-/* ── Retractable gear — Tu-95MS ──────────────────────────────── */
+/* ── Retractable gear — Tu-95 ────────────────────────────────── */
 
-test.describe('Retractable gear — Tu-95MS', () => {
+test.describe('Retractable gear — Tu-95', () => {
 
   test('gear retracts after liftoff', async ({ page }) => {
     await loadSim(page, 'nordmeer-1956');
@@ -361,24 +361,24 @@ test.describe('Retractable gear — Tu-95MS', () => {
     await stepSeconds(page, 90);
 
     const airborne = await getState(page);
-    expect(airborne.wow, 'Tu-95MS should be airborne').toBe(false);
+    expect(airborne.wow, 'Tu-95 should be airborne').toBe(false);
 
     // Retract
     await setState(page, { prevGear: true, gear: false });
     const s = await getState(page);
-    expect(s.gear, 'Tu-95MS gear should retract').toBe(false);
+    expect(s.gear, 'Tu-95 gear should retract').toBe(false);
   });
 
 });
 
-/* ── Tu-95MS Bear H ──────────────────────────────────────────── */
+/* ── Tu-95 Bear-A ──────────────────────────────────────────── */
 
-test.describe('Tu-95MS — Nordmeer 1956', () => {
+test.describe('Tu-95 — Nordmeer 1956', () => {
 
   test('starts with engineState running on ground (non-v12 fix)', async ({ page }) => {
     await loadSim(page, 'nordmeer-1956');
     const s = await getState(page);
-    expect(s.engineState, 'Tu-95MS should start running — no manual startup needed').toBe('running');
+    expect(s.engineState, 'Tu-95 should start running — no manual startup needed').toBe('running');
   });
 
   test('lifts off from ground roll — WoW latch does not block takeoff', async ({ page }) => {
@@ -394,7 +394,7 @@ test.describe('Tu-95MS — Nordmeer 1956', () => {
 
     const liftoffSpd = await stepUntilAirborne(page, 493, 120);
 
-    expect(liftoffSpd, 'Tu-95MS should lift off').not.toBeNull();
+    expect(liftoffSpd, 'Tu-95 should lift off').not.toBeNull();
     expect(liftoffSpd).toBeGreaterThan(180);
     expect(liftoffSpd).toBeLessThan(230);
   });
