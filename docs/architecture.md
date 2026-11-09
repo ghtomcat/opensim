@@ -527,9 +527,13 @@ display/analog_panel.js     STYLES[style] → P (palette), L (labels), units (me
                             gauge set G by units → the draw functions (_drawFahrtmesser, _drawAirspeed, …)
 ```
 
-**Today** the style is everything: the instruments and their places are the same for all
-(the six flight instruments and the engine gauges of a 1940s fighter), in two fixed
-layouts — the panel view and the combined view (a strip under the outside view). An
+**Today** the style is everything: the instruments are the same for all (the six flight
+instruments and the engine gauges of a 1940s fighter), as two groups — flight, and the clock
+with the engine gauges. A **flowing layout** (`display/panel_flow.js`, pure arithmetic,
+`tests/panel-flow.test.mjs`) places them for the view: the panel view in the groups' own
+rows, the combined view (a strip under the outside view) in the arrangement with the
+largest dials; a large dial at most 200 CSS px; in the panel view clear of the map and the
+mission title at the top corners. An
 **instrument registry** (`INSTRUMENTS`) says what each instrument shows: `read` takes the
 value from the sim, the draw functions only draw what they are given
 (`tests/analog-registry.test.mjs`). Rpm, N1, oil and manifold pressure are still
@@ -544,9 +548,6 @@ with what replaces it.
 - an **instrument registry**: each kind (dial, two-needle dial, turn & slip, clock face,
   lamps, sight glass, bubble level) draws one named sim value — never a formula in the
   drawing code; only purely decorative instruments are left out;
-- a **flowing layout** per view: the photo's rows in the panel view; the arrangement with
-  the largest dials in the combined view (the photo's rows if within 85 %); size ratios
-  kept; a large dial at most 200 CSS px;
 - **one panel name**, `analog` — `bf109` and `f4u` go.
 
 Sources per type: `sources/*-panel-notes.md` (local); the mockup

@@ -702,7 +702,7 @@ The cell shows real N1 only on the multi-engine turbofans. For the others the va
 
 **Steps.**
 1. **Instrument registry** — the kinds above; each kind names its sim value. *Started 2026-11-09:* `INSTRUMENTS` in `analog_panel.js` for today's instruments — `read` from the sim, the draw functions only draw the value they are given (`tests/analog-registry.test.mjs`); the formulas moved out of the drawing code into marked stand-ins (rpm, N1, oil and manifold pressure — one oil pressure value in kg/cm² now, also on the imperial dials). The new kinds (two-needle dial, lamps, sight glass, bubble level, clock face as an instrument) come with the aircraft that use them (step 5).
-2. **Flowing layout** from groups and order, for both views, by the layout rules above (tried in the mockup).
+2. **Flowing layout** from groups and order, for both views, by the layout rules above (tried in the mockup). *Done 2026-11-09:* `display/panel_flow.js` (pure, `tests/panel-flow.test.mjs`) replaces the two fixed layouts; today's instruments as two default groups in code (flight; clock + engine) until step 3 puts them in the data; in the panel view the layout keeps clear of the map and the mission title / timer at the top corners (measured from the DOM).
 3. **Schema** — `analogPanel` (groups, entries, `absent`, `decorative`, `simple`), the data check; all seven on `analog`.
 4. **Scales from the data.**
 5. **The Avro 504K and the Bf 109 E-4 from their sources**, with the style corrections (black faces for the E-4).

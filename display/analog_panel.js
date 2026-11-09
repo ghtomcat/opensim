@@ -21,6 +21,7 @@ import { S } from '../core/state.js';
 import { getRpmValue, getCurrentRpm } from '../core/sound.js';
 import { drawAnalogClock } from './clock.js';
 import { ballDeflection } from '../core/yaw.js';
+import { flowLayout, SIZES } from './panel_flow.js';
 
 /* ── Styles — the look and the language of the panel. luftwaffe: the Bf 109 (and the MiG-15, which
    borrows this panel). soviet: a stop-gap for the Tu-95 and the An-225 until each has its own
@@ -208,6 +209,47 @@ function _inst(id, ctx, x, y, r, sc) {
   def.draw[ST.units ?? 'metric'](ctx, x, y, r, sc, def.read());
 }
 
+/** A large (L) dial at most this many CSS px — a bigger screen gets more room, not bigger dials */
+const MAX_L = 200;
+
+/** Today's instrument set as groups — the same for every aircraft until its data has its own (step 3):
+    the six flight instruments; the clock and the engine gauges (with the coolant gauge when the
+    aircraft has a cooling model). */
+function _defaultGroups() {
+  const jet = S.aircraft?.sound?.engineType === 'turbojet-vk1';
+  const eng = ST.units === 'imperial' ? (ST.engineGauge === 'rpm' ? 'rpm' : 'map') : (jet ? 'n1' : 'rpm');
+  const at  = (id, size) => ({ id, size });
+  return [
+    { name: 'flight', rows: [[at('asi', 'L'), at('ai', 'L'), at('alt', 'L')],
+                             [at('turn', 'L'), at('compass', 'L'), at('vsi', 'L')]] },
+    { name: 'engine', rows: [[at('clock', 'XS')],
+                             S.aircraft?.cooling ? [at(eng, 'S'), at('coolant', 'S')] : [at(eng, 'S')],
+                             [at('oilT', 'S'), at('oilP', 'S')]] },
+  ];
+}
+
+/* The HTML overlays at the panel's top corners — the map (top right), the mission title, timer and the
+   KEYS button (top left). The layout keeps clear of those over the canvas, the same on both sides so
+   the panel stays centred. Measured at most every 250 ms (getBoundingClientRect, not every frame). */
+const OVERLAYS = ['minimap', 'mission-title', 'mission-clock', 'sim-flags'];
+let _inset = { at: -1, canvas: null, px: 0 };
+function _overlayInset(canvas) {
+  const now = performance.now();
+  if (_inset.canvas === canvas && now - _inset.at < 250) return _inset.px;
+  const c = canvas.getBoundingClientRect();
+  let left = 0, right = 0;
+  for (const id of OVERLAYS) {
+    const el = document.getElementById(id);
+    if (!el || getComputedStyle(el).display === 'none') continue;
+    const r = el.getBoundingClientRect();
+    if (!r.width || r.bottom <= c.top || r.top >= c.bottom) continue;          // not over this canvas
+    if (r.left + r.width / 2 < c.left + c.width / 2) left = Math.max(left, r.right - c.left);
+    else right = Math.max(right, c.right - r.left);
+  }
+  _inset = { at: now, canvas, px: Math.max(left, right) };
+  return _inset.px;
+}
+
 /* ════════════════════════════════════════════════════════════
    MAIN ENTRY
    ════════════════════════════════════════════════════════════ */
@@ -230,94 +272,18 @@ export function renderAnalogPanel(canvas, style = 'luftwaffe') {
   ctx.fillStyle = vg;
   ctx.fillRect(0, 0, W, H);
 
-  /* Which instrument in each place of today's fixed layout (step 2 makes the layout data) */
-  const _isJet = S.aircraft?.sound?.engineType === 'turbojet-vk1';
-  const eng   = ST.units === 'imperial' ? (ST.engineGauge === 'rpm' ? 'rpm' : 'map') : (_isJet ? 'n1' : 'rpm');
-  const SLOTS = { asi: 'asi', ai: 'ai', alt: 'alt', turn: 'turn', compass: 'compass', vsi: 'vsi',
-                  eng, temp2: 'coolant', oilT: 'oilT', oilP: 'oilP' };
-  const G = Object.fromEntries(Object.entries(SLOTS).map(([slot, id]) =>
-    [slot, (ctx, x, y, r, sc) => _inst(id, ctx, x, y, r, sc)]));
+  /* The instruments and where they go: the groups (today's set until the aircraft data has its own —
+     step 3), laid out by the flowing layout for the view (display/panel_flow.js). The status bar
+     (#panel, 80 px) covers the bottom of both views; a large dial is at most MAX_L CSS px. */
+  const dpr  = devicePixelRatio;
+  const view = canvas.classList.contains('combined') ? 'combined' : 'panel';
+  const side = _overlayInset(canvas) * dpr;          // keep clear of the map and the mission title / timer
+  const area = { w: W - 2 * side, h: H - 80 * dpr };
+  const lay  = flowLayout(_defaultGroups(), area, { view, engines: S.aircraft?.engine?.count ?? 1, maxL: MAX_L * dpr });
+  const sc   = (SIZES.L * lay.scale / 2) / 90;        // the text scale: 1 at a large dial of radius 90 px
+  for (const it of lay.items) _inst(it.id, ctx, side + it.x, it.y, it.d / 2, sc);
 
-  /* In the combined "cockpit + outside" view the panel is flat & wide — spread
-     the gauges across the free side-space (2 flight rows left, engine block
-     right) instead of squashing 3 rows. Full cockpit keeps the 3-row layout. */
-  const wide = (W / H) > 2.0;
-
-  if (wide) {
-    const barH = 80 * devicePixelRatio;       // #panel bottom bar — keep gauges/labels above it
-    const Hu   = H - barH;                     // usable height above the bar
-    const sc   = Hu / 480;
-    const r1 = 90 * sc, r2 = 66 * sc;
-    const yTop = Hu * 0.30, yBot = Hu * 0.70;
-
-    /* Flight instruments — left / centre, 2×3 */
-    const cxL = W * 0.33, cwL = W * 0.135;
-    G.asi(ctx, cxL - cwL, yTop, r1, sc);
-    G.ai(ctx, cxL,       yTop, r1, sc);
-    G.alt(ctx, cxL + cwL, yTop, r1, sc);
-    G.turn(ctx, cxL - cwL, yBot, r1 * 0.85, sc);
-    G.compass(ctx, cxL,       yBot, r1 * 0.85, sc);
-    G.vsi(ctx, cxL + cwL, yBot, r1 * 0.85, sc);
-
-    /* Engine / temperature block — right */
-    const cxR = W * 0.80, dxR = W * 0.085;
-    if (S.aircraft?.cooling) {
-      G.eng(ctx, cxR - dxR, yTop, r2, sc);
-      G.temp2(ctx, cxR + dxR, yTop, r2, sc);
-      G.oilT(ctx, cxR - dxR, yBot, r2, sc);
-      G.oilP(ctx, cxR + dxR, yBot, r2, sc);
-    } else {
-      G.eng(ctx, cxR,       yTop, r2, sc);
-      G.oilT(ctx, cxR - dxR, yBot, r2, sc);
-      G.oilP(ctx, cxR + dxR, yBot, r2, sc);
-    }
-
-    _inst('clock', ctx, W * 0.06, Hu * 0.28, 44 * sc, sc);   // clock — top-left
-
-    if (ST.frost) _drawFrost(ctx, W, H);
-
-  } else {
-    const sc = Math.min(W, H) / 860;
-    const cx = W / 2;
-    const cy = H / 2;
-
-    /* Layout: 3 rows, 3 columns */
-    const cw = 195 * sc;   /* column width   */
-    const rh = 205 * sc;   /* row height     */
-    const r1 = 90  * sc;   /* main instruments (top 2 rows) */
-    const r2 = 60  * sc;   /* engine strip (bottom row)     */
-
-    /* Row y-positions (centred in panel) */
-    const y1 = cy - rh * 0.85;   /* top row    */
-    const y2 = cy + rh * 0.15;   /* middle row */
-    const y3 = cy + rh * 1.05;   /* engine strip */
-
-    G.asi(ctx, cx - cw, y1, r1, sc);
-    G.ai(ctx, cx,      y1, r1, sc);
-    G.alt(ctx, cx + cw, y1, r1, sc);
-
-    G.turn(ctx, cx - cw, y2, r1 * 0.85, sc);
-    G.compass(ctx, cx,      y2, r1 * 0.85, sc);
-    G.vsi(ctx, cx + cw, y2, r1 * 0.85, sc);
-
-    if (S.aircraft?.cooling) {   /* liquid-cooled → 4-gauge strip with Kühlstofftemp */
-      G.eng(ctx, cx - cw * 0.93, y3, r2, sc);
-      G.temp2(ctx, cx - cw * 0.31, y3, r2, sc);
-      G.oilT(ctx, cx + cw * 0.31, y3, r2, sc);
-      G.oilP(ctx, cx + cw * 0.93, y3, r2, sc);
-    } else {
-      G.eng(ctx, cx - cw * 0.62, y3, r2, sc);
-      G.oilT(ctx, cx,             y3, r2, sc);
-      G.oilP(ctx, cx + cw * 0.62, y3, r2, sc);
-    }
-
-    _inst('clock', ctx, W * 0.11, H * 0.14, 48 * sc, sc);   // clock — top-left
-
-    /* Frost vignette — Arctic, -22°C */
-    if (ST.frost) _drawFrost(ctx, W, H);
-
-  }
-
+  if (ST.frost) _drawFrost(ctx, W, H);              // frost vignette — Arctic, -22 °C
   ctx.restore();
 }
 
