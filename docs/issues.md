@@ -675,6 +675,14 @@ The cell shows real N1 only on the multi-engine turbofans. For the others the va
 - **Every drawn instrument reads a sim value** (Markus: an unconnected instrument is decoration). Relaxed until the systems exist: a named sim value (`S` / `S.engines[i]`), even a simple one — never a formula in the drawing code. So every real instrument gets at least a simple value; **only a purely decorative one is left out** (nothing in the sim it could ever show), listed in the data so the omission is visible. An instrument on a simple value is marked `simple` with what replaces it later (e.g. *The oil system*).
 - **The engine instruments repeat per engine** from `engine.count`: one column per engine, one row per quantity. The An-225's main panel: N1 and EGT only (6 × 2); the full engine set belongs to a flight engineer station — a feature for later. The early Tu-95 likewise: the flight engineer had the engine panel.
 - **Sizes are size classes** (L, S, XS, T for lamps) — relative, from the photos; mm not found for any type. The layout keeps the ratios and scales to fit.
+- **The layout rules (decided 2026-11-09, Markus, in the mockup):**
+  - the order inside a group is kept, and a group stays together; what belongs together is one entry (the four gear lamps: `{ "kind": "lamps", "n": 4 }`);
+  - a group is drawn in the photo's rows (the data keeps the photo's row breaks as a hint) or re-broken into k balanced rows; the groups sit side by side or stacked; the size ratios are kept and the whole is scaled to fit;
+  - **panel view** (the full screen above the status bar): **the photo's rows always**;
+  - **combined view** (the strip under the outside view, about 3.9 : 1 at 1440 × 900): every arrangement is tried and the largest dials win — the photo's rows if they reach at least 85 % of that; the Avro then sits in one row (accepted);
+  - the engine grid is fixed: one row per quantity, one column per engine;
+  - **a cap:** a large (L) dial at most 200 CSS px, the panel centred in the free space — a bigger screen gets more room, not bigger dials;
+  - at 1440 × 900 every dial stays readable: in the combined view L 158–187 px, S 113–133 px.
 - **One panel name, `analog`,** for all seven; `bf109` and `f4u` leave `PANEL`, and the code that knows them (the renderer chain and `isVintage` in `index.html`, the clock in `display/terrain.js`) checks `analog` only. No pixel identity needed — the warbird panels were not sourced either.
 
 **Sourced so far (2026-11-07).**
@@ -694,7 +702,7 @@ The cell shows real N1 only on the multi-engine turbofans. For the others the va
 
 **Steps.**
 1. **Instrument registry** — the kinds above; each kind names its sim value.
-2. **Flowing layout** from groups and order, for both views, keeping the size ratios; the rules (when a group breaks into a new row, groups side by side or stacked, what may shrink in the combined view) tried in the mockup first.
+2. **Flowing layout** from groups and order, for both views, by the layout rules above (tried in the mockup).
 3. **Schema** — `analogPanel` (groups, entries, `absent`, `decorative`, `simple`), the data check; all seven on `analog`.
 4. **Scales from the data.**
 5. **The Avro 504K and the Bf 109 E-4 from their sources**, with the style corrections (black faces for the E-4).
