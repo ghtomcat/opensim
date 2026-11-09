@@ -406,6 +406,8 @@ const _rpmRange = (eng = _eng()) => ({ idle: eng.idleRpm ?? 400, max: eng.maxRpm
 /** The idle and maximum rpm the engine model uses for the aircraft's engine (defaults where the data has none) */
 export const rpmRange = () => _rpmRange();
 const _throttleFrac = () => Math.max(0, Math.min(1, (S.spdT ?? 0) / (S.aircraft?.envelope?.maxSpd ?? 350)));
+/** The throttle, 0–1 — the one the rpm runs on (core/engine-gauges.js reads it too) */
+export const throttleFrac = () => _throttleFrac();
 
 /* The start curves — moved here from core/sound.js unchanged: the start-up recordings are cut to them */
 const START_RPM = {

@@ -14,11 +14,14 @@
 
    The instrument registry (INSTRUMENTS) says what each instrument shows: `read` takes the value from
    the sim, the draw functions only draw the value they are given (tests/analog-registry.test.mjs).
-   Values the sim does not have yet are stand-ins (SIMPLE VALUES), each marked with what replaces it.
+   Values the sim does not have yet are stand-ins in core/engine-gauges.js, each marked with what replaces it.
+   An engine instrument reads its engine: `read(i)` gets the engine index from the layout (0 outside an engine grid).
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from '../core/state.js';
 import { engineRpm } from '../core/engine.js';
+import { oilPressure, manifoldPressure, fuelPressure, generatorAmps, oilFlowing, propPitchHours, tankAirPressure,
+         fuelLitres, STAND_INS } from '../core/engine-gauges.js';
 import { drawAnalogClock } from './clock.js';
 import { ballDeflection } from '../core/yaw.js';
 import { indicatedAlt, baroSubscale } from '../core/baro.js';
@@ -137,59 +140,18 @@ const _r = d => (d - 90) * Math.PI / 180;
 /* ── The fractional part, also below zero (an altimeter below sea level turns back, not into a gap) ── */
 const _frac = v => ((v % 1) + 1) % 1;
 
-/* ════════════════════════════════════════════════════════════
-   SIMPLE VALUES — stand-ins until the sim has the real ones (issues.md, "The analog panels draw a
-   borrowed fighter panel", step 6). They live here, not in the drawing code; each says what replaces it.
-   ════════════════════════════════════════════════════════════ */
-const _throttle = () => Math.max(0, Math.min(1, (S.spdT ?? 0) / (S.aircraft?.envelope?.maxSpd ?? 335)));
-
-/** rpm — the engine's own (core/engine.js: running, the start sequence, the run-down) */
-const _rpm = () => engineRpm(0) ?? 0;
+/* ── Values read from the sim. The stand-ins (no system yet) live in core/engine-gauges.js, per engine,
+   each marked with what replaces it (STAND_INS → the registry's `simple`). ── */
+/** rpm of engine i — the engine's own (core/engine.js: running, the start sequence, the run-down) */
+const _rpm = (i = 0) => engineRpm(i) ?? 0;
 
 /** N1 % of a turbojet — its rpm as a share of the maximum (the VK-1: 11 560 rpm = 100 %) */
-function _n1Pct() { return _rpm() / (S.aircraft?.engine?.maxRpm ?? 1) * 100; }
-
-/** oil pressure, kg/cm² — builds with rpm on the start, decays on the stop → "The oil system" */
-function _simpleOilPress() {
-  const st = S.engineState, dyn = _rpm();
-  return st === 'running'  ? 1.5 + _throttle() * 6.0
-       : st === 'starting' ? Math.min(1.5, dyn / 400 * 1.5)
-       : st === 'shutdown' ? Math.max(0, dyn / 2800 * 7.5)
-       : 0;
-}
-
-/** manifold pressure, in.Hg — idle ~12, full throttle ~52 → "The supercharger" */
-function _simpleManifold() {
-  return (S.wow || (S.spdT ?? 0) === 0) ? 12 : 12 + _throttle() * 40;
-}
-
-const _fuelLitres = () => (S.fuelLeft ?? 0) + (S.fuelRight ?? 0);
-const _fuelFlows  = () => !S.fuelShutoff && _fuelLitres() > 0;
-
-/** fuel pressure, kg/cm² — the engine-driven pump: normal while running with fuel (1.3, unconfirmed), building on the
-    start, falling over the starvation run-down once the cock is closed or the tank empty → "The fuel system" */
-function _simpleFuelPress() {
-  const st = S.engineState, normal = 1.3;
-  if (st === 'starting') return Math.min(normal, _rpm() / 400 * normal);
-  if (st !== 'running') return 0;
-  if (_fuelFlows() && S.fuelStarveT == null) return normal;
-  return normal * Math.max(0, Math.min(1, (S.fuelStarveT ?? 0) / 10));
-}
-
-/** generator current, A — charging while the engine runs, nothing at rest → an electrical model for the warbirds */
-function _simpleAmps() { return S.engineState === 'running' ? 18 : 0; }
-
-/** the propeller pitch in "clock hours" from 12:00 — S.propPitch 1 fine … 0 coarse; the hours per degree are not
-    known (sources/bf109-panel-notes.md) → the propeller's blade angle */
-function _simplePitchHours() { return (1 - (S.propPitch ?? 1)) * 6; }
-
-/** the fuel tank's air pressure, lb/sq in — the Avro's hand-pumped tank, kept at about 3 while there is fuel → "The fuel system" */
-function _simpleTankPress() { return _fuelFlows() ? 3.0 : 0; }
+const _n1Pct = (i = 0) => _rpm(i) / (S.aircraft?.engine?.maxRpm ?? 1) * 100;
 
 /* ════════════════════════════════════════════════════════════
    INSTRUMENT REGISTRY — what each instrument shows and how it is drawn.
-   `read` takes the value from the sim (never the drawing code); `value` names it; `simple` marks a
-   stand-in and what replaces it. `draw` per unit system gets (ctx, x, y, r, sc, value).
+   `read(i)` takes the value from the sim (never the drawing code) — i the engine, for the engine
+   instruments; `value` names it; `simple` marks a stand-in and what replaces it. `draw` per unit system gets (ctx, x, y, r, sc, value).
    ════════════════════════════════════════════════════════════ */
 /** the same drawing in both unit systems — the kinds whose scale is the instrument's own, not the style's */
 function _both(fn) { return { metric: fn, imperial: fn }; }
@@ -223,26 +185,26 @@ export const INSTRUMENTS = {
              draw: { metric: (ctx, x, y, r, sc, v, scale) => scale ? _drawGauge(ctx, x, y, r, sc, v, scale, { max: 130, step: 20, ring: 'coolant', big: '°C', name: 'coolant' })
                                                                     : _drawKuehlstoffTemp(ctx, x, y, r, sc, v),
                      imperial: _drawCHT } },
-  oilP:    { value: 'oil pressure (kg/cm²)',              read: _simpleOilPress, simple: 'The oil system (issues.md)',
+  oilP:    { value: 'oil pressure (kg/cm²)',              read: oilPressure, simple: STAND_INS.oilPressure,
              draw: { metric: _drawOelDruck, imperial: _drawOilPressure } },
-  map:     { value: 'manifold pressure (in.Hg)',          read: _simpleManifold, simple: 'The supercharger (issues.md)',
+  map:     { value: 'manifold pressure (in.Hg)',          read: manifoldPressure, simple: STAND_INS.manifoldPressure,
              draw: { imperial: _drawManifold, metric: _drawLadedruck } },
-  amps:    { value: 'generator current (A)',              read: _simpleAmps, simple: 'an electrical model for the warbirds',
+  amps:    { value: 'generator current (A)',              read: generatorAmps, simple: STAND_INS.generatorAmps,
              draw: _both((ctx, x, y, r, sc, v, scale) => _drawGauge(ctx, x, y, r, sc, v, scale, { min: -40, max: 60, step: 20, start: 310, sweep: 100, big: 'A', name: 'amps' })) },
-  fuel:    { value: 'fuel on board (l): S.fuelLeft + S.fuelRight', read: _fuelLitres,
+  fuel:    { value: 'fuel on board (l): S.fuelLeft + S.fuelRight', read: fuelLitres,
              draw: _both((ctx, x, y, r, sc, v, scale) => _drawGauge(ctx, x, y, r, sc, v, scale, { max: 400, step: 100, div: 100, start: 290, sweep: 140, ring: 'fuel', big: 'L', sub: '×100', name: 'fuel' })) },
-  fuelLow: { value: 'the fuel below the reserve (40 l, unconfirmed)', read: () => S.engineState !== 'off' && _fuelLitres() < 40, kind: 'lamp',
+  fuelLow: { value: 'the fuel below the reserve (40 l, unconfirmed)', read: () => S.engineState !== 'off' && fuelLitres() < 40, kind: 'lamp',
              draw: _both((ctx, x, y, r, sc, on) => _drawLamp(ctx, x, y, r, on, LAMP.red)) },
   gear:    { value: 'S.gearAnim — EIN lit retracted, AUS lit extended', read: () => S.gearAnim ?? (S.gear ? 1 : 0),
              draw: _both(_drawGearLamps) },
-  fuelOilP:{ value: 'fuel and oil pressure (kg/cm²)',     read: () => ({ fuel: _simpleFuelPress(), oil: _simpleOilPress() }),
-             simple: 'The fuel system, The oil system (issues.md)', draw: _both(_drawDoppeldruck) },
-  pitch:   { value: 'propeller pitch in clock hours',     read: _simplePitchHours, simple: 'the propeller\'s blade angle',
+  fuelOilP:{ value: 'fuel and oil pressure (kg/cm²)',     read: (i) => ({ fuel: fuelPressure(i), oil: oilPressure(i) }),
+             simple: `${STAND_INS.fuelPressure}, ${STAND_INS.oilPressure}`, draw: _both(_drawDoppeldruck) },
+  pitch:   { value: 'propeller pitch in clock hours',     read: propPitchHours, simple: STAND_INS.propPitchHours,
              draw: _both(_drawPitchClock) },
-  airP:    { value: 'fuel tank air pressure (lb/sq in)',  read: _simpleTankPress, simple: 'The fuel system (issues.md)',
+  airP:    { value: 'fuel tank air pressure (lb/sq in)',  read: tankAirPressure, simple: STAND_INS.tankAirPressure,
              draw: _both((ctx, x, y, r, sc, v, scale) => _drawGauge(ctx, x, y, r, sc, v, scale, { max: 5, step: 1, start: 310, sweep: 100, big: 'lb/sq in', name: 'airP' })) },
-  pulsator:{ value: 'oil flowing — the rotary running (rpm)', read: () => S.engineState === 'running' ? _rpm() : 0,
-             simple: 'The oil system (issues.md)', kind: 'glass', draw: _both(_drawPulsator) },
+  pulsator:{ value: 'oil flowing — the rotary running (rpm)', read: oilFlowing,
+             simple: STAND_INS.oilFlowing, kind: 'glass', draw: _both(_drawPulsator) },
   level:   { value: 'the ball (S.latAccel)',              read: () => ballDeflection(S.latAccel), kind: 'level',
              draw: _both(_drawLevel) },
   clock:   { value: 'the clock time (display/clock.js)',  read: () => null,
@@ -250,10 +212,10 @@ export const INSTRUMENTS = {
 };
 
 /** Draw one instrument of the registry in the active style's unit system */
-function _inst(id, ctx, x, y, r, sc, scale, variant) {
+function _inst(id, ctx, x, y, r, sc, scale, variant, engine = 0) {
   const def = INSTRUMENTS[id], draw = def?.draw[ST.units ?? 'metric'];
   if (!draw) { _warnOnce(`analog panel: no ${ST.units} drawing of "${id}"`); return; }
-  draw(ctx, x, y, r, sc, def.read(), scale, variant);
+  draw(ctx, x, y, r, sc, def.read(engine), scale, variant);
 }
 const _warned = new Set();
 function _warnOnce(msg) { if (!_warned.has(msg)) { _warned.add(msg); console.warn(msg); } }
@@ -318,7 +280,7 @@ export function renderAnalogPanel(canvas, style = 'luftwaffe') {
   });
   const lay  = flowLayout(groups, area, { view, engines: S.aircraft?.engine?.count ?? 1, maxL: MAX_L * dpr });
   const sc   = (SIZES.L * lay.scale / 2) / 90;        // the text scale: 1 at a large dial of radius 90 px
-  for (const it of lay.items) _inst(it.id, ctx, side + it.x, it.y, it.d / 2, sc, it.item?.scale, it.item?.variant);
+  for (const it of lay.items) _inst(it.id, ctx, side + it.x, it.y, it.d / 2, sc, it.item?.scale, it.item?.variant, it.engine ?? 0);
 
   if (ST.frost) _drawFrost(ctx, W, H);              // frost vignette — Arctic, -22 °C
   ctx.restore();
