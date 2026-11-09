@@ -48,7 +48,7 @@ There is no fallback: every aircraft has a `panel` (rockets and robots pick thei
 | `e190` | data-driven glass | `renderPanel()` — specs `e190-pfd`, `e190-nd` (+ `airbus-ecam` page) | E190-E2 |
 | `g1000` | data-driven GA | `renderCockpit()` — spec `g1000` (draws via `display/g1000.js`) | C172 |
 | `dr400` | data-driven GA | `renderCockpit()` — spec `dr400` | Robin DR400 |
-| `analog` | hand-drawn | `display/analog_panel.js`: the look from `panelStyle`, the instruments from `analogPanel`, placed by `display/panel_flow.js` | Bf 109, MiG-15 (`luftwaffe`), F4U-1A, DC-8 (`usn`), Tu-95 (`soviet-1956`), An-225 (`soviet`), Avro 504 (`wood`) — today's set on all until each gets its sourced one |
+| `analog` | hand-drawn | `display/analog_panel.js`: the look from `panelStyle`, the instruments from `analogPanel`, placed by `display/panel_flow.js` | Bf 109 (`luftwaffe`), MiG-15bis (`soviet-1956`), F4U-1A, DC-8 (`usn`), Tu-95 (`soviet-1956`), An-225 (`soviet`), Avro 504 (`wood`) — today's set on all until each gets its sourced one |
 | `velis-epsi` | hand-drawn | `display/velis_epsi.js` | Pipistrel Velis Electro |
 
 ---

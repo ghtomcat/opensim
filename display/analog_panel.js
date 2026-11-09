@@ -2,9 +2,9 @@
    OpenSim — display/analog_panel.js
    The analog instrument panel: six flight instruments and an engine row, in a style per
    aircraft — the look, the language and the unit system:
-     luftwaffe  feldgrau, ivory faces, red needles; German, metric   — Bf 109, MiG-15
+     luftwaffe  feldgrau, black faces (D-FEML), white needles; German, metric — Bf 109
      soviet     turquoise, black faces, white needles; Russian, metric — An-225 (stop-gap)
-     soviet-1956  the same on the early Tu-95's matte black panels                  — Tu-95
+     soviet-1956  the same on the 1950s' matte black panels, the plates in Russian  — Tu-95, MiG-15bis
      usn        flat black, white faces; English, US units             — F4U
      wood       wooden board, brass bezels, black faces; English, mph  — Avro 504 (stop-gap)
    Merged 2026-11-07 from display/bf109.js and display/f4u1a.js, which were copies of each other
@@ -20,16 +20,17 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from '../core/state.js';
-import { engineRpm } from '../core/engine.js';
-import { oilPressure, manifoldPressure, fuelPressure, generatorAmps, oilFlowing, propPitchHours, tankAirPressure,
+import { engineRpm, throttleFrac } from '../core/engine.js';
+import { oilPressure, manifoldPressure, fuelPressure, fuelPressureHigh, generatorAmps, oilFlowing, propPitchHours, tankAirPressure,
          fuelLitres, gasTemp, STAND_INS } from '../core/engine-gauges.js';
-import { drawAnalogClock } from './clock.js';
+import { drawAnalogClock, clockHours } from './clock.js';
+import { tasKt, machOf, heightAboveGroundFt } from '../core/airdata.js';
 import { ballDeflection } from '../core/yaw.js';
 import { indicatedAlt, baroSubscale } from '../core/baro.js';
 import { flowLayout, SIZES } from './panel_flow.js';
 
 /* ── Styles — the look and the language of the panel. luftwaffe: the Bf 109 E-4 D-FEML's black faces with
-   white figures and needles (and the MiG-15, which borrows it until its own step). soviet: a stop-gap for the Tu-95 and the An-225 until each has its own
+   white figures and needles. soviet: a stop-gap for the Tu-95 and the An-225 until each has its own
    sourced panel (issues.md, "The Avro 504, Tu-95 and An-225 fly on a leftover glass PFD") — black
    faces with white markings on the turquoise Soviet cockpit paint, Russian labels; metric like the
    German instruments, so the scales stay. ── */
@@ -131,7 +132,11 @@ const STYLES = {
 };
 /* soviet-1956: the early Tu-95's matte black panels (ru.wikipedia, Ту-95: "Все приборные доски имели матовый чёрный
    цвет"; sources/tu95-panel-notes.md) — the soviet faces and labels on a black panel instead of the later Tu-95MS's green */
-STYLES['soviet-1956'] = { ...STYLES.soviet, P: { ...STYLES.soviet.P, panel: '#1c1e20', rim: '#0c0d0e' } };
+STYLES['soviet-1956'] = { ...STYLES.soviet, P: { ...STYLES.soviet.P, panel: '#1c1e20', rim: '#0c0d0e' },
+  L: { ...STYLES.soviet.L, mach: 'Число М', radAlt: 'Радиовысотомер', emi3: 'Топливо · масло', fuelP: 'Давл. топлива', tgt: 'Т газов',
+       grid: STYLES.soviet.L.grid,
+       fuelBig: 'ЛИТРЫ', fuelSub: '', fuelRing: false,   // the MiG's fuel gauge (the photo): "ЛИТРЫ", no German colour ring
+       plates: { fuelLow: '300 ЛИТРОВ', gearWarn: 'ВЫПУСТИ ШАССИ', flapsOut: 'ЗАКРЫЛКИ', genOff: 'ГЕНЕРАТОР ВЫКЛЮЧЕН', fuelPLow: 'ДАВЛ. ТОПЛИВА' } } };
 
 /** Each style's unit system — the registry draws an instrument per unit system (tests/analog-registry.test.mjs) */
 export const STYLE_UNITS = Object.fromEntries(Object.entries(STYLES).map(([k, v]) => [k, v.units]));
@@ -164,24 +169,30 @@ const _n1Pct = (i = 0) => S.aircraft?.engine?.type === 'turbofan' ? (S.engines?.
 function _both(fn) { return { metric: fn, imperial: fn }; }
 
 export const INSTRUMENTS = {
-  asi:     { value: 'S.spd (kt)',                         read: () => S.spd ?? 0,
-             draw: { metric: _drawFahrtmesser, imperial: _drawAirspeed } },
-  ai:      { value: 'S.pitch, S.roll (°)',                 read: () => ({ pitch: S.pitch ?? 0, roll: S.roll ?? 0 }),
-             draw: { metric: _drawHorizont, imperial: _drawHorizon } },
-  alt:     { value: 'indicated altitude (ft) and the subscale (hPa) — core/baro.js', variants: ['standard', 'kmWindow'],
+  asi:     { value: 'S.spd (kt); the КУС-1200 also the true airspeed (core/airdata.js)', variants: ['kus'],
+             read: (i, it) => it?.variant === 'kus' ? { kt: S.spd ?? 0, tas: tasKt(S.spd ?? 0, S.alt ?? 0) } : S.spd ?? 0,
+             draw: { metric: (ctx, x, y, r, sc, v, scale, variant) => variant === 'kus' ? _drawKus1200(ctx, x, y, r, sc, v) : _drawFahrtmesser(ctx, x, y, r, sc, v, scale),
+                     imperial: _drawAirspeed } },
+  ai:      { value: 'S.pitch, S.roll (°); the АГК-47Б also the turn rate and the ball', variants: ['agk47'],
+             read: () => ({ pitch: S.pitch ?? 0, roll: S.roll ?? 0, rate: (S.roll ?? 0) / 20, ball: ballDeflection(S.latAccel) }),
+             draw: { metric: (ctx, x, y, r, sc, v, scale, variant) => variant === 'agk47' ? _drawAgk47(ctx, x, y, r, sc, v) : _drawHorizont(ctx, x, y, r, sc, v),
+                     imperial: _drawHorizon } },
+  alt:     { value: 'indicated altitude (ft) and the subscale (hPa) — core/baro.js', variants: ['standard', 'kmWindow', 'vd15'],
              read: () => ({ ft: indicatedAlt(S.alt ?? 0), hpa: baroSubscale() }),
-             draw: { metric: (ctx, x, y, r, sc, v, scale, variant) => variant === 'kmWindow' ? _drawKmWindowAlt(ctx, x, y, r, sc, v) : _drawHoehenmesser(ctx, x, y, r, sc, v.ft),
+             draw: { metric: (ctx, x, y, r, sc, v, scale, variant) => variant === 'kmWindow' ? _drawKmWindowAlt(ctx, x, y, r, sc, v) : variant === 'vd15' ? _drawVd15(ctx, x, y, r, sc, v) : _drawHoehenmesser(ctx, x, y, r, sc, v.ft),
                      imperial: (ctx, x, y, r, sc, v, scale, variant) => variant === 'kmWindow' ? _drawKmWindowAlt(ctx, x, y, r, sc, v) : _drawAltimeter(ctx, x, y, r, sc, v.ft) } },
   turn:    { value: 'turn rate, ball (S.latAccel)',         read: () => ({ rate: (S.roll ?? 0) / 20, ball: ballDeflection(S.latAccel) }),
              simple: 'the turn rate from the bank angle → the rate of heading change',
              draw: { metric: _drawWendezeiger, imperial: _drawTurnSlip } },
-  compass: { value: 'S.hdg (°)',                          read: () => S.hdg ?? 0, variants: ['card', 'bubble'],
-             draw: { metric: (ctx, x, y, r, sc, v, scale, variant) => (variant === 'bubble' ? _drawBubbleCompass : _drawKompass)(ctx, x, y, r, sc, v),
+  compass: { value: 'S.hdg (°)',                          read: () => S.hdg ?? 0, variants: ['card', 'bubble', 'gyro'],
+             draw: { metric: (ctx, x, y, r, sc, v, scale, variant) => (variant === 'bubble' ? _drawBubbleCompass : variant === 'gyro' ? _drawGyroCompass : _drawKompass)(ctx, x, y, r, sc, v),
                      imperial: (ctx, x, y, r, sc, v, scale, variant) => (variant === 'bubble' ? _drawBubbleCompass : _drawCompass)(ctx, x, y, r, sc, v) } },
-  vsi:     { value: 'S.vs (fpm)',                         read: () => S.vs ?? 0,
-             draw: { metric: _drawVariometer, imperial: _drawVSI } },
-  rpm:     { value: 'rpm — engineRpm() (core/engine.js); a scale in % shows it as a share of engine.maxRpm',  read: _rpm,
-             draw: { metric: _drawDrehzahl, imperial: _drawDrehzahl } },
+  vsi:     { value: 'S.vs (fpm)',                         read: () => S.vs ?? 0, variants: ['var75'],
+             draw: { metric: (ctx, x, y, r, sc, v, scale, variant) => variant === 'var75' ? _drawVar75(ctx, x, y, r, sc, v) : _drawVariometer(ctx, x, y, r, sc, v),
+                     imperial: _drawVSI } },
+  rpm:     { value: 'rpm — engineRpm() (core/engine.js); a scale in % shows it as a share of engine.maxRpm',  read: _rpm, variants: ['turnAndHalf'],
+             draw: _both((ctx, x, y, r, sc, v, scale, variant) => variant === 'turnAndHalf' ? _drawRpmTurnAndHalf(ctx, x, y, r, sc, v, S.aircraft?.engine?.maxRpm)
+                                                                                         : _drawDrehzahl(ctx, x, y, r, sc, v, scale)) },
   n1:      { value: 'N1 % — a turbofan\'s S.engines[i].n1, a turbojet\'s rpm / maxRpm (core/engine.js)', read: _n1Pct,
              draw: { metric: _drawN1Messer } },
   oilT:    { value: 'S.oilTempC (°C)',                    read: () => S.oilTempC ?? 15,
@@ -199,11 +210,28 @@ export const INSTRUMENTS = {
   amps:    { value: 'generator current (A)',              read: generatorAmps, simple: STAND_INS.generatorAmps,
              draw: _both((ctx, x, y, r, sc, v, scale) => _drawGauge(ctx, x, y, r, sc, v, scale, { min: -40, max: 60, step: 20, start: 310, sweep: 100, big: 'A', name: 'amps' })) },
   fuel:    { value: 'fuel on board (l): S.fuelLeft + S.fuelRight', read: fuelLitres,
-             draw: _both((ctx, x, y, r, sc, v, scale) => _drawGauge(ctx, x, y, r, sc, v, scale, { max: 400, step: 100, div: 100, start: 290, sweep: 140, ring: 'fuel', big: 'L', sub: '×100', name: 'fuel' })) },
-  fuelLow: { value: 'the fuel below the reserve (40 l, unconfirmed)', read: () => S.engineState !== 'off' && fuelLitres() < 40, kind: 'lamp',
-             draw: _both((ctx, x, y, r, sc, on) => _drawLamp(ctx, x, y, r, on, LAMP.red)) },
-  gear:    { value: 'S.gearAnim — EIN lit retracted, AUS lit extended', read: () => S.gearAnim ?? (S.gear ? 1 : 0),
-             draw: _both(_drawGearLamps) },
+             draw: _both((ctx, x, y, r, sc, v, scale) => _drawGauge(ctx, x, y, r, sc, v, scale, { max: 400, step: 100, div: 100, start: 290, sweep: 140, ring: L.fuelRing === false ? undefined : 'fuel', big: L.fuelBig ?? 'L', sub: L.fuelSub ?? '×100', name: 'fuel' })) },
+  fuelLow: { value: 'the fuel below the reserve — the entry\'s `below` (l; 40 if absent)', read: (i, it) => S.engineState !== 'off' && fuelLitres() < (it?.below ?? 40), kind: 'lamp',
+             draw: _both((ctx, x, y, r, sc, on) => L.plates?.fuelLow ? _drawPlateLamp(ctx, x, y, r, sc, on, LAMP.red, L.plates.fuelLow) : _drawLamp(ctx, x, y, r, on, LAMP.red)) },
+  gear:    { value: 'S.gearAnim — up / down and locked lamps', read: () => S.gearAnim ?? (S.gear ? 1 : 0), variants: ['mig'],
+             draw: _both((ctx, x, y, r, sc, v, scale, variant) => (variant === 'mig' ? _drawGearMig : _drawGearLamps)(ctx, x, y, r, sc, v)) },
+  gearWarn:{ value: 'the gear not down and locked with the throttle back (below 30 % — unconfirmed)', kind: 'lamp',
+             read: () => (S.gearAnim ?? (S.gear ? 1 : 0)) < 0.99 && throttleFrac() < 0.3,
+             draw: _both((ctx, x, y, r, sc, on) => _drawPlateLamp(ctx, x, y, r, sc, on, LAMP.red, L.plates?.gearWarn)) },
+  flapsOut:{ value: 'the flaps fully down (S.flaps at the last setting)', kind: 'lamp',
+             read: () => (S.flaps ?? 0) >= Math.max(1, (S.aircraft?.flaps?.length ?? 1) - 1),
+             draw: _both((ctx, x, y, r, sc, on) => _drawPlateLamp(ctx, x, y, r, sc, on, LAMP.green, L.plates?.flapsOut)) },
+  genOff:  { value: 'the generator not charging (generatorAmps, core/engine-gauges.js)', kind: 'lamp', read: (i) => generatorAmps(i) <= 0,
+             simple: STAND_INS.generatorAmps, draw: _both((ctx, x, y, r, sc, on) => _drawPlateLamp(ctx, x, y, r, sc, on, LAMP.red, L.plates?.genOff)) },
+  fuelPLow:{ value: 'the fuel supply pressure below half its normal (fuelPressure, core/engine-gauges.js)', kind: 'lamp',
+             read: (i) => S.engineState !== 'off' && fuelPressure(i) < 0.5 * (S.aircraft?.engine?.fuelPressure?.low ?? 1.3),
+             simple: STAND_INS.fuelPressure, draw: _both((ctx, x, y, r, sc, on) => _drawPlateLamp(ctx, x, y, r, sc, on, LAMP.red, L.plates?.fuelPLow)) },
+  mach:    { value: 'Mach from S.spd and S.alt (core/airdata.js)', read: () => machOf(S.spd ?? 0, S.alt ?? 0), draw: _both(_drawMach) },
+  radAlt:  { value: 'the height above the ground, ft (core/airdata.js)', read: () => heightAboveGroundFt(), draw: _both(_drawRadAlt) },
+  emi3:    { value: 'fuel (injector) pressure, oil pressure (kg/cm²), oil temperature (°C)', read: (i) => ({ fuel: fuelPressureHigh(i), oil: oilPressure(i), oilT: S.oilTempC ?? 15 }),
+             simple: `${STAND_INS.fuelPressureHigh}, ${STAND_INS.oilPressure}`, draw: _both(_drawEmi3) },
+  fuelP:   { value: 'the fuel supply pressure (kg/cm²)', read: fuelPressure, simple: STAND_INS.fuelPressure,
+             draw: _both((ctx, x, y, r, sc, v, scale) => _drawGauge(ctx, x, y, r, sc, v, scale, { max: 10, step: 2, minor: 4, start: 225, sweep: 270, sub: 'кг/см²', name: 'fuelP' })) },
   fuelOilP:{ value: 'fuel and oil pressure (kg/cm²)',     read: (i) => ({ fuel: fuelPressure(i), oil: oilPressure(i) }),
              simple: `${STAND_INS.fuelPressure}, ${STAND_INS.oilPressure}`, draw: _both(_drawDoppeldruck) },
   pitch:   { value: 'propeller pitch in clock hours',     read: propPitchHours, simple: STAND_INS.propPitchHours,
@@ -216,15 +244,16 @@ export const INSTRUMENTS = {
              draw: _both(_drawLevel) },
   tgt:     { value: 'exhaust gas temperature (°C) — gasTemp() (core/engine-gauges.js)', read: gasTemp, simple: STAND_INS.gasTemp,
              draw: { metric: (ctx, x, y, r, sc, v, scale) => _drawGauge(ctx, x, y, r, sc, v, scale, { max: 800, step: 100, div: 100, sub: '×100 °C', name: 'tgt' }) } },
-  clock:   { value: 'the clock time (display/clock.js)',  read: () => null,
-             draw: { metric: (ctx, x, y, r) => drawAnalogClock(ctx, x, y, r), imperial: (ctx, x, y, r) => drawAnalogClock(ctx, x, y, r) } },
+  clock:   { value: 'the clock time (display/clock.js); the АЧХО also the flight time (S.time)', variants: ['achkho'],
+             read: () => ({ hours: clockHours(), flight: S.time ?? 0 }),
+             draw: _both((ctx, x, y, r, sc, v, scale, variant) => variant === 'achkho' ? _drawAchkho(ctx, x, y, r, sc, v) : drawAnalogClock(ctx, x, y, r)) },
 };
 
 /** Draw one instrument of the registry in the active style's unit system */
-function _inst(id, ctx, x, y, r, sc, scale, variant, engine = 0) {
+function _inst(id, ctx, x, y, r, sc, item, engine = 0) {
   const def = INSTRUMENTS[id], draw = def?.draw[ST.units ?? 'metric'];
   if (!draw) { _warnOnce(`analog panel: no ${ST.units} drawing of "${id}"`); return; }
-  draw(ctx, x, y, r, sc, def.read(engine), scale, variant);
+  draw(ctx, x, y, r, sc, def.read(engine, item), item?.scale, item?.variant);
 }
 const _warned = new Set();
 function _warnOnce(msg) { if (!_warned.has(msg)) { _warned.add(msg); console.warn(msg); } }
@@ -291,7 +320,7 @@ export function renderAnalogPanel(canvas, style = 'luftwaffe') {
   const sc   = (SIZES.L * lay.scale / 2) / 90;        // the text scale: 1 at a large dial of radius 90 px
   for (const it of lay.items) {
     _inGrid = it.engine != null;
-    _inst(it.id, ctx, side + it.x, it.y, it.d / 2, sc, it.item?.scale, it.item?.variant, it.engine ?? 0);
+    _inst(it.id, ctx, side + it.x, it.y, it.d / 2, sc, it.item, it.engine ?? 0);
   }
   _inGrid = false;
   _gridLabels(ctx, lay.labels, side, sc);
@@ -1620,4 +1649,260 @@ function _drawOilPressure(ctx, x, y, r, sc, oilKg) {
   _needle(ctx, x, y, r, ang, 0.76, 0.20, sc);
   _cap(ctx, x, y, 4 * sc);
   _label(ctx, x, y, r, L.oilP, sc);
+}
+
+/* ════════════════════════════════════════════════════════════
+   THE MIG-15BIS's INSTRUMENTS (step 8) — from the USAF Museum's MiG-15bis 2015357 (sources/mig15-panel-notes.md),
+   tried in docs/mockups/analog-instrument-kinds.html. The faces' figures scale with the dial (r), as printed.
+   ════════════════════════════════════════════════════════════ */
+/** text at (x, y), `f` × r high */
+function _rt(ctx, x, y, r, s, f, col = P.mark, bold = true) {
+  ctx.fillStyle = col; ctx.font = `${bold ? 'bold ' : ''}${r * f}px ${SANS}`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(s, x, y);
+}
+/** a figure at deg on radius rr·r, `f` × r high */
+function _rnum(ctx, x, y, r, deg, s, f, rr = 0.68) {
+  const a = _r(deg); _rt(ctx, x + Math.cos(a) * r * rr, y + Math.sin(a) * r * rr, r, s, f);
+}
+/** a tick from the rim inward */
+function _rtick(ctx, x, y, r, deg, len, lw, rr = 1) {
+  const a = _r(deg); ctx.strokeStyle = P.mark; ctx.lineWidth = lw; ctx.beginPath();
+  ctx.moveTo(x + Math.cos(a) * r * rr, y + Math.sin(a) * r * rr); ctx.lineTo(x + Math.cos(a) * (r * rr - len), y + Math.sin(a) * (r * rr - len)); ctx.stroke();
+}
+/** a plain hand from the pivot */
+function _hand(ctx, x, y, r, deg, len, w, col = P.needle) {
+  const a = _r(deg); ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.beginPath();
+  ctx.moveTo(x - Math.cos(a) * r * 0.12, y - Math.sin(a) * r * 0.12); ctx.lineTo(x + Math.cos(a) * r * len, y + Math.sin(a) * r * len); ctx.stroke();
+}
+
+/** КУС-1200 — combined airspeed (×10 km/h): one linear scale, 30° per 100 km/h, 0 at the top round to 120 at the top
+    again (60 at the bottom — the photo; 10 just right of the top — DCS; 110/120 covered in both, reasoned); the thick
+    needle indicated, the thin one true airspeed from 400 km/h */
+function _drawKus1200(ctx, x, y, r, sc, v) {
+  _base(ctx, x, y, r);
+  const ang = kmh => Math.max(0, Math.min(1200, kmh)) * 0.3;
+  for (let k = 10; k <= 120; k++) _rtick(ctx, x, y, r, k * 3, r * (k % 10 ? (k % 5 ? 0.06 : 0.1) : 0.14), (k % 10 ? 0.8 : 1.5) * sc);
+  for (let k = 10; k <= 120; k += 10) _rnum(ctx, x, y, r, ang(k * 10), String(k), 0.13, 0.7);
+  _rt(ctx, x, y - r * 0.28, r, 'СКОРОСТЬ', 0.1); _rt(ctx, x, y + r * 0.32, r, 'КМ/Ч × 10', 0.08, P.subdued, false);
+  const kmh = v.kt * 1.852, tas = v.tas * 1.852;
+  if (tas >= 400) _hand(ctx, x, y, r, ang(tas), 0.86, 1.2 * sc, '#e0b050');
+  _needle(ctx, x, y, r, ang(kmh), 0.76, 0.2, sc); _cap(ctx, x, y, 4 * sc);
+}
+
+/** М-46 Mach meter — "ЧИСЛО МАХА" above the pivot, 0.3 at ~8 o'clock round to 0.9 at ~4:30; the needle on its stop below 0.3 */
+function _drawMach(ctx, x, y, r, sc, m) {
+  _base(ctx, x, y, r);
+  const ang = v => 245 + Math.max(0, Math.min(1, (v - 0.3) / 0.6)) * 250;
+  for (let k = 30; k <= 90; k++) _rtick(ctx, x, y, r, ang(k / 100), r * (k % 10 ? (k % 5 ? 0.06 : 0.1) : 0.14), (k % 10 ? 0.8 : 1.5) * sc);
+  for (let k = 3; k <= 9; k++) _rnum(ctx, x, y, r, ang(k / 10), '0.' + k, 0.13, 0.68);
+  _rt(ctx, x, y - r * 0.3, r, 'ЧИСЛО', 0.1); _rt(ctx, x, y - r * 0.17, r, 'МАХА', 0.1);
+  _needle(ctx, x, y, r, ang(m), 0.78, 0.2, sc); _cap(ctx, x, y, 4 * sc);
+  _label(ctx, x, y, r, L.mach ?? 'Mach', sc);
+}
+
+/** РВ-2 radar altimeter — "ВЫСОТА В МЕТРАХ" 0–1 200 m (0 at ~7 o'clock, 1 200 at ~4 — evenly; the real scale looks
+    a little compressed toward the top), a black centre; above 1 200 m the needle stays at the end. The value in ft. */
+function _drawRadAlt(ctx, x, y, r, sc, ft) {
+  _base(ctx, x, y, r);
+  const ang = m => 215 + Math.max(0, Math.min(1, m / 1200)) * 280;
+  for (let k = 0; k <= 24; k++) _rtick(ctx, x, y, r, ang(k * 50), r * (k % 6 ? 0.07 : 0.14), (k % 6 ? 0.8 : 1.5) * sc);
+  for (let m = 0; m <= 1200; m += 300) _rnum(ctx, x, y, r, ang(m), String(m), 0.13, 0.7);
+  ctx.fillStyle = '#060707'; ctx.beginPath(); ctx.arc(x, y, r * 0.48, 0, Math.PI * 2); ctx.fill();
+  _rt(ctx, x, y + r * 0.2, r, 'ВЫСОТА', 0.08, P.subdued, false); _rt(ctx, x, y + r * 0.31, r, 'В МЕТРАХ', 0.08, P.subdued, false);
+  _needle(ctx, x, y, r, ang(ft * 0.3048), 0.84, 0.2, sc); _cap(ctx, x, y, 4 * sc);
+  _label(ctx, x, y, r, L.radAlt ?? 'Radar alt', sc);
+}
+
+/** ЭМИ-3 triple gauge — fuel (injector) pressure 0–100 kg/cm² round the outside (0 at ~8 o'clock to 100 at ~4); the
+    two oil scales ")(" below, each at most a half circle round its own pivot: oil pressure 0–10 bowing right, oil
+    temperature −50…150 °C bowing left, the figures inside (Markus, from the photo) */
+function _drawEmi3(ctx, x, y, r, sc, v) {
+  _base(ctx, x, y, r);
+  const fa = p => 240 + Math.max(0, Math.min(1, p / 100)) * 240;
+  for (let p = 0; p <= 100; p += 5) _rtick(ctx, x, y, r, fa(p), r * (p % 20 ? 0.07 : 0.13), (p % 20 ? 0.8 : 1.5) * sc);
+  for (let p = 0; p <= 100; p += 20) _rnum(ctx, x, y, r, fa(p), String(p), 0.11, 0.7);
+  _rt(ctx, x, y - r * 0.3, r, 'КГ/СМ²', 0.08, P.subdued, false);
+  const rr = r * 0.37;
+  const half = (px, py, lo, hi, step, val, a0, sw) => {
+    const ang = u => a0 + Math.max(0, Math.min(1, (u - lo) / (hi - lo))) * sw;
+    ctx.strokeStyle = P.mark; ctx.lineWidth = 1 * sc; ctx.beginPath();
+    const t0 = _r(ang(lo)), t1 = _r(ang(hi)); ctx.arc(px, py, rr, Math.min(t0, t1), Math.max(t0, t1)); ctx.stroke();
+    const n = Math.round((hi - lo) / step) * 5;
+    for (let i = 0; i <= n; i++) _rtick(ctx, px, py, rr, ang(lo + i / n * (hi - lo)), rr * (i % 5 ? 0.12 : 0.2), (i % 5 ? 0.6 : 1.1) * sc);
+    for (let u = lo; u <= hi + 1e-9; u += step) _rnum(ctx, px, py, rr, ang(u), String(u), 0.24, 0.6);
+    _hand(ctx, px, py, rr, ang(val), 0.95, 1.4 * sc); _cap(ctx, px, py, 2.2 * sc);
+  };
+  half(x - r * 0.44, y + r * 0.22, 0, 10, 5, v.oil, 165, -150);
+  half(x + r * 0.44, y + r * 0.22, -50, 150, 50, v.oilT, 195, 150);
+  _needle(ctx, x, y, r, fa(v.fuel), 0.86, 0.15, sc); _cap(ctx, x, y, 3.5 * sc);
+  _label(ctx, x, y, r, L.emi3 ?? 'Fuel / oil', sc);
+}
+
+/** The MiG's gear indicator — the aircraft seen from above on a plate, at the nose and each main leg a red lamp (up and
+    locked) and a green one (down and locked); dark while the gear travels */
+function _drawGearMig(ctx, x, y, r, sc, anim) {
+  const w = r * 1.9, h = r * 1.4;
+  ctx.save();
+  ctx.fillStyle = '#151718'; ctx.strokeStyle = P.rim; ctx.lineWidth = 2 * sc;
+  ctx.beginPath(); ctx.roundRect(x - w / 2, y - h / 2, w, h, r * 0.08); ctx.fill(); ctx.stroke();
+  _rt(ctx, x, y - h * 0.38, r, 'ШАССИ', 0.12);
+  ctx.strokeStyle = '#d8d8d0'; ctx.lineWidth = r * 0.035; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.beginPath();
+  ctx.moveTo(x, y - h * 0.26); ctx.lineTo(x, y + h * 0.2);
+  ctx.moveTo(x - r * 0.75, y + h * 0.1); ctx.lineTo(x, y - h * 0.12); ctx.lineTo(x + r * 0.75, y + h * 0.1);
+  ctx.moveTo(x - r * 0.22, y + h * 0.22); ctx.lineTo(x, y + h * 0.14); ctx.lineTo(x + r * 0.22, y + h * 0.22);
+  ctx.stroke();
+  const up = anim <= 0.01, dn = anim >= 0.99, lr = r * 0.09;
+  for (const [dx, dy] of [[0, -0.32], [-0.42, 0.06], [0.42, 0.06]]) {
+    _drawLamp(ctx, x + dx * r, y + dy * r, lr, up, LAMP.red);
+    _drawLamp(ctx, x + dx * r, y + (dy + 0.24) * r, lr, dn, LAMP.green);
+  }
+  ctx.restore();
+}
+
+/** The gyro heading indicator (ГИК-1) — a flat card turning with the heading (N/E/S/W, 3 … 33 ×10°, a mark every 5°),
+    read at the top index; a fixed aircraft from above in the middle */
+function _drawGyroCompass(ctx, x, y, r, sc, hdg) {
+  _base(ctx, x, y, r);
+  for (let d = 0; d < 360; d += 5) _rtick(ctx, x, y, r * 0.95, d - hdg, r * (d % 30 ? (d % 10 ? 0.06 : 0.1) : 0.14), (d % 30 ? 0.8 : 1.5) * sc);
+  const lab = { 0: 'N', 90: 'E', 180: 'S', 270: 'W' };
+  for (let d = 0; d < 360; d += 30) _rnum(ctx, x, y, r, d - hdg, lab[d] ?? String(d / 10), lab[d] ? 0.15 : 0.12, 0.68);
+  ctx.save(); ctx.translate(x, y); ctx.strokeStyle = P.mark; ctx.lineCap = 'round';
+  ctx.lineWidth = r * 0.07; ctx.beginPath(); ctx.moveTo(0, -r * 0.34); ctx.lineTo(0, r * 0.3); ctx.stroke();
+  ctx.lineWidth = r * 0.06; ctx.beginPath(); ctx.moveTo(-r * 0.36, r * 0.02); ctx.lineTo(0, -r * 0.08); ctx.lineTo(r * 0.36, r * 0.02); ctx.stroke();
+  ctx.lineWidth = r * 0.045; ctx.beginPath(); ctx.moveTo(-r * 0.14, r * 0.3); ctx.lineTo(0, r * 0.24); ctx.lineTo(r * 0.14, r * 0.3); ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = '#d0b060'; ctx.beginPath(); ctx.moveTo(x, y - r * 0.97); ctx.lineTo(x - r * 0.05, y - r * 0.86); ctx.lineTo(x + r * 0.05, y - r * 0.86); ctx.fill();
+  _label(ctx, x, y, r, L.compass, sc);
+}
+
+/** The jet's rpm indicator ("ОБОРОТЫ ×1000") — one needle at 36° per 1 000 rpm from 0 at the top: the first half turn
+    reads the inner half-arc 0–5 on the right (the start), then the outer scale 6 … 10 (top) … 15 (bottom). Yellow and
+    red marks from the engine's maxRpm (places unconfirmed) */
+function _drawRpmTurnAndHalf(ctx, x, y, r, sc, rpm, max) {
+  _base(ctx, x, y, r);
+  const ang = n => Math.max(0, n) / 1000 * 36;
+  for (let k = 60; k <= 150; k++) _rtick(ctx, x, y, r, ang(k * 100), r * (k % 10 ? (k % 5 ? 0.06 : 0.1) : 0.14), (k % 10 ? 0.8 : 1.5) * sc);
+  for (let k = 6; k <= 15; k++) _rnum(ctx, x, y, r, ang(k * 1000), String(k), 0.14, 0.68);
+  if (max) {
+    const band = (a, b, col) => { ctx.strokeStyle = col; ctx.lineWidth = r * 0.05; ctx.beginPath(); ctx.arc(x, y, r * 0.97, _r(ang(a)), _r(ang(b))); ctx.stroke(); };
+    band(max, max + 300, '#d8b030'); band(max + 300, max + 600, '#c02a18');
+  }
+  const ri = r * 0.46;
+  ctx.strokeStyle = 'rgba(90,140,200,0.5)'; ctx.lineWidth = r * 0.02; ctx.beginPath(); ctx.arc(x, y, ri, _r(0), _r(ang(5000))); ctx.stroke();
+  for (let k = 0; k <= 10; k++) _rtick(ctx, x, y, ri, ang(k * 500), ri * (k % 2 ? 0.1 : 0.16), (k % 2 ? 0.6 : 1) * sc);
+  for (let k = 1; k <= 5; k++) _rnum(ctx, x, y, ri, ang(k * 1000), String(k), 0.2, 0.68);
+  _rt(ctx, x, y - r * 0.24, r, '×1000', 0.08, P.subdued, false); _rt(ctx, x, y - r * 0.12, r, 'ОБОРОТЫ', 0.09);
+  _needle(ctx, x, y, r, ang(rpm), 0.82, 0.2, sc); _cap(ctx, x, y, 4 * sc);
+  _label(ctx, x, y, r, L.rpm, sc);
+}
+
+/** АГК-47Б — a combined attitude indicator: a thin horizon line tilting with the bank against two fixed side
+    triangles; a narrow pitch drum (black above, blue below, figures every 20° as 2, 4, 6); the turn needle pivoted at the
+    top; the slip ball in a curved tube at the bottom */
+function _drawAgk47(ctx, x, y, r, sc, v) {
+  _base(ctx, x, y, r);
+  ctx.save(); ctx.beginPath(); ctx.arc(x, y, r * 0.9, 0, Math.PI * 2); ctx.clip();
+  ctx.fillStyle = '#0e1012'; ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
+  const k = r * 0.02, dw = r * 0.2, off = Math.max(-80, Math.min(80, v.pitch)) * k;
+  ctx.save(); ctx.beginPath(); ctx.rect(x - dw / 2, y - r * 0.62, dw, r * 1.18); ctx.clip();
+  ctx.fillStyle = '#111416'; ctx.fillRect(x - dw / 2, y - r * 2, dw, r * 2 + off);
+  ctx.fillStyle = '#2f6f86'; ctx.fillRect(x - dw / 2, y + off, dw, r * 2);
+  for (let d = -80; d <= 80; d += 10) {
+    const ty = y + off + d * k;
+    ctx.strokeStyle = '#e6d6a8'; ctx.lineWidth = 1.2 * sc; ctx.beginPath(); ctx.moveTo(x + dw * 0.1, ty); ctx.lineTo(x + dw / 2, ty); ctx.stroke();
+    if (d && d % 20 === 0) _rt(ctx, x - dw * 0.1, ty, r, String(Math.abs(d) / 10), 0.12, '#e6d6a8');
+  }
+  ctx.restore();
+  ctx.save(); ctx.translate(x, y); ctx.rotate(-v.roll * Math.PI / 180);
+  ctx.strokeStyle = '#d8b060'; ctx.lineWidth = r * 0.025; ctx.beginPath(); ctx.moveTo(-r * 0.62, 0); ctx.lineTo(r * 0.62, 0); ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = '#e6e2d6';
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(x + s * r * 0.66, y); ctx.lineTo(x + s * r * 0.8, y - r * 0.055); ctx.lineTo(x + s * r * 0.8, y + r * 0.055); ctx.fill(); }
+  /* the turn indicator: a small aircraft seen from behind — a straight wing bar, a fin up, the fuselage round — banking
+     with the turn rate about its centre (Markus, from the photo) */
+  const ty = y - r * 0.66, ta = Math.max(-1.5, Math.min(1.5, v.rate)) * 18 * Math.PI / 180;
+  ctx.save(); ctx.translate(x, ty); ctx.rotate(ta);
+  ctx.strokeStyle = '#e6e2d6'; ctx.lineCap = 'round';
+  ctx.lineWidth = r * 0.03; ctx.beginPath(); ctx.moveTo(-r * 0.32, 0); ctx.lineTo(r * 0.32, 0); ctx.stroke();      // the wings
+  ctx.lineWidth = r * 0.025; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -r * 0.1); ctx.stroke();               // the fin
+  ctx.fillStyle = '#e6e2d6'; ctx.beginPath(); ctx.arc(0, 0, r * 0.045, 0, Math.PI * 2); ctx.fill();                    // the fuselage
+  ctx.restore();
+  ctx.restore();
+  const cy = y - r * 0.2, R = r * 0.98;
+  ctx.strokeStyle = 'rgba(220,210,180,0.6)'; ctx.lineWidth = r * 0.1; ctx.beginPath(); ctx.arc(x, cy, R, _r(160), _r(200)); ctx.stroke();
+  for (const d of [-4, 4]) { const a = _r(180 + d); ctx.strokeStyle = '#111'; ctx.lineWidth = 1.2 * sc; ctx.beginPath();
+    ctx.moveTo(x + Math.cos(a) * (R - r * 0.05), cy + Math.sin(a) * (R - r * 0.05)); ctx.lineTo(x + Math.cos(a) * (R + r * 0.05), cy + Math.sin(a) * (R + r * 0.05)); ctx.stroke(); }
+  const b = _r(180 - Math.max(-1, Math.min(1, v.ball)) * 18);
+  ctx.fillStyle = '#0c0c0c'; ctx.beginPath(); ctx.arc(x + Math.cos(b) * R, cy + Math.sin(b) * R, r * 0.045, 0, Math.PI * 2); ctx.fill();
+  _label(ctx, x, y, r, L.ai, sc);
+}
+
+/** АЧХО — the clock with the flight time: the main dial the time of day (luminous hour dots, a minute rim), the top
+    sub-dial "ВРЕМЯ ПОЛЁТА" the flight time (the mission's sim time), the bottom sub-dial the stopwatch (at rest) */
+function _drawAchkho(ctx, x, y, r, sc, v) {
+  _base(ctx, x, y, r);
+  for (let i = 0; i < 60; i++) _rtick(ctx, x, y, r, i * 6, r * (i % 5 ? 0.06 : 0.12), (i % 5 ? 0.7 : 1.3) * sc);
+  for (let k = 5; k <= 60; k += 5) _rnum(ctx, x, y, r, k * 6, String(k), 0.07, 0.76);
+  for (let h = 1; h <= 12; h++) { const a = _r(h * 30); ctx.fillStyle = '#c8b878'; ctx.beginPath(); ctx.arc(x + Math.cos(a) * r * 0.64, y + Math.sin(a) * r * 0.64, r * 0.04, 0, Math.PI * 2); ctx.fill(); }
+  const sub = (cy, rr, label, hours) => {
+    ctx.strokeStyle = P.mark; ctx.lineWidth = 0.8 * sc; ctx.beginPath(); ctx.arc(x, cy, rr, 0, Math.PI * 2); ctx.stroke();
+    for (let i = 0; i < 60; i++) _rtick(ctx, x, cy, rr, i * 6, rr * (i % 5 ? 0.07 : 0.14), (i % 5 ? 0.5 : 0.9) * sc);
+    for (let h = 1; h <= 12; h++) _rnum(ctx, x, cy, rr, h * 30, String(h), 0.17, 0.74);
+    if (label) _rt(ctx, x, cy - rr * 0.22, rr, label, 0.12);
+    _hand(ctx, x, cy, rr, (hours % 12) * 30, 0.5, 1.5 * sc); _hand(ctx, x, cy, rr, (hours % 1) * 360, 0.78, 1 * sc);
+  };
+  sub(y - r * 0.3, r * 0.27, 'ВРЕМЯ ПОЛЁТА', v.flight / 3600);
+  sub(y + r * 0.3, r * 0.27, '', 0);
+  _hand(ctx, x, y, r, (v.hours % 12) * 30, 0.5, 2.6 * sc); _hand(ctx, x, y, r, (v.hours % 1) * 360, 0.8, 1.8 * sc);
+  _hand(ctx, x, y, r, 0, 0.9, 0.6 * sc, '#d8803a'); _cap(ctx, x, y, 3 * sc);
+}
+
+/** ВД-15 — "ВЫСОТА" 0–9 all round, no 5 (the pressure window takes its place); the long thin hand one turn per 1 000 m,
+    the short wide hand whole kilometres; the window at the bottom the setting in mm Hg behind a fixed index */
+function _drawVd15(ctx, x, y, r, sc, v) {
+  _base(ctx, x, y, r);
+  for (let i = 0; i < 50; i++) _rtick(ctx, x, y, r, i * 7.2, r * (i % 5 ? 0.07 : 0.14), (i % 5 ? 0.8 : 1.5) * sc);
+  for (let k = 0; k <= 9; k++) if (k !== 5) _rnum(ctx, x, y, r, k * 36, String(k), 0.17, 0.68);
+  _rt(ctx, x, y - r * 0.32, r, 'ВЫСОТА', 0.11);
+  const mm = v.hpa * 0.75006, wy = y + r * 0.62, ww = r * 0.5, wh = r * 0.18, px = r * 0.035;
+  ctx.save(); ctx.fillStyle = '#060707'; ctx.beginPath(); ctx.roundRect(x - ww / 2, wy - wh / 2, ww, wh, r * 0.03); ctx.fill(); ctx.clip();
+  for (let n = Math.floor(mm) - 12; n <= Math.ceil(mm) + 12; n++) {
+    const tx = x + (n - mm) * px; ctx.strokeStyle = P.mark; ctx.lineWidth = (n % 10 ? 0.6 : 1.1) * sc; ctx.beginPath();
+    ctx.moveTo(tx, wy + wh / 2); ctx.lineTo(tx, wy + wh / 2 - r * (n % 10 ? (n % 5 ? 0.03 : 0.05) : 0.07)); ctx.stroke();
+    if (n % 10 === 0) _rt(ctx, tx, wy - wh * 0.15, r, String(n), 0.08);
+  }
+  ctx.restore();
+  ctx.fillStyle = '#d8b060'; ctx.beginPath(); ctx.moveTo(x, wy + wh / 2 - r * 0.02); ctx.lineTo(x - r * 0.025, wy + wh / 2 + r * 0.03); ctx.lineTo(x + r * 0.025, wy + wh / 2 + r * 0.03); ctx.fill();
+  const m = Math.max(0, v.ft * 0.3048);
+  _hand(ctx, x, y, r, (m / 1000) * 36, 0.5, 3.4 * sc); _hand(ctx, x, y, r, (m % 1000) / 1000 * 360, 0.84, 1.3 * sc); _cap(ctx, x, y, 3.5 * sc);
+  _label(ctx, x, y, r, L.alt, sc);
+}
+
+/** ВАР-75 — a two-part scale: 0 at 9 o'clock; climb clockwise 5, 10, 15 (stretched, 4°/m/s), then 30, 45, 60 to 75 at
+    3 o'clock (2°/m/s); descent mirrored below. The value in fpm. */
+function _drawVar75(ctx, x, y, r, sc, fpm) {
+  _base(ctx, x, y, r);
+  const f = a => a <= 15 ? a * 4 : 60 + (a - 15) * 2;
+  const ang = ms => 270 + Math.sign(ms) * f(Math.min(75, Math.abs(ms)));
+  for (const s of [1, -1]) {
+    for (let a = s > 0 ? 0 : 1; a <= 75; a += a < 15 ? 1 : 5) {
+      const maj = (a <= 15 && a % 5 === 0) || a % 15 === 0;
+      _rtick(ctx, x, y, r, ang(s * a), r * (maj ? 0.14 : 0.07), (maj ? 1.5 : 0.8) * sc);
+    }
+    for (const a of [5, 10, 15, 30, 45, 60]) _rnum(ctx, x, y, r, ang(s * a), String(a), 0.12, 0.7);
+  }
+  _rnum(ctx, x, y, r, 270, '0', 0.14, 0.7); _rnum(ctx, x, y, r, 90, '75', 0.13, 0.7);
+  _rt(ctx, x, y - r * 0.28, r, 'ПОДЪЁМ', 0.09); _rt(ctx, x, y + r * 0.3, r, 'СПУСК', 0.09);
+  _needle(ctx, x, y, r, ang(fpm * 0.00508), 0.82, 0.2, sc); _cap(ctx, x, y, 4 * sc);
+  _label(ctx, x, y, r, L.vsi, sc);
+}
+
+/** A warning lamp with its plate below (the style's text) */
+function _drawPlateLamp(ctx, x, y, r, sc, on, col, plate) {
+  _drawLamp(ctx, x, y - r * 0.15, r * 0.7, on, col);
+  if (!plate) return;
+  ctx.save(); ctx.font = `bold ${5.5 * sc}px ${SANS}`; const w = Math.max(r * 1.4, ctx.measureText(plate).width + 6 * sc);
+  ctx.fillStyle = '#0c0c0c'; ctx.fillRect(x - w / 2, y + r * 0.72, w, 9 * sc);
+  ctx.fillStyle = P.mark; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(plate, x, y + r * 0.72 + 4.5 * sc);
+  ctx.restore();
 }

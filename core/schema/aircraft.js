@@ -24,6 +24,7 @@ const engine = object(
     coreIdle: num, spools: num,      // turbofan core: % at idle (default 60); 3 → the core is N3 (core/engine.js)
     egtIdle: num, egtTakeoff: num, egtStart: num, ffMax: num,   // °C at idle / 100 % N1 / the start peak; kg/h at takeoff
     idleRpm: num, maxRpm: num,       // a piston or rotary engine's rpm at idle and at full throttle (the analog panel's stand-in)
+    fuelPressure: object({ low: num, high: num }),   // kg/cm²: the supply and (a jet's) injector pressure — core/engine-gauges.js stand-ins
     chevrons: bool, nacellePaint: arrayOf(num) },   // last two: 3D model
   { doc: { model: str, description: str }, required: ['count'] },
 );
@@ -141,7 +142,9 @@ const dialScale = object({
 /* `variant`: which build of an instrument (the registry lists each one's — tests/analog-registry.test.mjs):
    compass card | bubble (the older magnetic compass), alt standard | kmWindow (one turn per km, km in a window) */
 const analogItem = object({ id: oneOf(...valuesOf(INSTRUMENT)), size: oneOf(...valuesOf(INSTRUMENT_SIZE)), scale: dialScale,
-                            variant: oneOf('card', 'bubble', 'standard', 'kmWindow'), unconfirmed: str },
+                            variant: oneOf('card', 'bubble', 'gyro', 'standard', 'kmWindow', 'vd15', 'kus', 'agk47', 'var75', 'turnAndHalf', 'achkho', 'mig'),
+                            below: num,   // a lamp's threshold (fuelLow: litres)
+                            unconfirmed: str },
                           { required: ['id', 'size'] });
 const analogPanel = object({
   groups: arrayOf(object({ name: str, rows: arrayOf(arrayOf(analogItem)), perEngine: arrayOf(analogItem) }, { required: ['name'] })),

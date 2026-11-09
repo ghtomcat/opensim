@@ -14,20 +14,31 @@
   "model": "mig-15bis",
   "clock": "analog",
   "panel": "analog",
-  "panelStyle": "luftwaffe",
+  "panelStyle": "soviet-1956",
   "analogPanel": {
-    "_note": "Today's instrument set, the same on every analog aircraft until each gets its sourced set (docs/issues.md, step 5).",
+    "_note": "The MiG-15bis's own panel (step 8, 2026-11-09): from the USAF Museum's MiG-15bis 2015357 (a high-resolution cockpit photo, read with Markus dial by dial — sources/mig15-panel-notes.md); the EGT's look from the DCS cockpit (the museum's gauge is removed). The left (flight) panel in its three columns as rows; the centre panel; the lamps where they sit. The АГК-47Б carries the turn needle and the ball — the MiG has no turn & slip indicator of its own.",
     "groups": [
-      { "name": "flight", "rows": [
-        [{ "id": "asi", "size": "L", "scale": { "unit": "km/h", "min": 150, "max": 1200, "step": 100, "tick": 50, "minor": 5, "div": 10 } }, { "id": "ai", "size": "L" }, { "id": "alt", "size": "L" }],
-        [{ "id": "turn", "size": "L" }, { "id": "compass", "size": "L" }, { "id": "vsi", "size": "L" }]
+      { "name": "left panel", "rows": [
+        [{ "id": "flapsOut", "size": "T" }, { "id": "gearWarn", "size": "T" }],
+        [{ "id": "mach", "size": "S" }, { "id": "ai", "size": "L", "variant": "agk47" }, { "id": "vsi", "size": "S", "variant": "var75" }],
+        [{ "id": "alt", "size": "S", "variant": "vd15" }, { "id": "genOff", "size": "T" }, { "id": "clock", "size": "S", "variant": "achkho" }, { "id": "fuelLow", "size": "T", "below": 300 },
+         { "id": "fuel", "size": "S", "scale": { "max": 1050, "step": 200, "div": 100, "start": 250, "sweep": 235, "figuresTo": 800, "endMark": true },
+           "unconfirmed": "the figures' places read from the photo; what the 1 050 mark measures (1 400 l on board) — not found" }],
+        [{ "id": "gear", "size": "S", "variant": "mig" }, { "id": "radAlt", "size": "S" }, { "id": "asi", "size": "S", "variant": "kus", "unconfirmed": "110 and 120 at the top covered in the photo — reasoned from the range" },
+         { "id": "fuelPLow", "size": "T" }]
       ] },
-      { "name": "engine", "rows": [
-        [{ "id": "clock", "size": "XS" }],
-        [{ "id": "n1", "size": "S" }],
-        [{ "id": "oilT", "size": "S" }, { "id": "oilP", "size": "S" }]
+      { "name": "centre panel", "rows": [
+        [{ "id": "tgt", "size": "S", "scale": { "min": 300, "max": 900, "step": 100, "div": 100, "start": 270, "sweep": 180, "redLine": 700 },
+           "unconfirmed": "the gauge is removed in the museum aircraft — its look from the DCS cockpit (×100 °C, 3–9); the red line at the DCS guide's 650–700 °C" }],
+        [{ "id": "compass", "size": "S", "variant": "gyro" }, { "id": "rpm", "size": "S", "variant": "turnAndHalf" },
+         { "id": "amps", "size": "XS", "scale": { "min": -40, "max": 120, "step": 40, "start": 300, "sweep": 120 }, "unconfirmed": "the negative end not readable" }],
+        [{ "id": "emi3", "size": "S", "unconfirmed": "the small oil scales' figures partly read" }, { "id": "fuelP", "size": "S" }]
       ] }
-    ]
+    ],
+    "absent": ["turn & slip indicator (in the АГК-47Б)"],
+    "decorative": ["radio compass АРК-5 (no beacon receiver in the sim)", "cabin altitude / pressure differential (no cabin pressurisation)",
+                   "booster tank empty lamp (one tank in the sim)", "marker lamp (no marker beacons)", "oxygen blinker (no oxygen system)",
+                   "camera gun lamp (no gun camera)", "air-start ignition lamp (no air-start ignition switch — issues.md)"]
   },
   "callsign": "Red 15",
   "icaoType": "MG15",

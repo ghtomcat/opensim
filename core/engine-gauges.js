@@ -11,7 +11,8 @@
 
      oilPressure(i)       kg/cm²    a turbofan's own (e.oil); else → "The oil system"
      manifoldPressure(i)  in.Hg     → "The supercharger"
-     fuelPressure(i)      kg/cm²    → "The fuel system"
+     fuelPressure(i)      kg/cm²    → "The fuel system" (the low / supply pressure)
+     fuelPressureHigh(i)  kg/cm²    → "The fuel system" (a jet's injector pressure)
      generatorAmps(i)     A         → an electrical model for the warbirds
      oilFlowing(i)        rpm       → "The oil system" (the Avro's pulsator)
      propPitchHours()     h from 12 → the propeller's blade angle (one lever for the aircraft)
@@ -27,6 +28,7 @@ export const STAND_INS = {
   oilPressure:      'The oil system (issues.md)',
   manifoldPressure: 'The supercharger (issues.md)',
   fuelPressure:     'The fuel system (issues.md)',
+  fuelPressureHigh: 'The fuel system (issues.md)',
   generatorAmps:    'an electrical model for the warbirds',
   oilFlowing:       'The oil system (issues.md)',
   propPitchHours:   'the propeller\'s blade angle',
@@ -65,7 +67,7 @@ export function manifoldPressure(i = 0) {
     building to it on the start, falling over the starvation run-down once the cock is closed or the
     tank empty (so the pressure drops before the engine quits) → "The fuel system" */
 export function fuelPressure(i = 0) {
-  const st = _state(i), normal = 1.3;
+  const st = _state(i), normal = S.aircraft?.engine?.fuelPressure?.low ?? 1.3;
   if (st === 'starting') return Math.min(normal, _rpm(i) / rpmRange().idle * normal);
   if (st !== 'running') return 0;
   if (_fuelFlows() && S.fuelStarveT == null) return normal;
@@ -97,4 +99,12 @@ export function gasTemp(i = 0) {
   return st === 'running'  ? idle + (top - idle) * throttleFrac()
        : st === 'starting' || st === 'shutdown' ? toward(idle)
        : cold;
+}
+
+/** A jet's high (injector) fuel pressure, kg/cm² — rising with the square of the rpm to engine.fuelPressure.high at full
+    rpm (60 if absent — not sourced), falling with the supply on a starvation run-down → "The fuel system" */
+export function fuelPressureHigh(i = 0) {
+  const top = S.aircraft?.engine?.fuelPressure?.high ?? 60, max = S.aircraft?.engine?.maxRpm ?? 1;
+  const low = S.aircraft?.engine?.fuelPressure?.low ?? 1.3;
+  return top * Math.pow(Math.min(1, _rpm(i) / max), 2) * (low > 0 ? fuelPressure(i) / low : 0);
 }

@@ -70,6 +70,7 @@ export const PANEL = names({
 export const INSTRUMENT = namesFrom([
   'asi', 'ai', 'alt', 'turn', 'compass', 'vsi', 'clock', 'rpm', 'n1', 'map', 'oilT', 'coolant', 'oilP',
   'amps', 'fuel', 'fuelLow', 'gear', 'fuelOilP', 'pitch', 'airP', 'pulsator', 'level', 'tgt',
+  'mach', 'radAlt', 'emi3', 'fuelP', 'gearWarn', 'flapsOut', 'genOff', 'fuelPLow',
 ]);
 export const INSTRUMENT_SIZE = namesFrom(['L', 'S', 'XS', 'T']);
 

@@ -21,7 +21,7 @@ for (const [what, mission, style] of [['Tu-95', 'nordmeer-1956', 'soviet-1956'],
   });
 }
 
-for (const [what, mission, style] of [['Bf 109', 'wolfskopf-1942', 'luftwaffe'], ['MiG-15bis', 'deblin-1955', 'luftwaffe'], ['F4U', 'rabaul-1943', 'usn']]) {
+for (const [what, mission, style] of [['Bf 109', 'wolfskopf-1942', 'luftwaffe'], ['MiG-15bis', 'deblin-1955', 'soviet-1956'], ['F4U', 'rabaul-1943', 'usn']]) {
   test(`${what}: on the analog panel too, ${style} style — no page errors`, async ({ page }) => {
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
