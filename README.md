@@ -517,6 +517,7 @@ docs/
   architecture.md       — how the pieces fit together
   url-routing.md        — mission URLs, deep links, browser history
   panel-system.md       — panel JSON + renderer
+  creating-aircraft.md  — adding an aircraft (the data fields, the analog panel)
   creating-missions.md  — writing a mission
   keybindings.md        — full key reference
   db601-synthesis.md    — DB 601 physical impulse model, all parameters

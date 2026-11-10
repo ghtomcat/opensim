@@ -178,7 +178,7 @@ state through `setState()`.
 ## Hand-drawn panels
 
 **Round gauges need no module of their own:** an aircraft with analog instruments uses
-`panel: "analog"` and lists its instruments as data (AIRCRAFT.md, *Analog panel*); a new
+`panel: "analog"` and lists its instruments as data (docs/creating-aircraft.md, *Analog panel*); a new
 instrument or look goes into the analog registry (*Analog instruments* below). Write a
 display module only for a cockpit that neither the widgets nor the analog panel cover — like
 the Velis EPSI.
