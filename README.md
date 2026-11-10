@@ -523,6 +523,7 @@ docs/
   db601-synthesis.md    — DB 601 physical impulse model, all parameters
   sound-calibration.md  — engine sound calibration
   audio-chain.md        — radio chain architecture, commProfile presets, pipeline
+  lessons.md            — lessons learned while building
 
 scripts/
   build-*.py            — bundle open data: runways, taxiways, stands, terminals, towers,

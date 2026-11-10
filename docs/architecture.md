@@ -66,10 +66,9 @@ OpenSim/
 ├── test/              Standalone diagnostics (no browser)
 │
 │   ── DOCUMENTATION ────────────────────────────────────────────────
-├── docs/              Developer documentation (this file, testing, creating-aircraft, creating-missions, …)
+├── docs/              Developer documentation (this file, testing, creating-aircraft, creating-missions, lessons, …)
 ├── README.md          Project overview, feature tour, how to run
 ├── MANIFEST.md        Project values ("realism as respect")
-├── LESSONS.md         Lessons learned while building
 ├── posts/             Writing about the project (drafts, published posts)
 │
 │   ── PROJECT FILES ────────────────────────────────────────────────
