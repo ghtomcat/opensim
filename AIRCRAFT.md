@@ -58,15 +58,55 @@ The `panel` field controls which 3D cockpit and instrument renderer is used.
 | `"g1000"` | Garmin G1000 glass cockpit (data-driven) | C172 |
 | `"dr400"` | Robin DR-400 cockpit — Garmin GTN + analog gauges (data-driven) | Robin DR-400 |
 | `"velis-epsi"` | Velis Electro EPSI panel | Velis HB-SYC |
-| `"analog"` | the round gauges: the look by `panelStyle` (`luftwaffe`, `usn`, `soviet`, `soviet-1956`, `wood`), the instruments by `analogPanel` (groups of `{ "id", "size" }` in rows, or `perEngine`) — both required | Bf 109, MiG-15, F4U-1A, Tu-95, An-225, Avro 504, DC-8 |
+| `"analog"` | the round gauges: the look by `panelStyle` (`luftwaffe`, `usn`, `soviet`, `soviet-1956`, `wood`), the instruments by `analogPanel` — both required (see *Analog panel* below) | Bf 109, MiG-15bis, F4U-1A, Tu-95, An-225, Avro 504, DC-8 |
 
 The 3D outside model (fuselage, wings, engines) is also driven by `panel`:
 - `"airbus"` or `"e190"` → wide-body jet renderer (`_buildWB`) with twin turbofan engines, swept wings, proper aileron/flap animation.
 - `"g1000"` or `"dr400"` → piston-single high-wing geometry (C172 base model).
-- the warbirds' geometry (Bf 109, F4U, MiG-15) is chosen by the aircraft `id` and `render`, not by `panel`.
+- the warbirds' geometry (Bf 109, F4U, MiG-15bis) is chosen by the aircraft `id` and `render`, not by `panel`.
 - Everything else → default wide-body fallback.
 
 For `"airbus"` panel you must also add a `displays` array (see below).
+
+### Analog panel (`"analog"`)
+
+The style is the look; the data says what is on the panel, grouped and in order — not where.
+The layout places it for the view (`display/panel_flow.js`). The design: docs/architecture.md §5.2.
+
+```json
+"panel": "analog", "panelStyle": "soviet-1956",
+"analogPanel": {
+  "_note": "Where the panel comes from — sources/<type>-panel-notes.md",
+  "groups": [
+    { "name": "left panel", "rows": [
+      [{ "id": "mach", "size": "S" }, { "id": "ai", "size": "L", "variant": "agk47" }],
+      [{ "id": "fuelLow", "size": "T", "below": 300 },
+       { "id": "fuel", "size": "S", "scale": { "max": 1050, "step": 200, "div": 100, "start": 250, "sweep": 235 },
+         "unconfirmed": "what the 1 050 mark measures" }]
+    ] },
+    { "name": "engines", "perEngine": [{ "id": "n1", "size": "XS" }, { "id": "tgt", "size": "XS" }] }
+  ],
+  "absent":     ["turn & slip indicator (in the АГК-47Б)"],
+  "decorative": ["radio compass (no beacon receiver in the sim)"]
+}
+```
+
+| Field | Description |
+|---|---|
+| `groups` | The real panel's parts, in order. Each has `rows` (the source's rows, left to right, top to bottom) **or** `perEngine` (repeated per engine — one column per engine, one row per quantity). |
+| `id` | The instrument (`core/vocab.js` `INSTRUMENT`; what each reads: `INSTRUMENTS` in `display/analog_panel.js`). |
+| `size` | A size class: `L`, `S`, `XS`, `T` (lamps) — relative, from the pictures. |
+| `scale` | The instrument's own painted markings: `min`, `max`, `step` (figures), `tick`, `minor`, `div` (figure = value ÷ div), `start`, `sweep` (degrees from 12 o'clock), `zero`, `figuresTo`, `major` (the large figures' step — the others small), `unit` (`km/h`, `kt`, `mph` on the airspeed; `%` on the rpm; `gal` on the fuel gauge), arcs `red`/`yellow`/`green`, lines `redLine`/`yellowLine`, `endMark`. Never derived from `envelope`. |
+| `variant` | A build of the instrument (the registry lists each one's): compass `card`/`bubble`/`gyro`/`remote`; altimeter `standard`/`kmWindow`/`vd15`/`threePointer`; airspeed `kus`/`twoTurn`; horizon `agk47`/`sperry`; clock `achkho`/`24h`; rpm `turnAndHalf`; variometer `var75`/`climb6`; gear lamps `mig`. |
+| `below` | A lamp's threshold — the low-fuel lamp in litres (40 if absent). |
+| `tank` | A fuel gauge on one tank: `left` or `right` (the F4U's main tank). |
+| `unconfirmed` | What is not sourced, with the reason — drawn like the rest, kept for the docs. |
+| `absent` | What the type did not have. |
+| `decorative` | Real instruments left out because nothing in the sim could drive them — each with the reason. |
+
+A new aircraft that fits the existing instruments and builds needs only this data. A new look
+of an instrument is a `variant`; a new quantity is a new instrument (code — see
+docs/panel-system.md, *Analog instruments*).
 
 ### Data-driven GA cockpits (`"g1000"`, `"dr400"`)
 
@@ -203,11 +243,15 @@ One object on every winged aircraft. Rockets and robots have none.
 
 | Field | Description |
 |---|---|
-| `type` | `turbofan` (switches on the N1 spool, A/THR, electrical, hydraulics), `turboprop`, `turbojet`, `piston`, `electric`. Only `turbofan` selects code today. |
+| `type` | **Required.** `turbofan` (switches on the N1 spool, A/THR, electrical, hydraulics), `turboprop`, `turbojet`, `piston`, `electric`. The engine model's rpm, fuel flow and the panel's readings follow it. |
 | `count` | Number of engines. **Required.** Sizes the pedestal levers, overhead, ECAM. |
 | `model` | Engine id (`io-360`, `trent-xwb`). Documentation for now. |
 | `description` | Human-readable description. Documentation. |
 | `idleN1` | Turbofan idle N1 (%). |
+| `idleRpm`, `maxRpm` | A piston, rotary, turboprop or turbojet engine's rpm at idle and at full throttle (`core/engine.js`); the sound of the impulse engines takes them too. |
+| `ffMax` | Fuel flow at full thrust, kg/h — a turbofan's (default from the thrust), a turbojet's (the MiG's VK-1: 2 890); it follows N1 or rpm and is burned from the tanks. |
+| `egtIdle`, `egtTakeoff`, `egtStart` | Exhaust gas temperature, °C, at idle, at full power and at light-off. |
+| `fuelPressure` | `{ low, high }` kg/cm² — the stand-ins' supply and (a jet's) injector pressure (`core/engine-gauges.js`). |
 | `startTime` | s from start to running — the length of the start-up recording the sound plays (`tests/engine.test.mjs` checks it). Absent → no start sequence, the engine just runs. |
 | `stopTime` | s from shutdown to off (pistons, turbojet). Turbofans stop when the fan has run down. |
 | `starter` | `electric` — the starter needs BAT on (C172, DR400). Absent → no power condition. |
@@ -383,8 +427,8 @@ Defines aerodynamic effects per config step. Applies to manual aircraft only.
 
 | Field | Description |
 |---|---|
-| `tanks` | `left`/`right` capacity in the given unit (`"L"` or `"kg"`). Omit entirely for jets/no-tank aircraft. |
-| `fuelBurn` | Consumption in unit/hour at full power. |
+| `tanks` | `left`/`right` capacity in litres (`"unit": "L"`); `right` 0 or absent → one tank (the status bar shows one value, no selector). Optional `labels: { left, right }` — the tanks' names in the status bar (the F4U: Main / Wing); `density` kg/l — for an engine with a fuel flow of its own (the turbojet), whose kg/h are burned as litres. Omit entirely for the airliners (their fuel system: `fuelSystem`). |
+| `fuelBurn` | Consumption in l/h at full power — the pistons' fixed rate (it does not follow the throttle yet — docs/issues.md). An engine with `ffMax` burns its fuel flow instead. |
 | `hasCarbHeat` | Enables the carb heat control (C key). |
 
 AP aircraft (A350, A220, E190) have no `tanks` — they use `fuelLeft: null` and are not fuel-limited.

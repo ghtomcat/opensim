@@ -480,7 +480,7 @@ two paths, split by what the cockpit is made of:
 | Path | For | Renderer | Data |
 |---|---|---|---|
 | **Glass** — screens | the airliners (Airbus, Boeing, E190), the C172's G1000; the DR400 (round gauges + GTN — the open mixed case) | `display/panel_renderer.js` | `panels/<spec>.json` layouts + `panels/styles/` (§5.1) |
-| **Analog** — round gauges | the Bf 109, MiG-15, F4U, Tu-95, An-225, Avro 504, DC-8 | `display/analog_panel.js` | `panel`, `panelStyle` in the aircraft file (§5.2) |
+| **Analog** — round gauges | the Bf 109, MiG-15bis, F4U, Tu-95, An-225, Avro 504, DC-8 | `display/analog_panel.js` | `panel`, `panelStyle` in the aircraft file (§5.2) |
 
 The Velis EPSI (`display/velis_epsi.js`) is a third, hand-drawn path; the vehicle
 displays (rockets, robots) are chosen by `vehicleType`. Every aircraft has a `panel`;
@@ -529,40 +529,58 @@ display/analog_panel.js     STYLES[style] → P (palette), L (labels), units (me
 display/panel_flow.js       the groups → positions, per view
 ```
 
-**Today** the style sets the look and the aircraft data the instruments
-(`analogPanel.groups`, checked by `core/schema/aircraft.js`; the ids in `core/vocab.js`
-`INSTRUMENT`), each instrument with an optional `scale` in its own unit — the ends, numeral
-and tick spacing, how far round and from where it runs, a 0 mark, the red / yellow / green
-arcs and red limit lines (`_scale()`); without one, the dial's default. Besides the classic
-dials the registry draws the kinds the sources showed (step 5): a generic scale-driven gauge
-(`_drawGauge` — an arc across the top gets a low pivot; the German colour-code ring by medium
-from the style), the split fuel / oil pressure dial, the pitch clock face, the gear lamp unit,
-a lamp, the oil pulsator's sight glass, the bubble level; the layout takes each kind's
-footprint from the registry. An instrument can have builds (`variant` in the data, listed per
-instrument in the registry): the compass `card` or `bubble` (the older magnetic compass, D-FEML and
-the Avro), the altimeter `standard` (full circle, needle and short hand) or `kmWindow` (D-FEML's
-Fl 22320: one turn per kilometre, the kilometres in a window). Every aircraft still has the same set — the six flight instruments of a 1940s
-fighter; the clock and the engine gauges — except the two with a sourced set (step 5): the
-Bf 109 E-4 D-FEML (upper and lower panel, from a photo of the aircraft) and the Avro 504K
-G-EBHB (one board, from a photo of its genuine instruments). A **flowing layout** (`display/panel_flow.js`, pure arithmetic,
-`tests/panel-flow.test.mjs`) places them for the view: the panel view in the groups' own
-rows, the combined view (a strip under the outside view) in the arrangement with the
-largest dials; a large dial at most 200 CSS px; in the panel view clear of the map and the
-mission title at the top corners. An
-**instrument registry** (`INSTRUMENTS`) says what each instrument shows: `read` takes the
-value from the sim, the draw functions only draw what they are given
-(`tests/analog-registry.test.mjs`). Rpm and N1 are the engine model's (`core/engine.js`
-`engineRpm`, read by the sound as well); oil, fuel and manifold pressure, the ammeter, the
-pitch and the Avro's tank pressure are still stand-ins, each marked with what replaces it.
+**The style is the look; the data is the content.** The style sets the palette, the labels, the
+unit system (metric / imperial) and the face colours, by era and airframe — D-FEML's black faces,
+the early Tu-95's matte black panels, the US Navy's black faces in °C. The aircraft data says
+what is there, grouped and in order — not where: `analogPanel.groups` (checked by
+`core/schema/aircraft.js`; the ids in `core/vocab.js` `INSTRUMENT`), each group the real panel's
+part (D-FEML's upper and lower panel, the MiG's left and centre panel, the F4U's main and right
+panel), its rows the source's rows read left to right, top to bottom; an engine group
+(`perEngine`) repeats per engine (one column per engine, one row per quantity — the Tu-95, the
+An-225, the DC-8). Each entry: `id`, `size` (a size class: L, S, XS, T — relative, from the
+pictures), optional `scale` (in the instrument's own unit: the ends, figure and tick spacing, how
+far round and from where, a 0 mark, large and small figures, arcs and limit lines — the
+instrument's painted markings, never derived from `envelope`), `variant` (a build of the
+instrument), `unconfirmed` (with the reason), and per kind `below` (a lamp's threshold) or
+`tank` (a fuel gauge on one tank). `absent` lists what the type did not have, `decorative`
+the real instruments left out because nothing in the sim could drive them — each with its reason.
 
-**Planned** (docs/issues.md, *The analog panels draw a borrowed fighter panel*):
-- the **style is only the look** (palette, labels, units — by era and airframe);
-- each aircraft's **sourced set** in its `analogPanel`;
-- the two-needle airspeed dial (the MiG-15's КУС-1200); only purely decorative instruments are left out;
-- the stand-in values replaced by the sim's own (`S.engines[]`, the oil system, the supercharger).
+**Every drawn instrument reads a sim value.** The registry (`INSTRUMENTS`) says what each
+instrument shows: `read(i, entry)` takes the value from the sim — `i` the engine, `entry` the
+panel entry, so a build can ask for more (the КУС-1200 the true airspeed) — and the draw
+functions only draw what they are given (`tests/analog-registry.test.mjs`). Values the sim does
+not model yet are stand-ins in `core/engine-gauges.js`, per engine, each marked with what
+replaces it (`STAND_INS` → the registry's `simple`): oil, fuel and manifold pressure, the
+generator, the propeller pitch, the Avro's tank pressure, a gas temperature for the turbines.
+Where the engine model has the value (a turbofan's N1, EGT and oil pressure; the rpm of every
+engine; a turbojet's fuel flow), the panel reads that. Air data — true airspeed, Mach, the height
+above the ground — comes from `core/airdata.js`.
 
-Sources per type: `sources/*-panel-notes.md` (local); the mockup
-`docs/mockups/analog-panel-config.html` (local).
+**The kinds and builds.** Besides the classic dials: a generic scale-driven gauge (`_drawGauge` —
+an arc across the top gets a low pivot), two-needle and three-in-one dials (D-FEML's fuel / oil
+pressure, the MiG's ЭМИ-3, the F4U's engine gauge), clock faces, lamps with plates and lamp
+units, the oil pulsator, the bubble level, and per instrument its builds (`variant`): the compass
+card, bubble, gyro or remote (with a course setter); the altimeter standard, km window, ВД-15 or
+three-pointer (the pressure window in mm Hg or in. Hg); the airspeed КУС-1200 or two-turn; the
+horizon АГК-47Б or Sperry AN 5736-1; the clock АЧХО or 24-hour; the rpm one-and-a-half-turn; the
+variometer ВАР-75 or ±6 000 ft/min; the gear lamps of D-FEML or the MiG. A new look is a build of
+an existing instrument when it shows the same value, a new instrument when it shows another.
+
+**The flowing layout** (`display/panel_flow.js`, pure arithmetic, `tests/panel-flow.test.mjs`)
+places the groups for the view, by the rules decided in the mockup (2026-11-09): the order inside
+a group is kept and a group stays together; the groups sit side by side or stacked, the size
+ratios kept and the whole scaled to fit; the **panel view** keeps the source's rows always; the
+**combined view** (a strip under the outside view) takes the arrangement with the largest dials,
+the own rows if they reach 85 % of that; the engine grid is fixed; a large dial is at most 200 CSS
+px, the panel centred — in the panel view clear of the map and the mission title.
+
+**The sources** (`sources/*-panel-notes.md`, local): a photo of the aircraft where there is one
+(D-FEML, the Avro G-EBHB, the USAF Museum's MiG-15bis 2015357), the manuals (the F4U's
+AN 01-45HA-2), museum panoramas, read dial by dial; secondary sources (a simulator's cockpit, a
+replica) marked as such. Every aircraft draws its own sourced set except the DC-8 (a stand-in —
+docs/issues.md, "The DC-8's analog panel is a stand-in").
+
+The mockups (local): `docs/mockups/analog-panel-config.html` (the layout rules), `docs/mockups/analog-instrument-kinds.html` (the instrument lab).
 
 ### 5.3 Cockpit zones
 

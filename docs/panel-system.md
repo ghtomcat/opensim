@@ -177,8 +177,11 @@ state through `setState()`.
 
 ## Hand-drawn panels
 
-For a cockpit that no widget set covers (vintage gauges, unusual layouts), write a
-display module.
+**Round gauges need no module of their own:** an aircraft with analog instruments uses
+`panel: "analog"` and lists its instruments as data (AIRCRAFT.md, *Analog panel*); a new
+instrument or look goes into the analog registry (*Analog instruments* below). Write a
+display module only for a cockpit that neither the widgets nor the analog panel cover — like
+the Velis EPSI.
 
 ### 1. Aircraft JSON
 
@@ -253,7 +256,7 @@ The panel canvas is sized by the browser. Always use `canvas.width` and `canvas.
 
 ## Building a real cockpit panel
 
-The Bf 109 and Velis Electro panels show two different approaches. Both follow the same underlying pattern.
+The analog panel and the Velis Electro panel show two different approaches. Both follow the same underlying pattern.
 
 ### The pattern: sc, layout, shared helpers, instruments
 
@@ -277,43 +280,39 @@ const R  = Math.min(W / 3, H) * 0.38;   // main instrument radius
 
 ---
 
-### Approach 1: Analog gauges (Bf 109 style)
+### Approach 1: Analog instruments (`display/analog_panel.js`)
 
-Build a library of shared helpers at the top of the file, then call them for each instrument.
+One module draws the round gauges of every analog aircraft; the design is in
+docs/architecture.md §5.2. Positions are not written by hand — the flowing layout
+(`display/panel_flow.js`) places the aircraft's groups for the view. What you add is an
+instrument, or a look of one.
 
-**Shared helpers:**
-- `_base(ctx, x, y, r)` — bezel ring + shaded cream face + glass glint
-- `_cap(ctx, x, y, r)` — centre cap over needle pivot
-- `_needle(ctx, x, y, r, deg, fwd, bck, sc)` — tapered needle + dark counterweight
-- `_ticks(ctx, x, y, r, startDeg, sweep, majCount, minPerMaj, sc)` — tick marks along arc
-- `_num(ctx, x, y, r, deg, text, sz, sc)` — numeral at angle on dial face
-- `_label(ctx, x, y, r, text, sc)` — instrument name below bezel
+**An instrument is a registry entry** (`INSTRUMENTS`), its id listed in `core/vocab.js` `INSTRUMENT`:
 
-**Instrument function pattern:**
 ```js
-function _drawFahrtmesser(ctx, x, y, r, sc) {
-  _base(ctx, x, y, r);               // bezel + face
-  _ticks(ctx, x, y, r, 220, 280, 8, 5, sc);  // tick marks
-  // draw numerals...
-  const ang = startDeg + (value / maxValue) * sweep;
-  _needle(ctx, x, y, r, ang, 0.78, 0.22, sc);
-  _cap(ctx, x, y, 5.5 * sc);
-  _label(ctx, x, y, r, 'Fahrtmesser', sc);
-}
+mach: { value: 'Mach from S.spd and S.alt (core/airdata.js)',   // what it shows — for the docs and the tests
+        read: () => machOf(S.spd ?? 0, S.alt ?? 0),             // the value from the sim — read(i, entry): i the engine, entry the panel entry
+        simple: undefined,                                      // a stand-in? name what replaces it (core/engine-gauges.js STAND_INS)
+        kind: undefined,                                        // 'lamp', 'lamps', 'level', 'glass' — the layout's footprint
+        draw: _both(_drawMach) },                               // a draw function per unit system ('metric', 'imperial'; _both for either)
 ```
 
-**Layout:** place instruments on a grid using column width (`cw`) and row height (`rh`):
-```js
-const cw = 195 * sc;
-const rh = 205 * sc;
-_drawFahrtmesser(ctx, cx - cw, cy - rh * 0.85, r, sc);  // top-left
-_drawHorizont(   ctx, cx,      cy - rh * 0.85, r, sc);  // top-centre
-_drawHoehenmesser(ctx, cx + cw, cy - rh * 0.85, r, sc); // top-right
-```
+**A draw function only draws the value it is given** — `(ctx, x, y, r, sc, value, scale, variant)`;
+it never reads `S` (except the aircraft's data) or the sound code: `tests/analog-registry.test.mjs`
+checks every `_draw…` function, including the comment above the next one. Values the sim does
+not model yet are stand-ins in `core/engine-gauges.js`, each marked with what replaces it.
 
-**Atmosphere:** add a vignette and optional effect (frost, dust, tropical haze) at the end of the main render function to set the scene.
+**A new look of an existing instrument** — the same value, another face — is a `variant`: add
+it to the entry's `variants`, branch in its `draw`, and list it in the schema's `variant`
+(`core/schema/aircraft.js`). The data picks it per aircraft.
 
----
+**Shared helpers** for the faces: `_base` (bezel and face, in the style's colours), `_needle`,
+`_cap`, `_ticks`, `_num`, `_label` (the name below), `_sublabel`, `_scale` (the markings from an
+entry's `scale`), `_drawGauge` (a whole scale-driven gauge), `_drawLamp` / `_drawPlateLamp`; and for
+faces whose figures scale with the dial: `_rt`, `_rnum`, `_rtick`, `_hand`.
+
+**Try it first in the lab:** `docs/mockups/analog-instrument-kinds.html` (local) draws each kind
+large, driven by sliders, for comparing with the source's picture before it goes into the panel.
 
 ### Approach 2: Mixed digital + analog (Velis EPSI style)
 

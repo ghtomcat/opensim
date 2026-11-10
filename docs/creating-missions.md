@@ -37,6 +37,8 @@ mission starts (`missions/<id>.json`). The two share the same `id`.
                  "ils": { "freq": "110.300", "course": 360 }, "elevation": 36 },
 
   "initialState": { ... },          // where the aircraft starts (see below)
+  "course": 310,                    // optional: the course to fly (°) — set on the F4U's remote compass
+                                    //   (the course setter); absent → the start heading
   "weather":  { "source": "live", "icao": "EVRA", "fallback": { ... } },
   "atcClearances": [ { "pm": "...", "atc": "..." } ],
   "approachBrief":  [ { "v": "pf", "t": "..." } ],

@@ -1,7 +1,7 @@
 /**
  * The analog panel's instrument registry (display/analog_panel.js, INSTRUMENTS).
  *
- * The rule (issues.md, "The analog panels draw a borrowed fighter panel"): every drawn instrument
+ * The rule (docs/architecture.md §5.2): every drawn instrument
  * reads a sim value, and the value comes from the registry's `read` — never from the drawing code.
  * So no `_draw…` function may read the sim state (`S.…`, except the aircraft's data `S.aircraft`)
  * or the sound code, and every registry entry names its value.

@@ -1,8 +1,8 @@
 /* ═══════════════════════════════════════════════════════════════
    OpenSim — core/engine-gauges.js
    The engine values the analog panels show that the sim has no system for yet — STAND-INS, per
-   engine (index i, 0-based), each marked with the system that replaces it (issues.md, "The analog
-   panels draw a borrowed fighter panel", step 6 part 2). They moved here from the drawing code
+   engine (index i, 0-based), each marked with the system that replaces it (docs/architecture.md
+   §5.2; built in the analog panel plan's step 6, 2026-11-09). They moved here from the drawing code
    (display/analog_panel.js) so the panel only reads; when a system exists, its value replaces the
    function here and the panel does not change.
 

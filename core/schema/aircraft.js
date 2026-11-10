@@ -127,7 +127,7 @@ const checklist = object({
 });
 const VIEW_ZONES = ['overhead', 'left', 'center', 'right', 'pedestal'];
 
-/* The analog panel's content (docs/issues.md, "The analog panels draw a borrowed fighter panel"): the real
+/* The analog panel's content (docs/architecture.md §5.2): the real
    panel's parts as groups, each an ordered list — `rows` (the photo's row breaks, a hint the layout may
    reflow) or `perEngine` (repeated per engine.count, a fixed grid). Where they go is the layout's
    (display/panel_flow.js). `unconfirmed`: why the source leaves it open (drawn like any other). */

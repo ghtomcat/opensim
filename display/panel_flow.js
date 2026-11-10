@@ -3,7 +3,7 @@
    The flowing layout of the analog panel: where each instrument goes, for the view it is drawn in.
    Pure arithmetic — no canvas, no sim state (tests/panel-flow.test.mjs).
 
-   The rules (docs/issues.md, "The analog panels draw a borrowed fighter panel", decided 2026-11-09):
+   The rules (docs/architecture.md §5.2, decided 2026-11-09 in docs/mockups/analog-panel-config.html):
    - the order inside a group is kept, and a group stays together; what belongs together is one item
      (a lamp group: { kind: 'lamps', n: 4 });
    - a group is drawn in its own rows (the photo's row breaks) or re-broken into k balanced rows;

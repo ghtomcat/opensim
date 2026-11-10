@@ -1,6 +1,6 @@
 /**
  * The analog panel's flowing layout (display/panel_flow.js) — the rules decided 2026-11-09
- * (docs/issues.md, "The analog panels draw a borrowed fighter panel").
+ * (docs/architecture.md §5.2).
  *
  * Run:  node --test tests/panel-flow.test.mjs
  */
