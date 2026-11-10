@@ -151,11 +151,13 @@ test('the measurements the physics reads are checked (core/airframe.js)', () => 
   const share = errorsAfter('aircraft/b777-300er.json', aircraft, a => { a.balance.noseGearLoadShare = 7.57; });
   assert.ok(share.some(e => e.endsWith('noseGearLoadShare must be between 0 and 0.5')), share.join('\n'));
 });
-test('every winged aircraft declares its engines, with an integer count', () => {
+test('every winged aircraft declares its engines, with an integer count and its kind', () => {
   const none = errorsAfter('aircraft/bf109.json', aircraft, a => { delete a.engine; });
   assert.ok(none.some(e => e.endsWith('an aircraft needs an engine block')), none.join('\n'));
   const half = errorsAfter('aircraft/a340.json', aircraft, a => { a.engine.count = 2.5; });
   assert.ok(half.some(e => e.endsWith('engine.count must be an integer >= 1')), half.join('\n'));
   const kind = errorsAfter('aircraft/c172.json', aircraft, a => { a.engine.type = 'diesel'; });
   assert.ok(kind.some(e => e.startsWith('engine.type: "diesel" is not one of')), kind.join('\n'));
+  const typeless = errorsAfter('aircraft/dc8.json', aircraft, a => { delete a.engine.type; });   // the DC-8 was the last stub without one
+  assert.ok(typeless.some(e => e.includes('engine.type: every engine declares its kind')), typeless.join('\n'));
 });

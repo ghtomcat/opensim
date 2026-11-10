@@ -218,6 +218,7 @@ export const aircraft = object(
       /* every winged aircraft declares its engines (rockets and robots have their own models) */
       if (a.vehicleType === undefined && !a.engine) errs.push('an aircraft needs an engine block');
       if (a.engine && !(Number.isInteger(a.engine.count) && a.engine.count >= 1)) errs.push('engine.count must be an integer >= 1');
+      if (a.engine && !a.engine.type) errs.push('engine.type: every engine declares its kind (turbofan, turbojet, turboprop, piston, electric)');
       /* the electrical layout's references: every feed, tie and charging bus names an element, every driver an engine */
       const el = a.electrical;
       if (el?.buses) {

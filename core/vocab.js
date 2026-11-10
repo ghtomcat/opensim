@@ -82,7 +82,7 @@ export const ENGINE = namesFrom([
 
 /** aircraft.engine.type — the kind of engine. Only 'turbofan' selects code today (N1 spool, A/THR,
     electrical, hydraulics); the others describe the engine for the engine model (issues.md:
-    "One engine per aircraft"). Absent on the An-225 and the DC-8 (see issues.md). */
+    "One engine per aircraft"). Required on every engine (core/schema/aircraft.js). */
 export const ENGINE_TYPE = namesFrom(['turbofan', 'turboprop', 'turbojet', 'piston', 'electric']);
 
 /* ── Mission script ── */

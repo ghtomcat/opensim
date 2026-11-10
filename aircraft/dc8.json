@@ -2,23 +2,24 @@
   "id": "dc8",
   "views": ["overhead", "left", "center", "right", "pedestal"],
   "name": "Douglas DC-8",
-  "engine": { "count": 4 },
+  "engine": { "type": "turbofan", "count": 4, "idleN1": 22, "description": "4 turbofans (JT3D or CFM56, by variant) — the stub's; idleN1 unsourced (as the An-225's)" },
   "manufacturer": "douglas",
   "family": "dc-8",
   "model": "dc-8",
   "panel": "analog",
   "panelStyle": "usn",
   "analogPanel": {
-    "_note": "Today's instrument set, the same on every analog aircraft until each gets its sourced set (docs/issues.md, step 5).",
+    "_note": "A stand-in until the DC-8 gets its own research (docs/issues.md, step 8): the flight block and a turbofan engine grid like the An-225's — N1, EGT, oil temperature and pressure per engine.",
     "groups": [
       { "name": "flight", "rows": [
         [{ "id": "asi", "size": "L" }, { "id": "ai", "size": "L" }, { "id": "alt", "size": "L" }],
-        [{ "id": "turn", "size": "L" }, { "id": "compass", "size": "L" }, { "id": "vsi", "size": "L" }]
+        [{ "id": "turn", "size": "S" }, { "id": "compass", "size": "S" }, { "id": "vsi", "size": "S" }, { "id": "clock", "size": "XS" }]
       ] },
-      { "name": "engine", "rows": [
-        [{ "id": "clock", "size": "XS" }],
-        [{ "id": "map", "size": "S" }],
-        [{ "id": "oilT", "size": "S" }, { "id": "oilP", "size": "S" }]
+      { "name": "engines", "perEngine": [
+        { "id": "n1", "size": "XS" },
+        { "id": "tgt", "size": "XS", "scale": { "max": 800, "step": 100, "div": 100, "minor": 5 } },
+        { "id": "oilT", "size": "XS", "scale": { "min": 0, "max": 150, "step": 50, "minor": 5 } },
+        { "id": "oilP", "size": "XS" }
       ] }
     ]
   },

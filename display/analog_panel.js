@@ -107,7 +107,8 @@ const STYLES = {
       vsi: 'Rate of Climb', vsiUnit: '×1000 fpm', map: 'Manifold Press.', mapUnit: 'in.Hg',
       oilT: 'Oil Temp', cht: 'Cyl. Temp', coolant: 'Cyl. Temp', tempUnit: '°C', oilP: 'Oil Pressure', oilPUnit: 'PSI',
       rpm: 'Tachometer', rpmUnit: '×100 R.P.M.', dg: 'Directional Gyro', engGauge: 'Engine Gauge', fuel: 'Fuel (Main)', amps: 'Volt-Ammeter',
-      fuelBig: 'U.S. GALS', fuelSub: '', fuelRing: false,
+      fuelBig: 'U.S. GALS', fuelSub: '', fuelRing: false, n1: 'N1', n1Unit: 'N1 %', tgt: 'EGT',
+      grid: { n1: 'N1', tgt: 'EGT', oilT: 'Oil T', oilP: 'Oil P' },   // an engine grid's row names (the DC-8)
     },
   },
   wood: {   // the Avro 504K (1918), a stop-gap: a varnished wooden board, brass bezels, black faces with
@@ -197,7 +198,7 @@ export const INSTRUMENTS = {
              draw: _both((ctx, x, y, r, sc, v, scale, variant) => variant === 'turnAndHalf' ? _drawRpmTurnAndHalf(ctx, x, y, r, sc, v, S.aircraft?.engine?.maxRpm)
                                                                                          : _drawDrehzahl(ctx, x, y, r, sc, v, scale)) },
   n1:      { value: 'N1 % — a turbofan\'s S.engines[i].n1, a turbojet\'s rpm / maxRpm (core/engine.js)', read: _n1Pct,
-             draw: { metric: _drawN1Messer } },
+             draw: _both(_drawN1Messer) },
   oilT:    { value: 'S.oilTempC (°C)',                    read: () => S.oilTempC ?? 15,
              draw: { metric: (ctx, x, y, r, sc, v, scale) => scale ? _drawGauge(ctx, x, y, r, sc, v, scale, { max: 130, step: 20, ring: 'oil', big: '°C', name: 'oilT' })
                                                                     : _drawOelTemp(ctx, x, y, r, sc, v),
@@ -250,7 +251,7 @@ export const INSTRUMENTS = {
   level:   { value: 'the ball (S.latAccel)',              read: () => ballDeflection(S.latAccel), kind: 'level',
              draw: _both(_drawLevel) },
   tgt:     { value: 'exhaust gas temperature (°C) — gasTemp() (core/engine-gauges.js)', read: gasTemp, simple: STAND_INS.gasTemp,
-             draw: { metric: (ctx, x, y, r, sc, v, scale) => _drawGauge(ctx, x, y, r, sc, v, scale, { max: 800, step: 100, div: 100, sub: '×100 °C', name: 'tgt' }) } },
+             draw: _both((ctx, x, y, r, sc, v, scale) => _drawGauge(ctx, x, y, r, sc, v, scale, { max: 800, step: 100, div: 100, sub: '×100 °C', name: 'tgt' })) },
   clock:   { value: 'the clock time (display/clock.js); the АЧХО also the flight time (S.time)', variants: ['achkho', '24h'],
              read: () => ({ hours: clockHours(), flight: S.time ?? 0 }),
              draw: _both((ctx, x, y, r, sc, v, scale, variant) => variant === 'achkho' ? _drawAchkho(ctx, x, y, r, sc, v) : variant === '24h' ? _drawClock24(ctx, x, y, r, sc, v) : drawAnalogClock(ctx, x, y, r)) },

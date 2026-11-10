@@ -1878,8 +1878,7 @@
   import { initSound, startSound, stopSound, switchEngine, tickSound, silenceAll, apDisconnectChime } from './core/sound.js';
 
   /* The engine reading for the status bar and window.simGetRpm — from the engine model (core/engine.js), not
-     the sound: a turbofan's N1; a turbojet's N1 % (rpm / maxRpm); an engine with an rpm range in its data, rpm;
-     the others (Tu-95, An-225, DC-8 — no engine data yet) the N1-like share they showed before. */
+     the sound: a turbofan's N1; a turbojet's N1 % (rpm / maxRpm); a piston or turboprop, its rpm. */
   function _engineReadout() {
     const eng = S.aircraft?.engine ?? {};
     if (eng.type === 'turbofan') return `N1 ${Math.round(S.n1 ?? 0)}%`;
@@ -1887,11 +1886,9 @@
     if (rpm == null) return null;                                         // an electric motor
     if ((S.engineState ?? 'off') === 'off') return '---';
     if (eng.type === 'turbojet') return rpm / eng.maxRpm < 0.005 ? '---' : `N1 ${Math.round(rpm / eng.maxRpm * 100)}%`;
-    if (eng.idleRpm != null) return rpm < 5 ? '--- RPM' : `${Math.round(rpm)} RPM`;
-    const r = rpmRange();
-    return rpm <= 0 ? '---' : `N1 ${Math.round(20 + 80 * Math.max(0, (rpm - r.idle) / (r.max - r.idle)))}%`;
+    return rpm < 5 ? '--- RPM' : `${Math.round(rpm)} RPM`;
   }
-  import { startEngine, stopEngine, adoptEngineFields, engineRpm, rpmRange } from './core/engine.js';
+  import { startEngine, stopEngine, adoptEngineFields, engineRpm } from './core/engine.js';
   import { audioContext, audioOutput, audioMuted, setAudioMuted } from './core/audio.js';
   import { initOutside, tickOutside, outsideInvalidate, setOutsideCamMode } from './display/outside.js?v=6';
   import { initKneeboard, toggleKneeboard, closeKneeboard, tickKneeboard } from './display/kneeboard.js';
