@@ -1099,6 +1099,11 @@ To draw the terrain from the camera, `outside.js` saves the aircraft pose, write
 ### `catalog.json` and mission files disagree
 *`missions/catalog.json`* — `egll-approach` (catalog: 737-800 into EGLL; file: 737 MAX 9 into Madrid), `fimp-takeoff` (catalog: Mauritius takeoff; file: Zürich Dock E) and `anchorage-bozeman` (catalog: "Anchorage → Bozeman", from Anchorage PANC; file: "Bozeman → Anchorage — ILS 15 (temp approach)", departing Bozeman — the direction is reversed). Also `lszh-approach`: the briefing line says "LSZH · RWY 28 · ILS 110.300" (the same text as the `egll-approach` card — likely copied), the mission's ILS 28 is 109.900 (found 2026-10-15). The card's labels (title, location) may differ from the mission by design, but these describe a different flight. Only the aircraft is checked automatically (`tests/data-schema.test.mjs`; `egll-approach` is on its known list).
 
+### The DR400's tanks and fuel selector are the C172's
+*Found 2026-11-11 (Markus, from his photos of HB-KLE's panel and checklist) · `aircraft/robin-dr400.json` (`tanks`), the DR400's `fuel_selector` widget in `panels/dr400.json`, `core/fuel.js`*
+
+The sim gives the DR400 two tanks, left and right, 75 l each, and its selector steps LEFT / BOTH / RIGHT — the C172's layout. HB-KLE's selector is a fuel cock with a red triangle pointer: ON at the top and OFF to the right on the panel photo; its checklist says "FUEL SELECTOR — MAIN OPEN", so a MAIN position, probably on the left (not visible on the photo) — which suggests a main tank, perhaps with an auxiliary one. **Fix:** the DR400/140B's tank layout and selector positions from a source (HB-KLE's flight manual, or the type's), then `tanks` and the selector's positions in the data. **Done when:** the DR400's tanks and selector are sourced, and the selector steps through HB-KLE's positions. Goes with step 3 of *Instruments, controls and mixed panels — the plan*.
+
 ### Inspiration5 description says "Stage 1 returns to LZ-1"
 *`missions/inspiration5.json`* — the booster now lands on the droneship (ASDS). Its catalog briefing still says so too: `orders` lists "T+02:53 Boostback burn" and "T+08:45+ Stage 1 RTLS · LZ-1".
 
