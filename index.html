@@ -3581,7 +3581,11 @@
         if (S.aircraft?.panel === 'g1000') command('magnetos', 'START', { source: 'key' });   // the key turned to START — the command starts it
         else startEngine();
       },
-      'engine-cutoff': () => {   // fuel cutoff on turbofan, mixture/Kraftstoffhahn on piston
+      'engine-cutoff': () => {   // a turbofan: every ENG MASTER / FUEL CONTROL switch to OFF (the command); a piston: mixture / Kraftstoffhahn
+        if (S.aircraft?.engine?.type === 'turbofan') {
+          for (let i = 0; i < (S.aircraft.engine.count ?? 1); i++) command('engineMaster', { engine: i, on: false }, { source: 'key' });
+          return;
+        }
         bbEvent({ type: 'engine_cutoff', method: 'mixture' });
         stopEngine();
       },

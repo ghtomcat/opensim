@@ -338,13 +338,19 @@ export function stopEngine(i) {
  */
 export function engineMaster(i, on) {
   const n = Math.max(1, _eng().count ?? 1);
+  if (!Number.isInteger(i) || i < 0 || i >= n) return false;
   const masters = Array.from({ length: n }, (_, k) => !!S.engMasters?.[k]);
-  if (on && (S.engMode ?? 'NORM') === 'IGN+START' && !(S.acBusPowered ?? false)) return;   // no AC power — no start, the switch drops back
-  masters[i] = on;
+  if (masters[i] === !!on) return false;
+  if (on && (S.engMode ?? 'NORM') === 'IGN+START' && !(S.acBusPowered ?? false)) return false;   // no AC power — no start, the switch drops back
+  masters[i] = !!on;
   setState({ engMasters: masters });
   if (on && (S.engMode ?? 'NORM') === 'IGN+START') startEngine(i);
   else if (!on) stopEngine(i);
+  return true;
 }
+/* The command: { engine: i, on } — the Airbus ENG MASTER / Boeing FUEL CONTROL switch of engine i (the pedestal; the Q key
+   turns them all OFF). Refused when it is already there, or ON for a start without AC power. Turbofans only. */
+registerCommand('engineMaster', ({ engine, on } = {}) => _turbofan() && engineMaster(engine, on));
 
 /** Engine i, or all engines, quit at once — fuel starvation, a seized engine. Restartable unless seized. */
 export function engineQuit(i) {

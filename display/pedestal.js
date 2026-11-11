@@ -7,7 +7,7 @@
 
 import { S, setState } from '../core/state.js';
 import { startFuelPump, stopFuelPump } from '../core/sound.js';
-import { engineMaster, MAGNETO_POSITIONS } from '../core/engine.js';
+import { MAGNETO_POSITIONS } from '../core/engine.js';
 import { fuelSelectorPositions } from '../core/fuel.js';
 import { altLabel } from '../core/route.js';
 import { flapLabel } from '../core/airframe.js';
@@ -777,7 +777,7 @@ function _attachHandlers() {
   const n = S.aircraft?.engine?.count ?? 2;
   for (let i = 1; i <= n; i++) {
     document.getElementById(`ped-master-${i}`)?.addEventListener('click', () => {
-      engineMaster(i - 1, !S.engMasters?.[i - 1]);   // the start conditions are core/engine.js's
+      command('engineMaster', { engine: i - 1, on: !S.engMasters?.[i - 1] }, { source: 'click' });   // the start conditions are core/engine.js's
     });
   }
 

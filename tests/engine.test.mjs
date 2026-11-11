@@ -572,3 +572,18 @@ test('rpm of a turbojet: the VK-1 at 22 % at the end of its start, 20–100 % of
   cold(load('a350'));
   assert.equal(engineRpm(0), null);
 });
+
+test('the engine master as a command: one engine off, refused when already there, turbofans only', async () => {
+  const { command } = await import('../core/commands.js');
+  const ac = load('a340');
+  cold(ac);
+  set({ engMode: 'NORM', acBusPowered: true, engMasters: [true, true, true, true] });
+  set({ engines: S.engines.map(e => ({ ...e, state: 'running' })) });
+  assert.equal(command('engineMaster', { engine: 2, on: false }, { source: 'test' }), true);
+  assert.deepEqual(S.engMasters, [true, true, false, true]);
+  assert.equal(S.engines[2].state, 'shutdown');
+  assert.equal(command('engineMaster', { engine: 2, on: false }), false);    // already OFF
+  assert.equal(command('engineMaster', { engine: 9, on: false }), false);    // no engine 9
+  cold(load('c172'));
+  assert.equal(command('engineMaster', { engine: 0, on: true }), false);     // no ENG MASTER on a piston
+});
