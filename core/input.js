@@ -6,6 +6,8 @@
 
 import { S, setState } from './state.js';
 import { bbEvent } from './blackbox.js';
+import { command } from './commands.js';
+import './gear.js';                         // registers the gear command
 import { initKeys, registerActions, isKeyHeld } from './keymap.js';
 
 /* Next upcoming timed event for any aircraft type */
@@ -189,14 +191,8 @@ export function tickGamepad() {
     bbEvent({ type: 'flaps', flaps: next });
   }
 
-  /* Gear — button 2.  Weight-on-wheels squat lock: can't raise the gear on the ground. */
-  if (_btnPressed(btn, GP.BTN_GEAR) && !S.aircraft?.fixedGear) {
-    const next = !S.gear;
-    if (next || !S.wow) {
-      setState({ prevGear: S.gear, gear: next });
-      bbEvent({ type: 'gear', gear: next ? 'down' : 'up' });
-    }
-  }
+  /* Gear — button 2 (the rules — fixed gear, squat lock — are the command's: core/gear.js) */
+  if (_btnPressed(btn, GP.BTN_GEAR)) command('gear', 'toggle', { source: 'joystick' });
 
   _gpPrevButtons = btn.map(b => b.pressed);
 }
@@ -279,10 +275,7 @@ const _keyActions = {
   'trim-down': () => setState({ trim: Math.max(-10, (S.trim ?? 0) - 0.5) }),
   'flaps-extend':  () => _flaps(Math.min(3, S.flaps + 1)),
   'flaps-retract': () => _flaps(Math.max(0, S.flaps - 1)),
-  gear: () => {   // squat lock: no gear-up on the ground
-    const next = !S.gear;
-    if (next || !S.wow) { setState({ prevGear: S.gear, gear: next }); bbEvent({ type: 'gear', gear: next ? 'down' : 'up' }); }
-  },
+  gear: () => command('gear', 'toggle', { source: 'key' }),   // the rules (squat lock) are core/gear.js's
   'speed-brake': () => { if (S.aircraft?.spoilers) setState({ speedBrake: ((S.speedBrake ?? 0) + 1) % 3 }); },   // RET → ARM → FULL → RET — only with spoilers
   'right-console': () => _view('right'),
   role: () => {

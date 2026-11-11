@@ -12,7 +12,7 @@
 import { S, setState }     from '../core/state.js';
 import { drawECAMUpper, drawECAMLower, nextSdPage } from './pfd_instruments.js';
 import { pushButtonHTML, setPushButton } from './pushbutton.js';
-import { bbEvent }         from '../core/blackbox.js';
+import { command }         from '../core/commands.js';
 
 const _AB_LEVELS = ['LO', 'MED', 'MAX'];
 
@@ -155,15 +155,8 @@ export function initCenterConsole() {
     });
   });
 
-  /* Gear lever → toggle gear. Squat lock: no gear-up on the ground (matches the G key). */
-  _el.querySelector('#ccon-lever').addEventListener('click', () => {
-    if (S.aircraft?.fixedGear) return;
-    const next = !S.gear;
-    if (next || !S.wow) {
-      setState({ prevGear: S.gear, gear: next });
-      bbEvent({ type: 'gear', gear: next ? 'down' : 'up' });
-    }
-  });
+  /* Gear lever → the gear command (core/gear.js: fixed gear, squat lock) — the same as the G key */
+  _el.querySelector('#ccon-lever').addEventListener('click', () => command('gear', 'toggle', { source: 'click' }));
 }
 
 export function toggleCenter() {

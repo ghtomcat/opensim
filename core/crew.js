@@ -5,6 +5,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from './state.js';
+import { command } from './commands.js';
 import { playThroughChain, createRadioChain } from './radio.js';
 import { getEngineBleedNode } from './sound.js';
 import { audioContext, audioOutput, audioElement, speak, cancelSpeech } from './audio.js';
@@ -513,7 +514,7 @@ function _checkChecklist(prev, curr, ac) {
     const gearAbs = gear.alt + fieldElev;
     if (prev > gearAbs && curr <= gearAbs && !S.gear && S.prevGear === false) {
       _checklistLock = true;
-      setState({ gear: true });
+      command('gear', 'down', { source: 'crew' });   // the PM's gear-down — through the gear's command, recorded
       sndCrew(gear.pf, gear.pm, 800);
       setTimeout(() => { _checklistLock = false; }, 4000);
       return;
