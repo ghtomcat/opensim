@@ -761,6 +761,7 @@ The Velis's `sound.engineType` is `"electric"`, but `ENGINES` has no `electric` 
 
 - **`getAudioContext()` in `core/sound.js` has no callers left.** Crew audio used it until 2026-11-07, and was silent whenever the engine sound was off. Remove it so nothing new picks it up; `audioContext()` in `core/audio.js` is the one context.
 - **`_streamAudio` in `display/com.js` (the LiveATC stream) is cleared but never set.** `_stopStream()` and the `com-live-ind` indicator are left over; remove them, or bring the stream back on purpose.
+- **The flap motor is silent with the engine off.** The whirr and the thunk are part of the engine sound (`tickSound()` in `core/sound.js` watches `S.flaps` only once the engine sound has started), so the C172's electric flaps move without a sound on the ground with the engine off (Markus, 2026-11-11). The real motor runs on the battery, engine or not. Fix with the light-aircraft electrical system (*Light-aircraft electrical is switches only*): the flap motor needs bus power, not the engine; its sound follows the flaps whenever it runs.
 - **One-shot sounds aren't stopped when a mission is left:** the GPWS voice, the whoop, the PTT click and the warning tone. They last a second or two and just finish, so it doesn't matter; noted so the list of what `resetCrew()` stops is complete.
 
 ---
