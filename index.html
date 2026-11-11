@@ -1848,6 +1848,7 @@
   import { cycleFuelSelector } from './core/fuel.js';
   import { initCrew, resetCrew } from './core/crew.js';
   import { initInput, isPTTActive }        from './core/input.js';
+  import { command }                       from './core/commands.js';
   import { startLoop, suspendLoop, tickSim } from './core/loop.js';
   import { seedRandom }   from './core/random.js';
   import { newSession }   from './app/session.js';
@@ -3576,8 +3577,8 @@
       'lm-panel':     () => setState({ inLM: !(S.inLM ?? false) }),
       'engine-start': () => {
         bbEvent({ type: 'engine_start_commanded', engineState: S.engineState });
-        if (S.aircraft?.panel === 'g1000') setState({ magnetos: 'START' });
-        startEngine();
+        if (S.aircraft?.panel === 'g1000') command('magnetos', 'START', { source: 'key' });   // the key turned to START — the command starts it
+        else startEngine();
       },
       'engine-cutoff': () => {   // fuel cutoff on turbofan, mixture/Kraftstoffhahn on piston
         bbEvent({ type: 'engine_cutoff', method: 'mixture' });

@@ -43,6 +43,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from './state.js';
+import { registerCommand } from './commands.js';
 
 /* The causes that limit power, each 0–1, owned by its module (failures.js, battery.js, physics.js) */
 const FACTORS_NONE = Object.freeze({ failure: 1, ice: 1, seizure: 1, battery: 1, crash: 1 });
@@ -298,6 +299,24 @@ export function startEngine(i) {
   }
   _publish(next);
 }
+
+/* ── The magneto switch (the C172, the DR400) — its command. START engages the starter and is spring-loaded:
+   it returns to BOTH when the start completes or is refused, and at once when the engine already runs.
+   OFF grounds the magnetos: the engine runs down. R and L do nothing yet (no single-magneto rpm drop). ── */
+export const MAGNETO_POSITIONS = ['OFF', 'R', 'L', 'BOTH', 'START'];
+
+export function magnetos(pos) {
+  if (!MAGNETO_POSITIONS.includes(pos)) { console.warn(`[magnetos] unknown position "${pos}"`); return false; }
+  if (pos === S.magnetos) return false;
+  setState({ magnetos: pos });
+  if (pos === 'OFF') stopEngine();
+  if (pos === 'START') {
+    startEngine();                                          // springs back itself when the start is refused
+    if (S.magnetos === 'START' && !_engines().some(e => e.state === 'starting')) setState({ magnetos: 'BOTH' });   // already running — nothing to start
+  }
+  return true;
+}
+registerCommand('magnetos', magnetos);
 
 /** Normal shutdown of engine i, or all engines (Q, magnetos OFF, ENG MASTER off, fire handle): it runs
     down. On a turbofan the ENG MASTER switches are the fuel cutoff — the stopped engines' go to OFF. */

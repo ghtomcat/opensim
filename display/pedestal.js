@@ -7,10 +7,11 @@
 
 import { S, setState } from '../core/state.js';
 import { startFuelPump, stopFuelPump } from '../core/sound.js';
-import { startEngine, stopEngine, engineMaster } from '../core/engine.js';
+import { engineMaster, MAGNETO_POSITIONS } from '../core/engine.js';
 import { altLabel } from '../core/route.js';
 import { flapLabel } from '../core/airframe.js';
 import { command } from '../core/commands.js';
+import { sweep } from './controls.js';
 import { buildDescentPath } from '../core/vnav.js';
 
 let _el = null;
@@ -835,14 +836,9 @@ function _attachHandlers() {
   document.getElementById('ped-knob-carbheat')?.addEventListener('click', () => {
     setState({ carbHeat: !S.carbHeat });
   });
-  /* Magneto rotary — OFF → R → L → BOTH → START */
-  const MAG = ['OFF', 'R', 'L', 'BOTH', 'START'];
-  document.getElementById('ped-mag-rot')?.addEventListener('click', () => {
-    const next = MAG[(MAG.indexOf(S.magnetos ?? 'OFF') + 1) % MAG.length];
-    setState({ magnetos: next });
-    if (next === 'START') startEngine();
-    if (next === 'OFF')   stopEngine();
-  });
+  /* Magneto rotary — a click sweeps OFF → R → L → BOTH → START and back (display/controls.js); the command is core/engine.js's */
+  document.getElementById('ped-mag-rot')?.addEventListener('click', () =>
+    command('magnetos', sweep('magnetos', MAGNETO_POSITIONS, S.magnetos), { source: 'click' }));
   /* Fuel selector rotary — cycle BOTH → LEFT → RIGHT */
   const FSEL = ['BOTH', 'LEFT', 'RIGHT'];
   document.getElementById('ped-fsel')?.addEventListener('click', () => {

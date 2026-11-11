@@ -17,7 +17,9 @@ import { drawG1000PFD, drawG1000MFD, drawG1000Bezel, drawMagRotary, drawFuelSel 
 import { hideG1000Map } from './map.js';
 import { drawInstrument } from './analog_panel.js';
 import { startFuelPump, stopFuelPump } from '../core/sound.js';
-import { startEngine, stopEngine } from '../core/engine.js';
+import { MAGNETO_POSITIONS } from '../core/engine.js';
+import { command } from '../core/commands.js';
+import { sweep } from './controls.js';
 
 /* ── Hit regions (rebuilt each cockpit frame) ── */
 let _hitRegions  = [];
@@ -221,7 +223,6 @@ function _drawAnalogALT(ctx, box) {
 }
 
 /* ── rocker_strip toggle action ── */
-const MAG_STATES = ['OFF', 'R', 'L', 'BOTH', 'START'];
 
 function _toggleSwitch(key) {
   if (key === 'fuelPump') {
@@ -230,13 +231,8 @@ function _toggleSwitch(key) {
     if (next) startFuelPump(); else stopFuelPump();
     return;
   }
-  if (key === 'magnetos') {
-    const cur  = S.magnetos ?? 'BOTH';
-    const idx  = MAG_STATES.indexOf(cur);
-    const next = MAG_STATES[(idx + 1) % MAG_STATES.length];
-    setState({ magnetos: next });
-    if (next === 'START') startEngine();
-    if (next === 'OFF')   stopEngine();
+  if (key === 'magnetos') {   // the same as the magneto knob — a sweep, then the command
+    command('magnetos', sweep('magnetos', MAGNETO_POSITIONS, S.magnetos), { source: 'click' });
     return;
   }
   /* dot-path e.g. "lights.nav" */
@@ -554,14 +550,7 @@ function _drawMagnetoKnob(ctx, box, style, cfg) {
 
   _hitRegions.push({
     x: box.x, y: box.y, w: box.w, h: box.h,
-    action: () => {
-      const cur  = S.magnetos ?? 'BOTH';
-      const idx  = MAG_STATES.indexOf(cur);
-      const next = MAG_STATES[(idx + 1) % MAG_STATES.length];
-      setState({ magnetos: next });
-      if (next === 'START') startEngine();
-      if (next === 'OFF')   stopEngine();
-    },
+    action: () => command('magnetos', sweep('magnetos', MAGNETO_POSITIONS, S.magnetos), { source: 'click' }),   // a sweep (display/controls.js), the command core/engine.js's
   });
 }
 

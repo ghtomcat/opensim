@@ -599,7 +599,9 @@ mixed panels — the plan*). The design in brief:
   what you click — one definition (kind, positions, what it reads, which command it
   sends) with two looks, canvas or HTML.
 - **Two gestures, the FCU's:** click to press; drag (or the wheel) to turn or move,
-  Shift for the coarse step. A rotary switch also steps on a click.
+  Shift for the coarse step. A rotary switch with detents sweeps on a click — end to end
+  and back, a spring-loaded end counting as reached; no control wraps around, and the wheel
+  is for free-turning knobs only.
 - **Knobs sit on instruments but are controls:** the instrument draws them, the panel
   registers their click area (one canvas click-area registry), the command does the rest.
 - **A mixed panel** (the C172, the DR400, the Velis) is the glass path's fixed layout
