@@ -586,6 +586,26 @@ The slide-in **cockpit zones** (overhead, pedestal, consoles, centre) are config
 by the aircraft's `views` list and per-zone token lists (`left`, `right`,
 `pedestal`), not by `panels/` specs.
 
+### 5.4 Instruments, controls and mixed panels (planned, 2026-11-11)
+
+Not built yet; the plan and its order are in `issues.md` (*Instruments, controls and
+mixed panels — the plan*). The design in brief:
+
+- **Three things, three owners.** *Instruments* show a value — they read, never write
+  (the analog registry's rule, §5.2). *Commands* change the aircraft — named, with an
+  argument, owned by the module that owns the state; the rules (squat lock, guards,
+  spring-loaded positions) live once, in the command. One command registry in `core/`
+  (not the key map's actions): the keys, the clicks, the joystick and the hub call it. *Controls* are
+  what you click — one definition (kind, positions, what it reads, which command it
+  sends) with two looks, canvas or HTML.
+- **Two gestures, the FCU's:** click to press; drag (or the wheel) to turn or move,
+  Shift for the coarse step. A rotary switch also steps on a click.
+- **Knobs sit on instruments but are controls:** the instrument draws them, the panel
+  registers their click area (one canvas click-area registry), the command does the rest.
+- **A mixed panel** (the C172, the DR400, the Velis) is the glass path's fixed layout
+  holding screens, round instruments from the analog registry (`drawInstrument()` →
+  the widget `analog`) and controls (the widget `control`).
+
 ---
 
 ## 6. State and the Main Loop

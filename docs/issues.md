@@ -682,7 +682,7 @@ The analog panel work (plan in steps 1–8, 2026-11-07 to 2026-11-10 — the des
 ### The analog instruments have no knobs
 *Logged 2026-11-09 (Markus, from the F4U's remote compass — step 8) · `display/analog_panel.js`, the cockpit views, `core/keymap.js`*
 
-No knob on an analog instrument does anything in the sim. The real ones did: the F4U's remote compass has a course-setting knob (it turns the course setter, two parallel arrows — fly with the heading pointer between them); the altimeters' setting knobs (the F4U's in. Hg window, the MiG's mm Hg window, D-FEML's pressure window); the directional gyro's caging and setting knob; the АГК-47Б's cage and pitch knobs; the clocks' winding and stopwatch buttons. Meanwhile the F4U's course setter shows the mission's course (Markus). **Plan — a feature, not now:** the knobs as controls — a click on the dial in the panel view (or keys), each setting a value in the sim (`S.courseSet`, the altimeter setting already in `core/baro.js`, a gyro's caged state). **Done when:** the course setter and an altimeter's setting can be turned in the cockpit and the dial follows.
+No knob on an analog instrument does anything in the sim. The real ones did: the F4U's remote compass has a course-setting knob (it turns the course setter, two parallel arrows — fly with the heading pointer between them); the altimeters' setting knobs (the F4U's in. Hg window, the MiG's mm Hg window, D-FEML's pressure window); the directional gyro's caging and setting knob; the АГК-47Б's cage and pitch knobs; the clocks' winding and stopwatch buttons. Meanwhile the F4U's course setter shows the mission's course (Markus). **Plan — a feature, not now:** the knobs as controls — a click on the dial in the panel view (or keys), each setting a value in the sim (`S.courseSet`, the altimeter setting already in `core/baro.js`, a gyro's caged state). **Done when:** the course setter and an altimeter's setting can be turned in the cockpit and the dial follows. How: *Instruments, controls and mixed panels — the plan* (step 4).
 
 ### The METAR strip always says LSZH
 *Found 2026-11-06 · `updateMetar()` and `_rwyFromWind()` in `index.html`*
@@ -908,7 +908,7 @@ The aircraft says *what* it has, the manufacturer *where* it goes, the style *ho
 
 **What makes it work.** A control is *node + action* (`eng2 · master off`, `gen1a · off`) and sends a command to the module that owns the node (`engine.js`, `electrical.js`, `hydraulics.js`); no control writes `S`. With owners and commands in place, the five zone modules (each with its own HTML, CSS and handlers) become one builder: systems → controls → placement → zone. Builds on *`S` has no field ownership*.
 
-**Limits.** Derived means complete and correct (every control exists, is in the right zone and works), not the exact real panel geometry; a type that needs that gets a layout override. The hand-drawn cockpits (Bf 109, F4U, Velis, rockets) keep their drawings, but their controls can come from the data. The main panel shows instruments, not controls, and stays with `panels/`.
+**Limits.** Derived means complete and correct (every control exists, is in the right zone and works), not the exact real panel geometry; a type that needs that gets a layout override. The hand-drawn cockpits (Bf 109, F4U, Velis, rockets) keep their drawings, but their controls can come from the data. The main panel's controls (the DR400's and the Velis's switches, the MiG's air-start switch) are placed by the panel's data — the glass spec or `analogPanel.groups` — not derived (*Instruments, controls and mixed panels — the plan*).
 
 **First instance.** The multi-engine work (*One engine per aircraft*, stages 2 and 4): engine controls, generators and hydraulic pumps on the 777 (then the A350), derived from their data. The rest of the overhead (lights, anti-ice, pressurisation, ADIRS …) follows the same pattern later.
 
@@ -916,21 +916,70 @@ The aircraft says *what* it has, the manufacturer *where* it goes, the style *ho
 
 **Progress (checked 2026-11-06).** The first instance is done for the overhead: its ELECTRICAL section (stage 2d), HYDRAULICS section (stage 4), FUEL section (*Airliner fuel system*, part 3) and FLIGHT CONTROLS section (the TAC switch, only where the data has a TAC — stage 3d) are built from the aircraft's layouts, one control per element, each sending a command to its owner (*node + action*). The 777 and the A340 show their own generators and hydraulic pumps, and the 777 its own fuel pumps and crossfeed valves (the A340's fuel, and all of the A350's systems, still the default structure — no layout of their own yet); the ELEC, HYD and FUEL pages come from the same layouts. Still code: APU, the fire handles (they also write `S` directly — see *`S` has no field ownership*), the placement into zones (layer 3 — no manufacturer rules yet), the pedestal, the consoles and the centre view.
 
-**Where switches are drawn today (checked 2026-11-07).** Five places, two techniques (canvas, HTML), each with its own state names:
+**Where switches are drawn today** — and the plan to give them one definition: *Instruments, controls and mixed panels — the plan* below.
+
+### Instruments, controls and mixed panels — the plan
+*Planned 2026-11-11 (Markus) · `display/analog_panel.js`, `display/panel_renderer.js`, `display/velis_epsi.js`, `display/pedestal.js`, `display/centerconsole.js`, `display/leftconsole.js` / `rightconsole.js`, `display/overhead.js`, the FCU in `index.html`, `core/keymap.js`, `core/input.js`*
+
+**Today.** The C172, the DR400 and the Velis have mixed panels — Garmin screens and round backup instruments — and they are the only main panels with switches; the analog panels have none. Their round gauges are three sets apart from `analog_panel.js`: the glass widgets `analog_asi` / `analog_ai` / `analog_alt` (C172, DR400 — reading `S` in the drawing code, the C172's arcs hard-coded for every aircraft, no lag) and the Velis's own `_drawBackupASI` / `_drawBackupAlt` with its own gauge helpers. The controls live in seven places with two techniques:
 
 | Where | Aircraft | Drawn | A click |
 |---|---|---|---|
-| `display/velis_epsi.js` — `_velisKey()`, `_velisToggle()` | Velis | canvas, positions in the module | writes `S.switches.master / battEn / pwrEn / avionics` |
-| `display/pedestal.js` — `_toggle()`, `.ped-toggle` CSS | C172 (`pedestal` tokens `switches`, `lights`, `breakers`, `magneto` …) | HTML | writes `S.masterBat / masterAlt / avionicsOn / fuelPump`, `S.lights` |
-| `display/panel_renderer.js` — `_drawRockerStrip()`, `_drawBottomSwitches()`, `_drawMagnetoKnob()` | DR400 (widgets in `panels/dr400.json`) | canvas widgets, placed by the panel JSON | `_toggleSwitch(key)`, writes `S` |
-| `display/overhead.js` + `display/pushbutton.js` | airliners | HTML pushbuttons, one per element of the system layout | a command to the owner (`elecSwitch()`, `hydPump()`, `fuelPump()`) |
-| `display/leftconsole.js`, `rightconsole.js` | Bf 109, F4U, MiG-15 (`left` / `right` tokens) | HTML | writes `S` (fuel cock, cooling flaps, breakers, oxygen …) |
+| `display/overhead.js` + `pushbutton.js` | airliners | HTML | a command to the owner (`elecSwitch()`, `hydPump()`, `fuelPump()`); fire and APU bleed write `S` |
+| `display/centerconsole.js` — gear lever, autobrake | airliners | HTML | writes `S.gear`, `S.autobrake` |
+| the FCU — `index.html` (~1990–2090) | airliners | canvas, x-position bands | writes `S` (`spdT`, `hdgT`, `altT`, `vsT`, `baroSet` …) |
+| `display/pedestal.js` (`pedestal` tokens) | C172 | HTML | writes `S.masterBat`, `S.lights`, `S.magnetos` … |
+| `display/leftconsole.js`, `rightconsole.js` (`left` / `right` tokens) | Bf 109, F4U, MiG-15 | HTML | writes `S` (fuel cock, cooling flaps, throttle …) |
+| `display/panel_renderer.js` — rocker strip, magnetos, fuel selector | DR400 | canvas, its own click areas | `_toggleSwitch(key)` writes `S` |
+| `display/velis_epsi.js` | Velis | canvas, its own click areas | writes `S.switches.*` |
 
-- **The looks may differ — they are layer 4.** The duplication is the problem: the Velis toggle and the C172 toggle are one design (bat handle, LED, label, lever `#9eaabf`) written twice, on a canvas and in CSS, so a fix to one doesn't reach the other (the Velis labels were 5 px while the C172's were fine — fixed 2026-11-07).
-- **One switch, several names.** The battery master is `S.switches.master` on the Velis and `S.masterBat` on the C172, so readers branch on the panel (`_isComPowered()` in `core/crew.js`).
-- **Only the overhead is node + action.** The others write `S` directly (*`S` has no field ownership*).
-- **Missing:** one switch component per technique (canvas, HTML), its look a parameter from the style; every control a command to its owner.
-- **First step:** the Velis onto the electrical solver (`core/electrical.js`) — its four switches become `elecSwitch()` commands; the C172's follow.
+The same rule is written several times: the gear's squat lock three times (the `gear` key action and the joystick button in `core/input.js`, the lever in `centerconsole.js`), the magnetos three times (twice in `panel_renderer.js`, once in `pedestal.js` — with different defaults, `'BOTH'` and `'OFF'`), the fuel pump twice. The fuel selector steps LEFT → BOTH → RIGHT on the DR400 and BOTH → LEFT → RIGHT on the C172. START doesn't spring back, so the click after a start goes to OFF and stops the engine. One switch has two names (the battery master `S.switches.master` on the Velis, `S.masterBat` on the C172), and `index.html` routes a canvas click by the panel's name. No instrument has a knob (*The analog instruments have no knobs*).
+
+**The separation — three things, three owners.**
+- **Instruments show a value.** They read and never write: the analog registry's rule (`read` takes the value, the drawing only draws), for the glass widgets too.
+- **Commands change the aircraft.** Named, with an argument, owned by the module that owns the state — `gear('down')`, `flaps(+1)`, `elec('bat1', true)`, `magnetos('BOTH')`, `baroSet(+1)`. The rules (squat lock, a guard, a spring-loaded position) live once, in the command. One command registry in `core/`, of its own — not the key map's actions, which receive the keyboard event (or are a `{ down, up }` pair for held keys) where a command takes an argument. The key actions, the clicks, the joystick and later the hub (instructor, second crew member, the switches of a home cockpit on an ESP32) all call commands; the key map stays the key map. The registry records every command in the black box once (what training scoring reads).
+- **Controls are what you click: one definition, two looks.** A control is defined once — kind, positions, what it reads, which command it sends — and drawn on a canvas or built in HTML; the technique is only its look (decided: Markus, 2026-11-11 — canvas and HTML co-exist on one definition). One look per kind and technique, coloured by the panel style, so the Velis toggle and the C172 toggle are one design drawn by one function.
+
+```
+CONTROLS.gear      = { kind: 'lever',  positions: ['up', 'down'], read: () => S.gear ? 'down' : 'up', command: 'gear' }
+CONTROLS.magnetos  = { kind: 'rotary', positions: ['OFF', 'R', 'L', 'BOTH', 'START'], spring: { START: 'BOTH' }, command: 'magnetos' }
+CONTROLS.batMaster = { kind: 'toggle', guarded: true, command: 'elec', node: 'bat' }
+CONTROLS.baroKnob  = { kind: 'knob',   command: 'baroSet' }
+```
+
+**Two gestures in the whole cockpit — the FCU's** (decided: Markus, 2026-11-11). Click to press, drag (up/down, 3 px a step; the wheel a step a notch; Shift the coarse step) to turn or move — as the FCU knobs work today. Pointer events, not mouse events, so dragging works on a touchscreen too.
+
+| Kind | Click | Drag / wheel |
+|---|---|---|
+| Knob (FCU, altimeter setting, course setter) | push, where it has one (FCU managed ↔ selected; the gyro's cage) | turn; Shift = coarse |
+| Rotary switch (magnetos, fuel selector) | the next position, as today; a spring-loaded position returns (START → BOTH) | step in either direction |
+| Toggle, pushbutton | flip / press | — |
+| Two-position lever (gear) | the other position | — |
+| Lever with detents (flaps, cooling-flap gate) | — | step through the detents |
+| Continuous lever (throttle, mixture, trim wheel) | — | move |
+
+**Knobs sit on instruments but are controls.** The registry entry names them (`alt: { …, knobs: [{ control: 'baroKnob', at: 'lowerLeft' }] }`); the instrument draws the knob, the panel registers its click area and sends the command; the instrument stays read-only. **One click-area registry for the canvas** (`display/hit.js`): each canvas panel registers its controls as it draws, one handler dispatches — the per-panel `_hitRegions` and the panel-name routing in `index.html` go.
+
+**A panel holds three kinds of things,** whatever its path:
+
+| Kind | Glass spec (`panels/*.json`) | Analog panel (`analogPanel.groups`) | Zones (overhead, pedestal, consoles, centre) |
+|---|---|---|---|
+| Screen | `g1000_screen`, `garmin_gtn`, NESIS … | — | the ECAM in the centre view |
+| Instrument | widget `analog` + an analog entry (`{ "id": "asi", "scale": … }`) | `{ "id": "asi" }` | — |
+| Control | widget `control` + `{ "control": "magnetos" }` | `{ "control": "airStartIgn" }` | the tokens become control ids |
+
+The control ids go into `core/vocab.js` next to `INSTRUMENT`, checked by the schema. A mixed panel is the glass path's fixed layout (the real panel) with screens, `analog` instruments and controls; `analog_panel.js` exports one instrument (`drawInstrument(ctx, box, entry, style)` — the style set and restored around today's `_inst()`, the lag included), and a new analog style for the modern GA gauges (e.g. `ga`: black faces, white markings, kt and ft, coloured arcs), named by the glass style. Later the systems say which controls exist and the manufacturer's rules place them (*The cockpit builds itself from the aircraft data*, layers 2–3).
+
+**Order (Markus, 2026-11-11).**
+1. **Mixed panel, instruments only** — `drawInstrument()` and the glass widget `analog`, on the C172's standby row (airspeed, horizon, altimeter; no switches there). Before/after screenshot. Gives the C172 the lag and the sourced arcs, and proves the export.
+2. **Controls, steps 1–3** — (a) the commands in `core/`: gear, flaps, fuel pump, BAT / ALT / AVIONICS, lights, magnetos, fuel selector, carb heat, park brake, each once in its owner; the keys, the joystick and today's clicks call them; unit tests for the rules (squat lock, guard, spring); no visible change. The light aircraft's BAT / ALT / AVIONICS have no owner today (plain fields — *Light-aircraft electrical is switches only*): their commands go to `core/electrical.js` (`elecSwitch()`), writing today's fields as a stand-in until the light aircraft have an electrical layout of their own — so the commands don't move again when the bus model comes. (The first step decided earlier, kept: the Velis's four switches become `elecSwitch()` commands; the C172's follow.) (b) The canvas kit and `hit.js`: the DR400's rocker strip, magnetos and fuel selector, the Velis's switches. `hit.js` keeps the click areas readable for tests — `tests/velis-panel.spec.js` uses `velisHitRegions()` today. (c) The HTML side: the C172 pedestal, the consoles, the centre gear lever and autobrake; the overhead's fire and APU bleed through commands.
+3. **Mixed panels, complete** — the DR400 with its sourced instruments — HB-KLE, a DR400/140B, from Markus's photo of its panel (he flew it); a very mixed panel with many instrument styles, so how the looks are modelled is decided from the photo, then the Velis onto the glass path (`panels/velis.json`: NESIS and EPSI as widgets, its switches as controls, its backups as `analog`) — `velis_epsi.js` keeps no layout or gauge helpers of its own.
+4. **Knobs** — the altimeter setting first (on the analog panels and the C172's standby altimeter; `core/baro.js` owns the setting); then the FCU out of `index.html` (its knobs and buttons as controls; there is no autopilot module yet — the AP lives in `tickPhysics()` — so a small owner for the FCU's targets, e.g. `core/fcu.js`, folded into the autopilot when *`tickPhysics()` is one 680-line function* is split; the speed knob's command writes the speed target only, not the props' throttle — *`spdT` is both the speed target and the throttle*); then the F4U's course setter and the directional gyro.
+5. **Controls in the data** — the vocabulary and the schema; the `left` / `right` / `pedestal` tokens as control ids; analog groups holding controls — the MiG's air-start switch and its lamp first (*The MiG-15bis's air-start ignition*).
+
+**Closes or advances.** *Gauge helpers copied* (the Velis), *Display lag* (the Velis, the G1000, the DR400), the C172 arcs in *Vehicle- and mission-specific special cases*, the display writes in *`S` has no field ownership*, the first step of *The cockpit builds itself*, *The analog instruments have no knobs*, and the switches *Light-aircraft electrical is switches only* will read from.
+
+**Done when.** No control writes `S` — every control is a definition sending a command, drawn on canvas or in HTML; the gear, magneto and fuel-selector rules exist once; the C172, the DR400 and the Velis draw their round gauges through the analog registry; the altimeter setting knob turns on an analog panel; and `index.html` has no FCU or panel-click routing of its own.
 
 ### Overloaded fields in the JSON data
 *Found 2026-10-11 · `aircraft/*.json`, `missions/*.json`; left over from the data-contract work (2026-10-13)*
@@ -1039,7 +1088,7 @@ To draw the terrain from the camera, `outside.js` saves the aircraft pose, write
 
 **Why it matters.** Every feature passes through it, and none of it can be unit-tested with `node --test` — only through Playwright. Bugs hide there: *Live flight always loads the A350* went unnoticed for four months.
 
-**Fix — a structured rewrite, not piecemeal.** Plan it as its own piece of work: CSS into stylesheet(s); application logic into modules next to `app/session.js` (the mission session, 2026-10-12) — e.g. `app/init.js`, `app/routing.js`, `app/liveflight.js`, `app/debrief.js`, `app/test-hooks.js`); `index.html` left as markup plus a short bootstrap. Moved logic gets unit tests where it is pure. The Playwright suite is the safety net — it must pass before and after.
+**Fix — a structured rewrite, not piecemeal.** Plan it as its own piece of work: CSS into stylesheet(s); application logic into modules next to `app/session.js` (the mission session, 2026-10-12) — e.g. `app/init.js`, `app/routing.js`, `app/liveflight.js`, `app/debrief.js`, `app/test-hooks.js`); `index.html` left as markup plus a short bootstrap. Moved logic gets unit tests where it is pure. Not part of this rewrite: the FCU's knob handling and the canvas click routing by panel name — they leave with *Instruments, controls and mixed panels — the plan* (steps 2b and 4), as control logic moving to its owners. The Playwright suite is the safety net — it must pass before and after.
 
 **Done when.** `index.html` holds markup and a bootstrap only; no application logic in inline script; the test suite passes unchanged.
 
