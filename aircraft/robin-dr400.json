@@ -12,7 +12,7 @@
   "tanks": { "left": 75, "right": 75, "unit": "L" },
   "fuelBurn": 24,
   "hasCarbHeat": true,
-  "callsign": "HB-KFG",
+  "callsign": "HB-KLE",
   "icaoType": "DR40",
   "landSurfaces": ["runway", "grass"],
   "gearRuggedness": 0.5,
