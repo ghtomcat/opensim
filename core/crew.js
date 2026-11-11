@@ -527,7 +527,7 @@ function _checkChecklist(prev, curr, ac) {
       const stepAbs = step.alt + fieldElev;
       if (prev > stepAbs && curr <= stepAbs && S.flaps < step.config) {
         _checklistLock = true;
-        setState({ flaps: step.config });
+        command('flaps', step.config, { source: 'crew' });   // the PM's flap call — through the flaps' command, recorded
         sndCrew(step.pf, step.pm, 800);
         setTimeout(() => { _checklistLock = false; }, 4000);
         return;

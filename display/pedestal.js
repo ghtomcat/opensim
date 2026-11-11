@@ -10,6 +10,7 @@ import { startFuelPump, stopFuelPump } from '../core/sound.js';
 import { startEngine, stopEngine, engineMaster } from '../core/engine.js';
 import { altLabel } from '../core/route.js';
 import { flapLabel } from '../core/airframe.js';
+import { command } from '../core/commands.js';
 import { buildDescentPath } from '../core/vnav.js';
 
 let _el = null;
@@ -800,7 +801,7 @@ function _attachHandlers() {
   /* Flap handle */
   _el.querySelectorAll('.ped-flap-pos').forEach(btn => {
     btn.addEventListener('click', () => {
-      setState({ flaps: +btn.dataset.flap });
+      command('flaps', +btn.dataset.flap, { source: 'click' });   // the lever's detent — core/flaps.js
     });
   });
 

@@ -5,9 +5,9 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from './state.js';
-import { bbEvent } from './blackbox.js';
 import { command } from './commands.js';
 import './gear.js';                         // registers the gear command
+import './flaps.js';                        // registers the flaps command
 import { initKeys, registerActions, isKeyHeld } from './keymap.js';
 
 /* Next upcoming timed event for any aircraft type */
@@ -184,12 +184,8 @@ export function tickGamepad() {
     document.dispatchEvent(new CustomEvent('ptt', { detail: { active: trigNow } }));
   }
 
-  /* Flaps — button 1 */
-  if (_btnPressed(btn, GP.BTN_FLAP)) {
-    const next = Math.min(3, S.flaps + 1);
-    setState({ prevFlaps: S.flaps, flaps: next });
-    bbEvent({ type: 'flaps', flaps: next });
-  }
+  /* Flaps — button 1: one stage further (the aircraft's own stages — core/flaps.js) */
+  if (_btnPressed(btn, GP.BTN_FLAP)) command('flaps', 'extend', { source: 'joystick' });
 
   /* Gear — button 2 (the rules — fixed gear, squat lock — are the command's: core/gear.js) */
   if (_btnPressed(btn, GP.BTN_GEAR)) command('gear', 'toggle', { source: 'joystick' });
@@ -206,7 +202,6 @@ function _btnPressed(buttons, idx) {
 }
 
 /* ── Keyboard: what the keys do. Which key, and on which vehicle: core/keymap.js ── */
-const _flaps = (next) => { setState({ prevFlaps: S.flaps, flaps: next }); bbEvent({ type: 'flaps', flaps: next }); };
 const _view  = (view) => setState({ cockpitView: S.cockpitView === view ? 'forward' : view });
 const _ptt   = (active) => { _pttActive = active; document.dispatchEvent(new CustomEvent('ptt', { detail: { active } })); };
 
@@ -273,8 +268,8 @@ const _keyActions = {
   },
   'trim-up':   () => setState({ trim: Math.min(10, (S.trim ?? 0) + 0.5) }),
   'trim-down': () => setState({ trim: Math.max(-10, (S.trim ?? 0) - 0.5) }),
-  'flaps-extend':  () => _flaps(Math.min(3, S.flaps + 1)),
-  'flaps-retract': () => _flaps(Math.max(0, S.flaps - 1)),
+  'flaps-extend':  () => command('flaps', 'extend',  { source: 'key' }),   // the aircraft's own stages: core/flaps.js
+  'flaps-retract': () => command('flaps', 'retract', { source: 'key' }),
   gear: () => command('gear', 'toggle', { source: 'key' }),   // the rules (squat lock) are core/gear.js's
   'speed-brake': () => { if (S.aircraft?.spoilers) setState({ speedBrake: ((S.speedBrake ?? 0) + 1) % 3 }); },   // RET → ARM → FULL → RET — only with spoilers
   'right-console': () => _view('right'),
