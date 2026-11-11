@@ -588,3 +588,23 @@ export function tickEngine(dt) {
   }
   _publish(engines, extra);
 }
+
+/* ── The power levers — commands, so a click, a drag and later the hub go through one door. A lever's value 0 … 1.
+   throttle: on a turbofan the thrust lever (manual thrust); on the others today's stand-in, S.spdT as a share of
+   envelope.maxSpd (issues.md, "spdT is both the speed target and the throttle" — one power variable per engine
+   replaces it, and only this command changes). propPitch 1 fine … 0 coarse, mixture 1 rich … 0 idle cut-off:
+   nothing in the simulation reads either yet (the prop-pitch gauge's stand-in reads propPitch). ── */
+const _lever = (v) => typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : null;
+export function throttle(v) {
+  const f = _lever(v); if (f === null) return false;
+  if (_turbofan()) { if (f === (S.thrustLever ?? 0)) return false; setState({ thrustLever: f }); return true; }
+  const spdT = Math.round(f * (S.aircraft?.envelope?.maxSpd ?? 350));
+  if (spdT === S.spdT) return false;
+  setState({ spdT });
+  return true;
+}
+export function propPitch(v) { const f = _lever(v); if (f === null || f === (S.propPitch ?? 1)) return false; setState({ propPitch: f }); return true; }
+export function mixture(v)   { const f = _lever(v); if (f === null || f === (S.mixture ?? 1))   return false; setState({ mixture: f });   return true; }
+registerCommand('throttle',  (v) => throttle(v));
+registerCommand('propPitch', (v) => propPitch(v));
+registerCommand('mixture',   (v) => mixture(v));

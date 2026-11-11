@@ -27,13 +27,19 @@ export function registerCommand(name, fn) {
 }
 
 /** Run a command: true when it was done, false when refused (or unknown). `source` says who asked — key, joystick,
-    click, crew, hub — for the black box. */
-export function command(name, arg, { source = 'unknown' } = {}) {
+    click, crew, hub — for the black box. `record: false` — a step of a drag: done, not recorded; the drag's end is
+    recorded once with recordCommand (only where a lever ends matters — Markus, 2026-11-11). */
+export function command(name, arg, { source = 'unknown', record = true } = {}) {
   const fn = _commands.get(name);
   if (!fn) { console.warn(`[commands] unknown command "${name}"`); return false; }
   const done = fn(arg) !== false;
-  if (done) bbEvent({ type: 'command', command: name, arg: arg ?? null, source });
+  if (done && record) bbEvent({ type: 'command', command: name, arg: arg ?? null, source });
   return done;
+}
+
+/** Record where a drag ended — once, after its steps ran with `record: false` */
+export function recordCommand(name, arg, { source = 'unknown' } = {}) {
+  bbEvent({ type: 'command', command: name, arg: arg ?? null, source });
 }
 
 /** The registered command names — for tests and the controls' schema check */

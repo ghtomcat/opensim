@@ -785,7 +785,7 @@ function _attachHandlers() {
       const snapped = profiles.reduce((best, p) =>
         Math.abs(p.spdT - targetSpd) < Math.abs(best.spdT - targetSpd) ? p : best
       );
-      setState({ thrustLever: Math.max(0, Math.min(1, snapped.spdT / maxSpdT)) });
+      setControl('throttle', Math.max(0, Math.min(1, snapped.spdT / maxSpdT)));   // the thrust lever — core/engine.js
     });
   });
 
@@ -810,18 +810,10 @@ function _attachHandlers() {
 
 
   /* ── Light-piston controls (moved off the G1000 main panel) ── */
-  /* Throttle vernier — props use spdT as the throttle (same as +/-): IDLE → CRUISE → FULL */
-  document.getElementById('ped-knob-throttle')?.addEventListener('click', () => {
-    const maxSpd = S.aircraft?.envelope?.maxSpd ?? 130;
-    const cur = (S.spdT ?? 0) / maxSpd;
-    const next = cur < 0.33 ? 0.7 : cur < 0.85 ? 1 : 0;
-    setState({ spdT: Math.round(next * maxSpd) });
-  });
-  /* Mixture vernier — RICH → LEAN → ICO → RICH */
-  document.getElementById('ped-knob-mixture')?.addEventListener('click', () => {
-    const cur = S.mixture ?? 1;
-    setState({ mixture: cur >= 1 ? 0.5 : cur >= 0.5 ? 0 : 1 });
-  });
+  /* Throttle vernier — IDLE ↔ CRUISE ↔ FULL (the throttle command: on a prop today's spdT stand-in) */
+  document.getElementById('ped-knob-throttle')?.addEventListener('click', () => operate('throttleKnob'));   // IDLE ↔ CRUISE ↔ FULL, a sweep
+  /* Mixture vernier — RICH ↔ LEAN ↔ ICO */
+  document.getElementById('ped-knob-mixture')?.addEventListener('click', () => operate('mixtureKnob'));    // RICH ↔ LEAN ↔ ICO, a sweep (it wrapped round)
   /* Carb heat — COLD / HOT */
   document.getElementById('ped-knob-carbheat')?.addEventListener('click', () => operate('carbHeat'));
   /* Magnetos, fuel selector (rotaries — a click sweeps), the fuel shutoff knob — display/controls.js */

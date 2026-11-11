@@ -35,6 +35,9 @@ export function initBlackbox() {
   });
 }
 
+/** The records of this session so far — a copy (tests) */
+export const bbRecords = () => [..._records];
+
 /* ── Discrete event — call from anywhere ── */
 export function bbEvent(event) {
   if (!_sessionId) return;

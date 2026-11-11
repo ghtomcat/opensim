@@ -27,6 +27,9 @@ import { SPEED_BRAKE_POSITIONS } from '../core/flaps.js';
 import { fuelSelectorPositions } from '../core/fuel.js';
 import { lightSwitchOn } from '../core/electrical.js';
 
+/** The set point nearest to a lever's value — where a stepped knob stands */
+const _nearest = (pts, v) => pts.reduce((b, p) => Math.abs(p - v) < Math.abs(b - v) ? p : b, pts[0]);
+
 const _dir = new Map();          // control id → +1 | −1 (a rotary's sweep)
 const _guardOpen = new Set();    // control ids whose guard is lifted
 onMissionReset(() => { _dir.clear(); _guardOpen.clear(); });
@@ -61,6 +64,14 @@ export const CONTROLS = {
   speedBrake: { kind: 'rotary', positions: () => SPEED_BRAKE_POSITIONS, read: () => S.speedBrake ?? 0,  command: 'speedBrake' },   // a lever with detents: RET, ARM, FULL
   autobrake:  { kind: 'select', read: () => S.autobrake ?? 'OFF', command: 'autobrake' },     // a row of buttons: setControl
   coolFlap:   { kind: 'select', read: () => S.coolFlap ?? 1,      command: 'coolFlap' },      // a gate: setControl
+  /* levers, 0 … 1 — set where clicked (setControl), later dragged (steps unrecorded, the end recorded — core/commands.js) */
+  throttle:  { kind: 'lever-continuous', read: () => S.aircraft?.engine?.type === 'turbofan' ? (S.thrustLever ?? 0) : (S.spdT ?? 0) / (S.aircraft?.envelope?.maxSpd ?? 350), command: 'throttle' },
+  propPitch: { kind: 'lever-continuous', read: () => S.propPitch ?? 1, command: 'propPitch' },
+  mixture:   { kind: 'lever-continuous', read: () => S.mixture ?? 1,   command: 'mixture' },
+  trim:      { kind: 'lever-continuous', read: () => S.trim ?? 0,      command: 'trim' },      // −10 … +10
+  /* the C172's push-pull knobs, stepped by a click through set points — a sweep, no wrap-around */
+  throttleKnob: { kind: 'rotary', positions: () => [0, 0.7, 1],   read: () => _nearest([0, 0.7, 1], CONTROLS.throttle.read()), command: 'throttle' },   // IDLE, CRUISE, FULL
+  mixtureKnob:  { kind: 'rotary', positions: () => [1, 0.5, 0],   read: () => _nearest([1, 0.5, 0], S.mixture ?? 1),            command: 'mixture' },    // RICH, LEAN, ICO
   apuMaster:  { kind: 'toggle', read: () => !!S.apuMasterOn, command: 'apuMaster', arg: (on) => on },
   apuBleed:   { kind: 'toggle', read: () => !!S.apuBleedOn,  command: 'apuBleed',  arg: (on) => on },
   apuFire:    { kind: 'toggle', read: () => !!S.apuFireArmed, command: 'apuFire', arg: () => undefined },   // a handle: pulled once, under a guard

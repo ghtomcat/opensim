@@ -93,3 +93,37 @@ test('speed brake, autobrake, cooling flaps: set to a position; refused without 
   setState({ aircraft: load('bf109'), coolFlap: 1 });
   assert.equal(setControl('coolFlap', 0.5), true);   assert.equal(S.coolFlap, 0.5);
 });
+
+/* The levers — and a drag recorded once, at its end */
+import { recordCommand } from '../core/commands.js';
+
+test('the throttle: a turbofan\'s thrust lever, a prop\'s spdT stand-in; the C172 knobs sweep their set points', () => {
+  runMissionResets();
+  setState({ aircraft: load('a340'), thrustLever: 0 });
+  assert.equal(setControl('throttle', 0.6), true);  assert.equal(S.thrustLever, 0.6);
+  setState({ aircraft: load('c172'), spdT: 0, mixture: 1 });
+  assert.equal(setControl('throttle', 1), true);    assert.equal(S.spdT, load('c172').envelope.maxSpd);
+  const mix = []; for (let i = 0; i < 4; i++) { operate('mixtureKnob'); mix.push(S.mixture); }
+  assert.deepEqual(mix, [0.5, 0, 0.5, 1]);                                        // RICH → LEAN → ICO → LEAN → RICH: no jump
+  setState({ spdT: 0 });
+  operate('throttleKnob'); assert.equal(S.spdT, Math.round(0.7 * load('c172').envelope.maxSpd));
+});
+
+test('trim and the levers clamp to their range; the same value again is refused', () => {
+  setState({ aircraft: load('bf109'), trim: 9.8, propPitch: 1 });
+  assert.equal(setControl('trim', 12), true);   assert.equal(S.trim, 10);
+  assert.equal(setControl('trim', 10), false);
+  assert.equal(setControl('propPitch', -1), true); assert.equal(S.propPitch, 0);
+});
+
+test('a drag: its steps unrecorded, its end recorded once; a click recorded at once', async () => {
+  const { initBlackbox, bbRecords } = await import('../core/blackbox.js');
+  setState({ aircraft: load('bf109'), propPitch: 1 });
+  initBlackbox();
+  for (const v of [0.9, 0.8, 0.7]) assert.equal(command2('propPitch', v, { source: 'drag', record: false }), true);
+  recordCommand('propPitch', 0.7, { source: 'drag' });
+  setControl('propPitch', 0.4);
+  const rec = bbRecords().filter(r => r.type === 'command' && r.command === 'propPitch');
+  assert.deepEqual(rec.map(r => [r.arg, r.source]), [[0.7, 'drag'], [0.4, 'click']]);
+  assert.equal(S.propPitch, 0.4);
+});

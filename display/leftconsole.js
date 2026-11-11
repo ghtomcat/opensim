@@ -200,18 +200,16 @@ function _attachHandlers() {
       fn(frac);
     });
   };
-  const _maxSpdQ = S.aircraft?.envelope?.maxSpd ?? 360;
-  _quad('throttle', f => setState({ spdT: Math.round(f * _maxSpdQ) }));
-  _quad('prop',     f => setState({ propPitch: f }));
-  _quad('mixture',  f => setState({ mixture: f }));
+  _quad('throttle', f => setControl('throttle', f));    // the levers' commands: core/engine.js
+  _quad('prop',     f => setControl('propPitch', f));
+  _quad('mixture',  f => setControl('mixture', f));
 
   /* Gashebel — click the track to set the throttle (spdT, like +/-) */
   const track = document.getElementById('lc-throttle');
   track?.addEventListener('click', e => {
     const rect = track.getBoundingClientRect();
     const frac = 1 - (e.clientY - rect.top) / rect.height;   // 0 idle (bottom) … 1 full (top)
-    const maxSpd = S.aircraft?.envelope?.maxSpd ?? 335;
-    setState({ spdT: Math.round(Math.max(0, Math.min(1, frac)) * maxSpd) });
+    setControl('throttle', Math.max(0, Math.min(1, frac)));   // core/engine.js
   });
 
   /* Höhentrimmrad — click upper half = nose up, lower = nose down (same 0.5 step as t/T) */
@@ -219,7 +217,7 @@ function _attachHandlers() {
   wheel?.addEventListener('click', e => {
     const rect = wheel.getBoundingClientRect();
     const up = (e.clientY - rect.top) < rect.height / 2;
-    setState({ trim: Math.max(-10, Math.min(10, (S.trim ?? 0) + (up ? 0.5 : -0.5))) });
+    setControl('trim', (S.trim ?? 0) + (up ? 0.5 : -0.5));   // core/flaps.js
   });
 
   /* Kühlerklappe / cowl flaps — discrete steps (open / half / closed) */

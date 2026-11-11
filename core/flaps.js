@@ -35,3 +35,14 @@ export function speedBrake(pos) {
   return true;
 }
 registerCommand('speedBrake', (pos) => speedBrake(pos));
+
+/* ── The pitch trim (the Bf 109's Höhentrimmrad, the t / T keys) — −10 nose down … +10 nose up. With the wing's
+   surfaces here until the flight controls have an owner of their own. ── */
+export function trim(v) {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return false;
+  const t = Math.max(-10, Math.min(10, v));
+  if (t === (S.trim ?? 0)) return false;
+  setState({ trim: t });
+  return true;
+}
+registerCommand('trim', (v) => trim(v));
