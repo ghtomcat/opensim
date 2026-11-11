@@ -176,7 +176,7 @@ export const INSTRUMENTS = {
   asi:     { value: 'S.spd (kt); the КУС-1200 also the true airspeed (core/airdata.js)', variants: ['kus', 'twoTurn'],
              read: (i, it) => it?.variant === 'kus' ? { kt: S.spd ?? 0, tas: tasKt(S.spd ?? 0, S.alt ?? 0) } : S.spd ?? 0,
              draw: { metric: (ctx, x, y, r, sc, v, scale, variant) => variant === 'kus' ? _drawKus1200(ctx, x, y, r, sc, v) : _drawFahrtmesser(ctx, x, y, r, sc, v, scale),
-                     imperial: (ctx, x, y, r, sc, v, scale, variant) => variant === 'twoTurn' ? _drawAsi2(ctx, x, y, r, sc, v) : _drawAirspeed(ctx, x, y, r, sc, v) } },
+                     imperial: (ctx, x, y, r, sc, v, scale, variant) => variant === 'twoTurn' ? _drawAsi2(ctx, x, y, r, sc, v) : _drawAirspeed(ctx, x, y, r, sc, v, scale) } },
   ai:      { value: 'S.pitch, S.roll (°); the АГК-47Б also the turn rate and the ball', variants: ['agk47', 'sperry'],
              read: () => ({ pitch: S.pitch ?? 0, roll: S.roll ?? 0, rate: (S.roll ?? 0) / 20, ball: ballDeflection(S.latAccel) }),
              draw: { metric: (ctx, x, y, r, sc, v, scale, variant) => variant === 'agk47' ? _drawAgk47(ctx, x, y, r, sc, v) : _drawHorizont(ctx, x, y, r, sc, v),
