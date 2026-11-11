@@ -649,7 +649,7 @@ Airliners are built from the aircraft JSON (`_acGeoFromJson()`, data-driven from
 ### Display lag only on the glass instruments
 *Noted 2026-10-11 · `display/smooth.js`*
 
-`smooth.js` gives needles and tapes first-order lag (instruments that move with inertia read as real). Only `display/pfd_instruments.js` uses it. Pending on the steam gauges and GA panels: `bf109.js`, `f4u1a.js`, `velis_epsi.js`, `g1000.js`, and the analog widgets in `panel_renderer.js` (DR400, G1000 standby). **Done when.** Every needle and drum display eases through `smooth.js` with a per-quantity time constant.
+`smooth.js` gives needles and tapes first-order lag (instruments that move with inertia read as real). Of the instruments, only `display/pfd_instruments.js` uses it. Pending on the steam gauges and GA panels: `analog_panel.js` (every analog aircraft — the Bf 109 and F4U panels merged into it on 2026-11-07), `velis_epsi.js`, `g1000.js`, and the analog widgets in `panel_renderer.js` (DR400, G1000 standby). **Done when.** Every needle and drum display eases through `smooth.js` with a per-quantity time constant.
 
 ### The E/WD's warning display — Airbus layout done, Boeing EICAS later
 *Done 2026-11-04 (found by Markus: six fuel LO PR cautions large at the top left of the E/WD) · `core/alerts.js` (new), `_ecamWarnZone` / `_ecamMemoZone` in `display/pfd_instruments.js`*
@@ -993,13 +993,11 @@ Also in `display/` (`outside.js` 4×, `terrain.js`, `cislunar.js`) — less of a
 ### Gauge helpers copied between the hand-drawn panels
 *Found 2026-10-11 · `display/analog_panel.js`, `display/velis_epsi.js`*
 
-**Progress (2026-11-07).** `bf109.js` and `f4u1a.js` are merged into `display/analog_panel.js` — one set of helpers, the differing colours in the style's palette; both panels pixel-identical before and after. Left: the Velis's copy.
+**Left: the Velis's copy.** `bf109.js` and `f4u1a.js` were merged into `display/analog_panel.js` on 2026-11-07 — one set of helpers, the differing colours in the style's palette, both panels pixel-identical before and after; every analog aircraft draws through it since. `display/velis_epsi.js` still has its own `_bezel`, `_needle`, `_ticks` … (and `_roundRect` is also in `panel_renderer.js`). They have drifted slightly — the Velis versions take a colour argument — so a fix to one gauge doesn't reach the other.
 
-Each hand-drawn panel has its own copy of the gauge-drawing helpers: `_base` / `_bezel`, `_cap`, `_needle`, `_ticks`, `_num`, `_label` (and `_roundRect`, also in `panel_renderer.js`). `_ticks` is identical in `bf109.js` and `f4u1a.js`; the others have drifted slightly (the Velis versions take a colour argument). A fix to one gauge doesn't reach the others, and each new warbird panel adds another copy.
+**Fix.** The Velis draws with `analog_panel.js`'s helpers (or both import a shared `display/gauges.js`), parameterised where they differ (colours, face style). Check both visually before and after.
 
-**Fix.** One shared module (e.g. `display/gauges.js`) with the helpers, parameterised where the copies differ (colours, face style); the three panels import it. Check each panel visually before and after.
-
-**Done when.** No gauge helper is defined in more than one file; the three panels look unchanged.
+**Done when.** No gauge helper is defined in more than one file; the Velis and the analog panels look unchanged.
 
 ### The outside view borrows the flight state for its camera
 *Found 2026-10-11 · `display/outside.js` (e.g. the chase/orbit camera before `renderTerrain(canvas, { outsideView: true, … })`)*
