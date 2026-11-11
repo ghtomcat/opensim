@@ -28,6 +28,7 @@ import { tasKt, machOf, heightAboveGroundFt } from '../core/airdata.js';
 import { ballDeflection } from '../core/yaw.js';
 import { indicatedAlt, baroSubscale } from '../core/baro.js';
 import { flowLayout, SIZES } from './panel_flow.js';
+import { smooth, smoothAngle } from './smooth.js';
 
 /* ── Styles — the look and the language of the panel. luftwaffe: the Bf 109 E-4 D-FEML's black faces with
    white figures and needles. soviet: a stop-gap for the Tu-95 and the An-225 until each has its own
@@ -257,11 +258,45 @@ export const INSTRUMENTS = {
              draw: _both((ctx, x, y, r, sc, v, scale, variant) => variant === 'achkho' ? _drawAchkho(ctx, x, y, r, sc, v) : variant === '24h' ? _drawClock24(ctx, x, y, r, sc, v) : drawAnalogClock(ctx, x, y, r)) },
 };
 
-/** Draw one instrument of the registry in the active style's unit system */
-function _inst(id, ctx, x, y, r, sc, item, engine = 0) {
+/* ── Display lag (display/smooth.js) — the needles move with inertia instead of jumping from one frame's
+   value to the next. Per kind, by how the real instrument moves: the pressure and air-data needles
+   quickly, the vertical speed with its capillary's lag, the thermometers and the fuel float slowly.
+   The attitude (pitch, roll) stays direct — a gyro horizon has no lag; lamps, the gear's lamps (S.gearAnim
+   already moves), the pulsator and the clock have none. Cosmetic only: never fed back into the sim.
+   An entry's `lag` is a time constant in seconds — for the value, or for every number of an object
+   value — or { field: seconds } for some fields only; `angle` eases along the shortest arc (headings). ── */
+const LAG = {
+  asi: 0.35, alt: { ft: 0.3, hpa: 0.3 }, vsi: 1.0, mach: 0.35, radAlt: 0.3,
+  ai: { rate: 0.5, ball: 0.4 }, turn: { rate: 0.5, ball: 0.4 }, level: 0.4,
+  compass: 0.5, dg: 0.3,
+  rpm: 0.3, n1: 0.3, map: 0.3, pitch: 0.5, amps: 0.3,
+  oilP: 0.5, fuelP: 0.5, airP: 0.5, fuelOilP: 0.5,
+  oilT: 1.0, coolant: 1.0, tgt: 1.0, fuel: 1.0,
+  engGauge: { oilT: 1.0, oil: 0.5, fuel: 0.5 }, emi3: { fuel: 0.5, oil: 0.5, oilT: 1.0 },
+};
+const ANGLE = new Set(['compass', 'dg']);
+for (const [id, lag] of Object.entries(LAG)) { INSTRUMENTS[id].lag = lag; if (ANGLE.has(id)) INSTRUMENTS[id].angle = true; }
+
+/** The value eased by the entry's `lag` — `key` unique per instrument on the panel */
+function _lagged(def, key, v) {
+  const lag = def.lag;
+  if (lag == null) return v;
+  const ease = def.angle ? smoothAngle : smooth;
+  if (typeof v === 'number') return typeof lag === 'number' ? ease(key, v, lag) : v;
+  if (!v || typeof v !== 'object') return v;
+  const out = { ...v };
+  for (const [f, x] of Object.entries(v)) {
+    const tau = typeof lag === 'number' ? lag : lag[f];
+    if (tau != null && typeof x === 'number') out[f] = ease(`${key}.${f}`, x, tau);
+  }
+  return out;
+}
+
+/** Draw one instrument of the registry in the active style's unit system — `n` its place on the panel (the lag's key) */
+function _inst(id, ctx, x, y, r, sc, item, engine = 0, n = 0) {
   const def = INSTRUMENTS[id], draw = def?.draw[ST.units ?? 'metric'];
   if (!draw) { _warnOnce(`analog panel: no ${ST.units} drawing of "${id}"`); return; }
-  draw(ctx, x, y, r, sc, def.read(engine, item), item?.scale, item?.variant);
+  draw(ctx, x, y, r, sc, _lagged(def, `analog.${n}.${id}.${engine}`, def.read(engine, item)), item?.scale, item?.variant);
 }
 const _warned = new Set();
 function _warnOnce(msg) { if (!_warned.has(msg)) { _warned.add(msg); console.warn(msg); } }
@@ -326,10 +361,10 @@ export function renderAnalogPanel(canvas, style = 'luftwaffe') {
   });
   const lay  = flowLayout(groups, area, { view, engines: S.aircraft?.engine?.count ?? 1, maxL: MAX_L * dpr });
   const sc   = (SIZES.L * lay.scale / 2) / 90;        // the text scale: 1 at a large dial of radius 90 px
-  for (const it of lay.items) {
+  lay.items.forEach((it, n) => {
     _inGrid = it.engine != null;
-    _inst(it.id, ctx, side + it.x, it.y, it.d / 2, sc, it.item, it.engine ?? 0);
-  }
+    _inst(it.id, ctx, side + it.x, it.y, it.d / 2, sc, it.item, it.engine ?? 0, n);
+  });
   _inGrid = false;
   _gridLabels(ctx, lay.labels, side, sc);
 

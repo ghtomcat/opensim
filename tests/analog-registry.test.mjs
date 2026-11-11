@@ -93,3 +93,14 @@ test('a variant in the data is one its instrument knows (INSTRUMENTS[id].variant
   }
   assert.deepEqual(bad, []);
 });
+
+test('display lag: every lagged instrument exists, no lamp lags, and the horizon\'s pitch and roll stay direct', () => {
+  for (const [id, def] of Object.entries(INSTRUMENTS)) {
+    if (def.lag == null) continue;
+    assert.ok(typeof def.lag === 'number' || Object.values(def.lag).every(t => typeof t === 'number'), `${id}: lag in seconds`);
+    assert.notEqual(def.kind, 'lamp', `${id}: a lamp has no lag`);
+  }
+  assert.equal(typeof INSTRUMENTS.ai.lag, 'object');
+  assert.ok(!('pitch' in INSTRUMENTS.ai.lag) && !('roll' in INSTRUMENTS.ai.lag), 'the attitude is direct');
+  assert.ok(INSTRUMENTS.compass.angle && INSTRUMENTS.dg.angle, 'headings ease along the shortest arc');
+});

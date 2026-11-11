@@ -646,10 +646,10 @@ Airliners are built from the aircraft JSON (`_acGeoFromJson()`, data-driven from
 
 **Fix.** Extend the data-driven method to props: a `dimensions` block from real drawings plus parametric builders for fuselage, wing, tail, cowling/radial, prop — the way `outside-wb.js` builds airliners — so the geometry lives in the aircraft JSON. Migrate one aircraft at a time (C172 first), comparing screenshots. **Done when.** The four prop/warbird modules are gone; their shapes come from JSON; per-type scale constants no longer exist.
 
-### Display lag only on the glass instruments
+### Display lag on the glass and the analog panels — the Velis and the G1000 left
 *Noted 2026-10-11 · `display/smooth.js`*
 
-`smooth.js` gives needles and tapes first-order lag (instruments that move with inertia read as real). Of the instruments, only `display/pfd_instruments.js` uses it. Pending on the steam gauges and GA panels: `analog_panel.js` (every analog aircraft — the Bf 109 and F4U panels merged into it on 2026-11-07), `velis_epsi.js`, `g1000.js`, and the analog widgets in `panel_renderer.js` (DR400, G1000 standby). **Done when.** Every needle and drum display eases through `smooth.js` with a per-quantity time constant.
+`smooth.js` gives needles and tapes first-order lag (instruments that move with inertia read as real). `display/pfd_instruments.js` uses it, and since 2026-11-11 `display/analog_panel.js` (every analog aircraft — Markus saw the needles jump on the new analog cockpits): a time constant per instrument kind in the registry (`LAG`, applied in `_inst()`), the attitude direct, lamps and the clock without. Pending: `velis_epsi.js`, `g1000.js`, and the analog widgets in `panel_renderer.js` (DR400, G1000 standby). **Done when.** Every needle and drum display eases through `smooth.js` with a per-quantity time constant.
 
 ### The E/WD's warning display — Airbus layout done, Boeing EICAS later
 *Done 2026-11-04 (found by Markus: six fuel LO PR cautions large at the top left of the E/WD) · `core/alerts.js` (new), `_ecamWarnZone` / `_ecamMemoZone` in `display/pfd_instruments.js`*
