@@ -142,6 +142,17 @@ STYLES['soviet-1956'] = { ...STYLES.soviet, P: { ...STYLES.soviet.P, panel: '#1c
        fuelBig: 'ЛИТРЫ', fuelSub: '', fuelRing: false,   // the MiG's fuel gauge (the photo): "ЛИТРЫ", no German colour ring
        plates: { fuelLow: '300 ЛИТРОВ', gearWarn: 'ВЫПУСТИ ШАССИ', flapsOut: 'ЗАКРЫЛКИ', genOff: 'ГЕНЕРАТОР ВЫКЛЮЧЕН', fuelPLow: 'ДАВЛ. ТОПЛИВА' } } };
 
+/* ga — the round gauges of a modern light aircraft, on a mixed panel beside its Garmin screens (the C172's
+   standby instruments — display/panel_renderer.js, widget `analog`): black faces, white markings, knots and
+   feet. No label under a dial — the face says what it is. */
+STYLES.ga = {
+  P: { ...STYLES.usn.P, panel: '#16181c', rim: '#0c0d0f', label: '#c8ccd2' },
+  sky: ['#2c64a4', '#4c8cc8'], ground: ['#7a4e28', '#6a4220', '#4a2e16'],
+  frost: false,
+  units: 'imperial',
+  L: { ...STYLES.usn.L, asi: '', asiUnit: 'KNOTS', ai: '', alt: '', altUnit: '' },
+};
+
 /** Each style's unit system — the registry draws an instrument per unit system (tests/analog-registry.test.mjs) */
 export const STYLE_UNITS = Object.fromEntries(Object.entries(STYLES).map(([k, v]) => [k, v.units]));
 
@@ -181,10 +192,10 @@ export const INSTRUMENTS = {
              read: () => ({ pitch: S.pitch ?? 0, roll: S.roll ?? 0, rate: (S.roll ?? 0) / 20, ball: ballDeflection(S.latAccel) }),
              draw: { metric: (ctx, x, y, r, sc, v, scale, variant) => variant === 'agk47' ? _drawAgk47(ctx, x, y, r, sc, v) : _drawHorizont(ctx, x, y, r, sc, v),
                      imperial: (ctx, x, y, r, sc, v, scale, variant) => variant === 'sperry' ? _drawSperry(ctx, x, y, r, sc, v) : _drawHorizon(ctx, x, y, r, sc, v) } },
-  alt:     { value: 'indicated altitude (ft) and the subscale (hPa) — core/baro.js', variants: ['standard', 'kmWindow', 'vd15', 'threePointer'],
+  alt:     { value: 'indicated altitude (ft) and the subscale (hPa) — core/baro.js', variants: ['standard', 'kmWindow', 'vd15', 'threePointer', 'dualBaro'],
              read: () => ({ ft: indicatedAlt(S.alt ?? 0), hpa: baroSubscale() }),
              draw: { metric: (ctx, x, y, r, sc, v, scale, variant) => variant === 'kmWindow' ? _drawKmWindowAlt(ctx, x, y, r, sc, v) : variant === 'vd15' ? _drawVd15(ctx, x, y, r, sc, v) : _drawHoehenmesser(ctx, x, y, r, sc, v.ft),
-                     imperial: (ctx, x, y, r, sc, v, scale, variant) => variant === 'kmWindow' ? _drawKmWindowAlt(ctx, x, y, r, sc, v) : variant === 'threePointer' ? _drawAlt3(ctx, x, y, r, sc, v) : _drawAltimeter(ctx, x, y, r, sc, v.ft) } },
+                     imperial: (ctx, x, y, r, sc, v, scale, variant) => variant === 'kmWindow' ? _drawKmWindowAlt(ctx, x, y, r, sc, v) : variant === 'threePointer' ? _drawAlt3(ctx, x, y, r, sc, v) : variant === 'dualBaro' ? _drawAltDual(ctx, x, y, r, sc, v) : _drawAltimeter(ctx, x, y, r, sc, v.ft) } },
   turn:    { value: 'turn rate, ball (S.latAccel)',         read: () => ({ rate: (S.roll ?? 0) / 20, ball: ballDeflection(S.latAccel) }),
              simple: 'the turn rate from the bank angle → the rate of heading change',
              draw: { metric: _drawWendezeiger, imperial: _drawTurnSlip } },
@@ -297,6 +308,20 @@ function _inst(id, ctx, x, y, r, sc, item, engine = 0, n = 0) {
   const def = INSTRUMENTS[id], draw = def?.draw[ST.units ?? 'metric'];
   if (!draw) { _warnOnce(`analog panel: no ${ST.units} drawing of "${id}"`); return; }
   draw(ctx, x, y, r, sc, _lagged(def, `analog.${n}.${id}.${engine}`, def.read(engine, item)), item?.scale, item?.variant);
+}
+/** One instrument of the registry, drawn into a box of another panel — a mixed panel's round gauge (the glass
+    widget `analog`, display/panel_renderer.js). `entry` is an analogPanel entry ({ id, scale, variant … });
+    `style` the look (a STYLES key); `key` names it for the display lag. The active style is put back after. */
+export function drawInstrument(ctx, box, entry, style = 'ga', key = entry?.id) {
+  if (!INSTRUMENTS[entry?.id]) { _warnOnce(`analog instrument: unknown "${entry?.id}"`); return; }
+  const prev = ST;
+  ST = STYLES[style] ?? STYLES.ga; P = ST.P; L = ST.L;
+  const r  = Math.min(box.w, box.h) / 2 * 0.84;               // the bezel (1.04 r) and its shadow inside the box
+  const sc = r / 90;                                          // the text scale: 1 at a dial of radius 90 px
+  ctx.save();
+  _inst(entry.id, ctx, box.x + box.w / 2, box.y + box.h / 2, r, sc, entry, 0, `mixed.${key}`);
+  ctx.restore();
+  ST = prev; P = ST.P; L = ST.L;
 }
 const _warned = new Set();
 function _warnOnce(msg) { if (!_warned.has(msg)) { _warned.add(msg); console.warn(msg); } }
@@ -497,12 +522,13 @@ function _num(ctx, x, y, r, deg, text, sz, sc, rr = 0.70) {
      zero         a 0 mark before min — an airspeed dial reads nothing useful below the stall
      zeroFigure   false: the 0 is the needle's rest position only, no tick or figure (D-FEML's rev counter)
      red          from → max, or [a, b];   yellow, green   [a, b];   redLine / yellowLine  a radial mark at a value (or several)
+     white        [a, b] — the flap operating range, an inner arc (the US airspeed dials since the 1940s)
      figuresTo    the last figure (the scale may run on past it);   endMark  a small triangle at the end of the scale
    An aircraft's scale brings its own arcs: the dial's default arcs apply only without one.
    ════════════════════════════════════════════════════════════ */
 function _scale(ctx, x, y, r, sc, scale, def) {
-  const arcs = scale ? {} : { red: def.red, yellow: def.yellow, green: def.green };
-  const A = { min: 0, minor: 5, div: 1, sweep: 280, ...def, red: undefined, yellow: undefined, green: undefined, ...arcs, ...scale };
+  const arcs = scale ? {} : { red: def.red, yellow: def.yellow, green: def.green, white: def.white };
+  const A = { min: 0, minor: 5, div: 1, sweep: 280, ...def, red: undefined, yellow: undefined, green: undefined, white: undefined, ...arcs, ...scale };
   const tick = A.tick ?? A.step, zeroGap = A.zero ? 24 : 0;
   const sMin = A.start ?? 180 + (360 - A.sweep) / 2 + zeroGap, s0 = sMin - zeroGap, sw = A.sweep - (A.start == null ? zeroGap : 0);
   /* below the scale's start the needle rests at the start — on its stop pin — unless the dial has a 0 mark */
@@ -516,6 +542,10 @@ function _scale(ctx, x, y, r, sc, scale, def) {
   if (A.red != null)  band(Array.isArray(A.red) ? A.red : [A.red, A.max], A.redCol ?? '#a02200', 5);
   if (A.yellow)       band(A.yellow, '#cc9900', 4);
   if (A.green)        band(A.green,  '#3a7a3a', 4);
+  if (A.white) {                                                        // inside the others, as painted
+    ctx.save(); ctx.beginPath(); ctx.arc(x, y, r * 0.90, _r(ang(A.white[0])), _r(ang(A.white[1])));
+    ctx.strokeStyle = '#e8e8e8'; ctx.lineWidth = 3 * sc; ctx.stroke(); ctx.restore();
+  }
   const radial = (v, col) => {                                          // a radial line — a limit or caution mark
     const a = _r(ang(v));
     ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = 3 * sc; ctx.beginPath();
@@ -1978,6 +2008,27 @@ function _drawAlt3(ctx, x, y, r, sc, v) {
   const tx = x + Math.cos(a3) * r * 0.8, ty = y + Math.sin(a3) * r * 0.8, n = a3 + Math.PI / 2;
   ctx.fillStyle = P.needle; ctx.beginPath(); ctx.moveTo(x + Math.cos(a3) * r * 0.92, y + Math.sin(a3) * r * 0.92);
   ctx.lineTo(tx + Math.cos(n) * r * 0.05, ty + Math.sin(n) * r * 0.05); ctx.lineTo(tx - Math.cos(n) * r * 0.05, ty - Math.sin(n) * r * 0.05); ctx.fill();
+  _hand(ctx, x, y, r, (((v.ft / 10000) % 1) + 1) % 1 * 360, 0.5, 3.4 * sc);
+  _hand(ctx, x, y, r, (((v.ft / 1000) % 1) + 1) % 1 * 360, 0.82, 1.6 * sc); _cap(ctx, x, y, 3.5 * sc);
+  _label(ctx, x, y, r, L.alt, sc);
+}
+
+/** A modern GA altimeter with a dual pressure scale — the C172's standby (Markus, from a C172 G1000 panel, 2026-11-11):
+    two hands, the long one 1 000 ft a turn, the short one 10 000 ft; two windows with the same setting, the left in
+    hPa (e.g. 1030), the right in in. Hg (30.42) */
+function _drawAltDual(ctx, x, y, r, sc, v) {
+  _base(ctx, x, y, r);
+  for (let i = 0; i < 50; i++) _rtick(ctx, x, y, r, i * 7.2, r * (i % 5 ? 0.07 : 0.14), (i % 5 ? 0.8 : 1.5) * sc);
+  for (let k = 0; k <= 9; k++) _rnum(ctx, x, y, r, k * 36, String(k), 0.17, 0.68);
+  const win = (cx, text) => {
+    const ww = r * 0.36, wh = r * 0.17;
+    ctx.save(); ctx.fillStyle = '#050505'; ctx.beginPath(); ctx.roundRect(cx - ww / 2, y - wh / 2, ww, wh, r * 0.02); ctx.fill();
+    ctx.strokeStyle = P.subdued; ctx.lineWidth = 0.6 * sc; ctx.stroke(); ctx.restore();
+    _rt(ctx, cx, y + r * 0.005, r, text, 0.105);
+  };
+  win(x - r * 0.40, String(Math.round(v.hpa)));
+  win(x + r * 0.40, (v.hpa * 0.0295300).toFixed(2));
+  _rt(ctx, x, y - r * 0.3, r, 'ALT', 0.09); _rt(ctx, x, y + r * 0.32, r, '100 FEET', 0.065, P.subdued, false);
   _hand(ctx, x, y, r, (((v.ft / 10000) % 1) + 1) % 1 * 360, 0.5, 3.4 * sc);
   _hand(ctx, x, y, r, (((v.ft / 1000) % 1) + 1) % 1 * 360, 0.82, 1.6 * sc); _cap(ctx, x, y, 3.5 * sc);
   _label(ctx, x, y, r, L.alt, sc);

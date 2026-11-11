@@ -15,6 +15,7 @@ import {
 } from './pfd_instruments.js';
 import { drawG1000PFD, drawG1000MFD, drawG1000Bezel, drawMagRotary, drawFuelSel } from './g1000.js';
 import { hideG1000Map } from './map.js';
+import { drawInstrument } from './analog_panel.js';
 import { startFuelPump, stopFuelPump } from '../core/sound.js';
 import { startEngine, stopEngine } from '../core/engine.js';
 
@@ -648,6 +649,9 @@ const _WIDGETS = {
 
   /* GA cockpit widgets */
   grid:            _drawGrid,
+  /* a round gauge from the analog panel's registry (display/analog_panel.js) — config: an analogPanel entry
+     ({ id, scale, variant }); the look is the cockpit style's `analogStyle` (default 'ga') */
+  analog:          (ctx, box, style, cfg) => drawInstrument(ctx, box, cfg, style?.analogStyle ?? 'ga', cfg.key ?? cfg.id),
   analog_asi:      (ctx, box) => _drawAnalogASI(ctx, box),
   analog_ai:       (ctx, box) => _drawAnalogAI(ctx, box),
   analog_alt:      (ctx, box) => _drawAnalogALT(ctx, box),

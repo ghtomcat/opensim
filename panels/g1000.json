@@ -14,9 +14,17 @@
             "layout": [
               { "h": 0.82, "cols": [{ "w": 1.0, "widget": "g1000_screen" }] },
               { "h": 0.18, "cols": [
-                { "w": 0.33, "widget": "analog_asi" },
-                { "w": 0.34, "widget": "analog_ai"  },
-                { "w": 0.33, "widget": "analog_alt" }
+                { "w": 0.33, "widget": "analog", "config": {
+                  "id": "asi",
+                  "scale": { "unit": "kt", "min": 40, "max": 200, "step": 20, "minor": 2, "zero": true, "start": 24, "sweep": 312,
+                             "white": [40, 85], "green": [48, 129], "yellow": [129, 163], "redLine": 163 },
+                  "_source": "C172S NAV III POH (172SPHAUS-03) Fig. 2-2, Airspeed Indicator Markings: white 40–85, green 48–129, yellow 129–163, red line 163 KIAS (its red arc 20–40 is the G1000 tape's only). The dial (Markus, from a C172 G1000 panel, 2026-11-11): 0 at the top, then clockwise 40 round to 200."
+                }},
+                { "w": 0.34, "widget": "analog", "config": { "id": "ai" } },
+                { "w": 0.33, "widget": "analog", "config": {
+                  "id": "alt", "variant": "dualBaro",
+                  "_source": "Markus, from a C172 G1000 panel (2026-11-11): two hands (short and long), two windows — the left the setting in hPa (1030), the right the same in in. Hg (read as ~30.41)."
+                }}
               ]}
             ]
           }

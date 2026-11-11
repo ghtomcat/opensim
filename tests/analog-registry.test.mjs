@@ -104,3 +104,29 @@ test('display lag: every lagged instrument exists, no lamp lags, and the horizon
   assert.ok(!('pitch' in INSTRUMENTS.ai.lag) && !('roll' in INSTRUMENTS.ai.lag), 'the attitude is direct');
   assert.ok(INSTRUMENTS.compass.angle && INSTRUMENTS.dg.angle, 'headings ease along the shortest arc');
 });
+
+test('a mixed panel\'s round gauges (glass widget `analog`) name registry instruments, builds they know, drawable in their style', () => {
+  const root = join(dirname(fileURLToPath(import.meta.url)), '..', 'panels');
+  const bad = [];
+  const walk = (node, spec, style) => {
+    if (Array.isArray(node)) return node.forEach(n => walk(n, spec, style));
+    if (!node || typeof node !== 'object') return;
+    if (node.widget === 'analog') {
+      const c = node.config ?? {}, def = INSTRUMENTS[c.id];
+      if (!def) bad.push(`${spec}: unknown instrument "${c.id}"`);
+      else {
+        if (c.variant && !(def.variants ?? []).includes(c.variant)) bad.push(`${spec}: ${c.id} has no build "${c.variant}"`);
+        if (!def.draw[STYLE_UNITS[style]]) bad.push(`${spec}: ${c.id} not drawable in style "${style}"`);
+      }
+    }
+    Object.values(node).forEach(v => walk(v, spec, style));
+  };
+  for (const f of readdirSync(root).filter(f => f.endsWith('.json'))) {
+    const spec = JSON.parse(readFileSync(join(root, f), 'utf8'));
+    let style = 'ga';
+    try { style = JSON.parse(readFileSync(join(root, 'styles', f), 'utf8')).analogStyle ?? 'ga'; } catch {}
+    assert.ok(STYLE_UNITS[style], `${f}: analogStyle "${style}" is a style`);
+    walk(spec.layout, f, style);
+  }
+  assert.deepEqual(bad, []);
+});
