@@ -117,6 +117,18 @@ export function lightSwitch(id, on) {
   return true;
 }
 
+/* ── The exterior lights — their command: { light, on } (`on` absent: toggle). The switches only, as today — the
+   outside view draws them (display/outside.js, on the C172 with BAT on); no bus load yet. ── */
+export const LIGHTS = ['nav', 'beacon', 'strobe', 'landing'];
+export function light(id, on) {
+  if (!LIGHTS.includes(id)) { console.warn(`[lights] unknown light "${id}"`); return false; }
+  const cur = !!S.lights?.[id], next = on ?? !cur;
+  if (next === cur) return false;
+  setState({ lights: { ...(S.lights ?? {}), [id]: next } });
+  return true;
+}
+registerCommand('lights', ({ light: id, on } = {}) => light(id, on));
+
 /* The command: { id, on } — a light aircraft's switch (bat, alt, avionics; the Velis's battEn, pwrEn), else an element
    of the airliner's electrical layout (bat1, ext1, gen1a …). `on` absent: toggle. */
 registerCommand('elec', ({ id, on } = {}) => lightSwitches()

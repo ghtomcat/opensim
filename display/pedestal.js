@@ -859,7 +859,7 @@ function _attachHandlers() {
   _el.querySelectorAll('.ped-toggle[data-light]').forEach(btn => {
     btn.addEventListener('click', () => {
       const k = btn.dataset.light;
-      setState({ lights: { ...S.lights, [k]: !(S.lights?.[k]) } });
+      command('lights', { light: k }, { source: 'click' });   // core/electrical.js
     });
   });
 }

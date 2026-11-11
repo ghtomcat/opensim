@@ -44,3 +44,13 @@ test('an aircraft without these switches refuses them (the Bf 109)', () => {
   assert.equal(command('elec', { id: 'bat', on: true }), false);
   assert.equal(S.masterBat, false);
 });
+
+/* The exterior lights */
+test('the lights: on, off, toggle; unknown lights refused; the others untouched', () => {
+  setState({ aircraft: load('c172'), lights: { nav: false, beacon: false, strobe: false, landing: false } });
+  assert.equal(command('lights', { light: 'nav', on: true }, { source: 'test' }), true);
+  assert.equal(command('lights', { light: 'nav', on: true }), false);
+  assert.equal(command('lights', { light: 'landing' }), true);
+  assert.deepEqual(S.lights, { nav: true, beacon: false, strobe: false, landing: true });
+  assert.equal(command('lights', { light: 'logo' }), false);
+});
