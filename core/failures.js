@@ -17,6 +17,7 @@ import { engineQuit, setEngineFactor } from './engine.js';
 import { v1 } from './takeoff-perf.js';
 import { bbEvent } from './blackbox.js';
 import { onMissionReset } from './lifecycle.js';
+import { registerCommand } from './commands.js';
 import { FAILURE, FAILURE_TRIGGER, assertCovers, warnUnknown } from './vocab.js';
 
 let _fired    = new Set();   // indices of already-fired failures
@@ -119,7 +120,7 @@ export function tickFailures(dt) {
     }
   }
 
-  /* ── Carb ice — runs independently of other failures ── */
+  /* ── Carb ice — runs independently of other failures (carb heat — the command below — melts it) ── */
   if (S.carbIceActive && S.aircraft?.hasCarbHeat) {
     const iceRate  = dt / 90;   // fully iced in 90s (subtle — student must notice early)
     const meltRate = dt / 10;   // clear in 10s with carb heat ON
@@ -136,3 +137,14 @@ export function tickFailures(dt) {
     setEngineFactor('ice', 1.0 - ice * 0.7);
   }
 }
+
+/* ── Carb heat — its command (the carb-ice model above reads it): on, off, or absent: toggle. Only on an aircraft
+   with carb heat (`hasCarbHeat` — the C172, the DR400). ── */
+export function carbHeat(on) {
+  if (!S.aircraft?.hasCarbHeat) return false;
+  const next = on ?? !S.carbHeat;
+  if (!!next === !!S.carbHeat) return false;
+  setState({ carbHeat: !!next });
+  return true;
+}
+registerCommand('carbHeat', (on) => carbHeat(on));

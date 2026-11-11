@@ -233,7 +233,7 @@ function _attachHandlers() {
 
   /* Parking brake — set / release */
   _el.querySelectorAll('#lc-parkbrake .lc-gate-pos').forEach(btn => {
-    btn.addEventListener('click', () => setState({ parkBrake: btn.dataset.pb === '1' }));
+    btn.addEventListener('click', () => command('parkBrake', btn.dataset.pb === '1', { source: 'click' }));   // core/gear.js
   });
 }
 

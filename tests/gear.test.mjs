@@ -61,3 +61,11 @@ test('an unknown position or command is refused', () => {
   assert.equal(command('no-such-command'), false);
   assert.equal(S.gear, true);
 });
+
+/* The parking brake — the wheels' too (core/gear.js) */
+test('the parking brake: set, released; the same again is refused', () => {
+  setState({ parkBrake: false });
+  assert.equal(command('parkBrake', true, { source: 'click' }), true);   assert.equal(S.parkBrake, true);
+  assert.equal(command('parkBrake', true), false);
+  assert.equal(command('parkBrake', false), true);                       assert.equal(S.parkBrake, false);
+});

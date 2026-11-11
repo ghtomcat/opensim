@@ -233,6 +233,7 @@ function _toggleSwitch(key) {
     return;
   }
   /* dot-path e.g. "lights.nav" */
+  if (key === 'carbHeat') { command('carbHeat', undefined, { source: 'click' }); return; }   // core/failures.js
   if (key.startsWith('lights.')) { command('lights', { light: key.slice(7) }, { source: 'click' }); return; }   // core/electrical.js
   if (key.includes('.')) {
     const [top, sub] = key.split('.');

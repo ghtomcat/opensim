@@ -54,3 +54,14 @@ test('the lights: on, off, toggle; unknown lights refused; the others untouched'
   assert.deepEqual(S.lights, { nav: true, beacon: false, strobe: false, landing: true });
   assert.equal(command('lights', { light: 'logo' }), false);
 });
+
+/* Carb heat (core/failures.js — the carb-ice model reads it) */
+test('carb heat: toggles on an aircraft with it, refused on one without', async () => {
+  await import('../core/failures.js');
+  setState({ aircraft: load('c172'), carbHeat: false });
+  assert.equal(command('carbHeat', undefined, { source: 'key' }), true);  assert.equal(S.carbHeat, true);
+  assert.equal(command('carbHeat', true), false);
+  assert.equal(command('carbHeat', false), true);                         assert.equal(S.carbHeat, false);
+  setState({ aircraft: load('bf109') });
+  assert.equal(command('carbHeat'), false);
+});

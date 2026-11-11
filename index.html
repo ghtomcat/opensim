@@ -3590,11 +3590,7 @@
         stopEngine();
       },
       'fuel-selector': () => command('fuelSelector', sweep('fuelSelector', fuelSelectorPositions(), S.fuelSelector), { source: 'key' }),   // the same sweep as a click
-      'carb-heat': () => {
-        const next = !S.carbHeat;
-        setState({ carbHeat: next });
-        bbEvent({ type: 'carb_heat', carbHeat: next });
-      },
+      'carb-heat': () => command('carbHeat', undefined, { source: 'key' }),   // core/failures.js — recorded as a command
       audio: () => setAudioMuted(!audioMuted()),   // everything the sim plays
       'view-mode': () => {
         const nModes = (S.aircraft?.vehicleType === 'rocket' && S.rocketOrbit) ? 5 : 3;

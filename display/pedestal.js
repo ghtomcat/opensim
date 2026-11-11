@@ -815,7 +815,7 @@ function _attachHandlers() {
 
   /* Parking brake — ON / OFF */
   _el.querySelectorAll('.ped-park-pos').forEach(btn => {
-    btn.addEventListener('click', () => setState({ parkBrake: btn.dataset.pb === '1' }));
+    btn.addEventListener('click', () => command('parkBrake', btn.dataset.pb === '1', { source: 'click' }));   // core/gear.js
   });
 
 
@@ -833,9 +833,7 @@ function _attachHandlers() {
     setState({ mixture: cur >= 1 ? 0.5 : cur >= 0.5 ? 0 : 1 });
   });
   /* Carb heat — COLD / HOT */
-  document.getElementById('ped-knob-carbheat')?.addEventListener('click', () => {
-    setState({ carbHeat: !S.carbHeat });
-  });
+  document.getElementById('ped-knob-carbheat')?.addEventListener('click', () => command('carbHeat', undefined, { source: 'click' }));   // core/failures.js
   /* Magneto rotary — a click sweeps OFF → R → L → BOTH → START and back (display/controls.js); the command is core/engine.js's */
   document.getElementById('ped-mag-rot')?.addEventListener('click', () =>
     command('magnetos', sweep('magnetos', MAGNETO_POSITIONS, S.magnetos), { source: 'click' }));
