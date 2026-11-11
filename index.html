@@ -1846,7 +1846,7 @@
            SEG_COL as _SEG_COL } from './core/route.js';
   import { planFor as _planFor } from './core/flightplan.js';
   import { fuelSelectorPositions } from './core/fuel.js';
-  import { sweep } from './display/controls.js';
+  import { sweep, operate } from './display/controls.js';
   import { initCrew, resetCrew } from './core/crew.js';
   import { initInput, isPTTActive }        from './core/input.js';
   import { command }                       from './core/commands.js';
@@ -3588,6 +3588,7 @@
       },
       'fuel-selector': () => command('fuelSelector', sweep('fuelSelector', fuelSelectorPositions(), S.fuelSelector), { source: 'key' }),   // the same sweep as a click
       'carb-heat': () => command('carbHeat', undefined, { source: 'key' }),   // core/failures.js — recorded as a command
+      'speed-brake': () => operate('speedBrake', { source: 'key' }),           // the lever's detents, swept like a click — core/flaps.js
       audio: () => setAudioMuted(!audioMuted()),   // everything the sim plays
       'view-mode': () => {
         const nModes = (S.aircraft?.vehicleType === 'rocket' && S.rocketOrbit) ? 5 : 3;

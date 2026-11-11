@@ -271,7 +271,6 @@ const _keyActions = {
   'flaps-extend':  () => command('flaps', 'extend',  { source: 'key' }),   // the aircraft's own stages: core/flaps.js
   'flaps-retract': () => command('flaps', 'retract', { source: 'key' }),
   gear: () => command('gear', 'toggle', { source: 'key' }),   // the rules (squat lock) are core/gear.js's
-  'speed-brake': () => { if (S.aircraft?.spoilers) setState({ speedBrake: ((S.speedBrake ?? 0) + 1) % 3 }); },   // RET → ARM → FULL → RET — only with spoilers
   'right-console': () => _view('right'),
   role: () => {
     const roles = ['PF', 'PM', 'INSTRUCTOR'];

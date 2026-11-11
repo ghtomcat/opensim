@@ -245,7 +245,8 @@ export function initialEngine(aircraft, { onGround, spd, onRunway = false }) {
   const engines = Array.from({ length: count }, () => _newEngine(state, n1, core, gauges));
   return { ..._aggregate(engines),
            engMasters: Array(count).fill(!cold),                   // ENG MASTER switches: on when the engines run
-           apuMasterOn: false, ...APU_OFF, apuFireArmed: false };   // the APU is off at every mission start
+           apuMasterOn: false, ...APU_OFF, apuFireArmed: false,      // the APU is off at every mission start
+           engFireArmed: Array(count).fill(false), engAgents: [], apuAgent: false };   // no fire handle pulled, no agent fired
 }
 
 /* ── APU ─────────────────────────────────────────────────────── */
@@ -269,8 +270,70 @@ export function apuStart() {
 
 /** APU FIRE handle: shuts the APU down and arms the extinguisher. */
 export function apuFire() {
+  if (S.apuFireArmed) return false;
   setState({ apuMasterOn: false, ...APU_OFF, apuBleedOn: false, apuFireArmed: true });
+  return true;
 }
+
+/* ── The fire and APU controls as commands (the overhead) ── */
+
+/** ENG FIRE handle i pulled: arms its extinguisher, and shuts THAT engine down (its fuel cut). Once — it stays pulled
+    until the mission is reloaded. (Before: the overhead stopped every engine.) */
+export function engineFire(i) {
+  const n = _count();
+  if (!Number.isInteger(i) || i < 0 || i >= n || S.engFireArmed?.[i]) return false;
+  const fires = Array.from({ length: n }, (_, k) => k === i || !!S.engFireArmed?.[k]);
+  setState({ engFireArmed: fires });
+  stopEngine(i);
+  return true;
+}
+
+/** An extinguisher AGENT (1 or 2) of engine i, or of the APU (engine 'apu') — only once its fire handle is pulled; once. */
+export function fireAgent(engine, agent = 1) {
+  if (engine === 'apu') {
+    if (!S.apuFireArmed || S.apuAgent) return false;
+    setState({ apuAgent: true });
+    return true;
+  }
+  if (!S.engFireArmed?.[engine] || (agent !== 1 && agent !== 2)) return false;
+  const k = engine * 2 + agent - 1;
+  if (S.engAgents?.[k]) return false;
+  const agents = [...(S.engAgents ?? [])]; agents[k] = true;
+  setState({ engAgents: agents });
+  return true;
+}
+
+/** APU BLEED: on a turbofan only while the APU runs */
+export function apuBleed(on) {
+  if (on && _turbofan() && (S.apuState ?? 'off') !== 'running') return false;
+  if (!!on === !!S.apuBleedOn) return false;
+  setState({ apuBleedOn: !!on });
+  return true;
+}
+
+/** ENG MODE selector — CRANK, NORM, IGN+START (a rotary: a click sweeps — display/controls.js) */
+export const ENG_MODE_POSITIONS = ['CRANK', 'NORM', 'IGN+START'];
+export function engineMode(pos) {
+  if (!ENG_MODE_POSITIONS.includes(pos) || pos === (S.engMode ?? 'NORM')) return false;
+  setState({ engMode: pos });
+  return true;
+}
+
+/** The cooling flaps / cowl flaps (0 closed … 1 open) — the gate's position; the cooling model reads it (core/physics.js) */
+export function coolFlap(v) {
+  if (typeof v !== 'number' || v < 0 || v > 1 || v === (S.coolFlap ?? 1)) return false;
+  setState({ coolFlap: v });
+  return true;
+}
+
+registerCommand('engineFire', ({ engine } = {}) => engineFire(engine));
+registerCommand('fireAgent',  ({ engine, agent } = {}) => fireAgent(engine, agent));
+registerCommand('apuFire',    () => apuFire());
+registerCommand('apuMaster',  (on) => { if (!!on === !!S.apuMasterOn) return false; apuMaster(!!on); return true; });
+registerCommand('apuStart',   () => { const before = S.apuState; apuStart(); return S.apuState !== before; });
+registerCommand('apuBleed',   (on) => apuBleed(on));
+registerCommand('engineMode', (pos) => engineMode(pos));
+registerCommand('coolFlap',   (v) => coolFlap(v));
 
 function _tickApu(dt) {
   if (S.apuState !== 'starting') return;

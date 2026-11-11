@@ -33,3 +33,12 @@ export function parkBrake(on) {
   return true;
 }
 registerCommand('parkBrake', (on) => parkBrake(on));
+
+/* The autobrake — OFF, LO, MED, MAX (the airliners'; core/physics.js brakes with it on the landing roll) */
+export const AUTOBRAKE_LEVELS = ['OFF', 'LO', 'MED', 'MAX'];
+export function autobrake(level) {
+  if (!S.aircraft?.autobrake || !AUTOBRAKE_LEVELS.includes(level) || level === (S.autobrake ?? 'OFF')) return false;
+  setState({ autobrake: level });
+  return true;
+}
+registerCommand('autobrake', (level) => autobrake(level));

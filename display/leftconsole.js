@@ -8,7 +8,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from '../core/state.js';
-import { command } from '../core/commands.js';
+import { operate, setControl } from './controls.js';
 
 let _el = null;
 
@@ -224,16 +224,15 @@ function _attachHandlers() {
 
   /* Kühlerklappe / cowl flaps — discrete steps (open / half / closed) */
   _el.querySelectorAll('#lc-coolflap .lc-gate-pos').forEach(btn => {
-    btn.addEventListener('click', () => setState({ coolFlap: +btn.dataset.v }));
+    btn.addEventListener('click', () => setControl('coolFlap', +btn.dataset.v));   // core/engine.js
   });
 
   /* Brandhahn — the fuel cock: a click turns it AUF ↔ ZU — the same valve and command as the C172's shutoff (core/fuel.js) */
-  document.getElementById('lc-cock')?.addEventListener('click', () =>
-    command('fuelShutoff', S.fuelShutoff ? 'open' : 'closed', { source: 'click' }));
+  document.getElementById('lc-cock')?.addEventListener('click', () => operate('fuelShutoff'));
 
   /* Parking brake — set / release */
   _el.querySelectorAll('#lc-parkbrake .lc-gate-pos').forEach(btn => {
-    btn.addEventListener('click', () => command('parkBrake', btn.dataset.pb === '1', { source: 'click' }));   // core/gear.js
+    btn.addEventListener('click', () => setControl('parkBrake', btn.dataset.pb === '1'));   // core/gear.js
   });
 }
 

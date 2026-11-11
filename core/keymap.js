@@ -115,7 +115,7 @@ export const KEYS = [
   { id: 'flaps-retract', group: 'Engine and systems', show: 'F', desc: 'Flaps: retract one stage', keys: ['F'], when: flown },
   { id: 'gear', group: 'Engine and systems', show: 'G', desc: 'Gear up / down (not on the ground)',
     keys: ['g', 'G'], when: (ac) => flown(ac) && !ac.fixedGear },
-  { id: 'speed-brake', group: 'Engine and systems', show: 'S', desc: 'Speed brake: RET → ARM → FULL',
+  { id: 'speed-brake', group: 'Engine and systems', show: 'S', desc: 'Speed brake: RET ↔ ARM ↔ FULL',
     keys: ['s', 'S'], when: (ac) => flown(ac) && !!ac?.spoilers },   // the aircraft data has spoilers
   { id: 'start-pedestal', group: 'Engine and systems', info: true, show: 'D',
     desc: 'Engine start on the pedestal: power, ENG MODE IGN/START, ENG MASTERs', when: turbofan },

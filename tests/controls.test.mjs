@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { S, setState } from '../core/state.js';
-import { commandNames } from '../core/commands.js';
+import { commandNames, command as command2 } from '../core/commands.js';
 import { CONTROLS, operate, controlState, guardOpen } from '../display/controls.js';
 import { runMissionResets } from '../core/lifecycle.js';
 import '../core/gear.js';
@@ -56,3 +56,40 @@ test('a mission load closes every guard', () => {
 });
 
 test('an unknown control is refused', () => assert.equal(operate('warp-drive'), false));
+
+/* Step 2c — the HTML zones' controls */
+import { adoptEngineFields } from '../core/engine.js';
+import { setControl, toggleGuard, guardOpen as guardIsOpen } from '../display/controls.js';
+
+test('ENG FIRE: under a guard; pulling it stops THAT engine only, once; its agents only after', () => {
+  runMissionResets();
+  const ac = load('a340');
+  setState({ aircraft: ac, engines: [], engFireArmed: [false, false, false, false], engAgents: [], engMasters: [true, true, true, true] });
+  adoptEngineFields({ engineState: 'running' });
+  setState({ engines: S.engines.map(e => ({ ...e, state: 'running' })) });
+  assert.equal(command2('fireAgent', { engine: 1, agent: 1 }), false);          // no agent before the handle
+  toggleGuard('engFire.2'); assert.equal(guardIsOpen('engFire.2'), true);
+  assert.equal(setControl('engFire.2', true), true);
+  assert.deepEqual(S.engines.map(e => e.state), ['running', 'shutdown', 'running', 'running']);
+  assert.equal(setControl('engFire.2', true), false);                           // pulled already
+  assert.equal(command2('fireAgent', { engine: 1, agent: 1 }), true);
+  assert.equal(command2('fireAgent', { engine: 1, agent: 1 }), false);          // fired already
+});
+
+test('ENG MODE sweeps CRANK ↔ NORM ↔ IGN+START, no wrap-around', () => {
+  runMissionResets();
+  setState({ aircraft: load('a340'), engMode: 'NORM' });
+  const seen = []; for (let i = 0; i < 4; i++) { operate('engMode'); seen.push(S.engMode); }
+  assert.deepEqual(seen, ['IGN+START', 'NORM', 'CRANK', 'NORM']);
+});
+
+test('speed brake, autobrake, cooling flaps: set to a position; refused without the system', () => {
+  setState({ aircraft: load('a340'), speedBrake: 0, autobrake: 'OFF' });
+  assert.equal(setControl('speedBrake', 1), true);   assert.equal(S.speedBrake, 1);
+  assert.equal(setControl('autobrake', 'MED'), true); assert.equal(S.autobrake, 'MED');
+  assert.equal(setControl('autobrake', 'HIGH'), false);
+  setState({ aircraft: load('c172'), speedBrake: 0 });
+  assert.equal(setControl('speedBrake', 2), false);                             // no spoilers
+  setState({ aircraft: load('bf109'), coolFlap: 1 });
+  assert.equal(setControl('coolFlap', 0.5), true);   assert.equal(S.coolFlap, 0.5);
+});

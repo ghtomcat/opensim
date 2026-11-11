@@ -14,6 +14,7 @@
               reached, so after it springs back the next click goes the other way:
                 OFF → R → L → BOTH → START ⟲ BOTH → L → R → OFF → R …
      lever    two positions (the gear): the other one
+     select   a row of buttons or a gate (the autobrake, the cooling flaps): set to the one clicked — setControl
    The sweep's direction and a guard's state belong to the control, not to the aircraft:
    kept here per control id, cleared on every mission load.
    ═══════════════════════════════════════════════════════════════ */
@@ -21,7 +22,8 @@
 import { S } from '../core/state.js';
 import { command } from '../core/commands.js';
 import { onMissionReset } from '../core/lifecycle.js';
-import { MAGNETO_POSITIONS } from '../core/engine.js';
+import { MAGNETO_POSITIONS, ENG_MODE_POSITIONS } from '../core/engine.js';
+import { SPEED_BRAKE_POSITIONS } from '../core/flaps.js';
 import { fuelSelectorPositions } from '../core/fuel.js';
 import { lightSwitchOn } from '../core/electrical.js';
 
@@ -55,13 +57,33 @@ export const CONTROLS = {
   magnetos:     { kind: 'rotary', positions: () => MAGNETO_POSITIONS,       read: () => S.magnetos,     command: 'magnetos' },
   fuelSelector: { kind: 'rotary', positions: () => fuelSelectorPositions(), read: () => S.fuelSelector, command: 'fuelSelector' },
   gear: { kind: 'lever', read: () => S.gear ? 'down' : 'up', command: 'gear' },
+  engMode:    { kind: 'rotary', positions: () => ENG_MODE_POSITIONS,    read: () => S.engMode ?? 'NORM', command: 'engineMode' },
+  speedBrake: { kind: 'rotary', positions: () => SPEED_BRAKE_POSITIONS, read: () => S.speedBrake ?? 0,  command: 'speedBrake' },   // a lever with detents: RET, ARM, FULL
+  autobrake:  { kind: 'select', read: () => S.autobrake ?? 'OFF', command: 'autobrake' },     // a row of buttons: setControl
+  coolFlap:   { kind: 'select', read: () => S.coolFlap ?? 1,      command: 'coolFlap' },      // a gate: setControl
+  apuMaster:  { kind: 'toggle', read: () => !!S.apuMasterOn, command: 'apuMaster', arg: (on) => on },
+  apuBleed:   { kind: 'toggle', read: () => !!S.apuBleedOn,  command: 'apuBleed',  arg: (on) => on },
+  apuFire:    { kind: 'toggle', read: () => !!S.apuFireArmed, command: 'apuFire', arg: () => undefined },   // a handle: pulled once, under a guard
 };
+/* ENG FIRE handle per engine — `engFire.1` …, under a guard; pulled once */
+for (let i = 0; i < 8; i++)
+  CONTROLS[`engFire.${i + 1}`] = { kind: 'toggle', read: () => !!S.engFireArmed?.[i], command: 'engineFire', arg: () => ({ engine: i }) };
 
 /** A control's state as drawn: a toggle's on, a rotary's or a lever's position */
 export const controlState = (id) => CONTROLS[id]?.read();
 
 /** Is a guarded switch's guard lifted? */
 export const guardOpen = (id) => _guardOpen.has(id);
+
+/** Lift or close a guard by itself (a guard drawn apart from its switch — the overhead's fire handles) */
+export function toggleGuard(id) { if (_guardOpen.has(id)) _guardOpen.delete(id); else _guardOpen.add(id); }
+
+/** A control set straight to a position — a detent button, a gate, a row of buttons (`select`) */
+export function setControl(id, value, { source = 'click' } = {}) {
+  const c = CONTROLS[id];
+  if (!c) { console.warn(`[controls] unknown control "${id}"`); return false; }
+  return command(c.command, c.arg ? c.arg(value) : value, { source });
+}
 
 /** A click on control `id` — the command it sends, through its owner. `opts.guarded`: the switch on this panel has a
     guard. `opts.source`: who asked (default 'click'). True when something changed (a guard lifted counts). */

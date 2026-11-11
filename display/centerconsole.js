@@ -12,7 +12,7 @@
 import { S, setState }     from '../core/state.js';
 import { drawECAMUpper, drawECAMLower, nextSdPage } from './pfd_instruments.js';
 import { pushButtonHTML, setPushButton } from './pushbutton.js';
-import { command }         from '../core/commands.js';
+import { operate, setControl } from './controls.js';
 
 const _AB_LEVELS = ['LO', 'MED', 'MAX'];
 
@@ -151,12 +151,12 @@ export function initCenterConsole() {
   /* AUTO BRK — press a level to arm it (ON), press the armed level again to disarm. No OFF. */
   _AB_LEVELS.forEach(lvl => {
     _el.querySelector(`#pb-ab-${lvl.toLowerCase()}`)?.addEventListener('click', () => {
-      setState({ autobrake: S.autobrake === lvl ? 'OFF' : lvl });
+      setControl('autobrake', S.autobrake === lvl ? 'OFF' : lvl);   // core/gear.js
     });
   });
 
   /* Gear lever → the gear command (core/gear.js: fixed gear, squat lock) — the same as the G key */
-  _el.querySelector('#ccon-lever').addEventListener('click', () => command('gear', 'toggle', { source: 'click' }));
+  _el.querySelector('#ccon-lever').addEventListener('click', () => operate('gear'));
 }
 
 export function toggleCenter() {

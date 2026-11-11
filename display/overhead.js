@@ -11,7 +11,8 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState }                             from '../core/state.js';
-import { stopEngine, apuMaster, apuStart, apuFire } from '../core/engine.js';
+import { command }                                  from '../core/commands.js';
+import { operate, setControl, toggleGuard, guardOpen } from './controls.js';
 import { electricalLayout, elecCtl, elecCharge, elecSwitch, elecIdgDisconnect, elecBusTie, elecBusTieAuto } from '../core/electrical.js';
 import { hydCtl, hydPump, hydView, hydraulicsLayout, hydRole } from '../core/hydraulics.js';
 import { tacSwitch }                                from '../core/yaw.js';
@@ -483,66 +484,33 @@ function _attachHandlers() {
 
   /* Engine fire handles */
   for (let i = 1; i <= n; i++) {
-    document.getElementById(`ohp-eng-fire-guard-${i}`)?.addEventListener('click', () => {
-      document.getElementById(`ohp-eng-fire-guard-${i}`)?.classList.toggle('lifted');
-    });
+    /* ENG FIRE — the guard lifts and closes on its own; the handle pulls only with it lifted (display/controls.js),
+       and shuts down that engine only (core/engine.js — before, every engine) */
+    document.getElementById(`ohp-eng-fire-guard-${i}`)?.addEventListener('click', () => { toggleGuard(`engFire.${i}`); _updateSwitches(); });
     document.getElementById(`ohp-eng-fire-${i}`)?.addEventListener('click', () => {
-      const guard = document.getElementById(`ohp-eng-fire-guard-${i}`);
-      if (!guard?.classList.contains('lifted')) return;
-      const fires = [...(S.engFireArmed ?? Array(n).fill(false))];
-      fires[i - 1] = true;
-      setState({ engFireArmed: fires });
-      /* Shut down engine if this was the last/only running engine */
-      if ((S.engineState ?? 'off') === 'running') stopEngine();
+      if (guardOpen(`engFire.${i}`)) setControl(`engFire.${i}`, true);
       _updateSwitches();
     });
-    /* AGENT 1 */
-    document.getElementById(`ohp-eng-agent1-${i}`)?.addEventListener('click', () => {
-      if (!(S.engFireArmed?.[i - 1])) return;
-      const agents = [...(S.engAgents ?? [])];
-      agents[(i - 1) * 2] = true;
-      setState({ engAgents: agents });
-      _updateSwitches();
-    });
-    /* AGENT 2 */
-    document.getElementById(`ohp-eng-agent2-${i}`)?.addEventListener('click', () => {
-      if (!(S.engFireArmed?.[i - 1])) return;
-      const agents = [...(S.engAgents ?? [])];
-      agents[(i - 1) * 2 + 1] = true;
-      setState({ engAgents: agents });
-      _updateSwitches();
-    });
+    /* AGENT 1 / 2 — once the handle is pulled */
+    document.getElementById(`ohp-eng-agent1-${i}`)?.addEventListener('click', () => { command('fireAgent', { engine: i - 1, agent: 1 }, { source: 'click' }); _updateSwitches(); });
+    document.getElementById(`ohp-eng-agent2-${i}`)?.addEventListener('click', () => { command('fireAgent', { engine: i - 1, agent: 2 }, { source: 'click' }); _updateSwitches(); });
   }
 
   /* APU MASTER — latching switch */
-  document.getElementById('pb-apu-master')?.addEventListener('click', () => {
-    apuMaster(!(S.apuMasterOn ?? false));   // off = shutdown (the APU sound follows apuState)
-    _updateSwitches();
-  });
+  document.getElementById('pb-apu-master')?.addEventListener('click', () => { operate('apuMaster'); _updateSwitches(); });   // off = shutdown (the APU sound follows apuState)
 
   /* APU START — momentary; the start-up sound follows apuState */
-  document.getElementById('pb-apu-start')?.addEventListener('click', () => {
-    apuStart();
-    _updateSwitches();
-  });
+  document.getElementById('pb-apu-start')?.addEventListener('click', () => { command('apuStart', undefined, { source: 'click' }); _updateSwitches(); });
 
   /* APU BLEED — only when APU running */
-  document.getElementById('pb-apu-bleed')?.addEventListener('click', () => {
-    if (turbofan && (S.apuState ?? 'off') !== 'running') return;
-    setState({ apuBleedOn: !(S.apuBleedOn ?? false) });
-    _updateSwitches();
-  });
+  document.getElementById('pb-apu-bleed')?.addEventListener('click', () => { operate('apuBleed'); _updateSwitches(); });   // only while the APU runs — core/engine.js
 
   /* APU FIRE guard — lift before pulling handle */
-  document.getElementById('ohp-apu-fire-guard')?.addEventListener('click', () => {
-    document.getElementById('ohp-apu-fire-guard')?.classList.toggle('lifted');
-  });
+  document.getElementById('ohp-apu-fire-guard')?.addEventListener('click', () => { toggleGuard('apuFire'); _updateSwitches(); });
 
   /* APU FIRE handle — pull (only when guard lifted) */
   document.getElementById('ohp-apu-fire')?.addEventListener('click', () => {
-    const guard = document.getElementById('ohp-apu-fire-guard');
-    if (!guard?.classList.contains('lifted')) return;   // guard must be lifted first
-    apuFire();
+    if (guardOpen('apuFire')) setControl('apuFire', true);   // the guard must be lifted first
     _updateSwitches();
   });
 
@@ -574,11 +542,7 @@ function _attachHandlers() {
   }
 
   /* APU AGENT — only available after fire handle pulled */
-  document.getElementById('ohp-apu-agent')?.addEventListener('click', () => {
-    if (!(S.apuFireArmed ?? false)) return;
-    setState({ apuAgent: true });
-    _updateSwitches();
-  });
+  document.getElementById('ohp-apu-agent')?.addEventListener('click', () => { command('fireAgent', { engine: 'apu' }, { source: 'click' }); _updateSwitches(); });
 
   /* THRUST ASYM COMP (TAC) */
   document.getElementById('pb-tac')?.addEventListener('click', () => {
@@ -655,6 +619,10 @@ function _sub(id, text) {
 function _updateSwitches() {
   const n        = _engCount();
   const turbofan = _isTurbofan();
+
+  /* The fire handles' guards — their state is the control's (display/controls.js), cleared on a mission load */
+  for (let i = 1; i <= n; i++) document.getElementById(`ohp-eng-fire-guard-${i}`)?.classList.toggle('lifted', guardOpen(`engFire.${i}`));
+  document.getElementById('ohp-apu-fire-guard')?.classList.toggle('lifted', guardOpen('apuFire'));
 
   /* Engine fire handles + AGENT buttons */
   const fires  = S.engFireArmed ?? Array(n).fill(false);

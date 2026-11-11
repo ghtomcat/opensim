@@ -6,12 +6,10 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from '../core/state.js';
-import { MAGNETO_POSITIONS } from '../core/engine.js';
-import { fuelSelectorPositions } from '../core/fuel.js';
 import { altLabel } from '../core/route.js';
 import { flapLabel } from '../core/airframe.js';
 import { command } from '../core/commands.js';
-import { sweep } from './controls.js';
+import { operate, setControl, controlState } from './controls.js';
 import { buildDescentPath } from '../core/vnav.js';
 
 let _el = null;
@@ -673,8 +671,8 @@ function _buildHTML() {
             <div class="ped-knob-name">FUEL<br>SHUTOFF</div>
           </div>` : '';
   /* Bat-handle toggle (G1000 design: housing + lever + LED) */
-  const _toggle = (attr, key, lbl) => `
-              <div class="ped-toggle" data-${attr}="${key}">
+  const _toggle = (control, lbl) => `
+              <div class="ped-toggle" data-control="${control}">
                 <div class="ped-toggle-housing"><span class="ped-toggle-lever"></span></div>
                 <span class="ped-toggle-led"></span>
                 <span class="ped-toggle-lbl">${lbl}</span>
@@ -684,8 +682,8 @@ function _buildHTML() {
           <div class="ped-toggle-block">
             <div class="ped-toggle-grouplabel">ELEC</div>
             <div class="ped-toggle-row">${[
-              ['masterBat', 'BAT'], ['masterAlt', 'ALT'], ['avionicsOn', 'AVNCS'], ['fuelPump', 'PUMP'],
-            ].map(([id, lbl]) => _toggle('sw', id, lbl)).join('')}</div>
+              ['bat', 'BAT'], ['alt', 'ALT'], ['avionics', 'AVNCS'], ['fuelPump', 'PUMP'],
+            ].map(([id, lbl]) => _toggle(id, lbl)).join('')}</div>
           </div>` : '';
   /* ── Exterior lights ── */
   const lightsBlock = has('lights') ? `
@@ -693,7 +691,7 @@ function _buildHTML() {
             <div class="ped-toggle-grouplabel">LIGHTS</div>
             <div class="ped-toggle-row">${[
               ['nav', 'NAV'], ['beacon', 'BCN'], ['strobe', 'STRB'], ['landing', 'LAND'],
-            ].map(([k, lbl]) => _toggle('light', k, lbl)).join('')}</div>
+            ].map(([k, lbl]) => _toggle(`lights.${k}`, lbl)).join('')}</div>
           </div>` : '';
   const flexRow = (flapBlock || sbBlock || pbBlock || fuelBlock || cutoffBlock || switchBlock || lightsBlock) ? `
         <div class="ped-flexrow">${flapBlock}${sbBlock}${fuelBlock}${cutoffBlock}${switchBlock}${lightsBlock}${pbBlock}
@@ -761,16 +759,8 @@ function _buildHTML() {
 function _attachHandlers() {
   if (!_el) return;
 
-  /* Rotary mode knob — click cycles CRANK → NORM → IGN+START */
-  const MODES = ['CRANK', 'NORM', 'IGN+START'];
-  const ANGLES = { 'CRANK': -120, 'NORM': 0, 'IGN+START': 120 };
-  document.getElementById('ped-rotary-knob')?.addEventListener('click', () => {
-    const cur  = S.engMode ?? 'NORM';
-    const next = MODES[(MODES.indexOf(cur) + 1) % MODES.length];
-    setState({ engMode: next });
-    const knob = document.getElementById('ped-rotary-knob');
-    if (knob) knob.style.transform = `rotate(${ANGLES[next]}deg)`;
-  });
+  /* ENG MODE selector — a click sweeps CRANK ↔ NORM ↔ IGN+START, no wrap-around (display/controls.js); _update turns the knob */
+  document.getElementById('ped-rotary-knob')?.addEventListener('click', () => operate('engMode'));
 
   /* Engine master flip switches */
   const n = S.aircraft?.engine?.count ?? 2;
@@ -809,13 +799,13 @@ function _attachHandlers() {
   /* Speed brake — RET=0, ARM=1, FULL=2 */
   _el.querySelectorAll('.ped-spdbk-pos').forEach(btn => {
     btn.addEventListener('click', () => {
-      setState({ speedBrake: +btn.dataset.sb });
+      setControl('speedBrake', +btn.dataset.sb);   // core/flaps.js
     });
   });
 
   /* Parking brake — ON / OFF */
   _el.querySelectorAll('.ped-park-pos').forEach(btn => {
-    btn.addEventListener('click', () => command('parkBrake', btn.dataset.pb === '1', { source: 'click' }));   // core/gear.js
+    btn.addEventListener('click', () => setControl('parkBrake', btn.dataset.pb === '1'));   // core/gear.js
   });
 
 
@@ -833,33 +823,13 @@ function _attachHandlers() {
     setState({ mixture: cur >= 1 ? 0.5 : cur >= 0.5 ? 0 : 1 });
   });
   /* Carb heat — COLD / HOT */
-  document.getElementById('ped-knob-carbheat')?.addEventListener('click', () => command('carbHeat', undefined, { source: 'click' }));   // core/failures.js
-  /* Magneto rotary — a click sweeps OFF → R → L → BOTH → START and back (display/controls.js); the command is core/engine.js's */
-  document.getElementById('ped-mag-rot')?.addEventListener('click', () =>
-    command('magnetos', sweep('magnetos', MAGNETO_POSITIONS, S.magnetos), { source: 'click' }));
-  /* Fuel selector rotary — a click sweeps LEFT ↔ BOTH ↔ RIGHT (display/controls.js); the command is core/fuel.js's */
-  document.getElementById('ped-fsel')?.addEventListener('click', () =>
-    command('fuelSelector', sweep('fuelSelector', fuelSelectorPositions(), S.fuelSelector), { source: 'click' }));
-  /* Fuel shutoff — red cutoff knob: a click pulls it out (closed) or pushes it in (open) — the command is core/fuel.js's */
-  document.getElementById('ped-shutoff')?.addEventListener('click', () =>
-    command('fuelShutoff', S.fuelShutoff ? 'open' : 'closed', { source: 'click' }));
-  /* Electrical switches — bat-handle toggle */
-  _el.querySelectorAll('.ped-toggle[data-sw]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const k = btn.dataset.sw, next = !S[k];
-      if (k === 'fuelPump') { command('auxFuelPump', next, { source: 'click' }); return; }   // the pump and its hum: core/fuel.js
-      const elecId = { masterBat: 'bat', masterAlt: 'alt', avionicsOn: 'avionics' }[k];
-      if (elecId) { command('elec', { id: elecId, on: next }, { source: 'click' }); return; }   // core/electrical.js
-      setState({ [k]: next });
-    });
-  });
-  /* Exterior lights — bat-handle toggle */
-  _el.querySelectorAll('.ped-toggle[data-light]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const k = btn.dataset.light;
-      command('lights', { light: k }, { source: 'click' });   // core/electrical.js
-    });
-  });
+  document.getElementById('ped-knob-carbheat')?.addEventListener('click', () => operate('carbHeat'));
+  /* Magnetos, fuel selector (rotaries — a click sweeps), the fuel shutoff knob — display/controls.js */
+  document.getElementById('ped-mag-rot')?.addEventListener('click', () => operate('magnetos'));
+  document.getElementById('ped-fsel')?.addEventListener('click', () => operate('fuelSelector'));
+  document.getElementById('ped-shutoff')?.addEventListener('click', () => operate('fuelShutoff'));
+  /* The bat-handle toggles — electrical switches, fuel pump, lights: each names its control (display/controls.js) */
+  _el.querySelectorAll('.ped-toggle[data-control]').forEach(btn => btn.addEventListener('click', () => operate(btn.dataset.control)));
 }
 
 /* ── Live update ───────────────────────────────────────────────── */
@@ -965,8 +935,7 @@ function _update() {
   const shut = document.getElementById('ped-shutoff');
   if (shut) shut.classList.toggle('ped-shutoff-on', !!S.fuelShutoff);
   /* Electrical switches + lights — bat-handle toggles */
-  _el.querySelectorAll('.ped-toggle[data-sw]').forEach(b => b.classList.toggle('on', !!S[b.dataset.sw]));
-  _el.querySelectorAll('.ped-toggle[data-light]').forEach(b => b.classList.toggle('on', !!(S.lights?.[b.dataset.light])));
+  _el.querySelectorAll('.ped-toggle[data-control]').forEach(b => b.classList.toggle('on', !!controlState(b.dataset.control)));
 }
 
 /* ── Public API ────────────────────────────────────────────────── */

@@ -25,3 +25,13 @@ export function flaps(arg) {
 }
 
 registerCommand('flaps', flaps);
+
+/* ── The speed brake lever — RET 0, ARM 1, FULL 2 (core/physics.js: the ground spoilers, auto-deploy on touchdown).
+   Only on an aircraft with spoilers. ── */
+export const SPEED_BRAKE_POSITIONS = [0, 1, 2];
+export function speedBrake(pos) {
+  if (!S.aircraft?.spoilers || !SPEED_BRAKE_POSITIONS.includes(pos) || pos === (S.speedBrake ?? 0)) return false;
+  setState({ speedBrake: pos });
+  return true;
+}
+registerCommand('speedBrake', (pos) => speedBrake(pos));
