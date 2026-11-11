@@ -18,7 +18,8 @@
 import { S, setState }               from '../core/state.js';
 import { updateVelisMapOverlay, hideVelisMap } from './map.js';
 import { flapLabel } from '../core/airframe.js';
-import { command } from '../core/commands.js';
+import { operate } from './controls.js';
+import { beginHits, addHit, hitAreas } from './hit.js';
 
 /* ── Palette ── */
 const P = {
@@ -42,8 +43,6 @@ const MONO = '"IBM Plex Mono","Courier New",monospace';
 const SANS = '"Helvetica Neue",Helvetica,Arial,sans-serif';
 const _r   = d => (d - 90) * Math.PI / 180;
 
-/* ── Hit regions for click handling — rebuilt each frame ── */
-let _hitRegions = [];
 
 /* The instruments (NESIS, EPSI) are on the avionics bus: MASTER connects the 14 V auxiliary
    battery to the main bus, AVIONICS the main bus to the avionics bus. BATT EN (the traction
@@ -55,13 +54,15 @@ const _avionicsPowered = () => !!(S.switches?.master && S.switches?.avionics);
 /* ════════════════════════════════════════════════════════════
    MAIN ENTRY
    ════════════════════════════════════════════════════════════ */
+let _canvas = null;   // the canvas drawn on — its click areas are read for tests
 export function renderVelisEpsi(canvas) {
+  _canvas = canvas;
   const W = canvas.width  = canvas.offsetWidth  * devicePixelRatio;
   const H = canvas.height = canvas.offsetHeight * devicePixelRatio;
   const ctx = canvas.getContext('2d');
   ctx.save();
 
-  _hitRegions = [];   // reset click targets
+  beginHits(canvas);   // the click areas, registered as they are drawn (display/hit.js)
 
   /* Panel background */
   ctx.fillStyle = P.panel;
@@ -109,26 +110,8 @@ export function renderVelisEpsi(canvas) {
   ctx.restore();
 }
 
-/* ════════════════════════════════════════════════════════════
-   CLICK HANDLER — call once from index.html
-   ════════════════════════════════════════════════════════════ */
-/** The click areas drawn last frame, by name (master, battEn, pwrEn, avionics), in canvas px — for tests. */
-export const velisHitRegions = () => _hitRegions.map(({ name, x, y, w, h }) => ({ name, x, y, w, h }));
-
-export function handleVelisClick(canvas, evt) {
-  const rect = canvas.getBoundingClientRect();
-  const dpr  = devicePixelRatio;
-  const cx   = (evt.clientX - rect.left) * dpr;
-  const cy   = (evt.clientY - rect.top)  * dpr;
-
-  for (const region of _hitRegions) {
-    if (cx >= region.x && cx <= region.x + region.w &&
-        cy >= region.y && cy <= region.y + region.h) {
-      region.action();
-      return;
-    }
-  }
-}
+/** The click areas drawn last frame, by name (bat, battEn, pwrEn, avionics), in canvas px — for tests. */
+export const velisHitRegions = () => _canvas ? hitAreas(_canvas) : [];
 
 /* ════════════════════════════════════════════════════════════
    SHARED DRAW HELPERS
@@ -254,8 +237,8 @@ function _drawMasterSwitches(ctx, x0, y0, w, h, sc) {
   ctx.stroke();
 
   const dpr = devicePixelRatio;
-  const reg = (name, cx, sy, tw, th, action) =>
-    _hitRegions.push({ name, x: cx - tw / 2, y: sy, w: tw, h: th, action });
+  const reg = (name, cx, sy, tw, th) =>   // the control `name` (display/controls.js) — its area on this canvas
+    addHit(ctx.canvas, { name, x: cx - tw / 2, y: sy, w: tw, h: th, action: () => operate(name) });
 
   /* The switches use the space between the clock (and its KEYS button, HTML on top of the
      canvas) and the bottom of the zone — measured, not a fixed offset, so they stay whole and
@@ -281,22 +264,21 @@ function _drawMasterSwitches(ctx, x0, y0, w, h, sc) {
   const keyR = Math.min(w * 0.15, u * 0.95);
   const keyY = sy + keyR * 1.60;
   _velisKey(ctx, cpx, keyY, keyR, sw.master, fs);
-  reg('master', cpx, sy, keyR * 3.4, keyR * 3.6,
-    () => command('elec', { id: 'bat' }, { source: 'click' }));   // the MASTER key — the 14 V battery master (core/electrical.js)
+  reg('bat', cpx, sy, keyR * 3.4, keyR * 3.6);   // the MASTER key — the 14 V battery master
   sy += u * 4;
 
   /* ── POWER: BATT EN + PWR EN ── */
   secLabel('POWER', sy); sy += u * 0.6;
   _velisToggle(ctx, cx1, sy, swW, swH, sw.battEn, 'BATT EN', fs);
-  reg('battEn', cx1, sy, swW, swH, () => command('elec', { id: 'battEn' }, { source: 'click' }));
+  reg('battEn', cx1, sy, swW, swH);
   _velisToggle(ctx, cx2, sy, swW, swH, sw.pwrEn,  'PWR EN', fs);
-  reg('pwrEn', cx2, sy, swW, swH, () => command('elec', { id: 'pwrEn' }, { source: 'click' }));
+  reg('pwrEn', cx2, sy, swW, swH);
   sy += swH + u * 0.4;
 
   /* ── AVIONICS ── */
   secLabel('AVIONICS', sy); sy += u * 0.6;
   _velisToggle(ctx, cpx, sy, swW, swH, sw.avionics, 'AVNCS', fs);
-  reg('avionics', cpx, sy, swW, swH, () => command('elec', { id: 'avionics' }, { source: 'click' }));
+  reg('avionics', cpx, sy, swW, swH);
 }
 
 /* The lowest edge of the HTML drawn over the panel's top left (the mission clock, the KEYS

@@ -1860,7 +1860,8 @@
   import { hilInit }      from './core/hil.js';
   import { startTelemetry, downloadTelemetry, downloadTelemetryCSV } from './core/telemetry.js';
   import { initBlackbox, bbEvent, downloadBlackbox } from './core/blackbox.js';
-  import { renderPanel, renderFCU, renderCockpit, handleCockpitClick } from './display/panel_renderer.js';
+  import { renderPanel, renderFCU, renderCockpit } from './display/panel_renderer.js';
+  import { dispatchClick } from './display/hit.js';
   import { qnhHitRegion, fcuButtonRegions, nextSdPage } from './display/pfd_instruments.js';
   import { indicatedAlt } from './core/baro.js';
   import { renderRocket, renderApollo, handleApolloClick, isApolloTelemetry } from './display/rocket_display.js';
@@ -1870,7 +1871,7 @@
   import { renderAnalogPanel } from './display/analog_panel.js';
   import { initRobotArm, renderRobotArm, resetRobotArm } from './display/robot_arm.js';
   import { renderYertleQuadruped, resetYertleQuadruped } from './display/yertle_quadruped.js';
-  import { renderVelisEpsi, handleVelisClick } from './display/velis_epsi.js';
+  import { renderVelisEpsi } from './display/velis_epsi.js';
   import { initCOM, stopCOM, tickCOMPower } from './display/com.js';
   import { initOverhead, toggleOverhead, renderOverhead } from './display/overhead.js';
   import { initPedestal, togglePedestal, renderPedestal } from './display/pedestal.js';
@@ -2120,11 +2121,10 @@
   }
 
   canvas.addEventListener('click', evt => {
-    if (S.aircraft?.panel === 'velis-epsi') handleVelisClick(canvas, evt);
+    if (dispatchClick(canvas, evt)) return;   // a control drawn on the canvas (display/hit.js) — the GA panels, the Velis
     if (S.aircraft?.vehicleType === 'rocket' && S.mission?.dragonSepT) handleDragonClick(canvas, evt);
     if (S.aircraft?.id === 'saturn-v' && S.inLM && S.mission?.hasLM) handleLMClick(canvas, evt);
     else if (S.aircraft?.id === 'saturn-v') handleApolloClick(canvas, evt);
-    if (S.aircraft?.panel === 'g1000' || S.aircraft?.panel === 'dr400') handleCockpitClick(canvas, evt);
     /* Airbus/E190 PFD: click the QNH window → toggle STD ↔ QNH */
     if ((S.aircraft?.panel === 'airbus' || S.aircraft?.panel === 'e190') && _overRegion(qnhHitRegion(), evt)) {
       setState({ baroStd: !S.baroStd });

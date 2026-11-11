@@ -5,14 +5,14 @@
     { "h": 0.16, "cols": [
       { "w": 0.72, "widget": "rocker_strip", "config": {
         "switches": [
-          { "label": "BAT",   "state": "masterBat",      "color": "red",   "guarded": true  },
-          { "label": "ALT",   "state": "masterAlt",      "color": "red",   "guarded": true  },
-          { "label": "AVNCS", "state": "avionicsOn",     "color": "amber"                   },
-          { "label": "PUMP",  "state": "fuelPump",       "color": "amber"                   },
-          { "label": "NAV",   "state": "lights.nav",     "color": "green"                   },
-          { "label": "BCN",   "state": "lights.beacon",  "color": "green"                   },
-          { "label": "STRB",  "state": "lights.strobe",  "color": "amber"                   },
-          { "label": "LAND",  "state": "lights.landing", "color": "amber"                   }
+          { "label": "BAT",   "control": "bat",      "color": "red",   "guarded": true  },
+          { "label": "ALT",   "control": "alt",      "color": "red",   "guarded": true  },
+          { "label": "AVNCS", "control": "avionics",     "color": "amber"                   },
+          { "label": "PUMP",  "control": "fuelPump",       "color": "amber"                   },
+          { "label": "NAV",   "control": "lights.nav",     "color": "green"                   },
+          { "label": "BCN",   "control": "lights.beacon",  "color": "green"                   },
+          { "label": "STRB",  "control": "lights.strobe",  "color": "amber"                   },
+          { "label": "LAND",  "control": "lights.landing", "color": "amber"                   }
         ]
       }},
       { "w": 0.28, "widget": "aircraft_tag" }
@@ -37,7 +37,7 @@
       { "w": 0.33, "widget": "fuel_selector"   },
       { "w": 0.33, "widget": "bottom_switches", "config": {
         "switches": [
-          { "label": "C HEAT", "state": "carbHeat" }
+          { "label": "C HEAT", "control": "carbHeat" }
         ]
       }}
     ]}

@@ -1,22 +1,33 @@
 /* ═══════════════════════════════════════════════════════════════
    OpenSim — display/controls.js
-   What a click does on a control — shared by the canvas panels and the HTML zones, so
-   the same switch behaves the same wherever it is drawn. The first piece of the control
-   kit (docs/issues.md, *Instruments, controls and mixed panels — the plan*, step 2).
+   The controls: what you click. Each defined ONCE — its kind, what it reads, which
+   command it sends — whether it is drawn on a canvas or built in HTML (the technique is
+   only its look; Markus, 2026-11-11). `operate(id)` is what a click does. The commands
+   and their rules are the owners' (core/commands.js). docs/issues.md, *Instruments,
+   controls and mixed panels — the plan*, step 2.
 
-   A rotary switch with detents (magnetos, fuel selector) SWEEPS: a click steps to the
-   next position in the current direction, and the direction turns round at either end —
-   no wrap-around (Markus, 2026-11-11). A spring-loaded end (START) counts as reached
-   when it is clicked to, so after it springs back the next click goes the other way:
-     OFF → R → L → BOTH → START ⟲ BOTH → L → R → OFF → R …
-   The direction belongs to the control, not to the aircraft: kept here per control id,
-   cleared on every mission load. The control then sends the position as a command.
+   Kinds and their click:
+     toggle   flips — a guarded one lifts its guard on the first click, then flips;
+              turning it off closes the guard again
+     rotary   with detents, SWEEPS: the next position in the current direction, turning
+              round at either end — no wrap-around; a spring-loaded end (START) counts as
+              reached, so after it springs back the next click goes the other way:
+                OFF → R → L → BOTH → START ⟲ BOTH → L → R → OFF → R …
+     lever    two positions (the gear): the other one
+   The sweep's direction and a guard's state belong to the control, not to the aircraft:
+   kept here per control id, cleared on every mission load.
    ═══════════════════════════════════════════════════════════════ */
 
+import { S } from '../core/state.js';
+import { command } from '../core/commands.js';
 import { onMissionReset } from '../core/lifecycle.js';
+import { MAGNETO_POSITIONS } from '../core/engine.js';
+import { fuelSelectorPositions } from '../core/fuel.js';
+import { lightSwitchOn } from '../core/electrical.js';
 
-const _dir = new Map();   // control id → +1 | −1
-onMissionReset(() => _dir.clear());
+const _dir = new Map();          // control id → +1 | −1 (a rotary's sweep)
+const _guardOpen = new Set();    // control ids whose guard is lifted
+onMissionReset(() => { _dir.clear(); _guardOpen.clear(); });
 
 /** The position a click on a sweeping rotary switch goes to — from `current`, among `positions` */
 export function sweep(id, positions, current) {
@@ -28,4 +39,42 @@ export function sweep(id, positions, current) {
   if (next === 0 || next === n - 1) d = -d;                  // reaching an end: the next click goes back
   _dir.set(id, d);
   return positions[next];
+}
+
+/* ── The definitions. A toggle: read() → on?, arg(on) → the command's argument. A rotary: positions(), read(). ── */
+const elec  = (id) => ({ kind: 'toggle', read: () => lightSwitchOn(id), command: 'elec', arg: (on) => ({ id, on }) });
+const light = (id) => ({ kind: 'toggle', read: () => !!S.lights?.[id], command: 'lights', arg: (on) => ({ light: id, on }) });
+
+export const CONTROLS = {
+  bat: elec('bat'), alt: elec('alt'), avionics: elec('avionics'), battEn: elec('battEn'), pwrEn: elec('pwrEn'),
+  'lights.nav': light('nav'), 'lights.beacon': light('beacon'), 'lights.strobe': light('strobe'), 'lights.landing': light('landing'),
+  fuelPump:    { kind: 'toggle', read: () => !!S.fuelPump,    command: 'auxFuelPump', arg: (on) => on },
+  fuelShutoff: { kind: 'toggle', read: () => !!S.fuelShutoff, command: 'fuelShutoff', arg: (on) => on ? 'closed' : 'open' },   // on = pulled / ZU
+  carbHeat:    { kind: 'toggle', read: () => !!S.carbHeat,    command: 'carbHeat',    arg: (on) => on },
+  parkBrake:   { kind: 'toggle', read: () => !!S.parkBrake,   command: 'parkBrake',   arg: (on) => on },
+  magnetos:     { kind: 'rotary', positions: () => MAGNETO_POSITIONS,       read: () => S.magnetos,     command: 'magnetos' },
+  fuelSelector: { kind: 'rotary', positions: () => fuelSelectorPositions(), read: () => S.fuelSelector, command: 'fuelSelector' },
+  gear: { kind: 'lever', read: () => S.gear ? 'down' : 'up', command: 'gear' },
+};
+
+/** A control's state as drawn: a toggle's on, a rotary's or a lever's position */
+export const controlState = (id) => CONTROLS[id]?.read();
+
+/** Is a guarded switch's guard lifted? */
+export const guardOpen = (id) => _guardOpen.has(id);
+
+/** A click on control `id` — the command it sends, through its owner. `opts.guarded`: the switch on this panel has a
+    guard. `opts.source`: who asked (default 'click'). True when something changed (a guard lifted counts). */
+export function operate(id, { guarded = false, source = 'click' } = {}) {
+  const c = CONTROLS[id];
+  if (!c) { console.warn(`[controls] unknown control "${id}"`); return false; }
+  if (c.kind === 'toggle') {
+    const on = !!c.read();
+    if (guarded && !on && !_guardOpen.has(id)) { _guardOpen.add(id); return true; }   // first click: lift the guard
+    _guardOpen.delete(id);                                                            // thrown, or turned off: it closes
+    return command(c.command, c.arg(!on), { source });
+  }
+  if (c.kind === 'rotary') return command(c.command, sweep(id, c.positions(), c.read()), { source });
+  if (c.kind === 'lever')  return command(c.command, 'toggle', { source });
+  return false;
 }

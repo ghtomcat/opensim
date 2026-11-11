@@ -5,7 +5,6 @@
    renderPanel(canvas, screenIdx, specOverride?) — Airbus PFD/ND
    renderFCU(canvas)                            — Airbus FCU
    renderCockpit(canvas)                        — DR-400 & future GA
-   handleCockpitClick(canvas, evt)              — hit-test GA panels
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from '../core/state.js';
@@ -16,17 +15,10 @@ import {
 import { drawG1000PFD, drawG1000MFD, drawG1000Bezel, drawMagRotary, drawFuelSel } from './g1000.js';
 import { hideG1000Map } from './map.js';
 import { drawInstrument } from './analog_panel.js';
-import { MAGNETO_POSITIONS } from '../core/engine.js';
-import { fuelSelectorPositions } from '../core/fuel.js';
-import { command } from '../core/commands.js';
-import { sweep } from './controls.js';
+import { operate, controlState, guardOpen } from './controls.js';
+import { beginHits, addHit } from './hit.js';
 
-/* ── Hit regions (rebuilt each cockpit frame) ── */
-let _hitRegions  = [];
-let _currentCanvas = null;
-
-/* ── Guard state: keys whose protective cover has been lifted ── */
-let _guardOpen = new Set();
+let _currentCanvas = null;   // the canvas being drawn — the click areas are registered on it (display/hit.js)
 
 /* ── Default style fallback for cockpit specs ── */
 const _DEFAULT_STYLE = {
@@ -222,36 +214,6 @@ function _drawAnalogALT(ctx, box) {
   ctx.fillText('ALT FT', cx, cy + r * 0.40);
 }
 
-/* ── rocker_strip toggle action ── */
-
-function _toggleSwitch(key) {
-  if (key === 'fuelPump') { command('auxFuelPump', !S.fuelPump, { source: 'click' }); return; }   // the pump and its hum: core/fuel.js
-  const elecId = { masterBat: 'bat', masterAlt: 'alt', avionicsOn: 'avionics' }[key];
-  if (elecId) { command('elec', { id: elecId, on: !S[key] }, { source: 'click' }); return; }   // BAT / ALT / AVNCS: core/electrical.js
-  if (key === 'magnetos') {   // the same as the magneto knob — a sweep, then the command
-    command('magnetos', sweep('magnetos', MAGNETO_POSITIONS, S.magnetos), { source: 'click' });
-    return;
-  }
-  /* dot-path e.g. "lights.nav" */
-  if (key === 'carbHeat') { command('carbHeat', undefined, { source: 'click' }); return; }   // core/failures.js
-  if (key.startsWith('lights.')) { command('lights', { light: key.slice(7) }, { source: 'click' }); return; }   // core/electrical.js
-  if (key.includes('.')) {
-    const [top, sub] = key.split('.');
-    const group = S[top] ?? {};
-    setState({ [top]: { ...group, [sub]: !group[sub] } });
-    return;
-  }
-  setState({ [key]: !S[key] });
-}
-
-function _getState(key) {
-  if (key.includes('.')) {
-    const [top, sub] = key.split('.');
-    return !!(S[top]?.[sub]);
-  }
-  return !!S[key];
-}
-
 /* ── rocker_strip — large illuminated annunciator pads ── */
 const _ANN_PALETTE = {
   /* ON colors — face glows in this color */
@@ -274,9 +236,9 @@ function _drawRockerStrip(ctx, box, style, cfg) {
   const padY = box.h * 0.10;
 
   switches.forEach((s, i) => {
-    const on         = _getState(s.state);
+    const on         = !!controlState(s.control);
     const guarded    = !!s.guarded;
-    const guardIsOpen = guarded && _guardOpen.has(s.state);
+    const guardIsOpen = guarded && guardOpen(s.control);
     const pal        = _ANN_PALETTE[s.color];
 
     const rx = box.x + i * sw + padX;
@@ -358,25 +320,8 @@ function _drawRockerStrip(ctx, box, style, cfg) {
       ctx.strokeStyle = '#e02818'; ctx.lineWidth = 0.7; ctx.stroke();
     }
 
-    _hitRegions.push({
-      x: rx, y: ry, w: rw, h: rh,
-      action: () => {
-        if (!guarded) { _toggleSwitch(s.state); return; }
-        const isOn = _getState(s.state);
-        if (isOn) {
-          /* turning off: guard closes automatically */
-          _guardOpen.delete(s.state);
-          _toggleSwitch(s.state);
-        } else if (_guardOpen.has(s.state)) {
-          /* guard already lifted — throw the switch */
-          _guardOpen.delete(s.state);
-          _toggleSwitch(s.state);
-        } else {
-          /* first click: lift the guard */
-          _guardOpen.add(s.state);
-        }
-      },
-    });
+    addHit(_currentCanvas, { name: s.control, x: rx, y: ry, w: rw, h: rh,
+      action: () => operate(s.control, { guarded }) });   // a guarded switch lifts its guard first (display/controls.js)
   });
 }
 
@@ -389,7 +334,7 @@ function _drawBottomSwitches(ctx, box, style, cfg) {
   const padY = box.h * 0.06;
 
   switches.forEach((s, i) => {
-    const on  = _getState(s.state);
+    const on  = !!controlState(s.control);
     const rx  = box.x + i * sw + padX;
     const ry  = box.y + padY;
     const rw  = sw - padX * 2;
@@ -433,10 +378,7 @@ function _drawBottomSwitches(ctx, box, style, cfg) {
     ctx.fill();
 
     /* hit region */
-    _hitRegions.push({
-      x: rx, y: ry, w: rw, h: rh,
-      action: () => _toggleSwitch(s.state),
-    });
+    addHit(_currentCanvas, { name: s.control, x: rx, y: ry, w: rw, h: rh, action: () => operate(s.control) });
   });
 }
 
@@ -547,10 +489,7 @@ function _drawMagnetoKnob(ctx, box, style, cfg) {
 
   drawMagRotary(ctx, cx, cy, r, S.magnetos ?? 'BOTH');
 
-  _hitRegions.push({
-    x: box.x, y: box.y, w: box.w, h: box.h,
-    action: () => command('magnetos', sweep('magnetos', MAGNETO_POSITIONS, S.magnetos), { source: 'click' }),   // a sweep (display/controls.js), the command core/engine.js's
-  });
+  addHit(_currentCanvas, { name: 'magnetos', ...box, action: () => operate('magnetos') });   // a sweep — display/controls.js
 }
 
 /* ── fuel_selector ── */
@@ -558,10 +497,7 @@ function _drawMagnetoKnob(ctx, box, style, cfg) {
 function _drawFuelSelector(ctx, box, style, cfg) {
   drawFuelSel(ctx, box.x, box.y, box.w, box.h);
 
-  _hitRegions.push({
-    x: box.x, y: box.y, w: box.w, h: box.h,
-    action: () => command('fuelSelector', sweep('fuelSelector', fuelSelectorPositions(), S.fuelSelector), { source: 'click' }),   // a sweep, the command core/fuel.js's
-  });
+  addHit(_currentCanvas, { name: 'fuelSelector', ...box, action: () => operate('fuelSelector') });
 }
 
 /* ── grid (recursive sub-layout) ── */
@@ -754,22 +690,9 @@ export function renderCockpit(canvas) {
 
   if (!_cpCache.spec) return;
 
-  _hitRegions    = [];
+  beginHits(canvas);
   _currentCanvas = canvas;
   _render(canvas, _cpCache.spec, _cpCache.style ?? _DEFAULT_STYLE);
-}
-
-export function handleCockpitClick(canvas, evt) {
-  const DPR  = devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
-  const x    = (evt.clientX - rect.left) * DPR;
-  const y    = (evt.clientY - rect.top)  * DPR;
-  for (const h of _hitRegions) {
-    if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) {
-      h.action();
-      return;
-    }
-  }
 }
 
 /* ═══════════════════════════════════════════════════════════════

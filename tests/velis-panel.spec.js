@@ -34,13 +34,13 @@ for (const [w, h] of [[1440, 900], [1280, 720], [1280, 600]]) {
     const dpr  = await page.evaluate(() => devicePixelRatio);
     const keys = await page.locator('#btn-keys').boundingBox();
     const sw   = await regions(page);                                     // the radio is on the pedestal: no COM in the cockpit
-    expect(sw.map(r => r.name).sort()).toEqual(['avionics', 'battEn', 'master', 'pwrEn']);
+    expect(sw.map(r => r.name).sort()).toEqual(['avionics', 'bat', 'battEn', 'pwrEn']);
     for (const r of sw) {
       expect(box.y + r.y / dpr, `${r.name} below the KEYS button`).toBeGreaterThanOrEqual(keys.y + keys.height);
       expect(box.y + (r.y + r.h) / dpr, `${r.name} inside the window`).toBeLessThanOrEqual(h);
       expect(r.h / dpr, `${r.name} big enough to hit`).toBeGreaterThanOrEqual(20);
     }
-    for (const name of ['master', 'battEn', 'pwrEn', 'avionics']) await click(page, name);
+    for (const name of ['bat', 'battEn', 'pwrEn', 'avionics']) await click(page, name);
     expect(await switches(page)).toMatchObject({ master: true, battEn: true, pwrEn: true, avionics: true });
   });
 }
@@ -51,9 +51,9 @@ test('the EPSI and its map are dark until the avionics have power', async ({ pag
   await expect(map).toBeHidden();                                         // cold and dark
   await click(page, 'avionics');
   await expect(map).toBeHidden();                                         // AVIONICS without MASTER: no power
-  await click(page, 'master');
+  await click(page, 'bat');
   await expect(map).toBeVisible();                                        // on the 14 V battery, BATT EN still off
-  await click(page, 'master');
+  await click(page, 'bat');
   await expect(map).toBeHidden();
 });
 
@@ -65,7 +65,7 @@ test('the radio is the COM panel on the pedestal: dark until MASTER and AVIONICS
   await expect(com).toBeVisible();
   await expect(com).toHaveClass(/com-off/);
   await page.keyboard.press('d');                                         // back to the cockpit
-  await click(page, 'master'); await click(page, 'avionics');
+  await click(page, 'bat'); await click(page, 'avionics');
   await page.keyboard.press('d');
   await expect(com).not.toHaveClass(/com-off/);
 });

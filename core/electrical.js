@@ -105,6 +105,13 @@ export function lightSwitches(ac = S.aircraft) {
        : ac?.engine?.starter === 'electric' ? Object.keys(_PISTON) : null;
 }
 
+/** Is a light aircraft's switch on? (false for a switch the aircraft hasn't) */
+export function lightSwitchOn(id) {
+  const velis = S.aircraft?.engine?.type === 'electric';
+  const field = (velis ? _VELIS : S.aircraft?.engine?.starter === 'electric' ? _PISTON : {})[id];
+  return !!field && (velis ? !!S.switches?.[field] : !!S[field]);
+}
+
 /** A light aircraft's switch: on or off (`on` true / false; absent: toggle). False when refused. */
 export function lightSwitch(id, on) {
   const velis = S.aircraft?.engine?.type === 'electric';
