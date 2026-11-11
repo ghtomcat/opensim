@@ -127,7 +127,7 @@ export const KEYS = [
   { id: 'engine-cutoff', group: 'Engine and systems', show: 'Q',
     desc: (ac) => turbofan(ac) ? 'Fuel cutoff, all engines' : 'Engine cutoff',
     keys: ['q', 'Q'], when: keyCutoff },
-  { id: 'fuel-selector', group: 'Engine and systems', show: 'Q', desc: 'Fuel selector: BOTH → LEFT → RIGHT → OFF',
+  { id: 'fuel-selector', group: 'Engine and systems', show: 'Q', desc: 'Fuel selector: LEFT ↔ BOTH ↔ RIGHT',
     keys: ['q', 'Q'], when: (ac) => !keyCutoff(ac) && manual(ac) && !!ac.tanks },
   { id: 'carb-heat', group: 'Engine and systems', show: 'H', desc: 'Carburettor heat',
     keys: ['h', 'H'], when: (ac) => !!ac?.hasCarbHeat },

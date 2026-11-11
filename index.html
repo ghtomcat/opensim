@@ -1845,7 +1845,8 @@
            spdParse as _spdParse, spdLabel as _spdLabel,
            SEG_COL as _SEG_COL } from './core/route.js';
   import { planFor as _planFor } from './core/flightplan.js';
-  import { cycleFuelSelector } from './core/fuel.js';
+  import { fuelSelectorPositions } from './core/fuel.js';
+  import { sweep } from './display/controls.js';
   import { initCrew, resetCrew } from './core/crew.js';
   import { initInput, isPTTActive }        from './core/input.js';
   import { command }                       from './core/commands.js';
@@ -3584,10 +3585,7 @@
         bbEvent({ type: 'engine_cutoff', method: 'mixture' });
         stopEngine();
       },
-      'fuel-selector': () => {
-        cycleFuelSelector();
-        bbEvent({ type: 'fuel_selector', selector: S.fuelSelector });
-      },
+      'fuel-selector': () => command('fuelSelector', sweep('fuelSelector', fuelSelectorPositions(), S.fuelSelector), { source: 'key' }),   // the same sweep as a click
       'carb-heat': () => {
         const next = !S.carbHeat;
         setState({ carbHeat: next });

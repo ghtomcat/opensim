@@ -8,6 +8,7 @@
 import { S, setState } from '../core/state.js';
 import { startFuelPump, stopFuelPump } from '../core/sound.js';
 import { engineMaster, MAGNETO_POSITIONS } from '../core/engine.js';
+import { fuelSelectorPositions } from '../core/fuel.js';
 import { altLabel } from '../core/route.js';
 import { flapLabel } from '../core/airframe.js';
 import { command } from '../core/commands.js';
@@ -839,11 +840,9 @@ function _attachHandlers() {
   /* Magneto rotary — a click sweeps OFF → R → L → BOTH → START and back (display/controls.js); the command is core/engine.js's */
   document.getElementById('ped-mag-rot')?.addEventListener('click', () =>
     command('magnetos', sweep('magnetos', MAGNETO_POSITIONS, S.magnetos), { source: 'click' }));
-  /* Fuel selector rotary — cycle BOTH → LEFT → RIGHT */
-  const FSEL = ['BOTH', 'LEFT', 'RIGHT'];
-  document.getElementById('ped-fsel')?.addEventListener('click', () => {
-    setState({ fuelSelector: FSEL[(FSEL.indexOf(S.fuelSelector ?? 'BOTH') + 1) % FSEL.length] });
-  });
+  /* Fuel selector rotary — a click sweeps LEFT ↔ BOTH ↔ RIGHT (display/controls.js); the command is core/fuel.js's */
+  document.getElementById('ped-fsel')?.addEventListener('click', () =>
+    command('fuelSelector', sweep('fuelSelector', fuelSelectorPositions(), S.fuelSelector), { source: 'click' }));
   /* Fuel shutoff — red cutoff knob */
   document.getElementById('ped-shutoff')?.addEventListener('click', () => {
     setState({ fuelShutoff: !S.fuelShutoff });

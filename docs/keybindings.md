@@ -32,7 +32,7 @@ The tables below are generated from the key map (`core/keymap.js`): edit the tab
 | `Panel` | Motor on: MASTER → BATT EN → PWR EN | velis-hb-syc |
 | `E` | Engine start · Engine start (battery on first) | bf109, c172, f4u1a, mig15bis, robin-dr400 |
 | `Q` | Fuel cutoff, all engines · Engine cutoff | a220, a340, a350, b737, b737max9, b777-300er, bf109, dc8, e190, f4u1a, mig15bis |
-| `Q` | Fuel selector: BOTH → LEFT → RIGHT → OFF | c172, robin-dr400 |
+| `Q` | Fuel selector: LEFT ↔ BOTH ↔ RIGHT | c172, robin-dr400 |
 | `H` | Carburettor heat | c172, robin-dr400 |
 | `1–5` | Situation presets (no mission loaded) | a220, a340, a350, an225, avro504, b737, b737max9, b777-300er, bf109, c172, e190, f4u1a, mig15bis, robin-dr400, tu95, velis-hb-syc |
 

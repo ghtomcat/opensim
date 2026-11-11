@@ -77,18 +77,19 @@ test.describe('Fuel — initialization', () => {
    FUEL SELECTOR — Cycling
    ═══════════════════════════════════════════ */
 
-test.describe('Fuel selector — Q key cycles BOTH → LEFT → RIGHT → BOTH', () => {
-  test('BOTH → LEFT', async ({ page }) => {
+test.describe('Fuel selector — Q sweeps LEFT ↔ BOTH ↔ RIGHT, no wrap-around (display/controls.js)', () => {
+  test('from BOTH: RIGHT, BOTH, LEFT, BOTH', async ({ page }) => {
     await loadSim(page);
-    await page.keyboard.press('q');
-    expect((await getState(page)).fuelSelector).toBe('LEFT');
+    const seen = [];
+    for (let i = 0; i < 4; i++) { await page.keyboard.press('q'); seen.push((await getState(page)).fuelSelector); }
+    expect(seen).toEqual(['RIGHT', 'BOTH', 'LEFT', 'BOTH']);
   });
 
-  test('LEFT → RIGHT', async ({ page }) => {
+  test('from an end it goes back to BOTH — LEFT never jumps to RIGHT', async ({ page }) => {
     await loadSim(page);
     await setState(page, { fuelSelector: 'LEFT' });
     await page.keyboard.press('q');
-    expect((await getState(page)).fuelSelector).toBe('RIGHT');
+    expect((await getState(page)).fuelSelector).toBe('BOTH');
   });
 
   test('RIGHT → BOTH (no OFF position — that is the shutoff valve)', async ({ page }) => {

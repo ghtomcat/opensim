@@ -13,6 +13,7 @@ import { S, setState } from './state.js';
 import { bbEvent } from './blackbox.js';
 import { engineQuit, engineOilLow, fuelFlowKgH } from './engine.js';
 import { onMissionReset } from './lifecycle.js';
+import { registerCommand } from './commands.js';
 
 /* Default fuel burn rates litres/hour at full power */
 const BURN_DEFAULTS = {
@@ -43,12 +44,23 @@ export function resetFuel() {
 }
 onMissionReset(resetFuel);
 
-export function cycleFuelSelector() {
-  const order = ['BOTH', 'LEFT', 'RIGHT'];
-  const cur   = S.fuelSelector ?? 'BOTH';
-  const next  = order[(order.indexOf(cur) + 1) % order.length];
-  setState({ fuelSelector: next });
+/* ── The fuel selector — its command. The positions in the order of the real switch, so a click sweeps
+   across it (display/controls.js): the aircraft's `tanks.selector` where it gives one (the DR400's, once
+   sourced — issues.md, "The DR400's tanks and fuel selector are the C172's"), else LEFT / BOTH / RIGHT on
+   an aircraft with two tanks (the C172's — BOTH in the middle). One tank: no selector. ── */
+export function fuelSelectorPositions(ac = S.aircraft) {
+  if (Array.isArray(ac?.tanks?.selector)) return ac.tanks.selector;
+  return (ac?.tanks?.right ?? 0) > 0 ? ['LEFT', 'BOTH', 'RIGHT'] : [];
 }
+
+export function fuelSelector(pos) {
+  const positions = fuelSelectorPositions();
+  if (!positions.includes(pos)) { if (positions.length) console.warn(`[fuel] no selector position "${pos}"`); return false; }
+  if (pos === S.fuelSelector) return false;
+  setState({ fuelSelector: pos });
+  return true;
+}
+registerCommand('fuelSelector', fuelSelector);
 
 export function tickFuel(dt) {
   /* Oil pressure warning also on aircraft without a fuel system (airliners, …). Here it only

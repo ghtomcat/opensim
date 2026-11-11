@@ -18,6 +18,7 @@ import { hideG1000Map } from './map.js';
 import { drawInstrument } from './analog_panel.js';
 import { startFuelPump, stopFuelPump } from '../core/sound.js';
 import { MAGNETO_POSITIONS } from '../core/engine.js';
+import { fuelSelectorPositions } from '../core/fuel.js';
 import { command } from '../core/commands.js';
 import { sweep } from './controls.js';
 
@@ -555,19 +556,13 @@ function _drawMagnetoKnob(ctx, box, style, cfg) {
 }
 
 /* ── fuel_selector ── */
-const FUEL_STATES = ['LEFT', 'BOTH', 'RIGHT'];
 
 function _drawFuelSelector(ctx, box, style, cfg) {
   drawFuelSel(ctx, box.x, box.y, box.w, box.h);
 
   _hitRegions.push({
     x: box.x, y: box.y, w: box.w, h: box.h,
-    action: () => {
-      const cur  = S.fuelSelector ?? 'BOTH';
-      const idx  = FUEL_STATES.indexOf(cur);
-      const next = FUEL_STATES[(idx + 1) % FUEL_STATES.length];
-      setState({ fuelSelector: next });
-    },
+    action: () => command('fuelSelector', sweep('fuelSelector', fuelSelectorPositions(), S.fuelSelector), { source: 'click' }),   // a sweep, the command core/fuel.js's
   });
 }
 
