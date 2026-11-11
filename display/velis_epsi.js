@@ -20,6 +20,7 @@ import { updateVelisMapOverlay, hideVelisMap } from './map.js';
 import { flapLabel } from '../core/airframe.js';
 import { operate } from './controls.js';
 import { beginHits, addHit, hitAreas } from './hit.js';
+import { drawToggle, drawKey } from './controls-canvas.js';
 
 /* ── Palette ── */
 const P = {
@@ -263,21 +264,21 @@ function _drawMasterSwitches(ctx, x0, y0, w, h, sc) {
   let sy = top;
   const keyR = Math.min(w * 0.15, u * 0.95);
   const keyY = sy + keyR * 1.60;
-  _velisKey(ctx, cpx, keyY, keyR, sw.master, fs);
+  drawKey(ctx, cpx, keyY, keyR, sw.master, fs);
   reg('bat', cpx, sy, keyR * 3.4, keyR * 3.6);   // the MASTER key — the 14 V battery master
   sy += u * 4;
 
   /* ── POWER: BATT EN + PWR EN ── */
   secLabel('POWER', sy); sy += u * 0.6;
-  _velisToggle(ctx, cx1, sy, swW, swH, sw.battEn, 'BATT EN', fs);
+  drawToggle(ctx, cx1, sy, swW, swH, sw.battEn, 'BATT EN', fs);
   reg('battEn', cx1, sy, swW, swH);
-  _velisToggle(ctx, cx2, sy, swW, swH, sw.pwrEn,  'PWR EN', fs);
+  drawToggle(ctx, cx2, sy, swW, swH, sw.pwrEn,  'PWR EN', fs);
   reg('pwrEn', cx2, sy, swW, swH);
   sy += swH + u * 0.4;
 
   /* ── AVIONICS ── */
   secLabel('AVIONICS', sy); sy += u * 0.6;
-  _velisToggle(ctx, cpx, sy, swW, swH, sw.avionics, 'AVNCS', fs);
+  drawToggle(ctx, cpx, sy, swW, swH, sw.avionics, 'AVNCS', fs);
   reg('avionics', cpx, sy, swW, swH);
 }
 
@@ -291,111 +292,8 @@ function _overlayBottom(canvas) {
 }
 
 /* Key rotary switch — MASTER only (OFF / RUN) */
-function _velisKey(ctx, cx, cy, r, on, fs = Math.round(r * 0.34)) {
-  const degOFF = 225, degRUN = 315;
-  const curDeg = on ? degRUN : degOFF;
-
-  /* Outer housing plate */
-  ctx.beginPath(); ctx.arc(cx, cy, r * 1.58, 0, Math.PI * 2);
-  ctx.fillStyle = '#0a0c12'; ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 0.8; ctx.stroke();
-
-  /* Arc guide between OFF and RUN */
-  ctx.beginPath();
-  ctx.arc(cx, cy, r * 1.30, (degOFF - 90) * Math.PI / 180, (degRUN - 90) * Math.PI / 180);
-  ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1.5; ctx.stroke();
-
-  /* Position labels */
-  [{ text: 'OFF', deg: degOFF }, { text: 'RUN', deg: degRUN }].forEach(({ text, deg }) => {
-    const a = (deg - 90) * Math.PI / 180;
-    ctx.fillStyle = curDeg === deg ? P.white : 'rgba(255,255,255,0.28)';
-    ctx.font      = `${Math.round(r * 0.31)}px ${MONO}`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(text, cx + Math.cos(a) * r * 1.30, cy + Math.sin(a) * r * 1.30);
-  });
-
-  /* Knob body */
-  const kg = ctx.createRadialGradient(cx - r * 0.24, cy - r * 0.24, r * 0.06, cx, cy, r);
-  kg.addColorStop(0, '#2c3040');
-  kg.addColorStop(1, '#141820');
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fillStyle = kg; ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 1.2; ctx.stroke();
-
-  /* Knurling lines (grip texture) */
-  for (let i = 0; i < 10; i++) {
-    const a = (i / 10) * Math.PI * 2;
-    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
-    ctx.lineWidth   = 0.8;
-    ctx.beginPath();
-    ctx.moveTo(cx + Math.cos(a) * r * 0.74, cy + Math.sin(a) * r * 0.74);
-    ctx.lineTo(cx + Math.cos(a) * r * 0.94, cy + Math.sin(a) * r * 0.94);
-    ctx.stroke();
-  }
-
-  /* Key slot (rectangular notch toward current position) */
-  const pAng = (curDeg - 90) * Math.PI / 180;
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(pAng);
-  ctx.fillStyle = '#040508';
-  ctx.fillRect(-r * 0.11, r * 0.06, r * 0.22, r * 0.68);
-  ctx.restore();
-
-  /* Pointer dot */
-  ctx.beginPath();
-  ctx.arc(cx + Math.cos(pAng) * r * 0.74, cy + Math.sin(pAng) * r * 0.74, r * 0.09, 0, Math.PI * 2);
-  ctx.fillStyle = on ? P.green : 'rgba(255,255,255,0.36)';
-  ctx.fill();
-
-  /* Center cap */
-  ctx.beginPath(); ctx.arc(cx, cy, r * 0.14, 0, Math.PI * 2);
-  ctx.fillStyle = '#b8bcc8'; ctx.fill();
-
-  /* MASTER label below */
-  ctx.fillStyle    = on ? 'rgba(255,255,255,0.55)' : P.dim;
-  ctx.font         = `${fs}px ${MONO}`;
-  ctx.textAlign    = 'center'; ctx.textBaseline = 'top';
-  ctx.fillText('MASTER', cx, cy + r * 1.70);
-}
 
 /* Real aviation bat-handle toggle switch */
-function _velisToggle(ctx, cx, y, w, h, on, label, fs = Math.round(Math.min(w * 0.46, h * 0.115))) {
-  /* Housing (recessed dark plate) */
-  const hw = w * 0.60, hh = h * 0.38;
-  const hx = cx - hw / 2, hy = y + h * 0.18;
-  _roundRect(ctx, hx, hy, hw, hh, hw * 0.14);
-  ctx.fillStyle = '#0c1018'; ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 0.8; ctx.stroke();
-
-  /* Lever — thin bat-handle: UP = ON, DOWN = OFF */
-  const lw = hw * 0.30, lh = h * 0.44;
-  const pvY = hy + hh * 0.50;
-  const levY = on ? pvY - lh : pvY;
-
-  _roundRect(ctx, cx - lw / 2, levY, lw, lh, lw * 0.30);
-  ctx.fillStyle = on ? '#9eaabf' : '#2c3038'; ctx.fill();
-
-  /* Lever highlight (left-side sheen) */
-  ctx.fillStyle = on ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.04)';
-  ctx.fillRect(cx - lw / 2 + lw * 0.14, levY + lh * 0.12, lw * 0.26, lh * 0.76);
-
-  /* LED indicator dot below housing */
-  const dotR = Math.min(hw, hh) * 0.12;
-  const dotY = hy + hh + dotR * 2.0;
-  ctx.beginPath(); ctx.arc(cx, dotY, dotR, 0, Math.PI * 2);
-  ctx.fillStyle = on ? '#38d060' : '#101810'; ctx.fill();
-  if (on) {
-    ctx.beginPath(); ctx.arc(cx, dotY, dotR * 1.9, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(56,208,96,0.22)'; ctx.lineWidth = dotR * 0.8; ctx.stroke();
-  }
-
-  /* Label */
-  ctx.fillStyle    = on ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.45)';
-  ctx.font         = `${fs}px ${MONO}`;
-  ctx.textAlign    = 'center'; ctx.textBaseline = 'bottom';
-  ctx.fillText(label, cx, y + h);
-}
 
 /* ════════════════════════════════════════════════════════════
    ZONE 2: Kanardia NESIS 4 — digital AH

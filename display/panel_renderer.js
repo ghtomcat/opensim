@@ -12,7 +12,8 @@ import {
   drawFMA, drawAI, drawSpeedTape, drawAltTape,
   drawVSI, drawHdgTape, drawNDMap, drawFCU, drawECAM, drawEICAS,
 } from './pfd_instruments.js';
-import { drawG1000PFD, drawG1000MFD, drawG1000Bezel, drawMagRotary, drawFuelSel } from './g1000.js';
+import { drawG1000PFD, drawG1000MFD, drawG1000Bezel } from './g1000.js';
+import { drawToggle, drawRocker, drawMagneto, drawSelector } from './controls-canvas.js';
 import { hideG1000Map } from './map.js';
 import { drawInstrument } from './analog_panel.js';
 import { operate, controlState, guardOpen } from './controls.js';
@@ -214,15 +215,7 @@ function _drawAnalogALT(ctx, box) {
   ctx.fillText('ALT FT', cx, cy + r * 0.40);
 }
 
-/* ── rocker_strip — large illuminated annunciator pads ── */
-const _ANN_PALETTE = {
-  /* ON colors — face glows in this color */
-  red:   { top: '#e02010', bot: '#801008', rim: '#ff4030', glow: 'rgba(220,30,10,0.35)'  },
-  amber: { top: '#d07010', bot: '#784008', rim: '#ffa030', glow: 'rgba(200,110,0,0.35)'  },
-  beige: { top: '#c8b870', bot: '#786830', rim: '#e8d890', glow: 'rgba(180,160,80,0.3)'  },
-  green: { top: '#20b050', bot: '#0a6028', rim: '#40e070', glow: 'rgba(30,160,60,0.3)'   },
-};
-
+/* ── rocker_strip — large illuminated annunciator pads (the look: display/controls-canvas.js) ── */
 function _drawRockerStrip(ctx, box, style, cfg) {
   const switches = cfg.switches ?? [];
   if (!switches.length) return;
@@ -239,93 +232,19 @@ function _drawRockerStrip(ctx, box, style, cfg) {
     const on         = !!controlState(s.control);
     const guarded    = !!s.guarded;
     const guardIsOpen = guarded && guardOpen(s.control);
-    const pal        = _ANN_PALETTE[s.color];
 
     const rx = box.x + i * sw + padX;
     const ry = box.y + padY;
     const rw = sw - padX * 2;
     const rh = box.h - padY * 2;
-    const cr = Math.min(rw, rh) * 0.08;
-
-    /* glow behind face when ON */
-    if (on && pal) {
-      ctx.shadowColor = pal.glow;
-      ctx.shadowBlur  = rw * 0.6;
-    }
-
-    /* face fill */
-    const grad = ctx.createLinearGradient(rx, ry, rx, ry + rh);
-    if (on && pal) {
-      grad.addColorStop(0, pal.top);
-      grad.addColorStop(1, pal.bot);
-    } else {
-      grad.addColorStop(0, '#252830');
-      grad.addColorStop(1, '#141620');
-    }
-    _roundRect(ctx, rx, ry, rw, rh, cr);
-    ctx.fillStyle = grad; ctx.fill();
-
-    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
-
-    /* rim */
-    ctx.strokeStyle = (on && pal) ? pal.rim : 'rgba(255,255,255,0.08)';
-    ctx.lineWidth   = 1;
-    ctx.stroke();
-
-    /* label — bottom third of face */
-    const fs = Math.max(6, Math.round(rh * 0.22));
-    ctx.fillStyle    = on ? '#ffffff' : 'rgba(180,190,200,0.35)';
-    ctx.font         = `bold ${fs}px ${MONO}`;
-    ctx.textAlign    = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(s.label, rx + rw / 2, ry + rh * 0.72);
-
-    /* indicator dot — upper area */
-    const dotR  = Math.max(2, rw * 0.08);
-    const dotCx = rx + rw / 2;
-    const dotCy = ry + rh * 0.32;
-    ctx.beginPath(); ctx.arc(dotCx, dotCy, dotR, 0, Math.PI * 2);
-    if (on && pal) {
-      ctx.fillStyle = '#ffffff';
-      ctx.shadowColor = '#ffffff'; ctx.shadowBlur = dotR * 2;
-    } else {
-      ctx.fillStyle = 'rgba(100,110,120,0.3)';
-    }
-    ctx.fill();
-    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
-
-    /* guard overlay */
-    if (guarded && !on && !guardIsOpen) {
-      /* closed: red cover over top ~72% of face */
-      const gg = ctx.createLinearGradient(rx, ry, rx, ry + rh * 0.72);
-      gg.addColorStop(0, '#c01810');
-      gg.addColorStop(1, '#700c08');
-      _roundRect(ctx, rx, ry, rw, rh * 0.72, cr);
-      ctx.fillStyle = gg; ctx.fill();
-      ctx.strokeStyle = '#e02818'; ctx.lineWidth = 0.8; ctx.stroke();
-      /* hinge crease */
-      ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(rx + 3, ry + rh * 0.72);
-      ctx.lineTo(rx + rw - 3, ry + rh * 0.72);
-      ctx.stroke();
-    } else if (guarded && (on || guardIsOpen)) {
-      /* open: small red tab folded back above the face */
-      const tabH = rh * 0.20;
-      const tg = ctx.createLinearGradient(rx, ry - tabH, rx, ry);
-      tg.addColorStop(0, '#c01810');
-      tg.addColorStop(1, '#700c08');
-      _roundRect(ctx, rx + rw * 0.15, ry - tabH + 1, rw * 0.70, tabH, 2);
-      ctx.fillStyle = tg; ctx.fill();
-      ctx.strokeStyle = '#e02818'; ctx.lineWidth = 0.7; ctx.stroke();
-    }
+    drawRocker(ctx, rx, ry, rw, rh, { on, label: s.label, color: s.color, guarded, guardIsOpen });
 
     addHit(_currentCanvas, { name: s.control, x: rx, y: ry, w: rw, h: rh,
       action: () => operate(s.control, { guarded }) });   // a guarded switch lifts its guard first (display/controls.js)
   });
 }
 
-/* ── bottom_switches (bat-handle toggles) ── */
+/* ── bottom_switches (bat-handle toggles — display/controls-canvas.js) ── */
 function _drawBottomSwitches(ctx, box, style, cfg) {
   const switches = cfg.switches ?? [];
   if (!switches.length) return;
@@ -340,42 +259,7 @@ function _drawBottomSwitches(ctx, box, style, cfg) {
     const rw  = sw - padX * 2;
     const rh  = box.h - padY * 2;
 
-    /* housing */
-    ctx.fillStyle = '#060810';
-    _roundRect(ctx, rx, ry, rw, rh, rw * 0.16);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.10)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    /* lever */
-    const lw   = rw * 0.32;
-    const lh   = rh * 0.38;
-    const lcx  = rx + rw / 2;
-    /* UP = ON, DOWN = OFF */
-    const lTop = on
-      ? ry + rh * 0.08
-      : ry + rh * 0.08 + lh * 0.7;
-    const lg = ctx.createLinearGradient(lcx - lw/2, lTop, lcx + lw/2, lTop);
-    lg.addColorStop(0, on ? '#484c5c' : '#2a2e3c');
-    lg.addColorStop(1, on ? '#2a2e3c' : '#484c5c');
-    _roundRect(ctx, lcx - lw/2, lTop, lw, lh, lw * 0.25);
-    ctx.fillStyle = lg; ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 0.8; ctx.stroke();
-
-    /* label */
-    const fs = Math.max(7, Math.round(rh * 0.14));
-    ctx.fillStyle = on ? '#e8f0f8' : 'rgba(200,210,220,0.5)';
-    ctx.font = `${fs}px ${MONO}`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(s.label, lcx, ry + rh * 0.78);
-
-    /* LED */
-    const ledR  = Math.max(2, rw * 0.09);
-    const ledCy = ry + rh * 0.90;
-    ctx.beginPath(); ctx.arc(lcx, ledCy, ledR, 0, Math.PI * 2);
-    ctx.fillStyle = on ? '#44dd66' : 'rgba(30,60,30,0.5)';
-    ctx.fill();
+    drawToggle(ctx, rx + rw / 2, ry, Math.min(rw, rh * 1.2), rh, on, s.label);   // the one toggle design (display/controls-canvas.js) — its proportions kept in a wide cell
 
     /* hit region */
     addHit(_currentCanvas, { name: s.control, x: rx, y: ry, w: rw, h: rh, action: () => operate(s.control) });
@@ -487,7 +371,7 @@ function _drawMagnetoKnob(ctx, box, style, cfg) {
   ctx.fillStyle = '#0a0c10';
   ctx.fillRect(box.x, box.y, box.w, box.h);
 
-  drawMagRotary(ctx, cx, cy, r, S.magnetos ?? 'BOTH');
+  drawMagneto(ctx, cx, cy, r, controlState('magnetos'));
 
   addHit(_currentCanvas, { name: 'magnetos', ...box, action: () => operate('magnetos') });   // a sweep — display/controls.js
 }
@@ -495,7 +379,7 @@ function _drawMagnetoKnob(ctx, box, style, cfg) {
 /* ── fuel_selector ── */
 
 function _drawFuelSelector(ctx, box, style, cfg) {
-  drawFuelSel(ctx, box.x, box.y, box.w, box.h);
+  drawSelector(ctx, box.x, box.y, box.w, box.h, controlState('fuelSelector'));
 
   addHit(_currentCanvas, { name: 'fuelSelector', ...box, action: () => operate('fuelSelector') });
 }

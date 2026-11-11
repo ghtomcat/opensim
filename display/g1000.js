@@ -572,110 +572,11 @@ function _engineStrip(ctx, x, y, w, h) {
   });
 }
 
-function _fuelSelectorCompact(ctx, x, y, w, h) {
-  const sel    = S.fuelSelector ?? 'BOTH';
-  const angles = { LEFT: -60, BOTH: 0, RIGHT: 60, OFF: 180 };
-
-  const kR  = Math.min(w * 0.28, h * 0.28);
-  const kCx = x + w / 2;
-  const kCy = y + h * 0.46;
-
-  ctx.fillStyle    = G.dim;
-  ctx.font         = `${Math.round(h * 0.13)}px ${MONO}`;
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'top';
-  ctx.fillText('FUEL SEL', kCx, y + h * 0.03);
-
-  ctx.beginPath();
-  ctx.arc(kCx, kCy, kR, 0, Math.PI * 2);
-  ctx.fillStyle   = '#1a1e26';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-  ctx.lineWidth   = 1.5;
-  ctx.stroke();
-
-  const pAng = (angles[sel] - 90) * Math.PI / 180;
-  ctx.strokeStyle = sel === 'OFF' ? G.red : G.green;
-  ctx.lineWidth   = 2;
-  ctx.beginPath();
-  ctx.moveTo(kCx, kCy);
-  ctx.lineTo(kCx + Math.cos(pAng) * kR * 0.78, kCy + Math.sin(pAng) * kR * 0.78);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.arc(kCx, kCy, kR * 0.12, 0, Math.PI * 2);
-  ctx.fillStyle = G.white;
-  ctx.fill();
-
-  ctx.fillStyle    = sel === 'OFF' ? G.red : G.white;
-  ctx.font         = `bold ${Math.round(h * 0.15)}px ${MONO}`;
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(sel, kCx, y + h * 0.82);
-
-  ctx.fillStyle    = 'rgba(255,255,255,0.15)';
-  ctx.font         = `${Math.round(h * 0.10)}px ${MONO}`;
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'bottom';
-  ctx.fillText('[Q]', kCx, y + h * 0.98);
-}
 
 /* ══════════════════════════════════════════
    Switch panel
    ══════════════════════════════════════════ */
 
-function _magRotary(ctx, cx, cy, r, state) {
-  const pos = { OFF: -120, R: -60, L: 0, BOTH: 60, START: 120 };
-
-  /* outer plate */
-  ctx.beginPath(); ctx.arc(cx, cy, r * 1.55, 0, Math.PI * 2);
-  ctx.fillStyle = '#0e1016'; ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1; ctx.stroke();
-
-  /* position labels */
-  Object.entries(pos).forEach(([p, deg]) => {
-    const a  = (deg - 90) * Math.PI / 180;
-    const mr = r * 1.28;
-    ctx.fillStyle    = p === state ? G.white : 'rgba(255,255,255,0.30)';
-    ctx.font         = `${Math.round(r * 0.30)}px ${MONO}`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(p, cx + Math.cos(a) * mr, cy + Math.sin(a) * mr);
-  });
-
-  /* knob */
-  const kg = ctx.createRadialGradient(cx - r * 0.24, cy - r * 0.24, r * 0.06, cx, cy, r);
-  kg.addColorStop(0, '#2c3040');
-  kg.addColorStop(1, '#141820');
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fillStyle = kg; ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 1.2; ctx.stroke();
-
-  /* knurling */
-  for (let i = 0; i < 10; i++) {
-    const a = (i / 10) * Math.PI * 2;
-    ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.lineWidth = 0.8;
-    ctx.beginPath();
-    ctx.moveTo(cx + Math.cos(a) * r * 0.74, cy + Math.sin(a) * r * 0.74);
-    ctx.lineTo(cx + Math.cos(a) * r * 0.94, cy + Math.sin(a) * r * 0.94);
-    ctx.stroke();
-  }
-
-  /* pointer */
-  const pAng = ((pos[state] ?? 0) - 90) * Math.PI / 180;
-  ctx.strokeStyle = state === 'OFF' ? G.red : state === 'START' ? G.amber : G.white;
-  ctx.lineWidth   = 2;
-  ctx.beginPath();
-  ctx.moveTo(cx, cy);
-  ctx.lineTo(cx + Math.cos(pAng) * r * 0.76, cy + Math.sin(pAng) * r * 0.76);
-  ctx.stroke();
-  ctx.beginPath(); ctx.arc(cx, cy, r * 0.13, 0, Math.PI * 2);
-  ctx.fillStyle = G.white; ctx.fill();
-
-  /* label */
-  ctx.fillStyle = G.dim; ctx.font = `${Math.round(r * 0.30)}px ${MONO}`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-  ctx.fillText('MAG', cx, cy + r * 1.62);
-}
 
 /* ── Screen bezel frame ── */
 function _screenBezel(ctx, x, y, w, h) {
@@ -774,5 +675,3 @@ function _roundRect(ctx, x, y, w, h, r) {
 export function drawG1000PFD(ctx, x, y, w, h)         { _pfd(ctx, x, y, w, h); }
 export function drawG1000MFD(ctx, canvas, x, y, w, h) { _mfd(ctx, canvas, x, y, w, h); }
 export function drawG1000Bezel(ctx, x, y, w, h)        { _screenBezel(ctx, x, y, w, h); }
-export function drawMagRotary(ctx, cx, cy, r, state)   { _magRotary(ctx, cx, cy, r, state); }
-export function drawFuelSel(ctx, x, y, w, h)           { _fuelSelectorCompact(ctx, x, y, w, h); }
