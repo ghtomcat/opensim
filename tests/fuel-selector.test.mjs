@@ -53,3 +53,13 @@ test('no shutoff on an aircraft without tanks (the airliners)', () => {
   assert.equal(command('fuelShutoff', 'closed'), false);
   assert.equal(S.fuelShutoff, false);
 });
+
+/* The light aircraft's electric fuel pump */
+test('the aux fuel pump switches on and off; refused when already there, and without tanks', () => {
+  setState({ aircraft: load('c172'), fuelLeft: 95, fuelPump: false });
+  assert.equal(command('auxFuelPump', true, { source: 'click' }), true);  assert.equal(S.fuelPump, true);
+  assert.equal(command('auxFuelPump', true), false);
+  assert.equal(command('auxFuelPump', false), true);                      assert.equal(S.fuelPump, false);
+  setState({ aircraft: load('a350'), fuelLeft: null });
+  assert.equal(command('auxFuelPump', true), false);
+});

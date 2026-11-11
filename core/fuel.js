@@ -14,6 +14,7 @@ import { bbEvent } from './blackbox.js';
 import { engineQuit, engineOilLow, fuelFlowKgH } from './engine.js';
 import { onMissionReset } from './lifecycle.js';
 import { registerCommand } from './commands.js';
+import { startFuelPump, stopFuelPump } from './sound.js';
 
 /* Default fuel burn rates litres/hour at full power */
 const BURN_DEFAULTS = {
@@ -41,6 +42,7 @@ export function initFuel() {
 
 export function resetFuel() {
   initFuel();
+  stopFuelPump();   // the pump's hum doesn't follow the aircraft into the next mission
 }
 onMissionReset(resetFuel);
 
@@ -74,6 +76,19 @@ export function fuelShutoff(pos) {
   return true;
 }
 registerCommand('fuelShutoff', fuelShutoff);
+
+/* ── The light aircraft's electric fuel pump (the C172's FUEL PUMP, the DR400's PUMP) — its command; not the
+   airliners' pumps (core/fuel-system.js, by element). A switch and its hum today: nothing in the fuel model reads
+   it, and it needs no bus power yet (issues.md, *Light-aircraft electrical is switches only*). The hum follows
+   the command, so it starts and stops whoever works the switch. ── */
+export function auxFuelPump(on) {
+  if (S.fuelLeft === null || S.fuelLeft === undefined) return false;   // no tanks — not this pump
+  if (!!on === !!S.fuelPump) return false;
+  setState({ fuelPump: !!on });
+  if (on) startFuelPump(); else stopFuelPump();
+  return true;
+}
+registerCommand('auxFuelPump', (on) => auxFuelPump(on));
 
 export function tickFuel(dt) {
   /* Oil pressure warning also on aircraft without a fuel system (airliners, …). Here it only

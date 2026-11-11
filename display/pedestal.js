@@ -6,7 +6,6 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from '../core/state.js';
-import { startFuelPump, stopFuelPump } from '../core/sound.js';
 import { MAGNETO_POSITIONS } from '../core/engine.js';
 import { fuelSelectorPositions } from '../core/fuel.js';
 import { altLabel } from '../core/route.js';
@@ -850,8 +849,8 @@ function _attachHandlers() {
   _el.querySelectorAll('.ped-toggle[data-sw]').forEach(btn => {
     btn.addEventListener('click', () => {
       const k = btn.dataset.sw, next = !S[k];
+      if (k === 'fuelPump') { command('auxFuelPump', next, { source: 'click' }); return; }   // the pump and its hum: core/fuel.js
       setState({ [k]: next });
-      if (k === 'fuelPump') { if (next) startFuelPump(); else stopFuelPump(); }
     });
   });
   /* Exterior lights — bat-handle toggle */

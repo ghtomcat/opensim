@@ -2415,6 +2415,7 @@ let _pumpNodes = null;
 
 export async function startFuelPump() {
   if (_pumpNodes) return;
+  if (typeof AudioContext === 'undefined') return;   // no audio here (node tests) — the switch works without its hum
 
   if (!_ctx) {
     _acquire();

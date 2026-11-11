@@ -16,7 +16,6 @@ import {
 import { drawG1000PFD, drawG1000MFD, drawG1000Bezel, drawMagRotary, drawFuelSel } from './g1000.js';
 import { hideG1000Map } from './map.js';
 import { drawInstrument } from './analog_panel.js';
-import { startFuelPump, stopFuelPump } from '../core/sound.js';
 import { MAGNETO_POSITIONS } from '../core/engine.js';
 import { fuelSelectorPositions } from '../core/fuel.js';
 import { command } from '../core/commands.js';
@@ -226,12 +225,7 @@ function _drawAnalogALT(ctx, box) {
 /* ── rocker_strip toggle action ── */
 
 function _toggleSwitch(key) {
-  if (key === 'fuelPump') {
-    const next = !S.fuelPump;
-    setState({ fuelPump: next });
-    if (next) startFuelPump(); else stopFuelPump();
-    return;
-  }
+  if (key === 'fuelPump') { command('auxFuelPump', !S.fuelPump, { source: 'click' }); return; }   // the pump and its hum: core/fuel.js
   if (key === 'magnetos') {   // the same as the magneto knob — a sweep, then the command
     command('magnetos', sweep('magnetos', MAGNETO_POSITIONS, S.magnetos), { source: 'click' });
     return;
