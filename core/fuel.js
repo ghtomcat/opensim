@@ -62,6 +62,19 @@ export function fuelSelector(pos) {
 }
 registerCommand('fuelSelector', fuelSelector);
 
+/* ── The fuel shutoff — its command: one valve, whichever switch works it (the C172's red knob, the Bf 109's
+   Brandhahn; later the DR400 selector's OFF). Closed, the engine runs on what is in the lines, then quits
+   (tickFuel), and won't start (core/engine.js). Only on an aircraft with tanks (S.fuelLeft not null). ── */
+export function fuelShutoff(pos) {
+  if (pos !== 'open' && pos !== 'closed') { console.warn(`[fuel] shutoff position "${pos}"`); return false; }
+  if (S.fuelLeft === null || S.fuelLeft === undefined) return false;
+  const closed = pos === 'closed';
+  if (closed === !!S.fuelShutoff) return false;
+  setState({ fuelShutoff: closed });
+  return true;
+}
+registerCommand('fuelShutoff', fuelShutoff);
+
 export function tickFuel(dt) {
   /* Oil pressure warning also on aircraft without a fuel system (airliners, …). Here it only
      counts for a running engine — the ECAM inhibits engine warnings while an engine is off or

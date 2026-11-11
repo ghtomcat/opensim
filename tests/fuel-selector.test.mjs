@@ -38,3 +38,18 @@ test('a position the aircraft has not, the one it is at, or a one-tank aircraft:
   assert.equal(command('fuelSelector', 'LEFT'), false);
   assert.equal(S.fuelSelector, 'BOTH');
 });
+
+/* The fuel shutoff — one valve, the C172's knob and the Bf 109's Brandhahn alike */
+test('the shutoff closes and opens; the same position again is refused', () => {
+  setState({ aircraft: load('bf109'), fuelLeft: 400, fuelShutoff: false });
+  assert.equal(command('fuelShutoff', 'closed', { source: 'click' }), true);  assert.equal(S.fuelShutoff, true);
+  assert.equal(command('fuelShutoff', 'closed'), false);
+  assert.equal(command('fuelShutoff', 'open'), true);                        assert.equal(S.fuelShutoff, false);
+  assert.equal(command('fuelShutoff', 'ZU'), false);
+});
+
+test('no shutoff on an aircraft without tanks (the airliners)', () => {
+  setState({ aircraft: load('a350'), fuelLeft: null, fuelShutoff: false });
+  assert.equal(command('fuelShutoff', 'closed'), false);
+  assert.equal(S.fuelShutoff, false);
+});

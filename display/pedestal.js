@@ -843,10 +843,9 @@ function _attachHandlers() {
   /* Fuel selector rotary — a click sweeps LEFT ↔ BOTH ↔ RIGHT (display/controls.js); the command is core/fuel.js's */
   document.getElementById('ped-fsel')?.addEventListener('click', () =>
     command('fuelSelector', sweep('fuelSelector', fuelSelectorPositions(), S.fuelSelector), { source: 'click' }));
-  /* Fuel shutoff — red cutoff knob */
-  document.getElementById('ped-shutoff')?.addEventListener('click', () => {
-    setState({ fuelShutoff: !S.fuelShutoff });
-  });
+  /* Fuel shutoff — red cutoff knob: a click pulls it out (closed) or pushes it in (open) — the command is core/fuel.js's */
+  document.getElementById('ped-shutoff')?.addEventListener('click', () =>
+    command('fuelShutoff', S.fuelShutoff ? 'open' : 'closed', { source: 'click' }));
   /* Electrical switches — bat-handle toggle */
   _el.querySelectorAll('.ped-toggle[data-sw]').forEach(btn => {
     btn.addEventListener('click', () => {

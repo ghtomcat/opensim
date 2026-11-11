@@ -8,6 +8,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from '../core/state.js';
+import { command } from '../core/commands.js';
 
 let _el = null;
 
@@ -226,10 +227,9 @@ function _attachHandlers() {
     btn.addEventListener('click', () => setState({ coolFlap: +btn.dataset.v }));
   });
 
-  /* Brandhahn — toggle fuel cock (fuelShutoff) */
-  document.getElementById('lc-cock')?.addEventListener('click', () => {
-    setState({ fuelShutoff: !S.fuelShutoff });
-  });
+  /* Brandhahn — the fuel cock: a click turns it AUF ↔ ZU — the same valve and command as the C172's shutoff (core/fuel.js) */
+  document.getElementById('lc-cock')?.addEventListener('click', () =>
+    command('fuelShutoff', S.fuelShutoff ? 'open' : 'closed', { source: 'click' }));
 
   /* Parking brake — set / release */
   _el.querySelectorAll('#lc-parkbrake .lc-gate-pos').forEach(btn => {
