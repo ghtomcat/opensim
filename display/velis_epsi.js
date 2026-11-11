@@ -18,6 +18,7 @@
 import { S, setState }               from '../core/state.js';
 import { updateVelisMapOverlay, hideVelisMap } from './map.js';
 import { flapLabel } from '../core/airframe.js';
+import { command } from '../core/commands.js';
 
 /* ── Palette ── */
 const P = {
@@ -281,21 +282,21 @@ function _drawMasterSwitches(ctx, x0, y0, w, h, sc) {
   const keyY = sy + keyR * 1.60;
   _velisKey(ctx, cpx, keyY, keyR, sw.master, fs);
   reg('master', cpx, sy, keyR * 3.4, keyR * 3.6,
-    () => { S.switches.master = !S.switches.master });
+    () => command('elec', { id: 'bat' }, { source: 'click' }));   // the MASTER key — the 14 V battery master (core/electrical.js)
   sy += u * 4;
 
   /* ── POWER: BATT EN + PWR EN ── */
   secLabel('POWER', sy); sy += u * 0.6;
   _velisToggle(ctx, cx1, sy, swW, swH, sw.battEn, 'BATT EN', fs);
-  reg('battEn', cx1, sy, swW, swH, () => { S.switches.battEn = !S.switches.battEn });
+  reg('battEn', cx1, sy, swW, swH, () => command('elec', { id: 'battEn' }, { source: 'click' }));
   _velisToggle(ctx, cx2, sy, swW, swH, sw.pwrEn,  'PWR EN', fs);
-  reg('pwrEn', cx2, sy, swW, swH, () => { S.switches.pwrEn  = !S.switches.pwrEn;  });
+  reg('pwrEn', cx2, sy, swW, swH, () => command('elec', { id: 'pwrEn' }, { source: 'click' }));
   sy += swH + u * 0.4;
 
   /* ── AVIONICS ── */
   secLabel('AVIONICS', sy); sy += u * 0.6;
   _velisToggle(ctx, cpx, sy, swW, swH, sw.avionics, 'AVNCS', fs);
-  reg('avionics', cpx, sy, swW, swH, () => { S.switches.avionics = !S.switches.avionics; });
+  reg('avionics', cpx, sy, swW, swH, () => command('elec', { id: 'avionics' }, { source: 'click' }));
 }
 
 /* The lowest edge of the HTML drawn over the panel's top left (the mission clock, the KEYS

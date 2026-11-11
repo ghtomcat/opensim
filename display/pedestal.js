@@ -850,6 +850,8 @@ function _attachHandlers() {
     btn.addEventListener('click', () => {
       const k = btn.dataset.sw, next = !S[k];
       if (k === 'fuelPump') { command('auxFuelPump', next, { source: 'click' }); return; }   // the pump and its hum: core/fuel.js
+      const elecId = { masterBat: 'bat', masterAlt: 'alt', avionicsOn: 'avionics' }[k];
+      if (elecId) { command('elec', { id: elecId, on: next }, { source: 'click' }); return; }   // core/electrical.js
       setState({ [k]: next });
     });
   });

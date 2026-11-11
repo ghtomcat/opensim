@@ -226,6 +226,8 @@ function _drawAnalogALT(ctx, box) {
 
 function _toggleSwitch(key) {
   if (key === 'fuelPump') { command('auxFuelPump', !S.fuelPump, { source: 'click' }); return; }   // the pump and its hum: core/fuel.js
+  const elecId = { masterBat: 'bat', masterAlt: 'alt', avionicsOn: 'avionics' }[key];
+  if (elecId) { command('elec', { id: elecId, on: !S[key] }, { source: 'click' }); return; }   // BAT / ALT / AVNCS: core/electrical.js
   if (key === 'magnetos') {   // the same as the magneto knob — a sweep, then the command
     command('magnetos', sweep('magnetos', MAGNETO_POSITIONS, S.magnetos), { source: 'click' });
     return;

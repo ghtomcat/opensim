@@ -26,6 +26,7 @@
 
 import { S, setState } from './state.js';
 import { onMissionReset } from './lifecycle.js';
+import { registerCommand } from './commands.js';
 
 const BAT_DRAIN_PCT_S  = 0.30 / 60;
 const BAT_CHARGE_PCT_S = 3.0  / 60;
@@ -82,12 +83,45 @@ function _setCtl(id, patch) {
   setState({ elecCtl: { ...(S.elecCtl ?? {}), [id]: { ...elecCtl(id), ...patch } } });
 }
 
-/** Toggle an element's switch (or set it with `on`). External power plugs in on the ground only. */
+/** Toggle an element's switch (or set it with `on`). External power plugs in on the ground only. False when refused. */
 export function elecSwitch(id, on) {
   const el = electricalLayout().sources.find(e => e.id === id);
-  if (el?.type === 'ext' && !S.wow) return;
+  if (el?.type === 'ext' && !S.wow) return false;
   _setCtl(id, { on: on ?? !elecCtl(id).on });
+  return true;
 }
+
+/* ── The light aircraft's electrical switches — a stand-in until they have an electrical layout of their own
+   (issues.md, *Light-aircraft electrical is switches only*): the command writes today's fields. One id per switch
+   whatever the aircraft — `bat`, `alt`, `avionics` — so the fields can become one later without the callers changing.
+   Which fields, from the aircraft's data: an electric starter (the C172, the DR400) or an electric motor (the Velis:
+   its MASTER key is the 14 V battery master, BATT EN and PWR EN the traction batteries and the motor's power). ── */
+const _PISTON = { bat: 'masterBat', alt: 'masterAlt', avionics: 'avionicsOn' };
+const _VELIS  = { bat: 'master', battEn: 'battEn', pwrEn: 'pwrEn', avionics: 'avionics' };   // in S.switches
+
+/** The light aircraft's switch ids, or null on an aircraft without them */
+export function lightSwitches(ac = S.aircraft) {
+  return ac?.engine?.type === 'electric' ? Object.keys(_VELIS)
+       : ac?.engine?.starter === 'electric' ? Object.keys(_PISTON) : null;
+}
+
+/** A light aircraft's switch: on or off (`on` true / false; absent: toggle). False when refused. */
+export function lightSwitch(id, on) {
+  const velis = S.aircraft?.engine?.type === 'electric';
+  const field = (velis ? _VELIS : S.aircraft?.engine?.starter === 'electric' ? _PISTON : {})[id];
+  if (!field) return false;
+  const cur  = velis ? !!S.switches?.[field] : !!S[field];
+  const next = on ?? !cur;
+  if (next === cur) return false;
+  setState(velis ? { switches: { ...(S.switches ?? {}), [field]: next } } : { [field]: next });
+  return true;
+}
+
+/* The command: { id, on } — a light aircraft's switch (bat, alt, avionics; the Velis's battEn, pwrEn), else an element
+   of the airliner's electrical layout (bat1, ext1, gen1a …). `on` absent: toggle. */
+registerCommand('elec', ({ id, on } = {}) => lightSwitches()
+  ? lightSwitch(id, on)
+  : electricalLayout().sources.some(e => e.id === id) && elecSwitch(id, on));
 
 /** Pull an engine generator's IDG disconnect — for good (it reconnects on the ground, not here). */
 export function elecIdgDisconnect(id) {
