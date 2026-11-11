@@ -9,18 +9,17 @@
 
 import { S, setState } from '../core/state.js';
 import { drawDSKY, drawDSKYKeyboard } from './dsky.js';
+import { beginHits, addHit } from './hit.js';
 
 /* ── Tab state ── */
 const LM_ROLES  = ['CDR', 'LMP', 'CB'];
 let _lmRole     = 'CDR';
-let _lmTabRects = [];
 
 /* ── DSKY state (separate from CM) ── */
 let _dskyMode    = null;
 let _dskyDigits  = '';
 let _dskyVerbOv  = null;
 let _dskyNounOv  = null;
-let _dskyKeyRects = [];
 
 export function loadLMDSKYProgram(verb, noun) {
   _dskyVerbOv = verb; _dskyNounOv = noun; _dskyMode = null; _dskyDigits = '';
@@ -207,12 +206,13 @@ function _callDSKY(ctx, cx, cy, w, h) {
   drawDSKY(ctx, cx, cy, w, h, st);
 }
 function _callDSKYKeyboard(ctx, x, y, w, h) {
-  drawDSKYKeyboard(ctx, x, y, w, h, _dskyMode, _dskyKeyRects);
+  const keys = [];
+  drawDSKYKeyboard(ctx, x, y, w, h, _dskyMode, keys);
+  for (const k of keys) addHit(ctx.canvas, { name: `dsky-${k.key}`, ...k, action: () => _dskyKeyPress(k.key) });   // only while drawn
 }
 
 /* ── Tab row ── */
 function _drawLMTabs(ctx, W, H, crew) {
-  _lmTabRects = [];
   const tabH = Math.round(H*0.072), tabY = H - tabH, tabW = W / LM_ROLES.length;
   for (let i = 0; i < LM_ROLES.length; i++) {
     const r    = LM_ROLES[i];
@@ -225,7 +225,7 @@ function _drawLMTabs(ctx, W, H, crew) {
     ctx.fillStyle = act ? '#b0d890' : '#4a6040';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(name, x + tabW/2, tabY + tabH/2);
-    _lmTabRects.push({role:r, x, y:tabY, w:tabW-2, h:tabH});
+    addHit(ctx.canvas, { name: `tab-${r}`, x, y: tabY, w: tabW - 2, h: tabH, action: () => { _lmRole = r; } });   // display/hit.js
   }
   ctx.strokeStyle = '#2a3828'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(0, tabY); ctx.lineTo(W, tabY); ctx.stroke();
@@ -420,6 +420,7 @@ function _drawCB(ctx, x, y, w, h, dpr, data) {
    Main render
    ══════════════════════════════════════════════════════════════ */
 export function renderLM(canvas) {
+  beginHits(canvas);   // its tabs, DSKY keys and CM link, registered as drawn (display/hit.js)
   const DPR = devicePixelRatio || 1;
   const W   = canvas.width  = canvas.offsetWidth  * DPR;
   const H   = canvas.height = canvas.offsetHeight * DPR;
@@ -469,6 +470,7 @@ export function renderLM(canvas) {
   ctx.beginPath(); ctx.roundRect(btnX, btnY, btnW, btnH, 3); ctx.fill(); ctx.stroke();
   _txt(ctx, '← CM', btnX + btnW/2, btnY + btnH/2,
        { font: sml, color: '#4a6a40', align: 'center', base: 'middle' });
+  addHit(ctx.canvas, { name: 'cm-link', x: btnX, y: btnY, w: btnW, h: btnH, action: () => setState({ inLM: false }) });
 
   /* ── Main content ── */
   const data = { lSz, sml };
@@ -482,35 +484,3 @@ export function renderLM(canvas) {
 }
 
 /* ── Click handler ── */
-export function handleLMClick(canvas, evt) {
-  const DPR  = devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
-  const mx   = (evt.clientX - rect.left)  * DPR;
-  const my   = (evt.clientY - rect.top)   * DPR;
-
-  /* Tab selection */
-  for (const t of _lmTabRects) {
-    if (mx >= t.x && mx <= t.x+t.w && my >= t.y && my <= t.y+t.h) {
-      _lmRole = t.role; return;
-    }
-  }
-
-  /* DSKY keyboard (CDR only) */
-  if (_lmRole === 'CDR') {
-    for (const k of _dskyKeyRects) {
-      if (mx >= k.x && mx <= k.x+k.w && my >= k.y && my <= k.y+k.h) {
-        _dskyKeyPress(k.key); return;
-      }
-    }
-  }
-
-  /* CM link button */
-  const W   = canvas.width;
-  const hdH = Math.round(canvas.height * 0.10);
-  const pad = Math.round(W * 0.025);
-  const btnW = Math.round(W * 0.12), btnH = Math.round(hdH * 0.42);
-  const btnX = W - pad - btnW - Math.round(W*0.12), btnY = Math.round(hdH * 0.30);
-  if (mx >= btnX && mx <= btnX+btnW && my >= btnY && my <= btnY+btnH) {
-    setState({ inLM: false });
-  }
-}

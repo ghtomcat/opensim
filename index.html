@@ -1864,9 +1864,9 @@
   import { dispatchClick } from './display/hit.js';
   import { qnhHitRegion, fcuButtonRegions, nextSdPage } from './display/pfd_instruments.js';
   import { indicatedAlt } from './core/baro.js';
-  import { renderRocket, renderApollo, handleApolloClick, isApolloTelemetry } from './display/rocket_display.js';
-  import { renderLM, handleLMClick } from './display/lm_display.js';
-  import { renderDragon, handleDragonClick, isDragonTelemetry } from './display/dragon.js';
+  import { renderRocket, renderApollo, isApolloTelemetry } from './display/rocket_display.js';
+  import { renderLM } from './display/lm_display.js';
+  import { renderDragon, isDragonTelemetry } from './display/dragon.js';
   import './display/g1000.js';  /* bridge exports used by panel_renderer */
   import { renderAnalogPanel } from './display/analog_panel.js';
   import { initRobotArm, renderRobotArm, resetRobotArm } from './display/robot_arm.js';
@@ -2122,9 +2122,6 @@
 
   canvas.addEventListener('click', evt => {
     if (dispatchClick(canvas, evt)) return;   // a control drawn on the canvas (display/hit.js) — the GA panels, the Velis
-    if (S.aircraft?.vehicleType === 'rocket' && S.mission?.dragonSepT) handleDragonClick(canvas, evt);
-    if (S.aircraft?.id === 'saturn-v' && S.inLM && S.mission?.hasLM) handleLMClick(canvas, evt);
-    else if (S.aircraft?.id === 'saturn-v') handleApolloClick(canvas, evt);
     /* Airbus/E190 PFD: click the QNH window → toggle STD ↔ QNH */
     if ((S.aircraft?.panel === 'airbus' || S.aircraft?.panel === 'e190') && _overRegion(qnhHitRegion(), evt)) {
       setState({ baroStd: !S.baroStd });

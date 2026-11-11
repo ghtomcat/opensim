@@ -11,6 +11,7 @@
 import { S, setState } from '../core/state.js';
 import { moonECI } from '../core/rocket.js';
 import { drawDSKY, drawDSKYKeyboard } from './dsky.js';
+import { beginHits, addHit } from './hit.js';
 
 const DEG      = Math.PI / 180;
 const G0       = 9.80665;
@@ -766,15 +767,12 @@ function _drawProfile(ctx, W, H, tLO, ac) {
 
 const APOLLO_ROLES = ['CDR', 'CMP', 'LMP', 'IU', 'TELEM'];
 let _apolloRole     = 'CDR';
-let _apolloTabRects = [];
-let _lmBtnRect      = null;
 
 /* ── DSKY keyboard input state ── */
 let _dskyMode    = null;   // null | 'verb' | 'noun'
 let _dskyDigits  = '';     // digits being entered (up to 2 chars)
 let _dskyVerbOv  = null;   // manually entered verb override
 let _dskyNounOv  = null;   // manually entered noun override
-let _dskyKeyRects = [];    // clickable key regions (rebuilt each frame)
 
 function _dskyKeyPress(key) {
   if (key === 'VERB')    { _dskyMode = 'verb'; _dskyDigits = ''; return; }
@@ -802,37 +800,6 @@ function _dskyKeyPress(key) {
 export function setApolloRole(r)      { if (APOLLO_ROLES.includes(r)) _apolloRole = r; }
 export function isApolloTelemetry()   { return _apolloRole === 'TELEM'; }
 
-export function handleApolloClick(canvas, evt) {
-  const DPR  = devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
-  const x    = (evt.clientX - rect.left) * DPR;
-  const y    = (evt.clientY - rect.top)  * DPR;
-
-  /* "→ LM" button */
-  if (_lmBtnRect && x >= _lmBtnRect.x && x <= _lmBtnRect.x + _lmBtnRect.w &&
-      y >= _lmBtnRect.y && y <= _lmBtnRect.y + _lmBtnRect.h) {
-    setState({ inLM: true });
-    return true;
-  }
-
-  /* DSKY keyboard (CMP panel only) */
-  if (_apolloRole === 'CMP') {
-    for (const k of _dskyKeyRects) {
-      if (x >= k.x && x <= k.x + k.w && y >= k.y && y <= k.y + k.h) {
-        _dskyKeyPress(k.key);
-        return true;
-      }
-    }
-  }
-
-  for (const t of _apolloTabRects) {
-    if (x >= t.x && x <= t.x + t.w && y >= t.y && y <= t.y + t.h) {
-      _apolloRole = t.role;
-      return true;
-    }
-  }
-  return false;
-}
 
 /* ── Helpers ── */
 
@@ -852,7 +819,6 @@ function _apolloBar(ctx, x, y, w, h, frac, color, bgColor = '#1a2030') {
 
 /* ── Tab row at bottom ── */
 function _drawApolloTabs(ctx, W, H, crew) {
-  _apolloTabRects = [];
   const tabH = Math.round(H * 0.072);
   const tabY = H - tabH;
   const tabW = W / APOLLO_ROLES.length;
@@ -872,7 +838,7 @@ function _drawApolloTabs(ctx, W, H, crew) {
     ctx.textAlign   = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(name, x + tabW / 2, tabY + tabH / 2);
-    _apolloTabRects.push({ role: r, x, y: tabY, w: tabW - 2, h: tabH });
+    addHit(ctx.canvas, { name: `tab-${r}`, x, y: tabY, w: tabW - 2, h: tabH, action: () => { _apolloRole = r; } });   // display/hit.js
   });
 
   ctx.strokeStyle = '#1e2c20';
@@ -1199,7 +1165,9 @@ function _callDSKY(ctx, cx, cy, w, h) {
 }
 
 function _callDSKYKeyboard(ctx, x, y, w, h) {
-  drawDSKYKeyboard(ctx, x, y, w, h, _dskyMode, _dskyKeyRects);
+  const keys = [];
+  drawDSKYKeyboard(ctx, x, y, w, h, _dskyMode, keys);
+  for (const k of keys) addHit(ctx.canvas, { name: `dsky-${k.key}`, ...k, action: () => _dskyKeyPress(k.key) });   // only while drawn
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -1721,6 +1689,7 @@ function _drawCWPanel(ctx, x, y, w, h) {
 }
 
 export function renderApollo(canvas) {
+  beginHits(canvas);   // its tabs, DSKY keys and LM link, registered as drawn (display/hit.js)
   const DPR = devicePixelRatio || 1;
 
   /* TELEM mode: renderRocket already painted the canvas — just overlay tabs */
@@ -1834,7 +1803,6 @@ export function renderApollo(canvas) {
   _apolloText(ctx, met,       W - pad, Math.round(hdH * 0.52), { font: `${Math.round(H*0.038)}px "IBM Plex Mono",monospace`, color: '#5dd47e', align: 'right', base: 'middle' });
 
   /* "→ LM" button — only when mission has an LM */
-  _lmBtnRect = null;
   if (S.mission?.hasLM && S.sivbSep) {
     const sml   = `${Math.round(H*0.022)}px "IBM Plex Mono",monospace`;
     const btnW  = Math.round(W * 0.10), btnH = Math.round(hdH * 0.42);
@@ -1844,7 +1812,7 @@ export function renderApollo(canvas) {
     ctx.beginPath(); ctx.roundRect(btnX, btnY, btnW, btnH, 3); ctx.fill(); ctx.stroke();
     _apolloText(ctx, 'LM →', btnX + btnW/2, btnY + btnH/2,
                 { font: sml, color: '#4a8a50', align: 'center', base: 'middle' });
-    _lmBtnRect = { x: btnX, y: btnY, w: btnW, h: btnH };
+    addHit(ctx.canvas, { name: 'lm-link', x: btnX, y: btnY, w: btnW, h: btnH, action: () => setState({ inLM: true }) });
   }
 
   if (_nextLabel !== null && _nextDt !== null) {

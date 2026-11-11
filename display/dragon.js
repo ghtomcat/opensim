@@ -7,6 +7,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from '../core/state.js';
+import { beginHits, addHit } from './hit.js';
 
 const ROLES   = ['CDR', 'PLT', 'MO', 'MS', 'TELEM'];
 const SEATS   = ['CDR', 'PLT', 'MO', 'MS'];   // crew seats (TELEM is a view, not a seat)
@@ -22,24 +23,10 @@ const R_EARTH = 6_371_000;
 const GM      = 3.986004418e14;
 
 let _role     = 'CDR';
-let _tabRects = [];
 
 export function setDragonRole(r) { if (ROLES.includes(r)) _role = r; }
 export function isDragonTelemetry() { return _role === 'TELEM'; }
 
-export function handleDragonClick(canvas, evt) {
-  const DPR  = devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
-  const x    = (evt.clientX - rect.left) * DPR;
-  const y    = (evt.clientY - rect.top)  * DPR;
-  for (const t of _tabRects) {
-    if (x >= t.x && x <= t.x + t.w && y >= t.y && y <= t.y + t.h) {
-      _role = t.role;
-      return true;
-    }
-  }
-  return false;
-}
 
 /* ── Helpers ── */
 
@@ -79,7 +66,6 @@ function _fmt(n, dec = 1) { return Number(n).toFixed(dec); }
 
 /* ── Role tabs ── */
 function _drawTabs(ctx, W, H) {
-  _tabRects = [];
   const roles = _visibleRoles();
   const tabH  = H * 0.072;
   const tabY  = H - tabH;
@@ -96,7 +82,7 @@ function _drawTabs(ctx, W, H) {
     ctx.textAlign   = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(r, x + tabW / 2, tabY + tabH / 2);
-    _tabRects.push({ role: r, x, y: tabY, w: tabW - 2, h: tabH });
+    addHit(ctx.canvas, { name: `tab-${r}`, x, y: tabY, w: tabW - 2, h: tabH, action: () => { _role = r; } });   // display/hit.js
   });
 
   // divider above tabs
@@ -494,6 +480,7 @@ function _drawMS(ctx, W, H, tLO, altKm, velKms, stage, meco, seco, inOrbit, ac) 
 
 /* ── Main render ── */
 export function renderDragon(canvas) {
+  beginHits(canvas);   // its role tabs, registered as drawn (display/hit.js)
   const DPR = devicePixelRatio || 1;
   const telem = _role === 'TELEM';
 
