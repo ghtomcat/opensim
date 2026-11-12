@@ -8,7 +8,8 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from '../core/state.js';
-import { operate, setControl } from './controls.js';
+import { setControl } from './controls.js';
+import { wireControls } from './controls-html.js';
 
 let _el = null;
 
@@ -161,13 +162,13 @@ function _buildHTML() {
         <div class="lc-ctrl">
           <div class="lc-label">${_liquid ? 'KÜHLERKLAPPE' : 'COWL FLAPS'}</div>
           <div class="lc-gate" id="lc-coolflap">
-            ${_cfPos.map(([v, lbl]) => `<div class="lc-gate-pos" data-v="${v}">${lbl}</div>`).join('')}
+            ${_cfPos.map(([v, lbl]) => `<div class="lc-gate-pos" data-v="${v}" data-control="coolFlap" data-value="${v}">${lbl}</div>`).join('')}
           </div>
         </div>` : '';
   const cock = has('fuelcock') ? `
         <div class="lc-ctrl">
           <div class="lc-label">BRANDHAHN</div>
-          <div class="lc-cock" id="lc-cock"><div class="lc-cock-lever" id="lc-cock-l"></div></div>
+          <div class="lc-cock" id="lc-cock" data-control="fuelShutoff"><div class="lc-cock-lever" id="lc-cock-l"></div></div>
           <div class="lc-val" id="lc-cock-v">—</div>
         </div>` : '';
   /* Parking brake — fighters have no pedestal, so it lives on the left console */
@@ -176,7 +177,7 @@ function _buildHTML() {
         <div class="lc-ctrl">
           <div class="lc-label">${_liquid ? 'PARKBREMSE' : 'PARK BRAKE'}</div>
           <div class="lc-gate" id="lc-parkbrake">
-            ${_pbPos.map(([v, lbl]) => `<div class="lc-gate-pos" data-pb="${v}">${lbl}</div>`).join('')}
+            ${_pbPos.map(([v, lbl]) => `<div class="lc-gate-pos" data-pb="${v}" data-control="parkBrake" data-value="${v === '1'}">${lbl}</div>`).join('')}
           </div>
         </div>` : '';
 
@@ -190,6 +191,7 @@ function _buildHTML() {
 /* ── Handlers ──────────────────────────────────────────────────── */
 function _attachHandlers() {
   if (!_el) return;
+  wireControls(_el);   // the gates and the Brandhahn — [data-control], display/controls-html.js
 
   /* Throttle quadrant — click a lever track to set its position */
   const _quad = (id, fn) => {
@@ -221,17 +223,8 @@ function _attachHandlers() {
   });
 
   /* Kühlerklappe / cowl flaps — discrete steps (open / half / closed) */
-  _el.querySelectorAll('#lc-coolflap .lc-gate-pos').forEach(btn => {
-    btn.addEventListener('click', () => setControl('coolFlap', +btn.dataset.v));   // core/engine.js
-  });
 
-  /* Brandhahn — the fuel cock: a click turns it AUF ↔ ZU — the same valve and command as the C172's shutoff (core/fuel.js) */
-  document.getElementById('lc-cock')?.addEventListener('click', () => operate('fuelShutoff'));
 
-  /* Parking brake — set / release */
-  _el.querySelectorAll('#lc-parkbrake .lc-gate-pos').forEach(btn => {
-    btn.addEventListener('click', () => setControl('parkBrake', btn.dataset.pb === '1'));   // core/gear.js
-  });
 }
 
 /* ── Live update ───────────────────────────────────────────────── */

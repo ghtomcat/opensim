@@ -12,7 +12,8 @@
 import { S, setState }     from '../core/state.js';
 import { drawECAMUpper, drawECAMLower, nextSdPage } from './pfd_instruments.js';
 import { pushButtonHTML, setPushButton } from './pushbutton.js';
-import { operate, setControl } from './controls.js';
+import { setControl } from './controls.js';
+import { wireControls } from './controls-html.js';
 
 const _AB_LEVELS = ['LO', 'MED', 'MAX'];
 
@@ -103,7 +104,7 @@ function _buildHTML() {
     <div id="ccon-ecam-wrap"><canvas id="ccon-ecam"></canvas></div>
     <div id="ccon-gear">
       <div class="ccon-title">Landing Gear</div>
-      <div class="ccon-lever" id="ccon-lever">
+      <div class="ccon-lever" id="ccon-lever" data-control="gear">
         <div class="ccon-lever-slot"></div>
         <div class="ccon-lever-knob"></div>
         <div class="ccon-lever-labels"><span>UP</span><span>DN</span></div>
@@ -156,7 +157,7 @@ export function initCenterConsole() {
   });
 
   /* Gear lever → the gear command (core/gear.js: fixed gear, squat lock) — the same as the G key */
-  _el.querySelector('#ccon-lever').addEventListener('click', () => operate('gear'));
+  wireControls(_el);   // the gear lever — [data-control], display/controls-html.js
 }
 
 export function toggleCenter() {

@@ -9,7 +9,8 @@ import { S, setState } from '../core/state.js';
 import { altLabel } from '../core/route.js';
 import { flapLabel } from '../core/airframe.js';
 import { command } from '../core/commands.js';
-import { operate, setControl, controlState } from './controls.js';
+import { setControl } from './controls.js';
+import { toggleHTML, wireControls, refreshControls } from './controls-html.js';
 import { buildDescentPath } from '../core/vnav.js';
 
 let _el = null;
@@ -253,21 +254,6 @@ const _CSS = `
   .ped-toggle-block { display: flex; flex-direction: column; align-items: center; gap: 10px; }
   .ped-toggle-grouplabel { font: 600 9px/1 monospace; letter-spacing: 0.12em; color: #50607c; }
   .ped-toggle-row { display: flex; gap: 16px; }
-  .ped-toggle { display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: pointer; user-select: none; width: 34px; }
-  .ped-toggle-housing {
-    width: 16px; height: 26px; border-radius: 3px;
-    background: #0c1018; border: 1px solid rgba(255,255,255,0.14); position: relative;
-  }
-  .ped-toggle-lever {
-    position: absolute; left: 50%; transform: translateX(-50%); bottom: 3px;
-    width: 5px; height: 11px; border-radius: 2px; background: #2c3038;
-    transition: bottom 0.14s ease, background 0.1s;
-  }
-  .ped-toggle.on .ped-toggle-lever { bottom: 12px; background: #9eaabf; box-shadow: inset 1px 0 0 rgba(255,255,255,0.22); }
-  .ped-toggle-led { width: 6px; height: 6px; border-radius: 50%; background: #101810; transition: background 0.1s, box-shadow 0.1s; }
-  .ped-toggle.on .ped-toggle-led { background: #38d060; box-shadow: 0 0 6px rgba(56,208,96,0.6); }
-  .ped-toggle-lbl { font: 700 7px/1 monospace; letter-spacing: 0.04em; color: rgba(255,255,255,0.24); }
-  .ped-toggle.on .ped-toggle-lbl { color: rgba(255,255,255,0.62); }
 
   /* ── Magneto rotary (G1000 design) ── */
   .ped-magrot { position: relative; width: 92px; height: 80px; cursor: pointer; user-select: none; }
@@ -605,19 +591,20 @@ function _buildHTML() {
     { tok: 'mixture',  label: 'MIXTURE',   cls: 'knob-red'   },
     { tok: 'carbheat', label: 'CARB HEAT', cls: 'knob-plain' },
   ].filter(k => has(k.tok));
+  const KNOB_CONTROL = { throttle: 'throttleKnob', mixture: 'mixtureKnob', carbheat: 'carbHeat' };   // a click on the knob: display/controls.js
   const knobsBlock = (KNOBS.length || has('magneto')) ? `
         <div class="ped-knob-block">
           <div class="ped-knob-label">ENGINE</div>
           <div class="ped-knob-row">
             ${KNOBS.map(k => `
               <div class="ped-knob-wrap">
-                <div class="ped-knob ${k.cls}" id="ped-knob-${k.tok}"><i></i></div>
+                <div class="ped-knob ${k.cls}" id="ped-knob-${k.tok}"${KNOB_CONTROL[k.tok] ? ` data-control="${KNOB_CONTROL[k.tok]}"` : ''}><i></i></div>
                 <div class="ped-knob-name">${k.label}</div>
                 <div class="ped-knob-val" id="ped-kv-${k.tok}">—</div>
               </div>`).join('')}
             ${has('magneto') ? `
               <div class="ped-knob-wrap">
-                <div class="ped-magrot" id="ped-mag-rot">
+                <div class="ped-magrot" id="ped-mag-rot" data-control="magnetos">
                   ${['OFF', 'R', 'L', 'BOTH', 'START'].map(p =>
                     `<span class="ped-magrot-lbl" data-magl="${p}">${p}</span>`).join('')}
                   <div class="ped-magrot-knob"><div class="ped-magrot-ptr" id="ped-mag-ptr"></div></div>
@@ -630,10 +617,10 @@ function _buildHTML() {
 
   /* ── Flex row: flaps / spd brk / fuel / elec / lights / park brk ── */
   const flapBtns = flapCfgs.map((f, i) =>
-    `<div class="ped-flap-pos" data-flap="${i}">${flapLabel(f, i)}</div>`
+    `<div class="ped-flap-pos" data-flap="${i}" data-control="flaps" data-value="${i}">${flapLabel(f, i)}</div>`
   ).join('');
   const sbBtns = ['RET', 'ARM', 'FULL'].map((lbl, i) =>
-    `<div class="ped-spdbk-pos" data-sb="${i}">${lbl}</div>`
+    `<div class="ped-spdbk-pos" data-sb="${i}" data-control="speedBrake" data-value="${i}">${lbl}</div>`
   ).join('');
 
   const flapBlock = has('flaps') ? `
@@ -650,14 +637,14 @@ function _buildHTML() {
           <div class="ped-park-block">
             <div class="ped-park-label">PARK BRK</div>
             <div class="ped-park-gate">
-              <div class="ped-park-pos" data-pb="1">ON</div>
-              <div class="ped-park-pos" data-pb="0">OFF</div>
+              <div class="ped-park-pos" data-pb="1" data-control="parkBrake" data-value="true">ON</div>
+              <div class="ped-park-pos" data-pb="0" data-control="parkBrake" data-value="false">OFF</div>
             </div>
           </div>` : '';
   /* ── Fuel selector — white rotary lever (LEFT / BOTH / RIGHT) ── */
   const fuelBlock = has('fuel') ? `
           <div class="ped-knob-wrap">
-            <div class="ped-fsel" id="ped-fsel">
+            <div class="ped-fsel" id="ped-fsel" data-control="fuelSelector">
               ${['LEFT', 'BOTH', 'RIGHT'].map(p =>
                 `<span class="ped-fsel-lbl" data-fsel="${p}">${p}</span>`).join('')}
               <div class="ped-fsel-knob"><div class="ped-fsel-lever" id="ped-fsel-lever"></div></div>
@@ -667,16 +654,11 @@ function _buildHTML() {
   /* ── Fuel shutoff — red cutoff knob (push in = on, pull out = OFF) ── */
   const cutoffBlock = has('fuelcutoff') ? `
           <div class="ped-knob-wrap">
-            <div class="ped-shutoff" id="ped-shutoff"><span>OFF</span></div>
+            <div class="ped-shutoff" id="ped-shutoff" data-control="fuelShutoff"><span>OFF</span></div>
             <div class="ped-knob-name">FUEL<br>SHUTOFF</div>
           </div>` : '';
   /* Bat-handle toggle (G1000 design: housing + lever + LED) */
-  const _toggle = (control, lbl) => `
-              <div class="ped-toggle" data-control="${control}">
-                <div class="ped-toggle-housing"><span class="ped-toggle-lever"></span></div>
-                <span class="ped-toggle-led"></span>
-                <span class="ped-toggle-lbl">${lbl}</span>
-              </div>`;
+  const _toggle = toggleHTML;   // the bat-handle toggle — display/controls-html.js
   /* ── Electrical switches (master / avionics / fuel pump) ── */
   const switchBlock = has('switches') ? `
           <div class="ped-toggle-block">
@@ -724,7 +706,7 @@ function _buildHTML() {
         <div class="ped-rotary-wrap">
           <div class="ped-rotary-area">
             <span class="ped-rot-lbl-crank">CRANK</span>
-            <div class="ped-rotary-knob" id="ped-rotary-knob"></div>
+            <div class="ped-rotary-knob" id="ped-rotary-knob" data-control="engMode"></div>
             <span class="ped-rot-lbl-norm">NORM</span>
             <span class="ped-rot-lbl-ign">IGN<br>START</span>
           </div>
@@ -758,9 +740,8 @@ function _buildHTML() {
 
 function _attachHandlers() {
   if (!_el) return;
+  wireControls(_el);   // every [data-control] in the pedestal — display/controls-html.js
 
-  /* ENG MODE selector — a click sweeps CRANK ↔ NORM ↔ IGN+START, no wrap-around (display/controls.js); _update turns the knob */
-  document.getElementById('ped-rotary-knob')?.addEventListener('click', () => operate('engMode'));
 
   /* Engine master flip switches */
   const n = S.aircraft?.engine?.count ?? 2;
@@ -789,39 +770,11 @@ function _attachHandlers() {
     });
   });
 
-  /* Flap handle */
-  _el.querySelectorAll('.ped-flap-pos').forEach(btn => {
-    btn.addEventListener('click', () => {
-      command('flaps', +btn.dataset.flap, { source: 'click' });   // the lever's detent — core/flaps.js
-    });
-  });
 
-  /* Speed brake — RET=0, ARM=1, FULL=2 */
-  _el.querySelectorAll('.ped-spdbk-pos').forEach(btn => {
-    btn.addEventListener('click', () => {
-      setControl('speedBrake', +btn.dataset.sb);   // core/flaps.js
-    });
-  });
 
-  /* Parking brake — ON / OFF */
-  _el.querySelectorAll('.ped-park-pos').forEach(btn => {
-    btn.addEventListener('click', () => setControl('parkBrake', btn.dataset.pb === '1'));   // core/gear.js
-  });
 
 
   /* ── Light-piston controls (moved off the G1000 main panel) ── */
-  /* Throttle vernier — IDLE ↔ CRUISE ↔ FULL (the throttle command: on a prop today's spdT stand-in) */
-  document.getElementById('ped-knob-throttle')?.addEventListener('click', () => operate('throttleKnob'));   // IDLE ↔ CRUISE ↔ FULL, a sweep
-  /* Mixture vernier — RICH ↔ LEAN ↔ ICO */
-  document.getElementById('ped-knob-mixture')?.addEventListener('click', () => operate('mixtureKnob'));    // RICH ↔ LEAN ↔ ICO, a sweep (it wrapped round)
-  /* Carb heat — COLD / HOT */
-  document.getElementById('ped-knob-carbheat')?.addEventListener('click', () => operate('carbHeat'));
-  /* Magnetos, fuel selector (rotaries — a click sweeps), the fuel shutoff knob — display/controls.js */
-  document.getElementById('ped-mag-rot')?.addEventListener('click', () => operate('magnetos'));
-  document.getElementById('ped-fsel')?.addEventListener('click', () => operate('fuelSelector'));
-  document.getElementById('ped-shutoff')?.addEventListener('click', () => operate('fuelShutoff'));
-  /* The bat-handle toggles — electrical switches, fuel pump, lights: each names its control (display/controls.js) */
-  _el.querySelectorAll('.ped-toggle[data-control]').forEach(btn => btn.addEventListener('click', () => operate(btn.dataset.control)));
 }
 
 /* ── Live update ───────────────────────────────────────────────── */
@@ -927,7 +880,7 @@ function _update() {
   const shut = document.getElementById('ped-shutoff');
   if (shut) shut.classList.toggle('ped-shutoff-on', !!S.fuelShutoff);
   /* Electrical switches + lights — bat-handle toggles */
-  _el.querySelectorAll('.ped-toggle[data-control]').forEach(b => b.classList.toggle('on', !!controlState(b.dataset.control)));
+  refreshControls(_el);   // the toggles, lit from their controls
 }
 
 /* ── Public API ────────────────────────────────────────────────── */

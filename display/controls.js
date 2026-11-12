@@ -62,6 +62,7 @@ export const CONTROLS = {
   gear: { kind: 'lever', read: () => S.gear ? 'down' : 'up', command: 'gear' },
   engMode:    { kind: 'rotary', positions: () => ENG_MODE_POSITIONS,    read: () => S.engMode ?? 'NORM', command: 'engineMode' },
   speedBrake: { kind: 'rotary', positions: () => SPEED_BRAKE_POSITIONS, read: () => S.speedBrake ?? 0,  command: 'speedBrake' },   // a lever with detents: RET, ARM, FULL
+  flaps:      { kind: 'select', read: () => S.flaps ?? 0, command: 'flaps' },               // the lever's detents as buttons: setControl
   autobrake:  { kind: 'select', read: () => S.autobrake ?? 'OFF', command: 'autobrake' },     // a row of buttons: setControl
   coolFlap:   { kind: 'select', read: () => S.coolFlap ?? 1,      command: 'coolFlap' },      // a gate: setControl
   /* levers, 0 … 1 — set where clicked (setControl), later dragged (steps unrecorded, the end recorded — core/commands.js) */
