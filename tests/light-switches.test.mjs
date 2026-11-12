@@ -65,3 +65,18 @@ test('carb heat: toggles on an aircraft with it, refused on one without', async 
   setState({ aircraft: load('bf109') });
   assert.equal(command('carbHeat'), false);
 });
+
+/* The avionics bus — one rule for every light aircraft's screens and radio (core/electrical.js) */
+test('avionics power: BAT (the Velis MASTER) and AVIONICS on; BATT EN not needed; aircraft without the switches always', async () => {
+  const { avionicsPowered } = await import('../core/electrical.js');
+  setState({ aircraft: load('velis-hb-syq'), switches: { master: true, avionics: false, battEn: true, pwrEn: true } });
+  assert.equal(avionicsPowered(), false);
+  setState({ switches: { master: true, avionics: true, battEn: false, pwrEn: false } });
+  assert.equal(avionicsPowered(), true);
+  setState({ aircraft: load('c172'), masterBat: true, avionicsOn: false });
+  assert.equal(avionicsPowered(), false);
+  setState({ avionicsOn: true });
+  assert.equal(avionicsPowered(), true);
+  setState({ aircraft: load('bf109') });
+  assert.equal(avionicsPowered(), true);
+});

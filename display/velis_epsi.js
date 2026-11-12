@@ -17,6 +17,7 @@
 import { S }                         from '../core/state.js';
 import { updateVelisMapOverlay, hideVelisMap } from './map.js';
 import { epsiValues } from '../core/epsi.js';
+import { avionicsPowered } from '../core/electrical.js';
 
 /* ── Palette ── */
 const P = {
@@ -41,12 +42,8 @@ const SANS = '"Helvetica Neue",Helvetica,Arial,sans-serif';
 const _r   = d => (d - 90) * Math.PI / 180;
 
 
-/* The instruments (NESIS, EPSI) are on the avionics bus: MASTER connects the 14 V auxiliary
-   battery to the main bus, AVIONICS the main bus to the avionics bus. BATT EN (the traction
-   batteries) isn't needed: the start-up checklist reads the charge on the EPSI before it (POH 4-9,
-   7-27). The same rule as the COM power in core/crew.js — a stand-in until the Velis is on the
-   electrical solver (core/electrical.js) and they read its avionics bus. */
-const _avionicsPowered = () => !!(S.switches?.master && S.switches?.avionics);
+/* The screens (EFIS, EPSI, the map) are on the avionics bus — avionicsPowered(), core/electrical.js: the one rule */
+const _avionicsPowered = () => avionicsPowered();
 
 /* ════════════════════════════════════════════════════════════
    MAIN ENTRY

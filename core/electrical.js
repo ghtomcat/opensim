@@ -120,6 +120,16 @@ export function lightSwitchOn(id) {
   return !!field && (velis ? !!S.switches?.[field] : !!S[field]);
 }
 
+/** Is the avionics bus powered? — the rule for every screen and radio of a light aircraft, in one place: BAT (the Velis's
+    MASTER — the 14 V battery) and AVIONICS on. BATT EN, the Velis's traction batteries, isn't needed: its start-up checklist
+    reads the charge on the EPSI before it (POH 4-9, 7-27). Which switches, from the aircraft's data (lightSwitches); an
+    aircraft without them (airliners, warbirds, rockets) — always powered here. A stand-in until the light aircraft are on the
+    electrical solver and read their avionics bus (issues.md, "Light-aircraft electrical is switches only"). */
+export function avionicsPowered(ac = S.aircraft) {
+  if (!lightSwitches(ac)) return true;
+  return lightSwitchOn('bat') && lightSwitchOn('avionics');
+}
+
 /** A light aircraft's switch: on or off (`on` true / false; absent: toggle). False when refused. */
 export function lightSwitch(id, on) {
   const velis = S.aircraft?.engine?.type === 'electric';

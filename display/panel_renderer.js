@@ -16,6 +16,7 @@ import { drawG1000PFD, drawG1000MFD, drawG1000Bezel } from './g1000.js';
 import { drawToggle, drawRocker, drawMagneto, drawSelector } from './controls-canvas.js';
 import { hideG1000Map } from './map.js';
 import { drawInstrument } from './analog_panel.js';
+import { avionicsPowered } from '../core/electrical.js';
 import { drawVelisEfis, drawVelisEpsi, drawVelisMap } from './velis_epsi.js';
 import { operate, controlState, guardOpen } from './controls.js';
 import { beginHits, addHit } from './hit.js';
@@ -97,7 +98,7 @@ function _drawBottomSwitches(ctx, box, style, cfg) {
 
 /* ── g1000_screen (dual PFD | placard | MFD, C172) ── */
 function _drawG1000Screen(ctx, box, style, cfg) {
-  const powered = S.masterBat !== false && S.avionicsOn !== false;
+  const powered = avionicsPowered();   // the avionics bus — core/electrical.js
   const { x, y, w, h } = box;
 
   const centerW = Math.round(w * 0.055);          /* avionics-stack placard */
@@ -154,7 +155,7 @@ function _drawCenterPlacard(ctx, x, y, w, h) {
 
 /* ── garmin_gtn (single-screen GTN/G5xx, DR-400) ── */
 function _drawGarminGTN(ctx, box, style, cfg) {
-  const powered = S.masterBat !== false && S.avionicsOn !== false;
+  const powered = avionicsPowered();   // the avionics bus — core/electrical.js
   const { x, y, w, h } = box;
 
   /* outer bezel */

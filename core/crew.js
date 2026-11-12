@@ -7,10 +7,11 @@
 import { S, setState } from './state.js';
 import { command } from './commands.js';
 import { radioSpeech } from './callsign.js';
+import { avionicsPowered } from './electrical.js';
 import { playThroughChain, createRadioChain } from './radio.js';
 import { getEngineBleedNode } from './sound.js';
 import { audioContext, audioOutput, audioElement, speak, cancelSpeech } from './audio.js';
-import { TRIGGER, ROCKET_EVENT, PANEL, assertCovers, warnUnknown } from './vocab.js';
+import { TRIGGER, ROCKET_EVENT, assertCovers, warnUnknown } from './vocab.js';
 import { elevM as terrainElevM } from './elevation.js';   // EGPWS look-ahead (3b) — same tile cache as the ND and the outside view
 
 /* ── Voice handles ── */
@@ -595,18 +596,10 @@ function _stopRadioAtmosphere() {
   setTimeout(() => chain.destroy(), 500);
 }
 
-/* ── COM power state — panel-aware. The radio panel (display/com.js) goes dark with it. ── */
+/* ── COM power state — the avionics bus (core/electrical.js: the rule for every light aircraft's screens and radio, from its
+   data — no panel names). The radio panel (display/com.js) goes dark with it. ── */
 export function comPowered() {
-  const ac = S.aircraft;
-  if (!ac) return true;
-  if (ac.panel === PANEL.VELIS) {   // the avionics bus: MASTER (the 14 V battery) and AVIONICS — not BATT EN, the traction batteries (POH 7-27, 4-9)
-    const sw = S.switches;
-    return !!(sw?.master && sw?.avionics);
-  }
-  if (ac.panel === PANEL.G1000 || ac.panel === PANEL.DR400) {   // BAT and AVIONICS (C172, DR400)
-    return S.masterBat !== false && S.avionicsOn !== false;
-  }
-  return true;   // rockets, autopilot aircraft — COM always available
+  return !S.aircraft || avionicsPowered();
 }
 
 /* ── Evaluate a structured trigger object ── */

@@ -29,6 +29,7 @@ import { ballDeflection } from '../core/yaw.js';
 import { indicatedAlt, baroSubscale } from '../core/baro.js';
 import { flowLayout, SIZES } from './panel_flow.js';
 import { epsiValues, flightSeconds } from '../core/epsi.js';
+import { avionicsPowered } from '../core/electrical.js';
 import { smooth, smoothAngle } from './smooth.js';
 
 /* ── Styles — the look and the language of the panel. luftwaffe: the Bf 109 E-4 D-FEML's black faces with
@@ -265,9 +266,9 @@ export const INSTRUMENTS = {
              draw: _both((ctx, x, y, r, sc, v, scale, variant) => (variant === 'winter' ? _drawSlipWinter : _drawLevel)(ctx, x, y, r, sc, v)) },
   tgt:     { value: 'exhaust gas temperature (°C) — gasTemp() (core/engine-gauges.js)', read: gasTemp, simple: STAND_INS.gasTemp,
              draw: _both((ctx, x, y, r, sc, v, scale) => _drawGauge(ctx, x, y, r, sc, v, scale, { max: 800, step: 100, div: 100, sub: '×100 °C', name: 'tgt' })) },
-  powerRpm:{ value: 'the electric motor\'s power (kW) and rpm — core/epsi.js (stand-ins there)', read: () => { const v = epsiValues(); return { kw: v.kw, rpm: v.rpm }; },
+  powerRpm:{ value: 'the electric motor\'s power (kW) and rpm — core/epsi.js (stand-ins there); dark without avionics power', read: () => { const v = epsiValues(); return { on: avionicsPowered(), kw: v.kw, rpm: v.rpm }; },
              simple: 'core/epsi.js EPSI_STAND_INS.power, .rpm', draw: _both(_drawPowerRpm) },
-  varioTimer:{ value: 'the vertical speed (S.vs, fpm) and the flight time (core/epsi.js — counted while airborne)', read: () => ({ fpm: S.vs ?? 0, flightS: flightSeconds() }),
+  varioTimer:{ value: 'the vertical speed (S.vs, fpm) and the flight time (core/epsi.js — counted while airborne); dark without avionics power', read: () => ({ on: avionicsPowered(), fpm: S.vs ?? 0, flightS: flightSeconds() }),
              draw: _both(_drawVarioTimer) },
   clock:   { value: 'the clock time (display/clock.js); the АЧХО also the flight time (S.time)', variants: ['achkho', '24h'],
              read: () => ({ hours: clockHours(), flight: S.time ?? 0 }),
@@ -2130,6 +2131,10 @@ function _drawSlipWinter(ctx, x, y, r, sc, ball) {
 
 /* ── The Velis's two round digital units (Markus's photo of HB-SYQ, sources/velis-panel-notes.md): a screen inside a
    ring scale with a red pointer on the ring. ── */
+/** a digital unit without avionics power — the whole round face is a display, so it is all dark */
+function _digiOff(ctx, x, y, r) {
+  ctx.save(); ctx.fillStyle = '#030405'; ctx.beginPath(); ctx.arc(x, y, r * 0.97, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+}
 /** the screen: a D shape, round on the left, inside the ring */
 function _digiScreen(ctx, x, y, r) {
   ctx.save(); ctx.fillStyle = '#050608'; ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = r * 0.012;
@@ -2148,6 +2153,7 @@ function _ringPointer(ctx, x, y, r, deg) {
     and "RPM …". Its values are stand-ins (core/epsi.js). */
 function _drawPowerRpm(ctx, x, y, r, sc, v) {
   _base(ctx, x, y, r);
+  if (!v.on) return _digiOff(ctx, x, y, r);
   const a0 = 135, sw = 255, ang = (k) => a0 + (k / 8) * sw;
   for (let i = 0; i <= 40; i++) _rtick(ctx, x, y, r, ang(i / 5), r * (i % 5 ? 0.07 : 0.14), (i % 5 ? 0.8 : 1.6) * sc);
   for (let k = 1; k <= 8; k++) _rnum(ctx, x, y, r, ang(k), String(k), 0.13, 0.72);
@@ -2163,6 +2169,7 @@ function _drawPowerRpm(ctx, x, y, r, sc, v) {
     down to ~5 o'clock; figures "5/1000" and "10/2000" (m/s / fpm); the screen "Vario … fpm" and "Flight time hh:mm". */
 function _drawVarioTimer(ctx, x, y, r, sc, v) {
   _base(ctx, x, y, r);
+  if (!v.on) return _digiOff(ctx, x, y, r);
   const ang = (ms) => 270 + Math.max(-11, Math.min(11, ms)) * 12;      // 12° per m/s
   for (let ms = -10; ms <= 10; ms++) _rtick(ctx, x, y, r, ang(ms), r * (ms % 5 ? 0.07 : 0.14), (ms % 5 ? 0.8 : 1.6) * sc);
   for (const [ms, label] of [[5, '5/1000'], [10, '10/2000'], [-5, '5/1000'], [-10, '10/2000']]) _rnum(ctx, x, y, r, ang(ms), label, 0.085, 0.72);
