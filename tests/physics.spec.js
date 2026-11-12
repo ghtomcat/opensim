@@ -130,10 +130,10 @@ test.describe('Cessna 172 — LSZF pattern', () => {
 
 /* ── Robin DR400 ─────────────────────────────────────────────── */
 
-test.describe('Robin DR400 — Grenchen circuit', () => {
+test.describe('Robin DR400 — Grenchen (the cross-country\'s start)', () => {
 
   test('rotates between 60–75 kt', async ({ page }) => {
-    await loadSim(page, 'grenchen-circuit');
+    await loadSim(page, 'grenchen-neuchatel');
     await readyForTakeoff(page);
 
     await setState(page, { spdT: 120 });
@@ -148,7 +148,7 @@ test.describe('Robin DR400 — Grenchen circuit', () => {
   });
 
   test('climbs at >300 fpm at Vy', async ({ page }) => {
-    await loadSim(page, 'grenchen-circuit');
+    await loadSim(page, 'grenchen-neuchatel');
     await readyForTakeoff(page);
 
     await setState(page, { spdT: 120, pitchT: 8 });
@@ -159,7 +159,7 @@ test.describe('Robin DR400 — Grenchen circuit', () => {
   });
 
   test('stall speed below 60 kt clean', async ({ page }) => {
-    await loadSim(page, 'grenchen-circuit');
+    await loadSim(page, 'grenchen-neuchatel');
 
     // Start airborne, bleed speed with engine off
     await setState(page, { alt: 3000, altT: 3000, spd: 90, spdT: 0, pitch: 5, pitchT: 15 });
@@ -292,7 +292,7 @@ test.describe('Ground spawn — all missions start on the runway', () => {
 
   const GROUND_MISSIONS = [
     { id: 'lszf-pattern',     name: 'C172',    elev: 1788 },
-    { id: 'grenchen-circuit', name: 'Robin',   elev: 1411 },
+    { id: 'grenchen-neuchatel', name: 'Robin',   elev: 1411 },
     { id: 'nordmeer-1956',    name: 'Tu-95', elev:  492 },
     { id: 'hostomel-2022',   name: 'An-225',  elev:  394 },
     // wolfskopf-1942 intentionally starts airborne (patrol, alt=2000, departure=null)
@@ -320,7 +320,7 @@ test.describe('Fixed gear — C172 and Robin', () => {
 
   const FIXED_GEAR = [
     { id: 'lszf-pattern',     name: 'C172'  },
-    { id: 'grenchen-circuit', name: 'Robin' },
+    { id: 'grenchen-neuchatel', name: 'Robin' },
   ];
 
   for (const { id, name } of FIXED_GEAR) {

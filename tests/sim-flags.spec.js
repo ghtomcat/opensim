@@ -8,7 +8,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 
 const VEHICLES = [
   ['A350 glass', 'lszh-approach'], ['Bf 109', 'wolfskopf-1942'], ['F4U', 'bougainville-1943'], ['Avro', 'melun-1918'],
-  ['C172 G1000', 'lszf-pattern'], ['DR400', 'grenchen-circuit'], ['Velis', 'lszg-velis'],
+  ['C172 G1000', 'lszf-pattern'], ['DR400', 'grenchen-neuchatel'], ['Velis', 'lszg-velis'],
   ['Dragon', 'crew-demo2'], ['Apollo', 'apollo8'], ['Falcon 1', 'falcon1-omelek'], ['Starship', 'ift-12'],
   ['SO-101', 'so101-workspace'], ['Yertle', 'yertle-lab'],
 ];

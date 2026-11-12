@@ -128,7 +128,7 @@ test.describe('COM power — Velis', () => {
 
 /* ── COM power: the radio panel is dark without power, and its controls do nothing ── */
 
-for (const [what, mission] of [['C172', 'lszf-pattern'], ['DR400', 'grenchen-circuit']]) {
+for (const [what, mission] of [['C172', 'lszf-pattern'], ['DR400', 'grenchen-neuchatel']]) {
   test(`${what}: the COM panel is dark and Z does nothing until BAT and AVIONICS are on`, async ({ page }) => {
     await loadMission(page, mission);
     const off = () => page.evaluate(() => document.getElementById('com-container').classList.contains('com-off'));

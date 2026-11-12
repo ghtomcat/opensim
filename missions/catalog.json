@@ -161,9 +161,9 @@
   },
   {
     "id": "grenchen-neuchatel",
-    "aircraft": "c172",
-    "acName": "Cessna 172S Skyhawk",
-    "engine": "Lycoming IO-360 · 180hp",
+    "aircraft": "robin-dr400",
+    "acName": "Robin DR400/140B",
+    "engine": "Lycoming O-320 · 160hp",
     "location": "Grenchen LSZG → Neuchâtel LSGN",
     "title": "Cross-Country · Schnupperflug Route",
     "era": "PPL",
@@ -172,27 +172,9 @@
       "date": "LSZG · LSGN · LSZG · VFR",
       "pilot": "Student Pilot",
       "unit": "Flugschule Grenchen",
-      "aircraft": "HB-TBD · Cessna 172S · IO-360 180hp",
+      "aircraft": "HB-KLE · Robin DR400/140B · O-320 160hp",
       "orders": "Depart Grenchen runway 26. Climb westbound.\nTrack over Bielersee at 4500ft.\nSide approach Neuchâtel from east. Runway 23.\nLand. Fuel if needed. Depart runway 05.\nReturn Grenchen via Bielersee. Runway 26.",
       "atmosphere": "You flew this route before.\nYou were in the right seat then.\nNow you fly it."
-    }
-  },
-  {
-    "id": "grenchen-circuit",
-    "aircraft": "robin-dr400",
-    "acName": "Robin DR400/140B",
-    "engine": "Lycoming O-320 · 160hp",
-    "location": "Grenchen LSZG",
-    "title": "VFR Circuit",
-    "era": "PPL",
-    "accent": "#e8a838",
-    "briefing": {
-      "date": "LSZG · Piste 26 · CTAF 122.275",
-      "pilot": "Student Pilot",
-      "unit": "Flugschule Grenchen",
-      "aircraft": "HB-KLE · Robin DR400/140B · O-320 160hp",
-      "orders": "Platzrunde links. Platzhöhe 2200ft QNH.\nPiste 26 · Asphalt · 900m.\nCrosswind bei 800ft AGL links eindrehen.\nEndanflug 70kt, Klappen 30°. Aufsetzen bei den Zahlen.",
-      "atmosphere": "Low wing. Stick, not yoke.\nYou flew this aircraft already."
     }
   },
   {

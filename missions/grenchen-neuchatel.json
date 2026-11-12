@@ -2,9 +2,9 @@
   "id": "grenchen-neuchatel",
   "phase": "ground",
   "title": "Cross-Country — Grenchen · Neuchâtel · Grenchen",
-  "description": "LSZG → over Bielersee → LSGN → return. Schnupperflug route. C172, VFR.",
+  "description": "LSZG → over Bielersee → LSGN → return. Schnupperflug route. Robin DR400 HB-KLE, VFR.",
   "author": "Markus Leutwyler",
-  "aircraft": "c172",
+  "aircraft": "robin-dr400",
 
   "timeOfDay": 10.5,
 

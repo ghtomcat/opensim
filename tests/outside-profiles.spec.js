@@ -7,7 +7,7 @@ import { frames } from './frames.js';
 
 const CASES = [
   { profile: 'c172',     mission: 'lszf-pattern'      },
-  { profile: 'c172(dr)', mission: 'grenchen-circuit'  },
+  { profile: 'c172(dr)', mission: 'grenchen-neuchatel'  },
   { profile: 'bf109',    mission: 'hahnweide-1944'    },
   { profile: 'f4u',      mission: 'bougainville-1943' },
   { profile: 'mig15',    mission: 'deblin-1955'       },

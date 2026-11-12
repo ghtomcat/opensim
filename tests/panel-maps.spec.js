@@ -7,7 +7,7 @@ import { test, expect } from '@playwright/test';
 import { frames } from './frames.js';
 
 for (const [what, mission, map] of [['Velis', 'lszg-velis', '#velis-map-overlay'], ['C172', 'lszf-pattern', '#g1000-map-overlay'],
-  ['DR400', 'grenchen-circuit', '#g1000-map-overlay']]) {
+  ['DR400', 'grenchen-neuchatel', '#g1000-map-overlay']]) {
   test(`${what}: the panel map shows on the forward panel, not over the pedestal`, async ({ page }) => {
     await page.goto(`/?mission=${mission}&test=1`);
     await page.waitForFunction(() => window.simReady === true);

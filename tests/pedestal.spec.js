@@ -17,7 +17,7 @@ const flaps = (page) => page.locator('.ped-flap-pos').allTextContents();
 
 for (const [what, mission, names, spdBrk] of [
   ['Velis', 'lszg-velis', ['UP', '15°'], false],
-  ['DR400', 'grenchen-circuit', ['UP', '15°', '30°'], false],
+  ['DR400', 'grenchen-neuchatel', ['UP', '15°', '30°'], false],
   ['A350', 'lszh-approach', ['0', '1+F', '2', '3'], true],
 ]) {
   test(`${what}: the flaps are named ${names.join(' · ')}, ${spdBrk ? 'with' : 'no'} SPD BRK`, async ({ page }) => {
