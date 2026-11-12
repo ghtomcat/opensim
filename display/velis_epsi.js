@@ -2,7 +2,7 @@
    OpenSim — display/velis_epsi.js
    Pipistrel Velis Electro HB-SYQ — its own displays, as glass widgets:
      drawVelisEfis   the round EFIS (attitude, airspeed, heading — drawn as the NESIS 4)
-     drawVelisEpsi   the EPSI energy display (today's page — redrawn as the real 570C next)
+     drawVelisEpsi   the EPSI 570C's FLIGHT page (its values core/epsi.js's — stand-ins marked there)
      drawVelisMap    the GPS moving map, a screen of its own
    The panel's layout is panels/velis-epsi.json, as HB-SYQ's (Markus's photo,
    sources/velis-panel-notes.md); its round gauges come from the analog registry
@@ -14,9 +14,9 @@
    #warning-lights) are hidden by index.html when this panel is active.
    ═══════════════════════════════════════════════════════════════ */
 
-import { S, setState }               from '../core/state.js';
+import { S }                         from '../core/state.js';
 import { updateVelisMapOverlay, hideVelisMap } from './map.js';
-import { flapLabel } from '../core/airframe.js';
+import { epsiValues } from '../core/epsi.js';
 
 /* ── Palette ── */
 const P = {
@@ -60,10 +60,10 @@ export function drawVelisEfis(ctx, box) {
   _drawNESIS(ctx, box.x + box.w / 2, box.y + box.h / 2, r, r / 160);
 }
 
-/** The EPSI — today's energy page, scaled to its box (its map is a screen of its own: drawVelisMap) */
+/** The EPSI 570C — its FLIGHT page, in its box (the map is a screen of its own: drawVelisMap) */
 export function drawVelisEpsi(ctx, box) {
-  const h = box.h * 0.94, w = Math.min(box.w * 0.94, h * 0.9);
-  _drawEPSI(ctx, ctx.canvas, box.x + box.w / 2, box.y + box.h / 2, w, h, h / 644);
+  const w = Math.min(box.w * 0.94, box.h * 0.94 * 1.45), h = w / 1.45;   // a landscape screen, 1.45 : 1
+  _drawEPSI(ctx, box.x + (box.w - w) / 2, box.y + (box.h - h) / 2, w, h);
 }
 
 /** The GPS moving map — a screen of its own (the HTML map overlay, placed in the box); dark without avionics power */
@@ -263,194 +263,80 @@ function _drawNESIS(ctx, x, y, r, sc) {
 /* ════════════════════════════════════════════════════════════
    EPSI 570 energy management
    ════════════════════════════════════════════════════════════ */
-function _drawEPSI(ctx, canvas, cx, cy, w, h, sc) {
-  const x0  = cx - w/2;
-  const y0  = cy - h/2;
-  const pad = 14*sc;
-
+/* ── The EPSI 570C's FLIGHT page, as on Markus's photo of HB-SYQ: the tabs FLIGHT / SYSTEM; TACHOMETER (an arc), the two
+   flight batteries F / R (bars, the reserve marked), POWER (an arc); hh:mm; four temperatures (motor, controller, battery F,
+   battery R); AUX BATTERY (V) and HOBBS. The values are core/epsi.js's — its stand-ins marked there. ── */
+function _drawEPSI(ctx, x0, y0, w, h) {
+  const v = epsiValues(), u = Math.min(w / 1.45, h);   // one unit: the page's height in a 1.45 : 1 screen
+  const G = '#5dd47e', Y = '#d8c040', R = '#d04030', W = '#e8edf2', D = 'rgba(232,237,242,0.45)';
   ctx.save();
-  _roundRect(ctx, x0, y0, w, h, 10*sc);
-  ctx.fillStyle   = P.recess;
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(0,200,224,0.18)';
-  ctx.lineWidth   = 1.5;
-  ctx.stroke();
-  ctx.clip();
-
-  /* Without power the whole screen is dark, its map too — as the NESIS */
-  if (!_avionicsPowered()) {
-    ctx.fillStyle = '#000';
-    ctx.fillRect(x0, y0, w, h);
-    ctx.fillStyle    = 'rgba(255,255,255,0.12)';
-    ctx.font         = `${10*sc}px ${SANS}`;
-    ctx.textAlign    = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('AVIONICS OFF', cx, cy);
-    ctx.restore();
-    return;
+  _roundRect(ctx, x0, y0, w, h, u * 0.03); ctx.fillStyle = '#05070a'; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.clip();
+  if (!_avionicsPowered()) {                                           // dark without avionics power
+    ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.font = `${u * 0.05}px ${SANS}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('AVIONICS OFF', x0 + w / 2, y0 + h / 2); ctx.restore(); return;
   }
-
-  /* Header */
-  ctx.fillStyle    = 'rgba(0,200,224,0.08)';
-  ctx.fillRect(x0, y0, w, 28*sc);
-  ctx.fillStyle    = P.cyan;
-  ctx.font         = `bold ${9*sc}px ${SANS}`;
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('EPSI 570  ·  ENERGY MANAGEMENT', cx, y0 + 14*sc);
-
-  ctx.strokeStyle = 'rgba(0,200,224,0.12)';
-  ctx.lineWidth   = 1;
-  ctx.beginPath();
-  ctx.moveTo(x0+pad, y0+28*sc); ctx.lineTo(x0+w-pad, y0+28*sc); ctx.stroke();
-
-  const soc      = S.batteryCharge ?? 0;
-  const masterOn = S.switches.master;
-  const pwrOn    = S.switches.pwrEn;
-  const kw       = pwrOn
-    ? (S.aircraft?.battery?.powerDrawKw ?? 25) * (S.enginePower ?? 0)
-    : 0;
-  const socColor = soc > 27 ? P.green : soc > 20 ? P.amber : soc > 10 ? '#ff8800' : P.red;
-
-  /* SOC % — large */
-  const socY = y0 + 72*sc;
-  ctx.fillStyle    = socColor;   // the BMS reports the charge with BATT EN off too — checked before it (POH 4-9)
-  ctx.font         = `bold ${52*sc}px ${MONO}`;
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(Math.round(soc) + '%', cx, socY);
-  ctx.fillStyle    = P.dim;
-  ctx.font         = `${8*sc}px ${SANS}`;
-  ctx.fillText('STATE OF CHARGE', cx, socY + 34*sc);
-
-  /* SOC bar */
-  const barY = y0 + 124*sc;
-  const barH = 20*sc;
-  const barW = w - pad*2.5;
-  const barX = cx - barW/2;
-
-  ctx.fillStyle = 'rgba(255,255,255,0.07)';
-  _roundRect(ctx, barX, barY, barW, barH, 4*sc); ctx.fill();
-
-  ctx.fillStyle = socColor;
-  _roundRect(ctx, barX, barY, barW * Math.max(0, soc/100), barH, 4*sc); ctx.fill();
-
-  /* 27% marker */
-  const m27x = barX + barW * 0.27;
-  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
-  ctx.lineWidth   = 1.5*sc;
-  ctx.setLineDash([3*sc, 3*sc]);
-  ctx.beginPath(); ctx.moveTo(m27x, barY-5*sc); ctx.lineTo(m27x, barY+barH+5*sc); ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle    = 'rgba(255,255,255,0.40)';
-  ctx.font         = `${7.5*sc}px ${SANS}`;
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillText('27%', m27x, barY - 7*sc);
-
-  /* Divider */
-  const div1Y = barY + barH + 16*sc;
-  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
-  ctx.lineWidth   = 1;
-  ctx.beginPath(); ctx.moveTo(x0+pad, div1Y); ctx.lineTo(x0+w-pad, div1Y); ctx.stroke();
-
-  /* kW + ALT row */
-  const row2Y = div1Y + 16*sc;
-  const col   = w/2;
-
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillStyle = P.dim;    ctx.font = `${8*sc}px ${SANS}`;
-  ctx.fillText('MOTOR POWER', cx - col/2, row2Y);
-  ctx.fillStyle = pwrOn ? P.cyan : P.dim;
-  ctx.font      = `bold ${24*sc}px ${MONO}`;
-  ctx.fillText(pwrOn ? Math.round(kw) + ' kW' : '---', cx - col/2, row2Y + 18*sc);
-
-  ctx.fillStyle = P.dim;    ctx.font = `${8*sc}px ${SANS}`;
-  ctx.fillText('ALTITUDE', cx + col/2, row2Y);
-  ctx.fillStyle = P.white;  ctx.font = `bold ${24*sc}px ${MONO}`;
-  ctx.fillText(Math.round(S.alt ?? 0).toLocaleString() + ' ft', cx + col/2, row2Y + 18*sc);
-
-  /* Divider */
-  const div2Y = row2Y + 46*sc;
-  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
-  ctx.lineWidth   = 1;
-  ctx.beginPath(); ctx.moveTo(x0+pad, div2Y); ctx.lineTo(x0+w-pad, div2Y); ctx.stroke();
-
-  /* VS + Flaps row */
-  const row3Y = div2Y + 16*sc;
-  const vs    = S.vs ?? 0;
-  const flaps = S.aircraft?.flaps ?? [];
-  const flapsIdx   = S.flaps ?? 0;
-  const flapsLabel = flapLabel(flaps[flapsIdx], flapsIdx);
-
-  ctx.fillStyle = P.dim;   ctx.font = `${8*sc}px ${SANS}`;
-  ctx.fillText('V/S', cx - col/2, row3Y);
-  ctx.fillStyle = Math.abs(vs) > 1000 ? P.amber : P.white;
-  ctx.font      = `bold ${20*sc}px ${MONO}`;
-  ctx.fillText((vs >= 0 ? '+' : '') + Math.round(vs/10)*10 + ' fpm', cx - col/2, row3Y + 16*sc);
-
-  ctx.fillStyle = P.dim;   ctx.font = `${8*sc}px ${SANS}`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('FLAPS', cx + col/2, row3Y);
-
-  /* Segmented position indicator */
-  const segW   = Math.min(col * 0.38, 28*sc);
-  const segH   = 14*sc;
-  const segGap = 3*sc;
-  const segsW  = flaps.length * segW + (flaps.length - 1) * segGap;
-  const segX0  = cx + col/2 - segsW/2;
-  const segY   = row3Y + 11*sc;
-  flaps.forEach((fp, i) => {
-    const active = i === flapsIdx;
-    const lbl    = flapLabel(fp, i);
-    const sx     = segX0 + i * (segW + segGap);
-    ctx.fillStyle = active
-      ? (i > 0 ? 'rgba(0,200,224,0.18)' : 'rgba(255,255,255,0.08)')
-      : 'rgba(0,0,0,0.35)';
-    _roundRect(ctx, sx, segY, segW, segH, 2*sc); ctx.fill();
-    ctx.strokeStyle = active
-      ? (i > 0 ? P.cyan : 'rgba(255,255,255,0.28)')
-      : 'rgba(255,255,255,0.07)';
-    ctx.lineWidth = 0.8;
-    _roundRect(ctx, sx, segY, segW, segH, 2*sc); ctx.stroke();
-    ctx.fillStyle = active ? (i > 0 ? P.cyan : P.white) : 'rgba(255,255,255,0.22)';
-    ctx.font = `${active ? 'bold ' : ''}${Math.round(segH * 0.60)}px ${MONO}`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(lbl, sx + segW/2, segY + segH/2);
+  const txt = (s, x, y, size, col = W, bold = false, align = 'center') => {
+    ctx.fillStyle = col; ctx.font = `${bold ? 'bold ' : ''}${u * size}px ${SANS}`; ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.fillText(s, x, y);
+  };
+  /* the tabs */
+  const tx = x0 + w * 0.5, ty = y0 + h * 0.055;
+  ctx.strokeStyle = W; ctx.lineWidth = u * 0.006;
+  ctx.beginPath(); ctx.moveTo(tx - w * 0.2, ty - h * 0.04); ctx.lineTo(tx - w * 0.18, ty + h * 0.035); ctx.lineTo(tx - w * 0.02, ty + h * 0.035); ctx.lineTo(tx, ty - h * 0.04); ctx.stroke();
+  txt('FLIGHT', tx - w * 0.1, ty, 0.045, W, true); txt('SYSTEM', tx + w * 0.1, ty, 0.045, 'rgba(232,237,242,0.18)', true);
+  /* an arc gauge: green, then yellow, then red; a triangle at the value; the number and its unit in the middle */
+  const arc = (cx, cy, rr, frac, bands, value, unit, name) => {
+    const a0 = 220, sw = 250, ang = f => (a0 + f * sw - 90) * Math.PI / 180;
+    ctx.lineWidth = u * 0.035; ctx.lineCap = 'butt';
+    for (const [f0, f1, col] of bands) { ctx.strokeStyle = col; ctx.beginPath(); ctx.arc(cx, cy, rr, ang(f0), ang(f1)); ctx.stroke(); }
+    const a = ang(Math.max(0, Math.min(1, frac))), c = Math.cos(a), s = Math.sin(a);
+    ctx.fillStyle = W; ctx.beginPath();
+    ctx.moveTo(cx + c * (rr - u * 0.03), cy + s * (rr - u * 0.03));
+    ctx.lineTo(cx + c * (rr - u * 0.085) - s * u * 0.025, cy + s * (rr - u * 0.085) + c * u * 0.025);
+    ctx.lineTo(cx + c * (rr - u * 0.085) + s * u * 0.025, cy + s * (rr - u * 0.085) - c * u * 0.025); ctx.fill();
+    txt(String(Math.round(value)), cx, cy - u * 0.01, 0.1, W, true);
+    txt(unit, cx, cy + u * 0.075, 0.04, W, true);
+    txt(name, cx, cy + rr * 0.95, 0.042, D);
+  };
+  const ay = y0 + h * 0.33, ar = u * 0.19;
+  arc(x0 + w * 0.19, ay, ar, v.rpm / v.maxRpm, [[0, 0.88, G], [0.88, 0.96, Y], [0.96, 1, R]], v.rpm, 'RPM', 'TACHOMETER');
+  const kwTop = v.maxKw * 1.08;
+  arc(x0 + w * 0.81, ay, ar, v.kw / kwTop, [[0, v.contKw / kwTop, G], [v.contKw / kwTop, v.maxKw / kwTop, Y], [v.maxKw / kwTop, 1, R]], v.kw, 'KW', 'POWER');
+  /* the two flight batteries */
+  const bw = w * 0.07, bh = h * 0.30, by = y0 + h * 0.16;
+  [['F', v.batF, x0 + w * 0.445], ['R', v.batR, x0 + w * 0.555]].forEach(([n, pct, bx]) => {
+    const col = pct > v.reserve ? G : pct > 10 ? Y : R;
+    txt(`${Math.round(pct)}%`, bx, by - h * 0.035, 0.05, W, true);
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(bx - bw / 2, by, bw, bh);
+    ctx.fillStyle = col; ctx.fillRect(bx - bw / 2, by + bh * (1 - pct / 100), bw, bh * pct / 100);
+    txt(n, bx, by + bh * 0.45, 0.06, 'rgba(255,255,255,0.75)', true);
+    ctx.strokeStyle = W; ctx.lineWidth = u * 0.006;                    // the reserve mark beside the bar
+    const ry = by + bh * (1 - v.reserve / 100);
+    ctx.beginPath(); ctx.moveTo(bx - bw / 2 - u * 0.03, ry); ctx.lineTo(bx - bw / 2 - u * 0.01, ry); ctx.moveTo(bx + bw / 2 + u * 0.01, ry); ctx.lineTo(bx + bw / 2 + u * 0.03, ry); ctx.stroke();
   });
-
-  /* (the moving map is a screen of its own now — drawVelisMap) */
-
-  /* Warning annunciators */
-  const warnY = y0 + h - 46*sc;
-  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
-  ctx.lineWidth   = 1;
-  ctx.beginPath(); ctx.moveTo(x0+pad, warnY-10*sc); ctx.lineTo(x0+w-pad, warnY-10*sc); ctx.stroke();
-
-  const warns = [
-    { label: 'BATT LOW',  active: soc <= 20 && soc > 10, color: P.amber },
-    { label: 'BATT CRIT', active: soc <= 10,             color: P.red   },
-    { label: 'GO-AROUND', active: soc <= 27 && soc > 10, color: P.amber },
-    { label: 'MOTOR OFF', active: masterOn && !pwrOn,              color: P.red   },
-  ];
-  const warnW = (w - pad*2) / warns.length;
-  warns.forEach((warn, i) => {
-    const wx = x0 + pad + warnW*i + warnW/2;
-    ctx.fillStyle    = warn.active ? warn.color : 'rgba(255,255,255,0.10)';
-    ctx.font         = `bold ${8*sc}px ${SANS}`;
-    ctx.textAlign    = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(warn.label, wx, warnY + 10*sc);
-    if (warn.active) {
-      ctx.strokeStyle = warn.color;
-      ctx.lineWidth   = 1;
-      ctx.globalAlpha = 0.22;
-      _roundRect(ctx, wx-warnW/2+2*sc, warnY-0*sc, warnW-4*sc, 22*sc, 3*sc);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-    }
+  const hh = Math.floor(v.endurance), mm = Math.floor((v.endurance - hh) * 60);
+  txt(`${String(hh).padStart(2, '0')} : ${String(mm).padStart(2, '0')}`, x0 + w * 0.5, y0 + h * 0.54, 0.065, W, true);
+  txt('hh', x0 + w * 0.465, y0 + h * 0.59, 0.03, D); txt('mm', x0 + w * 0.535, y0 + h * 0.59, 0.03, D);
+  /* the lower row: the temperatures; the aux battery and the hobbs */
+  ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1;
+  _roundRect(ctx, x0 + w * 0.02, y0 + h * 0.63, w * 0.33, h * 0.34, u * 0.02); ctx.stroke();
+  _roundRect(ctx, x0 + w * 0.37, y0 + h * 0.63, w * 0.25, h * 0.34, u * 0.02); ctx.stroke();
+  _roundRect(ctx, x0 + w * 0.64, y0 + h * 0.63, w * 0.34, h * 0.34, u * 0.02); ctx.stroke();
+  const tw = w * 0.035, tb = y0 + h * 0.90, tH = h * 0.18;
+  v.temps.forEach((t, i) => {
+    const cx = x0 + w * (0.07 + i * 0.075);
+    txt(String(Math.round(t.c)), cx, y0 + h * 0.68, 0.05, W, true);
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(cx - tw / 2, tb - tH, tw, tH);
+    const f = Math.max(0, Math.min(1, t.c / 80));                      // a bar scale to 80 °C — to confirm
+    ctx.fillStyle = G; ctx.fillRect(cx - tw / 2, tb - tH * f, tw, tH * f);
+    txt(t.what === 'motor' ? 'MOT' : t.what === 'controller' ? 'CTL' : t.what, cx, tb + h * 0.035, 0.03, D);
   });
-
+  txt('°C', x0 + w * 0.335, y0 + h * 0.68, 0.035, W);
+  txt(`${v.auxV.toFixed(1)} V`, x0 + w * 0.495, y0 + h * 0.71, 0.06, W, true);
+  txt('AUX BATTERY', x0 + w * 0.495, y0 + h * 0.77, 0.028, D);
+  const hmin = Math.round(v.hobbs * 60), hb = Math.floor(hmin / 60), hm = hmin % 60;   // whole minutes — 210:32, not 210:31
+  txt(`${hb} : ${String(hm).padStart(2, '0')}`, x0 + w * 0.495, y0 + h * 0.86, 0.05, W, true);
+  txt('HOBBS', x0 + w * 0.495, y0 + h * 0.92, 0.028, D);
   ctx.restore();
 }
 
