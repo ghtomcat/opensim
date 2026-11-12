@@ -13,6 +13,7 @@ import { CONTROLS, operate, controlState, guardOpen } from '../display/controls.
 import { runMissionResets } from '../core/lifecycle.js';
 import '../core/gear.js';
 import '../core/failures.js';
+import '../core/baro.js';
 
 const load = (id) => JSON.parse(readFileSync(new URL(`../aircraft/${id}.json`, import.meta.url), 'utf8'));
 
@@ -126,4 +127,18 @@ test('a drag: its steps unrecorded, its end recorded once; a click recorded at o
   const rec = bbRecords().filter(r => r.type === 'command' && r.command === 'propPitch');
   assert.deepEqual(rec.map(r => [r.arg, r.source]), [[0.7, 'drag'], [0.4, 'click']]);
   assert.equal(S.propPitch, 0.4);
+});
+
+/* The altimeter setting knob (core/baro.js) — a step in the dial's own unit; turning leaves STD */
+import { turn } from '../display/controls.js';
+test('the setting knob turns the subscale in its dial\'s unit, leaves STD, and stays inside 940 … 1050 hPa', () => {
+  setState({ baroStd: true, baroSet: 1013 });
+  assert.equal(turn('baroKnob', 2), true);                                     // 1 hPa a step
+  assert.equal(S.baroStd, false); assert.equal(S.baroSet, 1015.25);            // from STD 1013.25
+  turn('baroKnob', 10, { stepHpa: 0.338639 });                                // an in. Hg dial: 0.10 in. Hg
+  assert.ok(Math.abs(S.baroSet - (1015.25 + 3.38639)) < 0.01);
+  turn('baroKnob', 1000);
+  assert.equal(S.baroSet, 1050);
+  assert.equal(turn('baroKnob', 1), false);                                    // at the stop: refused
+  assert.equal(command2('baroStd', 'toggle'), true); assert.equal(S.baroStd, true);
 });

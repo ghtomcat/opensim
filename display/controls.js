@@ -15,12 +15,13 @@
                 OFF → R → L → BOTH → START ⟲ BOTH → L → R → OFF → R …
      lever    two positions (the gear): the other one
      select   a row of buttons or a gate (the autobrake, the cooling flaps): set to the one clicked — setControl
+     knob     turns freely (the altimeter setting): a drag or the wheel — turn(), and turned() when a drag ends
    The sweep's direction and a guard's state belong to the control, not to the aircraft:
    kept here per control id, cleared on every mission load.
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from '../core/state.js';
-import { command } from '../core/commands.js';
+import { command, recordCommand } from '../core/commands.js';
 import { onMissionReset } from '../core/lifecycle.js';
 import { MAGNETO_POSITIONS, ENG_MODE_POSITIONS } from '../core/engine.js';
 import { SPEED_BRAKE_POSITIONS } from '../core/flaps.js';
@@ -80,6 +81,22 @@ export const CONTROLS = {
 /* ENG FIRE handle per engine — `engFire.1` …, under a guard; pulled once */
 for (let i = 0; i < 8; i++)
   CONTROLS[`engFire.${i + 1}`] = { kind: 'toggle', read: () => !!S.engFireArmed?.[i], command: 'engineFire', arg: () => ({ engine: i }) };
+
+/* the altimeter's setting knob — a free-turning knob; a step is the dial's own unit (stepHpa: 1 hPa, 0.01 in. Hg, 1 mm Hg) */
+CONTROLS.baroKnob = { kind: 'knob', read: () => S.baroSet, command: 'baroSet', arg: (steps, { stepHpa = 1 } = {}) => ({ step: steps * stepHpa }) };
+
+/** A knob turned by `steps` (a drag's step or a wheel's notch) — opts go to its argument (a step's size); `record: false`
+    for a drag's steps, recorded once at the end with turned() */
+export function turn(id, steps, { source = 'click', record = true, ...opts } = {}) {
+  const c = CONTROLS[id];
+  if (c?.kind !== 'knob') { console.warn(`[controls] not a knob: "${id}"`); return false; }
+  return command(c.command, c.arg(steps, opts), { source, record });
+}
+/** A knob's drag ended — recorded once, with where it ended */
+export function turned(id, { source = 'click' } = {}) {
+  const c = CONTROLS[id];
+  if (c?.kind === 'knob') recordCommand(c.command, { value: c.read() }, { source });
+}
 
 /** A control's state as drawn: a toggle's on, a rotary's or a lever's position */
 export const controlState = (id) => CONTROLS[id]?.read();

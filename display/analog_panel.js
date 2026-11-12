@@ -29,6 +29,8 @@ import { ballDeflection } from '../core/yaw.js';
 import { indicatedAlt, baroSubscale } from '../core/baro.js';
 import { flowLayout, SIZES } from './panel_flow.js';
 import { epsiValues, flightSeconds } from '../core/epsi.js';
+import { addHit, beginHits } from './hit.js';
+import { turn, turned } from './controls.js';
 import { avionicsPowered } from '../core/electrical.js';
 import { smooth, smoothAngle } from './smooth.js';
 
@@ -194,7 +196,9 @@ export const INSTRUMENTS = {
              read: () => ({ pitch: S.pitch ?? 0, roll: S.roll ?? 0, rate: (S.roll ?? 0) / 20, ball: ballDeflection(S.latAccel) }),
              draw: { metric: (ctx, x, y, r, sc, v, scale, variant) => variant === 'agk47' ? _drawAgk47(ctx, x, y, r, sc, v) : _drawHorizont(ctx, x, y, r, sc, v),
                      imperial: (ctx, x, y, r, sc, v, scale, variant) => variant === 'sperry' ? _drawSperry(ctx, x, y, r, sc, v) : _drawHorizon(ctx, x, y, r, sc, v) } },
-  alt:     { value: 'indicated altitude (ft) and the subscale (hPa) — core/baro.js', variants: ['standard', 'kmWindow', 'vd15', 'threePointer', 'dualBaro', 'dualBaro3'],
+  alt:     { value: 'indicated altitude (ft) and the subscale (hPa) — core/baro.js; its setting knob turns the subscale',
+             knob: { control: 'baroKnob', stepHpa: { threePointer: 0.338639, vd15: 1.333224 } },   // a step: the dial's own unit — 0.01 in. Hg, 1 mm Hg, else 1 hPa
+             variants: ['standard', 'kmWindow', 'vd15', 'threePointer', 'dualBaro', 'dualBaro3'],
              read: () => ({ ft: indicatedAlt(S.alt ?? 0), hpa: baroSubscale() }),
              draw: { metric: (ctx, x, y, r, sc, v, scale, variant) => variant === 'kmWindow' ? _drawKmWindowAlt(ctx, x, y, r, sc, v) : variant === 'vd15' ? _drawVd15(ctx, x, y, r, sc, v) : _drawHoehenmesser(ctx, x, y, r, sc, v.ft),
                      imperial: (ctx, x, y, r, sc, v, scale, variant) => variant === 'kmWindow' ? _drawKmWindowAlt(ctx, x, y, r, sc, v) : variant === 'threePointer' ? _drawAlt3(ctx, x, y, r, sc, v) : variant === 'dualBaro' ? _drawAltDual(ctx, x, y, r, sc, v) : variant === 'dualBaro3' ? _drawAltVelis(ctx, x, y, r, sc, v) : _drawAltimeter(ctx, x, y, r, sc, v.ft) } },
@@ -309,11 +313,30 @@ function _lagged(def, key, v) {
   return out;
 }
 
-/** Draw one instrument of the registry in the active style's unit system — `n` its place on the panel (the lag's key) */
+/** Draw one instrument of the registry in the active style's unit system — `n` its place on the panel (the lag's key). An
+    instrument with a knob (the altimeter's setting) draws it at its lower left and registers it on the canvas (display/hit.js). */
 function _inst(id, ctx, x, y, r, sc, item, engine = 0, n = 0) {
   const def = INSTRUMENTS[id], draw = def?.draw[ST.units ?? 'metric'];
   if (!draw) { _warnOnce(`analog panel: no ${ST.units} drawing of "${id}"`); return; }
   draw(ctx, x, y, r, sc, _lagged(def, `analog.${n}.${id}.${engine}`, def.read(engine, item)), item?.scale, item?.variant);
+  if (def.knob) {
+    const kr = r * 0.16, kx = x - r * 0.86, ky = y + r * 0.86, stepHpa = def.knob.stepHpa?.[item?.variant] ?? 1;
+    _knob(ctx, kx, ky, kr, sc);
+    addHit(ctx.canvas, { name: `${def.knob.control}.${n}`, x: kx - kr * 1.3, y: ky - kr * 1.3, w: kr * 2.6, h: kr * 2.6,
+      turn: (steps, { record }) => turn(def.knob.control, steps, { stepHpa, record }),
+      turned: () => turned(def.knob.control) });
+  }
+}
+
+/** A setting knob — black, knurled (the altimeters') */
+function _knob(ctx, x, y, r, sc) {
+  ctx.save();
+  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
+  g.addColorStop(0, '#3a3c40'); g.addColorStop(1, '#0c0d0e');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 0.8 * sc;
+  for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * r * 0.78, y + Math.sin(a) * r * 0.78); ctx.lineTo(x + Math.cos(a) * r * 0.98, y + Math.sin(a) * r * 0.98); ctx.stroke(); }
+  ctx.restore();
 }
 /** One instrument of the registry, drawn into a box of another panel — a mixed panel's round gauge (the glass
     widget `analog`, display/panel_renderer.js). `entry` is an analogPanel entry ({ id, scale, variant … });
@@ -362,6 +385,7 @@ function _overlayInset(canvas) {
    ════════════════════════════════════════════════════════════ */
 export function renderAnalogPanel(canvas, style = 'luftwaffe') {
   ST = STYLES[style] ?? STYLES.luftwaffe; P = ST.P; L = ST.L;
+  beginHits(canvas);   // its knobs register as they are drawn (display/hit.js)
   const W = canvas.width  = canvas.offsetWidth  * devicePixelRatio;
   const H = canvas.height = canvas.offsetHeight * devicePixelRatio;
   const ctx = canvas.getContext('2d');

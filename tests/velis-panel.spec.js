@@ -36,7 +36,7 @@ test('the console switches: MASTER, AVIONICS, BATT EN, PWR EN on the pedestal, i
     const { hitAreas } = await import('/display/hit.js');
     return [...document.querySelectorAll('canvas')].flatMap(c => hitAreas(c)).map(a => a.name);
   });
-  expect(areas).toEqual([]);                                              // the cockpit canvas has no switches left
+  expect(areas.filter(n => !n.startsWith('baroKnob'))).toEqual([]);        // no switches on the panel — only the altimeter's knob
   for (const c of ['bat', 'avionics', 'battEn', 'pwrEn']) await click(page, c);
   expect(await switches(page)).toMatchObject({ master: true, battEn: true, pwrEn: true, avionics: true });
 });

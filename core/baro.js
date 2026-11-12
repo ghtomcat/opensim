@@ -14,7 +14,8 @@
    (indicated higher than true) — "from high to low, look out below".
    ═══════════════════════════════════════════════════════════════ */
 
-import { S } from './state.js';
+import { S, setState } from './state.js';
+import { registerCommand } from './commands.js';
 
 export const BARO_FT_PER_HPA = 27.3;     // ISA near MSL: 1 hPa ≈ 27.3 ft
 export const STD_HPA         = 1013.25;  // standard pressure setting
@@ -41,3 +42,28 @@ export function baroError() {
 export function indicatedAlt(trueAlt) {
   return trueAlt + baroError();
 }
+
+/* ── The setting's commands — every knob and window that sets it (the analog altimeters' knobs, the FCU's QNH knob, the
+   PFD's QNH window) goes through them. ── */
+const BARO_MIN = 940, BARO_MAX = 1050;
+
+/** A new setting (hPa), or a step from the present one: { hpa } or { step } (hPa — a dial's own unit converted). Turning
+    the knob leaves STD. Refused when nothing changes. */
+export function baroSet({ hpa, step } = {}) {
+  const from = baroSubscale();
+  const next = Math.max(BARO_MIN, Math.min(BARO_MAX, hpa ?? from + (step ?? 0)));
+  if (!Number.isFinite(next) || (Math.abs(next - from) < 1e-6 && !S.baroStd)) return false;
+  setState({ baroStd: false, baroSet: Math.round(next * 100) / 100 });
+  return true;
+}
+
+/** STD on or off ('toggle' — the FCU's push, the PFD window's click) */
+export function baroStd(on = 'toggle') {
+  const next = on === 'toggle' ? !S.baroStd : !!on;
+  if (next === !!S.baroStd) return false;
+  setState({ baroStd: next });
+  return true;
+}
+
+registerCommand('baroSet', (arg) => baroSet(arg));
+registerCommand('baroStd', (on) => baroStd(on));
