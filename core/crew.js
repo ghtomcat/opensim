@@ -6,6 +6,7 @@
 
 import { S, setState } from './state.js';
 import { command } from './commands.js';
+import { radioSpeech } from './callsign.js';
 import { playThroughChain, createRadioChain } from './radio.js';
 import { getEngineBleedNode } from './sound.js';
 import { audioContext, audioOutput, audioElement, speak, cancelSpeech } from './audio.js';
@@ -1077,7 +1078,7 @@ function _speak(text, voice, { rate = 1, pitch = 1, volume = 0.9 } = {}) {
 }
 
 function _makeUtt(text, voice, { rate = 1, pitch = 1, volume = 0.9 } = {}) {
-  const u = new SpeechSynthesisUtterance(text);
+  const u = new SpeechSynthesisUtterance(radioSpeech(text));   // the registration in radio form (core/callsign.js)
   if (voice) u.voice = voice;
   else if (_crewLang) u.lang = _crewLang;  // only hint language when using browser default voice
   u.rate   = rate;
