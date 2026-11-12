@@ -10,6 +10,7 @@ import { altLabel } from '../core/route.js';
 import { flapLabel } from '../core/airframe.js';
 import { command } from '../core/commands.js';
 import { setControl } from './controls.js';
+import { lightSwitches, lightSwitchLabel } from '../core/electrical.js';
 import { toggleHTML, wireControls, refreshControls } from './controls-html.js';
 import { buildDescentPath } from '../core/vnav.js';
 
@@ -664,7 +665,8 @@ function _buildHTML() {
           <div class="ped-toggle-block">
             <div class="ped-toggle-grouplabel">ELEC</div>
             <div class="ped-toggle-row">${[
-              ['bat', 'BAT'], ['alt', 'ALT'], ['avionics', 'AVNCS'], ['fuelPump', 'PUMP'],
+              ...(lightSwitches() ?? []).map(id => [id, lightSwitchLabel(id)]),   // the aircraft's own, in its order (core/electrical.js)
+              ...(S.aircraft?.tanks ? [['fuelPump', 'PUMP']] : []),               // the electric fuel pump — not on the Velis
             ].map(([id, lbl]) => _toggle(id, lbl)).join('')}</div>
           </div>` : '';
   /* ── Exterior lights ── */

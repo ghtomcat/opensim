@@ -1,6 +1,7 @@
 {
   "id": "velis-hb-syq",
   "views": ["pedestal"],
+  "pedestal": ["thrust", "flaps", "parkbrake", "switches"],
   "name": "Pipistrel Velis Electro HB-SYQ",
   "manufacturer": "pipistrel",
   "family": "velis",

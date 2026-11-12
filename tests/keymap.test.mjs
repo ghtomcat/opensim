@@ -34,7 +34,7 @@ test('each aircraft is told how it starts and how it stops', () => {
   assert.match(row('c172', 'Q'), /Fuel selector/);
   assert.match(row('f4u1a', 'E'), /Engine start/);
   assert.match(row('mig15bis', 'Q'), /cutoff/);
-  assert.match(row('velis-hb-syq', 'Panel'), /PWR EN/);
+  assert.match(row('velis-hb-syq', 'D'), /PWR EN/);
   assert.equal(row('avro504', 'E'), undefined);                      // no start sequence
   assert.equal(row('avro504', 'Q'), undefined);
 });

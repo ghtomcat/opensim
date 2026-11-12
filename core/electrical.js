@@ -97,7 +97,15 @@ export function elecSwitch(id, on) {
    Which fields, from the aircraft's data: an electric starter (the C172, the DR400) or an electric motor (the Velis:
    its MASTER key is the 14 V battery master, BATT EN and PWR EN the traction batteries and the motor's power). ── */
 const _PISTON = { bat: 'masterBat', alt: 'masterAlt', avionics: 'avionicsOn' };
-const _VELIS  = { bat: 'master', battEn: 'battEn', pwrEn: 'pwrEn', avionics: 'avionics' };   // in S.switches
+const _VELIS  = { bat: 'master', avionics: 'avionics', battEn: 'battEn', pwrEn: 'pwrEn' };   // in S.switches — in the console's order (HB-SYQ)
+
+/* The switches' names as placarded: the C172's / DR400's, the Velis's centre console (MASTER, AVIONICS, BATT EN, PWR EN) */
+const _LABELS = { piston: { bat: 'BAT', alt: 'ALT', avionics: 'AVNCS' },
+                  velis:  { bat: 'MASTER', avionics: 'AVIONICS', battEn: 'BATT EN', pwrEn: 'PWR EN' } };
+/** A light aircraft's switch, as its placard names it */
+export function lightSwitchLabel(id, ac = S.aircraft) {
+  return (ac?.engine?.type === 'electric' ? _LABELS.velis : _LABELS.piston)[id] ?? id;
+}
 
 /** The light aircraft's switch ids, or null on an aircraft without them */
 export function lightSwitches(ac = S.aircraft) {

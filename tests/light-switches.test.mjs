@@ -16,7 +16,7 @@ const load = (id) => JSON.parse(readFileSync(new URL(`../aircraft/${id}.json`, i
 test('which aircraft have which switches — from the data (electric starter / electric motor), not the panel', () => {
   assert.deepEqual(lightSwitches(load('c172')), ['bat', 'alt', 'avionics']);
   assert.deepEqual(lightSwitches(load('robin-dr400')), ['bat', 'alt', 'avionics']);
-  assert.deepEqual(lightSwitches(load('velis-hb-syq')), ['bat', 'battEn', 'pwrEn', 'avionics']);
+  assert.deepEqual(lightSwitches(load('velis-hb-syq')), ['bat', 'avionics', 'battEn', 'pwrEn']);   // the console's order
   assert.equal(lightSwitches(load('bf109')), null);
 });
 

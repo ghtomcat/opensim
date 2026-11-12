@@ -2,14 +2,15 @@
    OpenSim — display/velis_epsi.js
    Pipistrel Velis Electro HB-SYQ — full canvas cockpit.
 
-   Four zones (left → right):
-     SWITCHES  MASTER key, BATT EN, PWR EN, AVIONICS
+   Three zones (left → right):
      NESIS 4   Digital AH — primary flight instruments
      EPSI 570  Energy management display
      BACKUP    Analog ASI + altimeter
 
-   Click handling: canvas click toggles switches in the left zone.
+   The switches — MASTER, AVIONICS, BATT EN, PWR EN — are on the centre console, as in HB-SYQ
+   (Markus's photo, sources/velis-panel-notes.md): the pedestal view (D), display/pedestal.js.
    The radio is the COM panel on the pedestal (display/com.js), as on the other aircraft.
+   (The layout itself is redone from the photo in the next piece of step 3.)
 
    All HTML overlays (#panel, #fma, #metar-strip, #com-container,
    #warning-lights) are hidden by index.html when this panel is active.
@@ -19,8 +20,6 @@ import { S, setState }               from '../core/state.js';
 import { updateVelisMapOverlay, hideVelisMap } from './map.js';
 import { flapLabel } from '../core/airframe.js';
 import { operate } from './controls.js';
-import { beginHits, addHit, hitAreas } from './hit.js';
-import { drawToggle, drawKey } from './controls-canvas.js';
 
 /* ── Palette ── */
 const P = {
@@ -55,15 +54,12 @@ const _avionicsPowered = () => !!(S.switches?.master && S.switches?.avionics);
 /* ════════════════════════════════════════════════════════════
    MAIN ENTRY
    ════════════════════════════════════════════════════════════ */
-let _canvas = null;   // the canvas drawn on — its click areas are read for tests
 export function renderVelisEpsi(canvas) {
-  _canvas = canvas;
   const W = canvas.width  = canvas.offsetWidth  * devicePixelRatio;
   const H = canvas.height = canvas.offsetHeight * devicePixelRatio;
   const ctx = canvas.getContext('2d');
   ctx.save();
 
-  beginHits(canvas);   // the click areas, registered as they are drawn (display/hit.js)
 
   /* Panel background */
   ctx.fillStyle = P.panel;
@@ -79,31 +75,26 @@ export function renderVelisEpsi(canvas) {
   const sc = Math.min(W, H) / 700;
 
   /* Zone widths */
-  const swW  = W * 0.18;   // switches
-  const nhW  = W * 0.27;   // NESIS 4
-  const epW  = W * 0.33;   // EPSI 570
-  const bkW  = W * 0.22;   // backup gauges
+  const nhW  = W * 0.32;   // NESIS 4
+  const epW  = W * 0.40;   // EPSI 570
+  const bkW  = W * 0.28;   // backup gauges
 
-  const swX  = swW  / 2;
-  const nhX  = swW  + nhW / 2;
-  const epX  = swW  + nhW + epW / 2;
-  const bkX  = swW  + nhW + epW + bkW / 2;
+  const nhX  = nhW / 2;
+  const epX  = nhW + epW / 2;
+  const bkX  = nhW + epW + bkW / 2;
   const cy   = H / 2;
 
   /* Instrument radii */
-  const R  = Math.min(nhW, H) * 0.40;
+  const R  = Math.min(Math.min(nhW, H) * 0.40, H / 2 - _overlayBottom(canvas) - 8 * sc);   // clear of the mission clock and KEYS (top left)
   const Rs = Math.min(bkW * 0.44, H * 0.22);
 
-  /* ── ZONE 1: Switches ── */
-  _drawSwitchPanel(ctx, swX, cy, swW, H, sc);
-
-  /* ── ZONE 2: NESIS 4 ── */
+  /* ── NESIS 4 ── */
   _drawNESIS(ctx, nhX, cy, R, sc);
 
-  /* ── ZONE 3: EPSI 570 ── */
+  /* ── EPSI 570 ── */
   _drawEPSI(ctx, canvas, epX, cy, epW * 0.88, H * 0.92, sc);
 
-  /* ── ZONE 4: Backup gauges ── */
+  /* ── Backup gauges ── */
   _drawBackupASI(ctx, bkX, cy - Rs * 1.12, Rs);
   _drawBackupAlt(ctx, bkX, cy + Rs * 1.12, Rs);
 
@@ -111,8 +102,6 @@ export function renderVelisEpsi(canvas) {
   ctx.restore();
 }
 
-/** The click areas drawn last frame, by name (bat, battEn, pwrEn, avionics), in canvas px — for tests. */
-export const velisHitRegions = () => _canvas ? hitAreas(_canvas) : [];
 
 /* ════════════════════════════════════════════════════════════
    SHARED DRAW HELPERS
@@ -213,75 +202,6 @@ function _roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-/* ════════════════════════════════════════════════════════════
-   ZONE 1: Switch panel
-   ════════════════════════════════════════════════════════════ */
-function _drawSwitchPanel(ctx, cx, cy, zoneW, H, sc) {
-  const pad  = 10 * sc;
-  const x0   = cx - zoneW/2 + pad;
-  const w    = zoneW - pad*2;
-
-  /* ── Master switches — the whole zone; the radio is the COM panel on the pedestal (display/com.js) ── */
-  _drawMasterSwitches(ctx, x0, cy - H/2 + pad, w, H - pad*2, sc);
-}
-
-function _drawMasterSwitches(ctx, x0, y0, w, h, sc) {
-  const sw  = S.switches;
-  const cpx = x0 + w / 2;
-
-  /* Dark panel */
-  ctx.fillStyle = '#0c0e14';
-  ctx.fillRect(x0, y0, w, h);
-  ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(x0, y0); ctx.lineTo(x0 + w, y0);
-  ctx.stroke();
-
-  const dpr = devicePixelRatio;
-  const reg = (name, cx, sy, tw, th) =>   // the control `name` (display/controls.js) — its area on this canvas
-    addHit(ctx.canvas, { name, x: cx - tw / 2, y: sy, w: tw, h: th, action: () => operate(name) });
-
-  /* The switches use the space between the clock (and its KEYS button, HTML on top of the
-     canvas) and the bottom of the zone — measured, not a fixed offset, so they stay whole and
-     readable in a short window. In units u: key 4, label 0.6, toggles 2.4, gap 0.4, label 0.6, toggle 2.4. */
-  const top = Math.max(y0 + 8 * sc, _overlayBottom(ctx.canvas) + 10 * dpr);
-  const u   = Math.min(34 * sc, Math.max(0, (y0 + h - 8 * sc) - top) / 10.4);   // tall zone: no giant switches
-  const fs  = Math.round(Math.min(w / 6, Math.max(10 * dpr, u * 0.38)));   // labels: readable, never wider than a toggle
-
-  const swW = Math.round(w * 0.42);
-  const swH = Math.round(u * 2.4);
-  const cx1 = x0 + w * 0.28;
-  const cx2 = x0 + w * 0.72;
-
-  const secLabel = (text, ly) => {
-    ctx.fillStyle    = 'rgba(255,255,255,0.32)';
-    ctx.font         = `${fs}px ${MONO}`;
-    ctx.textAlign    = 'center'; ctx.textBaseline = 'top';
-    ctx.fillText(text, cpx, ly);
-  };
-
-  /* ── MASTER key rotary — 4 u: the housing (±1.58 r) and its label ── */
-  let sy = top;
-  const keyR = Math.min(w * 0.15, u * 0.95);
-  const keyY = sy + keyR * 1.60;
-  drawKey(ctx, cpx, keyY, keyR, sw.master, fs);
-  reg('bat', cpx, sy, keyR * 3.4, keyR * 3.6);   // the MASTER key — the 14 V battery master
-  sy += u * 4;
-
-  /* ── POWER: BATT EN + PWR EN ── */
-  secLabel('POWER', sy); sy += u * 0.6;
-  drawToggle(ctx, cx1, sy, swW, swH, sw.battEn, 'BATT EN', fs);
-  reg('battEn', cx1, sy, swW, swH);
-  drawToggle(ctx, cx2, sy, swW, swH, sw.pwrEn,  'PWR EN', fs);
-  reg('pwrEn', cx2, sy, swW, swH);
-  sy += swH + u * 0.4;
-
-  /* ── AVIONICS ── */
-  secLabel('AVIONICS', sy); sy += u * 0.6;
-  drawToggle(ctx, cpx, sy, swW, swH, sw.avionics, 'AVNCS', fs);
-  reg('avionics', cpx, sy, swW, swH);
-}
-
 /* The lowest edge of the HTML drawn over the panel's top left (the mission clock, the KEYS
    button), in canvas pixels — 0 when neither is shown. */
 function _overlayBottom(canvas) {
@@ -291,12 +211,8 @@ function _overlayBottom(canvas) {
   return bottoms.length ? Math.max(0, (Math.max(...bottoms) - top) * devicePixelRatio) : 0;
 }
 
-/* Key rotary switch — MASTER only (OFF / RUN) */
-
-/* Real aviation bat-handle toggle switch */
-
 /* ════════════════════════════════════════════════════════════
-   ZONE 2: Kanardia NESIS 4 — digital AH
+   Kanardia NESIS 4 — digital AH
    ════════════════════════════════════════════════════════════ */
 function _drawNESIS(ctx, x, y, r, sc) {
   const avionicsOn = _avionicsPowered();
@@ -417,7 +333,7 @@ function _drawNESIS(ctx, x, y, r, sc) {
 }
 
 /* ════════════════════════════════════════════════════════════
-   ZONE 3: EPSI 570 energy management
+   EPSI 570 energy management
    ════════════════════════════════════════════════════════════ */
 function _drawEPSI(ctx, canvas, cx, cy, w, h, sc) {
   const x0  = cx - w/2;

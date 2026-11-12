@@ -119,8 +119,8 @@ export const KEYS = [
     keys: ['s', 'S'], when: (ac) => flown(ac) && !!ac?.spoilers },   // the aircraft data has spoilers
   { id: 'start-pedestal', group: 'Engine and systems', info: true, show: 'D',
     desc: 'Engine start on the pedestal: power, ENG MODE IGN/START, ENG MASTERs', when: turbofan },
-  { id: 'start-panel', group: 'Engine and systems', info: true, show: 'Panel',
-    desc: 'Motor on: MASTER → BATT EN → PWR EN', when: (ac) => sound(ac) === ENGINE.ELECTRIC },
+  { id: 'start-panel', group: 'Engine and systems', info: true, show: 'D',
+    desc: 'Motor on, on the console (pedestal): MASTER → BATT EN → PWR EN', when: (ac) => sound(ac) === ENGINE.ELECTRIC },
   { id: 'engine-start', group: 'Engine and systems', show: 'E',
     desc: (ac) => ac?.engine?.starter === 'electric' ? 'Engine start (battery on first)' : 'Engine start',
     keys: ['e', 'E'], when: keyStart, listed: (ac) => sound(ac) !== ENGINE.ELECTRIC },
