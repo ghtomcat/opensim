@@ -1,7 +1,7 @@
 {
   "id": "velis-epsi",
   "version": "1",
-  "_source": "Pipistrel Velis Electro HB-SYQ, Markus's photo of 3 Jul 2025 (sources/velis-panel-notes.md): two rows of round instruments — ASI, EFIS, altimeter; Power / RPM, slip ball, vario / flight timer — and on the right the GPS map above the EPSI 570C. The Power / RPM and the vario / timer are round digital displays still to build (their cells are empty for now); the EPSI is today's page until it is redrawn as the real 570C.",
+  "_source": "Pipistrel Velis Electro HB-SYQ, Markus's photo of 3 Jul 2025 (sources/velis-panel-notes.md): two rows of round instruments — ASI, EFIS, altimeter; Power / RPM, slip ball, vario / flight timer — and on the right the GPS map above the EPSI 570C.",
   "layout": [
     { "h": 1.0, "cols": [
       { "w": 0.62, "widget": "grid", "config": { "layout": [
@@ -18,9 +18,9 @@
             "_source": "Markus (2026-11-12): three pointers and a dual pressure scale (hPa and in. Hg) — the C172's dial with a third pointer" } }
         ]},
         { "h": 0.4, "cols": [
-          { "w": 0.333, "widget": "spacer", "config": { "_todo": "Power / RPM — a round digital display (kW, rpm arc)" } },
-          { "w": 0.334, "widget": "analog", "config": { "id": "level", "_source": "the slip indicator (winter) — a ball between L and R; drawn for now as the registry's level (the Avro's bubble level — the same quantity, another look)" } },
-          { "w": 0.333, "widget": "spacer", "config": { "_todo": "vario / flight timer — a round digital display" } }
+          { "w": 0.333, "widget": "analog", "config": { "id": "powerRpm", "_source": "the round Power / RPM unit on the photo — the ring 0 … 8 (× 10 kW, to confirm), the screen kW and rpm; its values stand-ins (core/epsi.js)" } },
+          { "w": 0.334, "widget": "analog", "config": { "id": "level", "variant": "winter", "_source": "the slip indicator (winter) on the photo — a black ball in a curved tube between L and R, in a round case" } },
+          { "w": 0.333, "widget": "analog", "config": { "id": "varioTimer", "_source": "the round vario / flight-time unit on the photo — the ring ±10 m/s (2000 fpm), 0 at 9 o'clock; the screen fpm and the flight time" } }
         ]}
       ]}},
       { "w": 0.38, "widget": "grid", "config": { "layout": [

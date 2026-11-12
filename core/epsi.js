@@ -49,6 +49,16 @@ export function epsiValues() {
   };
 }
 
-/** A new mission: the hobbs counts from its photo value again */
-export function resetEpsi() { _runSeconds = 0; _lastT = null; }
+/* The flight timer (the Velis's vario unit): the time in the air — it starts at lift-off and holds on the ground */
+let _airSeconds = 0, _airLastT = null;
+/** The flight time, seconds — counted while the aircraft is off the ground (sim time) */
+export function flightSeconds() {
+  const t = S.time ?? 0;
+  if (_airLastT !== null && !S.wow && t > _airLastT) _airSeconds += t - _airLastT;
+  _airLastT = t;
+  return _airSeconds;
+}
+
+/** A new mission: the hobbs counts from its photo value again, the flight timer from zero */
+export function resetEpsi() { _runSeconds = 0; _lastT = null; _airSeconds = 0; _airLastT = null; }
 onMissionReset(resetEpsi);
