@@ -192,10 +192,10 @@ export const INSTRUMENTS = {
              read: () => ({ pitch: S.pitch ?? 0, roll: S.roll ?? 0, rate: (S.roll ?? 0) / 20, ball: ballDeflection(S.latAccel) }),
              draw: { metric: (ctx, x, y, r, sc, v, scale, variant) => variant === 'agk47' ? _drawAgk47(ctx, x, y, r, sc, v) : _drawHorizont(ctx, x, y, r, sc, v),
                      imperial: (ctx, x, y, r, sc, v, scale, variant) => variant === 'sperry' ? _drawSperry(ctx, x, y, r, sc, v) : _drawHorizon(ctx, x, y, r, sc, v) } },
-  alt:     { value: 'indicated altitude (ft) and the subscale (hPa) — core/baro.js', variants: ['standard', 'kmWindow', 'vd15', 'threePointer', 'dualBaro'],
+  alt:     { value: 'indicated altitude (ft) and the subscale (hPa) — core/baro.js', variants: ['standard', 'kmWindow', 'vd15', 'threePointer', 'dualBaro', 'dualBaro3'],
              read: () => ({ ft: indicatedAlt(S.alt ?? 0), hpa: baroSubscale() }),
              draw: { metric: (ctx, x, y, r, sc, v, scale, variant) => variant === 'kmWindow' ? _drawKmWindowAlt(ctx, x, y, r, sc, v) : variant === 'vd15' ? _drawVd15(ctx, x, y, r, sc, v) : _drawHoehenmesser(ctx, x, y, r, sc, v.ft),
-                     imperial: (ctx, x, y, r, sc, v, scale, variant) => variant === 'kmWindow' ? _drawKmWindowAlt(ctx, x, y, r, sc, v) : variant === 'threePointer' ? _drawAlt3(ctx, x, y, r, sc, v) : variant === 'dualBaro' ? _drawAltDual(ctx, x, y, r, sc, v) : _drawAltimeter(ctx, x, y, r, sc, v.ft) } },
+                     imperial: (ctx, x, y, r, sc, v, scale, variant) => variant === 'kmWindow' ? _drawKmWindowAlt(ctx, x, y, r, sc, v) : variant === 'threePointer' ? _drawAlt3(ctx, x, y, r, sc, v) : variant === 'dualBaro' ? _drawAltDual(ctx, x, y, r, sc, v) : variant === 'dualBaro3' ? _drawAltVelis(ctx, x, y, r, sc, v) : _drawAltimeter(ctx, x, y, r, sc, v.ft) } },
   turn:    { value: 'turn rate, ball (S.latAccel)',         read: () => ({ rate: (S.roll ?? 0) / 20, ball: ballDeflection(S.latAccel) }),
              simple: 'the turn rate from the bank angle → the rate of heading change',
              draw: { metric: _drawWendezeiger, imperial: _drawTurnSlip } },
@@ -787,19 +787,8 @@ function _drawHoehenmesser(ctx, x, y, r, sc, alt) {
 
   _sublabel(ctx, x, y, r, L.altUnit, sc);
 
-  /* Coarse 10 000 m stub — short, dark */
-  const angCoarse = s0 + _frac(altM / 10000) * sw;
-  const ac = _r(angCoarse);
-  ctx.strokeStyle = P.subdued; ctx.lineWidth = 2.4 * sc;
-  ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.lineTo(x + Math.cos(ac) * r * 0.44, y + Math.sin(ac) * r * 0.44);
-  ctx.stroke();
-
-  /* Fine 1 000 m needle */
-  const angFine = s0 + _frac(altM / 1000) * sw;
-  _needle(ctx, x, y, r, angFine, 0.78, 0.22, sc);
-  _cap(ctx, x, y, 5.5 * sc);
+  /* the altimeter's hands: the short one a turn per 10 000 m, the long one a turn per 1 000 m */
+  _altHands(ctx, x, y, r, sc, { short: s0 + _frac(altM / 10000) * sw, long: s0 + _frac(altM / 1000) * sw });
   _label(ctx, x, y, r, L.alt, sc);
 }
 
@@ -1256,8 +1245,7 @@ function _drawKmWindowAlt(ctx, x, y, r, sc, v) {
   ctx.restore();
   ctx.strokeStyle = P.rim; ctx.lineWidth = 1.2 * sc; ctx.strokeRect(x - ww / 2, wy - wh / 2, ww, wh);
   ctx.textBaseline = 'alphabetic';
-  _needle(ctx, x, y, r, s0 + _frac(km) * 360, 0.78, 0.22, sc);
-  _cap(ctx, x, y, 5.5 * sc);
+  _altHands(ctx, x, y, r, sc, { long: s0 + _frac(km) * 360 });   // one hand — the kilometres are in the window
   _label(ctx, x, y, r, L.alt, sc);
 }
 
@@ -1449,19 +1437,8 @@ function _drawAltimeter(ctx, x, y, r, sc, alt) {
 
   _sublabel(ctx, x, y, r, L.altUnit, sc);
 
-  /* Coarse stub — 10,000 ft revolutions */
-  const angCoarse = s0 + _frac(alt / 100000) * sw;
-  const ac = _r(angCoarse);
-  ctx.strokeStyle = P.subdued; ctx.lineWidth = 2.4 * sc;
-  ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.lineTo(x + Math.cos(ac) * r * 0.44, y + Math.sin(ac) * r * 0.44);
-  ctx.stroke();
-
-  /* Fine needle — 10,000 ft per revolution */
-  const angFine = s0 + _frac(alt / 10000) * sw;
-  _needle(ctx, x, y, r, angFine, 0.78, 0.22, sc);
-  _cap(ctx, x, y, 5.5 * sc);
+  /* the altimeter's hands: the short one a turn per 100,000 ft, the long one a turn per 10,000 ft */
+  _altHands(ctx, x, y, r, sc, { short: s0 + _frac(alt / 100000) * sw, long: s0 + _frac(alt / 10000) * sw });
   _label(ctx, x, y, r, L.alt, sc);
 }
 
@@ -1753,6 +1730,35 @@ function _hand(ctx, x, y, r, deg, len, w, col = P.needle) {
   ctx.moveTo(x - Math.cos(a) * r * 0.12, y - Math.sin(a) * r * 0.12); ctx.lineTo(x + Math.cos(a) * r * len, y + Math.sin(a) * r * len); ctx.stroke();
 }
 
+/** The altimeter's hands, the same on every altimeter (Markus, 2026-11-12): the 1 000-ft hand short and wide — the
+    thickest; the 100-ft hand long and slender; the 10 000-ft pointer thin, out to the rim, a small triangle at its tip.
+    Angles in degrees from 12 o'clock; a hand left out is not drawn (a build has the hands its source shows). */
+function _altHands(ctx, x, y, r, sc, { ten, short, long } = {}) {
+  const blade = (deg, len, half, tail, at = 0.15) => {   // a tapered hand: widest at `at`, a point at `len`, a short tail
+    const a = _r(deg), c = Math.cos(a), s = Math.sin(a), nx = -s, ny = c;
+    ctx.beginPath();
+    ctx.moveTo(x - c * r * tail + nx * r * half * 0.5, y - s * r * tail + ny * r * half * 0.5);
+    ctx.lineTo(x + c * r * at + nx * r * half, y + s * r * at + ny * r * half);
+    ctx.lineTo(x + c * r * len, y + s * r * len);
+    ctx.lineTo(x + c * r * at - nx * r * half, y + s * r * at - ny * r * half);
+    ctx.lineTo(x - c * r * tail - nx * r * half * 0.5, y - s * r * tail - ny * r * half * 0.5);
+    ctx.closePath(); ctx.fill();
+  };
+  ctx.save();
+  ctx.fillStyle = P.needle; ctx.strokeStyle = P.needle; ctx.lineCap = 'round';
+  if (ten != null) {                                     // thin, out to the rim, a triangle at the tip
+    const a = _r(ten), c = Math.cos(a), s = Math.sin(a), nx = -s, ny = c;
+    ctx.lineWidth = Math.max(0.8, r * 0.012); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + c * r * 0.86, y + s * r * 0.86); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + c * r * 0.95, y + s * r * 0.95);
+    ctx.lineTo(x + c * r * 0.82 + nx * r * 0.045, y + s * r * 0.82 + ny * r * 0.045);
+    ctx.lineTo(x + c * r * 0.82 - nx * r * 0.045, y + s * r * 0.82 - ny * r * 0.045); ctx.closePath(); ctx.fill();
+  }
+  if (short != null) blade(short, 0.52, 0.07, 0.10, 0.16);   // the 1 000-ft hand: short, wide
+  if (long  != null) blade(long,  0.84, 0.028, 0.16, 0.10);  // the 100-ft hand: long, slender
+  ctx.restore();
+  _cap(ctx, x, y, 3.8 * sc);
+}
+
 /** КУС-1200 — combined airspeed (×10 km/h): one linear scale, 30° per 100 km/h, 0 at the top round to 120 at the top
     again (60 at the bottom — the photo; 10 just right of the top — DCS; 110/120 covered in both, reasoned); the thick
     needle indicated, the thin one true airspeed from 400 km/h */
@@ -1952,7 +1958,7 @@ function _drawVd15(ctx, x, y, r, sc, v) {
   ctx.restore();
   ctx.fillStyle = '#d8b060'; ctx.beginPath(); ctx.moveTo(x, wy + wh / 2 - r * 0.02); ctx.lineTo(x - r * 0.025, wy + wh / 2 + r * 0.03); ctx.lineTo(x + r * 0.025, wy + wh / 2 + r * 0.03); ctx.fill();
   const m = Math.max(0, v.ft * 0.3048);
-  _hand(ctx, x, y, r, (m / 1000) * 36, 0.5, 3.4 * sc); _hand(ctx, x, y, r, (m % 1000) / 1000 * 360, 0.84, 1.3 * sc); _cap(ctx, x, y, 3.5 * sc);
+  _altHands(ctx, x, y, r, sc, { short: (m / 1000) * 36, long: (m % 1000) / 1000 * 360 });
   _label(ctx, x, y, r, L.alt, sc);
 }
 
@@ -2007,19 +2013,13 @@ function _drawAlt3(ctx, x, y, r, sc, v) {
   ctx.restore();
   ctx.fillStyle = '#d8b060'; ctx.fillRect(wx - 0.6 * sc, wy - wh / 2, 1.2 * sc, wh);
   _rt(ctx, x, y - r * 0.3, r, 'ALTITUDE', 0.08); _rt(ctx, x, y + r * 0.34, r, '100 FEET', 0.065, P.subdued, false);
-  const a3 = _r((v.ft / 100000) * 360);
-  ctx.strokeStyle = P.needle; ctx.lineWidth = 1 * sc; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a3) * r * 0.86, y + Math.sin(a3) * r * 0.86); ctx.stroke();
-  const tx = x + Math.cos(a3) * r * 0.8, ty = y + Math.sin(a3) * r * 0.8, n = a3 + Math.PI / 2;
-  ctx.fillStyle = P.needle; ctx.beginPath(); ctx.moveTo(x + Math.cos(a3) * r * 0.92, y + Math.sin(a3) * r * 0.92);
-  ctx.lineTo(tx + Math.cos(n) * r * 0.05, ty + Math.sin(n) * r * 0.05); ctx.lineTo(tx - Math.cos(n) * r * 0.05, ty - Math.sin(n) * r * 0.05); ctx.fill();
-  _hand(ctx, x, y, r, (((v.ft / 10000) % 1) + 1) % 1 * 360, 0.5, 3.4 * sc);
-  _hand(ctx, x, y, r, (((v.ft / 1000) % 1) + 1) % 1 * 360, 0.82, 1.6 * sc); _cap(ctx, x, y, 3.5 * sc);
+  _altHands(ctx, x, y, r, sc, { ten: (v.ft / 100000) * 360, short: _frac(v.ft / 10000) * 360, long: _frac(v.ft / 1000) * 360 });
   _label(ctx, x, y, r, L.alt, sc);
 }
 
-/** A modern GA altimeter with a dual pressure scale — the C172's standby (Markus, from a C172 G1000 panel, 2026-11-11):
-    two hands, the long one 1 000 ft a turn, the short one 10 000 ft; two windows with the same setting, the left in
-    hPa (e.g. 1030), the right in in. Hg (30.42) */
+/** A modern GA altimeter with a dual pressure scale — the C172's standby (Markus, from a C172 G1000 panel, 2026-11-11,
+    checked 2026-11-12): two hands — the long one 1 000 ft a turn, the short one 10 000 ft; two windows near the centre with
+    the same setting, the left in hPa (e.g. 1030), the right in in. Hg (30.42). The Velis's is another style: _drawAltVelis. */
 function _drawAltDual(ctx, x, y, r, sc, v) {
   _base(ctx, x, y, r);
   for (let i = 0; i < 50; i++) _rtick(ctx, x, y, r, i * 7.2, r * (i % 5 ? 0.07 : 0.14), (i % 5 ? 0.8 : 1.5) * sc);
@@ -2033,8 +2033,73 @@ function _drawAltDual(ctx, x, y, r, sc, v) {
   win(x - r * 0.40, String(Math.round(v.hpa)));
   win(x + r * 0.40, (v.hpa * 0.0295300).toFixed(2));
   _rt(ctx, x, y - r * 0.3, r, 'ALT', 0.09); _rt(ctx, x, y + r * 0.32, r, '100 FEET', 0.065, P.subdued, false);
-  _hand(ctx, x, y, r, (((v.ft / 10000) % 1) + 1) % 1 * 360, 0.5, 3.4 * sc);
-  _hand(ctx, x, y, r, (((v.ft / 1000) % 1) + 1) % 1 * 360, 0.82, 1.6 * sc); _cap(ctx, x, y, 3.5 * sc);
+  _altHands(ctx, x, y, r, sc, { short: _frac(v.ft / 10000) * 360, long: _frac(v.ft / 1000) * 360 });
+  _label(ctx, x, y, r, L.alt, sc);
+}
+
+/** The Velis's altimeter (build dualBaro3) — from the picture Markus found (sources/velis-altimeter.jpg, 2026-11-12): a square
+    case with four screws; three hands — the 10 000-ft pointer a thin shaft to a large white triangle at the rim, point inwards;
+    the 1 000-ft hand a broad short paddle with a slanted tip; the 100-ft hand long and slender with a blunt end; two tall
+    narrow windows far out near the rim with rolling scales — "mb" at ~8 o'clock, "inHg" at ~3 o'clock — each with an index
+    mark; the hatched low-altitude flag below the centre, shown below 10 000 ft. */
+function _drawAltVelis(ctx, x, y, r, sc, v) {
+  /* the square case and its screws */
+  ctx.save(); ctx.fillStyle = '#0b0b0c'; ctx.beginPath(); ctx.roundRect(x - r * 1.12, y - r * 1.12, r * 2.24, r * 2.24, r * 0.16); ctx.fill();
+  ctx.fillStyle = '#2a2b2e';
+  for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { ctx.beginPath(); ctx.arc(x + dx * r * 0.95, y + dy * r * 0.95, r * 0.05, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+  _base(ctx, x, y, r);
+  for (let i = 0; i < 50; i++) _rtick(ctx, x, y, r, i * 7.2, r * (i % 5 ? 0.07 : 0.15), (i % 5 ? 0.9 : 2.0) * sc);
+  for (let k = 0; k <= 9; k++) _rnum(ctx, x, y, r, k * 36, String(k), 0.19, 0.70);
+  _rt(ctx, x - r * 0.16, y - r * 0.14, r, 'ALT', 0.12);
+  _rt(ctx, x - r * 0.25, y - r * 0.66, r, '100', 0.055, P.subdued, false);
+  _rt(ctx, x + r * 0.27, y - r * 0.66, r, 'FEET', 0.055, P.subdued, false);
+
+  /* the hatched low-altitude flag — below 10 000 ft */
+  if (v.ft < 10000) {
+    const fx = x + r * 0.02, fy = y + r * 0.40, fw = r * 0.30, fh = r * 0.14;
+    ctx.save(); ctx.beginPath(); ctx.ellipse(fx, fy, fw / 2, fh / 2, -0.15, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = '#0a0a0a'; ctx.fillRect(fx - fw, fy - fh, fw * 2, fh * 2);
+    ctx.strokeStyle = P.mark; ctx.lineWidth = r * 0.03;
+    for (let k = -6; k <= 6; k++) { ctx.beginPath(); ctx.moveTo(fx + k * r * 0.06 - fh, fy + fh); ctx.lineTo(fx + k * r * 0.06 + fh, fy - fh); ctx.stroke(); }
+    ctx.restore();
+  }
+
+  /* the two windows far out — a vertical rolling scale each, the setting at the index (the middle) */
+  const win = (deg, label, val, step, every, fmt, pxPer) => {
+    const a = deg * Math.PI / 180, wx = x + Math.sin(a) * r * 0.70, wy = y - Math.cos(a) * r * 0.70, ww = r * 0.17, wh = r * 0.34;
+    ctx.save(); ctx.fillStyle = '#050505'; ctx.beginPath(); ctx.roundRect(wx - ww / 2, wy - wh / 2, ww, wh, r * 0.02); ctx.fill(); ctx.clip();
+    ctx.strokeStyle = P.mark; ctx.fillStyle = P.mark; ctx.font = `${Math.round(r * 0.058)}px ${SANS}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    const first = Math.floor((val - 3 * every) / step) * step;
+    for (let t = first; t <= val + 3 * every; t += step) {
+      const ty = wy + (val - t) * pxPer;                                       // higher values above
+      const major = Math.abs(t / every - Math.round(t / every)) < 1e-6;
+      ctx.lineWidth = (major ? 1.0 : 0.6) * sc; ctx.beginPath(); ctx.moveTo(wx - ww / 2, ty); ctx.lineTo(wx - ww / 2 + r * (major ? 0.04 : 0.025), ty); ctx.stroke();
+      if (major) ctx.fillText(fmt(t), wx - ww / 2 + r * 0.045, ty);
+    }
+    ctx.restore();
+    ctx.fillStyle = P.needle; ctx.beginPath();                                 // the index mark — on the window's left edge, both (the picture)
+    const ix = wx - ww / 2 - r * 0.005;
+    ctx.moveTo(ix, wy); ctx.lineTo(ix - r * 0.045, wy - r * 0.022); ctx.lineTo(ix - r * 0.045, wy + r * 0.022); ctx.fill();
+    _rt(ctx, wx + (deg > 180 ? -r * 0.02 : -r * 0.13), wy - wh / 2 - r * 0.04, r, label, 0.055, P.subdued, false);
+  };
+  win(262, 'mb', v.hpa, 1, 5, (t) => String(Math.round(t)), r * 0.03);
+  win(95, 'inHg', v.hpa * 0.0295300, 0.02, 0.1, (t) => t.toFixed(1), r * 1.2);
+
+  /* the hands, as the picture: the 10 000-ft triangle, the 1 000-ft paddle, the 100-ft bar */
+  const ten = _frac(v.ft / 100000) * 360, thousand = _frac(v.ft / 10000) * 360, hundred = _frac(v.ft / 1000) * 360;
+  const poly = (deg, pts) => {   // points as [along, across] in units of r, rotated to deg
+    const a = _r(deg), c = Math.cos(a), s = Math.sin(a);
+    ctx.beginPath(); pts.forEach(([u, w], k) => { const px = x + c * r * u - s * r * w, py = y + s * r * u + c * r * w; k ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
+    ctx.closePath(); ctx.fill();
+  };
+  ctx.save(); ctx.fillStyle = P.needle;
+  poly(ten, [[0, -0.006], [0.78, -0.006], [0.78, 0.006], [0, 0.006]]);                   // the shaft
+  poly(ten, [[0.76, 0], [0.97, -0.085], [0.97, 0.085]]);                                   // the triangle at the rim, point inwards
+  poly(thousand, [[-0.06, -0.03], [0.10, -0.06], [0.46, -0.055], [0.38, 0.055], [0.10, 0.06], [-0.06, 0.03]]);   // the paddle, its tip slanted
+  poly(hundred, [[-0.14, -0.026], [0.86, -0.022], [0.86, 0.022], [-0.14, 0.026]]);        // the long bar, a blunt end
+  ctx.restore();
+  _cap(ctx, x, y, 3.8 * sc);
   _label(ctx, x, y, r, L.alt, sc);
 }
 

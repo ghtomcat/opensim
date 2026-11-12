@@ -23,7 +23,7 @@
                 { "w": 0.34, "widget": "analog", "config": { "id": "ai" } },
                 { "w": 0.33, "widget": "analog", "config": {
                   "id": "alt", "variant": "dualBaro",
-                  "_source": "Markus, from a C172 G1000 panel (2026-11-11): two hands (short and long), two windows — the left the setting in hPa (1030), the right the same in in. Hg (read as ~30.41)."
+                  "_source": "Markus, from a C172 G1000 panel (2026-11-11, checked 2026-11-12): two hands (short and long), two windows — the left the setting in hPa (1030), the right the same in in. Hg (read as ~30.41)."
                 }}
               ]}
             ]

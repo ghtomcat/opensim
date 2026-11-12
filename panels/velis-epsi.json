@@ -14,8 +14,8 @@
             "_source": "Markus, from HB-SYQ (2026-11-12): 0 at 12 o'clock, then 20 … 160 clockwise; no green, yellow or red — a thick white band ~47–52 and a narrow white arc ~47–80 (the placards: V_S0 46, V_S 53, V_FE+1 81). Spacing: the real dial looks wider in the middle — even spacing here, to check."
           }},
           { "w": 0.334, "widget": "velis_efis" },
-          { "w": 0.333, "widget": "analog", "config": { "id": "alt", "variant": "threePointer",
-            "_source": "a three-pointer build with the hatched low-altitude flag on the photo; its setting window unconfirmed" } }
+          { "w": 0.333, "widget": "analog", "config": { "id": "alt", "variant": "dualBaro3",
+            "_source": "Markus (2026-11-12): three pointers and a dual pressure scale (hPa and in. Hg) — the C172's dial with a third pointer" } }
         ]},
         { "h": 0.4, "cols": [
           { "w": 0.333, "widget": "spacer", "config": { "_todo": "Power / RPM — a round digital display (kW, rpm arc)" } },

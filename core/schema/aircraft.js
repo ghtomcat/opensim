@@ -142,7 +142,7 @@ const dialScale = object({
 /* `variant`: which build of an instrument (the registry lists each one's — tests/analog-registry.test.mjs):
    compass card | bubble (the older magnetic compass), alt standard | kmWindow (one turn per km, km in a window) */
 const analogItem = object({ id: oneOf(...valuesOf(INSTRUMENT)), size: oneOf(...valuesOf(INSTRUMENT_SIZE)), scale: dialScale,
-                            variant: oneOf('card', 'bubble', 'gyro', 'remote', 'standard', 'kmWindow', 'vd15', 'threePointer', 'dualBaro', 'kus', 'twoTurn', 'agk47', 'sperry', 'var75', 'climb6',
+                            variant: oneOf('card', 'bubble', 'gyro', 'remote', 'standard', 'kmWindow', 'vd15', 'threePointer', 'dualBaro', 'dualBaro3', 'kus', 'twoTurn', 'agk47', 'sperry', 'var75', 'climb6',
                                      'turnAndHalf', 'achkho', '24h', 'mig'),
                             below: num,   // a lamp's threshold (fuelLow: litres)
                             tank: oneOf('left', 'right'),   // a fuel gauge reading one tank (the F4U: the main tank)
