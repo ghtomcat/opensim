@@ -1849,7 +1849,7 @@
   import { sweep, operate } from './display/controls.js';
   import { initCrew, resetCrew } from './core/crew.js';
   import { initInput, isPTTActive }        from './core/input.js';
-  import { command, recordCommand }        from './core/commands.js';
+  import { command }                       from './core/commands.js';
   import { startLoop, suspendLoop, tickSim } from './core/loop.js';
   import { seedRandom }   from './core/random.js';
   import { newSession }   from './app/session.js';
@@ -1861,9 +1861,10 @@
   import { startTelemetry, downloadTelemetry, downloadTelemetryCSV } from './core/telemetry.js';
   import { initBlackbox, bbEvent, downloadBlackbox } from './core/blackbox.js';
   import { renderPanel, renderFCU, renderCockpit } from './display/panel_renderer.js';
-  import { dispatchClick, dispatchDragStart, dispatchWheel } from './display/hit.js';
-  import { qnhHitRegion, fcuButtonRegions, nextSdPage } from './display/pfd_instruments.js';
-  import { indicatedAlt } from './core/baro.js';
+  import { dispatchClick, dispatchDragStart, dispatchWheel, cursorAt } from './display/hit.js';
+  import './core/fcu.js';                  // the FCU's commands
+  import { nextSdPage } from './display/pfd_instruments.js';
+  import './core/baro.js';                 // the altimeter setting's commands
   import { renderRocket, renderApollo, isApolloTelemetry } from './display/rocket_display.js';
   import { renderLM } from './display/lm_display.js';
   import { renderDragon, isDragonTelemetry } from './display/dragon.js';
@@ -1960,171 +1961,15 @@
     _screenPage[1] = 0;
   });
 
-  /* ── FCU interaction — scroll to dial, click to toggle AP/A-THR ── */
-  function _fcuGeometry() {
-    const W     = fcuCanvas.offsetWidth;
-    const mwW   = W * 0.055;            // glareshield master warn/caut zone (left) — mirrors drawFCU
-    const padX  = W * 0.028;
-    const inner = W - mwW - padX;
-    const qnhW  = inner * 0.150;
-    const spdW  = inner * 0.120;
-    const hdgW  = inner * 0.120;
-    const gapAP = inner * 0.025;
-    const apW   = inner * 0.215;
-    const gapAL = inner * 0.025;
-    const altW  = inner * 0.175;
-    const qnhX  = mwW;
-    const spdX  = qnhX + qnhW;
-    const hdgX  = spdX + spdW;
-    const apX   = hdgX + hdgW + gapAP;
-    const altX  = apX  + apW  + gapAL;
-    const vsX   = altX + altW;
-    return { qnhX, qnhW, spdX, spdW, hdgX, hdgW, apX, apW, altX, altW, vsX };
-  }
-
-  fcuCanvas.addEventListener('wheel', evt => {
-    const panel = S.aircraft?.panel;
-    if (panel !== 'airbus' && panel !== 'e190') return;
-    evt.preventDefault();
-    const { qnhX, spdX, hdgX, apX, altX, vsX } = _fcuGeometry();
-    const rect = fcuCanvas.getBoundingClientRect();
-    const mx   = evt.clientX - rect.left;
-    const dir  = evt.deltaY > 0 ? -1 : 1;
-    if (mx >= qnhX && mx < spdX) {
-      command('baroSet', { hpa: Math.round(S.baroSet ?? 1013) + dir }, { source: 'wheel' });   // the QNH knob — core/baro.js
-    } else if (mx >= spdX && mx < hdgX) {
-      setState({ spdT: Math.max(100, Math.min(350, S.spdT + dir)) });
-    } else if (mx >= hdgX && mx < apX) {
-      setState({ hdgT: ((S.hdgT + dir - 1 + 360) % 360) + 1, navManaged: false });   // selecting a heading → HDG mode
-    } else if (mx >= altX && mx < vsX) {
-      const step = evt.shiftKey ? 1000 : 100;
-      setState({ altT: Math.max(0, Math.min(43000, Math.round(S.altT / step) * step + dir * step)), altManaged: false });
-    } else if (mx >= vsX) {
-      setState({ vsSelected: true, altManaged: false, vsT: Math.max(-6000, Math.min(6000, Math.round((S.vsT ?? 0) / 100) * 100 + dir * 100)) });   // turn V/S knob → V/S mode (drops managed)
-    }
-  }, { passive: false });
-
-  fcuCanvas.addEventListener('click', evt => {
-    const panel = S.aircraft?.panel;
-    if (panel !== 'airbus' && panel !== 'e190') return;
-    const { qnhX, spdX, hdgX, hdgW, apX, apW, altX, altW, vsX } = _fcuGeometry();
-    const rect    = fcuCanvas.getBoundingClientRect();
-    const mx      = evt.clientX - rect.left;
-    if (mx >= qnhX && mx < spdX) {
-      if (!_fcuMoved) command('baroStd', 'toggle', { source: 'click' });   // push QNH knob → STD ↔ QNH (core/baro.js)
-    } else if (mx >= spdX && mx < hdgX) {
-      if (!_fcuMoved) setState({ spdManaged: !S.spdManaged });   // push SPD knob → managed speed / pull → SPD
-    } else if (mx >= hdgX && mx < hdgX + hdgW) {
-      if (!_fcuMoved) setState({ navManaged: !S.navManaged });   // push HDG knob → managed NAV / pull → HDG
-    } else if (mx >= altX && mx < altX + altW) {
-      if (!_fcuMoved) setState({ altManaged: !S.altManaged });   // push ALT knob → managed VNAV / pull → ALT
-    } else if (mx >= vsX) {
-      if (!_fcuMoved) setState({ vsSelected: true, altManaged: false, vsT: 0 });    // push V/S knob → LEVEL OFF (drops managed)
-    } else if (mx >= apX && mx < apX + apW) {
-      /* Hit-test the exact (narrow) button rects, not the cell quadrants.
-         idx: 0 AP1 · 1 AP2 · 2 APPR · 3 A/THR */
-      const DPR = devicePixelRatio || 1;
-      const mxD = mx * DPR, myD = (evt.clientY - rect.top) * DPR;
-      const hit = fcuButtonRegions().find(r => mxD >= r.x && mxD <= r.x + r.w && myD >= r.y && myD <= r.y + r.h);
-      if (!hit) return;
-      const btnIdx = hit.idx;
-      if (btnIdx === 0) {                              // AP 1
-        const sync = !S.ap ? {                         // engaging → hold present state, don't yank to stale targets
-          ...(S.navManaged ? {} : { hdgT: ((Math.round(S.hdg ?? 0) + 359) % 360) + 1 }),   // selected HDG → present heading
-          ...(S.altManaged ? {} : { altT: Math.round(indicatedAlt(S.alt ?? 0) / 100) * 100 }),   // selected ALT → present indicated altitude (nearest 100)
-        } : {};
-        setState({ ap: !S.ap, ...sync });
-      }
-      if (btnIdx === 3) setState({ athr: !S.athr });   // A/THR
-    }
-  });
-
-  /* FCU drag-to-turn — click + drag up/down on a knob area */
-  let _fcuDrag = null, _fcuMoved = false;
-
-  fcuCanvas.addEventListener('mousedown', evt => {
-    const panel = S.aircraft?.panel;
-    if (panel !== 'airbus' && panel !== 'e190') return;
-    const { qnhX, spdX, hdgX, apX, altX, vsX } = _fcuGeometry();
-    const mx = evt.clientX - fcuCanvas.getBoundingClientRect().left;
-    let knob = null;
-    if      (mx >= qnhX && mx < spdX) { knob = 'qnh'; }
-    else if (mx >= spdX && mx < hdgX) { knob = 'spd'; }
-    else if (mx >= hdgX && mx < apX)  { knob = 'hdg'; }
-    else if (mx >= altX && mx < vsX)  { knob = 'alt'; }
-    else if (mx >= vsX)               { knob = 'vs'; }
-    if (!knob) return;
-    evt.preventDefault();
-    evt.stopPropagation();
-    _fcuDrag = { startY: evt.clientY, knob,
-                 startSpd: S.spdT, startHdg: S.hdgT, startAlt: S.altT, startBaro: S.baroSet ?? 1013, startVs: S.vsT ?? 0 };
-    _fcuMoved = false;
-    fcuCanvas.style.cursor = 'ns-resize';
-  });
-
-  window.addEventListener('mousemove', evt => {
-    if (!_fcuDrag) return;
-    const dy   = _fcuDrag.startY - evt.clientY;   // up = positive
-    if (Math.abs(dy) > 2) _fcuMoved = true;
-    const coarse = evt.shiftKey;
-    if (_fcuDrag.knob === 'qnh') {
-      command('baroSet', { hpa: _fcuDrag.startBaro + Math.round(dy / 3) }, { source: 'drag', record: false });   // drag QNH knob → set hPa; recorded where it ends
-    } else if (_fcuDrag.knob === 'spd') {
-      setState({ spdT: Math.max(100, Math.min(350,
-        _fcuDrag.startSpd + Math.round(dy / 3))), spdManaged: false });   // pulling SPD → selected
-    } else if (_fcuDrag.knob === 'hdg') {
-      const delta = Math.round(dy / 3);
-      setState({ hdgT: ((_fcuDrag.startHdg + delta - 1 + 7200) % 360) + 1, navManaged: false });   // pulling HDG → selected
-    } else if (_fcuDrag.knob === 'alt') {
-      const step  = coarse ? 1000 : 100;
-      const delta = Math.round(dy / 2) * step;
-      setState({ altT: Math.max(0, Math.min(43000,
-        Math.round(_fcuDrag.startAlt / step) * step + delta)), altManaged: false });   // pulling ALT → selected
-    } else if (_fcuDrag.knob === 'vs') {
-      const delta = Math.round(dy / 4) * 100;
-      setState({ vsSelected: true, altManaged: false, vsT: Math.max(-6000, Math.min(6000, _fcuDrag.startVs + delta)) });   // dial V/S → V/S mode (drops managed)
-    }
-  });
-
-  window.addEventListener('mouseup', () => {
-    if (_fcuDrag?.knob === 'qnh' && _fcuMoved) recordCommand('baroSet', { value: S.baroSet }, { source: 'drag' });   // the drag, once
-    if (_fcuDrag) { _fcuDrag = null; fcuCanvas.style.cursor = 'default'; }
-  });
-
-  /* FCU cursor — ns-resize over knob areas, pointer over buttons */
-  fcuCanvas.addEventListener('mousemove', evt => {
-    if (_fcuDrag) return;
-    const panel = S.aircraft?.panel;
-    if (panel !== 'airbus' && panel !== 'e190') return;
-    const { qnhX, hdgX, apX, altX, vsX } = _fcuGeometry();
-    const r  = fcuCanvas.getBoundingClientRect();
-    const mx = evt.clientX - r.left;
-    const inKnob = (mx >= qnhX && mx < hdgX) ||
-                   (mx >= hdgX && mx < apX)   ||
-                   (mx >= altX);                 // alt + V/S knobs
-    const DPR = devicePixelRatio || 1;
-    const mxD = mx * DPR, myD = (evt.clientY - r.top) * DPR;
-    const overBtn = fcuButtonRegions().some(b => mxD >= b.x && mxD <= b.x + b.w && myD >= b.y && myD <= b.y + b.h);
-    fcuCanvas.style.cursor = inKnob ? 'ns-resize' : (overBtn ? 'pointer' : 'default');
-  });
-
-  /* Velis canvas click — switch toggles + COM swap */
-  /* Cursor in device px against a PFD hit region (qnhHitRegion etc.). */
-  function _overRegion(region, evt) {
-    if (!region) return false;
-    const DPR  = devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    const px   = (evt.clientX - rect.left) * DPR;
-    const py   = (evt.clientY - rect.top)  * DPR;
-    return px >= region.x && px <= region.x + region.w && py >= region.y && py <= region.y + region.h;
-  }
+  /* ── The FCU — its knobs and buttons register as it draws them (renderFCU, display/hit.js; the commands core/fcu.js and
+     core/baro.js): a click pushes a knob or presses a button, a drag or the wheel turns a knob; the cursor shows which ── */
+  fcuCanvas.addEventListener('click',     evt => { dispatchClick(fcuCanvas, evt); });
+  fcuCanvas.addEventListener('mousedown', evt => { dispatchDragStart(fcuCanvas, evt); });
+  fcuCanvas.addEventListener('wheel',     evt => { dispatchWheel(fcuCanvas, evt); }, { passive: false });
+  fcuCanvas.addEventListener('mousemove', evt => { fcuCanvas.style.cursor = cursorAt(fcuCanvas, evt); });
 
   canvas.addEventListener('click', evt => {
-    if (dispatchClick(canvas, evt)) return;   // a control drawn on the canvas (display/hit.js) — the GA panels, the Velis
-    /* Airbus/E190 PFD: click the QNH window → toggle STD ↔ QNH */
-    if ((S.aircraft?.panel === 'airbus' || S.aircraft?.panel === 'e190') && _overRegion(qnhHitRegion(), evt)) {
-      command('baroStd', 'toggle', { source: 'click' });   // core/baro.js
-    }
+    dispatchClick(canvas, evt);   // a control drawn on the canvas (display/hit.js) — the GA panels, the Velis, the PFD's QNH window
   });
 
   /* A knob drawn on the canvas (display/hit.js — the altimeters' setting knobs): a drag turns it, and the mouse stick
@@ -2132,14 +1977,8 @@
   canvas.addEventListener('mousedown', evt => { dispatchDragStart(canvas, evt); });
 
   /* Airbus/E190 PFD: scroll the QNH window → set the subscale (hPa). Leaves STD when turned. */
-  canvas.addEventListener('wheel', evt => {
-    if (dispatchWheel(canvas, evt)) return;   // a knob on the canvas
-    const panel = S.aircraft?.panel;
-    if (panel !== 'airbus' && panel !== 'e190') return;
-    if (!_overRegion(qnhHitRegion(), evt)) return;
-    evt.preventDefault();
-    command('baroSet', { step: evt.deltaY > 0 ? -1 : 1 }, { source: 'wheel' });   // core/baro.js — leaves STD
-  }, { passive: false });
+  canvas.addEventListener('wheel', evt => { dispatchWheel(canvas, evt); }, { passive: false });   // a knob on the canvas
+  canvas.addEventListener('mousemove', evt => { if (canvas.style.pointerEvents === 'auto') canvas.style.cursor = cursorAt(canvas, evt); });
   const loadEl     = document.getElementById('loading');
   const loadBar    = document.getElementById('loadBar');
   const loadStatus = document.getElementById('loadStatus');
@@ -3751,7 +3590,7 @@
         const hasOwnUI = isVelis || isG1000 || isDR400;
         const isDragon = isRocket && !!(S.mission?.dragonSepT);
         const isApollo = isRocket && S.aircraft?.id === 'saturn-v';
-        canvas.style.pointerEvents = (isVelis || isArm || isDragon || isG1000 || isApollo || isDR400 || isVintage) ? 'auto' : 'none';   // the analog panels: the altimeters' knobs
+        canvas.style.pointerEvents = (isVelis || isArm || isDragon || isG1000 || isApollo || isDR400 || isVintage || isPanel) ? 'auto' : 'none';   // the analog panels' knobs; the PFD's QNH window
         document.body.classList.toggle('g1000-active',  isG1000);
         document.body.classList.toggle('velis-active',  isVelis);
         document.body.classList.toggle('panel-dual',    hasDual);

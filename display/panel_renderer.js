@@ -10,15 +10,14 @@
 import { S, setState } from '../core/state.js';
 import {
   drawFMA, drawAI, drawSpeedTape, drawAltTape,
-  drawVSI, drawHdgTape, drawNDMap, drawFCU, drawECAM, drawEICAS,
-} from './pfd_instruments.js';
+  drawVSI, drawHdgTape, drawNDMap, drawFCU, drawECAM, drawEICAS, fcuKnobZones, fcuButtonRegions, qnhHitRegion } from './pfd_instruments.js';
 import { drawG1000PFD, drawG1000MFD, drawG1000Bezel } from './g1000.js';
 import { drawToggle, drawRocker, drawMagneto, drawSelector } from './controls-canvas.js';
 import { hideG1000Map } from './map.js';
 import { drawInstrument } from './analog_panel.js';
 import { avionicsPowered } from '../core/electrical.js';
 import { drawVelisEfis, drawVelisEpsi, drawVelisMap } from './velis_epsi.js';
-import { operate, controlState, guardOpen } from './controls.js';
+import { operate, controlState, guardOpen, push, turn, turned } from './controls.js';
 import { beginHits, addHit } from './hit.js';
 
 let _currentCanvas = null;   // the canvas being drawn — the click areas are registered on it (display/hit.js)
@@ -364,6 +363,11 @@ export function renderPanel(canvas, screenIdx = 0, specOverride = null) {
   if (!spec) return;
 
   _render(canvas, spec, _cache.style, true);   // PFD/ND screens: boost fonts when squished (outside view)
+  /* the PFD's QNH window — a knob of its own (display/hit.js): a click toggles STD, a drag or the wheel sets it */
+  beginHits(canvas);
+  const q = screenIdx === 0 ? qnhHitRegion() : null;
+  if (q) addHit(canvas, { name: 'pfdQnh', ...q, action: () => push('fcuQnh'),
+    turn: (steps, { record }) => turn('baroKnob', steps, { record }), turned: () => turned('baroKnob') });
 }
 
 export function renderFCU(canvas) {
@@ -374,6 +378,18 @@ export function renderFCU(canvas) {
   ctx.save();
   drawFCU(ctx, W, H, _cache.style);
   ctx.restore();
+  /* its knobs and buttons, where drawFCU put them (display/hit.js): a knob turns (drag, wheel) and pushes (click) */
+  beginHits(canvas);
+  const z = fcuKnobZones();
+  if (z) for (const [k, id] of [['qnh', 'fcuQnh'], ['spd', 'fcuSpd'], ['hdg', 'fcuHdg'], ['alt', 'fcuAlt'], ['vs', 'fcuVs']]) {
+    const [x, w] = z[k];
+    addHit(canvas, { name: id, x, y: 0, w, h: z.h, action: () => push(id),
+      turn: (steps, { record }) => turn(id, steps, { record }), turned: () => turned(id) });
+  }
+  for (const b of fcuButtonRegions()) {
+    const id = b.idx === 0 ? 'ap1' : b.idx === 3 ? 'athr' : null;   // AP2 and APPR: drawn, no function yet
+    if (id) addHit(canvas, { name: id, x: b.x, y: b.y, w: b.w, h: b.h, action: () => operate(id) });
+  }
 }
 
 export function renderCockpit(canvas) {

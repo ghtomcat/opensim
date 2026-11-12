@@ -14,6 +14,7 @@ import { runMissionResets } from '../core/lifecycle.js';
 import '../core/gear.js';
 import '../core/failures.js';
 import '../core/baro.js';
+import '../core/fcu.js';
 
 const load = (id) => JSON.parse(readFileSync(new URL(`../aircraft/${id}.json`, import.meta.url), 'utf8'));
 
@@ -141,4 +142,19 @@ test('the setting knob turns the subscale in its dial\'s unit, leaves STD, and s
   assert.equal(S.baroSet, 1050);
   assert.equal(turn('baroKnob', 1), false);                                    // at the stop: refused
   assert.equal(command2('baroStd', 'toggle'), true); assert.equal(S.baroStd, true);
+});
+
+/* The FCU (core/fcu.js) — its knobs turn and push, AP1 engages holding the present state */
+import { push } from '../display/controls.js';
+test('the FCU: SPD / HDG / ALT / V/S turn and push; AP1 holds the present heading and altitude when it engages', () => {
+  setState({ spdT: 250, spdManaged: true, hdgT: 359, navManaged: true, altT: 5000, altManaged: true, vsT: 0, ap: false, athr: false, hdg: 92.4, alt: 7000, baroStd: true });
+  turn('fcuSpd', 3);   assert.equal(S.spdT, 253); assert.equal(S.spdManaged, false);
+  turn('fcuHdg', 3);   assert.equal(S.hdgT, 2);   assert.equal(S.navManaged, false);       // 359 + 3 → 2 (wraps)
+  turn('fcuAlt', 10);  assert.equal(S.altT, 6000);
+  turn('fcuVs', -5);   assert.equal(S.vsT, -500); assert.equal(S.vsSelected, true);
+  push('fcuVs');       assert.equal(S.vsT, 0);                                              // level off
+  push('fcuSpd');      assert.equal(S.spdManaged, true);
+  operate('ap1');      assert.equal(S.ap, true); assert.equal(S.hdgT, 92);                // selected HDG → the present heading (92.4°)
+  operate('athr');     assert.equal(S.athr, true);
+  push('fcuQnh');      assert.equal(S.baroStd, false);
 });

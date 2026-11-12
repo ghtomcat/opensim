@@ -85,6 +85,22 @@ for (let i = 0; i < 8; i++)
 /* the altimeter's setting knob — a free-turning knob; a step is the dial's own unit (stepHpa: 1 hPa, 0.01 in. Hg, 1 mm Hg) */
 CONTROLS.baroKnob = { kind: 'knob', read: () => S.baroSet, command: 'baroSet', arg: (steps, { stepHpa = 1 } = {}) => ({ step: steps * stepHpa }) };
 
+/* the FCU's knobs — turn and push (core/fcu.js, core/baro.js) — and its buttons */
+const fcuKnob = (cmd, push) => ({ kind: 'knob', read: () => null, command: cmd, push, arg: (steps) => ({ step: steps }) });
+Object.assign(CONTROLS, {
+  fcuQnh: { kind: 'knob', read: () => S.baroSet, command: 'baroSet', push: 'baroStd', pushArg: 'toggle', arg: (steps) => ({ step: steps }) },
+  fcuSpd: fcuKnob('fcuSpeed', 'fcuSpeedPush'), fcuHdg: fcuKnob('fcuHeading', 'fcuHeadingPush'),
+  fcuAlt: fcuKnob('fcuAltitude', 'fcuAltitudePush'), fcuVs: fcuKnob('fcuVs', 'fcuVsPush'),
+  ap1:  { kind: 'toggle', read: () => !!S.ap,   command: 'autopilot',  arg: () => 'toggle' },
+  athr: { kind: 'toggle', read: () => !!S.athr, command: 'autothrust', arg: () => 'toggle' },
+});
+
+/** A knob pushed (a click on it) — its push command, where it has one */
+export function push(id, { source = 'click' } = {}) {
+  const c = CONTROLS[id];
+  return c?.push ? command(c.push, c.pushArg, { source }) : false;
+}
+
 /** A knob turned by `steps` (a drag's step or a wheel's notch) — opts go to its argument (a step's size); `record: false`
     for a drag's steps, recorded once at the end with turned() */
 export function turn(id, steps, { source = 'click', record = true, ...opts } = {}) {

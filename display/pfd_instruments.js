@@ -29,6 +29,9 @@ export function qnhHitRegion() { return _qnhHit; }
    target matches the (now narrow) visual buttons. Each: { x, y, w, h, idx }. */
 let _fcuBtnHits = [];
 export function fcuButtonRegions() { return _fcuBtnHits; }
+/* The FCU's five knob sections (device px: x, width), refreshed by drawFCU — its own layout, so no one keeps a copy */
+let _fcuZones = null;
+export function fcuKnobZones() { return _fcuZones; }
 
 /* ── ND terrain grid (brick 4) — sample the Mapbox DEM in a NORTH-up disc around the aircraft.
    Heading-independent + altitude-independent (we cache the elevation, colour at paint time), so
@@ -1291,6 +1294,7 @@ export function drawFCU(ctx, W, H, style) {
   const apX  = hdgX + hdgW + gapAP;
   const altX = apX  + apW  + gapAL;
   const vsX  = altX + altW;
+  _fcuZones = { qnh: [qnhX, qnhW], spd: [spdX, spdW], hdg: [hdgX, hdgW], alt: [altX, altW], vs: [vsX, vsW], h: H };   // the knobs' areas
 
   // Vertical separators between major sections
   ctx.strokeStyle = 'rgba(255,255,255,0.07)';

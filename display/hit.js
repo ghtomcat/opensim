@@ -83,5 +83,11 @@ export function dispatchWheel(canvas, evt) {
   return true;
 }
 
+/** The cursor over the canvas: ↕ on a knob, the hand on a button, else none */
+export function cursorAt(canvas, evt) {
+  const a = hitAt(canvas, evt);
+  return a?.turn ? 'ns-resize' : a?.action ? 'pointer' : 'default';
+}
+
 /** The areas drawn last on this canvas — name and rectangle, for tests */
 export const hitAreas = (canvas) => (_areas.get(canvas) ?? []).map(({ name, x, y, w, h }) => ({ name, x, y, w, h }));
