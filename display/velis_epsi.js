@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
    OpenSim — display/velis_epsi.js
-   Pipistrel Velis Electro HB-SYC — full canvas cockpit.
+   Pipistrel Velis Electro HB-SYQ — full canvas cockpit.
 
    Four zones (left → right):
      SWITCHES  MASTER key, BATT EN, PWR EN, AVIONICS

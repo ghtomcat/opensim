@@ -23,7 +23,7 @@ aircraft/
   c172.json           ← Cessna 172 (piston, manual control, G1000)
   robin-dr400.json    ← Robin DR400/140B (piston, manual control, Garmin GTN)
   bf109.json          ← Bf 109 (WWII fighter, manual control)
-  velis-hb-syc.json   ← Pipistrel Velis Electro (electric, manual)
+  velis-hb-syq.json   ← Pipistrel Velis Electro (electric, manual)
 ```
 
 ---
@@ -57,7 +57,7 @@ The `panel` field controls which 3D cockpit and instrument renderer is used.
 | `"e190"` | Embraer Primus-style EFIS | E190 |
 | `"g1000"` | Garmin G1000 glass cockpit (data-driven) | C172 |
 | `"dr400"` | Robin DR-400 cockpit — Garmin GTN + analog gauges (data-driven) | Robin DR-400 |
-| `"velis-epsi"` | Velis Electro EPSI panel | Velis HB-SYC |
+| `"velis-epsi"` | Velis Electro EPSI panel | Velis HB-SYQ |
 | `"analog"` | the round gauges: the look by `panelStyle` (`luftwaffe`, `usn`, `soviet`, `soviet-1956`, `wood`), the instruments by `analogPanel` — both required (see *Analog panel* below) | Bf 109, MiG-15bis, F4U-1A, Tu-95, An-225, Avro 504, DC-8 |
 
 The 3D outside model (fuselage, wings, engines) is also driven by `panel`:

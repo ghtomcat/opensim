@@ -179,20 +179,20 @@
   },
   {
     "id": "lszg-velis",
-    "aircraft": "velis-hb-syc",
+    "aircraft": "velis-hb-syq",
     "acName": "Pipistrel Velis Electro",
     "engine": "E-811 · 57.6 kW electric",
     "location": "Grenchen LSZG",
-    "title": "Electric Circuit · HB-SYC",
+    "title": "Electric Circuit · HB-SYQ",
     "era": "PPL · Electric",
     "accent": "#5dd4e8",
     "briefing": {
       "date": "LSZG · Runway 26 · CTAF 122.275",
       "pilot": "Student Pilot",
       "unit": "Flugschule Grenchen",
-      "aircraft": "HB-SYC · Pipistrel Velis Electro · 57.6 kW",
+      "aircraft": "HB-SYQ · Pipistrel Velis Electro · 57.6 kW",
       "orders": "Left-hand circuit. Circuit altitude 2200ft QNH.\nRunway 26 · Asphalt · 900m.\nVr 55kt · Vy 70kt · Approach 65kt.\nLand with ≥ 27% SOC. No go-around below that.",
-      "atmosphere": "Nearly silent.\nNo magnetos. No carb heat. No mixture.\nWatch the EPSI. Manage your energy.\nHB-SYC. The same one."
+      "atmosphere": "Nearly silent.\nNo magnetos. No carb heat. No mixture.\nWatch the EPSI. Manage your energy.\nHB-SYQ. The same one."
     }
   },
   {

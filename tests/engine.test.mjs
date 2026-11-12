@@ -157,7 +157,7 @@ test('fuel starvation or a seizure stops the engine at once', () => {
 });
 
 test('the electric motor follows MASTER + BATT EN + PWR EN', () => {
-  const step = cold(load('velis-hb-syc'), { switches: { master: true, battEn: true, pwrEn: false } });
+  const step = cold(load('velis-hb-syq'), { switches: { master: true, battEn: true, pwrEn: false } });
   step(0.1);
   assert.equal(S.engineState, 'off');
   setState({ switches: { master: true, battEn: true, pwrEn: true } });
@@ -178,7 +178,7 @@ test('engines without a start sequence ignore start and stop', () => {
 test('initial state: cold on the ground with a start sequence, running otherwise', () => {
   assert.equal(initialEngine(load('c172'), { onGround: true,  spd: 0 }).engineState, 'off');
   assert.equal(initialEngine(load('c172'), { onGround: false, spd: 100 }).engineState, 'running');
-  assert.equal(initialEngine(load('velis-hb-syc'), { onGround: true, spd: 0 }).engineState, 'off');
+  assert.equal(initialEngine(load('velis-hb-syq'), { onGround: true, spd: 0 }).engineState, 'off');
   assert.equal(initialEngine(load('tu95'), { onGround: true, spd: 0 }).engineState, 'running');
   const a350 = load('a350');
   const air  = initialEngine(a350, { onGround: false, spd: 250 });

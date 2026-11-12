@@ -1,12 +1,12 @@
 {
-  "id": "velis-hb-syc",
+  "id": "velis-hb-syq",
   "views": ["pedestal"],
-  "name": "Pipistrel Velis Electro HB-SYC",
+  "name": "Pipistrel Velis Electro HB-SYQ",
   "manufacturer": "pipistrel",
   "family": "velis",
   "model": "velis-electro",
   "clock": "digital",
-  "callsign": "HB-SYC",
+  "callsign": "HB-SYQ",
   "icaoType": "POVE",
   "landSurfaces": ["runway", "grass"],
   "gearRuggedness": 0.5,
@@ -244,7 +244,7 @@
         "BATT LOW warning: 20%",
         "BATT CRIT warning: 10%",
         "No restart with 0% SOC",
-        "HB-SYC. Grenchen. The same one."
+        "HB-SYQ. Grenchen. The same one."
       ]
     }
   ]

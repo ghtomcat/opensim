@@ -131,7 +131,7 @@ axes[0]=roll · axes[1]=pitch · axes[2]=rudder · axes[5]=throttle · buttons[1
 | Embraer E190-E2 | Pratt & Whitney PW1900G | Helvetic Airways, E-Jets glass cockpit |
 | Cessna 172S Skyhawk | Lycoming IO-360 · 180hp | G1000 glass cockpit, cold-dark startup, grass strip |
 | Robin DR400/140B Dauphin | Lycoming O-320 · 160hp | Flugschule Grenchen checklists |
-| Pipistrel Velis Electro HB-SYC | Pipistrel E-811 · 57.6 kW | EPSI panel, battery SOC management, Grenchen |
+| Pipistrel Velis Electro HB-SYQ | Pipistrel E-811 · 57.6 kW | EPSI panel, battery SOC management, Grenchen |
 | Vought F4U-1A Corsair | Pratt & Whitney R-2800 · 2000hp | Bent-wing bird, Pacific theatre |
 | Messerschmitt Bf 109 E-4 | Daimler-Benz DB 601 · 1175hp | AudioWorklet 12-cylinder impulse model, radiator flap + coolant temp |
 | MiG-15bis 'Fagot-B' | Klimov VK-1 | Centrifugal compressor intake, splitter vane |
@@ -218,7 +218,7 @@ Autobrake (LO/MED/MAX) is armed from pushbuttons on the centre panel and disarms
 | Cross-Country LSZG→LSGN | C172 | PPL | Cold-dark startup, Schnupperflug route, live METAR |
 | VFR Pattern LSZF | C172 | PPL | Grass strip Speck-Fehraltorf, circuits, kneeboard |
 | VFR Circuit LSZG | Robin DR400 | PPL | Grenchen, Flugschule checklists, live METAR |
-| Electric Circuit HB-SYC | Velis Electro | PPL/Electric | EPSI panel, battery SOC, no magnetos |
+| Electric Circuit HB-SYQ | Velis Electro | PPL/Electric | EPSI panel, battery SOC, no magnetos |
 | Airshow Ground Run | Bf 109 E-4 | 2025 | DB 601 startup, D-FEML at Hahnweide |
 | Patrol — Marne 1918 | Avro 504K | 1918 | WWI rotary engine, Le Rhône blip switch |
 | Operation Wolfskopf | Bf 109 E-4 | 1942 | Arctic, scripted engine failure, NIFLHEIM |

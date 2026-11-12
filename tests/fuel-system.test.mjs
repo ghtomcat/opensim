@@ -102,7 +102,7 @@ test('every tank empty: nothing more to take, no negative fuel (an engine is not
 });
 
 test('light aircraft are left to core/fuel.js, the Velis to its battery (core/battery.js)', () => {
-  for (const id of ['c172', 'velis-hb-syc']) {
+  for (const id of ['c172', 'velis-hb-syq']) {
     setState({ aircraft: load(id), engines: [{ state: 'running', ff: 30 }] });
     resetFuelSystem();
     assert.equal(S.fuelSys, null, id);

@@ -9,11 +9,11 @@ The tables below are generated from the key map (`core/keymap.js`): edit the tab
 
 | Key | Action | On |
 |-----|--------|----|
-| `Mouse (hold) / ↑ ↓ ← →` | Stick (wings level when released) · on the ground ← → steer | a220, a340, a350, an225, avro504, b737, b737max9, b777-300er, bf109, c172, e190, f4u1a, mig15bis, robin-dr400, tu95, velis-hb-syc |
+| `Mouse (hold) / ↑ ↓ ← →` | Stick (wings level when released) · on the ground ← → steer | a220, a340, a350, an225, avro504, b737, b737max9, b777-300er, bf109, c172, e190, f4u1a, mig15bis, robin-dr400, tu95, velis-hb-syq |
 | `↑ ↓` | Altitude target ±500 ft | dc8 |
 | `← →` | Heading target ±5° | dc8 |
-| `, . (hold)` | Rudder left / right (springs back) · steers on the ground | a220, a340, a350, an225, avro504, b737, b737max9, b777-300er, bf109, c172, e190, f4u1a, mig15bis, robin-dr400, tu95, velis-hb-syc |
-| `< >` | Rudder trim left / right | a220, a340, a350, an225, avro504, b737, b737max9, b777-300er, bf109, c172, e190, f4u1a, mig15bis, robin-dr400, tu95, velis-hb-syc |
+| `, . (hold)` | Rudder left / right (springs back) · steers on the ground | a220, a340, a350, an225, avro504, b737, b737max9, b777-300er, bf109, c172, e190, f4u1a, mig15bis, robin-dr400, tu95, velis-hb-syq |
+| `< >` | Rudder trim left / right | a220, a340, a350, an225, avro504, b737, b737max9, b777-300er, bf109, c172, e190, f4u1a, mig15bis, robin-dr400, tu95, velis-hb-syq |
 | `t` | Pitch trim nose up | every aircraft |
 | `T` | Pitch trim nose down | every aircraft |
 | `B (hold)` | Brakes (disarm the autobrake) | every aircraft |
@@ -29,12 +29,12 @@ The tables below are generated from the key map (`core/keymap.js`): edit the tab
 | `G` | Gear up / down (not on the ground) | a220, a340, a350, an225, b737, b737max9, b777-300er, bf109, dc8, e190, f4u1a, mig15bis, tu95 |
 | `S` | Speed brake: RET ↔ ARM ↔ FULL | a220, a340, a350, an225, b737, b737max9, b777-300er, dc8, e190 |
 | `D` | Engine start on the pedestal: power, ENG MODE IGN/START, ENG MASTERs | a220, a340, a350, an225, b737, b737max9, b777-300er, dc8, e190 |
-| `Panel` | Motor on: MASTER → BATT EN → PWR EN | velis-hb-syc |
+| `Panel` | Motor on: MASTER → BATT EN → PWR EN | velis-hb-syq |
 | `E` | Engine start · Engine start (battery on first) | bf109, c172, f4u1a, mig15bis, robin-dr400 |
 | `Q` | Fuel cutoff, all engines · Engine cutoff | a220, a340, a350, b737, b737max9, b777-300er, bf109, dc8, e190, f4u1a, mig15bis |
 | `Q` | Fuel selector: LEFT ↔ BOTH ↔ RIGHT | c172, robin-dr400 |
 | `H` | Carburettor heat | c172, robin-dr400 |
-| `1–5` | Situation presets (no mission loaded) | a220, a340, a350, an225, avro504, b737, b737max9, b777-300er, bf109, c172, e190, f4u1a, mig15bis, robin-dr400, tu95, velis-hb-syc |
+| `1–5` | Situation presets (no mission loaded) | a220, a340, a350, an225, avro504, b737, b737max9, b777-300er, bf109, c172, e190, f4u1a, mig15bis, robin-dr400, tu95, velis-hb-syq |
 
 ### Views and screens
 
@@ -45,12 +45,12 @@ The tables below are generated from the key map (`core/keymap.js`): edit the tab
 | `C` | Outside camera | every vehicle |
 | `0` | While paused: reset the outside camera | every vehicle |
 | `O` | Overhead panel | a220, a340, a350, an225, b737, b737max9, b777-300er, dc8, e190, tu95 |
-| `D` | Pedestal | a220, a340, a350, an225, b737, b737max9, b777-300er, c172, dc8, e190, robin-dr400, tu95, velis-hb-syc |
+| `D` | Pedestal | a220, a340, a350, an225, b737, b737max9, b777-300er, c172, dc8, e190, robin-dr400, tu95, velis-hb-syq |
 | `M` | Centre panel | a220, a340, a350, an225, b737, b737max9, b777-300er, dc8, e190, tu95 |
 | `L` | Left console | a220, a340, a350, an225, b737, b737max9, b777-300er, bf109, dc8, e190, f4u1a, mig15bis, tu95 |
 | `L` | CM ↔ LM panel (after S-IVB separation) | saturn-v |
 | `R` | Right console | a220, a340, a350, an225, b737, b737max9, b777-300er, bf109, dc8, e190, f4u1a, mig15bis, tu95 |
-| `R` | Role: PF → PM → INSTRUCTOR | avro504, c172, falcon1, falcon9-b1, falcon9-b5-590, falcon9-b5-demo2, falcon9-b5, robin-dr400, saturn-v, so101, starship, velis-hb-syc, yertle |
+| `R` | Role: PF → PM → INSTRUCTOR | avro504, c172, falcon1, falcon9-b1, falcon9-b5-590, falcon9-b5-demo2, falcon9-b5, robin-dr400, saturn-v, so101, starship, velis-hb-syq, yertle |
 | `K` | Kneeboard (briefings, checklists, scratchpad) | every vehicle |
 | `N` | Map | a220, a340, a350, an225, avro504, b737, b737max9, b777-300er, bf109, dc8, e190, f4u1a, falcon1, falcon9-b1, falcon9-b5-590, falcon9-b5-demo2, falcon9-b5, mig15bis, robin-dr400, saturn-v, starship, tu95 |
 

@@ -16,7 +16,7 @@ const load = (id) => JSON.parse(readFileSync(new URL(`../aircraft/${id}.json`, i
 test('which aircraft have which switches — from the data (electric starter / electric motor), not the panel', () => {
   assert.deepEqual(lightSwitches(load('c172')), ['bat', 'alt', 'avionics']);
   assert.deepEqual(lightSwitches(load('robin-dr400')), ['bat', 'alt', 'avionics']);
-  assert.deepEqual(lightSwitches(load('velis-hb-syc')), ['bat', 'battEn', 'pwrEn', 'avionics']);
+  assert.deepEqual(lightSwitches(load('velis-hb-syq')), ['bat', 'battEn', 'pwrEn', 'avionics']);
   assert.equal(lightSwitches(load('bf109')), null);
 });
 
@@ -30,7 +30,7 @@ test('the C172: bat, alt, avionics set masterBat, masterAlt, avionicsOn; toggle 
 });
 
 test('the Velis: the MASTER key is bat; BATT EN, PWR EN, AVNCS — a new S.switches each time, not changed in place', () => {
-  setState({ aircraft: load('velis-hb-syc'), switches: { master: false, battEn: false, pwrEn: false, avionics: false } });
+  setState({ aircraft: load('velis-hb-syq'), switches: { master: false, battEn: false, pwrEn: false, avionics: false } });
   const before = S.switches;
   for (const id of ['bat', 'battEn', 'pwrEn', 'avionics']) assert.equal(command('elec', { id }), true, id);
   assert.deepEqual(S.switches, { master: true, battEn: true, pwrEn: true, avionics: true });
