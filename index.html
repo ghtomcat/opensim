@@ -1871,7 +1871,6 @@
   import { renderAnalogPanel } from './display/analog_panel.js';
   import { initRobotArm, renderRobotArm, resetRobotArm } from './display/robot_arm.js';
   import { renderYertleQuadruped, resetYertleQuadruped } from './display/yertle_quadruped.js';
-  import { renderVelisEpsi } from './display/velis_epsi.js';
   import { initCOM, stopCOM, tickCOMPower } from './display/com.js';
   import { initOverhead, toggleOverhead, renderOverhead } from './display/overhead.js';
   import { initPedestal, togglePedestal, renderPedestal } from './display/pedestal.js';
@@ -3728,7 +3727,7 @@
         else if (panel === 'dr400')  renderCockpit(canvas);
         else if (panel === 'g1000')  renderCockpit(canvas);
         else if (panel === 'analog') renderAnalogPanel(canvas, S.aircraft?.panelStyle);   // the round gauges: panelStyle the look, analogPanel the instruments
-        else if (panel === 'velis-epsi') renderVelisEpsi(canvas);
+        else if (panel === 'velis-epsi') renderCockpit(canvas);   // the glass path: panels/velis-epsi.json
         else if (panel === 'airbus' || panel === 'e190') {
           renderPanel(canvas,   0, _currentSpec(0));
           renderPanel(ndCanvas, 1, _currentSpec(1));

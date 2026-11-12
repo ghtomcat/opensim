@@ -522,7 +522,8 @@ function _num(ctx, x, y, r, deg, text, sz, sc, rr = 0.70) {
      zero         a 0 mark before min — an airspeed dial reads nothing useful below the stall
      zeroFigure   false: the 0 is the needle's rest position only, no tick or figure (D-FEML's rev counter)
      red          from → max, or [a, b];   yellow, green   [a, b];   redLine / yellowLine  a radial mark at a value (or several)
-     white        [a, b] — the flap operating range, an inner arc (the US airspeed dials since the 1940s)
+     white        [a, b] — the flap operating range, an inner arc (the US airspeed dials since the 1940s); or several:
+                  [[a, b], [a, b, 'wide'] …] — a wide one is a thick band (the Velis: 47–52 thick, 47–80 narrow)
      figuresTo    the last figure (the scale may run on past it);   endMark  a small triangle at the end of the scale
    An aircraft's scale brings its own arcs: the dial's default arcs apply only without one.
    ════════════════════════════════════════════════════════════ */
@@ -543,8 +544,11 @@ function _scale(ctx, x, y, r, sc, scale, def) {
   if (A.yellow)       band(A.yellow, '#cc9900', 4);
   if (A.green)        band(A.green,  '#3a7a3a', 4);
   if (A.white) {                                                        // inside the others, as painted
-    ctx.save(); ctx.beginPath(); ctx.arc(x, y, r * 0.90, _r(ang(A.white[0])), _r(ang(A.white[1])));
-    ctx.strokeStyle = '#e8e8e8'; ctx.lineWidth = 3 * sc; ctx.stroke(); ctx.restore();
+    for (const [a, b, kind] of Array.isArray(A.white[0]) ? A.white : [A.white]) {
+      const lw = kind === 'wide' ? 7 : 3;
+      ctx.save(); ctx.beginPath(); ctx.arc(x, y, r * (kind === 'wide' ? 0.885 : 0.90), _r(ang(a)), _r(ang(b)));
+      ctx.strokeStyle = '#e8e8e8'; ctx.lineWidth = lw * sc; ctx.stroke(); ctx.restore();
+    }
   }
   const radial = (v, col) => {                                          // a radial line — a limit or caution mark
     const a = _r(ang(v));

@@ -1,0 +1,16 @@
+{
+  "id": "velis-epsi",
+  "colors": {
+    "bg":     "#1a1e24",
+    "panel":  "#1a1e24",
+    "dim":    "rgba(232,237,242,0.35)",
+    "white":  "#e8edf2",
+    "green":  "#5dd47e",
+    "amber":  "#ffb74d",
+    "red":    "#ff4444",
+    "sky":    "#3a6cb0",
+    "ground": "#7a4e28"
+  },
+  "font": "mono",
+  "analogStyle": "ga"
+}

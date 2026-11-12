@@ -16,6 +16,7 @@ import { drawG1000PFD, drawG1000MFD, drawG1000Bezel } from './g1000.js';
 import { drawToggle, drawRocker, drawMagneto, drawSelector } from './controls-canvas.js';
 import { hideG1000Map } from './map.js';
 import { drawInstrument } from './analog_panel.js';
+import { drawVelisEfis, drawVelisEpsi, drawVelisMap } from './velis_epsi.js';
 import { operate, controlState, guardOpen } from './controls.js';
 import { beginHits, addHit } from './hit.js';
 
@@ -282,6 +283,10 @@ const _WIDGETS = {
   /* a round gauge from the analog panel's registry (display/analog_panel.js) — config: an analogPanel entry
      ({ id, scale, variant }); the look is the cockpit style's `analogStyle` (default 'ga') */
   analog:          (ctx, box, style, cfg) => drawInstrument(ctx, box, cfg, style?.analogStyle ?? 'ga', cfg.key ?? cfg.id),
+  /* the Velis's own displays (display/velis_epsi.js) */
+  velis_efis:      (ctx, box) => drawVelisEfis(ctx, box),
+  velis_epsi:      (ctx, box) => drawVelisEpsi(ctx, box),
+  velis_map:       (ctx, box) => drawVelisMap(ctx, box),
   rocker_strip:    _drawRockerStrip,
   bottom_switches: _drawBottomSwitches,
   g1000_screen:    _drawG1000Screen,

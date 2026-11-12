@@ -1,0 +1,32 @@
+{
+  "id": "velis-epsi",
+  "version": "1",
+  "_source": "Pipistrel Velis Electro HB-SYQ, Markus's photo of 3 Jul 2025 (sources/velis-panel-notes.md): two rows of round instruments — ASI, EFIS, altimeter; Power / RPM, slip ball, vario / flight timer — and on the right the GPS map above the EPSI 570C. The Power / RPM and the vario / timer are round digital displays still to build (their cells are empty for now); the EPSI is today's page until it is redrawn as the real 570C.",
+  "layout": [
+    { "h": 1.0, "cols": [
+      { "w": 0.62, "widget": "grid", "config": { "layout": [
+        { "h": 0.2, "cols": [], "_note": "clear of the mission title, clock and KEYS at the top left" },
+        { "h": 0.4, "cols": [
+          { "w": 0.333, "widget": "analog", "config": {
+            "id": "asi",
+            "scale": { "unit": "kt", "min": 0, "max": 160, "step": 20, "minor": 4, "start": 0, "sweep": 315,
+                       "white": [[47, 80], [47, 52, "wide"]] },
+            "_source": "Markus, from HB-SYQ (2026-11-12): 0 at 12 o'clock, then 20 … 160 clockwise; no green, yellow or red — a thick white band ~47–52 and a narrow white arc ~47–80 (the placards: V_S0 46, V_S 53, V_FE+1 81). Spacing: the real dial looks wider in the middle — even spacing here, to check."
+          }},
+          { "w": 0.334, "widget": "velis_efis" },
+          { "w": 0.333, "widget": "analog", "config": { "id": "alt", "variant": "threePointer",
+            "_source": "a three-pointer build with the hatched low-altitude flag on the photo; its setting window unconfirmed" } }
+        ]},
+        { "h": 0.4, "cols": [
+          { "w": 0.333, "widget": "spacer", "config": { "_todo": "Power / RPM — a round digital display (kW, rpm arc)" } },
+          { "w": 0.334, "widget": "analog", "config": { "id": "level", "_source": "the slip indicator (winter) — a ball between L and R; drawn for now as the registry's level (the Avro's bubble level — the same quantity, another look)" } },
+          { "w": 0.333, "widget": "spacer", "config": { "_todo": "vario / flight timer — a round digital display" } }
+        ]}
+      ]}},
+      { "w": 0.38, "widget": "grid", "config": { "layout": [
+        { "h": 0.42, "cols": [{ "w": 1.0, "widget": "velis_map" }] },
+        { "h": 0.58, "cols": [{ "w": 1.0, "widget": "velis_epsi" }] }
+      ]}}
+    ]}
+  ]
+}

@@ -1,16 +1,14 @@
 /* ═══════════════════════════════════════════════════════════════
    OpenSim — display/velis_epsi.js
-   Pipistrel Velis Electro HB-SYQ — full canvas cockpit.
-
-   Three zones (left → right):
-     NESIS 4   Digital AH — primary flight instruments
-     EPSI 570  Energy management display
-     BACKUP    Analog ASI + altimeter
-
-   The switches — MASTER, AVIONICS, BATT EN, PWR EN — are on the centre console, as in HB-SYQ
-   (Markus's photo, sources/velis-panel-notes.md): the pedestal view (D), display/pedestal.js.
-   The radio is the COM panel on the pedestal (display/com.js), as on the other aircraft.
-   (The layout itself is redone from the photo in the next piece of step 3.)
+   Pipistrel Velis Electro HB-SYQ — its own displays, as glass widgets:
+     drawVelisEfis   the round EFIS (attitude, airspeed, heading — drawn as the NESIS 4)
+     drawVelisEpsi   the EPSI energy display (today's page — redrawn as the real 570C next)
+     drawVelisMap    the GPS moving map, a screen of its own
+   The panel's layout is panels/velis-epsi.json, as HB-SYQ's (Markus's photo,
+   sources/velis-panel-notes.md); its round gauges come from the analog registry
+   (display/analog_panel.js, the widget `analog`). The switches — MASTER, AVIONICS,
+   BATT EN, PWR EN — are on the centre console: the pedestal view (D). The radio is the COM
+   panel on the pedestal (display/com.js).
 
    All HTML overlays (#panel, #fma, #metar-strip, #com-container,
    #warning-lights) are hidden by index.html when this panel is active.
@@ -19,7 +17,6 @@
 import { S, setState }               from '../core/state.js';
 import { updateVelisMapOverlay, hideVelisMap } from './map.js';
 import { flapLabel } from '../core/airframe.js';
-import { operate } from './controls.js';
 
 /* ── Palette ── */
 const P = {
@@ -54,52 +51,32 @@ const _avionicsPowered = () => !!(S.switches?.master && S.switches?.avionics);
 /* ════════════════════════════════════════════════════════════
    MAIN ENTRY
    ════════════════════════════════════════════════════════════ */
-export function renderVelisEpsi(canvas) {
-  const W = canvas.width  = canvas.offsetWidth  * devicePixelRatio;
-  const H = canvas.height = canvas.offsetHeight * devicePixelRatio;
-  const ctx = canvas.getContext('2d');
+/* ── The Velis's own displays as glass widgets — the layout is panels/velis-epsi.json (display/panel_renderer.js),
+   as HB-SYQ's panel (Markus's photo, sources/velis-panel-notes.md). A widget draws into its box. ── */
+
+/** The round EFIS (today's NESIS drawing) — centred in its box */
+export function drawVelisEfis(ctx, box) {
+  const r = Math.min(box.w, box.h) / 2 * 0.86;
+  _drawNESIS(ctx, box.x + box.w / 2, box.y + box.h / 2, r, r / 160);
+}
+
+/** The EPSI — today's energy page, scaled to its box (its map is a screen of its own: drawVelisMap) */
+export function drawVelisEpsi(ctx, box) {
+  const h = box.h * 0.94, w = Math.min(box.w * 0.94, h * 0.9);
+  _drawEPSI(ctx, ctx.canvas, box.x + box.w / 2, box.y + box.h / 2, w, h, h / 644);
+}
+
+/** The GPS moving map — a screen of its own (the HTML map overlay, placed in the box); dark without avionics power */
+export function drawVelisMap(ctx, box) {
+  const pad = Math.min(box.w, box.h) * 0.05;
+  const x = box.x + pad, y = box.y + pad, w = box.w - 2 * pad, h = box.h - 2 * pad;
   ctx.save();
-
-
-  /* Panel background */
-  ctx.fillStyle = P.panel;
-  ctx.fillRect(0, 0, W, H);
-
-  /* Vignette */
-  const vg = ctx.createRadialGradient(W/2, H/2, H*0.08, W/2, H/2, H*0.72);
-  vg.addColorStop(0, 'rgba(0,0,0,0)');
-  vg.addColorStop(1, 'rgba(0,0,0,0.42)');
-  ctx.fillStyle = vg;
-  ctx.fillRect(0, 0, W, H);
-
-  const sc = Math.min(W, H) / 700;
-
-  /* Zone widths */
-  const nhW  = W * 0.32;   // NESIS 4
-  const epW  = W * 0.40;   // EPSI 570
-  const bkW  = W * 0.28;   // backup gauges
-
-  const nhX  = nhW / 2;
-  const epX  = nhW + epW / 2;
-  const bkX  = nhW + epW + bkW / 2;
-  const cy   = H / 2;
-
-  /* Instrument radii */
-  const R  = Math.min(Math.min(nhW, H) * 0.40, H / 2 - _overlayBottom(canvas) - 8 * sc);   // clear of the mission clock and KEYS (top left)
-  const Rs = Math.min(bkW * 0.44, H * 0.22);
-
-  /* ── NESIS 4 ── */
-  _drawNESIS(ctx, nhX, cy, R, sc);
-
-  /* ── EPSI 570 ── */
-  _drawEPSI(ctx, canvas, epX, cy, epW * 0.88, H * 0.92, sc);
-
-  /* ── Backup gauges ── */
-  _drawBackupASI(ctx, bkX, cy - Rs * 1.12, Rs);
-  _drawBackupAlt(ctx, bkX, cy + Rs * 1.12, Rs);
-
-
+  _roundRect(ctx, x - 4, y - 4, w + 8, h + 8, 8);
+  ctx.fillStyle = '#05070a'; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1.5; ctx.stroke();
   ctx.restore();
+  if (_avionicsPowered()) updateVelisMapOverlay(ctx.canvas, x, y, w, h);
+  else hideVelisMap();
 }
 
 
@@ -137,52 +114,9 @@ function _bezel(ctx, x, y, r, f0, f1) {
   ctx.restore();
 }
 
-function _cap(ctx, x, y, r) {
-  ctx.beginPath(); ctx.arc(x, y, r,     0, Math.PI*2); ctx.fillStyle = '#2a2e38'; ctx.fill();
-  ctx.beginPath(); ctx.arc(x, y, r*.38, 0, Math.PI*2); ctx.fillStyle = '#3c4050'; ctx.fill();
-}
 
-function _needle(ctx, x, y, r, deg, fwd, bck, sc, color) {
-  const a  = _r(deg);
-  const aB = a + Math.PI;
-  const w  = 2.2 * sc;
-  const px = -Math.sin(a)*w, py = Math.cos(a)*w;
-  const tx = x+Math.cos(a)*r*fwd,  ty = y+Math.sin(a)*r*fwd;
-  const bx = x+Math.cos(aB)*r*bck, by = y+Math.sin(aB)*r*bck;
-  ctx.beginPath();
-  ctx.moveTo(x+px*2.2, y+py*2.2); ctx.lineTo(bx+px*1.5, by+py*1.5);
-  ctx.lineTo(bx-px*1.5, by-py*1.5); ctx.lineTo(x-px*2.2, y-py*2.2);
-  ctx.closePath(); ctx.fillStyle = P.ndlBack; ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(x+px, y+py); ctx.lineTo(tx, ty); ctx.lineTo(x-px, y-py);
-  ctx.closePath(); ctx.fillStyle = color ?? P.ndl; ctx.fill();
-}
 
-function _ticks(ctx, x, y, r, s0, sw, majN, minPer, sc, color) {
-  const total = majN * minPer;
-  for (let i = 0; i <= total; i++) {
-    const deg = s0 + (i/total)*sw;
-    const a   = _r(deg);
-    const maj = i % minPer === 0;
-    const len = maj ? r*0.13 : r*0.065;
-    ctx.strokeStyle = color ?? P.mark;
-    ctx.lineWidth   = maj ? 1.5*sc : 0.8*sc;
-    ctx.beginPath();
-    ctx.moveTo(x+Math.cos(a)*r,       y+Math.sin(a)*r);
-    ctx.lineTo(x+Math.cos(a)*(r-len), y+Math.sin(a)*(r-len));
-    ctx.stroke();
-  }
-}
 
-function _num(ctx, x, y, r, deg, text, sz, sc, color) {
-  const a  = _r(deg);
-  const nr = r * 0.70;
-  ctx.font         = `bold ${sz*sc}px ${SANS}`;
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle    = color ?? P.mark;
-  ctx.fillText(text, x+Math.cos(a)*nr, y+Math.sin(a)*nr);
-}
 
 function _label(ctx, x, y, r, text, sc) {
   ctx.fillStyle    = P.markDim;
@@ -204,12 +138,6 @@ function _roundRect(ctx, x, y, w, h, r) {
 
 /* The lowest edge of the HTML drawn over the panel's top left (the mission clock, the KEYS
    button), in canvas pixels — 0 when neither is shown. */
-function _overlayBottom(canvas) {
-  const top = canvas.getBoundingClientRect().top;
-  const bottoms = ['mission-clock', 'btn-keys'].map(id => document.getElementById(id)?.getBoundingClientRect())
-    .filter(r => r && r.height > 0).map(r => r.bottom);
-  return bottoms.length ? Math.max(0, (Math.max(...bottoms) - top) * devicePixelRatio) : 0;
-}
 
 /* ════════════════════════════════════════════════════════════
    Kanardia NESIS 4 — digital AH
@@ -359,7 +287,6 @@ function _drawEPSI(ctx, canvas, cx, cy, w, h, sc) {
     ctx.textBaseline = 'middle';
     ctx.fillText('AVIONICS OFF', cx, cy);
     ctx.restore();
-    hideVelisMap();
     return;
   }
 
@@ -492,13 +419,7 @@ function _drawEPSI(ctx, canvas, cx, cy, w, h, sc) {
     ctx.fillText(lbl, sx + segW/2, segY + segH/2);
   });
 
-  /* Moving map — fills gap between data rows and annunciators */
-  const mapTop    = row3Y + 36*sc;
-  const mapBottom = y0 + h - 60*sc;
-  const mapH      = mapBottom - mapTop;
-  const mapS      = Math.min(w - pad*2, mapH);   // square, centered
-  const mapX      = cx - mapS/2;
-  if (mapH > 40*sc) updateVelisMapOverlay(canvas, mapX, mapTop, mapS, mapH);
+  /* (the moving map is a screen of its own now — drawVelisMap) */
 
   /* Warning annunciators */
   const warnY = y0 + h - 46*sc;
@@ -536,115 +457,7 @@ function _drawEPSI(ctx, canvas, cx, cy, w, h, sc) {
 /* ════════════════════════════════════════════════════════════
    ZONE 4 TOP: Backup ASI — 0–140 kt  (G1000-style dark face)
    ════════════════════════════════════════════════════════════ */
-function _drawBackupASI(ctx, x, y, r) {
-  const spd  = S.spd ?? 0;
-  const s0   = Math.PI * (4 / 3);
-  const rng  = Math.PI * 1.5;
-  const maxV = 140;
-  const ang  = v => s0 + (Math.max(0, Math.min(maxV, v)) / maxV) * rng;
-
-  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.fillStyle = '#0a0c12'; ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = r * 0.04; ctx.stroke();
-
-  /* Speed arcs — Velis Electro limits */
-  const arcs = [
-    [50,  85,  '#d8d8d8'],   // white — flap range
-    [60,  108, P.green],     // green — normal
-    [108, maxV, P.amber],    // amber — caution
-  ];
-  ctx.lineWidth = r * 0.09;
-  arcs.forEach(([lo, hi, col]) => {
-    ctx.strokeStyle = col;
-    ctx.beginPath(); ctx.arc(x, y, r * 0.82, ang(lo), ang(hi)); ctx.stroke();
-  });
-  /* Vne radial at 135 kt */
-  const vneA = ang(135);
-  ctx.strokeStyle = P.red; ctx.lineWidth = r * 0.04;
-  ctx.beginPath();
-  ctx.moveTo(x + r*0.73*Math.cos(vneA), y + r*0.73*Math.sin(vneA));
-  ctx.lineTo(x + r*0.90*Math.cos(vneA), y + r*0.90*Math.sin(vneA));
-  ctx.stroke();
-
-  /* Ticks + labels */
-  for (let v = 0; v <= maxV; v += 10) {
-    const a     = ang(v);
-    const major = v % 20 === 0;
-    ctx.strokeStyle = P.white; ctx.lineWidth = major ? r * 0.025 : r * 0.015;
-    ctx.beginPath();
-    ctx.moveTo(x + (major ? r*0.66 : r*0.74)*Math.cos(a), y + (major ? r*0.66 : r*0.74)*Math.sin(a));
-    ctx.lineTo(x + r*0.88*Math.cos(a),                    y + r*0.88*Math.sin(a));
-    ctx.stroke();
-    if (major && v > 0) {
-      ctx.fillStyle = P.white; ctx.font = `${Math.round(r*0.16)}px ${MONO}`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(v, x + r*0.54*Math.cos(a), y + r*0.54*Math.sin(a));
-    }
-  }
-
-  /* Needle */
-  const na = ang(spd);
-  ctx.strokeStyle = P.white; ctx.lineWidth = r * 0.04;
-  ctx.beginPath();
-  ctx.moveTo(x - r*0.14*Math.cos(na), y - r*0.14*Math.sin(na));
-  ctx.lineTo(x + r*0.78*Math.cos(na), y + r*0.78*Math.sin(na));
-  ctx.stroke();
-  ctx.beginPath(); ctx.arc(x, y, r*0.08, 0, Math.PI*2);
-  ctx.fillStyle = '#b0b4be'; ctx.fill();
-
-  ctx.fillStyle = P.dim; ctx.font = `${Math.round(r*0.16)}px ${MONO}`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('IAS', x, y + r * 0.40);
-}
 
 /* ════════════════════════════════════════════════════════════
    ZONE 4 BOTTOM: Backup altimeter — ft  (G1000-style dark face)
    ════════════════════════════════════════════════════════════ */
-function _drawBackupAlt(ctx, x, y, r) {
-  const alt = S.alt ?? 0;
-  const s0  = Math.PI * (4 / 3);
-  const rng = Math.PI * 1.5;
-
-  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.fillStyle = '#0a0c12'; ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = r * 0.04; ctx.stroke();
-
-  /* 50 ticks — 10 major, each major = 1000 ft */
-  for (let i = 0; i <= 50; i++) {
-    const a     = s0 + (i / 50) * rng;
-    const major = i % 5 === 0;
-    ctx.strokeStyle = P.white; ctx.lineWidth = major ? r * 0.025 : r * 0.015;
-    ctx.beginPath();
-    ctx.moveTo(x + (major ? r*0.66 : r*0.76)*Math.cos(a), y + (major ? r*0.66 : r*0.76)*Math.sin(a));
-    ctx.lineTo(x + r*0.88*Math.cos(a),                    y + r*0.88*Math.sin(a));
-    ctx.stroke();
-    if (major) {
-      ctx.fillStyle = P.white; ctx.font = `${Math.round(r*0.16)}px ${MONO}`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText((i / 5) % 10, x + r*0.54*Math.cos(a), y + r*0.54*Math.sin(a));
-    }
-  }
-
-  /* Thousands needle (1 rev = 10 000 ft) */
-  const bigA = s0 + ((alt % 10000) / 10000) * rng;
-  ctx.strokeStyle = P.white; ctx.lineWidth = r * 0.04;
-  ctx.beginPath();
-  ctx.moveTo(x - r*0.12*Math.cos(bigA), y - r*0.12*Math.sin(bigA));
-  ctx.lineTo(x + r*0.68*Math.cos(bigA), y + r*0.68*Math.sin(bigA));
-  ctx.stroke();
-
-  /* Hundreds needle (1 rev = 1 000 ft) */
-  const smlA = s0 + ((alt % 1000) / 1000) * rng;
-  ctx.strokeStyle = P.white; ctx.lineWidth = r * 0.025;
-  ctx.beginPath();
-  ctx.moveTo(x - r*0.14*Math.cos(smlA), y - r*0.14*Math.sin(smlA));
-  ctx.lineTo(x + r*0.82*Math.cos(smlA), y + r*0.82*Math.sin(smlA));
-  ctx.stroke();
-
-  ctx.beginPath(); ctx.arc(x, y, r*0.08, 0, Math.PI*2);
-  ctx.fillStyle = '#b0b4be'; ctx.fill();
-
-  ctx.fillStyle = P.dim; ctx.font = `${Math.round(r*0.16)}px ${MONO}`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('ALT', x, y + r * 0.40);
-}
