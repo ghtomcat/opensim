@@ -11,5 +11,6 @@
     "sky":    "#3a6cb0",
     "ground": "#7a4e28"
   },
-  "font": "mono"
+  "font": "mono",
+  "analogStyle": "ga"
 }

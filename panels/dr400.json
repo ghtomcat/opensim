@@ -20,14 +20,18 @@
     { "h": 0.67, "cols": [
       { "w": 0.19, "widget": "grid", "config": {
         "layout": [
-          { "h": 0.5, "cols": [{ "w": 1.0, "widget": "analog_asi" }] },
-          { "h": 0.5, "cols": [{ "w": 1.0, "widget": "analog_ai"  }] }
+          { "h": 0.5, "cols": [{ "w": 1.0, "widget": "analog", "config": {
+            "id": "asi",
+            "scale": { "unit": "kt", "min": 40, "max": 200, "step": 20, "minor": 2, "zero": true, "start": 24, "sweep": 312 },
+            "_source": "the DR400/140B's painted markings not sourced yet — no arcs rather than the C172's (the old widget drew the C172's). The DR400 is rebuilt as HB-KLE (issues.md)."
+          }}] },
+          { "h": 0.5, "cols": [{ "w": 1.0, "widget": "analog", "config": { "id": "ai" } }] }
         ]
       }},
       { "w": 0.44, "widget": "garmin_gtn" },
       { "w": 0.37, "widget": "grid", "config": {
         "layout": [
-          { "h": 0.5, "cols": [{ "w": 1.0, "widget": "analog_alt"  }] },
+          { "h": 0.5, "cols": [{ "w": 1.0, "widget": "analog", "config": { "id": "alt", "variant": "dualBaro", "_source": "unconfirmed — the modern GA build, as the C172's" } }] },
           { "h": 0.5, "cols": [] }
         ]
       }}

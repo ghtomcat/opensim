@@ -122,9 +122,7 @@ Widgets available:
 | `grid` | Recursive sub-layout (rows/cols inside a cell) |
 | `g1000_screen` | Dual Garmin G1000 (PFD left + MFD right) |
 | `garmin_gtn` | Single Garmin GTN/G5xx screen (MFD content) |
-| `analog_asi` | Analog airspeed indicator |
-| `analog_ai` | Analog attitude indicator |
-| `analog_alt` | Analog altimeter |
+| `analog` | A round instrument from the analog panel's registry (`display/analog_panel.js`) — `config` is an `analogPanel` entry (`id`, `scale`, `variant`); the look is the cockpit style's `analogStyle` (default `ga`) |
 | `rocker_strip` | Row of large illuminated annunciator switches |
 | `bottom_switches` | Toggle switches with bat-handle style |
 | `magneto_knob` | Rotary magneto selector (OFF/R/L/BOTH/START) |

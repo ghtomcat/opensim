@@ -32,24 +32,6 @@ const _DEFAULT_STYLE = {
 
 const MONO = '"IBM Plex Mono", "Courier New", monospace';
 
-/* Speed limits (kt) */
-const V = { Vs0: 44, Vs1: 53, Vfe: 85, Vno: 128, Vne: 163 };
-
-/* Analog gauge colors */
-const AG = {
-  bg:    '#0a0c12',
-  ring:  'rgba(255,255,255,0.28)',
-  white: '#e8f0f8',
-  dim:   'rgba(232,240,248,0.38)',
-  green: '#44dd66',
-  amber: '#ffb74d',
-  red:   '#ff3333',
-};
-
-function _line(ctx, x1, y1, x2, y2) {
-  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-}
-
 function _roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -60,160 +42,6 @@ function _roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-/* ── analog_asi ── */
-function _drawAnalogASI(ctx, box) {
-  const r  = Math.min(box.w, box.h) * 0.42;
-  const cx = box.x + box.w / 2;
-  const cy = box.y + box.h / 2;
-  const spd = S.spd ?? 0;
-  const s0  = Math.PI * (4 / 3);
-  const rng = Math.PI * 1.5;
-  const ang = v => s0 + (Math.max(0, Math.min(200, v)) / 200) * rng;
-
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fillStyle = AG.bg; ctx.fill();
-  ctx.strokeStyle = AG.ring; ctx.lineWidth = r * 0.04; ctx.stroke();
-
-  /* coloured arcs */
-  const arcs = [
-    [V.Vs0, V.Vfe, '#d8d8d8'],
-    [V.Vs1, V.Vno, AG.green],
-    [V.Vno, V.Vne, AG.amber],
-  ];
-  ctx.lineWidth = r * 0.09;
-  arcs.forEach(([lo, hi, col]) => {
-    ctx.strokeStyle = col;
-    ctx.beginPath(); ctx.arc(cx, cy, r * 0.82, ang(lo), ang(hi)); ctx.stroke();
-  });
-  const vneA = ang(V.Vne);
-  ctx.strokeStyle = AG.red; ctx.lineWidth = r * 0.04;
-  _line(ctx, cx + r*0.73*Math.cos(vneA), cy + r*0.73*Math.sin(vneA),
-             cx + r*0.90*Math.cos(vneA), cy + r*0.90*Math.sin(vneA));
-
-  /* ticks & labels */
-  for (let v = 0; v <= 200; v += 20) {
-    const a = ang(v); const major = v % 40 === 0;
-    ctx.strokeStyle = AG.white; ctx.lineWidth = major ? r * 0.025 : r * 0.015;
-    _line(ctx, cx+(major?r*0.66:r*0.76)*Math.cos(a), cy+(major?r*0.66:r*0.76)*Math.sin(a),
-               cx+r*0.88*Math.cos(a),                cy+r*0.88*Math.sin(a));
-    if (major) {
-      ctx.fillStyle = AG.white;
-      ctx.font = `${Math.round(r*0.15)}px ${MONO}`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(v, cx + r*0.52*Math.cos(a), cy + r*0.52*Math.sin(a));
-    }
-  }
-
-  /* needle */
-  const na = ang(spd);
-  ctx.strokeStyle = AG.white; ctx.lineWidth = r * 0.035;
-  ctx.beginPath();
-  ctx.moveTo(cx - r*0.14*Math.cos(na), cy - r*0.14*Math.sin(na));
-  ctx.lineTo(cx + r*0.72*Math.cos(na), cy + r*0.72*Math.sin(na)); ctx.stroke();
-  ctx.beginPath(); ctx.arc(cx, cy, r*0.08, 0, Math.PI*2);
-  ctx.fillStyle = AG.dim; ctx.fill();
-
-  ctx.fillStyle = AG.dim; ctx.font = `${Math.round(r*0.15)}px ${MONO}`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('KIAS', cx, cy + r * 0.40);
-}
-
-/* ── analog_ai ── */
-function _drawAnalogAI(ctx, box) {
-  const r     = Math.min(box.w, box.h) * 0.42;
-  const cx    = box.x + box.w / 2;
-  const cy    = box.y + box.h / 2;
-  const pitch = S.pitch ?? 0;
-  const roll  = S.roll  ?? 0;
-  const pxPD  = r / 22;
-
-  ctx.save();
-  ctx.beginPath(); ctx.arc(cx, cy, r * 0.88, 0, Math.PI * 2); ctx.clip();
-
-  ctx.translate(cx, cy); ctx.rotate(-roll * Math.PI / 180); ctx.translate(-cx, -cy);
-
-  const hy   = cy + pitch * pxPD;
-  const skyG = ctx.createLinearGradient(0, hy - r, 0, hy);
-  skyG.addColorStop(0, '#1a3e80'); skyG.addColorStop(1, '#4a80c8');
-  ctx.fillStyle = skyG; ctx.fillRect(cx - r, cy - r, r*2, hy-(cy-r)+1);
-  const gndG = ctx.createLinearGradient(0, hy, 0, hy + r);
-  gndG.addColorStop(0, '#7a4e28'); gndG.addColorStop(1, '#3e2208');
-  ctx.fillStyle = gndG; ctx.fillRect(cx - r, hy, r*2, r*2);
-  ctx.strokeStyle = AG.white; ctx.lineWidth = r * 0.025;
-  _line(ctx, cx - r, hy, cx + r, hy);
-
-  for (const p of [-20, -10, 10, 20]) {
-    const py = hy - p * pxPD; if (py < cy-r || py > cy+r) continue;
-    const len = r * (Math.abs(p) === 20 ? 0.24 : 0.16);
-    ctx.lineWidth = r * 0.018;
-    _line(ctx, cx - len, py, cx + len, py);
-  }
-  ctx.restore();
-
-  ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = r * 0.04;
-  ctx.beginPath(); ctx.arc(cx, cy, r * 0.88, 0, Math.PI * 2); ctx.stroke();
-
-  /* wing bars */
-  const wl = r * 0.20;
-  ctx.strokeStyle = '#ffb74d'; ctx.lineWidth = r * 0.035;
-  ctx.beginPath(); ctx.moveTo(cx-wl*1.8,cy); ctx.lineTo(cx-wl*0.4,cy);
-  ctx.lineTo(cx-wl*0.4, cy+wl*0.28); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(cx+wl*1.8,cy); ctx.lineTo(cx+wl*0.4,cy);
-  ctx.lineTo(cx+wl*0.4, cy+wl*0.28); ctx.stroke();
-
-  ctx.fillStyle = AG.dim; ctx.font = `${Math.round(r*0.16)}px ${MONO}`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-  ctx.fillText('ATT', cx, cy + r * 0.94);
-}
-
-/* ── analog_alt ── */
-function _drawAnalogALT(ctx, box) {
-  const r  = Math.min(box.w, box.h) * 0.42;
-  const cx = box.x + box.w / 2;
-  const cy = box.y + box.h / 2;
-  const alt = S.alt ?? 0;
-  const s0  = Math.PI * (4 / 3);
-  const rng = Math.PI * 1.5;
-
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fillStyle = AG.bg; ctx.fill();
-  ctx.strokeStyle = AG.ring; ctx.lineWidth = r * 0.04; ctx.stroke();
-
-  /* ticks — 50 total, labeled every 5 (0–9) */
-  for (let i = 0; i <= 50; i++) {
-    const a = s0 + (i / 50) * rng; const major = i % 5 === 0;
-    ctx.strokeStyle = AG.white; ctx.lineWidth = major ? r * 0.025 : r * 0.015;
-    _line(ctx, cx+(major?r*0.66:r*0.76)*Math.cos(a), cy+(major?r*0.66:r*0.76)*Math.sin(a),
-               cx+r*0.88*Math.cos(a),                cy+r*0.88*Math.sin(a));
-    if (major) {
-      ctx.fillStyle = AG.white;
-      ctx.font = `${Math.round(r*0.14)}px ${MONO}`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText((i / 5) % 10, cx + r*0.54*Math.cos(a), cy + r*0.54*Math.sin(a));
-    }
-  }
-
-  /* hundreds needle (1 rev = 1000ft) */
-  const hunA = s0 + ((alt % 1000) / 1000) * rng;
-  ctx.strokeStyle = AG.white; ctx.lineWidth = r * 0.025;
-  ctx.beginPath();
-  ctx.moveTo(cx - r*0.10*Math.cos(hunA), cy - r*0.10*Math.sin(hunA));
-  ctx.lineTo(cx + r*0.80*Math.cos(hunA), cy + r*0.80*Math.sin(hunA)); ctx.stroke();
-
-  /* thousands needle (1 rev = 10000ft) */
-  const bigA = s0 + ((alt % 10000) / 10000) * rng;
-  ctx.strokeStyle = AG.white; ctx.lineWidth = r * 0.04;
-  ctx.beginPath();
-  ctx.moveTo(cx - r*0.12*Math.cos(bigA), cy - r*0.12*Math.sin(bigA));
-  ctx.lineTo(cx + r*0.60*Math.cos(bigA), cy + r*0.60*Math.sin(bigA)); ctx.stroke();
-
-  ctx.beginPath(); ctx.arc(cx, cy, r*0.08, 0, Math.PI*2);
-  ctx.fillStyle = '#b0b4be'; ctx.fill();
-
-  ctx.fillStyle = AG.dim; ctx.font = `${Math.round(r*0.15)}px ${MONO}`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('ALT FT', cx, cy + r * 0.40);
-}
 
 /* ── rocker_strip — large illuminated annunciator pads (the look: display/controls-canvas.js) ── */
 function _drawRockerStrip(ctx, box, style, cfg) {
@@ -454,9 +282,6 @@ const _WIDGETS = {
   /* a round gauge from the analog panel's registry (display/analog_panel.js) — config: an analogPanel entry
      ({ id, scale, variant }); the look is the cockpit style's `analogStyle` (default 'ga') */
   analog:          (ctx, box, style, cfg) => drawInstrument(ctx, box, cfg, style?.analogStyle ?? 'ga', cfg.key ?? cfg.id),
-  analog_asi:      (ctx, box) => _drawAnalogASI(ctx, box),
-  analog_ai:       (ctx, box) => _drawAnalogAI(ctx, box),
-  analog_alt:      (ctx, box) => _drawAnalogALT(ctx, box),
   rocker_strip:    _drawRockerStrip,
   bottom_switches: _drawBottomSwitches,
   g1000_screen:    _drawG1000Screen,
