@@ -12,7 +12,7 @@
 
 import { str, num, bool, open, oneOf, arrayOf, mapOf, anyOf, object } from './check.js';
 import { com } from './mission.js';
-import { ENGINE, ENGINE_TYPE, INSTRUMENT, INSTRUMENT_SIZE, PANEL, VEHICLE, valuesOf } from '../vocab.js';
+import { ENGINE, ENGINE_TYPE, INSTRUMENT, INSTRUMENT_SIZE, PANEL, VEHICLE, ZONE_TOKEN, valuesOf } from '../vocab.js';
 
 const GLASS_JET = [PANEL.AIRBUS, PANEL.E190];   // panels that drive the turbofan A/THR + N1 system
 
@@ -181,7 +181,7 @@ export const aircraft = object(
     /* cockpit */
     clock: oneOf('analog', 'digital', 'met'), map: bool, com,
     views: arrayOf(oneOf(...VIEW_ZONES)),
-    left: arrayOf(str), right: arrayOf(str), pedestal: arrayOf(str),
+    left: arrayOf(oneOf(...Object.keys(ZONE_TOKEN.left))), right: arrayOf(oneOf(...Object.keys(ZONE_TOKEN.right))), pedestal: arrayOf(oneOf(...Object.keys(ZONE_TOKEN.pedestal))),   // a zone's tokens — core/vocab.js
     displays: arrayOf(object({ id: str, screen: num, spec: str, pages: arrayOf(str) })),
     /* robots */
     joints: arrayOf(object({ name: str, axis: oneOf('X', 'Y', 'Z'), min: num, max: num, home: num })),

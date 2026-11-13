@@ -10,6 +10,7 @@ import { altLabel } from '../core/route.js';
 import { flapLabel } from '../core/airframe.js';
 import { command } from '../core/commands.js';
 import { setControl } from './controls.js';
+import { zoneTokens } from '../core/cockpit.js';
 import { lightSwitches, lightSwitchLabel } from '../core/electrical.js';
 import { toggleHTML, wireControls, refreshControls } from './controls-html.js';
 import { buildDescentPath } from '../core/vnav.js';
@@ -528,15 +529,7 @@ function _mcduHTML() {
 /* Which control groups sit on this aircraft's pedestal, in render order.
    Explicit `aircraft.pedestal` wins; otherwise derive the historical airliner
    layout so every existing aircraft renders byte-identical (no JSON churn). */
-function _pedestalTokens() {
-  if (Array.isArray(S.aircraft?.pedestal)) return S.aircraft.pedestal;
-  const t = ['thrust', 'flaps', ...(S.aircraft?.spoilers ? ['speedbrake'] : [])];   // SPD BRK only with spoilers in the data
-  /* AUTO BRK lives on the centre panel (M view), not the pedestal — see centerconsole.js */
-  t.push('parkbrake');
-  if (S.aircraft?.engine?.type === 'turbofan') t.push('engstart');
-  if (!['g1000', 'dr400', 'velis-epsi'].includes(S.aircraft?.panel)) t.push('mcdu');
-  return t;
-}
+function _pedestalTokens() { return zoneTokens(S.aircraft, 'pedestal'); }   // core/cockpit.js — the aircraft's own, or derived
 
 function _buildHTML() {
   const tokens    = _pedestalTokens();

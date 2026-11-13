@@ -75,6 +75,32 @@ export const INSTRUMENT = namesFrom([
 ]);
 export const INSTRUMENT_SIZE = namesFrom(['L', 'S', 'XS', 'T']);
 
+/** The controls — what a pilot clicks (display/controls.js, CONTROLS; tests/controls.test.mjs keeps the two equal) */
+export const CONTROL = namesFrom([
+  'bat', 'alt', 'avionics', 'battEn', 'pwrEn', 'lights.nav', 'lights.beacon', 'lights.strobe', 'lights.landing',
+  'fuelPump', 'fuelShutoff', 'carbHeat', 'parkBrake', 'magnetos', 'fuelSelector', 'gear', 'engMode', 'speedBrake',
+  'flaps', 'autobrake', 'coolFlap', 'throttle', 'propPitch', 'mixture', 'trim', 'throttleKnob', 'mixtureKnob',
+  'apuMaster', 'apuBleed', 'apuFire', ...Array.from({ length: 8 }, (_, i) => `engFire.${i + 1}`),
+  'baroKnob', 'courseKnob', 'dgKnob', 'fcuQnh', 'fcuSpd', 'fcuHdg', 'fcuAlt', 'fcuVs', 'ap1', 'athr',
+]);
+
+/** The slide-in zones' tokens (aircraft.pedestal / left / right) — each a block of the zone, and the controls it holds
+    (Markus, 2026-11-13: a token names its controls; the tokens stay — most are groups). A token holding [] is a block
+    without a control of the system yet (the radio, the breakers, the MCDU). The aircraft's own switches decide which
+    of `switches` it has (core/electrical.js lightSwitches). */
+export const ZONE_TOKEN = {
+  pedestal: {
+    thrust: ['throttle'], flaps: ['flaps'], speedbrake: ['speedBrake'], parkbrake: ['parkBrake'], engstart: ['engMode'],
+    mcdu: [], throttle: ['throttleKnob'], prop: [], mixture: ['mixtureKnob'], carbheat: ['carbHeat'],
+    magneto: ['magnetos'], fuel: ['fuelSelector'], fuelcutoff: ['fuelShutoff'],
+    switches: ['bat', 'alt', 'avionics', 'battEn', 'pwrEn', 'fuelPump'],
+    lights: ['lights.nav', 'lights.beacon', 'lights.strobe', 'lights.landing'], breakers: [],
+  },
+  left:  { throttle: ['throttle'], trim: ['trim'], coolflap: ['coolFlap'], fuelcock: ['fuelShutoff'], parkbrake: ['parkBrake'],
+           quadrant: ['throttle', 'propPitch', 'mixture'] },
+  right: { radio: [], oxygen: [], breakers: [] },
+};
+
 /** aircraft.sound.engineType — the presets in core/sound.js (ENGINES), plus 'electric' and 'none' */
 export const ENGINE = namesFrom([
   'geared-turbofan', 'high-bypass', 'low-bypass-military', 'turbojet-vk1', 'rotary-9', 'lycoming-o360',

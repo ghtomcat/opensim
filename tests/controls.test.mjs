@@ -171,3 +171,26 @@ test('the course setter starts at the mission\'s course and turns 1° a step; th
   runMissionResets();
   assert.equal(courseSetting(), 355); assert.equal(dgHeading(), 10);           // a new mission: back to the course, no offset
 });
+
+/* Step 5 — the controls in the data: the vocabulary is CONTROLS; every zone token the zones know; each aircraft's controls */
+test('the control vocabulary (core/vocab.js CONTROL) is exactly CONTROLS; every zone token holds known controls', async () => {
+  const { CONTROL, ZONE_TOKEN, valuesOf } = await import('../core/vocab.js');
+  assert.deepEqual(valuesOf(CONTROL).sort(), Object.keys(CONTROLS).sort());
+  for (const [zone, toks] of Object.entries(ZONE_TOKEN))
+    for (const [tok, cs] of Object.entries(toks)) for (const c of cs) assert.ok(CONTROLS[c], `${zone}.${tok} → ${c}`);
+});
+
+test('which controls an aircraft has — from its zones and its panel spec', async () => {
+  const { aircraftControls } = await import('../core/cockpit.js');
+  const spec = (f) => JSON.parse(readFileSync(new URL(`../panels/${f}.json`, import.meta.url), 'utf8'));
+  const c172 = aircraftControls(load('c172'));
+  for (const c of ['magnetos', 'fuelSelector', 'bat', 'alt', 'fuelPump', 'lights.nav', 'carbHeat']) assert.ok(c172.has(c), `c172 ${c}`);
+  assert.ok(!c172.has('battEn'));                                                   // a Velis switch
+  const velis = aircraftControls(load('velis-hb-syq'));
+  for (const c of ['bat', 'avionics', 'battEn', 'pwrEn']) assert.ok(velis.has(c), `velis ${c}`);
+  assert.ok(!velis.has('fuelPump') && !velis.has('magnetos'));
+  const dr = aircraftControls(load('robin-dr400'), spec('dr400'));
+  for (const c of ['magnetos', 'fuelSelector', 'bat', 'carbHeat', 'lights.landing']) assert.ok(dr.has(c), `dr400 ${c}`);
+  assert.ok(aircraftControls(load('bf109')).has('fuelShutoff'));                    // the Brandhahn
+  assert.ok(aircraftControls(load('a340')).has('engMode'));                          // derived: a turbofan's pedestal
+});
