@@ -255,11 +255,10 @@ export function initialEngine(aircraft, { onGround, spd, onRunway = false }) {
 
 /**
  * The power lever that holds a speed — for a start in the air (the mission load, a situation, a tracked flight).
- * A stand-in until the trim is computed: spd / envelope.maxSpd, what the old spdT = spd gave (issues.md, "spdT is both
- * the speed target and the throttle").
+ * A stand-in until the trim is computed: spd / envelope.cruiseSpd — the thrust the old spdT = spd gave (spdT / cruiseSpd).
  */
 export function leverForSpeed(aircraft, spd) {
-  return Math.max(0, Math.min(1, (spd ?? 0) / (aircraft?.envelope?.maxSpd ?? 350)));
+  return Math.max(0, Math.min(1, (spd ?? 0) / (aircraft?.envelope?.cruiseSpd ?? 122)));
 }
 
 /* ── APU ─────────────────────────────────────────────────────── */

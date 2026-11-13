@@ -149,13 +149,12 @@ export function tickPhysics(dt) {
     const tas_ms = spd_ms / Math.sqrt(Math.max(0.05, rho / 1.225));      // true airspeed (faster than IAS up high)
     const q      = 0.5 * 1.225 * spd_ms * spd_ms;                        // dynamic pressure from IAS (sea-level ρ)
 
-    /* Throttle — turbofan uses N1-derived fraction; the others their power lever, scaled by maxSpd / cruiseSpd: the
-       thrust the old spdT throttle gave (spdT / cruiseSpd, full thrust before the lever's end) — the next step makes it
-       the lever alone (memory: project_power_setting, piece 2). */
+    /* Throttle — turbofan uses N1-derived fraction; the others their power lever: thrust = lever × power, linear
+       (Markus, 2026-11-13) — the real curve comes with the supercharger (manifold pressure × rpm). */
     const isTurbofan = ac.engine?.type === 'turbofan';
     const throttle   = isTurbofan
       ? Math.pow(Math.max(0, (S.n1 ?? 0) / 100), 1.8)   // N1^1.8 → 22% N1 ≈ 5% T_max
-      : Math.min(1, Math.max(0, (S.lever ?? 0) * (ac.envelope.maxSpd ?? 350) / (ac.envelope.cruiseSpd ?? 122)));
+      : Math.min(1, Math.max(0, S.lever ?? 0));
 
     /* Thrust, summed over the engines — the mean of each running engine's share:
        turbofan (N1/100)^1.8 — its power acts through N1 (core/engine.js caps N1 by the power

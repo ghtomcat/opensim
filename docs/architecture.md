@@ -780,9 +780,8 @@ the centre of mass; attitude isn't produced by moments.
 - **Thrust:** summed over the engines (`S.engines`), each running engine contributing its
   share of `T_max`. Turbofans `(N1/100)^1.8·ρ/ρ₀` — a turbofan's power acts through its N1
   (`core/engine.js` caps N1 by the power available; a failed engine's fan runs down).
-  The others use their power lever (`S.lever`, §9.2) × `maxSpd/cruiseSpd` — the thrust the old
-  `spdT` throttle gave, full thrust before the lever's end; the scale goes next (the lever alone) —
-  × the engine's power. An engine that isn't running gives nothing. The shares are
+  The others use their power lever (`S.lever`, §9.2), linear — thrust = lever × the engine's
+  power (the real curve comes with manifold pressure and rpm). An engine that isn't running gives nothing. The shares are
   averaged so that identical engines give exactly the one-engine value.
 - **In flight:** speed from longitudinal forces; flight-path angle from
   `(L − W·cos γ)/(m·v)`, damped (−0.4·γ) and trimmed. Two extra stall terms (high-α
@@ -976,7 +975,7 @@ into every engine (`adoptEngineFields`).
 | `enginePower` | 0–1 power available (scales thrust): the lifecycle's share (off 0, starting 0.01, running and shutdown 1) × the product of `engineFactors` | `core/engine.js` only |
 | `engineFactors` | `{failure, ice, seizure, battery, crash}`, each 0–1, owned by its cause (`failures.js`, `battery.js`, `physics.js`) | through `setEngineFactor()` in `core/engine.js`; reset at mission load |
 | `n1` | turbofan fan speed % — spooled toward `n1Cmd` (`core/thrust.js`: A/THR or lever) | `core/engine.js` |
-| `lever` | the power lever 0 idle … 1 full, derived from `engines[i].lever` — set by the `throttle` command (all engines, or `{ lever, engine }`); every key, click, the joystick and the hub go through it. Read through `throttleFrac()` (the thrust, heat, sound, rpm, the lever displays). Not yet a turbofan's: its thrust lever is `S.thrustLever`, one for all engines. At a start in the air `leverForSpeed()` sets the lever that holds the speed | `core/engine.js` only |
+| `lever` | the power lever 0 idle … 1 full, derived from `engines[i].lever` — set by the `throttle` command (all engines, or `{ lever, engine }`); every key, click, the joystick and the hub go through it. Read through `throttleFrac()` (the thrust, heat, sound, rpm, the lever displays). Not yet a turbofan's: its thrust lever is `S.thrustLever`, one for all engines. At a start in the air `leverForSpeed()` sets the lever for the speed (spd / `cruiseSpd`, a stand-in until a trim is computed) | `core/engine.js` only |
 
 Consequences:
 - **Each engine runs on its own.** ENG MASTER *i* starts and stops engine *i*; a failure

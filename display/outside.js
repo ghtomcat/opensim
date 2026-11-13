@@ -541,8 +541,7 @@ let _rktSepPrevStage = 1;
 function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, wingView = false, orbitAzDeg = 0, orbitElDeg = 0, panX = 0, fixedFraming = false) {
   advanceFanAngle();   /* fan spin state lives in outside-engines-draw.js */
   if (S.engineState === 'running' || S.engineState === 'starting') {
-    const _env       = S.aircraft?.envelope ?? {};   // the lever, scaled as the thrust is (physics.js) — piece 2 drops the scale
-    const _throttle  = Math.min(1, throttleFrac() * (_env.maxSpd ?? 350) / (_env.cruiseSpd ?? 122));
+    const _throttle  = throttleFrac();   // the power lever, as the thrust (physics.js)
     _propAngle = (_propAngle + (0.25 + 0.75 * _throttle) * 0.08) % (Math.PI * 2);
   }
 
