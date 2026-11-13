@@ -430,7 +430,7 @@ Defines aerodynamic effects per config step. Applies to manual aircraft only.
 | Field | Description |
 |---|---|
 | `tanks` | `left`/`right` capacity in litres (`"unit": "L"`); `right` 0 or absent → one tank (the status bar shows one value, no selector). Optional `labels: { left, right }` — the tanks' names in the status bar (the F4U: Main / Wing); `density` kg/l — for an engine with a fuel flow of its own (the turbojet), whose kg/h are burned as litres. Omit entirely for the airliners (their fuel system: `fuelSystem`). |
-| `fuelBurn` | Consumption in l/h at full power — the pistons' fixed rate (it does not follow the throttle yet — docs/issues.md). An engine with `ffMax` burns its fuel flow instead. |
+| `fuelBurn` | Consumption in l/h at full power (full rpm) — a piston's fuel flow follows its rpm, and so its lever: `fuelBurn · (rpm/maxRpm)^2.2` (the turbofan's curve, not calibrated for pistons). An engine with `ffMax` (kg/h) uses that instead. |
 | `hasCarbHeat` | Enables the carb heat control (C key). |
 
 AP aircraft (A350, A220, E190) have no `tanks` — they use `fuelLeft: null` and are not fuel-limited.

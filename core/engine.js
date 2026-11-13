@@ -552,20 +552,31 @@ export function rpmOf(e, eng = _eng()) {
 /** Engine i's rpm now (null for a turbofan or an electric motor) */
 export function engineRpm(i = 0) { return rpmOf(_engines()[i]); }
 
-/* ── Fuel flow (turbojet) ──────────────────────────────────────────
-   As the turbofan's (S.engines[i].ff, kg/h): engine.ffMax at full rpm, ffMax · (rpm/maxRpm)^2.2 between, less in thin
-   air — the same curve as the turbofan's on N1 (not calibrated for a turbojet; the MiG's patrol check in
-   sources/mig15-panel-notes.md). ffMax from the data (the VK-1: 26.5 kN × 109.1 kg/(kN·h) ≈ 2 890 kg/h). Nothing while it
-   is not running with power. core/fuel.js burns it. Pistons, turboprops: no fuel flow yet (fuel.js: a fixed rate). */
-function _turbojetFf(e, rpm, eng) {
-  if (e.state !== 'running' || !(e.power > 0) || !eng.ffMax) return 0;
-  return eng.ffMax * Math.pow(Math.max(0, rpm) / (eng.maxRpm ?? 1), 2.2) * (0.4 + 0.6 * _rhoRatio());
+/* ── Fuel flow (turbojet, piston, turboprop) ───────────────────────
+   As the turbofan's (S.engines[i].ff, kg/h): ffMax at full rpm, ffMax · (rpm/maxRpm)^2.2 between — the same curve as the
+   turbofan's on N1, and the rpm follows the engine's lever (× its power). Not calibrated for these engines (the MiG's
+   patrol check in sources/mig15-panel-notes.md). Nothing while it is not running with power. core/fuel.js burns it.
+     turbojet  engine.ffMax from the data (the VK-1: 26.5 kN × 109.1 kg/(kN·h) ≈ 2 890 kg/h), less in thin air
+     piston,   engine.ffMax, else the aircraft's fuelBurn (l/h at full power) × the fuel's density (tanks.density — the
+     turboprop one core/fuel.js divides by, so it burns fuelBurn × the curve in litres). No thin-air term: a piston's
+               power and flow with altitude come with manifold pressure (issues.md, *The supercharger*). */
+const FUEL_DENSITY = 0.8;   // kg/l where tanks.density is not given — core/fuel.js's default too
+function _ffMaxOf(eng = _eng(), ac = S.aircraft) {
+  if (eng.ffMax) return eng.ffMax;
+  if ((eng.type === 'piston' || eng.type === 'turboprop') && ac?.fuelBurn) return ac.fuelBurn * (ac.tanks?.density ?? FUEL_DENSITY);
+  return null;
+}
+function _rpmFf(e, rpm, eng) {
+  const ffMax = _ffMaxOf(eng);
+  if (e.state !== 'running' || !(e.power > 0) || !ffMax) return 0;
+  const thin = eng.type === 'turbojet' ? 0.4 + 0.6 * _rhoRatio() : 1;
+  return ffMax * Math.pow(Math.max(0, rpm) / (eng.maxRpm ?? 1), 2.2) * thin;
 }
 
-/** The fuel flow of all engines now, kg/h — null where the engine model has none (pistons, turboprops, electric) */
+/** The fuel flow of all engines now, kg/h — null where the engine model has none (electric; a piston without fuelBurn) */
 export function fuelFlowKgH() {
-  const t = _eng().type;
-  if (t !== 'turbofan' && t !== 'turbojet') return null;
+  const eng = _eng();
+  if (eng.type !== 'turbofan' && !_ffMaxOf(eng)) return null;
   return _engines().reduce((sum, e) => sum + (e.ff ?? 0), 0);
 }
 
@@ -588,9 +599,9 @@ export function tickEngine(dt) {
     engines = engines.map(e => _stepLifecycle(e, dt, eng));
     /* the rpm, stored for the readers that take the array (a change of half a turn or more) */
     engines = engines.map(e => { const rpm = rpmOf(e, eng); return rpm == null || Math.abs((e.rpm ?? -1) - rpm) < 0.5 ? e : { ...e, rpm }; });
-    /* a turbojet's fuel flow, from its rpm (a change of 1 kg/h or more) */
-    if (eng.type === 'turbojet')
-      engines = engines.map(e => { const ff = _turbojetFf(e, e.rpm ?? 0, eng); return Math.abs((e.ff ?? 0) - ff) < 1 ? e : { ...e, ff }; });
+    /* the fuel flow from the rpm — a turbojet, a piston, a turboprop (a change of 0.1 kg/h or more; to 0 at once) */
+    if (_ffMaxOf(eng))
+      engines = engines.map(e => { const ff = _rpmFf(e, e.rpm ?? 0, eng); return Math.abs((e.ff ?? 0) - ff) < 0.1 && (ff > 0 || !e.ff) ? e : { ...e, ff }; });
   }
   if (engines.every((e, k) => e === before[k])) return;
 

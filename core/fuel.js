@@ -4,7 +4,7 @@
 
    Aircraft JSON:
      "tanks": { "left": 95, "right": 95, "unit": "L" }
-     "fuelBurn": 28   — litres/hour at full power (defaults by engine type)
+     "fuelBurn": 28   — litres/hour at full power: the piston's fuel flow at full rpm (core/engine.js; defaults by engine type)
 
    Selector states: 'BOTH' | 'LEFT' | 'RIGHT' | 'OFF'
    ═══════════════════════════════════════════════════════════════ */
@@ -122,9 +122,9 @@ export function tickFuel(dt) {
     return;
   }
 
-  /* Burn rate — litres/hour → litres/second. An engine with a fuel flow of its own (core/engine.js — the turbojet)
-     burns that, kg/h ÷ the fuel's density (tanks.density, kg/l): it follows the throttle. The others a fixed rate ×
-     the engine's power (not the throttle — issues.md, "The light aircraft's fuel burn ignores the throttle"). */
+  /* Burn rate — litres/hour → litres/second. The engines' fuel flow (core/engine.js — the turbojet, the pistons, from
+     their rpm, which follows the lever), kg/h ÷ the fuel's density (tanks.density, kg/l). Without one (a piston without
+     fuelBurn — none today) a fixed rate × the engine's power. */
   const flowKgH    = fuelFlowKgH();
   const engineType = S.aircraft?.sound?.engineType ?? 'default';
   const burnLph    = S.aircraft?.fuelBurn ?? BURN_DEFAULTS[engineType] ?? BURN_DEFAULTS.default;
