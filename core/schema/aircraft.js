@@ -25,6 +25,10 @@ const engine = object(
     egtIdle: num, egtTakeoff: num, egtStart: num, ffMax: num,   // °C at idle / 100 % N1 / the start peak; kg/h at takeoff
     idleRpm: num, maxRpm: num,       // a piston or rotary engine's rpm at idle and at full throttle (the analog panel's stand-in)
     fuelPressure: object({ low: num, high: num }),   // kg/cm²: the supply and (a jet's) injector pressure — core/engine-gauges.js stand-ins
+    /* the oil system's data, shaped as the engine catalogue's file will hold it (issues.md, "Engine values are generic"):
+       the limits and the normal range from the manual (sourced), or a total-loss system (no pressure) */
+    oil: object({ pressurePsi: object({ min: num, normal: arrayOf(num), max: num }), tempC: object({ normal: arrayOf(num), max: num }),
+                  system: oneOf('total-loss'), source: str }),
     chevrons: bool, nacellePaint: arrayOf(num) },   // last two: 3D model
   { doc: { model: str, description: str }, required: ['count'] },
 );
@@ -217,6 +221,10 @@ export const aircraft = object(
       const errs = [];
       if (!a.id.length) errs.push('empty "id"');
       if (a.envelope?.maxSpd !== undefined && !(a.envelope.maxSpd > 0)) errs.push('envelope.maxSpd must be > 0');
+      /* the engine's oil data names its source; a normal range is [low, high] */
+      if (a.engine?.oil && !a.engine.oil.source) errs.push('engine.oil: needs its source');
+      for (const k of ['pressurePsi', 'tempC']) { const n = a.engine?.oil?.[k]?.normal;
+        if (n && !(n.length === 2 && n[0] < n[1])) errs.push(`engine.oil.${k}.normal: [low, high]`); }
       /* a limit names its source — no invented numbers */
       const _lim = ['vne', 'vmo', 'mmo'].filter(k => a.envelope?.[k] !== undefined);
       if (_lim.length && !a.envelope.limitsSource) errs.push(`envelope.${_lim.join(', ')}: a limit needs envelope.limitsSource`);

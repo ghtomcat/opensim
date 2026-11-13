@@ -9,7 +9,7 @@
    They read the engine model (core/engine.js: the lifecycle state, the rpm, the throttle) and the
    fuel state; they own no state and change nothing.
 
-     oilPressure(i)       kg/cm²    a turbofan's own (e.oil); else → "The oil system"
+     oilPressure(i)       kg/cm²    the engine's own (e.oil, core/engine.js) — generic numbers without engine.oil
      manifoldPressure(i)  in.Hg     → "The supercharger"
      fuelPressure(i)      kg/cm²    → "The fuel system" (the low / supply pressure)
      fuelPressureHigh(i)  kg/cm²    → "The fuel system" (a jet's injector pressure)
@@ -25,7 +25,7 @@ import { engineRpm, rpmRange, throttleFrac } from './engine.js';
 
 /** The marks: what each stand-in is and what replaces it — the panel's registry shows them (`simple`) */
 export const STAND_INS = {
-  oilPressure:      'The oil system (issues.md)',
+  oilPressure:      'the engine\'s own (core/engine.js); generic numbers without engine.oil — the engine catalogue (issues.md)',
   manifoldPressure: 'The supercharger (issues.md)',
   fuelPressure:     'The fuel system (issues.md)',
   fuelPressureHigh: 'The fuel system (issues.md)',
@@ -44,17 +44,10 @@ const _rpm   = (i) => engineRpm(i) ?? 0;
 export const fuelLitres = () => (S.fuelLeft ?? 0) + (S.fuelRight ?? 0);
 const _fuelFlows = () => !S.fuelShutoff && fuelLitres() > 0;
 
-/** Oil pressure, kg/cm² — a turbofan's own (S.engines[i].oil, psi, from its core — core/engine.js); the others a
-    stand-in: 1.5 at idle to 7.5 at full throttle while running; building with the rpm to idle on the start,
-    falling with it on the run-down → "The oil system" */
+/** Oil pressure, kg/cm² — the engine's own (S.engines[i].oil, psi — core/engine.js computes it for every engine type) */
 const PSI_PER_KGCM2 = 14.223;
 export function oilPressure(i = 0) {
-  if (S.aircraft?.engine?.type === 'turbofan') return (S.engines?.[i]?.oil ?? 0) / PSI_PER_KGCM2;
-  const st = _state(i), rpm = _rpm(i), r = rpmRange();
-  return st === 'running'  ? 1.5 + throttleFrac() * 6.0
-       : st === 'starting' ? Math.min(1.5, rpm / r.idle * 1.5)
-       : st === 'shutdown' ? Math.max(0, rpm / r.max * 7.5)
-       : 0;
+  return (S.engines?.[i]?.oil ?? 0) / PSI_PER_KGCM2;
 }
 
 /** Manifold pressure, in.Hg — idle ~12, full throttle ~52 → "The supercharger".

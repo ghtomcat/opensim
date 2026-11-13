@@ -23,7 +23,7 @@
   "landSurfaces": ["runway", "grass"],
   "gearRuggedness": 0.7,
   "era": "WWI / 1918",
-  "engine": { "type": "piston", "count": 1, "model": "le-rhone-9j", "idleRpm": 400, "maxRpm": 1200, "description": "Le Rhône 9J rotary, 110hp" },
+  "engine": { "type": "piston", "count": 1, "model": "le-rhone-9j", "idleRpm": 400, "maxRpm": 1200, "description": "Le Rhône 9J rotary, 110hp" , "oil": {"system": "total-loss", "source": "\"Total-loss castor oil system with a pulsator sight glass in the cockpit as the pilot's only positive indication that oil was flowing\" — migflug.com, Avro 504: the WWI Trainer That Taught a Generation (Lubrication); sources/avro-504k-panel-notes.md"}},
 
   "envelope": {
     "cruiseAlt":  5000,

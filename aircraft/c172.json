@@ -22,7 +22,7 @@
   "nose":     { "tipX":  0.00351 },
   "geometry": { "tailX": -0.00351 },
   "era": "VFR / PPL(A)",
-  "engine": { "type": "piston", "count": 1, "model": "io-360", "idleRpm": 700, "maxRpm": 2700, "description": "Lycoming IO-360, 180hp", "startTime": 2.8, "stopTime": 3.5, "starter": "electric" },
+  "engine": { "type": "piston", "count": 1, "model": "io-360", "idleRpm": 700, "maxRpm": 2700, "description": "Lycoming IO-360, 180hp", "startTime": 2.8, "stopTime": 3.5, "starter": "electric" , "oil": {"pressurePsi": {"min": 20, "normal": [50, 90], "max": 115}, "tempC": {"normal": [37.8, 118], "max": 118}, "source": "Cessna 172S NAV III POH (GFC 700), Original Issue 20 Dec 2007, Section 2: Powerplant Limitations (maximum oil temperature 245 °F (118 °C); oil pressure minimum 20 PSI, maximum 115 PSI) and Figure 2-3, Powerplant Instrument Markings (oil temperature green 100–245 °F; oil pressure red 0–20, green 50–90, red 115–120 PSI); the OIL PRESS annunciator's switch: below 20 PSI (172S POH Rev. 5, Section 7) — sources/cessna-172s-nav3-gfc700-poh-2007.pdf"}},
   "envelope": {
     "cruiseAlt": 8000,
     "maxAlt": 14000,

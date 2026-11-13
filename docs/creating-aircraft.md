@@ -247,6 +247,7 @@ One object on every winged aircraft. Rockets and robots have none.
 | `description` | Human-readable description. Documentation. |
 | `idleN1` | Turbofan idle N1 (%). |
 | `idleRpm`, `maxRpm` | A piston, rotary, turboprop or turbojet engine's rpm at idle and at full throttle (`core/engine.js`); the sound of the impulse engines takes them too. |
+| `oil` | The engine's oil data from its manual, shaped as the engine catalogue's file will hold it: `pressurePsi { min, normal: [low, high], max }`, `tempC { normal, max }`, `source` (required) — or `system: "total-loss"` (no pressure: the Avro's rotary). The oil pressure runs from `normal[0]` at idle rpm to `normal[1]` at full rpm; without it, a generic curve |
 | `ffMax` | Fuel flow at full thrust, kg/h — a turbofan's (default from the thrust), a turbojet's (the MiG's VK-1: 2 890); it follows N1 or rpm and is burned from the tanks. |
 | `egtIdle`, `egtTakeoff`, `egtStart` | Exhaust gas temperature, °C, at idle, at full power and at light-off. |
 | `fuelPressure` | `{ low, high }` kg/cm² — the stand-ins' supply and (a jet's) injector pressure (`core/engine-gauges.js`). |

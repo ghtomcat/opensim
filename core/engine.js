@@ -102,14 +102,42 @@ function _coreStarting(t, eng) {
    engine.egtStart (650) and settles to idle; off, shut down or windmilling it cools to the
    outside air. It rises fast (3 s) and cools slowly. Fuel flow (kg/h): engine.ffMax · (N1/100)^2.2,
    less in thin air — ffMax defaults to the per-engine thrust × a typical takeoff TSFC
-   (≈ 0.3 lb/lbf/h); a trickle from light-off in the start. Oil pressure (psi): the pump is on the
-   gearbox — 80 · (core/100)^1.5 (≈ 37 at idle, ≈ 3 windmilling). */
+   (≈ 0.3 lb/lbf/h); a trickle from light-off in the start. Oil pressure (psi): _oilPsi below — the
+   pump is on the gearbox, 80 · (core/100)^1.5 (≈ 37 at idle, ≈ 3 windmilling). */
 const OIL_MIN_PSI = 13;                       // the low-oil-pressure limit (CFM56)
 const _oat = () => (S.mission?.weather?.manual?.temp ?? S.metar?.temp ?? 15) - 1.98 * ((S.alt ?? 0) / 1000);   // as the cooling model
 const _rhoRatio = () => Math.pow(Math.max(0, 1 - 2.2558e-5 * (S.alt ?? 0) * 0.3048), 4.2559);
 function _ffMax(eng = _eng()) {
   const perf = S.aircraft?.performance ?? {};
   return eng.ffMax ?? 0.0306 * (perf.thrustMax ?? 0) / _count(eng);   // 0.3 lb/(lbf·h) = 0.0306 kg/(N·h)
+}
+
+/* ── Oil pressure (psi) — every engine type, computed here, in one place ──────────────
+   The engine-driven pump's pressure × a cold-oil factor × a starvation factor — both 1 for now; the oil system adds them
+   (issues.md, "The oil system": cold oil reads high, a low quantity starves the pump), and later the engine's own
+   character (step 5). The pump:
+     turbofan  on the gearbox: 80 · (core/100)^1.5 (≈ 37 at idle, ≈ 3 windmilling)
+     piston,   by its rpm: at idle rpm the bottom of the normal range, at full rpm the top, linear between; below idle
+     turboprop (the start, the run-down, a failing engine) in proportion to the rpm, 0 at rest. The normal range is the
+               engine's own (engine.oil.pressurePsi.normal — the POH's, sourced), else a generic stand-in: 1.5 … 7.5
+               kg/cm² (the analog panels' old stand-in) until the engine catalogue has it.
+     none      the electric motor; a total-loss system (engine.oil.system — the Avro's rotary: castor oil, a pulsator,
+               no pressure gauge) → null */
+const PSI_PER_KGCM2 = 14.223;
+const OIL_GENERIC_PSI = [1.5 * PSI_PER_KGCM2, 7.5 * PSI_PER_KGCM2];   // stand-in: idle … full rpm
+function _oilPumpPsi(e, eng) {
+  if (eng.type === 'turbofan') return 80 * Math.pow(Math.max(0, e.core ?? 0) / 100, 1.5);
+  const [lo, hi] = eng.oil?.pressurePsi?.normal ?? OIL_GENERIC_PSI;
+  const rpm = Math.max(0, e.rpm ?? 0), r = _rpmRange(eng);
+  if (rpm < r.idle) return lo * rpm / r.idle;
+  return lo + (hi - lo) * Math.min(1, (rpm - r.idle) / Math.max(1, r.max - r.idle));
+}
+const _oilColdFactor   = (e, eng) => 1;   // cold oil → higher pressure (the oil system)
+const _oilStarveFactor = (e, eng) => 1;   // a low oil quantity → the pump starves (the oil system)
+/** Engine e's oil pressure, psi — null where the engine has no pressure system */
+function _oilPsi(e, eng = _eng()) {
+  if (eng.type === 'electric' || eng.oil?.system === 'total-loss') return null;
+  return _oilPumpPsi(e, eng) * _oilColdFactor(e, eng) * _oilStarveFactor(e, eng);
 }
 
 /** An engine's gauge values for its state now — the EGT target, fuel flow, oil pressure. */
@@ -125,7 +153,7 @@ function _gauges(e, eng, startT = e.startT) {
   const ff  = e.state === 'running' && burning ? _ffMax(eng) * Math.pow(e.n1 / 100, 2.2) * (0.4 + 0.6 * _rhoRatio())
             : lightOff ? 0.02 * _ffMax(eng)
             : 0;
-  const oil = 80 * Math.pow(Math.max(0, e.core ?? 0) / 100, 1.5);
+  const oil = _oilPsi(e, eng) ?? 0;
   return { egt, ff, oil };
 }
 
@@ -136,7 +164,7 @@ function _gaugesAtLoad(state, n1, core, eng, aircraft) {
   const x = Math.max(0, (n1 - idle) / (100 - idle));
   const ffMax = eng.ffMax ?? 0.0306 * (aircraft.performance?.thrustMax ?? 0) / _count(eng);
   return { egt: (eng.egtIdle ?? 400) + ((eng.egtTakeoff ?? 850) - (eng.egtIdle ?? 400)) * Math.pow(x, 1.2),
-           ff: ffMax * Math.pow(n1 / 100, 2.2), oil: 80 * Math.pow(core / 100, 1.5) };
+           ff: ffMax * Math.pow(n1 / 100, 2.2), oil: _oilPsi({ core }, eng) ?? 0 };
 }
 
 /** Is an engine that is selected on (running) short of oil pressure? — OIL_PRESS on the airliners. */
@@ -618,6 +646,9 @@ export function tickEngine(dt) {
     engines = engines.map(e => _stepLifecycle(e, dt, eng));
     /* the rpm, stored for the readers that take the array (a change of half a turn or more) */
     engines = engines.map(e => { const rpm = rpmOf(e, eng); return rpm == null || Math.abs((e.rpm ?? -1) - rpm) < 0.5 ? e : { ...e, rpm }; });
+    /* the oil pressure from the rpm — a piston, a turboprop, a turbojet (a change of 0.05 psi or more; to 0 at once) */
+    engines = engines.map(e => { const oil = _oilPsi(e, eng); if (oil == null) return e;
+                                 return Math.abs((e.oil ?? 0) - oil) < 0.05 && (oil > 0 || !e.oil) ? e : { ...e, oil }; });
     /* the fuel flow from the rpm — a turbojet, a piston, a turboprop (a change of 0.1 kg/h or more; to 0 at once) */
     if (_ffMaxOf(eng))
       engines = engines.map(e => { const ff = _rpmFf(e, e.rpm ?? 0, eng); return Math.abs((e.ff ?? 0) - ff) < 0.1 && (ff > 0 || !e.ff) ? e : { ...e, ff }; });
