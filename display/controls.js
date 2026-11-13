@@ -84,6 +84,9 @@ for (let i = 0; i < 8; i++)
 
 /* the altimeter's setting knob — a free-turning knob; a step is the dial's own unit (stepHpa: 1 hPa, 0.01 in. Hg, 1 mm Hg) */
 CONTROLS.baroKnob = { kind: 'knob', read: () => S.baroSet, command: 'baroSet', arg: (steps, { stepHpa = 1 } = {}) => ({ step: steps * stepHpa }) };
+/* the heading instruments' knobs (core/gyro.js) — 1° a step */
+CONTROLS.courseKnob = { kind: 'knob', read: () => S.courseSet, command: 'courseSet', arg: (steps) => ({ step: steps }) };
+CONTROLS.dgKnob     = { kind: 'knob', read: () => S.dgOffset,  command: 'dgSet',     arg: (steps) => ({ step: steps }) };
 
 /* the FCU's knobs — turn and push (core/fcu.js, core/baro.js) — and its buttons */
 const fcuKnob = (cmd, push) => ({ kind: 'knob', read: () => null, command: cmd, push, arg: (steps) => ({ step: steps }) });

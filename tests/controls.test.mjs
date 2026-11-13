@@ -15,6 +15,7 @@ import '../core/gear.js';
 import '../core/failures.js';
 import '../core/baro.js';
 import '../core/fcu.js';
+import '../core/gyro.js';
 
 const load = (id) => JSON.parse(readFileSync(new URL(`../aircraft/${id}.json`, import.meta.url), 'utf8'));
 
@@ -157,4 +158,16 @@ test('the FCU: SPD / HDG / ALT / V/S turn and push; AP1 holds the present headin
   operate('ap1');      assert.equal(S.ap, true); assert.equal(S.hdgT, 92);                // selected HDG → the present heading (92.4°)
   operate('athr');     assert.equal(S.athr, true);
   push('fcuQnh');      assert.equal(S.baroStd, false);
+});
+
+/* The heading instruments' knobs (core/gyro.js) — the course setter from the mission's course, the DG's card offset */
+test('the course setter starts at the mission\'s course and turns 1° a step; the DG knob sets its card, wrapping round', async () => {
+  const { courseSetting, dgHeading } = await import('../core/gyro.js');
+  runMissionResets();
+  setState({ mission: { course: 355 }, hdg: 10 });
+  assert.equal(courseSetting(), 355);
+  turn('courseKnob', 10);  assert.equal(courseSetting(), 5);                   // 355 + 10 → 5
+  turn('dgKnob', -15);     assert.equal(dgHeading(), 355);                     // 10 − 15 → 355
+  runMissionResets();
+  assert.equal(courseSetting(), 355); assert.equal(dgHeading(), 10);           // a new mission: back to the course, no offset
 });

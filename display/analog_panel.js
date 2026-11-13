@@ -30,6 +30,7 @@ import { indicatedAlt, baroSubscale } from '../core/baro.js';
 import { flowLayout, SIZES } from './panel_flow.js';
 import { epsiValues, flightSeconds } from '../core/epsi.js';
 import { addHit, beginHits } from './hit.js';
+import { courseSetting, dgHeading } from '../core/gyro.js';
 import { turn, turned } from './controls.js';
 import { avionicsPowered } from '../core/electrical.js';
 import { smooth, smoothAngle } from './smooth.js';
@@ -205,8 +206,9 @@ export const INSTRUMENTS = {
   turn:    { value: 'turn rate, ball (S.latAccel)',         read: () => ({ rate: (S.roll ?? 0) / 20, ball: ballDeflection(S.latAccel) }),
              simple: 'the turn rate from the bank angle → the rate of heading change',
              draw: { metric: _drawWendezeiger, imperial: _drawTurnSlip } },
-  compass: { value: 'S.hdg (°); the remote compass also the course setter (the mission\'s course)', variants: ['card', 'bubble', 'gyro', 'remote'],
-             read: (i, it) => it?.variant === 'remote' ? { hdg: S.hdg ?? 0, course: S.mission?.course ?? S.mission?.initialState?.hdg ?? S.hdgT ?? 0 } : S.hdg ?? 0,
+  compass: { value: 'S.hdg (°); the remote compass also the course setter (its knob — core/gyro.js; the mission\'s course to start)', variants: ['card', 'bubble', 'gyro', 'remote'],
+             knob: { control: 'courseKnob', variants: ['remote'], at: [-1.0, 0.75], r: 0.14 },    // the course setter's knob, lower left — where the drawing had its own
+             read: (i, it) => it?.variant === 'remote' ? { hdg: S.hdg ?? 0, course: courseSetting() } : S.hdg ?? 0,
              draw: { metric: (ctx, x, y, r, sc, v, scale, variant) => (variant === 'bubble' ? _drawBubbleCompass : variant === 'gyro' ? _drawGyroCompass : _drawKompass)(ctx, x, y, r, sc, v),
                      imperial: (ctx, x, y, r, sc, v, scale, variant) => (variant === 'bubble' ? _drawBubbleCompass : variant === 'remote' ? _drawRemoteCompass : _drawCompass)(ctx, x, y, r, sc, v) } },
   vsi:     { value: 'S.vs (fpm)',                         read: () => S.vs ?? 0, variants: ['var75', 'climb6'],
@@ -249,7 +251,9 @@ export const INSTRUMENTS = {
   fuelPLow:{ value: 'the fuel supply pressure below half its normal (fuelPressure, core/engine-gauges.js)', kind: 'lamp',
              read: (i) => S.engineState !== 'off' && fuelPressure(i) < 0.5 * (S.aircraft?.engine?.fuelPressure?.low ?? 1.3),
              simple: STAND_INS.fuelPressure, draw: _both((ctx, x, y, r, sc, on) => _drawPlateLamp(ctx, x, y, r, sc, on, LAMP.red, L.plates?.fuelPLow)) },
-  dg:      { value: 'S.hdg (°) — the directional gyro (no drift yet)', read: () => S.hdg ?? 0, draw: _both(_drawDgDrum) },
+  dg:      { value: 'S.hdg (°) and the card\'s setting (core/gyro.js) — the directional gyro (no drift yet)', read: () => dgHeading(),
+             knob: { control: 'dgKnob', at: [0, 0.55], r: 0.14, drawn: true },   // its own CAGE knob, below the window — it sets the card
+             draw: _both(_drawDgDrum) },
   engGauge:{ value: 'oil temperature (°C), oil pressure and fuel pressure (psi) — the US engine gauge unit', simple: `${STAND_INS.oilPressure}, ${STAND_INS.fuelPressure}`,
              read: (i) => ({ oilT: S.oilTempC ?? 15, oil: oilPressure(i) * 14.223, fuel: fuelPressure(i) * 14.223 }), draw: _both(_drawEngGauge) },
   mach:    { value: 'Mach from S.spd and S.alt (core/airdata.js)', read: () => machOf(S.spd ?? 0, S.alt ?? 0), draw: _both(_drawMach) },
@@ -319,12 +323,14 @@ function _inst(id, ctx, x, y, r, sc, item, engine = 0, n = 0) {
   const def = INSTRUMENTS[id], draw = def?.draw[ST.units ?? 'metric'];
   if (!draw) { _warnOnce(`analog panel: no ${ST.units} drawing of "${id}"`); return; }
   draw(ctx, x, y, r, sc, _lagged(def, `analog.${n}.${id}.${engine}`, def.read(engine, item)), item?.scale, item?.variant);
-  if (def.knob) {
-    const kr = r * 0.16, kx = x - r * 0.86, ky = y + r * 0.86, stepHpa = def.knob.stepHpa?.[item?.variant] ?? 1;
-    _knob(ctx, kx, ky, kr, sc);
-    addHit(ctx.canvas, { name: `${def.knob.control}.${n}`, x: kx - kr * 1.3, y: ky - kr * 1.3, w: kr * 2.6, h: kr * 2.6,
-      turn: (steps, { record }) => turn(def.knob.control, steps, { stepHpa, record }),
-      turned: () => turned(def.knob.control) });
+  const k = def.knob;
+  if (k && (!k.variants || k.variants.includes(item?.variant))) {
+    const [ax, ay] = k.at ?? [-0.86, 0.86], kr = r * (k.r ?? 0.16), kx = x + r * ax, ky = y + r * ay;
+    const stepHpa = k.stepHpa?.[item?.variant] ?? 1;
+    if (!k.drawn) _knob(ctx, kx, ky, kr, sc);                    // drawn here unless the instrument draws its own (the DG's CAGE)
+    addHit(ctx.canvas, { name: `${k.control}.${n}`, x: kx - kr * 1.3, y: ky - kr * 1.3, w: kr * 2.6, h: kr * 2.6,
+      turn: (steps, { record }) => turn(k.control, steps, { stepHpa, record }),
+      turned: () => turned(k.control) });
   }
 }
 
@@ -2256,7 +2262,7 @@ function _drawRemoteCompass(ctx, x, y, r, sc, v) {
   ctx.lineTo(hx - Math.cos(ha) * r * 0.14 + Math.cos(hn) * r * 0.05, hy - Math.sin(ha) * r * 0.14 + Math.sin(hn) * r * 0.05);
   ctx.lineTo(hx - Math.cos(ha) * r * 0.14 - Math.cos(hn) * r * 0.05, hy - Math.sin(ha) * r * 0.14 - Math.sin(hn) * r * 0.05); ctx.fill();
   _cap(ctx, x, y, 3.5 * sc);
-  ctx.fillStyle = '#2a2b2c'; ctx.beginPath(); ctx.arc(x - r * 1.0, y + r * 0.75, r * 0.12, 0, Math.PI * 2); ctx.fill();   // the course knob, lower left
+  /* the course knob, lower left — drawn and registered by the registry's knob (_inst) */
   _label(ctx, x, y, r, L.compass, sc);
 }
 
