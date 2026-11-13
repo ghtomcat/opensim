@@ -159,7 +159,7 @@ test.describe('Fuel — tank depletion', () => {
   test('LEFT selector + left tank empty → engine dies', async ({ page }) => {
     await loadSim(page);
     await setState(page, {
-      enginePower: 1.0, engineState: 'running',
+      enginePower: 1.0, engineState: 'running', lever: 1,
       fuelLeft: 0.001, fuelRight: 95,
       fuelSelector: 'LEFT',
     });
@@ -172,7 +172,7 @@ test.describe('Fuel — tank depletion', () => {
   test('RIGHT selector + right tank empty → engine dies', async ({ page }) => {
     await loadSim(page);
     await setState(page, {
-      enginePower: 1.0, engineState: 'running',
+      enginePower: 1.0, engineState: 'running', lever: 1,
       fuelLeft: 95, fuelRight: 0.001,
       fuelSelector: 'RIGHT',
     });
@@ -196,7 +196,7 @@ test.describe('Fuel — tank depletion', () => {
   test('BOTH selector + both tanks empty → engine dies', async ({ page }) => {
     await loadSim(page);
     await setState(page, {
-      enginePower: 1.0, engineState: 'running',
+      enginePower: 1.0, engineState: 'running', lever: 1,
       fuelLeft: 0.001, fuelRight: 0.001,
       fuelSelector: 'BOTH',
     });
@@ -247,7 +247,7 @@ test.describe('Fuel — burn rate', () => {
   test('LEFT selector drains left only — right unchanged', async ({ page }) => {
     await loadSim(page);
     await setState(page, {
-      enginePower: 1.0, engineState: 'running',
+      enginePower: 1.0, engineState: 'running', lever: 1,
       fuelLeft: 50, fuelRight: 50, fuelSelector: 'LEFT',
     });
     await step(page, 300);
@@ -259,7 +259,7 @@ test.describe('Fuel — burn rate', () => {
   test('RIGHT selector drains right only — left unchanged', async ({ page }) => {
     await loadSim(page);
     await setState(page, {
-      enginePower: 1.0, engineState: 'running',
+      enginePower: 1.0, engineState: 'running', lever: 1,
       fuelLeft: 50, fuelRight: 50, fuelSelector: 'RIGHT',
     });
     await step(page, 300);
@@ -283,7 +283,7 @@ test.describe('Fuel — burn rate', () => {
   test('C172 burn rate ~28 L/h — within ±20% after 10 min full power', async ({ page }) => {
     await loadSim(page);
     await setState(page, {
-      enginePower: 1.0, engineState: 'running',
+      enginePower: 1.0, engineState: 'running', lever: 1,
       fuelLeft: 50, fuelRight: 50, fuelSelector: 'BOTH',
     });
     await step(page, 600);   // 10 minutes
@@ -628,7 +628,7 @@ test.describe('Bf 109 — single left tank (V12)', () => {
   test('V12 burn rate — 60s before t=115 failure', async ({ page }) => {
     await page.goto('/?mission=wolfskopf-1942&test=1');
     await page.waitForFunction(() => window.simReady === true);
-    await setState(page, { enginePower: 1.0, engineState: 'running', fuelLeft: 200, fuelRight: 0 });
+    await setState(page, { enginePower: 1.0, engineState: 'running', lever: 1, fuelLeft: 200, fuelRight: 0 });
     await step(page, 60);    // 1 min — well before the t=115s gunfire failure
     const s = await getState(page);
     const burned = 200 - s.fuelLeft;
@@ -725,35 +725,22 @@ test.describe('Crash — fuel burn freezes', () => {
 });
 
 /* ═══════════════════════════════════════════
-   PARTIAL POWER — burn scales with enginePower
+   PARTIAL POWER — the burn follows the lever (core/engine.js: the fuel flow from the rpm)
    ═══════════════════════════════════════════ */
 
-test.describe('Fuel burn — scales with engine power', () => {
-  test('half power burns roughly half as much fuel as full power', async ({ page }) => {
-    // Full power run
-    await loadSim(page);
-    await setState(page, {
-      enginePower: 1.0, engineState: 'running',
-      fuelLeft: 80, fuelRight: 80, fuelSelector: 'BOTH',
-    });
-    await step(page, 300);
-    const full = await getState(page);
-    const burnedFull = (80 - full.fuelLeft) + (80 - full.fuelRight);
-
-    // Half power run
-    await loadSim(page);
-    await setState(page, {
-      enginePower: 0.5, engineState: 'running',
-      fuelLeft: 80, fuelRight: 80, fuelSelector: 'BOTH',
-    });
-    await step(page, 300);
-    const half = await getState(page);
-    const burnedHalf = (80 - half.fuelLeft) + (80 - half.fuelRight);
-
-    // Half power should burn 40–60% of what full power burns
-    const ratio = burnedHalf / burnedFull;
-    expect(ratio).toBeGreaterThan(0.35);
-    expect(ratio).toBeLessThan(0.65);
+test.describe('Fuel burn — follows the lever', () => {
+  test('half lever burns (rpm / maxRpm)^2.2 of full — the C172 at 1 700 of 2 700 rpm: ~36 %', async ({ page }) => {
+    const burnAt = async (lever) => {
+      await loadSim(page);
+      await setState(page, { enginePower: 1.0, engineState: 'running', lever, fuelLeft: 80, fuelRight: 80, fuelSelector: 'BOTH' });
+      await step(page, 300);
+      const s = await getState(page);
+      return (80 - s.fuelLeft) + (80 - s.fuelRight);
+    };
+    const full = await burnAt(1), half = await burnAt(0.5);
+    const expect_ = Math.pow((700 + 2000 * 0.5) / 2700, 2.2);   // aircraft/c172.json: idleRpm 700, maxRpm 2700
+    expect(half / full).toBeGreaterThan(expect_ * 0.9);
+    expect(half / full).toBeLessThan(expect_ * 1.1);
   });
 
   test('no burn at enginePower = 0 (engine not running)', async ({ page }) => {

@@ -57,7 +57,30 @@ test('a minute at idle uses a fraction of that', () => {
   assert.ok(1400 - S.fuelLeft < 6, `used ${(1400 - S.fuelLeft).toFixed(1)} l`);
 });
 
-test('pistons keep their fixed rate (no fuel flow of their own yet)', () => {
-  setState({ aircraft: JSON.parse(readFileSync(join(here, '..', 'aircraft', 'bf109.json'), 'utf8')) });
-  assert.equal(fuelFlowKgH(), null);
+/* The pistons: the same curve on their rpm, ffMax = fuelBurn (l/h at full power) × the fuel's density — so the tank
+   empties by fuelBurn × (rpm / maxRpm)^2.2 litres an hour (issues.md, "The light aircraft's fuel burn ignores the throttle") */
+function piston(id, state, lever) {
+  const ac = JSON.parse(readFileSync(join(here, '..', 'aircraft', `${id}.json`), 'utf8'));
+  const patch = { aircraft: ac, engineState: state, engineStartT: null, engineStopT: null, enginePower: state === 'running' ? 1 : 0,
+                  n1: 0, engineFactors: { failure: 1, ice: 1, seizure: 1, battery: 1, crash: 1 },
+                  lever, alt: 0, crashed: false, paused: false, fuelShutoff: false };
+  setState({ engines: [], ...patch });
+  adoptEngineFields(patch);
+  initFuel();
+  tickEngine(0.01);
+  return ac;
+}
+const litresPerHour = () => { const before = (S.fuelLeft ?? 0) + (S.fuelRight ?? 0); tickFuel(60); return ((before - S.fuelLeft - S.fuelRight) * 60); };
+
+test('a piston burns with its lever: full lever its fuelBurn, idle a fraction — the C172, the DR400, the Bf 109, the F4U', () => {
+  for (const id of ['c172', 'robin-dr400', 'bf109', 'f4u1a']) {
+    const ac = piston(id, 'running', 1);
+    assert.ok(Math.abs(litresPerHour() - ac.fuelBurn) < 0.01 * ac.fuelBurn, `${id}: full lever burns fuelBurn ${ac.fuelBurn} l/h`);
+    piston(id, 'running', 0);
+    const idle = litresPerHour(), expect = ac.fuelBurn * Math.pow(ac.engine.idleRpm / ac.engine.maxRpm, 2.2);
+    assert.ok(Math.abs(idle - expect) < 0.02 * ac.fuelBurn, `${id}: idle ${idle.toFixed(2)} l/h, expected ≈ ${expect.toFixed(2)}`);
+    assert.ok(idle < 0.1 * ac.fuelBurn, `${id}: idle a fraction of take-off`);
+    piston(id, 'off', 1);
+    assert.equal(fuelFlowKgH(), 0, `${id}: a stopped engine burns nothing`);
+  }
 });
