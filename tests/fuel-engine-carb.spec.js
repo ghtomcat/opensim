@@ -333,18 +333,21 @@ test.describe('Fuel — warning flags', () => {
     expect((await getState(page)).warnings?.LOW_FUEL).toBe(false);
   });
 
-  test('OIL_PRESS warning fires when enginePower < 0.3', async ({ page }) => {
+  /* OIL PRESS from the engine's oil pressure (core/engine.js) — the C172's switch: below 20 psi (its POH) */
+  test('OIL_PRESS fires when the engine is dying — power 0.15, its rpm and so its oil pressure collapse', async ({ page }) => {
     await loadSim(page);
-    await setState(page, { enginePower: 0.15 });
+    await setState(page, { engineState: 'running', enginePower: 0.15, lever: 0 });
     await step(page, 0.1);
-    expect((await getState(page)).warnings?.OIL_PRESS).toBe(true);
+    const s = await getState(page);
+    expect(s.engines[0].oil).toBeLessThan(20);
+    expect(s.warnings?.OIL_PRESS).toBeTruthy();
   });
 
-  test('OIL_PRESS clears when enginePower >= 0.3', async ({ page }) => {
+  test('OIL_PRESS clears with the engine running — idle 50 psi', async ({ page }) => {
     await loadSim(page);
-    await setState(page, { enginePower: 0.8 });
+    await setState(page, { engineState: 'running', enginePower: 1, lever: 0 });
     await step(page, 0.1);
-    expect((await getState(page)).warnings?.OIL_PRESS).toBe(false);
+    expect((await getState(page)).warnings?.OIL_PRESS).toBeFalsy();
   });
 });
 
@@ -678,7 +681,8 @@ test.describe('No-tank aircraft — A350 (no fuel system)', () => {
     await step(page, 60);
     const s = await getState(page);
     expect(s.engines[0].oil).toBeLessThan(13);
-    expect(s.warnings?.OIL_PRESS).toBe(true);
+    expect(s.warnings?.ENG1_OIL_PRESS).toBe('warning');   // its own alert — the ECAM: ENG 1 OIL LO PR
+    expect(s.warnings?.ENG2_OIL_PRESS).toBeFalsy();
   });
 
   test('OIL_PRESS stays off with the engines running normally', async ({ page }) => {
@@ -686,7 +690,7 @@ test.describe('No-tank aircraft — A350 (no fuel system)', () => {
     await page.waitForFunction(() => window.simReady === true);
     await setState(page, { enginePower: 0.8 });
     await step(page, 0.1);
-    expect((await getState(page)).warnings?.OIL_PRESS).toBe(false);
+    expect(Object.keys((await getState(page)).warnings ?? {}).filter(k => /OIL_PRESS/.test(k))).toEqual([]);
   });
 
   test('LOW_FUEL warning is not set (no tanks)', async ({ page }) => {

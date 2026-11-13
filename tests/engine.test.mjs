@@ -14,7 +14,8 @@ import { dirname, join } from 'node:path';
 import { S, setState } from '../core/state.js';
 import { startEngine, stopEngine, engineQuit, tickEngine, initialEngine, hasStartSequence, setEngineFactor,
          apuMaster, apuStart, apuFire, engineMaster, adoptEngineFields, engineAvailable, coreAtN1, engineOilLow,
-         engineRpm, throttle, leverForSpeed, throttleFrac } from '../core/engine.js';
+         engineRpm, throttle, leverForSpeed, throttleFrac, resetOilAlerts } from '../core/engine.js';
+import { alertText } from '../core/alerts.js';
 import { command } from '../core/commands.js';
 import { startRecording, apuStartRecording } from '../core/sound.js';
 import { tickThrust } from '../core/thrust.js';
@@ -511,24 +512,46 @@ test('the start: EGT rises at light-off toward the start peak, oil comes up with
   assert.ok(S.engines[0].oil > 25, `oil ${S.engines[0].oil.toFixed(0)}`);
 });
 
-test('a failed engine in flight: oil pressure low → OIL_PRESS; one shut down (master off) does not warn', () => {
+test('a failed engine in flight: its own alert, ENG1_OIL_PRESS (the ECAM: ENG 1 OIL LO PR); one shut down (master off) does not warn', () => {
   runningTwin();
   setState({ fuelLeft: null, warnings: {} });
+  resetOilAlerts();
   for (let t = 0; t < 5; t += 0.1) tickEngine(0.1);
-  tickFuel(0.1);
-  assert.equal(S.warnings.OIL_PRESS, false);
+  assert.equal(S.warnings.ENG1_OIL_PRESS, undefined);
   setEngineFactor('failure', 0, 0);
   for (let t = 0; t < 90; t += 0.1) tickEngine(0.1);
   assert.ok(engineOilLow(S.engines[0]), `oil ${S.engines[0].oil.toFixed(1)} windmilling`);
   assert.equal(S.engines[0].ff, 0);
-  tickFuel(0.1);
-  assert.equal(S.warnings.OIL_PRESS, true);
+  assert.equal(S.warnings.ENG1_OIL_PRESS, 'warning');
+  assert.equal(S.warnings.ENG2_OIL_PRESS, undefined, 'engine 2 runs on');
+  assert.equal(alertText('ENG1_OIL_PRESS', 'airbus'), 'ENG 1 OIL LO PR');
   stopEngine(0);                                                   // master off — the ECAM inhibits it
   for (let t = 0; t < 120; t += 0.1) tickEngine(0.1);
-  tickFuel(0.1);
-  assert.equal(S.warnings.OIL_PRESS, false);
+  assert.equal(S.warnings.ENG1_OIL_PRESS, undefined);
 });
 
+test('OIL PRESS on a light aircraft: below its POH\'s 20 psi — on with the engine stopped, off running at idle (the C172)', () => {
+  const step = cold(load('c172'), { warnings: {}, lever: 0, paused: true });
+  resetOilAlerts();
+  step(0.1);
+  assert.equal(S.warnings.OIL_PRESS, 'warning', 'stopped: 0 psi');
+  set({ engineState: 'running', enginePower: 1 }); step(0.1);
+  assert.equal(S.warnings.OIL_PRESS, undefined, `idle: ${S.engines[0].oil} psi`);
+});
+
+test('OIL PRESS per engine on a multi-engine aircraft — the Tu-95 with ENG 3 stopped; none on the Avro or the Velis', () => {
+  const step = cold(load('tu95'), { engineState: 'running', enginePower: 1, lever: 0.5, warnings: {}, paused: true });
+  resetOilAlerts();
+  step(0.1);
+  assert.deepEqual(Object.keys(S.warnings).filter(k => /OIL/.test(k)), []);
+  engineQuit(2); step(0.1);
+  assert.deepEqual(Object.keys(S.warnings).filter(k => /OIL/.test(k)), ['ENG3_OIL_PRESS']);
+  assert.equal(alertText('ENG3_OIL_PRESS', 'analog'), 'ENG 3 OIL PRESS');
+  for (const id of ['avro504', 'velis-hb-syq']) {
+    const st = cold(load(id), { warnings: {}, paused: true }); resetOilAlerts(); st(0.1);
+    assert.equal(S.warnings.OIL_PRESS, undefined, id);
+  }
+});
 
 /* ── RPM — the engine's own (core/engine.js), read by the panels, the status bar and the sound ── */
 
