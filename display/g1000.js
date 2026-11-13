@@ -9,7 +9,7 @@ import { S }                    from '../core/state.js';
 import { updateG1000MapOverlay } from './map.js';
 import { getCOMState }           from './com.js';
 import { flapLabel }             from '../core/airframe.js';
-import { engineRpm }             from '../core/engine.js';
+import { engineRpm, throttleFrac } from '../core/engine.js';
 
 const G = {
   bg:      'rgba(18,20,26,0.65)',
@@ -213,7 +213,6 @@ function _bankArc(ctx, cx, ay, r, roll) {
 
 function _speedTape(ctx, x, y, w, h) {
   const spd  = S.spd  ?? 0;
-  const spdT = S.spdT ?? 0;
   const pxPK = h / 80;   /* pixels per knot — 80kt window */
 
   ctx.fillStyle = G.tape;
@@ -265,16 +264,8 @@ function _speedTape(ctx, x, y, w, h) {
     _line(ctx, x, vneY, x + w, vneY);
   }
 
-  /* Speed bug */
-  const bugY = cy - (spdT - spd) * pxPK;
-  if (bugY > y && bugY < y + h) {
-    ctx.fillStyle = G.magenta;
-    ctx.beginPath();
-    ctx.moveTo(x + w, bugY);
-    ctx.lineTo(x + w * 0.68, bugY - 8);
-    ctx.lineTo(x + w * 0.68, bugY + 8);
-    ctx.closePath(); ctx.fill();
-  }
+  /* No selected-speed bug: the G1000's bugs are reference speeds (Vr, Vx, Vy, glide) — not built yet; the old bug
+     drew spdT, which moved with the throttle (Markus, 2026-11-13). */
 
   ctx.restore();
 
@@ -496,8 +487,7 @@ function _mfd(ctx, canvas, x, y, w, h) {
 }
 
 function _engineStrip(ctx, x, y, w, h) {
-  const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 163;
-  const throttle = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
+  const throttle = throttleFrac();                                   // the power lever (core/engine.js)
   const _engOff  = S.engineState === 'off' || S.engineState === 'shutdown';
   const ePow     = _engOff ? 0 : (S.enginePower ?? 1.0);
   const rpm      = Math.round(engineRpm(0) ?? 0);                    // the engine model's (core/engine.js)

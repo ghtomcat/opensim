@@ -2,12 +2,13 @@
    OpenSim — display/leftconsole.js
    Left cockpit console — slides in from the left. Toggle: L key.
    Data-driven from aircraft.left = [tokens]. First user: Bf 109.
-     throttle  — Gashebel (power lever)  → spdT  (props key off spdT)
+     throttle  — Gashebel (power lever)  → the throttle command (core/engine.js)
      trim      — Höhentrimmrad           → trim  (-10 nose-down … +10 nose-up)
      fuelcock  — Brandhahn (fuel cock)   → fuelShutoff
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from '../core/state.js';
+import { throttleFrac } from '../core/engine.js';
 import { setControl } from './controls.js';
 import { wireControls } from './controls-html.js';
 
@@ -206,7 +207,7 @@ function _attachHandlers() {
   _quad('prop',     f => setControl('propPitch', f));
   _quad('mixture',  f => setControl('mixture', f));
 
-  /* Gashebel — click the track to set the throttle (spdT, like +/-) */
+  /* Gashebel — click the track to set the throttle (like +/-) */
   const track = document.getElementById('lc-throttle');
   track?.addEventListener('click', e => {
     const rect = track.getBoundingClientRect();
@@ -236,14 +237,12 @@ function _update() {
     const h = _el.querySelector('#lc-q-' + id + ' .lc-quad-handle');
     if (h) h.style.top = `${(1 - Math.max(0, Math.min(1, frac))) * 88}%`;
   };
-  const _maxSpdU = S.aircraft?.envelope?.maxSpd ?? 360;
-  _qPos('throttle', (S.spdT ?? 0) / _maxSpdU);
+  _qPos('throttle', throttleFrac());
   _qPos('prop',     S.propPitch ?? 1);
   _qPos('mixture',  S.mixture ?? 1);
 
   /* Gashebel — handle rides up with throttle */
-  const maxSpd = S.aircraft?.envelope?.maxSpd ?? 335;
-  const thr = Math.max(0, Math.min(1, (S.spdT ?? 0) / maxSpd));
+  const thr = throttleFrac();
   const h = document.getElementById('lc-throttle-h');
   if (h) h.style.top = `${(1 - thr) * 89}%`;
   const tv = document.getElementById('lc-throttle-v');

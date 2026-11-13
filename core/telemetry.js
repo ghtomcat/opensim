@@ -47,6 +47,7 @@ export function tickTelemetry(dt) {
     pitchT:      +(S.pitchT ?? 0).toFixed(2),
     rollT:       +(S.rollT  ?? 0).toFixed(2),
     spdT:        +(S.spdT   ?? 0).toFixed(0),
+    lever:       +(S.lever  ?? 0).toFixed(3),
     braking:     S.braking ? 1 : 0,
   };
   const isRocket = S.aircraft?.vehicleType === 'rocket';

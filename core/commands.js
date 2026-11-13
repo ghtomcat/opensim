@@ -42,5 +42,21 @@ export function recordCommand(name, arg, { source = 'unknown' } = {}) {
   bbEvent({ type: 'command', command: name, arg: arg ?? null, source });
 }
 
+/* A continuous input — the joystick's throttle axis, a held key, the hub's hardware lever — has no release to record at:
+   it is recorded like a drag, once it has rested REST_MS (Markus, 2026-11-13). One rest timer per command and source. */
+const REST_MS = 500;
+const _resting = new Map();
+
+/** Run a command from a continuous input: done at once, recorded once the input has rested (the last arg) */
+export function commandContinuous(name, arg, { source = 'unknown' } = {}) {
+  const done = command(name, arg, { source, record: false });
+  if (done) {
+    const key = `${name}|${source}`;
+    clearTimeout(_resting.get(key));
+    _resting.set(key, setTimeout(() => { _resting.delete(key); recordCommand(name, arg, { source }); }, REST_MS));
+  }
+  return done;
+}
+
 /** The registered command names — for tests and the controls' schema check */
 export const commandNames = () => [..._commands.keys()];

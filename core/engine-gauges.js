@@ -60,7 +60,7 @@ export function oilPressure(i = 0) {
 /** Manifold pressure, in.Hg — idle ~12, full throttle ~52 → "The supercharger".
     (Kept as it was: 12 also with the engine stopped, where a real gauge shows the outside air.) */
 export function manifoldPressure(i = 0) {
-  return (S.wow || (S.spdT ?? 0) === 0) ? 12 : 12 + throttleFrac() * 40;
+  return (S.wow || throttleFrac() < 0.005) ? 12 : 12 + throttleFrac() * 40;
 }
 
 /** Fuel pressure, kg/cm² — the engine-driven pump: normal while running with fuel (1.3, unconfirmed),

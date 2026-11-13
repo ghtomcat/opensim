@@ -9,6 +9,7 @@ import { S, setState } from '../core/state.js';
 import { altLabel } from '../core/route.js';
 import { flapLabel } from '../core/airframe.js';
 import { command } from '../core/commands.js';
+import { throttleFrac } from '../core/engine.js';
 import { setControl } from './controls.js';
 import { zoneTokens } from '../core/cockpit.js';
 import { lightSwitches, lightSwitchLabel } from '../core/electrical.js';
@@ -846,8 +847,8 @@ function _update() {
     const v = document.getElementById(valId);
     if (v) v.textContent = txt;
   };
-  /* Throttle knob follows the prop throttle (spdT / maxSpd), which +/- drive */
-  const thr = Math.max(0, Math.min(1, (S.spdT ?? 0) / (S.aircraft?.envelope?.maxSpd ?? 130)));
+  /* Throttle knob follows the power lever (core/engine.js), which +/- drive */
+  const thr = throttleFrac();
   setKnob('ped-knob-throttle', 'ped-kv-throttle', -120 + thr * 240, `${Math.round(thr * 100)}%`, thr > 0.02);
   const mix = S.mixture ?? 1;
   setKnob('ped-knob-mixture', 'ped-kv-mixture', -120 + mix * 240, mix >= 1 ? 'RICH' : mix <= 0 ? 'ICO' : 'LEAN', mix > 0);

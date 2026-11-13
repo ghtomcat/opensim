@@ -4,12 +4,14 @@
 
    Protocol (via hub.js WebSocket relay):
      Browser  → hub → ESP32 : STATE_PATCH with sim state (hdg, pitch, roll, alt, vs, spd)
-     ESP32    → hub → Browser: STATE_PATCH with controls  (rollT, pitchT, spdT, ap: false)
+     ESP32    → hub → Browser: STATE_PATCH with controls  (rollT, pitchT, lever 0–1 [+ engine], ap: false)
+              — the lever through the throttle command (core/engine.js), recorded once it rests
 
    Call hilInit(hubUrl, room) once. Call tickHIL() every frame.
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from './state.js';
+import { commandContinuous } from './commands.js';
 
 let _ws       = null;
 let _room     = 'hil-corsair';
@@ -45,7 +47,8 @@ export function hilInit(hubUrl = 'ws://localhost:3000', room = 'hil-corsair') {
     const update = {};
     if (p.rollT  !== undefined) update.rollT  = p.rollT;
     if (p.pitchT !== undefined) update.pitchT = p.pitchT;
-    if (p.spdT   !== undefined) update.spdT   = p.spdT;
+    if (p.lever  !== undefined)
+      commandContinuous('throttle', p.engine != null ? { lever: p.lever, engine: p.engine } : p.lever, { source: 'hub' });
     if (p.ap     !== undefined) update.ap     = p.ap;
     // Robot arm — actual joint positions reported by ESP32 telemetry:
     if (p.armJoints  !== undefined) update.armJoints  = p.armJoints;

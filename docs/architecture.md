@@ -624,7 +624,7 @@ imported by almost every module. It holds about 150 top-level fields. The defaul
 | Group | Examples |
 |---|---|
 | Flight state | `lat`, `lon`, `alt` (ft, true MSL), `spd` (kt), `hdg`, `pitch`, `roll`, `vs`, `wow`, `time` |
-| Targets / commands | `altT`, `spdT`, `hdgT`, `pitchT`, `rollT`, `vsT`, `thrustLever` — the `T` suffix means *commanded*, the value without it is *actual* |
+| Targets / commands | `altT`, `spdT`, `hdgT`, `pitchT`, `rollT`, `vsT`, `thrustLever` — the `T` suffix means *commanded*, the value without it is *actual*; the power lever `lever` (derived from `engines[i].lever`, §9.2) |
 | Automation | `ap`, `athr`, `navManaged`, `altManaged`, `spdManaged`, `autobrake`, `baroSet`, `baroStd` |
 | Engine & systems | `engineState`, `enginePower`, `n1`, `oilTempC`, `coolantTemp`, `fuelLeft`, `fuelRight`, `switches`, `lights`, `warnings`, … |
 | Vehicle-specific | `rocket*`, `dragon*`, `starship*`, `armJoints`, `dogJoints`, … |
@@ -780,8 +780,9 @@ the centre of mass; attitude isn't produced by moments.
 - **Thrust:** summed over the engines (`S.engines`), each running engine contributing its
   share of `T_max`. Turbofans `(N1/100)^1.8·ρ/ρ₀` — a turbofan's power acts through its N1
   (`core/engine.js` caps N1 by the power available; a failed engine's fan runs down).
-  Props use `spdT/cruiseSpd` as the throttle (the speed target doubles as the power
-  lever) × the engine's power. An engine that isn't running gives nothing. The shares are
+  The others use their power lever (`S.lever`, §9.2) × `maxSpd/cruiseSpd` — the thrust the old
+  `spdT` throttle gave, full thrust before the lever's end; the scale goes next (the lever alone) —
+  × the engine's power. An engine that isn't running gives nothing. The shares are
   averaged so that identical engines give exactly the one-engine value.
 - **In flight:** speed from longitudinal forces; flight-path angle from
   `(L − W·cos γ)/(m·v)`, damped (−0.4·γ) and trimmed. Two extra stall terms (high-α
@@ -962,9 +963,9 @@ defaults to the per-engine thrust × ~0.3 lb/lbf/h) and oil pressure (`80 · (co
 psi) are first-order curves from that state — display and warning values, not read by physics. The commands take an engine index (0-based) — ENG MASTER *i*, a
 failure on one engine — or act on all engines when it is absent (`E`, `Q`, the light
 aircraft). What must tell the engines apart reads the array: the thrust (§7.2), the
-generators and pumps, the engine displays. Everything else reads **single values derived
+generators and pumps, the engine displays, the rpm (each engine's own lever). Everything else reads **single values derived
 from the array** on every change — the highest state (running > starting > shutdown >
-off), the largest N1 and power. The test API's `simSetState` carries single-field writes
+off), the largest N1, power and lever. The test API's `simSetState` carries single-field writes
 into every engine (`adoptEngineFields`).
 
 | Field | Meaning | Written by |
@@ -975,6 +976,7 @@ into every engine (`adoptEngineFields`).
 | `enginePower` | 0–1 power available (scales thrust): the lifecycle's share (off 0, starting 0.01, running and shutdown 1) × the product of `engineFactors` | `core/engine.js` only |
 | `engineFactors` | `{failure, ice, seizure, battery, crash}`, each 0–1, owned by its cause (`failures.js`, `battery.js`, `physics.js`) | through `setEngineFactor()` in `core/engine.js`; reset at mission load |
 | `n1` | turbofan fan speed % — spooled toward `n1Cmd` (`core/thrust.js`: A/THR or lever) | `core/engine.js` |
+| `lever` | the power lever 0 idle … 1 full, derived from `engines[i].lever` — set by the `throttle` command (all engines, or `{ lever, engine }`); every key, click, the joystick and the hub go through it. Read through `throttleFrac()` (the thrust, heat, sound, rpm, the lever displays). Not yet a turbofan's: its thrust lever is `S.thrustLever`, one for all engines. At a start in the air `leverForSpeed()` sets the lever that holds the speed | `core/engine.js` only |
 
 Consequences:
 - **Each engine runs on its own.** ENG MASTER *i* starts and stops engine *i*; a failure
@@ -1260,9 +1262,9 @@ the sim talks to other machines.
 |---|---|---|
 | Keyboard | `core/keymap.js` (the table + dispatcher); actions in `core/input.js`, `index.html`, `display/com.js`, `display/outside.js`, the robots | Flight controls (held keys → `pitchT`/`rollT`, continuous), flaps, gear, PTT, time warp (rockets), role, cockpit-zone keys (§5). Full list: [keybindings.md](keybindings.md). |
 | Mouse | `core/input.js` | drag-to-fly stick |
-| Gamepad | `core/input.js` (`tickGamepad`, each frame) | axes: roll, pitch, rudder, throttle; trigger = PTT; buttons: flaps, gear. Fixed mapping (`GP`), dead zone 0.08 |
+| Gamepad | `core/input.js` (`tickGamepad`, each frame) | axes: roll, pitch, rudder, throttle (the `throttle` command, recorded once the axis rests — `commandContinuous`); trigger = PTT; buttons: flaps, gear. Fixed mapping (`GP`), dead zone 0.08 |
 | Cockpit clicks | the controls (`display/controls.js`; canvas areas `display/hit.js`, the zones' `wireControls`) | switches, levers, knobs — each a command to its owner (`core/commands.js`, §5.4); a knob's drag recorded once |
-| Hardware | `core/hil.js` (12.3) | `rollT`, `pitchT`, `spdT`, `ap`; robot-arm telemetry |
+| Hardware | `core/hil.js` (12.3) | `rollT`, `pitchT`, `ap`; `lever` 0–1 (+ `engine`) through the `throttle` command, recorded once it rests; robot-arm telemetry |
 
 Input writes **targets** (`*T`) and switch states; physics and systems turn them into
 motion (§6.1). Every key goes through `core/keymap.js`: a table (key, the vehicles it

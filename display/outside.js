@@ -5,6 +5,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from '../core/state.js';
+import { throttleFrac } from '../core/engine.js';
 import { registerActions, observeKeys } from '../core/keymap.js';
 import { renderTerrain } from './terrain.js?v=2';
 import { getMapReservedRight } from './map.js';
@@ -540,8 +541,8 @@ let _rktSepPrevStage = 1;
 function _drawWireframe(canvas, acPitchDeg, acRollDeg, camBack, camUp, camSide, wingView = false, orbitAzDeg = 0, orbitElDeg = 0, panX = 0, fixedFraming = false) {
   advanceFanAngle();   /* fan spin state lives in outside-engines-draw.js */
   if (S.engineState === 'running' || S.engineState === 'starting') {
-    const _cruiseSpd = S.aircraft?.envelope?.cruiseSpd ?? 122;
-    const _throttle  = Math.min(1, Math.max(0, (S.spdT ?? 0) / _cruiseSpd));
+    const _env       = S.aircraft?.envelope ?? {};   // the lever, scaled as the thrust is (physics.js) — piece 2 drops the scale
+    const _throttle  = Math.min(1, throttleFrac() * (_env.maxSpd ?? 350) / (_env.cruiseSpd ?? 122));
     _propAngle = (_propAngle + (0.25 + 0.75 * _throttle) * 0.08) % (Math.PI * 2);
   }
 

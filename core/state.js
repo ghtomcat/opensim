@@ -57,6 +57,7 @@ export const S = {
   n1Cmd:      0,                  // N1 % asked of a running turbofan (A/THR or thrust lever) — core/thrust.js; the engine spools to it
   athrMode:   null,               // active A/THR thrust mode: 'SPEED' | 'MACH' | 'THR' (null when A/THR off) — FMA column 0
   athrDetent: null,               // thrust-lever detent the A/THR is rated to: IDLE/CLB/MCT/TOGA
+  lever: 0,                       // the power lever 0 idle … 1 full — derived from S.engines[i].lever (core/engine.js; not a turbofan's yet)
   thrustLever: 0,                 // manual thrust-lever position 0=idle…1=TOGA — drives N1 when A/THR is off (spdT then is only the selected speed)
   wow:      false,                // weight on wheels (squat switch)
   touchdownVS: 0,                 // VS at last touchdown (fpm, negative)

@@ -23,7 +23,7 @@ The tables below are generated from the key map (`core/keymap.js`): edit the tab
 | Key | Action | On |
 |-----|--------|----|
 | `+ −` | Thrust lever ±10 % · Throttle ± | every aircraft |
-| `F1–F4` | Thrust detents: the aircraft's `thrustProfiles` | every aircraft |
+| `F1–F4` | Thrust detents: the aircraft's `thrustProfiles`; a propeller: F1 idle, F4 full | every aircraft |
 | `f` | Flaps: extend one stage | every aircraft |
 | `F` | Flaps: retract one stage | every aircraft |
 | `G` | Gear up / down (not on the ground) | a220, a340, a350, an225, b737, b737max9, b777-300er, bf109, dc8, e190, f4u1a, mig15bis, tu95 |
@@ -108,7 +108,7 @@ Armed spoilers (`S`) deploy on touchdown and stow when you advance the thrust le
 
 Airliners have no start key: a start from the keyboard would have to check the whole aircraft first (power, mode, fuel). The start is on the pedestal: power on (APU or external), ENG MODE to IGN/START, then the ENG MASTER switches.
 
-Next-event time warp stops 60 seconds before the event. `F1`–`F4` map to the aircraft's thrust profiles. Situation presets (`1`–`5`) are locked during active missions to prevent jumping out of the scenario. `Space` (PTT) triggers the currently active voice role (PF, PM, or INSTRUCTOR).
+Next-event time warp stops 60 seconds before the event. `F1`–`F4` map to the aircraft's thrust profiles; a propeller's throttle has no detents — `F1` idle, `F4` full. Situation presets (`1`–`5`) are locked during active missions to prevent jumping out of the scenario. `Space` (PTT) triggers the currently active voice role (PF, PM, or INSTRUCTOR).
 
 The key map opens with `?` or the **KEYS** button under the mission clock, on every vehicle and device (a touchscreen taps the button); the sim waits while it is up. While it is on screen, any key closes it and does nothing else. In a text field the keys belong to the field, except `Esc`.
 

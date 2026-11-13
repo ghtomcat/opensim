@@ -1892,7 +1892,7 @@
     if (eng.type === 'turbojet') return rpm / eng.maxRpm < 0.005 ? '---' : `N1 ${Math.round(rpm / eng.maxRpm * 100)}%`;
     return rpm < 5 ? '--- RPM' : `${Math.round(rpm)} RPM`;
   }
-  import { startEngine, stopEngine, adoptEngineFields, engineRpm } from './core/engine.js';
+  import { startEngine, stopEngine, adoptEngineFields, engineRpm, throttle, leverForSpeed } from './core/engine.js';
   import { audioContext, audioOutput, audioMuted, setAudioMuted } from './core/audio.js';
   import { initOutside, tickOutside, outsideInvalidate, setOutsideCamMode } from './display/outside.js?v=6';
   import { initKneeboard, toggleKneeboard, closeKneeboard, tickKneeboard } from './display/kneeboard.js';
@@ -2067,6 +2067,7 @@
       roll:   0, rollT: 0,
       wow:    false,
     });
+    if (S.aircraft?.engine?.type !== 'turbofan') throttle(leverForSpeed(S.aircraft, flight.spd));   // a propeller: the lever for the speed
 
     // Auto-switch to combined view — instruments + outside, immediate sense of motion
     if (_setViewMode) _setViewMode(1);
@@ -2159,6 +2160,7 @@
         hdg: f.hdg,   hdgT: f.hdg,
         vs,
       });
+      if (S.aircraft?.engine?.type !== 'turbofan') throttle(leverForSpeed(S.aircraft, f.spd));
       _trackingLastF  = f;
       _trackingLastAt = Date.now();
       _renderTrackingBadge();

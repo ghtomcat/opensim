@@ -5,7 +5,8 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from './state.js';
-import { command } from './commands.js';
+import { command, commandContinuous } from './commands.js';
+import { throttle, leverForSpeed } from './engine.js';
 import './gear.js';                         // registers the gear command
 import './flaps.js';                        // registers the flaps command
 import { initKeys, registerActions, isKeyHeld } from './keymap.js';
@@ -162,8 +163,8 @@ export function tickGamepad() {
     });
   }
 
-  /* Throttle slider: -1=full fwd → full thrust, +1=full back → idle. Turbofans drive the
-     thrust lever (the FCU speed is the A/THR target, not the throttle); others use spdT.
+  /* Throttle slider: -1=full fwd → full thrust, +1=full back → idle — the throttle command (core/engine.js: a
+     turbofan's thrust lever, the others' engine levers), recorded once the axis rests (core/commands.js).
      Only apply on real axis movement — otherwise a resting/centred axis re-asserts the lever
      every frame and overrides the pedestal detent (so the A/THR ceiling kept climbing back up). */
   const frac = (1 - throttleRaw) / 2;
@@ -171,10 +172,7 @@ export function tickGamepad() {
     _gpPrevThrottle = throttleRaw;                 // seed silently — keep the mission's initial thrust
   } else if (Math.abs(throttleRaw - _gpPrevThrottle) > 0.01) {
     _gpPrevThrottle = throttleRaw;                 // physical throttle actually moved → it takes over
-    if (S.aircraft?.engine?.type === 'turbofan')
-      setState({ thrustLever: Math.max(0, Math.min(1, frac)) });
-    else
-      setState({ spdT: Math.round(frac * (S.aircraft?.envelope.maxSpd ?? 350)) });
+    commandContinuous('throttle', Math.max(0, Math.min(1, frac)), { source: 'joystick' });
   }
 
   /* PTT — trigger */
@@ -235,29 +233,35 @@ const _keyActions = {
 
   brakes: { down: () => setState({ braking: true }), up: () => setState({ braking: false }) },
 
-  /* Turbofans drive the thrust lever (manual thrust); others set spdT, which is the throttle for
-     props and the AP speed target otherwise. */
+  /* The throttle command (core/engine.js): a turbofan's thrust lever ±10 %; the others' lever by 20 kt's worth of
+     envelope.maxSpd, the step the old spdT throttle had. A held key repeats — recorded once it rests. */
   thrust: (e) => {
     const up = e.key === '=' || e.key === '+';
-    if (S.aircraft?.engine?.type === 'turbofan') setState({ thrustLever: Math.max(0, Math.min(1, (S.thrustLever ?? 0) + (up ? 0.1 : -0.1))) });
-    else {
-      const step = S.aircraft?.manualControl ? 20 : 5;
-      setState({ spdT: Math.max(0, Math.min(S.aircraft?.envelope.maxSpd ?? 350, S.spdT + (up ? step : -step))) });
-    }
+    const turbofan = S.aircraft?.engine?.type === 'turbofan';
+    const step = turbofan ? 0.1 : 20 / (S.aircraft?.envelope?.maxSpd ?? 350);
+    const now  = turbofan ? (S.thrustLever ?? 0) : (S.lever ?? 0);
+    commandContinuous('throttle', Math.max(0, Math.min(1, now + (up ? step : -step))), { source: 'key' });
   },
-  /* Aircraft-specific profiles or a fallback */
+  /* A turbofan's detents (its thrustProfiles, or a fallback). A propeller's throttle has no detents: F1 idle, F4 full,
+     F2 / F3 nothing — no invented positions (Markus, 2026-11-13); a real gate comes from the aircraft's data. */
   'thrust-detent': (e) => {
     const i = ['F1', 'F2', 'F3', 'F4'].indexOf(e.key);
+    if (S.aircraft?.engine?.type !== 'turbofan') {
+      if (i === 0 || i === 3) command('throttle', i === 0 ? 0 : 1, { source: 'key' });
+      return;
+    }
     const profiles = S.aircraft?.thrustProfiles;
     const spdTv = profiles ? (profiles[Math.min(i, profiles.length - 1)]?.spdT ?? 0) : [0, 180, 280, 350][i];
-    if (S.aircraft?.engine?.type === 'turbofan') {
-      const maxSpdT = profiles ? (Math.max(...profiles.map(p => p.spdT)) || 1) : 350;
-      setState({ thrustLever: Math.max(0, Math.min(1, spdTv / maxSpdT)) });
-    } else setState({ spdT: spdTv });
+    const maxSpdT = profiles ? (Math.max(...profiles.map(p => p.spdT)) || 1) : 350;
+    command('throttle', Math.max(0, Math.min(1, spdTv / maxSpdT)), { source: 'key' });
   },
+  /* A situation (the aircraft's data) puts the aircraft somewhere: its spdT is the speed; a propeller's lever is set to
+     hold it (leverForSpeed — core/engine.js), as at the mission load. */
   situation: (e) => {
     const sit = S.aircraft?.situations?.[parseInt(e.key) - 1];
-    if (sit) setState({ alt: sit.alt, spd: sit.spd, hdg: sit.hdg, altT: sit.altT, spdT: sit.spdT });
+    if (!sit) return;
+    setState({ alt: sit.alt, spd: sit.spd, hdg: sit.hdg, altT: sit.altT, spdT: sit.spdT });
+    if (S.aircraft?.engine?.type !== 'turbofan') throttle(leverForSpeed(S.aircraft, sit.spdT));
   },
   /* The kinematic model's targets; manual aircraft hold the keys (tickControls) */
   'alt-target': (e) => setState({ altT: e.key === 'ArrowUp' ? Math.min(43000, S.altT + 500) : Math.max(0, S.altT - 500) }),

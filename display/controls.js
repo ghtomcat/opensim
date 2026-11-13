@@ -23,7 +23,7 @@
 import { S } from '../core/state.js';
 import { command, recordCommand } from '../core/commands.js';
 import { onMissionReset } from '../core/lifecycle.js';
-import { MAGNETO_POSITIONS, ENG_MODE_POSITIONS } from '../core/engine.js';
+import { MAGNETO_POSITIONS, ENG_MODE_POSITIONS, throttleFrac } from '../core/engine.js';
 import { SPEED_BRAKE_POSITIONS } from '../core/flaps.js';
 import { fuelSelectorPositions } from '../core/fuel.js';
 import { lightSwitchOn } from '../core/electrical.js';
@@ -67,7 +67,7 @@ export const CONTROLS = {
   autobrake:  { kind: 'select', read: () => S.autobrake ?? 'OFF', command: 'autobrake' },     // a row of buttons: setControl
   coolFlap:   { kind: 'select', read: () => S.coolFlap ?? 1,      command: 'coolFlap' },      // a gate: setControl
   /* levers, 0 … 1 — set where clicked (setControl), later dragged (steps unrecorded, the end recorded — core/commands.js) */
-  throttle:  { kind: 'lever-continuous', read: () => S.aircraft?.engine?.type === 'turbofan' ? (S.thrustLever ?? 0) : (S.spdT ?? 0) / (S.aircraft?.envelope?.maxSpd ?? 350), command: 'throttle' },
+  throttle:  { kind: 'lever-continuous', read: () => throttleFrac(), command: 'throttle' },
   propPitch: { kind: 'lever-continuous', read: () => S.propPitch ?? 1, command: 'propPitch' },
   mixture:   { kind: 'lever-continuous', read: () => S.mixture ?? 1,   command: 'mixture' },
   trim:      { kind: 'lever-continuous', read: () => S.trim ?? 0,      command: 'trim' },      // −10 … +10

@@ -5,7 +5,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from './state.js';
-import { engineRpm } from './engine.js';
+import { engineRpm, throttleFrac } from './engine.js';
 import { ENGINE, assertCovers, warnUnknown } from './vocab.js';
 import { audioContext, audioOutput, loadWorklet, resumeAudio } from './audio.js';
 
@@ -718,13 +718,12 @@ export function tickSound() {
      down (only once the fan has fully coasted out). */
   if (S.engineState === 'off' && S.aircraft?.engine?.type === 'turbofan') { stopSound(); return; }
 
-  const maxSpd   = S.aircraft?.envelope?.maxSpd ?? 350;
   /* Turbofan: sound tracks actual fan speed (N1), which already encodes the A/THR speed loop
-     or the manual thrust lever — not the FCU SPD/MACH knob. Other engines: throttle ≈ spdT. */
+     or the manual thrust lever — not the FCU SPD/MACH knob. Other engines: the power lever. */
   const _idleN1  = S.aircraft?.engine?.idleN1 ?? 20;
   const throttle = (S.aircraft?.engine?.type === 'turbofan')
     ? Math.max(0, Math.min(1, ((S.n1 ?? 0) - _idleN1) / (100 - _idleN1)))
-    : Math.max(0, Math.min(1, S.spdT / maxSpd));
+    : throttleFrac();
   const now      = _ctx.currentTime;
 
   if (_cfg.impulse && _workletNode && _workletReady) {

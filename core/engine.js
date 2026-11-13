@@ -64,14 +64,16 @@ const _idleN1    = () => _eng().idleN1 ?? 22;
 const _count     = (eng = _eng()) => Math.max(1, eng.count ?? 1);
 
 /* ── The engines ─────────────────────────────────────────────────
-   S.engines[i] = { state, startT, stopT, n1, core, egt, ff, oil, factors, power, rpm } — one per engine (rpm: not a turbofan).
-   The single fields the rest of the sim still reads (engineState, enginePower, n1,
+   S.engines[i] = { state, startT, stopT, n1, core, egt, ff, oil, factors, power, rpm, lever } — one per engine (rpm: not a
+   turbofan). lever: the engine's power lever 0 idle … 1 full, set by the throttle command (not yet on a turbofan — its
+   thrust lever is still S.thrustLever, one for all engines).
+   The single fields the rest of the sim still reads (engineState, enginePower, n1, lever,
    engineStartT, engineStopT, engineFactors) are derived from the array on every change;
    what must tell the engines apart (thrust, generators, pumps, the engine displays) reads
    the array. */
 
-function _newEngine(state, n1 = 0, core = 0, gauges = { egt: 15, ff: 0, oil: 0 }) {
-  return { state, startT: null, stopT: null, n1, core, ...gauges, factors: FACTORS_NONE, power: _power(state, FACTORS_NONE) };
+function _newEngine(state, n1 = 0, core = 0, gauges = { egt: 15, ff: 0, oil: 0 }, lever = 0) {
+  return { state, startT: null, stopT: null, n1, core, ...gauges, factors: FACTORS_NONE, power: _power(state, FACTORS_NONE), lever };
 }
 
 /* ── The core (turbofan) ───────────────────────────────────────────
@@ -161,7 +163,7 @@ function _withState(e, patch) {
 }
 
 /* The single fields, derived: the "highest" state (running > starting > shutdown > off), and the
-   largest N1 and power — exact while the engines are identical (a mean of four would round). */
+   largest N1, power and lever — exact while the engines are identical (a mean of four would round). */
 const _STATE_ORDER = ['running', 'starting', 'shutdown', 'off'];
 function _aggregate(engines) {
   return {
@@ -171,13 +173,14 @@ function _aggregate(engines) {
     engineStopT:   engines.find(e => e.state === 'shutdown')?.stopT ?? null,
     n1:            Math.max(...engines.map(e => e.n1)),
     enginePower:   Math.max(...engines.map(e => e.power)),
+    lever:         Math.max(...engines.map(e => e.lever ?? 0)),
     engineFactors: engines[0].factors,
   };
 }
 function _publish(engines, extra = {}) { setState({ ..._aggregate(engines), ...extra }); }
 
 /* single field → engine field, for adoptEngineFields() */
-const _LEGACY = { engineState: 'state', engineStartT: 'startT', engineStopT: 'stopT', n1: 'n1', enginePower: 'power', engineFactors: 'factors' };
+const _LEGACY = { engineState: 'state', engineStartT: 'startT', engineStopT: 'stopT', n1: 'n1', enginePower: 'power', engineFactors: 'factors', lever: 'lever' };
 
 /**
  * A patch that sets the single engine fields directly (the test API's simSetState) — carry the
@@ -242,11 +245,21 @@ export function initialEngine(aircraft, { onGround, spd, onRunway = false }) {
   const core    = eng.type === 'turbofan' && !cold ? coreAtN1(n1, eng) : 0;
   const state   = cold ? 'off' : 'running';
   const gauges  = eng.type === 'turbofan' ? _gaugesAtLoad(state, n1, core, eng, aircraft) : undefined;
-  const engines = Array.from({ length: count }, () => _newEngine(state, n1, core, gauges));
+  const lever   = eng.type === 'turbofan' ? 0 : leverForSpeed(aircraft, spd);   // the turbofan: S.thrustLever (mission.js)
+  const engines = Array.from({ length: count }, () => _newEngine(state, n1, core, gauges, lever));
   return { ..._aggregate(engines),
            engMasters: Array(count).fill(!cold),                   // ENG MASTER switches: on when the engines run
            apuMasterOn: false, ...APU_OFF, apuFireArmed: false,      // the APU is off at every mission start
            engFireArmed: Array(count).fill(false), engAgents: [], apuAgent: false };   // no fire handle pulled, no agent fired
+}
+
+/**
+ * The power lever that holds a speed — for a start in the air (the mission load, a situation, a tracked flight).
+ * A stand-in until the trim is computed: spd / envelope.maxSpd, what the old spdT = spd gave (issues.md, "spdT is both
+ * the speed target and the throttle").
+ */
+export function leverForSpeed(aircraft, spd) {
+  return Math.max(0, Math.min(1, (spd ?? 0) / (aircraft?.envelope?.maxSpd ?? 350)));
 }
 
 /* ── APU ─────────────────────────────────────────────────────── */
@@ -489,13 +502,13 @@ function _stepLifecycle(e, dt, eng) {
      starting  the start sequence: the curves the start-up recordings are cut to, by the
                engine's sound type; else a plain ramp to idle over engine.startTime
      shutdown  a run-down from the rpm at cutoff (the impulse engines 1.2 s, a turbojet 4.5 s)
-   The throttle is spdT / envelope.maxSpd (issues.md, "envelope.maxSpd is three values at once"). */
+   The throttle is the engine's own lever (S.engines[i].lever). */
 const _rpmRange = (eng = _eng()) => ({ idle: eng.idleRpm ?? 400, max: eng.maxRpm ?? 2800 });
 /** The idle and maximum rpm the engine model uses for the aircraft's engine (defaults where the data has none) */
 export const rpmRange = () => _rpmRange();
-const _throttleFrac = () => Math.max(0, Math.min(1, (S.spdT ?? 0) / (S.aircraft?.envelope?.maxSpd ?? 350)));
-/** The throttle, 0–1 — the one the rpm runs on (core/engine-gauges.js reads it too) */
-export const throttleFrac = () => _throttleFrac();
+/** The throttle, 0–1 — the power lever (the largest of the engines'; a turbofan's thrust lever). The rpm runs on each
+    engine's own lever; the gauges' stand-ins (core/engine-gauges.js), the Velis EPSI, the lever displays read this. */
+export const throttleFrac = () => Math.max(0, Math.min(1, _turbofan() ? (S.thrustLever ?? 0) : (S.lever ?? 0)));
 
 /* The start curves — moved here from core/sound.js unchanged: the start-up recordings are cut to them */
 const START_RPM = {
@@ -528,9 +541,9 @@ export function rpmOf(e, eng = _eng()) {
     return curve ? curve(e.startT ?? 0, r) : r.idle * Math.min(1, (e.startT ?? 0) / Math.max(0.1, eng.startTime ?? 1));
   }
   if (e.state === 'running') {
-    const p = e.power ?? 1;
-    return jet ? (p > 0 ? r.max * (0.2 + 0.8 * _throttleFrac()) : 0)
-               : (r.idle + (r.max - r.idle) * _throttleFrac()) * p;
+    const p = e.power ?? 1, lever = e.lever ?? 0;
+    return jet ? (p > 0 ? r.max * (0.2 + 0.8 * lever) : 0)
+               : (r.idle + (r.max - r.idle) * lever) * p;
   }
   if (e.state === 'shutdown') return Math.max(0, (e.rpm0 ?? 0) * Math.exp(-(e.stopT ?? 0) / (jet ? 4.5 : 1.2)));
   return 0;
@@ -589,22 +602,22 @@ export function tickEngine(dt) {
   _publish(engines, extra);
 }
 
-/* ── The power levers — commands, so a click, a drag and later the hub go through one door. A lever's value 0 … 1.
-   throttle: on a turbofan the thrust lever (manual thrust); on the others today's stand-in, S.spdT as a share of
-   envelope.maxSpd (issues.md, "spdT is both the speed target and the throttle" — one power variable per engine
-   replaces it, and only this command changes). propPitch 1 fine … 0 coarse, mixture 1 rich … 0 idle cut-off:
+/* ── The power levers — commands, so a click, a drag, a key, the joystick and the hub go through one door. A lever's
+   value 0 … 1. throttle: on a turbofan the thrust lever (manual thrust, S.thrustLever — one for all engines until it
+   joins the engines' levers); on the others each engine's lever, S.engines[i].lever — engine i, or all engines when
+   it is absent; the command's arg is the value, or { lever, engine }. propPitch 1 fine … 0 coarse, mixture 1 rich … 0 idle cut-off:
    nothing in the simulation reads either yet (the prop-pitch gauge's stand-in reads propPitch). ── */
 const _lever = (v) => typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : null;
-export function throttle(v) {
+export function throttle(v, i) {
   const f = _lever(v); if (f === null) return false;
   if (_turbofan()) { if (f === (S.thrustLever ?? 0)) return false; setState({ thrustLever: f }); return true; }
-  const spdT = Math.round(f * (S.aircraft?.envelope?.maxSpd ?? 350));
-  if (spdT === S.spdT) return false;
-  setState({ spdT });
+  const hit = _hits(i), before = _engines();
+  if (before.every((e, k) => !hit(k) || e.lever === f)) return false;
+  _publish(before.map((e, k) => hit(k) ? { ...e, lever: f } : e));
   return true;
 }
 export function propPitch(v) { const f = _lever(v); if (f === null || f === (S.propPitch ?? 1)) return false; setState({ propPitch: f }); return true; }
 export function mixture(v)   { const f = _lever(v); if (f === null || f === (S.mixture ?? 1))   return false; setState({ mixture: f });   return true; }
-registerCommand('throttle',  (v) => throttle(v));
+registerCommand('throttle',  (a) => a !== null && typeof a === 'object' ? throttle(a.lever, a.engine) : throttle(a));
 registerCommand('propPitch', (v) => propPitch(v));
 registerCommand('mixture',   (v) => mixture(v));

@@ -6,7 +6,7 @@
 
 import { S, setState } from './state.js';
 import { bbEvent } from './blackbox.js';
-import { setEngineFactor, engineAvailable } from './engine.js';
+import { setEngineFactor, engineAvailable, throttle as setThrottle } from './engine.js';
 import { capturePushback, pushbackPose } from './pushback.js';
 import { computeAirbusFMA, computeBoeingFMA } from './fma.js';
 import { lnavTargetHeading } from './lnav.js';
@@ -62,8 +62,8 @@ export function tickPhysics(dt) {
   }
 
   /* Throttle-at-idle: turbofans key off the thrust lever (spdT is the A/THR selected speed,
-     not the throttle); props/others key off spdT. Used for auto-brake / reverser / speedbrake. */
-  const _idleThr = (ac.engine?.type === 'turbofan') ? (S.thrustLever ?? 0) < 0.05 : (S.spdT ?? 0) === 0;
+     not the throttle); the others off their power lever. Used for auto-brake / reverser / speedbrake. */
+  const _idleThr = (ac.engine?.type === 'turbofan') ? (S.thrustLever ?? 0) < 0.05 : (S.lever ?? 0) < 0.005;
 
   /* ── Speed limit from envelope profile ── */
   const profile = ac.envelope.spdProfile;
@@ -149,11 +149,13 @@ export function tickPhysics(dt) {
     const tas_ms = spd_ms / Math.sqrt(Math.max(0.05, rho / 1.225));      // true airspeed (faster than IAS up high)
     const q      = 0.5 * 1.225 * spd_ms * spd_ms;                        // dynamic pressure from IAS (sea-level ρ)
 
-    /* Throttle — turbofan uses N1-derived fraction; piston/prop uses spdT directly */
+    /* Throttle — turbofan uses N1-derived fraction; the others their power lever, scaled by maxSpd / cruiseSpd: the
+       thrust the old spdT throttle gave (spdT / cruiseSpd, full thrust before the lever's end) — the next step makes it
+       the lever alone (memory: project_power_setting, piece 2). */
     const isTurbofan = ac.engine?.type === 'turbofan';
     const throttle   = isTurbofan
       ? Math.pow(Math.max(0, (S.n1 ?? 0) / 100), 1.8)   // N1^1.8 → 22% N1 ≈ 5% T_max
-      : Math.min(1, Math.max(0, S.spdT / (ac.envelope.cruiseSpd ?? 122)));
+      : Math.min(1, Math.max(0, (S.lever ?? 0) * (ac.envelope.maxSpd ?? 350) / (ac.envelope.cruiseSpd ?? 122)));
 
     /* Thrust, summed over the engines — the mean of each running engine's share:
        turbofan (N1/100)^1.8 — its power acts through N1 (core/engine.js caps N1 by the power
@@ -587,6 +589,7 @@ export function tickPhysics(dt) {
       setState({ crashed: true, crashReason: `HARD LANDING  ${Math.round(vs)} fpm`,
                  spdT: 0 });
       setEngineFactor('crash', 0);
+      if (ac.engine?.type !== 'turbofan') setThrottle(0);
       bbEvent({ type: 'crash', reason: `HARD LANDING ${Math.round(vs)} fpm` });
       return;
     }
@@ -596,6 +599,7 @@ export function tickPhysics(dt) {
       setState({ crashed: true, crashReason: `OVERSPEED  ${Math.round(newSpd)} kt  (VNE ${Math.round(vne)} kt)`,
                  spdT: 0 });
       setEngineFactor('crash', 0);
+      if (ac.engine?.type !== 'turbofan') setThrottle(0);
       bbEvent({ type: 'crash', reason: `OVERSPEED ${Math.round(newSpd)} kt` });
       return;
     }
@@ -607,6 +611,7 @@ export function tickPhysics(dt) {
       setState({ crashed: true, crashReason: `TERRAIN  ${Math.round(_terrFt)} ft`,
                  spdT: 0 });
       setEngineFactor('crash', 0);
+      if (ac.engine?.type !== 'turbofan') setThrottle(0);
       bbEvent({ type: 'crash', reason: `CFIT — terrain ${Math.round(_terrFt)} ft` });
       return;
     }
@@ -614,7 +619,9 @@ export function tickPhysics(dt) {
 
   /* ── Oil temperature — first-order lag toward throttle-dependent target ── */
   const _running  = S.engineState === 'running';
-  const _throttle = Math.max(0, Math.min(1, (S.spdT ?? 0) / (ac.envelope.maxSpd ?? 335)));
+  /* the power lever; a turbofan still its spdT share — the FCU speed, not N1 (until the turbofans' levers join) */
+  const _throttle = ac.engine?.type === 'turbofan' ? Math.max(0, Math.min(1, (S.spdT ?? 0) / (ac.envelope.maxSpd ?? 335)))
+                                                   : Math.max(0, Math.min(1, S.lever ?? 0));
   const _oilTarget = _running ? 40 + _throttle * 75 : 15;   // °C: 40 idle → 115 full
   const _tau       = _running ? 180 : 600;                   // s: 3 min warm-up, 10 min cool-down
   const _oilNow    = S.oilTempC ?? 15;
