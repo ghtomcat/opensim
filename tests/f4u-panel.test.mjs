@@ -6,6 +6,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { tickEngine } from '../core/engine.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -30,8 +31,9 @@ test('the fuel gauge reads the main tank only (tank: left); without it the total
 });
 
 test('the engine gauge: oil and fuel pressure in psi (the stand-ins\' kg/cm² × 14.223), oil temperature in °C', () => {
-  setState({ aircraft: F4U, engines: [{ state: 'running', power: 1 }], engineState: 'running', lever: 0, oilTempC: 70,
-             fuelShutoff: false, fuelLeft: 897, fuelRight: 460, fuelStarveT: null });
+  setState({ aircraft: F4U, engines: [{ state: 'running', power: 1, lever: 0, oilTemp: 70 }], engineState: 'running', lever: 0, oilTempC: 70,
+             fuelShutoff: false, fuelLeft: 897, fuelRight: 460, fuelStarveT: null, paused: true });
+  tickEngine(1e-6);   // the engine model computes the oil pressure (core/engine.js) — paused: the oil temperature holds
   const v = INSTRUMENTS.engGauge.read(0);
   assert.equal(v.oilT, 70);
   assert.ok(Math.abs(v.oil - 1.5 * 14.223) < 0.01, `${v.oil}`);

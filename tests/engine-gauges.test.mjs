@@ -27,6 +27,7 @@ function on(aircraft, state, thr = 0, extra = {}) {
                   propPitch: 1, ...extra };
   setState({ engines: [], ...patch });
   adoptEngineFields(patch);
+  tickEngine(1e-6);   // the engine model computes its values (the rpm, the oil pressure — core/engine.js)
 }
 
 test('running: the values the panel showed before the move (oil 1.5–7.5 kg/cm², boost 12–52 in.Hg, fuel 1.3, 18 A)', () => {
@@ -81,6 +82,7 @@ test('fuel: the pressure falls over the starvation run-down once the cock is shu
 test('per engine: a stopped engine beside a running one shows its own values (the Tu-95, engine 3 off)', () => {
   on(load('tu95'), 'running', 0.5);
   setState({ engines: S.engines.map((e, k) => k === 2 ? { ...e, state: 'off', power: 0 } : e) });
+  tickEngine(1e-6);   // the model updates engine 3's rpm and oil pressure
   assert.ok(oilPressure(0) > 1.5);
   assert.equal(oilPressure(2), 0);
   assert.equal(fuelPressure(2), 0);

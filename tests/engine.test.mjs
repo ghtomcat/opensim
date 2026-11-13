@@ -619,6 +619,37 @@ test('oil temperature at the mission load: in the air 75 °C on every engine; on
   assert.equal(initialEngine(tu, { onGround: true, spd: 0, oilTemp: -18 }).oilTempC, -18);
 });
 
+/* ── Oil pressure — every engine type, in one place (piece 6, step 2) ── */
+
+test('oil pressure: the C172 from its POH — 50 psi at idle rpm, 90 at full rpm, in between with the rpm; 0 stopped', () => {
+  const ac = load('c172'), step = cold(ac, { engineState: 'running', enginePower: 1, lever: 0, paused: true });
+  step(0.1);
+  assert.ok(Math.abs(S.engines[0].oil - 50) < 0.1, `idle: ${S.engines[0].oil}`);
+  set({ lever: 1 }); step(0.1);
+  assert.ok(Math.abs(S.engines[0].oil - 90) < 0.1, `full rpm: ${S.engines[0].oil}`);
+  set({ lever: 0.5 }); step(0.1);
+  assert.ok(Math.abs(S.engines[0].oil - 70) < 0.1, `half the rpm range: ${S.engines[0].oil}`);
+  engineQuit(); step(0.1);
+  assert.equal(S.engines[0].oil, 0);
+});
+
+test('oil pressure: the engine\'s own rpm — a failing engine\'s pressure falls with it (the generic Bf 109 curve)', () => {
+  const bf = load('bf109'), step = cold(bf, { engineState: 'running', enginePower: 1, lever: 1, paused: true });
+  step(0.1);
+  const full = S.engines[0].oil;
+  assert.ok(Math.abs(full - 7.5 * 14.223) < 0.1, `full: ${full}`);
+  setEngineFactor('failure', 0.5); step(0.1);
+  assert.ok(S.engines[0].oil < full * 0.6, `half power, half the rpm → ${S.engines[0].oil}`);
+});
+
+test('oil pressure: none on a total-loss system (the Avro\'s rotary) or the electric motor', () => {
+  for (const id of ['avro504', 'velis-hb-syq']) {
+    const step = cold(load(id), { engineState: 'running', enginePower: 1, lever: 1, paused: true });
+    step(0.1);
+    assert.equal(S.engines[0].oil, 0, id);
+  }
+});
+
 test('rpm starting: the DB 601\'s start curve — the flywheel (0 rpm, 26 s), motoring, the run-up to idle at the end', () => {
   const bf = load('bf109'), step = cold(bf, { lever: 0 });
   startEngine();
