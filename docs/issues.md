@@ -128,7 +128,7 @@ Both apply per frame, not per second — their strength depends on the frame rat
 ### Turbulence: mission-level and from METAR gusts — enhancement
 *Noted 2026-10-11 · `_getWind()` in `core/physics.js`*
 
-Turbulence is read from the active weather source: the `manual` block (15 missions set it, e.g. Wolfskopf 0.4), or `S.metar` for live missions — but a real METAR has no turbulence field, so live missions are always smooth. A value in a live mission's `fallback` would only apply when the fetch fails, which is why `nordmeer-1956`'s fallback `turbulence: 0.3` was removed (2026-10-11).
+Turbulence is read from the active weather source: the `manual` block (15 missions set it, e.g. Wolfskopf 0.4), or `S.metar` for live missions — but a real METAR has no turbulence field, so live missions are always smooth. A value in a live mission's `fallback` would only apply when the fetch fails, which is why `nordmeer-1956`'s fallback `turbulence: 0.3` was removed (2026-10-11). Since 2026-11-13 the historic missions (`melun-1918`, `nordmeer-1956`, `hostomel-2022`) have fixed weather — a METAR is today's — and Nordmeer's `turbulence: 0.3` is back in its `manual` block (Markus).
 
 Ideas:
 - **Mission-level turbulence** — `weather.turbulence`, independent of the source, so the author's intent ("a rough Arctic flight") holds whether the weather is live, fallback or manual.

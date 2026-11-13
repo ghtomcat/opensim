@@ -111,7 +111,7 @@ test('schema catches a misspelled documentation key', () => {
   assert.ok(errs.some(e => e === 'narative: unknown key'), errs.join('\n'));
 });
 test('schema catches a misspelled weather field', () => {
-  const errs = errorsAfter('missions/nordmeer-1956.json', mission, m => { m.weather.fallback.visibility = 6000; });
+  const errs = errorsAfter('missions/lszf-pattern.json', mission, m => { m.weather.fallback.visibility = 6000; });
   assert.ok(errs.some(e => e === 'weather.fallback.visibility: unknown key'), errs.join('\n'));
 });
 test('schema catches a misspelled catalog briefing field', () => {

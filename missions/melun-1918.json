@@ -23,9 +23,8 @@
     "roll": 0
   },
   "weather": {
-    "source": "live",
-    "icao": "LFPB",
-    "fallback": {
+    "source": "manual",
+    "manual": {
       "wdir": 270,
       "wspd": 5,
       "altim": 1015,

@@ -14,7 +14,7 @@ const commProfile = oneOf(...valuesOf(COMM_PROFILE));
 const cloud = object({ cover: str, base: num });
 const weatherManual = object(
   { wdir: num, wspd: num, altim: num, temp: num, turbulence: num },
-  { planned: { visib: str, snow: bool } },   // no ATIS for manual weather, no fog/snow drawing yet
+  { planned: { visib: str, snow: bool, dewp: num, clouds: arrayOf(cloud) } },   // no ATIS for manual weather, no fog/snow/cloud drawing yet
 );
 const weatherFallback = object({
   wdir: num, wspd: num, altim: num, temp: num, dewp: num, visib: str, clouds: arrayOf(cloud), turbulence: num,

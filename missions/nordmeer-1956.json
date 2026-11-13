@@ -12,14 +12,14 @@
   "fiction_note": "The crew and their mission are fictional, created for Zeitanker — Band V by Markus Leutwyler. Olenya Air Base and Tu-95 reconnaissance operations over the Barents Sea are historical.",
   "aircraft": "aircraft/tu95.json",
   "weather": {
-    "source": "live",
-    "icao": "ENVA",
-    "fallback": {
+    "source": "manual",
+    "manual": {
       "temp": -14,
       "wdir": 320,
       "wspd": 25,
       "visib": "4",
-      "altim": 1002
+      "altim": 1002,
+      "turbulence": 0.3
     }
   },
   "initialState": {

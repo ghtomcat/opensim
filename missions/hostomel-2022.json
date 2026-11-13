@@ -15,9 +15,8 @@
   "author": "Markus Leutwyler",
   "aircraft": "aircraft/an225.json",
   "weather": {
-    "source": "live",
-    "icao": "EPWA",
-    "fallback": {
+    "source": "manual",
+    "manual": {
       "temp": 2,
       "wdir": 220,
       "wspd": 8,
