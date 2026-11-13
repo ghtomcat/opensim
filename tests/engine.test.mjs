@@ -585,6 +585,40 @@ test('the lever at the mission load: cold 0; in the air the lever for the speed 
   assert.equal(initialEngine(a, { onGround: false, spd: 250 }).lever, 250 / a.envelope.maxSpd, 'a turbofan: ≈ cruise thrust, as its N1');
 });
 
+/* ── Oil temperature — each engine its own (piece 6, step 1) ── */
+
+test('oil temperature per engine: a stopped engine cools toward the outside air while the others stay warm (the Tu-95)', () => {
+  const tu = load('tu95');
+  const step = cold(tu, { engineState: 'running', enginePower: 1, lever: 0.5, oilTempC: 90, wow: false, alt: 0, paused: false, crashed: false,
+                          mission: { weather: { manual: { temp: -20 } } } });
+  assert.deepEqual(S.engines.map(e => e.oilTemp), [90, 90, 90, 90]);
+  engineQuit(2);                                     // ENG 3 stops (the Tu-95 has no start sequence — stopEngine leaves it)
+  step(600);                                         // 10 min
+  const [a, b, c, d] = S.engines.map(e => e.oilTemp);
+  const coolExp = -20 + 110 * Math.exp(-1);          // one time constant (10 min) from 90 toward −20
+  assert.ok(Math.abs(c - coolExp) < 1, `ENG 3 stopped: cooling toward −20 °C — ${c.toFixed(1)}, expected ≈ ${coolExp.toFixed(1)}`);
+  for (const t of [a, b, d]) assert.ok(Math.abs(t - 77.5) < 3, `the running engines toward 40 + 75 × 0.5 = 77.5 °C — ${t.toFixed(1)}`);
+  assert.equal(S.oilTempC, Math.max(a, b, c, d), 'the single field: the warmest');
+});
+
+test('oil temperature: a turbofan\'s heat follows its N1, not the lever; the electric motor has no oil', () => {
+  const ac = load('a350');
+  const step = cold(ac, { engineState: 'running', enginePower: 1, n1: 100, lever: 0, oilTempC: 40, paused: false, crashed: false, wow: true });
+  setState({ n1Cmd: [100, 100] });
+  step(1);
+  assert.ok(S.engines[0].oilTemp > 40, `full N1 warms the oil — ${S.engines[0].oilTemp.toFixed(2)}`);
+  const v = load('velis-hb-syq');
+  const stepV = cold(v, { oilTempC: 15, paused: false, crashed: false });
+  stepV(60);
+  assert.equal(S.engines[0].oilTemp, 15, 'no oil system on an electric motor — unchanged');
+});
+
+test('oil temperature at the mission load: in the air 75 °C on every engine; on the ground the value given (the outside air)', () => {
+  const tu = load('tu95');
+  assert.deepEqual(initialEngine(tu, { onGround: false, spd: 200, oilTemp: 75 }).engines.map(e => e.oilTemp), [75, 75, 75, 75]);
+  assert.equal(initialEngine(tu, { onGround: true, spd: 0, oilTemp: -18 }).oilTempC, -18);
+});
+
 test('rpm starting: the DB 601\'s start curve — the flywheel (0 rpm, 26 s), motoring, the run-up to idle at the end', () => {
   const bf = load('bf109'), step = cold(bf, { lever: 0 });
   startEngine();
