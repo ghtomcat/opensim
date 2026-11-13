@@ -24,9 +24,19 @@ export function alertLevel(key, value) {
   return key.startsWith('LOW') || key.startsWith('FUEL') ? 'caution' : 'warning';   // `true` — the old rule
 }
 
+/* An alert's text, as the display names it: the Airbus ECAM's wording where known (sourced), else the key in words.
+   ENGn_OIL_PRESS → "ENG n OIL LO PR" — the ECAM warning "ENG OIL LO PR" (EASA AD 2021-0198, A330-841/-941), with its
+   engine as the QRH writes it ("ENG 1(2) OIL LO PR"). The Boeing wording is not verified yet. */
+export function alertText(key, style = S.aircraft?.panel) {
+  const eng = /^ENG(\d+)_(.+)$/.exec(key);
+  if (eng && style === 'airbus' && eng[2] === 'OIL_PRESS') return `ENG ${eng[1]} OIL LO PR`;
+  if (eng) return `ENG ${eng[1]} ${eng[2].replace(/_/g, ' ')}`;
+  return key.replace(/_/g, ' ');
+}
+
 /** The active alerts, warnings first: [{ key, level, text }]. */
 export function activeAlerts(warnings = S.warnings ?? {}) {
-  const list = Object.entries(warnings).map(([key, v]) => ({ key, level: alertLevel(key, v), text: key.replace(/_/g, ' ') }))
+  const list = Object.entries(warnings).map(([key, v]) => ({ key, level: alertLevel(key, v), text: alertText(key) }))
                                        .filter(a => a.level);
   return [...list.filter(a => a.level === 'warning'), ...list.filter(a => a.level === 'caution')];
 }

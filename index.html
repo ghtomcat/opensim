@@ -3764,7 +3764,8 @@
     const battCrit          = batt <= 10;
     const battLowWasActive  = wlBattLow.classList.contains('active');
     const battCritWasActive = wlBattCrit.classList.contains('active');
-    wlOil.classList.toggle('active',      !!w.OIL_PRESS);
+    const oilLowAny = Object.keys(w).some(k => /(^|_)OIL_PRESS$/.test(k) && w[k]);   // any engine (core/engine.js)
+    wlOil.classList.toggle('active',      oilLowAny);
     wlFuel.classList.toggle('active',     !!w.LOW_FUEL);
     wlFsel.classList.toggle('active',     !!w.FUEL_SHUTOFF);
     wlCarb.classList.toggle('active',     carbIcing);
@@ -3772,7 +3773,7 @@
     wlBattLow.classList.toggle('active',  battLow);
     wlBattCrit.classList.toggle('active', battCrit);
     /* Audio cues — fire once on activation */
-    if (w.OIL_PRESS  && !oilWasActive)       _playWarnTone('red');
+    if (oilLowAny    && !oilWasActive)       _playWarnTone('red');
     if (w.LOW_FUEL   && !fuelWasActive)      _playWarnTone('amber');
     if (carbIcing    && !carbWasActive)      _playWarnTone('amber');
     if (coolLeaking  && !coolWasActive)      _playWarnTone('red');

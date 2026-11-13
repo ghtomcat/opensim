@@ -936,7 +936,7 @@ aircraft that declare the matching data.
 
 | Module | Applies to | State it owns | Effect on the simulation |
 |---|---|---|---|
-| `core/fuel.js` | aircraft with `tanks` (Bf 109, F4U, C172, DR400) | `fuelLeft`, `fuelRight`, `fuelSelector`, `fuelShutoff`, `fuelStarveT`; `warnings.LOW_FUEL/OIL_PRESS/FUEL_SHUTOFF` | burn = the engines' fuel flow (`S.engines[i].ff`, from the rpm, which follows the lever — `fuelBurn` l/h at full rpm, `fuelBurn · (rpm/maxRpm)^2.2` below; `core/engine.js`); empty selected tank or shutoff → 4 s run-down → engine off |
+| `core/fuel.js` | aircraft with `tanks` (Bf 109, F4U, C172, DR400) | `fuelLeft`, `fuelRight`, `fuelSelector`, `fuelShutoff`, `fuelStarveT`; `warnings.LOW_FUEL/FUEL_SHUTOFF` | burn = the engines' fuel flow (`S.engines[i].ff`, from the rpm, which follows the lever — `fuelBurn` l/h at full rpm, `fuelBurn · (rpm/maxRpm)^2.2` below; `core/engine.js`); empty selected tank or shutoff → 4 s run-down → engine off |
 | `core/battery.js` | aircraft with `battery` (Velis Electro) | `batteryCharge` (%) | drain ∝ `enginePower` (`powerDrawKw`, `capacityKwh`); empty → the `battery` power factor 0 |
 | `core/electrical.js` | turbofans | the controls by element (`S.elecCtl`, `S.elecCharge` — through `elecSwitch` / `elecIdgDisconnect` / `elecBusTie`); a generic solver over the aircraft's electrical layout (`aircraft.electrical`: sources with a driver — engine and backup generators, APU, ground power, batteries, the RAT —, buses with feeds in priority order and ties, loads; layouts in the data: `a340`, `b777-300er` (sources: Andrade & Tenning, IEEE AES Magazine 1992; Boeing B777 Systems Summary [Electrical]); others the default from the engine count — the A340's structure): `S.elec = { sources, buses }` (with `fedBy`), the single fields derived from it (`acBus11` …, `engGenOn`, `acBusPowered`, `essentialBusPowered` …) | **display only** (ECAM, overhead, pedestal) — the sim reads `acBusPowered` (ENG MASTER start, electric hydraulic pumps) and `essentialBusPowered` (APU start) |
 | `core/hydraulics.js` | turbofans | the pump switches by pump (`S.hydCtl`, through `hydPump`); a generic solver over the aircraft's hydraulic layout (`aircraft.hydraulics`: systems with a nominal pressure and pumps — `edp` on its engine's core, `acmp` on an electrical bus, `adp` on bleed air, `rat` once deployed; roles `primary` / `demand` (AUTO: runs when the primaries deliver nothing) / `standby`; layouts in the data: `a340` (source: AAIB report 4/2000), `b777-300er` (L / C / R — source: FAA-H-8083-31B ch. 12); others the default from the engine count — the old hard-coded structure; a system's `loPsi` sets its LO caution): `S.hyd = { systems }` with each system's pressure and running pumps (no single fields — the displays read `hydView()`); `hydView()` — each system's pressure and each pump's state, labelled — for the HYD page (`drawHydPage`), the ECAM status line and the `HYD … LO` cautions | **display only** (ECAM, PFD, overhead) |
@@ -984,15 +984,19 @@ Consequences:
   can name its engine; each generator and engine-driven pump runs off its own engine's core
   (online from 90 % of core idle — so at idle on the runway, not when windmilling);
   the ECAM/E/WD engine displays read `S.engines` and show a failed engine (running, power
-  below 1) in amber with FAIL, and the engine's core speed, EGT and fuel flow. OIL_PRESS on
-  the airliners comes from each engine selected on with oil below 13 psi (a failed engine →
-  MASTER WARN; one shut down with its master off is inhibited, as on the ECAM). The system
+  below 1) in amber with FAIL, and the engine's core speed, EGT and fuel flow. Low oil pressure is each engine's own alert
+  (`core/engine.js`, published through `core/alerts.js`): `ENGn_OIL_PRESS` on a multi-engine
+  aircraft, `OIL_PRESS` on a single engine — below the engine's own minimum (`engine.oil`), else
+  13 psi on a turbofan, half the idle pressure on the others; the ECAM names it "ENG n OIL LO PR"
+  (`alertText`); a failed engine → MASTER WARN; one shut down with its master off is inhibited,
+  as on the ECAM. The system
   layouts per aircraft are in §9.1.
 - **Power is composed from causes.** A failure ramp and carb ice multiply instead of
   overwriting each other; a restart doesn't heal a partial failure; an engine that is off
-  makes no power (and burns no fuel). OIL_PRESS on aircraft without tanks (the airliners)
-  counts only for a running engine, as the ECAM inhibits it while an engine is off or
-  starting; the light aircraft keep their OIL PRESS light with the engine off.
+  makes no power (and burns no fuel). A turbofan's oil alert counts only while it runs, as
+  the ECAM inhibits it while an engine is off or starting; on any other engine the light is on
+  with the engine stopped (the C172's switch: below 20 psi). None on the Avro (total-loss) or
+  the Velis.
 
 **The lifecycle (`core/engine.js`).** One owner, on sim time, so it pauses with the sim
 and steps with `simStep`, and needs no audio:

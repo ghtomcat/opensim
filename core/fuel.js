@@ -11,7 +11,7 @@
 
 import { S, setState } from './state.js';
 import { bbEvent } from './blackbox.js';
-import { engineQuit, engineOilLow, fuelFlowKgH } from './engine.js';
+import { engineQuit, fuelFlowKgH } from './engine.js';
 import { onMissionReset } from './lifecycle.js';
 import { registerCommand } from './commands.js';
 import { startFuelPump, stopFuelPump } from './sound.js';
@@ -91,18 +91,8 @@ export function auxFuelPump(on) {
 registerCommand('auxFuelPump', (on) => auxFuelPump(on));
 
 export function tickFuel(dt) {
-  /* Oil pressure warning also on aircraft without a fuel system (airliners, …). Here it only
-     counts for a running engine — the ECAM inhibits engine warnings while an engine is off or
-     starting — and never for an electric motor (no oil). The light aircraft below keep the
-     simple rule: their OIL PRESS light is on whenever the engine isn't making power. */
-  if (S.fuelLeft === null) {
-    const type   = S.aircraft?.engine?.type;
-    const oilLow = type === 'turbofan' ? (S.engines ?? []).some(engineOilLow)        // per engine, from its core (core/engine.js)
-                 : type !== 'electric' && S.engineState === 'running' && (S.enginePower ?? 1) < 0.3;
-    const warnings = { ...(S.warnings ?? {}), OIL_PRESS: oilLow };
-    setState({ warnings });
-    return;
-  }
+  /* No tanks (the airliners — core/fuel-system.js): nothing here. OIL PRESS is the engines' (core/engine.js). */
+  if (S.fuelLeft === null) return;
   if (S.crashed) return;
 
   const sel      = S.fuelSelector ?? 'BOTH';
@@ -195,9 +185,6 @@ function _updateWarnings() {
   const sel       = S.fuelSelector ?? 'BOTH';
 
   const warnings = { ...(S.warnings ?? {}) };
-
-  /* OIL PRESSURE — red if engine dying */
-  warnings.OIL_PRESS = (S.enginePower ?? 1) < 0.3;
 
   /* LOW FUEL — amber below 10% total or selected tank < 5L */
   const lowFuel =

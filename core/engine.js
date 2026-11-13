@@ -44,6 +44,8 @@
 
 import { S, setState } from './state.js';
 import { registerCommand } from './commands.js';
+import { publishAlerts, clearAlerts } from './alerts.js';
+import { onMissionReset } from './lifecycle.js';
 
 /* The causes that limit power, each 0–1, owned by its module (failures.js, battery.js, physics.js) */
 const FACTORS_NONE = Object.freeze({ failure: 1, ice: 1, seizure: 1, battery: 1, crash: 1 });
@@ -104,7 +106,7 @@ function _coreStarting(t, eng) {
    less in thin air — ffMax defaults to the per-engine thrust × a typical takeoff TSFC
    (≈ 0.3 lb/lbf/h); a trickle from light-off in the start. Oil pressure (psi): _oilPsi below — the
    pump is on the gearbox, 80 · (core/100)^1.5 (≈ 37 at idle, ≈ 3 windmilling). */
-const OIL_MIN_PSI = 13;                       // the low-oil-pressure limit (CFM56)
+const OIL_MIN_PSI = 13;                       // a turbofan's low-oil-pressure limit without its own (the CFM56's)
 const _oat = () => (S.mission?.weather?.manual?.temp ?? S.metar?.temp ?? 15) - 1.98 * ((S.alt ?? 0) / 1000);   // as the cooling model
 const _rhoRatio = () => Math.pow(Math.max(0, 1 - 2.2558e-5 * (S.alt ?? 0) * 0.3048), 4.2559);
 function _ffMax(eng = _eng()) {
@@ -167,10 +169,38 @@ function _gaugesAtLoad(state, n1, core, eng, aircraft) {
            ff: ffMax * Math.pow(n1 / 100, 2.2), oil: _oilPsi({ core }, eng) ?? 0 };
 }
 
-/** Is an engine that is selected on (running) short of oil pressure? — OIL_PRESS on the airliners. */
-export function engineOilLow(e) {
-  return e.state === 'running' && (e.oil ?? 99) < OIL_MIN_PSI;
+/* ── Low oil pressure — every engine type, from its own pressure (piece 6, step 3) ──────
+   The threshold: the engine's own minimum (engine.oil.pressurePsi.min — the C172S's POH: its OIL PRESS switch closes
+   below 20 psi); else a turbofan's 13 psi (the CFM56's), any other engine half its idle pressure (a stand-in until
+   the engine catalogue). A turbofan counts only while running — the ECAM inhibits an engine's warnings while it is
+   off or starting; any other engine at any time, as a light aircraft's OIL PRESS light is on with the engine
+   stopped. No pressure system (the Avro's total-loss, the electric motor): never. */
+function _oilLowPsi(eng = _eng()) {
+  const min = eng.oil?.pressurePsi?.min;
+  if (min != null) return min;
+  if (eng.type === 'turbofan') return OIL_MIN_PSI;
+  return 0.5 * (eng.oil?.pressurePsi?.normal?.[0] ?? OIL_GENERIC_PSI[0]);
 }
+/** Is engine e short of oil pressure? */
+export function engineOilLow(e, eng = _eng()) {
+  if (eng.type === 'electric' || eng.oil?.system === 'total-loss') return false;
+  if (eng.type === 'turbofan' && e.state !== 'running') return false;
+  return (e.oil ?? 0) < _oilLowPsi(eng);
+}
+/* The alerts (core/alerts.js): one per engine — ENGn_OIL_PRESS on a multi-engine aircraft, OIL_PRESS on a single
+   engine — a warning (red). The displays name them their way (alertText). */
+function _publishOilAlerts(engines, eng) {
+  const out = {};
+  engines.forEach((e, k) => { if (engineOilLow(e, eng)) out[engines.length > 1 ? `ENG${k + 1}_OIL_PRESS` : 'OIL_PRESS'] = 'warning'; });
+  const key = Object.keys(out).join();
+  if (key === _oilAlertsKey) return;          // publish on a change only
+  _oilAlertsKey = key;
+  publishAlerts('oil', out);
+}
+let _oilAlertsKey = null;
+/** Forget the published oil alerts (a mission reset) */
+export function resetOilAlerts() { _oilAlertsKey = null; clearAlerts('oil'); }
+onMissionReset(resetOilAlerts);
 
 /* Windmilling: in flight the airflow turns an engine that makes no power — the fan to ~22 % at
    250 kt, the core to about half of that. It gives no thrust (physics.js counts running engines
@@ -654,6 +684,7 @@ export function tickEngine(dt) {
       engines = engines.map(e => { const ff = _rpmFf(e, e.rpm ?? 0, eng); return Math.abs((e.ff ?? 0) - ff) < 0.1 && (ff > 0 || !e.ff) ? e : { ...e, ff }; });
   }
   if (eng.type !== 'electric' && !S.paused && !S.crashed) engines = engines.map(e => _stepOil(e, dt, eng));   // same guards as tickPhysics
+  if (!S.crashed) _publishOilAlerts(engines, eng);
   if (engines.every((e, k) => e === before[k])) return;
 
   const extra = {};
