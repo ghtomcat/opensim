@@ -147,7 +147,7 @@ function _buildHTML() {
         <div class="lc-ctrl">
           <div class="lc-label">GASHEBEL</div>
           <div class="lc-throttle-track" id="lc-throttle"><div class="lc-throttle-handle" id="lc-throttle-h"></div></div>
-          <div class="lc-val" id="lc-throttle-v">—</div>
+          <div class="lc-val"></div>
         </div>` : '';
   const trim = has('trim') ? `
         <div class="lc-ctrl">
@@ -245,8 +245,6 @@ function _update() {
   const thr = throttleFrac();
   const h = document.getElementById('lc-throttle-h');
   if (h) h.style.top = `${(1 - thr) * 89}%`;
-  const tv = document.getElementById('lc-throttle-v');
-  if (tv) tv.textContent = `${Math.round(thr * 100)}%`;
 
   /* Höhentrimmrad — wheel notch rotates with trim, ±10 → ±150° */
   const trim = S.trim ?? 0;

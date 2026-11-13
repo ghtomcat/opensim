@@ -31,17 +31,6 @@ test('ENG MASTER on the pedestal starts it — with AC power and ENG MODE IGN/ST
   expect((await state(page)).engineState).toBe('starting');
 });
 
-test('the pedestal shows the real N1 under the levers — 0 % with the engines off', async ({ page }) => {
-  await load(page);
-  await page.keyboard.press('d');
-  await expect(page.locator('#ped-n1-0')).toHaveText('0.0%');
-  await page.evaluate(() => window.simSetState({ acBusPowered: true, engMode: 'IGN+START' }));
-  await page.locator('#ped-master-1').dispatchEvent('click');
-  await step(page, 60);
-  const n1 = (await state(page)).n1;
-  await expect(page.locator('#ped-n1-0')).toHaveText(`${n1.toFixed(1)}%`);
-});
-
 test('ENG MASTER positions do not carry over to the next mission, and match its engine count', async ({ page }) => {
   await load(page);
   await page.evaluate(() => window.simSetState({ engMasters: [true, true] }));

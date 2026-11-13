@@ -109,11 +109,6 @@ const _CSS = `
     background: rgba(160,190,220,0.28);
     transform: translateY(-50%);
   }
-  /* N1 readout under lever */
-  .ped-n1 {
-    font: 700 9px/1 monospace; letter-spacing: 0.04em;
-    color: #40c080; width: 36px; text-align: center;
-  }
 
   /* ── Flap handle ── */
   .ped-flap-block {
@@ -570,7 +565,6 @@ function _buildHTML() {
           `).join('')}
           <div class="ped-lever-head" id="ped-lh-${e}"></div>
         </div>
-        <div class="ped-n1" id="ped-n1-${e}">—</div>
       </div>`;
     }
     return `
@@ -598,7 +592,7 @@ function _buildHTML() {
               <div class="ped-knob-wrap">
                 <div class="ped-knob ${k.cls}" id="ped-knob-${k.tok}"${KNOB_CONTROL[k.tok] ? ` data-control="${KNOB_CONTROL[k.tok]}"` : ''}><i></i></div>
                 <div class="ped-knob-name">${k.label}</div>
-                <div class="ped-knob-val" id="ped-kv-${k.tok}">—</div>
+                <div class="ped-knob-val" id="ped-kv-${k.tok}">${k.tok === 'throttle' ? '' : '—'}</div>
               </div>`).join('')}
             ${has('magneto') ? `
               <div class="ped-knob-wrap">
@@ -801,14 +795,8 @@ function _update() {
   for (let e = 0; e < engCount; e++) {
     const head = document.getElementById(`ped-lh-${e}`);
     if (head) head.style.top = `${(1 - _leverFrac(e)) * 82 + 4}%`;
-    const n1el = document.getElementById(`ped-n1-${e}`);
-    if (n1el) {
-      /* Turbofan: the fan speed (N1 %, 0 with the engine off). Engines without an N1 — props,
-         the electric motor — show the power available in % instead. */
-      const pct = S.aircraft?.engine?.type === 'turbofan' ? S.n1 : (S.enginePower != null ? S.enginePower * 100 : null);
-      n1el.textContent = pct != null ? `${pct.toFixed(1)}%` : '—';
-    }
   }
+  /* No readout under the levers — a real lever shows none; N1 and power are the engine display's (Markus, 2026-11-13) */
 
   /* Detent highlights */
   _el.querySelectorAll('.ped-det').forEach(det => {
@@ -852,11 +840,11 @@ function _update() {
     const k = document.getElementById(id);
     if (k) { k.style.transform = `rotate(${angle}deg)`; k.classList.toggle('ped-knob-lit', !!lit); }
     const v = document.getElementById(valId);
-    if (v) v.textContent = txt;
+    if (v && txt != null) v.textContent = txt;
   };
-  /* Throttle knob follows the power lever (core/engine.js), which +/- drive */
+  /* Throttle knob follows the power lever (core/engine.js), which +/- drive — no % readout: the knob shows none */
   const thr = throttleFrac();
-  setKnob('ped-knob-throttle', 'ped-kv-throttle', -120 + thr * 240, `${Math.round(thr * 100)}%`, thr > 0.02);
+  setKnob('ped-knob-throttle', 'ped-kv-throttle', -120 + thr * 240, null, thr > 0.02);
   const mix = S.mixture ?? 1;
   setKnob('ped-knob-mixture', 'ped-kv-mixture', -120 + mix * 240, mix >= 1 ? 'RICH' : mix <= 0 ? 'ICO' : 'LEAN', mix > 0);
   const carb = !!S.carbHeat;
