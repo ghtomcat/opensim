@@ -457,7 +457,7 @@ test.describe('Crash bounds checker', () => {
   });
 
   test('overspeed — no sourced limit, no overspeed crash (maxSpd is no limit)', async ({ page }) => {
-    await loadSim(page, 'wolfskopf-1942');   // the Bf 109 — its limit not sourced yet
+    await loadSim(page, 'nordmeer-1956');    // the Tu-95 — no limit found
     await setState(page, { alt: 5000, altT: 5000, spd: 600, pitch: 0, pitchT: 0, vs: 0, lever: 1, enginePower: 1 });
     await stepSeconds(page, 1);
     expect((await getState(page)).crashReason ?? '').not.toMatch(/OVERSPEED/);
