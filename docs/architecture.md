@@ -823,7 +823,7 @@ uses it today.
 | Condition | Threshold |
 |---|---|
 | Hard landing | vertical speed below −800 fpm at the moment of touchdown |
-| Overspeed | above `envelope.maxSpd` × 1.15 |
+| Overspeed | above the sourced limit: `envelope.vne` (a propeller aircraft) or `vmo` (a jet) × 1.15, or Mach above `envelope.mmo` + 0.07; an aircraft without a sourced limit has no overspeed crash (`maxSpd` is no limit) |
 | Terrain | below `S.terrainElevFt` (where that is > field + 100 ft) |
 
 A crash sets `S.crashed` (physics stops), `crashReason`, and logs to the black box.

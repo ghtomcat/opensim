@@ -28,6 +28,8 @@
     "maxAlt": 14000,
     "cruiseSpd": 122,
     "maxSpd": 163,
+    "vne": 163,
+    "limitsSource": "EASA TCDS IM.A.051 Issue 11 (17 Nov 2025), Section 2 (Model 172S), 9. Air Speeds: Never Exceed 163 kt IAS (160 kt CAS) — sources/easa-tcds-im-a051-cessna-172-issue11.pdf",
     "spdProfile": {
       "14000": 122,
       "8000": 122,

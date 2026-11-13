@@ -27,6 +27,8 @@
     "maxAlt":    13000,
     "cruiseSpd":    92,
     "maxSpd":      135,
+    "vne": 108,
+    "limitsSource": "EASA TCDS A.573 Issue 13, Section B (Virus SW 128 — Velis Electro), 11. Air Speeds: VNE 108 KIAS — sources/easa-tcds-a573-virus-sw121-velis-electro-issue13.pdf",
     "spdProfile": {
       "13000": 85,
       "8000":  90,

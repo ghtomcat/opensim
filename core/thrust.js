@@ -59,7 +59,7 @@ export function tickThrust(dt) {
   if (ac?.engine?.type !== 'turbofan' || S.paused || S.crashed || !ac.envelope) return;   // same guards as tickPhysics
   const IDLE_N1 = ac.engine.idleN1 ?? 22;
   const n1Now   = S.n1 ?? 0;
-  const vmo     = ac.envelope.maxSpd ?? 340;
+  const vmo     = ac.envelope.vmo ?? ac.envelope.maxSpd ?? 340;   // the sourced VMO; until then maxSpd
 
   const athrActive = S.engineState === 'running' && S.athr && !S.wow;   // A/THR is independent of the AP — holds speed while you hand-fly
   let n1Cmd, athrI = S.athrN1 ?? n1Now;

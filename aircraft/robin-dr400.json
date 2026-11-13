@@ -25,6 +25,8 @@
     "maxAlt": 14000,
     "cruiseSpd": 120,
     "maxSpd": 174,
+    "vne": 166,
+    "limitsSource": "EASA TCDS EASA.A.367 Issue 05 (16 Oct 2023), Section EE (DR 400/140 B), 9. Air speeds: VNE 308 km/h (166 kt IAS) — sources/easa-tcds-a367-dr200-dr300-dr400-issue05.pdf",
     "spdProfile": {
       "14000": 115,
       "8000": 120,

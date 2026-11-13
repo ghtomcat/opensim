@@ -76,8 +76,11 @@ const fuelSystem = object({ tanks: arrayOf(fuelTank), pumps: arrayOf(fuelPumpE),
                             valves: arrayOf(fuelValveE), load: num, loLevelKg: num, imbalanceKg: num },
                           { required: ['tanks', 'pumps', 'engines'], doc: { sources_doc: arrayOf(str) } });
 
+/* The aircraft's real limits (Markus, 2026-11-09): vne (kt IAS) — a propeller aircraft's never-exceed speed; vmo (kt IAS)
+   and mmo (Mach) — a jet's maximum operating speed and Mach; limitsSource names the document (and section) they come
+   from. The overspeed crash reads them; maxSpd is the throttle scale's and the speed ceiling's, not a limit. */
 const envelope = object(
-  { cruiseAlt: num, cruiseSpd: num, maxSpd: num, spdProfile: mapOf(num) },
+  { cruiseAlt: num, cruiseSpd: num, maxSpd: num, spdProfile: mapOf(num), vne: num, vmo: num, mmo: num, limitsSource: str },
   { doc: { maxAlt: num } },   // the service ceiling — a fact, nothing enforces it
 );
 const flapSetting = object({ label: str, deg: num, dCL_0: num, dCD_0: num, dCL_max: num });
@@ -214,6 +217,11 @@ export const aircraft = object(
       const errs = [];
       if (!a.id.length) errs.push('empty "id"');
       if (a.envelope?.maxSpd !== undefined && !(a.envelope.maxSpd > 0)) errs.push('envelope.maxSpd must be > 0');
+      /* a limit names its source — no invented numbers */
+      const _lim = ['vne', 'vmo', 'mmo'].filter(k => a.envelope?.[k] !== undefined);
+      if (_lim.length && !a.envelope.limitsSource) errs.push(`envelope.${_lim.join(', ')}: a limit needs envelope.limitsSource`);
+      for (const k of _lim) if (!(a.envelope[k] > 0)) errs.push(`envelope.${k} must be > 0`);
+      if (a.envelope?.vne !== undefined && a.envelope?.vmo !== undefined) errs.push('envelope: vne (a propeller aircraft) or vmo / mmo (a jet), not both');
       const turbofan = a.engine?.type === 'turbofan';
       /* every winged aircraft declares its engines (rockets and robots have their own models) */
       if (a.vehicleType === undefined && !a.engine) errs.push('an aircraft needs an engine block');

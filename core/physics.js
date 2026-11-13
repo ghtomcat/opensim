@@ -13,6 +13,7 @@ import { lnavTargetHeading } from './lnav.js';
 import { vnavTargetAlt } from './vnav.js';
 import { runwayThreshold } from './mission-start.js';
 import { indicatedAlt } from './baro.js';
+import { machOf } from './airdata.js';
 import { random } from './random.js';
 import { yawModel, yawStep, windmillDrag, groundYawStep, pedalYawRate, tacRudder } from './yaw.js';
 
@@ -39,7 +40,8 @@ const APPROACH_FLOOR = 4800;   // ft — activate ILS tracking below this
 
 /* ── Crash thresholds ── */
 const CRASH_VS_FPM   = -800;    // hard landing: touchdown VS below this → crash
-const CRASH_OVERSPD  = 1.15;    // overspeed: above maxSpd × this factor → structural failure
+const CRASH_OVERSPD  = 1.15;    // overspeed: above the limit (envelope.vne / vmo) × this factor → structural failure
+const CRASH_OVERMACH = 0.07;    // … or above envelope.mmo + this (Markus, 2026-11-13 — a stand-in for the design dive Mach)
 
 export function tickPhysics(dt) {
   const ac = S.aircraft;
@@ -592,14 +594,18 @@ export function tickPhysics(dt) {
       bbEvent({ type: 'crash', reason: `HARD LANDING ${Math.round(vs)} fpm` });
       return;
     }
-    // Overspeed: structural failure above VNE × 1.15
-    const vne = ac.envelope.maxSpd ?? 999;
-    if (newSpd > vne * CRASH_OVERSPD) {
-      setState({ crashed: true, crashReason: `OVERSPEED  ${Math.round(newSpd)} kt  (VNE ${Math.round(vne)} kt)`,
+    // Overspeed: structural failure above the sourced limit — VNE or VMO × 1.15, MMO + 0.07. No sourced limit: none
+    // (envelope.maxSpd is no limit — issues.md, "envelope.maxSpd is three values at once").
+    const env = ac.envelope, lim = env.vne ?? env.vmo, limName = env.vne != null ? 'VNE' : 'VMO';
+    const mach = env.mmo != null ? machOf(newSpd, newAlt) : 0;
+    const overSpd = lim != null && newSpd > lim * CRASH_OVERSPD, overMach = env.mmo != null && mach > env.mmo + CRASH_OVERMACH;
+    if (overSpd || overMach) {
+      const why = overSpd ? `${Math.round(newSpd)} kt  (${limName} ${Math.round(lim)} kt)` : `M ${mach.toFixed(2)}  (MMO ${env.mmo})`;
+      setState({ crashed: true, crashReason: `OVERSPEED  ${why}`,
                  spdT: 0 });
       setEngineFactor('crash', 0);
       setThrottle(0);
-      bbEvent({ type: 'crash', reason: `OVERSPEED ${Math.round(newSpd)} kt` });
+      bbEvent({ type: 'crash', reason: `OVERSPEED ${why.replace(/\s+/g, ' ')}` });
       return;
     }
     // CFIT — flew into terrain (Mapbox DEM under the aircraft, core/elevation.js). Gated to

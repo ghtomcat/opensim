@@ -310,6 +310,16 @@ Defines the performance ceiling and autopilot speed targets.
 
 `spdProfile` is a map of `altitude_ft → max_speed_kt`. The physics engine caps speed at the value for the aircraft's current altitude band. Keys are evaluated from highest to lowest.
 
+**The limits** — the aircraft's real ones, sourced, never invented; the overspeed crash reads them (`maxSpd` is no limit):
+
+| Field | Meaning |
+|---|---|
+| `vne` | a propeller aircraft's never-exceed speed, kt IAS — crash above × 1.15 |
+| `vmo`, `mmo` | a jet's maximum operating speed (kt IAS) and Mach — crash above `vmo` × 1.15 or `mmo` + 0.07; the A/THR caps its speed at `vmo` |
+| `limitsSource` | the document and section the limits come from (required with any of them), e.g. `"EASA TCDS IM.A.051 Issue 11, Section 2 (Model 172S), 9. Air Speeds"` — the document itself in `sources/` |
+
+An aircraft without a sourced limit has no overspeed crash. A dial's painted markings are the instrument's own, not these limits.
+
 ---
 
 ## Situations
