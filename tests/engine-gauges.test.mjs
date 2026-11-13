@@ -23,7 +23,7 @@ const load = (id) => JSON.parse(readFileSync(join(here, '..', 'aircraft', `${id}
 function on(aircraft, state, thr = 0, extra = {}) {
   const patch = { aircraft, engineState: state, engineStartT: state === 'starting' ? 0 : null, engineStopT: null, enginePower: state === 'running' ? 1 : 0,
                   n1: 0, engineFactors: { failure: 1, ice: 1, seizure: 1, battery: 1, crash: 1 },
-                  spdT: thr * aircraft.envelope.maxSpd, wow: false, fuelShutoff: false, fuelLeft: 200, fuelRight: 0, fuelStarveT: null,
+                  lever: thr, wow: false, fuelShutoff: false, fuelLeft: 200, fuelRight: 0, fuelStarveT: null,
                   propPitch: 1, ...extra };
   setState({ engines: [], ...patch });
   adoptEngineFields(patch);

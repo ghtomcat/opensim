@@ -100,16 +100,16 @@ test('speed brake, autobrake, cooling flaps: set to a position; refused without 
 /* The levers — and a drag recorded once, at its end */
 import { recordCommand } from '../core/commands.js';
 
-test('the throttle: a turbofan\'s thrust lever, a prop\'s spdT stand-in; the C172 knobs sweep their set points', () => {
+test('the throttle: a turbofan\'s thrust lever, a prop\'s engine lever; the C172 knobs sweep their set points', () => {
   runMissionResets();
   setState({ aircraft: load('a340'), thrustLever: 0 });
   assert.equal(setControl('throttle', 0.6), true);  assert.equal(S.thrustLever, 0.6);
-  setState({ aircraft: load('c172'), spdT: 0, mixture: 1 });
-  assert.equal(setControl('throttle', 1), true);    assert.equal(S.spdT, load('c172').envelope.maxSpd);
+  setState({ aircraft: load('c172'), engines: [], lever: 0, mixture: 1 });
+  assert.equal(setControl('throttle', 1), true);    assert.equal(S.lever, 1);  assert.equal(S.engines[0].lever, 1);
   const mix = []; for (let i = 0; i < 4; i++) { operate('mixtureKnob'); mix.push(S.mixture); }
   assert.deepEqual(mix, [0.5, 0, 0.5, 1]);                                        // RICH → LEAN → ICO → LEAN → RICH: no jump
-  setState({ spdT: 0 });
-  operate('throttleKnob'); assert.equal(S.spdT, Math.round(0.7 * load('c172').envelope.maxSpd));
+  setState({ engines: [], lever: 0 });
+  operate('throttleKnob'); assert.equal(S.lever, 0.7);
 });
 
 test('trim and the levers clamp to their range; the same value again is refused', () => {
@@ -129,6 +129,19 @@ test('a drag: its steps unrecorded, its end recorded once; a click recorded at o
   const rec = bbRecords().filter(r => r.type === 'command' && r.command === 'propPitch');
   assert.deepEqual(rec.map(r => [r.arg, r.source]), [[0.7, 'drag'], [0.4, 'click']]);
   assert.equal(S.propPitch, 0.4);
+});
+
+test('a continuous input (joystick axis, held key, the hub): every step done, recorded once it rests (0.5 s)', async () => {
+  const { initBlackbox, bbRecords } = await import('../core/blackbox.js');
+  const { commandContinuous } = await import('../core/commands.js');
+  setState({ aircraft: load('bf109'), engines: [], lever: 0 });
+  initBlackbox();
+  for (const v of [0.2, 0.4, 0.6]) assert.equal(commandContinuous('throttle', v, { source: 'joystick' }), true);
+  assert.equal(S.lever, 0.6, 'each step done at once');
+  const rec = () => bbRecords().filter(r => r.type === 'command' && r.command === 'throttle').map(r => [r.arg, r.source]);
+  assert.deepEqual(rec(), [], 'nothing recorded while it moves');
+  await new Promise(r => setTimeout(r, 600));
+  assert.deepEqual(rec(), [[0.6, 'joystick']], 'recorded once, where it rested');
 });
 
 /* The altimeter setting knob (core/baro.js) — a step in the dial's own unit; turning leaves STD */

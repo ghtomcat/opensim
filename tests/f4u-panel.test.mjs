@@ -30,7 +30,7 @@ test('the fuel gauge reads the main tank only (tank: left); without it the total
 });
 
 test('the engine gauge: oil and fuel pressure in psi (the stand-ins\' kg/cm² × 14.223), oil temperature in °C', () => {
-  setState({ aircraft: F4U, engines: [{ state: 'running', power: 1 }], engineState: 'running', spdT: 0, oilTempC: 70,
+  setState({ aircraft: F4U, engines: [{ state: 'running', power: 1 }], engineState: 'running', lever: 0, oilTempC: 70,
              fuelShutoff: false, fuelLeft: 897, fuelRight: 460, fuelStarveT: null });
   const v = INSTRUMENTS.engGauge.read(0);
   assert.equal(v.oilT, 70);

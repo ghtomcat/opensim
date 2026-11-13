@@ -64,7 +64,7 @@ async function calmAir(page) {
    model uses pitch attitude as angle of attack, so the glide attitude must be nose-up.
    Steps inside one evaluate (a round trip per frame is too slow). Returns touchdown data. */
 async function glideAndFlare(page, { alt, spd, pitch, flareAGL = 50, flarePitch = 15, maxS = 90 }) {
-  await setState(page, { alt, altT: 100, spd, spdT: 0, pitch, pitchT: pitch, vs: -300,
+  await setState(page, { alt, altT: 100, spd, lever: 0, pitch, pitchT: pitch, vs: -300,
                          gear: true, wow: false, enginePower: 0 });
   return page.evaluate(([flareAGL, flarePitch, maxS]) => {
     let flared = false;
@@ -87,7 +87,7 @@ test.describe('Cessna 172 — LSZF pattern', () => {
     await readyForTakeoff(page);
 
     // Full throttle, hold pitch neutral for ground roll
-    await setState(page, { spdT: 163 });
+    await setState(page, { lever: 1 });
     await stepSeconds(page, 5);
 
     // Pull back to rotate
@@ -105,7 +105,7 @@ test.describe('Cessna 172 — LSZF pattern', () => {
     await loadSim(page, 'lszf-pattern');
     await readyForTakeoff(page);
 
-    await setState(page, { spdT: 163, pitchT: 8 });
+    await setState(page, { lever: 1, pitchT: 8 });
     await stepSeconds(page, 60);
 
     const s = await getState(page);
@@ -116,7 +116,7 @@ test.describe('Cessna 172 — LSZF pattern', () => {
     await loadSim(page, 'lszf-pattern');
 
     // Start airborne at 3000ft
-    await setState(page, { alt: 3000, altT: 3000, spd: 80, spdT: 0, pitch: 5, pitchT: 15 });
+    await setState(page, { alt: 3000, altT: 3000, spd: 80, lever: 0, pitch: 5, pitchT: 15 });
     await stepSeconds(page, 30);
 
     const s = await getState(page);
@@ -136,7 +136,7 @@ test.describe('Robin DR400 — Grenchen (the cross-country\'s start)', () => {
     await loadSim(page, 'grenchen-neuchatel');
     await readyForTakeoff(page);
 
-    await setState(page, { spdT: 120 });
+    await setState(page, { lever: 0.69 });
     await stepSeconds(page, 5);
     await setState(page, { pitchT: 8 });
 
@@ -151,7 +151,7 @@ test.describe('Robin DR400 — Grenchen (the cross-country\'s start)', () => {
     await loadSim(page, 'grenchen-neuchatel');
     await readyForTakeoff(page);
 
-    await setState(page, { spdT: 120, pitchT: 8 });
+    await setState(page, { lever: 0.69, pitchT: 8 });
     await stepSeconds(page, 60);
 
     const s = await getState(page);
@@ -162,7 +162,7 @@ test.describe('Robin DR400 — Grenchen (the cross-country\'s start)', () => {
     await loadSim(page, 'grenchen-neuchatel');
 
     // Start airborne, bleed speed with engine off
-    await setState(page, { alt: 3000, altT: 3000, spd: 90, spdT: 0, pitch: 5, pitchT: 15 });
+    await setState(page, { alt: 3000, altT: 3000, spd: 90, lever: 0, pitch: 5, pitchT: 15 });
     await stepSeconds(page, 30);
 
     const s = await getState(page);
@@ -211,7 +211,7 @@ test.describe('Bf 109 — Wolfskopf', () => {
 
     // Fast wheel landing: just above the field at 156 kt, nose low, sinking like a real touchdown
     await setState(page, {
-      alt: 101, spd: 156, spdT: 0,
+      alt: 101, spd: 156, lever: 0,
       pitch: 2, pitchT: 2, vs: -300,
       gear: true, wow: false,
       enginePower: 0,
@@ -329,7 +329,7 @@ test.describe('Fixed gear — C172 and Robin', () => {
       await readyForTakeoff(page);
 
       // Get airborne
-      await setState(page, { spdT: 163, pitchT: 8 });
+      await setState(page, { lever: 1, pitchT: 8 });
       await stepSeconds(page, 60);
 
       const s = await getState(page);
@@ -358,7 +358,7 @@ test.describe('Retractable gear — Tu-95', () => {
     await readyForTakeoff(page);
 
     // Get airborne, then retract via simSetState (simulates G key path)
-    await setState(page, { spdT: 310, pitchT: 8 });
+    await setState(page, { lever: 1, pitchT: 8 });
     await stepSeconds(page, 90);
 
     const airborne = await getState(page);
@@ -387,7 +387,7 @@ test.describe('Tu-95 — Nordmeer 1956', () => {
     await readyForTakeoff(page);
 
     // Max thrust, flaps 20°, neutral pitch during ground roll
-    await setState(page, { spdT: 310, flaps: 1 });
+    await setState(page, { lever: 1, flaps: 1 });
     await stepSeconds(page, 5);
 
     // Rotate
@@ -404,7 +404,7 @@ test.describe('Tu-95 — Nordmeer 1956', () => {
     await loadSim(page, 'nordmeer-1956');
     await readyForTakeoff(page);
 
-    await setState(page, { spdT: 310, pitchT: 8 });
+    await setState(page, { lever: 1, pitchT: 8 });
     await stepSeconds(page, 90);
 
     const s = await getState(page);
@@ -422,7 +422,7 @@ test.describe('Crash bounds checker', () => {
 
     // Slam onto runway: approach at 80kt with extreme sink rate
     await setState(page, {
-      alt: 110, spd: 80, spdT: 0,
+      alt: 110, spd: 80, lever: 0,
       pitch: -5, pitchT: -5,
       gear: true, wow: false,
       enginePower: 0,
@@ -449,7 +449,7 @@ test.describe('Crash bounds checker', () => {
 
     // Set speed well above Bf 109 VNE (~500kt × 1.15 = ~575)
     await setState(page, {
-      alt: 5000, spd: 600, spdT: 600,
+      alt: 5000, spd: 600, lever: 1,
       pitch: 0, pitchT: 0,
       enginePower: 1,
     });

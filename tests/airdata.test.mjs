@@ -40,9 +40,9 @@ test('the MiG\'s lamps: the 300 l reserve (`below`), the gear warning with the t
   setState({ aircraft: MIG, engineState: 'running', fuelLeft: 299, fuelRight: 0 });
   assert.equal(INSTRUMENTS.fuelLow.read(0, { below: 300 }), true);
   assert.equal(INSTRUMENTS.fuelLow.read(0, {}), false, 'without `below`: the old 40 l');
-  setState({ gearAnim: 0, spdT: 0 });
+  setState({ gearAnim: 0, lever: 0 });
   assert.equal(INSTRUMENTS.gearWarn.read(0), true, 'gear up, throttle back');
-  setState({ spdT: MIG.envelope.maxSpd });
+  setState({ lever: 1 });
   assert.equal(INSTRUMENTS.gearWarn.read(0), false, 'gear up at full throttle');
   setState({ flaps: MIG.flaps.length - 1 });
   assert.equal(INSTRUMENTS.flapsOut.read(0), true);

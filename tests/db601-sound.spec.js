@@ -63,33 +63,31 @@ test.describe('DB 601 RPM calculation', () => {
   const CFG = {
     rpmIdle: 550,   // aircraft/bf109.json engine.idleRpm (the DB 601 A idles at 500–600)
     rpmMax:  2800,
-    maxSpd:  335,   // bf109 envelope.maxSpd
   };
 
-  function expectedRpm(spdT) {
-    const throttle = Math.max(0, Math.min(1, spdT / CFG.maxSpd));
-    return Math.round(CFG.rpmIdle + (CFG.rpmMax - CFG.rpmIdle) * throttle);
+  function expectedRpm(lever) {
+    return Math.round(CFG.rpmIdle + (CFG.rpmMax - CFG.rpmIdle) * lever);
   }
 
-  test('the engine rpm (simGetRpm, core/engine.js) is idle at spdT=0 after engine running', async ({ page }) => {
+  test('the engine rpm (simGetRpm, core/engine.js) is idle at lever 0 after engine running', async ({ page }) => {
     await loadMission(page, 'wolfskopf-1942');
     /* Put engine in running state without audio (set state directly) */
-    await setState(page, { engineState: 'running', spdT: 0 });
+    await setState(page, { engineState: 'running', lever: 0 });
     const rpmStr = await getRpm(page);
     expect(rpmStr).not.toBeNull();
     const rpm = parseInt(rpmStr);
     expect(rpm).toBe(expectedRpm(0));   // 550 RPM at idle
   });
 
-  test('the engine rpm rises with spdT', async ({ page }) => {
+  test('the engine rpm rises with the lever', async ({ page }) => {
     await loadMission(page, 'wolfskopf-1942');
-    await setState(page, { engineState: 'running', spdT: 0 });
+    await setState(page, { engineState: 'running', lever: 0 });
     const rpmIdle = parseInt(await getRpm(page));
 
-    await setState(page, { spdT: 167 });   // ~half throttle
+    await setState(page, { lever: 0.5 });   // half throttle
     const rpmHalf = parseInt(await getRpm(page));
 
-    await setState(page, { spdT: 335 });   // full throttle
+    await setState(page, { lever: 1 });     // full throttle
     const rpmFull = parseInt(await getRpm(page));
 
     expect(rpmIdle).toBe(550);
@@ -98,16 +96,16 @@ test.describe('DB 601 RPM calculation', () => {
     expect(rpmFull).toBeGreaterThan(rpmHalf);
   });
 
-  test('the engine rpm stays within idleRpm–maxRpm for any spdT', async ({ page }) => {
+  test('the engine rpm stays within idleRpm–maxRpm for any lever', async ({ page }) => {
     await loadMission(page, 'wolfskopf-1942');
     await setState(page, { engineState: 'running' });
 
-    for (const spdT of [0, 20, 100, 200, 300, 335]) {
-      await setState(page, { spdT });
+    for (const lever of [0, 0.06, 0.3, 0.6, 0.9, 1]) {
+      await setState(page, { lever });
       const rpmStr = await getRpm(page);
       const rpm = parseInt(rpmStr);
-      expect(rpm, `RPM out of range at spdT=${spdT}`).toBeGreaterThanOrEqual(CFG.rpmIdle);
-      expect(rpm, `RPM out of range at spdT=${spdT}`).toBeLessThanOrEqual(CFG.rpmMax);
+      expect(rpm, `RPM out of range at lever ${lever}`).toBeGreaterThanOrEqual(CFG.rpmIdle);
+      expect(rpm, `RPM out of range at lever ${lever}`).toBeLessThanOrEqual(CFG.rpmMax);
     }
   });
 });

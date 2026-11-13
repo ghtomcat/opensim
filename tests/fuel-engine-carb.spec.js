@@ -500,11 +500,11 @@ test.describe('Engine — RPM display', () => {
 
   test('RPM increases with throttle', async ({ page }) => {
     await loadSim(page);
-    await setState(page, { enginePower: 0.3, engineState: 'running', spdT: 50 });
+    await setState(page, { enginePower: 0.3, engineState: 'running', lever: 0.3 });
     await step(page, 0.1);
     const rpmLow = parseInt(await getRpm(page));
 
-    await setState(page, { enginePower: 0.9, spdT: 150 });
+    await setState(page, { enginePower: 0.9, lever: 0.9 });
     await step(page, 0.1);
     const rpmHigh = parseInt(await getRpm(page));
 

@@ -21,7 +21,7 @@ const MIG = JSON.parse(readFileSync(join(here, '..', 'aircraft', 'mig15bis.json'
 function mig(state, thr, alt = 0) {
   const patch = { aircraft: MIG, engineState: state, engineStartT: null, engineStopT: null, enginePower: state === 'running' ? 1 : 0,
                   n1: 0, engineFactors: { failure: 1, ice: 1, seizure: 1, battery: 1, crash: 1 },
-                  spdT: thr * MIG.envelope.maxSpd, alt, crashed: false, paused: false };
+                  lever: thr, alt, crashed: false, paused: false };
   setState({ engines: [], ...patch });
   adoptEngineFields(patch);
   initFuel();
