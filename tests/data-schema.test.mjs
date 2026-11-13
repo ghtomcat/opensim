@@ -86,6 +86,12 @@ test('schema: only a turbofan\'s thrust lever has detents (thrustProfiles)', () 
   const errs = errorsAfter('aircraft/c172.json', aircraft, a => { a.thrustProfiles = [{ label: 'IDLE', lever: 0 }, { label: 'FULL', lever: 1 }]; });
   assert.ok(errs.some(e => e.endsWith('thrustProfiles: only a turbofan\'s thrust lever has detents')), errs.join('\n'));
 });
+test('schema: a limit (vne, vmo, mmo) names its source; vne or vmo, not both', () => {
+  let errs = errorsAfter('aircraft/c172.json', aircraft, a => { delete a.envelope.limitsSource; });
+  assert.ok(errs.some(e => e.endsWith('envelope.vne: a limit needs envelope.limitsSource')), errs.join('\n'));
+  errs = errorsAfter('aircraft/c172.json', aircraft, a => { a.envelope.vmo = 300; });
+  assert.ok(errs.some(e => e.endsWith('envelope: vne (a propeller aircraft) or vmo / mmo (a jet), not both')), errs.join('\n'));
+});
 test('schema catches an unknown engine sound', () => {
   const errs = errorsAfter('aircraft/c172.json', aircraft, a => { a.sound.engineType = 'lycoming-0360'; });
   assert.ok(errs.some(e => e.startsWith('sound.engineType: "lycoming-0360" is not one of')), errs.join('\n'));

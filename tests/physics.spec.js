@@ -444,19 +444,37 @@ test.describe('Crash bounds checker', () => {
     }
   });
 
-  test('overspeed — crash above VNE × 1.15', async ({ page }) => {
-    await loadSim(page, 'wolfskopf-1942');
-
-    // Set speed well above Bf 109 VNE (~500kt × 1.15 = ~575)
-    await setState(page, {
-      alt: 5000, spd: 600, lever: 1,
-      pitch: 0, pitchT: 0,
-      enginePower: 1,
-    });
-    await stepSeconds(page, 2);
-
+  test('overspeed — crash above the sourced VNE × 1.15 (the C172: 163 kt, EASA TCDS IM.A.051)', async ({ page }) => {
+    await loadSim(page, 'lszf-pattern');
+    await setState(page, { alt: 5000, altT: 5000, spd: 185, pitch: 0, pitchT: 0, vs: 0, wow: false, lever: 0, enginePower: 1 });
+    await stepSeconds(page, 1);
+    expect((await getState(page)).crashed, '185 kt is below 163 × 1.15 = 187.5').toBe(false);
+    await setState(page, { spd: 200, crashed: false });
+    await stepSeconds(page, 1);
     const s = await getState(page);
-    expect(s.crashed, 'extreme overspeed should trigger crash').toBe(true);
+    expect(s.crashed, '200 kt is above 187.5').toBe(true);
+    expect(s.crashReason).toMatch(/OVERSPEED .*VNE 163 kt/);
+  });
+
+  test('overspeed — no sourced limit, no overspeed crash (maxSpd is no limit)', async ({ page }) => {
+    await loadSim(page, 'wolfskopf-1942');   // the Bf 109 — its limit not sourced yet
+    await setState(page, { alt: 5000, altT: 5000, spd: 600, pitch: 0, pitchT: 0, vs: 0, lever: 1, enginePower: 1 });
+    await stepSeconds(page, 1);
+    expect((await getState(page)).crashReason ?? '').not.toMatch(/OVERSPEED/);
+  });
+
+  test('overspeed — a jet above MMO + 0.07 (a test MMO on the A350)', async ({ page }) => {
+    await loadSim(page, 'lszh-approach');
+    await page.evaluate(() => { const ac = window.simGetState().aircraft;
+      window.simSetState({ aircraft: { ...ac, envelope: { ...ac.envelope, mmo: 0.80, limitsSource: 'test' } } }); });
+    await setState(page, { alt: 35000, altT: 35000, spd: 250, pitch: 0, pitchT: 0, vs: 0, ap: false, athr: false });
+    await stepSeconds(page, 1);
+    expect((await getState(page)).crashed, '250 kt at FL350 ≈ M 0.80 — below 0.87').toBe(false);
+    await setState(page, { spd: 300, crashed: false });   // ≈ M 0.93
+    await stepSeconds(page, 1);
+    const s = await getState(page);
+    expect(s.crashed).toBe(true);
+    expect(s.crashReason).toMatch(/OVERSPEED +M 0\.9\d +\(MMO 0\.8\)/);
   });
 
   test('normal landing — no crash within bounds', async ({ page }) => {
