@@ -586,10 +586,10 @@ The slide-in **cockpit zones** (overhead, pedestal, consoles, centre) are config
 by the aircraft's `views` list and per-zone token lists (`left`, `right`,
 `pedestal`), not by `panels/` specs.
 
-### 5.4 Instruments, controls and mixed panels (planned, 2026-11-11)
+### 5.4 Instruments, controls and mixed panels (built 2026-11-11 … 13)
 
-Not built yet; the plan and its order are in `issues.md` (*Instruments, controls and
-mixed panels — the plan*). The design in brief:
+The plan and its record are in `issues.md` (*Instruments, controls and mixed panels —
+the plan*; its last part, the MiG's air-start ignition, is open). The design in brief:
 
 - **Three things, three owners.** *Instruments* show a value — they read, never write
   (the analog registry's rule, §5.2). *Commands* change the aircraft — named, with an
@@ -1261,7 +1261,7 @@ the sim talks to other machines.
 | Keyboard | `core/keymap.js` (the table + dispatcher); actions in `core/input.js`, `index.html`, `display/com.js`, `display/outside.js`, the robots | Flight controls (held keys → `pitchT`/`rollT`, continuous), flaps, gear, PTT, time warp (rockets), role, cockpit-zone keys (§5). Full list: [keybindings.md](keybindings.md). |
 | Mouse | `core/input.js` | drag-to-fly stick |
 | Gamepad | `core/input.js` (`tickGamepad`, each frame) | axes: roll, pitch, rudder, throttle; trigger = PTT; buttons: flaps, gear. Fixed mapping (`GP`), dead zone 0.08 |
-| Cockpit clicks | `display/panel_renderer.js`, cockpit zones, Velis/Dragon/Apollo panels | switches, levers, knobs, all through `setState` (§5) |
+| Cockpit clicks | the controls (`display/controls.js`; canvas areas `display/hit.js`, the zones' `wireControls`) | switches, levers, knobs — each a command to its owner (`core/commands.js`, §5.4); a knob's drag recorded once |
 | Hardware | `core/hil.js` (12.3) | `rollT`, `pitchT`, `spdT`, `ap`; robot-arm telemetry |
 
 Input writes **targets** (`*T`) and switch states; physics and systems turn them into
