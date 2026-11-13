@@ -50,6 +50,8 @@
     "maxAlt": 37000,
     "cruiseSpd": 280,
     "maxSpd": 335,
+    "vne": 405,
+    "limitsSource": "The Bf 109 E manual's 750 km/h (405 kt) as quoted on a forum (theairtacticalassaultgroup.com, thread 6552 — secondhand; the Flugzeug-Handbuch not found online, 2026-11-13), consistent with the Fl 22231 airspeed dial's 750 km/h end on D-FEML (Markus's photo — no clear red mark). Other figures in circulation: 718 km/h (no source named), 850 km/h (game data, general Bf 109 accounts)",
     "spdProfile": {
       "20000": 280,
       "10000": 260,

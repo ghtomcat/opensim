@@ -56,6 +56,8 @@
     "maxAlt":    36000,
     "cruiseSpd": 220,
     "maxSpd":    362,
+    "vne": 375,
+    "limitsSource": "The British Pilot's Notes (Corsair), dive bombing: 375 kt IAS, undercarriage up — as quoted on a forum (ww2aircraft.net, 'Corsair as Dive Bomber?' — secondhand). The US Pilot's Handbook AN 01-45HA-1 (section III, Operating data) not accessible online (2026-11-13)",
     "spdProfile": {
       "36000": 330,
       "20000": 280,
