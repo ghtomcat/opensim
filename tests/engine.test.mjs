@@ -571,11 +571,11 @@ test('the throttle: a turbofan\'s is still its one thrust lever (S.thrustLever) 
   assert.equal(throttleFrac(), 0.7);
 });
 
-test('the lever at the mission load: cold 0; in the air the lever for the speed (spd / maxSpd, what spdT = spd gave); a turbofan 0', () => {
+test('the lever at the mission load: cold 0; in the air the lever for the speed (spd / cruiseSpd, the thrust spdT = spd gave); a turbofan 0', () => {
   const bf = load('bf109'), a = load('a340');
   assert.equal(initialEngine(bf, { onGround: true, spd: 0 }).lever, 0);
   const air = initialEngine(bf, { onGround: false, spd: 250 });
-  assert.equal(air.lever, 250 / bf.envelope.maxSpd);
+  assert.equal(air.lever, 250 / bf.envelope.cruiseSpd);
   assert.ok(air.engines.every(e => e.lever === air.lever));
   assert.equal(leverForSpeed(bf, 9999), 1);
   assert.equal(initialEngine(a, { onGround: false, spd: 250 }).lever, 0);

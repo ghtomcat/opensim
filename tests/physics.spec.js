@@ -136,7 +136,7 @@ test.describe('Robin DR400 — Grenchen (the cross-country\'s start)', () => {
     await loadSim(page, 'grenchen-neuchatel');
     await readyForTakeoff(page);
 
-    await setState(page, { lever: 0.69 });
+    await setState(page, { lever: 1 });
     await stepSeconds(page, 5);
     await setState(page, { pitchT: 8 });
 
@@ -151,7 +151,7 @@ test.describe('Robin DR400 — Grenchen (the cross-country\'s start)', () => {
     await loadSim(page, 'grenchen-neuchatel');
     await readyForTakeoff(page);
 
-    await setState(page, { lever: 0.69, pitchT: 8 });
+    await setState(page, { lever: 1, pitchT: 8 });
     await stepSeconds(page, 60);
 
     const s = await getState(page);
