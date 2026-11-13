@@ -1860,7 +1860,8 @@
   import { hilInit }      from './core/hil.js';
   import { startTelemetry, downloadTelemetry, downloadTelemetryCSV } from './core/telemetry.js';
   import { initBlackbox, bbEvent, downloadBlackbox } from './core/blackbox.js';
-  import { renderPanel, renderFCU, renderCockpit } from './display/panel_renderer.js';
+  import { renderPanel, renderFCU, renderCockpit, cockpitSpec } from './display/panel_renderer.js';
+  import { aircraftControls } from './core/cockpit.js';
   import { dispatchClick, dispatchDragStart, dispatchWheel, cursorAt } from './display/hit.js';
   import './core/fcu.js';                  // the FCU's commands
   import { nextSdPage } from './display/pfd_instruments.js';
@@ -3417,7 +3418,9 @@
       'lm-panel':     () => setState({ inLM: !(S.inLM ?? false) }),
       'engine-start': () => {
         bbEvent({ type: 'engine_start_commanded', engineState: S.engineState });
-        if (S.aircraft?.panel === 'g1000') command('magnetos', 'START', { source: 'key' });   // the key turned to START — the command starts it
+        /* an aircraft with a magneto switch (its data — core/cockpit.js): the key turned to START, the command starts it —
+           the C172, the DR400 (before, only the G1000 panel: the DR400 started with its magnetos at OFF) */
+        if (aircraftControls(S.aircraft, cockpitSpec()).has('magnetos')) command('magnetos', 'START', { source: 'key' });
         else startEngine();
       },
       'engine-cutoff': () => {   // a turbofan: every ENG MASTER / FUEL CONTROL switch to OFF (the command); a piston: mixture / Kraftstoffhahn

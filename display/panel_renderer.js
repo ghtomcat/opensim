@@ -392,6 +392,12 @@ export function renderFCU(canvas) {
   }
 }
 
+/** The loaded cockpit panel spec of the aircraft flying now (panels/<panel>.json), or null — the controls it names count
+    as the aircraft's (core/cockpit.js aircraftControls) */
+export function cockpitSpec() {
+  return _cpCache.aircraftId === S.aircraft?.id ? _cpCache.spec : null;
+}
+
 export function renderCockpit(canvas) {
   const aircraft = S.aircraft;
   if (!aircraft?.panel) return;
