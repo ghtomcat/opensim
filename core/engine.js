@@ -65,8 +65,7 @@ const _count     = (eng = _eng()) => Math.max(1, eng.count ?? 1);
 
 /* ── The engines ─────────────────────────────────────────────────
    S.engines[i] = { state, startT, stopT, n1, core, egt, ff, oil, factors, power, rpm, lever } — one per engine (rpm: not a
-   turbofan). lever: the engine's power lever 0 idle … 1 full, set by the throttle command (not yet on a turbofan — its
-   thrust lever is still S.thrustLever, one for all engines).
+   turbofan). lever: the engine's power (thrust) lever 0 idle … 1 full (a turbofan's TOGA), set by the throttle command.
    The single fields the rest of the sim still reads (engineState, enginePower, n1, lever,
    engineStartT, engineStopT, engineFactors) are derived from the array on every change;
    what must tell the engines apart (thrust, generators, pumps, the engine displays) reads
@@ -245,7 +244,8 @@ export function initialEngine(aircraft, { onGround, spd, onRunway = false }) {
   const core    = eng.type === 'turbofan' && !cold ? coreAtN1(n1, eng) : 0;
   const state   = cold ? 'off' : 'running';
   const gauges  = eng.type === 'turbofan' ? _gaugesAtLoad(state, n1, core, eng, aircraft) : undefined;
-  const lever   = eng.type === 'turbofan' ? 0 : leverForSpeed(aircraft, spd);   // the turbofan: S.thrustLever (mission.js)
+  const lever   = eng.type === 'turbofan' ? Math.min(1, Math.max(0, spd / (aircraft.envelope?.maxSpd ?? 340)))   // ≈ cruise thrust, as its N1
+                                          : leverForSpeed(aircraft, spd);
   const engines = Array.from({ length: count }, () => _newEngine(state, n1, core, gauges, lever));
   return { ..._aggregate(engines),
            engMasters: Array(count).fill(!cold),                   // ENG MASTER switches: on when the engines run
@@ -440,15 +440,16 @@ export function engineQuit(i) {
    after a fuel cutoff. A running engine follows the thrust command (core/thrust.js), up to what its
    available power allows: idle + (100 − idle) · power. With no power left it has flamed out and the
    fan runs down. (A turbofan's power acts through its N1 — physics.js takes the thrust from N1 alone.) */
-function _spoolN1(e, dt) {
+function _spoolN1(e, dt, k = 0) {
   const eng   = _eng();
   const idle  = _idleN1();
   const avail = engineAvailable(e);
   const powered = e.state === 'running' && avail > 0;
-  const target = powered               ? Math.min(S.n1Cmd ?? idle, idle + (100 - idle) * avail)
+  const cmd    = Array.isArray(S.n1Cmd) ? (S.n1Cmd[k] ?? S.n1Cmd[0]) : S.n1Cmd;   // engine k's command (core/thrust.js)
+  const target = powered               ? Math.min(cmd ?? idle, idle + (100 - idle) * avail)
                : e.state === 'starting' ? idle
                : _windmillN1();                                  // off, shutdown, or flamed out: what the airflow turns it at
-  const idleLever = (S.thrustLever ?? 0) < 0.05;
+  const idleLever = (e.lever ?? 0) < 0.05;
   const tau = e.state === 'starting' ? 25
             : e.state === 'shutdown' ? 12                        // fuel cutoff — the fan coasts down by inertia, a slow ~30 s wind-down (not the ground-idle fast case)
             : target > e.n1 ? 8
@@ -505,9 +506,9 @@ function _stepLifecycle(e, dt, eng) {
 const _rpmRange = (eng = _eng()) => ({ idle: eng.idleRpm ?? 400, max: eng.maxRpm ?? 2800 });
 /** The idle and maximum rpm the engine model uses for the aircraft's engine (defaults where the data has none) */
 export const rpmRange = () => _rpmRange();
-/** The throttle, 0–1 — the power lever (the largest of the engines'; a turbofan's thrust lever). The rpm runs on each
+/** The throttle, 0–1 — the power lever (the largest of the engines'). The rpm and a turbofan's manual N1 run on each
     engine's own lever; the gauges' stand-ins (core/engine-gauges.js), the Velis EPSI, the lever displays read this. */
-export const throttleFrac = () => Math.max(0, Math.min(1, _turbofan() ? (S.thrustLever ?? 0) : (S.lever ?? 0)));
+export const throttleFrac = () => Math.max(0, Math.min(1, S.lever ?? 0));
 
 /* The start curves — moved here from core/sound.js unchanged: the start-up recordings are cut to them */
 const START_RPM = {
@@ -574,7 +575,7 @@ export function tickEngine(dt) {
   _tickApu(dt);
   const before = _engines();
   let engines = before;
-  if (_turbofan() && !S.paused && !S.crashed) engines = engines.map(e => _spoolN1(e, dt));   // same guards as tickPhysics
+  if (_turbofan() && !S.paused && !S.crashed) engines = engines.map((e, k) => _spoolN1(e, dt, k));   // same guards as tickPhysics
 
   /* Electric motor: no start sequence, it follows the power switches */
   if (eng.type === 'electric') {
@@ -602,14 +603,12 @@ export function tickEngine(dt) {
 }
 
 /* ── The power levers — commands, so a click, a drag, a key, the joystick and the hub go through one door. A lever's
-   value 0 … 1. throttle: on a turbofan the thrust lever (manual thrust, S.thrustLever — one for all engines until it
-   joins the engines' levers); on the others each engine's lever, S.engines[i].lever — engine i, or all engines when
-   it is absent; the command's arg is the value, or { lever, engine }. propPitch 1 fine … 0 coarse, mixture 1 rich … 0 idle cut-off:
+   value 0 … 1. throttle: each engine's power (thrust) lever, S.engines[i].lever — engine i, or all engines when it is
+   absent; the command's arg is the value, or { lever, engine }. propPitch 1 fine … 0 coarse, mixture 1 rich … 0 idle cut-off:
    nothing in the simulation reads either yet (the prop-pitch gauge's stand-in reads propPitch). ── */
 const _lever = (v) => typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : null;
 export function throttle(v, i) {
   const f = _lever(v); if (f === null) return false;
-  if (_turbofan()) { if (f === (S.thrustLever ?? 0)) return false; setState({ thrustLever: f }); return true; }
   const hit = _hits(i), before = _engines();
   if (before.every((e, k) => !hit(k) || e.lever === f)) return false;
   _publish(before.map((e, k) => hit(k) ? { ...e, lever: f } : e));

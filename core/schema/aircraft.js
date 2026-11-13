@@ -81,7 +81,7 @@ const envelope = object(
   { doc: { maxAlt: num } },   // the service ceiling — a fact, nothing enforces it
 );
 const flapSetting = object({ label: str, deg: num, dCL_0: num, dCD_0: num, dCL_max: num });
-const thrustProfile = object({ label: str, spdT: num }, { required: ['label', 'spdT'] });
+const thrustProfile = object({ label: str, lever: num }, { required: ['label', 'lever'] });   // a detent: the lever's position 0 … 1
 
 /* ── Rockets ── */
 const stage = object({
@@ -275,13 +275,13 @@ export const aircraft = object(
       }
       /* a declared turbofan needs a sane idle */
       if (turbofan && a.engine.idleN1 !== undefined && !(a.engine.idleN1 >= 0 && a.engine.idleN1 <= 100)) errs.push('engine.idleN1 out of range 0…100');
-      /* the A/THR detents read thrustProfiles: spdT >= 0 and a positive maximum (the lever denominator). Only a turbofan's
+      /* the A/THR detents read thrustProfiles: each a lever position 0 … 1, the last detent at the lever's end (1). Only a turbofan's
          thrust lever has detents — a propeller's throttle has none (Markus, 2026-11-13); a real gate comes as data of its own */
       if (a.thrustProfiles && !turbofan) errs.push('thrustProfiles: only a turbofan\'s thrust lever has detents');
       if (a.thrustProfiles) {
         if (!a.thrustProfiles.length) errs.push('thrustProfiles must not be empty');
-        if (a.thrustProfiles.some(p => !(p.spdT >= 0))) errs.push('thrustProfiles: every spdT must be >= 0');
-        if (a.thrustProfiles.length && !(Math.max(...a.thrustProfiles.map(p => p.spdT)) > 0)) errs.push('thrustProfiles need a positive max spdT');
+        if (a.thrustProfiles.some(p => !(p.lever >= 0 && p.lever <= 1))) errs.push('thrustProfiles: every lever must be within 0 … 1');
+        if (a.thrustProfiles.length && Math.max(...a.thrustProfiles.map(p => p.lever)) !== 1) errs.push('thrustProfiles: the last detent sits at the lever\'s end (lever 1)');
       }
       /* every aircraft has a panel (rockets and robots pick their display by vehicleType) — there
          is no fallback display any more; the analog panel needs its style */

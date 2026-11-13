@@ -239,7 +239,7 @@ const _keyActions = {
     const up = e.key === '=' || e.key === '+';
     const turbofan = S.aircraft?.engine?.type === 'turbofan';
     const step = turbofan ? 0.1 : 20 / (S.aircraft?.envelope?.maxSpd ?? 350);
-    const now  = turbofan ? (S.thrustLever ?? 0) : (S.lever ?? 0);
+    const now  = S.lever ?? 0;
     commandContinuous('throttle', Math.max(0, Math.min(1, now + (up ? step : -step))), { source: 'key' });
   },
   /* A turbofan's detents (its thrustProfiles, or a fallback). A propeller's throttle has no detents: F1 idle, F4 full
@@ -251,9 +251,8 @@ const _keyActions = {
       return;
     }
     const profiles = S.aircraft?.thrustProfiles;
-    const spdTv = profiles ? (profiles[Math.min(i, profiles.length - 1)]?.spdT ?? 0) : [0, 180, 280, 350][i];
-    const maxSpdT = profiles ? (Math.max(...profiles.map(p => p.spdT)) || 1) : 350;
-    command('throttle', Math.max(0, Math.min(1, spdTv / maxSpdT)), { source: 'key' });
+    const lever = profiles ? (profiles[Math.min(i, profiles.length - 1)]?.lever ?? 0) : [0, 180 / 350, 280 / 350, 1][i];   // the fallback detents (the dc8)
+    command('throttle', Math.max(0, Math.min(1, lever)), { source: 'key' });
   },
   /* A situation (the aircraft's data) puts the aircraft somewhere: its spdT is the speed; a propeller's lever is set to
      hold it (leverForSpeed — core/engine.js), as at the mission load. */

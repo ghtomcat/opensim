@@ -417,19 +417,19 @@
   "thrustProfiles": [
     {
       "label": "IDLE",
-      "spdT": 0
+      "lever": 0
     },
     {
       "label": "CLB",
-      "spdT": 170
+      "lever": 0.5
     },
     {
       "label": "MCT",
-      "spdT": 285
+      "lever": 0.838
     },
     {
       "label": "TOGA",
-      "spdT": 340
+      "lever": 1
     }
   ],
   "ambient": {

@@ -61,9 +61,9 @@ export function tickPhysics(dt) {
                ? _arr.elevation : _dep.elevation;
   }
 
-  /* Throttle-at-idle: turbofans key off the thrust lever (spdT is the A/THR selected speed,
-     not the throttle); the others off their power lever. Used for auto-brake / reverser / speedbrake. */
-  const _idleThr = (ac.engine?.type === 'turbofan') ? (S.thrustLever ?? 0) < 0.05 : (S.lever ?? 0) < 0.005;
+  /* Throttle-at-idle: the power (thrust) levers (spdT is the A/THR selected speed, not the throttle) — a turbofan's
+     IDLE detent within 0.05. Used for auto-brake / reverser / speedbrake. */
+  const _idleThr = (S.lever ?? 0) < ((ac.engine?.type === 'turbofan') ? 0.05 : 0.005);
 
   /* ── Speed limit from envelope profile ── */
   const profile = ac.envelope.spdProfile;
@@ -588,7 +588,7 @@ export function tickPhysics(dt) {
       setState({ crashed: true, crashReason: `HARD LANDING  ${Math.round(vs)} fpm`,
                  spdT: 0 });
       setEngineFactor('crash', 0);
-      if (ac.engine?.type !== 'turbofan') setThrottle(0);
+      setThrottle(0);
       bbEvent({ type: 'crash', reason: `HARD LANDING ${Math.round(vs)} fpm` });
       return;
     }
@@ -598,7 +598,7 @@ export function tickPhysics(dt) {
       setState({ crashed: true, crashReason: `OVERSPEED  ${Math.round(newSpd)} kt  (VNE ${Math.round(vne)} kt)`,
                  spdT: 0 });
       setEngineFactor('crash', 0);
-      if (ac.engine?.type !== 'turbofan') setThrottle(0);
+      setThrottle(0);
       bbEvent({ type: 'crash', reason: `OVERSPEED ${Math.round(newSpd)} kt` });
       return;
     }
@@ -610,7 +610,7 @@ export function tickPhysics(dt) {
       setState({ crashed: true, crashReason: `TERRAIN  ${Math.round(_terrFt)} ft`,
                  spdT: 0 });
       setEngineFactor('crash', 0);
-      if (ac.engine?.type !== 'turbofan') setThrottle(0);
+      setThrottle(0);
       bbEvent({ type: 'crash', reason: `CFIT — terrain ${Math.round(_terrFt)} ft` });
       return;
     }
@@ -618,8 +618,10 @@ export function tickPhysics(dt) {
 
   /* ── Oil temperature — first-order lag toward throttle-dependent target ── */
   const _running  = S.engineState === 'running';
-  /* the power lever; a turbofan still its spdT share — the FCU speed, not N1 (until the turbofans' levers join) */
-  const _throttle = ac.engine?.type === 'turbofan' ? Math.max(0, Math.min(1, (S.spdT ?? 0) / (ac.envelope.maxSpd ?? 335)))
+  /* the heat input follows the same throttle as the thrust: the power lever; a turbofan its N1 above idle (the A/THR
+     moves N1, not the lever — the lever sits in its detent) */
+  const _idleN1   = ac.engine?.idleN1 ?? 22;
+  const _throttle = ac.engine?.type === 'turbofan' ? Math.max(0, Math.min(1, ((S.n1 ?? 0) - _idleN1) / (100 - _idleN1)))
                                                    : Math.max(0, Math.min(1, S.lever ?? 0));
   const _oilTarget = _running ? 40 + _throttle * 75 : 15;   // °C: 40 idle → 115 full
   const _tau       = _running ? 180 : 600;                   // s: 3 min warm-up, 10 min cool-down
@@ -664,12 +666,11 @@ export function tickPhysics(dt) {
      on the ground toward CLB (touch-and-go, rejected landing; taxi thrust stays below), in the
      air only at TOGA (go-around after a bounce — A/THR holds the lever at CLB in normal flight,
      so a lower threshold would stow an in-flight speed brake). Stowing also ends the autobrake. */
-  const _lever     = S.thrustLever ?? 0;
+  const _lever     = S.lever ?? 0;
   const _sbRetract = ac.engine?.type === 'turbofan' && (S.speedBrake ?? 0) === 2
                   && _lever >= (newWow ? 0.4 : 0.95);
   const _sbPatch = justTouched
-    ? { thrustLever: 0,                                     // levers to idle on touchdown (no spool-up to hold speed)
-        ...(ac.spoilers && (S.speedBrake ?? 0) === 1 ? { speedBrake: 2 } : {}) }
+    ? { ...(ac.spoilers && (S.speedBrake ?? 0) === 1 ? { speedBrake: 2 } : {}) }
     : _sbRetract ? { speedBrake: 0 } : {};
 
   /* Gear animation — 12-second transit (not for fixed-gear aircraft) */
@@ -724,6 +725,7 @@ export function tickPhysics(dt) {
              autobrakeActive: _abEngaged,                           // DECEL — panel/ECAM annunciation
              ...(S.braking && newWow && ac.autobrake && (S.autobrake ?? 'OFF') !== 'OFF' ? { autobrake: 'OFF' } : {}),  // manual braking disarms autobrake
              oilTempC: newOilTempC, ..._coolPatch, ..._trPatch, ..._gearPatch, ..._sbPatch, ...pbPatch });
+  if (justTouched && ac.engine?.type === 'turbofan') setThrottle(0);   // levers to idle on touchdown (no spool-up to hold speed)
 }
 
 export function resetApproach() {

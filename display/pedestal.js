@@ -446,21 +446,22 @@ const _CSS = `
 /* ── Helpers ──────────────────────────────────────────────────── */
 
 const _turbofan = () => S.aircraft?.engine?.type === 'turbofan';
+/* A turbofan without thrustProfiles (the dc8): the Airbus detents at their old positions */
+const _FALLBACK_DETENTS = [{ label: 'IDLE', lever: 0 }, { label: 'CLB', lever: 0.5 }, { label: 'MCT', lever: 0.8 }, { label: 'TOGA', lever: 1 }];
 
-/* Return 0-1 fraction for lever position: IDLE=0, TOGA=1 — a turbofan's one thrust lever, or engine e's own power lever */
+/* Return 0-1 fraction for lever position: IDLE=0, TOGA=1 — engine e's own power (thrust) lever */
 function _leverFrac(e = 0) {
-  return Math.max(0, Math.min(1, _turbofan() ? (S.thrustLever ?? 0) : (S.engines?.[e]?.lever ?? 0)));
+  return Math.max(0, Math.min(1, S.engines?.[e]?.lever ?? S.lever ?? 0));
 }
 
 /* Return index of nearest thrust profile to the current lever position */
 function _activeProfileIdx() {
   const profiles = S.aircraft?.thrustProfiles;
   if (!profiles?.length) return -1;
-  const maxSpdT = Math.max(...profiles.map(p => p.spdT)) || 1;
-  const lever   = S.thrustLever ?? 0;
+  const lever   = S.lever ?? 0;
   let best = 0, bestD = Infinity;
   profiles.forEach((p, i) => {
-    const d = Math.abs(lever - p.spdT / maxSpdT);
+    const d = Math.abs(lever - p.lever);
     if (d < bestD) { bestD = d; best = i; }
   });
   return best;
@@ -533,12 +534,7 @@ function _buildHTML() {
   const tokens    = _pedestalTokens();
   const has       = (t) => tokens.includes(t);
   /* a turbofan's detents (or the fallback); a propeller's throttle has none — a plain lever */
-  const profiles  = !_turbofan() ? [] : S.aircraft?.thrustProfiles ?? [
-    { label: 'IDLE', spdT: 0 },
-    { label: 'CLB',  spdT: 175 },
-    { label: 'MCT',  spdT: 280 },
-    { label: 'TOGA', spdT: 350 },
-  ];
+  const profiles  = !_turbofan() ? [] : S.aircraft?.thrustProfiles ?? _FALLBACK_DETENTS;
   const engCount  = S.aircraft?.engine?.count ?? 2;
   const flapCfgs  = S.aircraft?.flaps ?? [
     { label: '0' }, { label: '1+F' }, { label: '2' }, { label: '3' },
@@ -546,11 +542,8 @@ function _buildHTML() {
 
   /* ── Thrust levers (quadrant — airliners + large props) ── */
   const thrustBlock = has('thrust') ? (() => {
-    /* Detent positions top-to-bottom: TOGA at top (0%), IDLE at bottom (100%) */
-    const detentPcts = profiles.map((_, i) => {
-      const frac = i / Math.max(1, profiles.length - 1);
-      return (1 - frac) * 82 + 4;   // 4% (top) … 86% (bottom), leaving head room
-    }).reverse();  // reverse: TOGA first = top
+    /* Detent positions at their lever positions, as the heads ride: 4% (TOGA, lever 1) … 86% (IDLE, lever 0) */
+    const detentPcts = profiles.map(p => (1 - p.lever) * 82 + 4).reverse();
 
     let leverCols = '';
     for (let e = 0; e < engCount; e++) {
@@ -755,17 +748,10 @@ function _attachHandlers() {
         setControl('throttle', Math.max(0, Math.min(1, 1 - (y - 4) / 82)));   // core/engine.js
         return;
       }
-      const profiles = S.aircraft?.thrustProfiles ?? [
-        { label: 'IDLE', spdT: 0 }, { label: 'CLB', spdT: 175 },
-        { label: 'MCT', spdT: 280 }, { label: 'TOGA', spdT: 350 },
-      ];
-      const maxSpdT  = Math.max(...profiles.map(p => p.spdT)) || 1;
-      const targetSpd = frac * maxSpdT;
+      const profiles = S.aircraft?.thrustProfiles ?? _FALLBACK_DETENTS;
       /* Snap to nearest detent, set the thrust lever (0…1) — not the FCU speed */
-      const snapped = profiles.reduce((best, p) =>
-        Math.abs(p.spdT - targetSpd) < Math.abs(best.spdT - targetSpd) ? p : best
-      );
-      setControl('throttle', Math.max(0, Math.min(1, snapped.spdT / maxSpdT)));   // the thrust lever — core/engine.js
+      const snapped = profiles.reduce((best, p) => Math.abs(p.lever - frac) < Math.abs(best.lever - frac) ? p : best);
+      setControl('throttle', Math.max(0, Math.min(1, snapped.lever)));   // the thrust lever — core/engine.js
     });
   });
 

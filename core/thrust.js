@@ -7,17 +7,19 @@
    engaged the autothrust modulates N1 between idle and that ceiling to hold the
    target speed; when the ceiling isn't enough it pins there (THR <detent>).
 
-   Detent geometry comes from each aircraft's thrustProfiles ({label, spdT});
-   spdT doubles as the lever fraction (spdT / maxSpdT). An explicit `n1` on a
-   profile overrides the default ceiling for that label.
+   Detent geometry comes from each aircraft's thrustProfiles ({label, lever}): the lever
+   position of each detent, 0 idle … 1 the lever's end. An explicit `n1` on a profile
+   overrides the default ceiling for that label.
 
    tickThrust(dt) is the thrust command: the A/THR speed loop, or the manual
-   lever. It publishes S.n1Cmd — the N1 asked of a running engine — and the
+   levers. It publishes S.n1Cmd — the N1 asked of each running engine, one per engine
+   (the A/THR the same for all; manual thrust each engine's own lever) — and the
    A/THR mode for the FMA. The engine (core/engine.js) spools N1 toward it.
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from './state.js';
 import { managedSpeed } from './managed-speed.js';
+import { throttle } from './engine.js';
 
 /* Flat-rated N1 ceiling per detent label (sea-level ISA, % N1). */
 const DETENT_N1 = { CLB: 84, MCT: 93, FLX: 93, TOGA: 100 };
@@ -27,19 +29,18 @@ const DETENT_N1 = { CLB: 84, MCT: 93, FLX: 93, TOGA: 100 };
  * The detent nearest the current lever position — same nearest-match the
  * pedestal and the "Thrust" status line use, so all three agree.
  */
-export function activeDetent(ac = S.aircraft, lever = S.thrustLever ?? 0) {
+export function activeDetent(ac = S.aircraft, lever = S.lever ?? 0) {
   const profiles = ac?.thrustProfiles;
   if (!profiles?.length) return null;
-  const maxSpdT = Math.max(...profiles.map(p => p.spdT)) || 1;
   let best = 0, bestD = Infinity;
   profiles.forEach((p, i) => {
-    const d = Math.abs(lever - p.spdT / maxSpdT);
+    const d = Math.abs(lever - p.lever);
     if (d < bestD) { bestD = d; best = i; }
   });
   const p    = profiles[best];
   const idle = ac?.engine?.idleN1 ?? 22;
   const n1Limit = (p.label === 'IDLE') ? idle
-                : (p.n1 ?? DETENT_N1[p.label] ?? (idle + (100 - idle) * (p.spdT / maxSpdT)));
+                : (p.n1 ?? DETENT_N1[p.label] ?? (idle + (100 - idle) * p.lever));
   return { label: p.label, n1Limit, idx: best };
 }
 
@@ -66,7 +67,7 @@ export function tickThrust(dt) {
   if (athrActive) {
     /* The thrust-lever detent is a flat-rated N1 ceiling — the A/THR may modulate up to
        it, no further. Pinned at the ceiling → THR <detent>; below it → SPEED/MACH. */
-    const det     = activeDetent(ac, S.thrustLever ?? 0);
+    const det     = activeDetent(ac, S.lever ?? 0);
     const ceiling = det ? det.n1Limit : 100;
     athrDetent    = det?.label ?? null;
     const mgSpd   = S.spdManaged ? managedSpeed() : null;                      // managed → phase speed schedule
@@ -85,19 +86,19 @@ export function tickThrust(dt) {
       n1Cmd = IDLE_N1; athrMode = 'IDLE';
       retardLever = true;   // pull the thrust levers back so they're at idle by touchdown
     }
-  } else {
-    /* A/THR off → manual thrust: N1 follows the thrust lever, not the FCU selected speed
-       (turning the SPD knob no longer changes thrust). Falls back to spdT for old state. */
-    const lever = S.thrustLever ?? Math.min(1, Math.max(0, (S.spdT ?? 0) / vmo));
-    /* Thrust reverser deployed → engines spool up to reverse thrust (the landing roar),
-       ramped with the reverser; below 60 kt it stows and N1 falls back to the lever. */
-    const _revN1 = IDLE_N1 + (78 - IDLE_N1) * Math.min(1, (S.groundRollT ?? 0) / 2.5);
-    n1Cmd = S.thrustReverser ? _revN1 : IDLE_N1 + (100 - IDLE_N1) * lever;
   }
+  /* One command per engine. A/THR: the same for all. A/THR off → manual thrust: each engine's N1 follows its own
+     lever, not the FCU selected speed (turning the SPD knob doesn't change thrust). Thrust reverser deployed → the
+     engines spool up to reverse thrust (the landing roar), ramped with the reverser; below 60 kt it stows and N1 falls
+     back to the lever. */
+  const engines = S.engines?.length ? S.engines : [{ lever: S.lever ?? 0 }];
+  const _revN1  = IDLE_N1 + (78 - IDLE_N1) * Math.min(1, (S.groundRollT ?? 0) / 2.5);
+  const n1Cmds  = engines.map(e => athrActive ? n1Cmd
+                                 : S.thrustReverser ? _revN1
+                                 : IDLE_N1 + (100 - IDLE_N1) * Math.max(0, Math.min(1, e.lever ?? 0)));
   _athrSpdPrev = athrActive ? (S.spd ?? 0) : null;
 
-  const up = { n1Cmd, athrN1: athrActive ? athrI : null,    // the A/THR integral; null when off → it starts from N1 on engagement
-               athrMode, athrDetent };                       // thrust mode for the FMA (null when A/THR off)
-  if (retardLever) up.thrustLever = 0;                       // RETARD — levers to idle, so on the ground N1 stays at idle
-  setState(up);
+  setState({ n1Cmd: n1Cmds, athrN1: athrActive ? athrI : null,   // the A/THR integral; null when off → it starts from N1 on engagement
+             athrMode, athrDetent });                            // thrust mode for the FMA (null when A/THR off)
+  if (retardLever) throttle(0);                                  // RETARD — levers to idle, so on the ground N1 stays at idle
 }

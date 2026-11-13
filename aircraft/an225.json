@@ -58,10 +58,10 @@
   ],
 
   "thrustProfiles": [
-    { "label": "IDLE",  "spdT":   0 },
-    { "label": "CLB",   "spdT": 290 },
-    { "label": "MCT",   "spdT": 420 },
-    { "label": "TOGA",  "spdT": 460 }
+    { "label": "IDLE",  "lever": 0 },
+    { "label": "CLB",   "lever": 0.63 },
+    { "label": "MCT",   "lever": 0.913 },
+    { "label": "TOGA",  "lever": 1 }
   ],
 
   "performance": {

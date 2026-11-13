@@ -54,11 +54,10 @@ export const S = {
   vsSelected: false,              // V/S mode: AP flies vsT until it captures the FCU altitude (ALT*)
   spdManaged: false,              // managed speed — A/THR flies the phase speed schedule vs hold the FCU speed
   athrN1:     55,                 // A/THR speed-loop integrator (N1 %); null while the A/THR is off — core/thrust.js
-  n1Cmd:      0,                  // N1 % asked of a running turbofan (A/THR or thrust lever) — core/thrust.js; the engine spools to it
+  n1Cmd:      0,                  // N1 % asked of each running turbofan, one per engine (A/THR, or each engine's own lever) — core/thrust.js; the engine spools to it
   athrMode:   null,               // active A/THR thrust mode: 'SPEED' | 'MACH' | 'THR' (null when A/THR off) — FMA column 0
   athrDetent: null,               // thrust-lever detent the A/THR is rated to: IDLE/CLB/MCT/TOGA
-  lever: 0,                       // the power lever 0 idle … 1 full — derived from S.engines[i].lever (core/engine.js; not a turbofan's yet)
-  thrustLever: 0,                 // manual thrust-lever position 0=idle…1=TOGA — drives N1 when A/THR is off (spdT then is only the selected speed)
+  lever: 0,                       // the power (thrust) lever 0 idle … 1 full / TOGA — derived from S.engines[i].lever (core/engine.js); a turbofan's drives N1 when A/THR is off (spdT then is only the selected speed)
   wow:      false,                // weight on wheels (squat switch)
   touchdownVS: 0,                 // VS at last touchdown (fpm, negative)
   crashed:  false,                // bounds exceeded — physics frozen

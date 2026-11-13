@@ -526,19 +526,19 @@
   "thrustProfiles": [
     {
       "label": "IDLE",
-      "spdT": 0
+      "lever": 0
     },
     {
       "label": "CLB",
-      "spdT": 175
+      "lever": 0.53
     },
     {
       "label": "MCT",
-      "spdT": 248
+      "lever": 0.752
     },
     {
       "label": "TOGA",
-      "spdT": 330
+      "lever": 1
     }
   ],
   "spoilers": { "drag": 0.06 },

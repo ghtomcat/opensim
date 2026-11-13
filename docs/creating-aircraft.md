@@ -332,16 +332,18 @@ Five preset states loaded by number keys `1–5` (disabled when a mission is act
 
 ## Thrust profiles
 
-A turbofan's thrust-lever detents, mapped to keys `F1–F4` and drawn on the pedestal's levers. Turbofans only — the
+A turbofan's thrust-lever detents — each the lever's position 0 (idle) … 1 (the lever's end, TOGA) — mapped to keys
+`F1–F4` and drawn on the pedestal's levers at those positions. The label sets the detent's N1 ceiling for the A/THR
+(CLB 84, MCT/FLX 93, TOGA 100 %; an `n1` on the profile overrides it). Turbofans only — the
 schema refuses them elsewhere: a propeller's (or a turbojet's) throttle has no detents; `F1` is idle and `F4` full, and
 its pedestal lever is set where it is clicked. A real gate (e.g. a war-emergency wire) will come as data of its own.
 
 ```json
 "thrustProfiles": [
-  { "label": "IDLE", "spdT": 0   },
-  { "label": "CLB",  "spdT": 180 },
-  { "label": "MCT",  "spdT": 280 },
-  { "label": "TOGA", "spdT": 350 }
+  { "label": "IDLE", "lever": 0     },
+  { "label": "CLB",  "lever": 0.514 },
+  { "label": "MCT",  "lever": 0.8   },
+  { "label": "TOGA", "lever": 1     }
 ]
 ```
 

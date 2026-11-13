@@ -3690,11 +3690,8 @@
       _active = _lv < 0.005 ? 'IDLE' : _lv > 0.995 ? 'FULL' : '---';
     } else if (_profiles?.length) {
       /* Match the detent nearest the thrust lever (not the FCU speed) — mirrors the pedestal. */
-      const _maxSpdT = Math.max(..._profiles.map(p => p.spdT)) || 1;
-      const _lever   = S.thrustLever ?? 0;
-      _active = _profiles.reduce((b, p) =>
-        Math.abs(_lever - p.spdT / _maxSpdT) < Math.abs(_lever - b.spdT / _maxSpdT) ? p : b
-      ).label;
+      const _lever   = S.lever ?? 0;
+      _active = _profiles.reduce((b, p) => Math.abs(_lever - p.lever) < Math.abs(_lever - b.lever) ? p : b).label;
     }
     document.getElementById('pv-thrust').textContent = _active;
     document.getElementById('pv-role').textContent = S.pilotCallsign ?? S.role;
