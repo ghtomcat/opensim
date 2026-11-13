@@ -114,12 +114,6 @@
     { "label": "APPROACH", "alt": 3000, "spd": 180,  "hdg": 280, "altT": 1500, "spdT": 150 }
   ],
 
-  "thrustProfiles": [
-    { "label": "IDLE",      "spdT": 0   },
-    { "label": "TAKEOFF",   "spdT": 200 },
-    { "label": "CLIMB",     "spdT": 270 },
-    { "label": "EMERGENCY", "spdT": 335 }
-  ],
 
 
 

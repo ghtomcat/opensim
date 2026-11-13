@@ -114,20 +114,6 @@
       "spdT": 65
     }
   ],
-  "thrustProfiles": [
-    {
-      "label": "IDLE",
-      "spdT": 0
-    },
-    {
-      "label": "CRUISE",
-      "spdT": 100
-    },
-    {
-      "label": "FULL",
-      "spdT": 120
-    }
-  ],
   "sound": {
     "engineType": "lycoming-o360"
   },

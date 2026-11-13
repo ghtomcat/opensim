@@ -107,11 +107,13 @@ export const KEYS = [
   { id: 'thrust', group: 'Engine and systems', show: '+ −',
     desc: (ac) => turbofan(ac) ? 'Thrust lever ±10 %' : manual(ac) ? 'Throttle ±' : 'Speed target ±5 kt',
     keys: ['=', '+', '-', '_'], when: flown },
+  /* A turbofan's thrust lever has detents — four keys, its four; a propeller's throttle has none: idle and full only */
   { id: 'thrust-detent', group: 'Engine and systems', show: 'F1–F4',
-    docDesc: 'Thrust detents: the aircraft\'s `thrustProfiles`; a propeller: F1 idle, F4 full',
-    desc: (ac) => ac?.thrustProfiles ? `Thrust: ${ac.thrustProfiles.map(p => p.label).join(' · ')}`
-                : turbofan(ac) ? 'Thrust detents' : 'Throttle: F1 idle · F4 full',
-    keys: ['F1', 'F2', 'F3', 'F4'], when: flown, prevent: true },
+    docDesc: 'Thrust detents: the aircraft\'s `thrustProfiles` (turbofans)',
+    desc: (ac) => ac?.thrustProfiles ? `Thrust: ${ac.thrustProfiles.map(p => p.label).join(' · ')}` : 'Thrust detents',
+    keys: ['F1', 'F2', 'F3', 'F4'], when: (ac) => flown(ac) && turbofan(ac), prevent: true },
+  { id: 'thrust-detent', group: 'Engine and systems', show: 'F1 F4', desc: 'Throttle idle · full',
+    keys: ['F1', 'F4'], when: (ac) => flown(ac) && !turbofan(ac), prevent: true },
   { id: 'flaps-extend', group: 'Engine and systems', show: 'f', desc: 'Flaps: extend one stage', keys: ['f'], when: flown },
   { id: 'flaps-retract', group: 'Engine and systems', show: 'F', desc: 'Flaps: retract one stage', keys: ['F'], when: flown },
   { id: 'gear', group: 'Engine and systems', show: 'G', desc: 'Gear up / down (not on the ground)',

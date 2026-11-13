@@ -275,7 +275,9 @@ export const aircraft = object(
       }
       /* a declared turbofan needs a sane idle */
       if (turbofan && a.engine.idleN1 !== undefined && !(a.engine.idleN1 >= 0 && a.engine.idleN1 <= 100)) errs.push('engine.idleN1 out of range 0…100');
-      /* the A/THR detents read thrustProfiles: spdT >= 0 and a positive maximum (the lever denominator) */
+      /* the A/THR detents read thrustProfiles: spdT >= 0 and a positive maximum (the lever denominator). Only a turbofan's
+         thrust lever has detents — a propeller's throttle has none (Markus, 2026-11-13); a real gate comes as data of its own */
+      if (a.thrustProfiles && !turbofan) errs.push('thrustProfiles: only a turbofan\'s thrust lever has detents');
       if (a.thrustProfiles) {
         if (!a.thrustProfiles.length) errs.push('thrustProfiles must not be empty');
         if (a.thrustProfiles.some(p => !(p.spdT >= 0))) errs.push('thrustProfiles: every spdT must be >= 0');

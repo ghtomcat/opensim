@@ -77,11 +77,6 @@
     { "label": "CRUISE",   "alt": 4000, "spd": 92, "hdg": 280, "altT": 4000, "spdT": 92 }
   ],
 
-  "thrustProfiles": [
-    { "label": "IDLE",   "spdT":  0 },
-    { "label": "CLIMB",  "spdT": 70 },
-    { "label": "CRUISE", "spdT": 92 }
-  ],
 
   "takeoffCallouts": [
     { "spd": 55, "speech": "rotate",    "voice": "pm" },

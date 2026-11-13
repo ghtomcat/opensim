@@ -39,6 +39,14 @@ test('each aircraft is told how it starts and how it stops', () => {
   assert.equal(row('avro504', 'Q'), undefined);
 });
 
+test('F1–F4: a turbofan\'s four detents; a throttle without detents only idle and full (Markus, 2026-11-13)', () => {
+  assert.match(row('a340', 'F1–F4'), /IDLE · CLB · MCT · TOGA/);
+  for (const id of ['c172', 'bf109', 'f4u1a', 'tu95', 'velis-hb-syq', 'mig15bis']) {
+    assert.equal(row(id, 'F1–F4'), undefined, `${id}: no invented detents`);
+    assert.equal(row(id, 'F1 F4'), 'Throttle idle · full');
+  }
+});
+
 test('a key that does nothing here is not offered', () => {
   assert.equal(row('c172', 'Tab'), undefined);
   assert.match(row('a340', 'Tab'), /ECAM/);

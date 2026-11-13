@@ -79,20 +79,6 @@
       "spdT": 65
     }
   ],
-  "thrustProfiles": [
-    {
-      "label": "IDLE",
-      "spdT": 0
-    },
-    {
-      "label": "CRUISE",
-      "spdT": 100
-    },
-    {
-      "label": "FULL",
-      "spdT": 122
-    }
-  ],
   "manualControl": true,
   "fixedGear": true,
   "performance": {

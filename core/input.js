@@ -242,8 +242,8 @@ const _keyActions = {
     const now  = turbofan ? (S.thrustLever ?? 0) : (S.lever ?? 0);
     commandContinuous('throttle', Math.max(0, Math.min(1, now + (up ? step : -step))), { source: 'key' });
   },
-  /* A turbofan's detents (its thrustProfiles, or a fallback). A propeller's throttle has no detents: F1 idle, F4 full,
-     F2 / F3 nothing — no invented positions (Markus, 2026-11-13); a real gate comes from the aircraft's data. */
+  /* A turbofan's detents (its thrustProfiles, or a fallback). A propeller's throttle has no detents: F1 idle, F4 full
+     (the key map offers only those two) — no invented positions (Markus, 2026-11-13); a real gate comes from the data. */
   'thrust-detent': (e) => {
     const i = ['F1', 'F2', 'F3', 'F4'].indexOf(e.key);
     if (S.aircraft?.engine?.type !== 'turbofan') {

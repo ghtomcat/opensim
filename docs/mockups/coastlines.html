@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenSim — route chart coastlines (mockup)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&display=swap">
+<style>
+  :root {
+    --bg: #030609;
+    --white: #e8edf2;
+    --text: rgba(232,237,242,0.8);
+    --muted: rgba(232,237,242,0.42);
+    --line: rgba(255,255,255,0.08);
+    --accent: #4dc5dc;
+    --mono: "IBM Plex Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--mono); }
+  :focus-visible { outline: 1px solid var(--accent); outline-offset: 3px; }
+  header { padding: 28px 24px 8px; max-width: 1500px; margin: 0 auto; }
+  h1 { margin: 0 0 6px; font-size: 16px; font-weight: 700; color: var(--white); }
+  header p { margin: 0; font-size: 12px; line-height: 1.7; color: var(--muted); max-width: 80ch; }
+  .route { padding: 22px 24px 8px; max-width: 1500px; margin: 0 auto; border-bottom: 1px solid var(--line); }
+  .route h2 { margin: 0 0 10px; font-size: 13px; font-weight: 700; color: var(--white); }
+  .route h2 span { font-weight: 400; color: var(--muted); }
+  .cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  figure { margin: 0; }
+  figcaption { font-size: 11px; color: var(--muted); padding: 6px 2px 14px; }
+  canvas { display: block; width: 100%; aspect-ratio: 1020 / 740; background: #070b11; }
+  @media (max-width: 800px) { .cols { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Route chart coastlines</h1>
+  <p>Each route as the briefing's Route tab draws it, with three coastline sets: today's hand-drawn
+  map (~5°), Natural Earth 1:110m (74 KB, 5,100 points) and Natural Earth 1:50m (876 KB, 60,400 points).
+  Same projection, colours and line style as <code>_renderRouteChart()</code>.</p>
+</header>
+<main id="routes"></main>
+
+<script src="coastlines/coast-now.js"></script>
+<script src="coastlines/coast-110m.js"></script>
+<script src="coastlines/coast-50m.js"></script>
+<script src="coastlines/routes.js"></script>
+<script>
+  /* Copied from core/route.js — classic scripts only, so the page also opens from file:// */
+  const SEG_COL = { dep: '#5dd47e', sid: '#56c7e6', awy: '#d96ec8', star: '#e6b455', app: '#ef9a5a', arr: '#ff6e6e' };
+
+  const SETS = [
+    ['Now · hand-drawn, ~5°', window.COAST_NOW],
+    ['Natural Earth 1:110m', window.COAST_110M],
+    ['Natural Earth 1:50m', window.COAST_50M],
+  ];
+
+  /* A copy of _renderRouteChart()'s drawing, with the coastline set as a parameter. */
+  function draw(cv, r, coast) {
+    const dpr = window.devicePixelRatio || 1;
+    const W = cv.width = cv.clientWidth * dpr, H = cv.height = cv.clientHeight * dpr;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#070b11'; ctx.fillRect(0, 0, W, H);
+
+    const pts = r.legs.length ? r.legs.map(l => [l[0], l[1]]) : [r.depLL];
+    let latMin = 90, latMax = -90, lonMin = 180, lonMax = -180;
+    for (const [la, lo] of pts) {
+      latMin = Math.min(latMin, la); latMax = Math.max(latMax, la);
+      lonMin = Math.min(lonMin, lo); lonMax = Math.max(lonMax, lo);
+    }
+    if (latMax - latMin < 0.5 && lonMax - lonMin < 0.5) { latMin -= 2; latMax += 2; lonMin -= 3; lonMax += 3; }
+    const padLat = (latMax - latMin) * 0.12 + 0.5, padLon = (lonMax - lonMin) * 0.12 + 0.5;
+    latMin -= padLat; latMax += padLat; lonMin -= padLon; lonMax += padLon;
+    const cosMid = Math.cos((latMin + latMax) / 2 * Math.PI / 180);
+    const gw = (lonMax - lonMin) * cosMid, gh = latMax - latMin, pad = 44 * dpr;
+    const sc = Math.min((W - 2 * pad) / gw, (H - 2 * pad) / gh);
+    const ox = (W - gw * sc) / 2, oy = (H - gh * sc) / 2;
+    const proj = (la, lo) => [ox + (lo - lonMin) * cosMid * sc, oy + (latMax - la) * sc];
+
+    ctx.strokeStyle = 'rgba(120,150,180,0.22)'; ctx.lineWidth = dpr; ctx.beginPath();
+    for (const poly of coast) {
+      let started = false;
+      for (const [lo, la] of poly) {
+        if (lo < lonMin - 5 || lo > lonMax + 5 || la < latMin - 5 || la > latMax + 5) { started = false; continue; }
+        const [x, y] = proj(la, lo);
+        if (started) ctx.lineTo(x, y); else { ctx.moveTo(x, y); started = true; }
+      }
+    }
+    ctx.stroke();
+
+    ctx.lineWidth = 2 * dpr; ctx.lineJoin = ctx.lineCap = 'round';
+    for (let i = 1; i < r.legs.length; i++) {
+      const a = r.legs[i - 1], b = r.legs[i];
+      ctx.strokeStyle = SEG_COL[b[2]] || '#d96ec8'; ctx.beginPath();
+      const pa = proj(a[0], a[1]), pb = proj(b[0], b[1]);
+      ctx.moveTo(pa[0], pa[1]); ctx.lineTo(pb[0], pb[1]); ctx.stroke();
+    }
+    const mark = (ll, icao, col) => {
+      if (!ll) return; const [x, y] = proj(ll[0], ll[1]);
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, 4.5 * dpr, 0, 7); ctx.fill();
+      ctx.fillStyle = '#eef2f7'; ctx.font = `bold ${12 * dpr}px "IBM Plex Mono",monospace`;
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(' ' + icao, x + 5 * dpr, y);
+    };
+    const first = r.legs[0], last = r.legs.at(-1);
+    mark(first ? [first[0], first[1]] : r.depLL, r.dep, '#5dd47e');
+    if (last && r.arr) mark([last[0], last[1]], r.arr, '#ff6e6e');
+  }
+
+  const main = document.getElementById('routes');
+  for (const r of window.ROUTES) {
+    const sec = document.createElement('section');
+    sec.className = 'route';
+    sec.innerHTML = `<h2>${r.dep}${r.arr ? ' → ' + r.arr : ''} <span>${r.id}${r.dist ? ', ' + r.dist + ' nm' : ', departure only'}</span></h2>
+      <div class="cols">${SETS.map(([label]) => `<figure><canvas></canvas><figcaption>${label}</figcaption></figure>`).join('')}</div>`;
+    main.append(sec);
+    sec.querySelectorAll('canvas').forEach((cv, i) => draw(cv, r, SETS[i][1]));
+  }
+</script>
+</body>
+</html>

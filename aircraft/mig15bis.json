@@ -110,12 +110,6 @@
     { "label": "APPROACH", "alt": 3000,  "spd": 220, "hdg": 280, "altT": 1500,  "spdT": 160 }
   ],
 
-  "thrustProfiles": [
-    { "label": "IDLE",  "spdT":   0 },
-    { "label": "CLB",   "spdT": 380 },
-    { "label": "MAX",   "spdT": 490 },
-    { "label": "TOGA",  "spdT": 567 }
-  ],
 
 
 

@@ -46,11 +46,6 @@
     { "label": "APPROACH", "alt": 500,  "spd": 55, "hdg": 45, "altT": 100,  "spdT": 50 }
   ],
 
-  "thrustProfiles": [
-    { "label": "OFF",  "spdT": 0  },
-    { "label": "BLIP", "spdT": 50 },
-    { "label": "FULL", "spdT": 83 }
-  ],
 
   "manualControl": true,
   "fixedGear": true,

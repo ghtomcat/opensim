@@ -332,7 +332,9 @@ Five preset states loaded by number keys `1–5` (disabled when a mission is act
 
 ## Thrust profiles
 
-Four presets mapped to keys `F1–F4`.
+A turbofan's thrust-lever detents, mapped to keys `F1–F4` and drawn on the pedestal's levers. Turbofans only — the
+schema refuses them elsewhere: a propeller's (or a turbojet's) throttle has no detents; `F1` is idle and `F4` full, and
+its pedestal lever is set where it is clicked. A real gate (e.g. a war-emergency wire) will come as data of its own.
 
 ```json
 "thrustProfiles": [
@@ -576,7 +578,7 @@ Add an entry to the `MISSIONS` array in `index.html`:
 | `manualControl` | absent / `false` | `true` |
 | Arrow keys | change `hdgT`/`altT` | bank/pitch the aircraft |
 | Physics | converges to targets | full aero model |
-| Required fields | `envelope`, `thrustProfiles`, `ambient` | `performance`, `handling`, `flaps`, `sound` |
+| Required fields | `envelope`, `thrustProfiles` (turbofan), `ambient` | `performance`, `handling`, `flaps`, `sound` |
 | Fuel | omit `tanks` (unlimited) | add `tanks` + `fuelBurn` |
 | Ailerons (outside view) | driven by `hdgT − hdg` | driven by `rollT` |
 

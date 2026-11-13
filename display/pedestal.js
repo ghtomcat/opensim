@@ -450,9 +450,11 @@ const _CSS = `
 
 /* ── Helpers ──────────────────────────────────────────────────── */
 
-/* Return 0-1 fraction for lever position: IDLE=0, TOGA=1 */
-function _leverFrac() {
-  return Math.max(0, Math.min(1, S.thrustLever ?? 0));   // lever position (0=idle…1=TOGA)
+const _turbofan = () => S.aircraft?.engine?.type === 'turbofan';
+
+/* Return 0-1 fraction for lever position: IDLE=0, TOGA=1 — a turbofan's one thrust lever, or engine e's own power lever */
+function _leverFrac(e = 0) {
+  return Math.max(0, Math.min(1, _turbofan() ? (S.thrustLever ?? 0) : (S.engines?.[e]?.lever ?? 0)));
 }
 
 /* Return index of nearest thrust profile to the current lever position */
@@ -535,7 +537,8 @@ function _pedestalTokens() { return zoneTokens(S.aircraft, 'pedestal'); }   // c
 function _buildHTML() {
   const tokens    = _pedestalTokens();
   const has       = (t) => tokens.includes(t);
-  const profiles  = S.aircraft?.thrustProfiles ?? [
+  /* a turbofan's detents (or the fallback); a propeller's throttle has none — a plain lever */
+  const profiles  = !_turbofan() ? [] : S.aircraft?.thrustProfiles ?? [
     { label: 'IDLE', spdT: 0 },
     { label: 'CLB',  spdT: 175 },
     { label: 'MCT',  spdT: 280 },
@@ -572,7 +575,7 @@ function _buildHTML() {
     }
     return `
         <div class="ped-tl-block">
-          <div class="ped-tl-label">THRUST</div>
+          <div class="ped-tl-label">${_turbofan() ? 'THRUST' : 'THROTTLE'}</div>
           <div class="ped-tl-row">${leverCols}</div>
         </div>
 
@@ -747,11 +750,17 @@ function _attachHandlers() {
     });
   }
 
-  /* Thrust profile detents — click any track to jump to nearest profile */
+  /* Thrust profile detents — click any track to jump to nearest profile; a propeller's lever (no detents) is set where
+     clicked — a convenience, not the real gesture (the controls plan) */
   _el.querySelectorAll('.ped-lever-track').forEach(track => {
     track.addEventListener('click', e => {
       const rect = track.getBoundingClientRect();
       const frac = 1 - (e.clientY - rect.top) / rect.height;   // 0=IDLE 1=TOGA
+      if (!_turbofan()) {                                        // the head where clicked: it rides 4 % … 86 % of the track
+        const y = (e.clientY - rect.top) / rect.height * 100;
+        setControl('throttle', Math.max(0, Math.min(1, 1 - (y - 4) / 82)));   // core/engine.js
+        return;
+      }
       const profiles = S.aircraft?.thrustProfiles ?? [
         { label: 'IDLE', spdT: 0 }, { label: 'CLB', spdT: 175 },
         { label: 'MCT', spdT: 280 }, { label: 'TOGA', spdT: 350 },
@@ -785,15 +794,13 @@ function _update() {
   }
 
   const engCount   = S.aircraft?.engine?.count ?? 2;
-  const frac       = _leverFrac();
   const activeIdx  = _activeProfileIdx();
   const profiles   = S.aircraft?.thrustProfiles ?? [];
 
-  /* Lever heads: top% = (1-frac)*82+4, inverted so TOGA is near top */
-  const leverPct = (1 - frac) * 82 + 4;
+  /* Lever heads: top% = (1-frac)*82+4, inverted so TOGA is near top — each engine's own lever */
   for (let e = 0; e < engCount; e++) {
     const head = document.getElementById(`ped-lh-${e}`);
-    if (head) head.style.top = `${leverPct}%`;
+    if (head) head.style.top = `${(1 - _leverFrac(e)) * 82 + 4}%`;
     const n1el = document.getElementById(`ped-n1-${e}`);
     if (n1el) {
       /* Turbofan: the fan speed (N1 %, 0 with the engine off). Engines without an N1 — props,
