@@ -30,6 +30,8 @@
     "maxAlt":    16000,
     "cruiseSpd":  72,
     "maxSpd":     83,
+    "vne": 95.6,
+    "limitsSource": "No documented limit found (no 504K handbook, pilot's notes or permit document online; searched 2026-11-13 — only top speeds, 85–95 mph): the red mark at 110 mph (95.6 kt) on the airspeed indicator, Markus's photo — sources/avro-504k-panel-notes.md. A painted marking, used here as the limit by exception (Markus, 2026-11-13)",
     "spdProfile": {
       "16000": 72,
       "3000":  72,
