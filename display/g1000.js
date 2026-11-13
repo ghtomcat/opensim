@@ -486,10 +486,27 @@ function _mfd(ctx, canvas, x, y, w, h) {
   updateG1000MapOverlay(canvas, x + eisW + 2, y, w - eisW - 2, h);
 }
 
+const _cToF = (c) => c * 9 / 5 + 32;
+/* The oil gauges' bands — the engine's own, from its manual (aircraft engine.oil: the POH's markings — the C172S's
+   Figure 2-3: pressure red 0–20, green 50–90, red from 115 PSI; temperature green 100–245, red from 245 °F), as a real
+   G1000 is configured from the aircraft's flight manual (Markus, 2026-11-13). The edges in °F rounded to 5° (the POH's
+   own steps — 118 °C is 244.4 °F, the POH says 245). Without engine.oil the display's old generic bands. */
+export function oilBands() {
+  const o = S.aircraft?.engine?.oil;
+  const f5 = (c) => Math.round(_cToF(c) / 5) * 5;
+  const p = o?.pressurePsi, t = o?.tempC;
+  const pMax = p?.max != null ? Math.max(100, Math.ceil((p.max + 5) / 10) * 10) : 100;
+  const tMax = t?.max != null ? Math.max(260, Math.ceil((f5(t.max) + 5) / 10) * 10) : 260;
+  const press = p?.normal ? [...(p.min != null ? [[0, p.min, G.red]] : []), [p.normal[0], p.normal[1], G.green],
+                             ...(p.max != null ? [[p.max, pMax, G.red]] : [])]
+                          : [[0, 25, G.red], [25, 55, G.amber], [55, 90, G.green], [90, 100, G.red]];
+  const temp  = t?.normal ? [[f5(t.normal[0]), f5(t.normal[1]), G.green], ...(t.max != null ? [[f5(t.max), tMax, G.red]] : [])]
+                          : [[50, 100, G.amber], [100, 220, G.green], [220, 260, G.red]];
+  return { press, temp, pMax, tMax };
+}
+
 function _engineStrip(ctx, x, y, w, h) {
   const throttle = throttleFrac();                                   // the power lever (core/engine.js)
-  const _engOff  = S.engineState === 'off' || S.engineState === 'shutdown';
-  const ePow     = _engOff ? 0 : (S.enginePower ?? 1.0);
   const rpm      = Math.round(engineRpm(0) ?? 0);                    // the engine model's (core/engine.js)
   const rpmText  = rpm < 5 ? '---' : rpm.toString();
   const warns    = S.warnings ?? {};
@@ -507,8 +524,9 @@ function _engineStrip(ctx, x, y, w, h) {
   ]);
 
   /* ── 6 bar gauges (middle ~44%) ── */
-  const oil_t    = Math.min(230, 60 + Math.min(1, (S.time ?? 0) / 240) * 160);
-  const oil_p    = ePow < 0.3 ? 0 : 68 + throttle * 12;
+  const oil_t    = _cToF(S.engines?.[0]?.oilTemp ?? S.oilTempC ?? 15);   // the engine's own (core/engine.js)
+  const oil_p    = S.engines?.[0]?.oil ?? 0;
+  const oilB     = oilBands();
   const tanks    = S.aircraft?.tanks;
   const maxGal   = (tanks?.left ?? 95) / 3.785;
   const fuelLgal = (S.fuelLeft  ?? 0) / 3.785;
@@ -519,8 +537,8 @@ function _engineStrip(ctx, x, y, w, h) {
   const cht      = 250 + throttle * 160;
 
   const gauges = [
-    { label: 'OIL °F',  val: oil_t,    min: 50,       max: 260,    text: String(Math.round(oil_t)),  bands: [[50,100,G.amber],[100,220,G.green],[220,260,G.red]],                                    alert: null },
-    { label: 'OIL PSI', val: oil_p,    min: 0,        max: 100,    text: String(Math.round(oil_p)),  bands: [[0,25,G.red],[25,55,G.amber],[55,90,G.green],[90,100,G.red]],                           alert: null },
+    { label: 'OIL °F',  val: oil_t,    min: 50,       max: oilB.tMax, text: String(Math.round(oil_t)), bands: oilB.temp,  alert: null },
+    { label: 'OIL PSI', val: oil_p,    min: 0,        max: oilB.pMax, text: String(Math.round(oil_p)), bands: oilB.press, alert: null },
     { label: 'FUEL L',  val: fuelLgal, min: 0,        max: maxGal, text: fuelLgal.toFixed(1),        bands: [[0,maxGal*0.08,G.red],[maxGal*0.08,maxGal*0.16,G.amber],[maxGal*0.16,maxGal,G.green]], alert: lowL ? G.red : null },
     { label: 'FUEL R',  val: fuelRgal, min: 0,        max: maxGal, text: fuelRgal.toFixed(1),        bands: [[0,maxGal*0.08,G.red],[maxGal*0.08,maxGal*0.16,G.amber],[maxGal*0.16,maxGal,G.green]], alert: lowR ? G.red : null },
     { label: 'EGT °F',  val: egt,      min: 0,        max: 1600,   text: String(Math.round(egt)),    bands: [[0,800,G.dim],[800,1450,G.green],[1450,1600,G.red]],                                    alert: null },
