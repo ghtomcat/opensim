@@ -72,3 +72,13 @@ for (const [what, mission, label, value, sel] of [
     await expect(page.locator('#ps-fsel')).toBeVisible({ visible: sel });
   });
 }
+
+test('a throttle without detents: the Thrust cell names only its ends — IDLE, FULL; between them nothing', async ({ page }) => {
+  await load(page, 'lszf-pattern');
+  await page.evaluate(() => window.simSetState({ lever: 0 }));
+  await expect(page.locator('#pv-thrust')).toHaveText('IDLE');
+  await page.evaluate(() => window.simSetState({ lever: 0.6 }));
+  await expect(page.locator('#pv-thrust')).toHaveText('---');
+  await page.evaluate(() => window.simSetState({ lever: 1 }));
+  await expect(page.locator('#pv-thrust')).toHaveText('FULL');
+});
