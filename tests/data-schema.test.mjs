@@ -83,7 +83,7 @@ test('schema catches a misspelled key', () => {
   assert.ok(errs.some(e => e === 'vehicletype: unknown key'), errs.join('\n'));
 });
 test('schema: only a turbofan\'s thrust lever has detents (thrustProfiles)', () => {
-  const errs = errorsAfter('aircraft/c172.json', aircraft, a => { a.thrustProfiles = [{ label: 'IDLE', spdT: 0 }, { label: 'FULL', spdT: 122 }]; });
+  const errs = errorsAfter('aircraft/c172.json', aircraft, a => { a.thrustProfiles = [{ label: 'IDLE', lever: 0 }, { label: 'FULL', lever: 1 }]; });
   assert.ok(errs.some(e => e.endsWith('thrustProfiles: only a turbofan\'s thrust lever has detents')), errs.join('\n'));
 });
 test('schema catches an unknown engine sound', () => {

@@ -44,7 +44,7 @@ test('< and > step the rudder trim, which stays — within its limit', async ({ 
 test('the 777 in the air: holding . yaws the nose right', async ({ page }) => {
   await load(page, 'singapore-london');
   await page.evaluate(() => {
-    window.simSetState({ thrustLever: 1, parkBrake: false });
+    window.simSetState({ lever: 1, parkBrake: false });
     window.simStep(40 * 60, 1 / 60);
     window.simSetState({ pitchT: 8 });
     window.simStep(40 * 60, 1 / 60);

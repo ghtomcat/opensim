@@ -190,9 +190,9 @@ test('initial state: cold on the ground with a start sequence, running otherwise
 
 test('turbofan: the thrust lever sets the command, the engine spools N1 toward it (8 s up)', () => {
   const ac = load('a350');
-  cold(ac, { engineState: 'running', n1: 22, athr: false, wow: true, thrustLever: 1, crashed: false, paused: false, envelope: undefined });
+  cold(ac, { engineState: 'running', n1: 22, athr: false, wow: true, lever: 1, crashed: false, paused: false, envelope: undefined });
   tickThrust(0.1);
-  assert.equal(S.n1Cmd, 100);                                  // full lever → 100 % (A/THR off)
+  assert.deepEqual(S.n1Cmd, [100, 100]);                       // full levers → 100 % (A/THR off), one per engine
   for (let t = 0; t < 8 - 1e-9; t += 0.1) { tickThrust(0.1); tickEngine(0.1); }
   const expect = 22 + (100 - 22) * (1 - Math.exp(-1));         // one time constant
   assert.ok(Math.abs(S.n1 - expect) < 0.5, `N1 ${S.n1.toFixed(2)} after 8 s, expected ≈ ${expect.toFixed(2)}`);
@@ -334,7 +334,7 @@ test('S.engines holds one entry per engine — the A340 has four, the C172 one',
 test('stage 1: every engine goes through the same start and spool; the single fields match them', () => {
   const ac = load('a340');
   const patch = initialEngine(ac, { onGround: true, spd: 0 });
-  setState({ aircraft: ac, paused: false, crashed: false, n1Cmd: 22, thrustLever: 0, wow: true, thrustReverser: false, ...patch });
+  setState({ aircraft: ac, paused: false, crashed: false, n1Cmd: 22, lever: 0, wow: true, thrustReverser: false, ...patch });
   startEngine();
   for (let t = 0; t < 30; t += 0.1) tickEngine(0.1);
   const n1s = S.engines.map(e => e.n1);
@@ -365,7 +365,7 @@ test('the single fields are derived: the highest state, the largest N1 and power
 
 function runningTwin(id = 'b777-300er', n1 = 90) {
   const ac = load(id);
-  setState({ aircraft: ac, paused: false, crashed: false, wow: false, spd: 250, thrustLever: 1, thrustReverser: false,
+  setState({ aircraft: ac, paused: false, crashed: false, wow: false, spd: 250, lever: 1, thrustReverser: false,
              n1Cmd: n1, engMode: 'IGN+START', acBusPowered: true,
              ...initialEngine(ac, { onGround: false, spd: 250 }) });
   setState({ engines: S.engines.map(e => ({ ...e, n1 })) });
@@ -433,7 +433,7 @@ test('core: idle N1 gives core idle (60 %), full N1 gives 100 %', () => {
 
 test('the generators run off the core: online at idle on the runway', () => {
   const ac = load('b777-300er');
-  setState({ aircraft: ac, wow: true, spd: 0, paused: false, crashed: false, n1Cmd: 22, thrustLever: 0,
+  setState({ aircraft: ac, wow: true, spd: 0, paused: false, crashed: false, n1Cmd: 22, lever: 0,
              ...initialEngine(ac, { onGround: true, spd: 0, onRunway: true }) });
   for (let t = 0; t < 2; t += 0.1) tickEngine(0.1);
   assert.ok(Math.abs(S.engines[0].core - 60) < 0.1, `core ${S.engines[0].core}`);
@@ -443,7 +443,7 @@ test('the generators run off the core: online at idle on the runway', () => {
 
 test('the start: the core follows the start profile — ~25 % at light-off, idle at the end', () => {
   const ac = load('b777-300er');
-  setState({ aircraft: ac, wow: true, spd: 0, paused: false, crashed: false, n1Cmd: 22, thrustLever: 0,
+  setState({ aircraft: ac, wow: true, spd: 0, paused: false, crashed: false, n1Cmd: 22, lever: 0,
              ...initialEngine(ac, { onGround: true, spd: 0 }) });
   startEngine();
   const T = ac.engine.startTime;
@@ -475,7 +475,7 @@ test('a shutdown in flight ends when the fan has run down to its windmill speed'
 
 function idleOnRunway() {
   const ac = load('b777-300er');
-  setState({ aircraft: ac, wow: true, spd: 0, alt: 22, paused: false, crashed: false, n1Cmd: 22, thrustLever: 0,
+  setState({ aircraft: ac, wow: true, spd: 0, alt: 22, paused: false, crashed: false, n1Cmd: 22, lever: 0,
              thrustReverser: false, fuelLeft: null, warnings: {}, metar: { temp: 15 }, mission: {},
              ...initialEngine(ac, { onGround: true, spd: 0, onRunway: true }) });
   return ac;
@@ -498,7 +498,7 @@ test('at idle: EGT ≈ 400 °C, oil ≈ 37 psi, fuel flow a few hundred kg/h; at
 
 test('the start: EGT rises at light-off toward the start peak, oil comes up with the core', () => {
   const ac = load('b777-300er');
-  setState({ aircraft: ac, wow: true, spd: 0, alt: 22, paused: false, crashed: false, n1Cmd: 22, thrustLever: 0, metar: { temp: 15 }, mission: {},
+  setState({ aircraft: ac, wow: true, spd: 0, alt: 22, paused: false, crashed: false, n1Cmd: 22, lever: 0, metar: { temp: 15 }, mission: {},
              ...initialEngine(ac, { onGround: true, spd: 0 }) });
   startEngine();
   const T = ac.engine.startTime;
@@ -562,23 +562,27 @@ test('the throttle: every engine\'s own lever — all of them, or one by its ind
   assert.equal(throttle('x'), false);
 });
 
-test('the throttle: a turbofan\'s is still its one thrust lever (S.thrustLever) — the engines\' levers stay 0', () => {
-  const a = load('a340'); cold(a);
-  setState({ thrustLever: 0 });
+test('the throttle: a turbofan\'s thrust levers are its engines\' levers too — all, or one; manual N1 follows each its own', () => {
+  const a = load('a340'), step = cold(a, { engineState: 'running', enginePower: 1, n1: 22, athr: false, wow: true, crashed: false, paused: false });
   assert.equal(throttle(0.7), true);
-  assert.equal(S.thrustLever, 0.7);
-  assert.deepEqual(S.engines.map(e => e.lever), [0, 0, 0, 0]);
+  assert.deepEqual(S.engines.map(e => e.lever), [0.7, 0.7, 0.7, 0.7]);
   assert.equal(throttleFrac(), 0.7);
+  assert.equal(command('throttle', { lever: 0, engine: 1 }, { source: 'test' }), true);   // ENG 2 retarded
+  tickThrust(0.1);
+  const idle = a.engine.idleN1, at = (l) => idle + (100 - idle) * l;
+  assert.deepEqual(S.n1Cmd, [at(0.7), idle, at(0.7), at(0.7)], 'idle + (100 − idle) × lever, per engine');
+  for (let t = 0; t < 20; t += 0.1) { tickThrust(0.1); tickEngine(0.1); }
+  assert.ok(S.engines[1].n1 < 25 && S.engines[0].n1 > 70, `ENG 2 stays at idle: ${S.engines.map(e => e.n1.toFixed(0))}`);
 });
 
-test('the lever at the mission load: cold 0; in the air the lever for the speed (spd / cruiseSpd, the thrust spdT = spd gave); a turbofan 0', () => {
+test('the lever at the mission load: cold 0; in the air the lever for the speed (spd / cruiseSpd, the thrust spdT = spd gave); a turbofan spd / maxSpd', () => {
   const bf = load('bf109'), a = load('a340');
   assert.equal(initialEngine(bf, { onGround: true, spd: 0 }).lever, 0);
   const air = initialEngine(bf, { onGround: false, spd: 250 });
   assert.equal(air.lever, 250 / bf.envelope.cruiseSpd);
   assert.ok(air.engines.every(e => e.lever === air.lever));
   assert.equal(leverForSpeed(bf, 9999), 1);
-  assert.equal(initialEngine(a, { onGround: false, spd: 250 }).lever, 0);
+  assert.equal(initialEngine(a, { onGround: false, spd: 250 }).lever, 250 / a.envelope.maxSpd, 'a turbofan: ≈ cruise thrust, as its N1');
 });
 
 test('rpm starting: the DB 601\'s start curve — the flywheel (0 rpm, 26 s), motoring, the run-up to idle at the end', () => {

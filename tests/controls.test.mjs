@@ -100,10 +100,10 @@ test('speed brake, autobrake, cooling flaps: set to a position; refused without 
 /* The levers — and a drag recorded once, at its end */
 import { recordCommand } from '../core/commands.js';
 
-test('the throttle: a turbofan\'s thrust lever, a prop\'s engine lever; the C172 knobs sweep their set points', () => {
+test('the throttle: the engines\' levers, a turbofan\'s as a prop\'s; the C172 knobs sweep their set points', () => {
   runMissionResets();
-  setState({ aircraft: load('a340'), thrustLever: 0 });
-  assert.equal(setControl('throttle', 0.6), true);  assert.equal(S.thrustLever, 0.6);
+  setState({ aircraft: load('a340'), engines: [], lever: 0 });
+  assert.equal(setControl('throttle', 0.6), true);  assert.equal(S.lever, 0.6);
   setState({ aircraft: load('c172'), engines: [], lever: 0, mixture: 1 });
   assert.equal(setControl('throttle', 1), true);    assert.equal(S.lever, 1);  assert.equal(S.engines[0].lever, 1);
   const mix = []; for (let i = 0; i < 4; i++) { operate('mixtureKnob'); mix.push(S.mixture); }

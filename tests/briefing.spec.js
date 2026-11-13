@@ -118,7 +118,7 @@ test('a takeoff offers the failure at V1 and the engine — and the 777 flies wi
   expect(s.mission.failures.at(-1)).toEqual({ trigger: { type: 'v1' }, type: 'engine_power', value: 0, rampTime: 15, engine: 1 });
 
   /* the takeoff roll: nothing fails below V1 (= VR, 165 kt, for now); at V1 ENG 1 loses its power, ENG 2 doesn't */
-  await page.evaluate(() => window.simSetState({ paused: false, engineState: 'running', enginePower: 1, thrustLever: 1, parkBrake: false, braking: false, athr: false }));
+  await page.evaluate(() => window.simSetState({ paused: false, engineState: 'running', enginePower: 1, lever: 1, parkBrake: false, braking: false, athr: false }));
   await page.waitForFunction(() => { window.simStep(6, 1 / 60); return window.simGetState().spd >= 150; }, null, { polling: 10 });
   expect((await page.evaluate(() => window.simGetState())).engines.map(e => e.factors.failure)).toEqual([1, 1]);
   await page.waitForFunction(() => { window.simStep(6, 1 / 60); return window.simGetState().spd >= 170; }, null, { polling: 10 });

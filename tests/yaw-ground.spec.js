@@ -12,7 +12,7 @@ async function takeoffRoll(page, { fail, pilot = false, after = 4, tacOff = true
   await page.waitForFunction(() => window.simReady === true);
   return page.evaluate(async ({ fail, pilot, after, tacOff }) => {
     const S = () => window.simGetState();
-    window.simSetState({ paused: false, thrustLever: 1, parkBrake: false, tacOff });
+    window.simSetState({ paused: false, lever: 1, parkBrake: false, tacOff });
     for (let i = 0; i < 120 && S().spd < 150; i++) window.simStep(30, 1 / 60);
     const s0 = S(), h0 = s0.hdg * Math.PI / 180, cosLat = Math.cos(s0.lat * Math.PI / 180);
     if (fail) (await import('/core/engine.js')).setEngineFactor('failure', 0, 0);

@@ -14,17 +14,17 @@ import { activeDetent } from '../core/thrust.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-/* Airbus-style aircraft (a220 detent fractions: Vmo 335). */
+/* Airbus-style aircraft (the a220's detents: each a lever position 0 … 1). */
 const AC = {
   engine: { type: 'turbofan', idleN1: 22 },
   thrustProfiles: [
-    { label: 'IDLE', spdT: 0 },
-    { label: 'CLB',  spdT: 165 },
-    { label: 'MCT',  spdT: 288 },
-    { label: 'TOGA', spdT: 335 },
+    { label: 'IDLE', lever: 0 },
+    { label: 'CLB',  lever: 0.493 },
+    { label: 'MCT',  lever: 0.86 },
+    { label: 'TOGA', lever: 1 },
   ],
 };
-const frac = (label) => AC.thrustProfiles.find(p => p.label === label).spdT / 335;
+const frac = (label) => AC.thrustProfiles.find(p => p.label === label).lever;
 
 test('each detent → matching label + flat-rated N1 ceiling', () => {
   assert.equal(activeDetent(AC, 0).label, 'IDLE');
@@ -45,8 +45,8 @@ test('nearest-match snaps to the closest detent across the boundary', () => {
 
 test('explicit profile.n1 overrides the default ceiling', () => {
   const ac = { engine: { type: 'turbofan', idleN1: 20 },
-               thrustProfiles: [{ label: 'IDLE', spdT: 0 }, { label: 'CLB', spdT: 165, n1: 88 }, { label: 'TOGA', spdT: 335 }] };
-  assert.equal(activeDetent(ac, 165 / 335).n1Limit, 88);
+               thrustProfiles: [{ label: 'IDLE', lever: 0 }, { label: 'CLB', lever: 0.493, n1: 88 }, { label: 'TOGA', lever: 1 }] };
+  assert.equal(activeDetent(ac, 0.493).n1Limit, 88);
 });
 
 test('no thrustProfiles → null', () => {

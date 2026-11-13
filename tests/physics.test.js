@@ -45,7 +45,7 @@ test('cruise — A/THR drives speed toward the target', async ({ page }) => {
 test('cruise — A/THR is capped by the thrust-lever detent (THR CLB)', async ({ page }) => {
   await loadSim(page, 'evra-approach');
   // Lever in the CLB detent (a220 CLB spdT 165 / Vmo 335 ≈ 0.49); demand more speed than CLB N1 can hold.
-  await set(page, { thrustLever: 0.49, spdT: 350, ap: true, athr: true, paused: false });
+  await set(page, { lever: 0.49, spdT: 350, ap: true, athr: true, paused: false });
   await step(page, 45);                                     // let N1 settle from the cruise init down onto the ceiling
   const after = await get(page);
   expect(after.n1).toBeLessThanOrEqual(85);                 // pinned at the CLB ceiling (~84), not spooling to 100
@@ -122,7 +122,7 @@ test('takeoff — accelerates down the runway under thrust', async ({ page }) =>
   await loadSim(page, 'singapore-london');
   const s0 = await get(page);
   expect(s0.wow).toBe(true);                                // on the ground
-  await set(page, { paused: false, engineState: 'running', enginePower: 1, thrustLever: 1, parkBrake: false, braking: false });
+  await set(page, { paused: false, engineState: 'running', enginePower: 1, lever: 1, parkBrake: false, braking: false });
   await step(page, 30);
   const s1 = await get(page);
   expect(s1.spd).toBeGreaterThan(40);                       // rolling / accelerating
