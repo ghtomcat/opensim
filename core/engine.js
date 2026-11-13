@@ -64,15 +64,16 @@ const _idleN1    = () => _eng().idleN1 ?? 22;
 const _count     = (eng = _eng()) => Math.max(1, eng.count ?? 1);
 
 /* ── The engines ─────────────────────────────────────────────────
-   S.engines[i] = { state, startT, stopT, n1, core, egt, ff, oil, factors, power, rpm, lever } — one per engine (rpm: not a
-   turbofan). lever: the engine's power (thrust) lever 0 idle … 1 full (a turbofan's TOGA), set by the throttle command.
-   The single fields the rest of the sim still reads (engineState, enginePower, n1, lever,
+   S.engines[i] = { state, startT, stopT, n1, core, egt, ff, oil, oilTemp, factors, power, rpm, lever } — one per engine
+   (rpm: not a turbofan). lever: the engine's power (thrust) lever 0 idle … 1 full (a turbofan's TOGA), set by the
+   throttle command. oilTemp: its oil temperature, °C (below, "Oil temperature").
+   The single fields the rest of the sim still reads (engineState, enginePower, n1, lever, oilTempC (the warmest),
    engineStartT, engineStopT, engineFactors) are derived from the array on every change;
    what must tell the engines apart (thrust, generators, pumps, the engine displays) reads
    the array. */
 
-function _newEngine(state, n1 = 0, core = 0, gauges = { egt: 15, ff: 0, oil: 0 }, lever = 0) {
-  return { state, startT: null, stopT: null, n1, core, ...gauges, factors: FACTORS_NONE, power: _power(state, FACTORS_NONE), lever };
+function _newEngine(state, n1 = 0, core = 0, gauges = { egt: 15, ff: 0, oil: 0 }, lever = 0, oilTemp = 15) {
+  return { state, startT: null, stopT: null, n1, core, ...gauges, factors: FACTORS_NONE, power: _power(state, FACTORS_NONE), lever, oilTemp };
 }
 
 /* ── The core (turbofan) ───────────────────────────────────────────
@@ -173,13 +174,14 @@ function _aggregate(engines) {
     n1:            Math.max(...engines.map(e => e.n1)),
     enginePower:   Math.max(...engines.map(e => e.power)),
     lever:         Math.max(...engines.map(e => e.lever ?? 0)),
+    oilTempC:      Math.max(...engines.map(e => e.oilTemp ?? 15)),
     engineFactors: engines[0].factors,
   };
 }
 function _publish(engines, extra = {}) { setState({ ..._aggregate(engines), ...extra }); }
 
 /* single field → engine field, for adoptEngineFields() */
-const _LEGACY = { engineState: 'state', engineStartT: 'startT', engineStopT: 'stopT', n1: 'n1', enginePower: 'power', engineFactors: 'factors', lever: 'lever' };
+const _LEGACY = { engineState: 'state', engineStartT: 'startT', engineStopT: 'stopT', n1: 'n1', enginePower: 'power', engineFactors: 'factors', lever: 'lever', oilTempC: 'oilTemp' };
 
 /**
  * A patch that sets the single engine fields directly (the test API's simSetState) — carry the
@@ -232,7 +234,7 @@ export function hasStartSequence(engine = _eng()) {
  * lined up on the runway has its engines running (onRunway — mission.start.runway); at a stand
  * it is cold. Light aircraft start cold on the runway too: their missions teach the start.
  */
-export function initialEngine(aircraft, { onGround, spd, onRunway = false }) {
+export function initialEngine(aircraft, { onGround, spd, onRunway = false, oilTemp = 15 }) {
   const eng  = aircraft.engine ?? {};
   const cold = onGround && (hasStartSequence(eng) || eng.type === 'electric')
             && !(eng.type === 'turbofan' && onRunway);
@@ -246,7 +248,7 @@ export function initialEngine(aircraft, { onGround, spd, onRunway = false }) {
   const gauges  = eng.type === 'turbofan' ? _gaugesAtLoad(state, n1, core, eng, aircraft) : undefined;
   const lever   = eng.type === 'turbofan' ? Math.min(1, Math.max(0, spd / (aircraft.envelope?.maxSpd ?? 340)))   // ≈ cruise thrust, as its N1
                                           : leverForSpeed(aircraft, spd);
-  const engines = Array.from({ length: count }, () => _newEngine(state, n1, core, gauges, lever));
+  const engines = Array.from({ length: count }, () => _newEngine(state, n1, core, gauges, lever, oilTemp));
   return { ..._aggregate(engines),
            engMasters: Array(count).fill(!cold),                   // ENG MASTER switches: on when the engines run
            apuMasterOn: false, ...APU_OFF, apuFireArmed: false,      // the APU is off at every mission start
@@ -519,9 +521,9 @@ const START_RPM = {
     if (t < runStart) return 65 - Math.min(1, (t - 26.0 - 0.06 - 0.18 - 0.06) / 2.8) * 18;
     return 80 + (r.idle - 80) * Math.pow(Math.min(1, (t - runStart) / 42.0), 0.55);
   },
-  /* R-2800: the flywheel (cold 26 s / warm 12 s / hot none, by the oil temperature), motoring 65 → 47, run-up 65 → idle (35 s) */
-  'radial-2000hp': (t, r) => {
-    const oilC = S.oilTempC ?? 15;
+  /* R-2800: the flywheel (cold 26 s / warm 12 s / hot none, by its oil temperature), motoring 65 → 47, run-up 65 → idle (35 s) */
+  'radial-2000hp': (t, r, e) => {
+    const oilC = e?.oilTemp ?? S.oilTempC ?? 15;
     const flywheel = oilC >= 60 ? 0 : oilC >= 30 ? 12.0 : 26.0;
     const motorStart = oilC >= 60 ? 0 : flywheel + 0.06 + 0.18 + 0.06, runStart = motorStart + 2.8 + 0.06;
     if (t < motorStart) return 0;
@@ -538,7 +540,7 @@ export function rpmOf(e, eng = _eng()) {
   const r = _rpmRange(eng), jet = eng.type === 'turbojet';
   if (e.state === 'starting') {
     const curve = START_RPM[S.aircraft?.sound?.engineType];
-    return curve ? curve(e.startT ?? 0, r) : r.idle * Math.min(1, (e.startT ?? 0) / Math.max(0.1, eng.startTime ?? 1));
+    return curve ? curve(e.startT ?? 0, r, e) : r.idle * Math.min(1, (e.startT ?? 0) / Math.max(0.1, eng.startTime ?? 1));
   }
   if (e.state === 'running') {
     const p = e.power ?? 1, lever = e.lever ?? 0;
@@ -580,6 +582,23 @@ export function fuelFlowKgH() {
   return _engines().reduce((sum, e) => sum + (e.ff ?? 0), 0);
 }
 
+/* ── Oil temperature (every engine with oil — not the electric motor) ─────────────
+   Each engine's own, a first-order lag (moved from physics.js, the same numbers): running, toward 40 °C at idle → 115 °C
+   at full power — the power the same throttle as the thrust and the cooling (a turbofan its N1 above idle, the others
+   their lever); 3 min to warm. Not running, toward the outside air (the cooling model's: the mission's or the METAR's
+   surface temperature, ~2 °C colder per 1000 ft — Markus, 2026-11-13), 10 min. So a stopped engine's oil cools while the
+   others run. A step of the oil system (issues.md, "The oil system"). */
+function _stepOil(e, dt, eng) {
+  const running = e.state === 'running';
+  const idle    = eng.idleN1 ?? 22;
+  const heat    = eng.type === 'turbofan' ? Math.max(0, Math.min(1, ((e.n1 ?? 0) - idle) / (100 - idle)))
+                                          : Math.max(0, Math.min(1, e.lever ?? 0));
+  const target  = running ? 40 + heat * 75 : _oat();
+  const tau     = running ? 180 : 600;
+  const now     = e.oilTemp ?? 15;
+  return { ...e, oilTemp: now + (target - now) * (dt / tau) };
+}
+
 /** One sim step — called from tickSim() right before physics: the turbofan spool, then the lifecycle. */
 export function tickEngine(dt) {
   const eng = _eng();
@@ -603,6 +622,7 @@ export function tickEngine(dt) {
     if (_ffMaxOf(eng))
       engines = engines.map(e => { const ff = _rpmFf(e, e.rpm ?? 0, eng); return Math.abs((e.ff ?? 0) - ff) < 0.1 && (ff > 0 || !e.ff) ? e : { ...e, ff }; });
   }
+  if (eng.type !== 'electric' && !S.paused && !S.crashed) engines = engines.map(e => _stepOil(e, dt, eng));   // same guards as tickPhysics
   if (engines.every((e, k) => e === before[k])) return;
 
   const extra = {};

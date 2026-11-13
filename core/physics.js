@@ -622,17 +622,12 @@ export function tickPhysics(dt) {
     }
   }
 
-  /* ── Oil temperature — first-order lag toward throttle-dependent target ── */
+  /* The oil temperature is each engine's own now (core/engine.js, _stepOil). The cooling's heat input follows the same
+     throttle as the thrust: the power lever; a turbofan its N1 above idle (the A/THR moves N1, not the lever). */
   const _running  = S.engineState === 'running';
-  /* the heat input follows the same throttle as the thrust: the power lever; a turbofan its N1 above idle (the A/THR
-     moves N1, not the lever — the lever sits in its detent) */
   const _idleN1   = ac.engine?.idleN1 ?? 22;
   const _throttle = ac.engine?.type === 'turbofan' ? Math.max(0, Math.min(1, ((S.n1 ?? 0) - _idleN1) / (100 - _idleN1)))
                                                    : Math.max(0, Math.min(1, S.lever ?? 0));
-  const _oilTarget = _running ? 40 + _throttle * 75 : 15;   // °C: 40 idle → 115 full
-  const _tau       = _running ? 180 : 600;                   // s: 3 min warm-up, 10 min cool-down
-  const _oilNow    = S.oilTempC ?? 15;
-  const newOilTempC = _oilNow + (_oilTarget - _oilNow) * (dt / _tau);
 
   /* ── Coolant / CHT temperature — heat balance for flap-cooled engines ──
      Heat in ∝ engine power; heat out ∝ cooling airflow (speed × radiator/cowl flap).
@@ -730,7 +725,7 @@ export function tickPhysics(dt) {
              groundRollT: newWow ? (S.groundRollT ?? 0) + dt : 0,   // seconds since touchdown → brake/spoiler/reverser ramp
              autobrakeActive: _abEngaged,                           // DECEL — panel/ECAM annunciation
              ...(S.braking && newWow && ac.autobrake && (S.autobrake ?? 'OFF') !== 'OFF' ? { autobrake: 'OFF' } : {}),  // manual braking disarms autobrake
-             oilTempC: newOilTempC, ..._coolPatch, ..._trPatch, ..._gearPatch, ..._sbPatch, ...pbPatch });
+             ..._coolPatch, ..._trPatch, ..._gearPatch, ..._sbPatch, ...pbPatch });
   if (justTouched && ac.engine?.type === 'turbofan') setThrottle(0);   // levers to idle on touchdown (no spool-up to hold speed)
 }
 

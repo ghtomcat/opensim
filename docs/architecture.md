@@ -756,7 +756,7 @@ FMA           Airbus/Boeing phase model (core/fma.js), glass panels only
 wind          from the mission weather source (manual / live METAR / fallback)
 navigation    ground velocity = TAS along heading + wind (no wind drift on the ground) → lat/lon
 crash         hard landing, overspeed, terrain (CFIT)
-engine temps  oil temperature; coolant/CHT heat balance (aircraft.cooling + OAT)
+engine temps  coolant/CHT heat balance (aircraft.cooling + OAT) — the oil temperature is each engine's (core/engine.js)
 automation    thrust reverser, ground spoilers, gear animation (12 s), pushback pose
 write         one setState() — includes S.time += dt
 ```
@@ -943,7 +943,7 @@ aircraft that declare the matching data.
 | `core/fuel-system.js` | turbofans | the fuel switches by element (`S.fuelCtl`, through `fuelPump` / `fuelValve`); a generic solver over the aircraft's fuel layout (`aircraft.fuelSystem`: tanks with a usable capacity in kg, pumps in a tank feeding a side — `main`, or `override`, the centre tank's, feeding first —, the engines by side, crossfeed valves, a default load; without a layout the default — wing tanks and a centre tank, 30 % of the mass, loaded at 60 %): each engine draws its fuel flow (`S.engines[i].ff`) — `S.fuelSys = { tanks, pumps, valves, feeds, suction, fob }`; `fuelView()` for the FUEL page (`drawFuelPage`, the glass's lower ECAM ELEC → HYD → FUEL) and `fuelCautions()` (pump LO PR, LO LEVEL, IMBALANCE — its own `FUEL_…` keys in `S.warnings`) | **display only** — no starvation, no mass or CG change; light aircraft keep `core/fuel.js` |
 | `core/engine.js` | every aircraft with an `engine`; the APU on aircraft with an `apu` | `engineState`, `engineStartT`, `engineStopT`, `enginePower`, `engineFactors`, `n1`; `apuMasterOn`, `apuState`, `apuStartT`, `apuRunning`, `apuFireArmed` | the start and shutdown lifecycle on sim time, power, the N1 spool (§9.2); the APU |
 | `core/failures.js` | all (by mission) | scripted failures (§2.5); carb ice (`carbIceLevel`); coolant leak → seize | the `failure`, `ice` and `seizure` power factors; a seized engine stops (`engineQuit()`) |
-| cooling (in `core/physics.js`) | aircraft with `cooling` | `coolantTemp`, `oilTempC` | heat balance (§7.1); `failures.js` seizes the engine at `cooling.critical` |
+| cooling (in `core/physics.js`) | aircraft with `cooling` | `coolantTemp` | heat balance (§7.1); `failures.js` seizes the engine at `cooling.critical` |
 
 Light-aircraft switches (`masterBat`, `masterAlt`, `avionicsOn`, `magnetos`, `lights`;
 the Velis `switches`) are plain fields in `S`, toggled by the cockpit. They aren't a
@@ -975,6 +975,7 @@ into every engine (`adoptEngineFields`).
 | `enginePower` | 0–1 power available (scales thrust): the lifecycle's share (off 0, starting 0.01, running and shutdown 1) × the product of `engineFactors` | `core/engine.js` only |
 | `engineFactors` | `{failure, ice, seizure, battery, crash}`, each 0–1, owned by its cause (`failures.js`, `battery.js`, `physics.js`) | through `setEngineFactor()` in `core/engine.js`; reset at mission load |
 | `n1` | turbofan fan speed % — each engine spooled toward its `n1Cmd[i]` (`core/thrust.js`: the A/THR, the same for all; manual thrust, each engine's own lever) | `core/engine.js` |
+| `oilTempC` | the warmest engine's oil temperature, °C, derived from `engines[i].oilTemp` — each engine's own, lagged in `tickEngine`: running toward 40 °C at idle → 115 °C at full power (its lever; a turbofan its N1), 3 min; stopped toward the outside air (the cooling model's), 10 min; 75 °C at an airborne start, the outside air on the ground. The oil dials read their engine; the R-2800's start reads its engine's. No oil on the electric motor | `core/engine.js` only |
 | `lever` | the power lever 0 idle … 1 full, derived from `engines[i].lever` — set by the `throttle` command (all engines, or `{ lever, engine }`); every key, click, the joystick and the hub go through it. Read through `throttleFrac()` (the thrust, heat, sound, rpm, the lever displays); a turbofan's thrust lever too — its N1 in manual thrust follows each engine's own lever (one retarded alone stays at idle), its detents (`thrustProfiles`) are lever positions, and its heat input follows N1 (the A/THR moves N1, not the lever). At a start in the air `leverForSpeed()` sets the lever for the speed (spd / `cruiseSpd`, a stand-in until a trim is computed) | `core/engine.js` only |
 
 Consequences:

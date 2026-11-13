@@ -55,15 +55,16 @@ export async function loadMission(missionPath, aircraftPath, setup = null) {
   const startOnGround = spd === 0 && alt <= groundElev + 2;
   const startAirborne = !startOnGround && spd > 0;
 
-  /* Oil temperature: cold on ground, warm if already airborne (engine running since before mission start) */
-  const startOilTempC = startAirborne ? 75 : 15;
+  /* Oil temperature: warm if already airborne (engine running since before mission start); on the ground the outside air
+     — the mission's surface temperature (the METAR is not fetched yet: 15 °C), lapsed to the start's altitude (core/engine.js) */
+  const startOilTempC = startAirborne ? 75 : (mission.weather?.manual?.temp ?? 15) - 1.98 * (alt / 1000);
   /* Coolant/CHT: ambient on ground, mid-normal if airborne (engine already warm) */
   const startCoolantTemp = startAirborne ? (aircraft.cooling?.normal?.[0] ?? 85)
                                          : (aircraft.cooling?.ambient ?? 15);
 
   /* Engine: cold on the ground for engines with a start sequence, running otherwise
      (the rules live with the engine owner, core/engine.js) */
-  const _engine = initialEngine(aircraft, { onGround: startOnGround, spd, onRunway: !!mission.start?.runway });
+  const _engine = initialEngine(aircraft, { onGround: startOnGround, spd, onRunway: !!mission.start?.runway, oilTemp: startOilTempC });
 
   /* Barometric altimeter init — set the subscale to the field QNH (live METAR or mission
      weather), and start on STD above the transition altitude. altT is held in INDICATED
@@ -109,7 +110,6 @@ export async function loadMission(missionPath, aircraftPath, setup = null) {
     parkBrake: startOnGround,   // parked on the ground → brake set; airborne → released
     trim:  0,
     ..._engine,                   // engines[] and the fields derived from it, ENG MASTERs, APU (core/engine.js)
-    oilTempC:    startOilTempC,
     coolFlap:    1,
     coolantTemp: startCoolantTemp,
     propPitch:   1,

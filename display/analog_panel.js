@@ -188,6 +188,9 @@ const _n1Pct = (i = 0) => S.aircraft?.engine?.type === 'turbofan' ? (S.engines?.
 /** the same drawing in both unit systems — the kinds whose scale is the instrument's own, not the style's */
 function _both(fn) { return { metric: fn, imperial: fn }; }
 
+/* Engine i's oil temperature, °C (core/engine.js — each engine its own) */
+const _oilT = (i = 0) => S.engines?.[i]?.oilTemp ?? S.oilTempC ?? 15;
+
 export const INSTRUMENTS = {
   asi:     { value: 'S.spd (kt); the КУС-1200 also the true airspeed (core/airdata.js)', variants: ['kus', 'twoTurn'],
              read: (i, it) => it?.variant === 'kus' ? { kt: S.spd ?? 0, tas: tasKt(S.spd ?? 0, S.alt ?? 0) } : S.spd ?? 0,
@@ -219,7 +222,7 @@ export const INSTRUMENTS = {
                                                                                          : _drawDrehzahl(ctx, x, y, r, sc, v, scale)) },
   n1:      { value: 'N1 % — a turbofan\'s S.engines[i].n1, a turbojet\'s rpm / maxRpm (core/engine.js)', read: _n1Pct,
              draw: _both(_drawN1Messer) },
-  oilT:    { value: 'S.oilTempC (°C)',                    read: () => S.oilTempC ?? 15,
+  oilT:    { value: 'the engine\'s oil temperature (°C)', read: (i) => _oilT(i),
              draw: { metric: (ctx, x, y, r, sc, v, scale) => scale ? _drawGauge(ctx, x, y, r, sc, v, scale, { max: 130, step: 20, ring: 'oil', big: '°C', name: 'oilT' })
                                                                     : _drawOelTemp(ctx, x, y, r, sc, v),
                      imperial: (ctx, x, y, r, sc, v, scale) => scale ? _drawGauge(ctx, x, y, r, sc, v, scale, { max: 130, step: 20, big: '°C', name: 'oilT' }) : _drawOilTemp(ctx, x, y, r, sc, v) } },
@@ -255,10 +258,10 @@ export const INSTRUMENTS = {
              knob: { control: 'dgKnob', at: [0, 0.55], r: 0.14, drawn: true },   // its own CAGE knob, below the window — it sets the card
              draw: _both(_drawDgDrum) },
   engGauge:{ value: 'oil temperature (°C), oil pressure and fuel pressure (psi) — the US engine gauge unit', simple: `${STAND_INS.oilPressure}, ${STAND_INS.fuelPressure}`,
-             read: (i) => ({ oilT: S.oilTempC ?? 15, oil: oilPressure(i) * 14.223, fuel: fuelPressure(i) * 14.223 }), draw: _both(_drawEngGauge) },
+             read: (i) => ({ oilT: _oilT(i), oil: oilPressure(i) * 14.223, fuel: fuelPressure(i) * 14.223 }), draw: _both(_drawEngGauge) },
   mach:    { value: 'Mach from S.spd and S.alt (core/airdata.js)', read: () => machOf(S.spd ?? 0, S.alt ?? 0), draw: _both(_drawMach) },
   radAlt:  { value: 'the height above the ground, ft (core/airdata.js)', read: () => heightAboveGroundFt(), draw: _both(_drawRadAlt) },
-  emi3:    { value: 'fuel (injector) pressure, oil pressure (kg/cm²), oil temperature (°C)', read: (i) => ({ fuel: fuelPressureHigh(i), oil: oilPressure(i), oilT: S.oilTempC ?? 15 }),
+  emi3:    { value: 'fuel (injector) pressure, oil pressure (kg/cm²), oil temperature (°C)', read: (i) => ({ fuel: fuelPressureHigh(i), oil: oilPressure(i), oilT: _oilT(i) }),
              simple: `${STAND_INS.fuelPressureHigh}, ${STAND_INS.oilPressure}`, draw: _both(_drawEmi3) },
   fuelP:   { value: 'the fuel supply pressure (kg/cm²)', read: fuelPressure, simple: STAND_INS.fuelPressure,
              draw: _both((ctx, x, y, r, sc, v, scale) => _drawGauge(ctx, x, y, r, sc, v, scale, { max: 10, step: 2, minor: 4, start: 225, sweep: 270, sub: 'кг/см²', name: 'fuelP' })) },
