@@ -171,6 +171,29 @@ return r;
 
 Both apply per frame, not per second — their strength depends on the frame rate. Scale by `dt` like the energy stall. (Turbulence draws from `random()` in `core/random.js`, seeded in test mode, so tests repeat.)
 
+### Stall handling — the wing's stall is a scripted push, not modelled — not implemented yet
+*Noted 2026-11-15 (Markus, with the start dive's step C — "is a high-alpha stall like AF447?") · `tickPhysics()` in `core/physics.js` (the lift, the "High-alpha stall" block), `display/pfd_instruments.js` (the barber pole)*
+
+**Today.** The main wing has no stall of its own:
+- **The lift stops growing but never falls away** — `CL` is capped at `CL_max` (+ the flaps' `dCL_max`), so at 15° or at 40° the wing gives the same maximum lift; no post-stall drop.
+- **A scripted push stands in for it** — above 95 % of `CL_max` it subtracts up to 800 ft/min from the vertical speed (per frame — *High-alpha stall and turbulence are per frame*) and lowers the nose 3°/s: the aircraft recovers itself, even with the pilot holding the nose up.
+- **No stall warning** — no aural "STALL", no stick shaker, no buffet; the only cue is the PFD's red barber pole below the stall speed (by speed, not by angle of attack).
+- **No crash from the stall itself** — it ends as a "HARD LANDING" when the aircraft meets the ground.
+- **No flight-control laws** — no Airbus α-protection / α-floor, no normal vs alternate law.
+(The yaw model's fin does stall — `core/yaw.js`, linear to 25°, then the side force falls away.)
+
+**Real world.** A stall is the wing past its critical angle of attack — at any speed, any attitude: the lift falls and the drag rises steeply; the nose doesn't come down by itself if the pilot holds it up. AF447 (A330, 2009 — from memory of the BEA's final report, not checked here): in alternate law, after the pitot tubes iced, the pilot flying held the nose up; the angle of attack went far past the stall (~35–40°), and the aircraft came down nose-up at ~11,000 ft/min for over three minutes into the Atlantic, the stall warning sounding — the case for teaching the stall by angle of attack, not by speed.
+
+**The idea — the full stall handling, in parts:**
+- **The aerodynamics:** the lift curve past the critical angle — `CL` peaks at `CL_max`, then falls (a post-stall curve per aircraft class, the flaps shifting it), the drag rises with it; the sink comes from the force balance (α = θ − γ — *Angle of attack = pitch attitude*), no scripted push; the nose drops only from a pitching moment the aircraft has (a stable aircraft's), not forced — held up, it stays stalled (the AF447 case).
+- **The warning:** by angle of attack — the aural "STALL" (Airbus synthetic voice, Boeing stick shaker and "STALL"), the buffet (sound, a shake of the view), the PFD's α-speeds (VLS, Vα-prot, Vα-max on the Airbus tape) from the angle of attack and the configuration.
+- **The laws (Airbus):** normal law — α-prot and α-max (the sidestick can't stall it), α-floor (TOGA thrust); alternate law — the protections lost, the stall warning back; the law degraded by failures (unreliable airspeed — the pitots), the ECAM and the FMA showing it.
+- **Training:** stall recognition and recovery (nose down, then thrust), upset recovery, the AF447 scenario (cruise at FL350, pitots iced, the A/P and A/THR off, alternate law) — with the training system: a scored recovery, the black box.
+
+**When.** After the start dive's step C (α = θ − γ, the energy stall gone) — this builds on the angle of attack being real. The per-frame push is fixed before (its own small step) so a stall isn't a −6,000 ft/min drop in a second meanwhile.
+
+**Done when.** A wing past its critical angle loses lift by the force balance, not a script; held stalled, an aircraft stays stalled and sinks as the forces say; the stall warning comes by angle of attack; an Airbus in normal law can't be stalled with the sidestick, and in alternate law can; a stall recovery (nose down, thrust) works.
+
 ### The ground is flat: the nearer airport's field elevation everywhere
 *Found 2026-10-11 · `tickPhysics()` in `core/physics.js` (`_grdElev`)*
 
