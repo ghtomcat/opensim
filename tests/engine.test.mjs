@@ -14,7 +14,8 @@ import { dirname, join } from 'node:path';
 import { S, setState } from '../core/state.js';
 import { startEngine, stopEngine, engineQuit, tickEngine, initialEngine, hasStartSequence, setEngineFactor,
          apuMaster, apuStart, apuFire, engineMaster, adoptEngineFields, engineAvailable, coreAtN1, engineOilLow,
-         engineRpm, throttle, leverForSpeed, throttleFrac, resetOilAlerts, engineCondition, engineReading } from '../core/engine.js';
+         engineRpm, throttle, throttleFrac, resetOilAlerts, engineCondition, engineReading } from '../core/engine.js';
+import { levelTrim } from '../core/trim.js';
 import { alertText } from '../core/alerts.js';
 import { command } from '../core/commands.js';
 import { startRecording, apuStartRecording } from '../core/sound.js';
@@ -598,14 +599,17 @@ test('the throttle: a turbofan\'s thrust levers are its engines\' levers too —
   assert.ok(S.engines[1].n1 < 25 && S.engines[0].n1 > 70, `ENG 2 stays at idle: ${S.engines.map(e => e.n1.toFixed(0))}`);
 });
 
-test('the lever at the mission load: cold 0; in the air the lever for the speed (spd / cruiseSpd, the thrust spdT = spd gave); a turbofan spd / maxSpd', () => {
+test('the lever and N1 at the mission load: cold 0; in the air the trim\'s (core/trim.js) — the thrust for level flight', () => {
   const bf = load('bf109'), a = load('a340');
   assert.equal(initialEngine(bf, { onGround: true, spd: 0 }).lever, 0);
-  const air = initialEngine(bf, { onGround: false, spd: 250 });
-  assert.equal(air.lever, 250 / bf.envelope.cruiseSpd);
+  const air = initialEngine(bf, { onGround: false, spd: 180, alt: 2000 });
+  assert.equal(air.lever, levelTrim(bf, { iasKt: 180, altFt: 2000 }).lever);
   assert.ok(air.engines.every(e => e.lever === air.lever));
-  assert.equal(leverForSpeed(bf, 9999), 1);
-  assert.equal(initialEngine(a, { onGround: false, spd: 250 }).lever, 250 / a.envelope.maxSpd, 'a turbofan: ≈ cruise thrust, as its N1');
+  const jet = initialEngine(a, { onGround: false, spd: 250, alt: 10000 }), t = levelTrim(a, { iasKt: 250, altFt: 10000 });
+  assert.equal(jet.lever, t.lever);
+  assert.ok(Math.abs(jet.n1 - t.n1) < 1e-9, 'a turbofan: the trim\'s N1');
+  const given = { n1: 61, lever: 0.5 };
+  assert.equal(initialEngine(a, { onGround: false, spd: 250, trim: given }).lever, 0.5);   // the mission load passes its trim
 });
 
 /* ── Oil temperature — each engine its own (piece 6, step 1) ── */

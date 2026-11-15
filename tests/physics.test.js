@@ -2,6 +2,10 @@
 // Core flight-model regression tests across the three regimes: cruise, approach, takeoff.
 
 import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { levelTrim } from '../core/trim.js';
+
+const A350 = JSON.parse(readFileSync(new URL('../aircraft/a350.json', import.meta.url), 'utf8'));
 
 async function loadSim(page, missionId) {
   await page.goto(`/?mission=${missionId}&test=1`);
@@ -103,9 +107,11 @@ test('approach — autopilot holds altitude over 15 s', async ({ page }) => {
 
 test('approach — ILS captures and tracks the LOC + GS to the runway', async ({ page }) => {
   await loadSim(page, 'lszh-approach');                      // a350 into LSZH 28 (ILS 280°)
-  // stabilised on the localizer ~5 nm out (runway true bearing 276°), on the glideslope, gear + flaps
-  await set(page, { lat: 47.4479, lon: 8.6929, alt: 3000, altT: 1500, spd: 150, spdT: 150,
-                    hdg: 276, pitch: 8, vs: -750, gear: true, flaps: 3,
+  // stabilised on the localizer ~5 nm out (runway true bearing 276°), on the glideslope, gear + flaps — at the trim's
+  // pitch for 150 kt in that configuration (core/trim.js; a typed 8° ballooned it above the beam), a selected speed
+  const pitch = levelTrim(A350, { iasKt: 150, altFt: 3000, flaps: 3, gear: true }).pitchDeg;
+  await set(page, { lat: 47.4479, lon: 8.6929, alt: 3000, altT: 1500, spd: 150, spdT: 150, spdManaged: false,
+                    hdg: 276, pitch, vs: -750, gear: true, flaps: 3,
                     ap: true, athr: true, navManaged: true, paused: false });
   await step(page, 50);
   const after = await get(page);
