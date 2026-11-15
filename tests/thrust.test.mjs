@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { activeDetent, tickThrust } from '../core/thrust.js';
 import { S, setState } from '../core/state.js';
+import { runMissionResets } from '../core/lifecycle.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -74,4 +75,17 @@ test('A/THR mode: MACH where the cruise Mach binds (managed, FL350), SPEED below
   assert.equal(mode(35000, true), 'MACH');    // M .78 ≈ 250 kt < the profile's ~283
   assert.equal(mode(25000, true), 'SPEED');   // below the crossover — the profile binds
   assert.equal(mode(35000, false), 'SPEED');  // a selected speed (the FCU's Mach comes later)
+});
+
+/* A mission load starts the A/THR's speed loop from the engines' N1 — not state.js's old 55 or the last flight's value. */
+test('a new mission: the A/THR integrator starts from the engines\' N1, not a leftover value', () => {
+  const a220 = JSON.parse(readFileSync(join(here, '..', 'aircraft', 'a220.json'), 'utf8'));
+  setState({ aircraft: a220, engineState: 'running', athr: true, wow: false, lever: 0.86, alt: 35000, spd: 250, spdT: 250,
+             spdManaged: false, n1: 80, athrN1: 55, paused: false, crashed: false, gsCaptured: false });
+  runMissionResets();
+  assert.equal(S.athrN1, null);
+  tickThrust(1 / 60);
+  assert.ok(Math.abs(S.athrN1 - 80) < 0.5, `integrator ${S.athrN1}`);   // on target: from N1, not from 55
+  const cmd = Array.isArray(S.n1Cmd) ? S.n1Cmd[0] : S.n1Cmd;
+  assert.ok(Math.abs(cmd - 80) < 1, `command ${cmd}`);
 });
