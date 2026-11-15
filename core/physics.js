@@ -14,6 +14,7 @@ import { vnavTargetAlt } from './vnav.js';
 import { runwayThreshold } from './mission-start.js';
 import { indicatedAlt } from './baro.js';
 import { machOf } from './airdata.js';
+import { trimAoADeg } from './trim.js';
 import { random } from './random.js';
 import { yawModel, yawStep, windmillDrag, groundYawStep, pedalYawRate, tacRudder } from './yaw.js';
 
@@ -282,9 +283,7 @@ export function tickPhysics(dt) {
       /* Trim AoA from the lift the wing actually needs at this speed — a fixed 2.5° held at
          cruise but badly under-trimmed on a slow approach (a heavy jet needs ~10° at Vapp),
          so the AP sank through the glideslope. Derive it from CL = W/(q·S). */
-      const clNeed   = (mass * 9.81) / Math.max(1, q * S_wing);
-      const _dCL0ap  = _dCL0f;                                                  // smoothed flap camber lift → less AoA at a given CL
-      const trimAoA  = Math.max(0, Math.min(14, (clNeed - CL_0 - _dCL0ap) / CL_alpha * 180 / Math.PI));
+      const trimAoA  = trimAoADeg(ac, q, _dCL0f);                              // core/trim.js — the smoothed flap camber lift → less AoA at a given CL
       const _aglP    = S.alt - (S.mission?.arrival?.elevation ?? 0);
       const _flaring = gsCap && _aglP < 50;
       const _vsGain  = _flaring ? 0.0045 : 0.0032;                            // flare — arrest the sink, but capped so the camber lift doesn't balloon it
