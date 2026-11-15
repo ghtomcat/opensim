@@ -770,10 +770,11 @@ the centre of mass; attitude isn't produced by moments.
   density; TAS is derived for groundspeed and turn rate.
 - **Attitude:** pitch and roll follow a target (the stick `pitchT`/`rollT`, or the
   autopilot) through a PD controller with first-order rate lag, capped by
-  `handling.rollRate/pitchRate/maxBank/maxPitch`. There's no moment-of-inertia
+  `handling.rollRate/pitchRate/maxBank/maxPitch` (defaults 30 / 5 °/s — the jets have none yet, see issues);
+  the rates carry from frame to frame (`S.rollRate`, `S.pitchRate`). There's no moment-of-inertia
   model.
-- **Aerodynamics:** `CL = CL_0 + CL_alpha·α`, capped at `CL_max`, with α = pitch
-  attitude (see issues). Drag is `CD_0` plus induced, gear, propeller-damage,
+- **Aerodynamics:** `CL = CL_0 + CL_alpha·α`, capped at `CL_max`, with α = θ − γ — the pitch
+  above the flight path (γ from the vertical speed and the true airspeed; 0 on the ground). Drag is `CD_0` plus induced, gear, propeller-damage,
   cooling-flap and spoiler drag (spoilers only where the aircraft has `spoilers` — the same
   field gates SPD BRK on the pedestal and the `S` key). Flap coefficients ramp over ~9 s per stage. Ground
   effect cuts induced drag and adds up to ~4 % lift within one wingspan.
@@ -784,8 +785,11 @@ the centre of mass; attitude isn't produced by moments.
   power (the real curve comes with manifold pressure and rpm). An engine that isn't running gives nothing. The shares are
   averaged so that identical engines give exactly the one-engine value.
 - **In flight:** speed from longitudinal forces; flight-path angle from
-  `(L − W·cos γ)/(m·v)`, damped (−0.4·γ) and trimmed. Two extra stall terms (high-α
-  snap, energy stall) are added on top. Turn rate from bank (coordinated). The Avro's
+  `(L − W·cos γ)/(m·v)` and the trim — its damping is in the lift (α = θ − γ: a path below
+  the attitude's raises α and bends it back). Nothing is added outside the force balance: at
+  `CL_max` a stall mushes down by the forces; only the nose drop is scripted (a stand-in — issues,
+  *Stall handling*). The trim — the attitude and thrust for level flight, the best glide — solves
+  the same balance (`core/trim.js`). Turn rate from bank (coordinated). The Avro's
   rotary engine adds gyroscopic coupling.
 - **On the ground:** a separate branch with thrust, drag, rolling/static friction,
   brakes (park brake, manual, autobrake levels with spool-in), and reverse thrust. Nose-wheel
@@ -832,9 +836,9 @@ only.
 
 ### 7.6 Known model issues
 
-Tracked in `issues.md` → *Flight model*: α = pitch attitude (no flight-path
-term), the energy stall double-counting the lift deficit, and the high-α stall and
-turbulence applied per frame instead of per second.
+Tracked in `issues.md` → *Flight model*: the stall is not modelled (the lift doesn't fall
+past `CL_max`, no warning, no laws — *Stall handling*), turbulence applied per frame instead
+of per second, and the jets' roll and pitch rates (the defaults).
 
 ---
 
