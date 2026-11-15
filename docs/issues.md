@@ -60,15 +60,29 @@ The drag is `CD_0` + flaps, gear, spoilers + induced (`k_ind · CL²`) — nothi
 
 **Measured (`node tools/probe.mjs`).** evra-approach (A220, FL350, settled on 250 kt), a selected 25 kt step down: undershoot to 208 kt (−17), overshoot to 235 (+10), still swinging after 5 min; back up to 250: pinned at THR, overshoot to 259 (+9), down to 241, 258 again after 5 min — period ~170 s. lszh-approach (A350, landing flaps set at the start, 150 kt on the glideslope — the probe sets them: the PM's flap calls in `core/crew.js` release their 4 s lock by `setTimeout`, which doesn't run inside the probe's step loop): 150 → 168 → 139 → 162 → 141 kt down to the flare, period ~110 s — outside the stabilised-approach band (−5 / +10 kt from 1,000 ft AAL). With the PM's flap schedule emulated (1 / 2 / full at 2,400 / 2,000 / 1,500 ft AAL): 141 ↔ 160 kt from 1,000 ft AAL to the flare, touchdown at 157 kt. A real A/THR holds within about ±1–2 kt. **Cause — suspected (code):** the loop is mostly integral (0.10 N1 %/kt/s) with a weak proportional (1.0 N1 %/kt) and damping (3.5 N1 % per kt/s) term; the aircraft's speed integrates the thrust slowly, and the N1 follows the command with an 8 s (up) / 15 s (down) lag — an integral on an integrating plant behind a lag. **Fixed already:** the integrator started from 55 at a mission load (218c7ba) — that kicked the cycle off in a steady cruise. **Fix:** retune the loop, measured — the cruise step and the approach (above), and the ILS browser test. Whether the in-flight spool constants are right for small changes is a separate engine-model question. **Done when:** the 25 kt step settles within ±2 kt without passing the target, and the approach (the PM's flap schedule) stays within −5 / +10 kt from 1,000 ft AAL to 50 ft.
 
+**Progress (2026-11-15) — retuned.** Anti-windup (the integral holds while the command is pinned in the error's direction — no measurable change alone) and the gains P 1.0 → 6, I 0.10 → 0.12 (D 3.5), from the linearised loop (ζ ≈ 0.9). Measured: the A220's 25 kt step down passes the target by 2.2 kt (222.8) and is within ±2 kt after 80 s; up: 251.8, within ±2 kt after 69 s. The approaches with the PM's flap and gear schedule, 1,000 → 50 ft AAL: egll (737 MAX 9) 139–149 kt, touchdown 138 (was 130–149, 128); lszh (A350) on 150 within 150–153 from ~680 ft (it enters 1,000 ft recovering from the start dive), touchdown 146; anchorage dominated by its start dive (*The approach missions dive …*). The 2.2 kt accepted for now (Markus). **Left:** the in-flight spool constants for small changes (engine model).
+
 ### An airborne start is not trimmed — the evra start loses 330 ft in the first 10 s
 *Found 2026-11-15 (the A/THR investigation) · `core/mission.js` (the start's `pitch`), `leverForSpeed()` in `core/engine.js`*
 
 An airborne start takes the mission's `pitch` as given (evra-approach 2°) and the lever from `leverForSpeed()` (spd ÷ `cruiseSpd`, a stand-in "until the trim is computed"). Level flight at 250 kt at FL350 in the A220 needs about 4.4° (where the AP settles) — so the start sinks 330 ft in 10 s while the AP pitches up, and gains 6 kt. **Fix:** compute the trim at an airborne start — the pitch and N1 for level (or the mission's) flight at the start speed, mass and altitude. **Done when:** an airborne start holds its altitude within ±50 ft and its speed within ±2 kt over the first 30 s.
 
-### lszh-approach dives 900 ft in the first 10 s, capturing the glideslope
-*Found 2026-11-15 (the A/THR investigation) · `missions/lszh-approach.json` `initialState` (3,980 ft, 150 kt, pitch 4°), the glideslope capture in `core/physics.js`*
+### The approach missions dive 600–900 ft in their first 10 s — they start clean, slow and untrimmed
+*Found 2026-11-15 (the A/THR investigation; investigated the same day) · `core/mission.js` (the start state), the energy stall in `tickPhysics()` (`core/physics.js`); `missions/lszh-approach.json`, `egll-approach.json`, `anchorage-bozeman.json`*
 
-Loaded as is: 3,980 → 3,064 ft in 10 s (with the landing flaps set: −834 then −1,346 ft/min, +18 kt), the localizer and glideslope captured at once. Not checked yet: whether the start lies above the glideslope (so the capture dives to it) or the capture itself pitches down too hard, and the untrimmed start (the entry above). **Done when:** the approach starts on or below the glideslope and captures it with no more than the normal ~700–800 ft/min.
+**Symptom (`node tools/probe.mjs`).** lszh-approach (A350, 150 kt, 3,980 ft): −7,590 ft/min after 2 s, −9,270 after 4 s, 3,980 → 3,063 ft and 150 → 207 kt in 10 s, the glideslope pegged 2.5 dots low — the AP's pitch *rising* meanwhile. anchorage-bozeman (737 MAX 9, 180 kt): +42 kt in 10 s, then at idle on the glideslope clean it can't slow (233 kt at 60 s) and passes 1,000 ft AAL at 179 kt (VAPP ~140 by 150 ft). egll-approach: the two baseline failures of `tests/physics.test.js` ("holds altitude over 15 s": −726 ft).
+
+**Cause — verified (numbers and a run).** The start is not on the glideslope's wrong side (lszh: 8.0 nm from the RWY 28 threshold at 2,564 ft AAL — the 3° slope is ~2,590 ft there). Each start is clean — flaps 0, and the gear up although the mission says `"gear": true` (*`initialState.gear` is never read*) — at a speed where, at the given pitch, the wing lifts far less than the weight (lift = `CL_0 + CL_alpha · pitch`, *Angle of attack = pitch attitude*):
+
+| mission | start | lift ÷ weight | pitch for level flight, clean |
+|---|---|---|---|
+| lszh-approach (A350) | 150 kt, 4° | 0.37 | 15.2° |
+| egll-approach (737 MAX 9) | 160 kt, 4° | 0.42 | 13.1° |
+| anchorage-bozeman (737 MAX 9) | 180 kt, 4° | 0.53 | 9.8° |
+
+The energy stall then subtracts `liftDeficit × 7,200` ft/min every second on top of the flight-path equation (*Energy stall double-counts the lift deficit*) — −4,500 ft/min per second at lszh. The same run with the landing configuration set at t = 0 (flaps 3, gear down) holds its altitude for the first 8 s — no dive. (A real A350 doesn't fly 150 kt clean at all — its clean minimum speed is above 200 kt, from memory, not checked against a source.)
+
+**Fix — three parts, each its own entry:** the start configuration from the mission (read `initialState.gear`; a start flap setting — the missions' own data), the trim at an airborne start (*An airborne start is not trimmed*), and the energy stall's double count. **Done when:** each approach mission holds its start altitude ±50 ft and speed ±5 kt over the first 10 s, and the two egll tests in `tests/physics.test.js` pass.
 
 ### Energy stall double-counts the lift deficit
 *Found 2026-10-11 · `tickPhysics()` in `core/physics.js`, comment "Energy stall: L < W"*
@@ -413,6 +427,11 @@ The missions also have a `phase` (ground / departure / circuit / cruise / approa
 | `prevAlt`, `flapPos`, `fieldElev`, `groundRollT`, `lights`, `warnings` | Not checked |
 
 **Fix.** Keep a copy of the defaults in `core/state.js`; `loadMission()` first puts `S` back to them and removes what isn't in them, then applies the mission. A new field is then reset without anyone remembering. Check what must outlive a mission first (a module's `setState` when it first loads). **Done when.** A mission loaded after any other has the same `S` as one loaded fresh, by a test over the vehicle types (the comparison above), except what is listed as kept on purpose.
+
+### `initialState.gear` is never read — every airborne start has the gear up
+*Found 2026-11-15 (the start-dive investigation) · `core/mission.js` (`gear: aircraft.fixedGear ? true : startOnGround`)*
+
+The three approach missions (lszh-approach, egll-approach, anchorage-bozeman) start with `"gear": true`; the mission schema accepts it and the architecture lists it (`gear?` in the Start fields) — but no code has ever read it: since `bc3051c` (2026-03-27) the load sets the gear down on the ground and up in the air (fixed gear: always down). The PM lowers it at the aircraft's checklist height (`checklist.gear.alt`, e.g. 1,800 ft AAL) on the way down. **Fix:** the load takes `initialState.gear` where given (with the gear's animation and `prevGear` to match). **Done when:** lszh-approach starts with the gear down.
 
 ### Live flight always loads the A350
 *Found 2026-10-11 · `flyWithFlight()` in `index.html` (`const liveMission = { … aircraft: 'a350' … }`)*
