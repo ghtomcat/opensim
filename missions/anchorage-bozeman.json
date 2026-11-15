@@ -28,7 +28,7 @@
     "hdg": 90,
     "pitch": 4,
     "roll": 0,
-    "gear": true,
+    "gear": false,
     "ap": true,
     "athr": true,
     "spdManaged": true,

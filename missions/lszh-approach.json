@@ -29,6 +29,7 @@
     "pitch": 4,
     "roll": 0,
     "gear": true,
+    "flaps": 1,
     "ap": true,
     "athr": true,
     "autobrake": "MED",
