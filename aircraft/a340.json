@@ -431,6 +431,9 @@
     "cruiseSpd": 248,
     "cruiseMach": 0.82,
     "cruiseMachSource": "Airbus, A340-200/-300 Aircraft Characteristics — Airport and Maintenance Planning (Rev. Aug 01/22), 3-2-1 'Payload / Range - ISA Conditions', CFM56-5C4: cruise conditions 'ISA 39000 ft M = 0.82' — sources/airbus-ac-a340-200-300-aug2022.pdf",
+    "vmo": 330,
+    "mmo": 0.86,
+    "limitsSource": "FAA TCDS A43NM Revision 14, III. Data Pertinent to All Model A340-200 and A340-300 Series Airplanes: VMO/MMO 330 KIAS / .86 M — sources/faa-tcds-a43nm-rev14-airbus-a340.pdf",
     "maxSpd": 330,
     "spdProfile": {
       "37000": 248,

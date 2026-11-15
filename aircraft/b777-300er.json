@@ -675,6 +675,9 @@
     "cruiseSpd": 312,
     "cruiseMach": 0.84,
     "cruiseMachSource": "Boeing, 777-200LR / -300ER / -Freighter Airplane Characteristics for Airport Planning, D6-58329-2 Rev G (Dec 2024), §3.2.2 'Payload/Range for 0.84 Mach Cruise: Model 777-300ER (GE90-115BL Engines)' — sources/boeing-acap-777-200lr-300er-f-rev-g.pdf",
+    "vmo": 330,
+    "mmo": 0.89,
+    "limitsSource": "JCAB TCDS No. 37 Revision 15, 3. Model 777-300ER Series: Airspeed Limits VMO/MMO = 330KIAS/.89M \u2014 sources/jcab-tcds-no37-boeing-777-rev15.pdf",
     "maxSpd": 350,
     "spdProfile": {
       "35000": 312,

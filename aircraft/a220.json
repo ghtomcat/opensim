@@ -166,6 +166,9 @@
     "cruiseSpd": 288,
     "cruiseMach": 0.78,
     "cruiseMachSource": "0.78 — Bombardier CSeries spec sheet: 'Normal Cruise Speed 0.78 Mach 447 kts' (FL370, ISA; a secondary copy — slideshare.net/juan_carlos_hernandez/bombardier-commercialaircraftcseriesbrochure, not on Bombardier's site). Airbus's own figure is 'Max Cruise speed M0.82' (A220 Facts and Figures, April 2026 — sources/airbus-a220-facts-and-figures-april-2026.pdf) = the MMO above 27,500 ft (EASA TCDS IM.A.570 Issue 25), not a cruise.",
+    "vmo": {"0": 300, "8000": 300, "10000": 330},
+    "mmo": 0.82,
+    "limitsSource": "EASA TCDS IM.A.570 Issue 25 (21 Aug 2026), Section 2 (BD-500-1A11 = A220-300), 10. Airspeed Limits: VMO 300 KIAS sea level to 8,000 ft, 330 KIAS 10,000 to 27,500 ft, MMO 0.82 above 27,500 ft — sources/easa-tcds-im-a570-bd500-a220-issue25.pdf. 8,000–10,000 ft: not in the data sheet — linear 300 → 330 assumed (as the E190-E2's FAA data sheet A57NM states for its own 8,000–10,000 ft step).",
     "maxSpd": 335,
     "spdProfile": {
       "39000": 288,

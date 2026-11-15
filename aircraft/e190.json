@@ -121,6 +121,9 @@
     "cruiseSpd": 278,
     "cruiseMach": 0.78,
     "cruiseMachSource": "Stand-in: Embraer publishes only 'Max Cruise Speed M 0.82' (E190-E2 spec sheet, 2025 — embraer.com/media/e5whgknk/e190-e2_spec.pdf; sources/embraer-e190-e2-spec-2025.pdf) and its range at long-range cruise without the Mach. 0.78 is the A220-300's normal cruise (the same class), not an Embraer figure.",
+    "vmo": {"0": 300, "8000": 300, "10000": 320},
+    "mmo": 0.82,
+    "limitsSource": "FAA TCDS A57NM Revision 27 (29 Oct 2026), VIII. Model ERJ 190-300 (= E190-E2), Airspeed Limits (I.A.S.): VMO 300 KIAS sea level to 8,000 ft, increasing linearly to 320 KIAS at 10,000 ft, 320 KIAS 10,000 to 28,887 ft; MMO 0.82 from 28,887 to 41,000 ft — sources/faa-tcds-a57nm-rev27-embraer-erj190.pdf",
     "maxSpd": 340,
     "spdProfile": {
       "39000": 278,

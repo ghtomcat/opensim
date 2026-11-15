@@ -645,6 +645,9 @@
     "cruiseSpd": 312,
     "cruiseMach": 0.85,
     "cruiseMachSource": "Airbus, A350 Family Facts and Figures (November 2025): 'Cruise Mach 0.85' (A350-900 and -1000) — sources/airbus-a350-facts-and-figures-nov-2025.pdf",
+    "vmo": 340,
+    "mmo": 0.89,
+    "limitsSource": "The A350's Airplane Flight Manual — an operator's (Thai Airways) copy found online by Markus (2026-11-15): 'MAXIMUM OPERATING LIMIT SPEED (VMO/MMO) VMO = 340 kt IAS, MMO = M 0.89'. The EASA (A.151 Issue 33, 1.5 Limit Speeds) and UK data sheets refer to the AFM — sources/easa-tcds-a151-a350-issue33.pdf.",
     "maxSpd": 350,
     "spdProfile": {
       "35000": 312,

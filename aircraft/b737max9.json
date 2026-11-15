@@ -437,6 +437,9 @@
     "cruiseSpd": 285,
     "cruiseMach": 0.785,
     "cruiseMachSource": "Carried over from the 737-800: Boeing publishes no cruise Mach for the MAX (boeing.com/commercial/737max and its ACAP D6-38A004 Rev K give range at long-range cruise only). Boeing, 737-800 Technical Characteristics: 'Typical Cruise Speed (at 35,000 feet) 0.785 Mach' — sources/boeing-737-800-technical-characteristics-wayback-20110612.html",
+    "vmo": 340,
+    "mmo": 0.82,
+    "limitsSource": "FAA TCDS A16WE Revision 64 (2018), XI. Model 737-8 and 737-9: Airspeed Limits VMO/MMO 340 KCAS / 0.82M — sources/faa-tcds-a16we-rev64-boeing-737.pdf (a mirror of the FAA's, Wikimedia Commons)",
     "maxSpd": 340,
     "spdProfile": {
       "0": 138,
