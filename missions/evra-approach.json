@@ -23,7 +23,7 @@
     "lat": 55.0,
     "lon": 21.1,
     "alt": 35000,
-    "spd": 290,
+    "spd": "cruise",
     "hdg": 45,
     "pitch": 2,
     "roll": 0,

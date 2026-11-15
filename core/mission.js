@@ -12,6 +12,7 @@ import { tickFuelSystem } from './fuel-system.js';
 import { runMissionResets } from './lifecycle.js';
 import { setCrewLang }    from './crew.js';
 import { resolveStart }   from './mission-start.js';
+import { iasOfMach }      from './airdata.js';
 import { resolveAircraftConfig } from './aircraft-config.js';
 import { check }          from './schema/check.js';
 import { mission as missionSchema }   from './schema/mission.js';
@@ -47,6 +48,7 @@ export async function loadMission(missionPath, aircraftPath, setup = null) {
   /* Apply initial state from mission. A named start ("start":{runway,at}) derives the
      exact lat/lon/hdg from bundled OurAirports data — overriding the hand-typed coords. */
   let { alt, spd, hdg, pitch, roll, lat, lon } = mission.initialState;
+  spd = startSpeed(spd, alt, aircraft, mission.id);
   const _start = resolveStart(mission, aircraft);
   if (_start) { lat = _start.lat; lon = _start.lon; hdg = _start.hdg; }
 
@@ -280,4 +282,15 @@ export async function fetchMetar(icao) {
       if (data && data[0]) { setState({ metar: data[0] }); return; }
     } catch { /* try next */ }
   }
+}
+
+/* The start speed, kt IAS: the mission's number, or "cruise" — the IAS of the cruise Mach at the start altitude, so an
+   airborne start in cruise flies its Mach, below its MMO (envelope.cruiseMach; the flight's own from the cruise plan's
+   piece 3). An aircraft without a cruise Mach: its cruiseSpd, with a warning. */
+function startSpeed(spd, alt, aircraft, missionId) {
+  if (spd !== 'cruise') return spd;
+  const mach = aircraft.envelope?.cruiseMach;
+  if (mach != null) return iasOfMach(mach, alt ?? 0);
+  console.warn(`[data] missions/${missionId}.json: initialState.spd "cruise" — ${aircraft.id} has no envelope.cruiseMach; its cruiseSpd instead`);
+  return aircraft.envelope?.cruiseSpd ?? 250;
 }
