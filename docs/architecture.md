@@ -298,7 +298,7 @@ that simulates and draws it. Read these first when opening an unfamiliar aircraf
 | Group | Fields | Consumer |
 |---|---|---|
 | **Identity** | `id`, `name`, `manufacturer`, `family`, `model`, `subtype`, `registration`, `callsign`, `icaoType`, `crewLang` | picker, COM/ATC (`callsign`), `core/crew.js` (`crewLang`) |
-| **Flight model** | `performance {mass, wingArea, thrustMax, CL_0, CL_alpha, CL_max, CD_0, …}` (also solved for the trim — `core/trim.js`), `envelope {cruiseAlt, maxAlt, cruiseSpd, cruiseMach, maxSpd, spdProfile}`, `handling {rollRate, pitchRate, maxBank, maxPitch, rudderMaxDeg, rudderLimitKt}`, `inertia {Izz}`, `flaps [{label, dCL_0, dCL_max, dCD_0}]`, `thrustProfiles` (a turbofan's thrust-lever detents only — a propeller's throttle has none), `approachSpeed`, `autobrake`, `rotaryEngine`; `balance {noseGearLoadShare}` (nominal CG) and the `dimensions` below that `core/airframe.js` reads | `core/physics.js`, `airframe.js`, `thrust.js`, `managed-speed.js`, `vnav.js`, `input.js`, pedestal/levers |
+| **Flight model** | `performance {mass, wingArea, thrustMax, CL_0, CL_alpha, CL_max, CD_0, …}` (also solved for the trim — `core/trim.js`), `envelope {cruiseAlt, maxAlt, cruiseSpd, cruiseMach, maxSpd, spdProfile, vne | vmo, mmo, limitsSource}` (the limits: `core/limits.js` — the maximum operating speed, the lower of VMO and MMO's IAS, for the A/THR's cap, the PFD's barber pole and master warning, and the crash), `handling {rollRate, pitchRate, maxBank, maxPitch, rudderMaxDeg, rudderLimitKt}`, `inertia {Izz}`, `flaps [{label, dCL_0, dCL_max, dCD_0}]`, `thrustProfiles` (a turbofan's thrust-lever detents only — a propeller's throttle has none), `approachSpeed`, `autobrake`, `rotaryEngine`; `balance {noseGearLoadShare}` (nominal CG) and the `dimensions` below that `core/airframe.js` reads | `core/physics.js`, `airframe.js`, `thrust.js`, `managed-speed.js`, `vnav.js`, `input.js`, pedestal/levers |
 | **Rocket model** | `performance {massWet, stages[], payload, fpaProfile[], recovery{}, …}`, `ignitionTime`, `staging`, `gridFins`, `landingLegs` | `core/rocket.js`, rocket displays |
 | **Other vehicle models** | `specs` (robot), `joints`, `links` (robot arm/dog) | `display/robot_arm.js`, `display/yertle_quadruped.js` |
 | **Systems** | `tanks`, `fuelBurn`, `hasCarbHeat`; `cooling {type, ambient, normal, redline, …}` + `coolingSystem`; `electrical`; `hydraulics`; `fuelSystem`; `battery` | `core/fuel.js`, `core/physics.js` (heat balance), `core/failures.js`, `core/electrical.js`, `core/hydraulics.js`, `core/fuel-system.js`, `core/battery.js` |
@@ -827,7 +827,7 @@ uses it today.
 | Condition | Threshold |
 |---|---|
 | Hard landing | vertical speed below −800 fpm at the moment of touchdown |
-| Overspeed | above the sourced limit: `envelope.vne` (a propeller aircraft) or `vmo` (a jet) × 1.15, or Mach above `envelope.mmo` + 0.07; an aircraft without a sourced limit has no overspeed crash (`maxSpd` is no limit) |
+| Overspeed | above the sourced limit: `envelope.vne` (a propeller aircraft) or `vmo` at the altitude (a jet — one value or a schedule by altitude, `vmoAt()` in `core/limits.js`) × 1.15, or Mach above `envelope.mmo` + 0.07; an aircraft without a sourced limit has no overspeed crash (`maxSpd` is no limit) |
 | Terrain | below `S.terrainElevFt` (where that is > field + 100 ft) |
 
 A crash sets `S.crashed` (physics stops), `crashReason`, and logs to the black box.
