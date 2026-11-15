@@ -171,6 +171,8 @@ return r;
 
 Both apply per frame, not per second — their strength depends on the frame rate. Scale by `dt` like the energy stall. (Turbulence draws from `random()` in `core/random.js`, seeded in test mode, so tests repeat.)
 
+**The stall — fixed (2026-11-15, the start dive's step 2).** Not made frame-rate independent at its old strength (800 per frame = −48,000 ft/min per second — any stall ended at −6,000 to −8,000 ft/min, diving *faster* while stalled), but read as 800 ft/min per second (`× dt`) — a stand-in until *Stall handling*. A Bf 109 held at 16°, engine dead: now zooms, slows to ~80 kt and mushes down at −800 … −1,500 ft/min (was −6,740 → −8,269 at 118 → 150 kt) — `tests/stall.spec.js`. **Left:** the turbulence.
+
 ### Stall handling — the wing's stall is a scripted push, not modelled — not implemented yet
 *Noted 2026-11-15 (Markus, with the start dive's step C — "is a high-alpha stall like AF447?") · `tickPhysics()` in `core/physics.js` (the lift, the "High-alpha stall" block), `display/pfd_instruments.js` (the barber pole)*
 
@@ -410,7 +412,7 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 ## Tests
 
 ### Two landing tests fail since the angular-rate fix — they glide and flare for the old model
-*`tests/physics.spec.js`* — "dead-stick landing" and "Crash bounds checker › normal landing" (see *The attitude's angular rates were never stored*). Redesigned with the start dive's step C.
+*`tests/physics.spec.js`* — "dead-stick landing" and "Crash bounds checker › normal landing" (see *The attitude's angular rates were never stored*). Redesigned with the start dive's step C. **Their purpose (Markus):** wolfskopf-1942 ends in a forced landing — gunfire, the coolant leak, the engine dying, a dead-stick glide onto a field — and these tests check that this ending can be flown: the Bf 109 with a dead engine glides and lands without a crash (they set the engine dead themselves rather than waiting for the mission's failures at 115–121 s). The redesign keeps that, not the old numbers: a glide at the speed and attitude a pilot would hold (best glide), a moderate flare, a touchdown on the field — and if that can't be flown after step C, the mission's ending can't be flown, a finding in itself.
 
 ### DB 601 engine-off tests use an airborne mission
 *`tests/db601-sound.spec.js`* — "starts in off state" and "lader gain is zero at engine off" load Wolfskopf, which starts at 2 000 ft with the engine running. Use a ground start (`hahnweide-1944`).
