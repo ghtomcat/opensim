@@ -348,8 +348,10 @@ export function tickPhysics(dt) {
     const sbCD    = _sb >= 2 ? (ac.spoilers.drag ?? 0.06) * _sbRamp : 0;
     const sbLift  = _sb >= 2 ? 1 - 0.5 * _sbRamp : 1;                   // spoil up to ~50% of the lift
 
-    /* Aerodynamics */
-    const alpha = newPitch * DEG;
+    /* Aerodynamics — the angle of attack is the pitch above the flight path, α = θ − γ (γ from the vertical speed and
+       the true airspeed, as the flight-path equation below; 0 on the ground): nose-down in a descent the wing still lifts */
+    const gammaNow = onGround ? 0 : Math.asin(Math.max(-0.5, Math.min(0.5, ((S.vs ?? 0) / 196.85) / tas_ms)));
+    const alpha = newPitch * DEG - gammaNow;
     const CL_b  = Math.min(CL_max_e, Math.max(-0.5, CL_0_e + CL_alpha * alpha));
     const CL    = CL_b * geLift * sbLift;                                // ground effect lifts, spoilers dump …
     const CD    = CD_0_eff + sbCD + k_ind * CL_b * CL_b * geK;           // … spoilers + induced (cut near the ground)
@@ -442,8 +444,9 @@ export function tickPhysics(dt) {
       const gamma  = Math.asin(Math.max(-0.5, Math.min(0.5, vz_ms / tas_ms)));
 
       const a_long = (T * Math.cos(alpha) - D - W * Math.sin(gamma)) / mass;
+      /* The flight path bends with the lift's excess over the weight's normal part. Its damping is in the lift itself:
+         α = θ − γ, so a path below the attitude's raises α and the lift, and bends it back (no −k·γ pull toward level) */
       const dGamma = (L - W * Math.cos(gamma)) / (mass * Math.max(10, tas_ms))
-                   - 0.4 * gamma                        // pitch damping — horizontal stab
                    + (S.trim ?? 0) * 0.0015;            // trim — shifts pitch equilibrium
 
       const newTas_ms = Math.max(0, tas_ms + a_long * dt);   // integrate TAS (forces are real); display IAS
@@ -452,18 +455,12 @@ export function tickPhysics(dt) {
       newSpd = newTas_ms * Math.sqrt(Math.max(0.05, rho / 1.225)) / 0.5144;   // TAS → IAS for the gauge
       vs     = newTas_ms * Math.sin(newGamma) * 196.85;
 
-      /* High-alpha stall: CL hits CL_max — the nose drops and the sink builds, up to 800 ft/min per second (a stand-in
-         until the stall is modelled — issues.md, *Stall handling*; until 2026-11-15 800 per frame: −48,000 ft/min per s) */
+      /* High-alpha stall: CL at CL_max — the lift can't grow, so the force balance lets it mush down (α = θ − γ); the
+         nose drops (a stand-in until the stall is modelled — issues.md, *Stall handling*). No extra sink: pushed on top
+         of the force balance it fed itself (the steeper path raised α, which pushed again) */
       if (CL > CL_max_e * 0.95) {
         const sf = Math.min(1, (CL / CL_max_e - 0.95) / 0.05);
-        vs      -= sf * 800 * dt;
         newPitch = Math.max(newPitch - 3 * sf * dt, -15);
-      }
-
-      /* Energy stall: L < W at low speed — gentle progressive sink, no snap */
-      const liftDeficit = Math.max(0, W - L) / W;              // 0 = flying, 1 = no lift
-      if (liftDeficit > 0.05) {
-        vs -= liftDeficit * 120 * 60 * dt;                      // gentle fpm nudge — 120/frame at 60 fps, frame-rate independent
       }
 
       /* Liftoff: bump clear of ground to release WoW next frame */

@@ -77,8 +77,8 @@ export async function loadMission(missionPath, aircraftPath, setup = null) {
     _startFlaps = 0;
   }
 
-  /* An airborne start is trimmed — the pitch (the angle of attack) and the thrust that hold its speed in level flight
-     in its configuration (core/trim.js); initialState.pitch, where given, overrides the pitch (a start not in balance). */
+  /* An airborne start is trimmed — the pitch and the thrust that hold its speed in level flight in its configuration
+     (core/trim.js; level, γ = 0, so the pitch is the angle of attack); initialState.pitch, where given, overrides it. */
   const _trim = startAirborne ? levelTrim(aircraft, { iasKt: spd, altFt: alt, flaps: _startFlaps, gear: _startGear }) : null;
   pitch = mission.initialState.pitch ?? (_trim ? _trim.pitchDeg : 0);
   /* A turbofan with the A/THR on: its levers in the CLB detent — the A/THR's ceiling is the detent the lever sits in
