@@ -94,6 +94,18 @@ test("an airborne start is not behind its aircraft's flap and gear calls at its 
   });
   assert.deepEqual(bad, []);
 });
+test("a mission's cruise is within its aircraft's envelope — the level at or below its maxAlt, the Mach below its MMO", () => {
+  const bad = missionIds.flatMap(id => {
+    const m = load(`missions/${id}.json`), c = m.cruise;
+    if (!c) return [];
+    const env = load(`aircraft/${acId(m.aircraft)}.json`).envelope ?? {}, out = [];
+    if (c.level != null && (!Number.isInteger(c.level) || c.level * 100 > (env.maxAlt ?? Infinity))) out.push(`${id}: FL${c.level} (maxAlt ${env.maxAlt})`);
+    if (c.mach != null && env.mmo != null && c.mach >= env.mmo) out.push(`${id}: M${c.mach} (MMO ${env.mmo})`);
+    if ((c.level != null || c.mach != null) && !c.source) out.push(`${id}: no source`);
+    return out;
+  });
+  assert.deepEqual(bad, []);
+});
 test("the catalog's aircraft is the mission's aircraft", () => {
   const mismatch = cards.filter(c => acId(load(`missions/${c.id}.json`).aircraft) !== c.aircraft).map(c => c.id);
   assert.deepEqual(mismatch.filter(id => !KNOWN_AIRCRAFT_MISMATCH[id]), [], 'card and mission name different aircraft');

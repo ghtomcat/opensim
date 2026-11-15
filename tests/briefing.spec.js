@@ -41,7 +41,7 @@ test('a rocket offers its crew, no weather or engine failure', async ({ page }) 
 test('the airliner gets its charts; the Controls chip opens the key list and closes again', async ({ page }) => {
   await openBriefing(page, 'lszh-approach');
   await expect(page.locator('#fb-inner')).toBeVisible();
-  await expect(page.locator('#fb-params')).not.toContainText('CRUISE');
+  await expect(page.locator('#fb-params')).not.toContainText('FL040');   // the start altitude (3,980 ft) is no cruise level (was shown as "CRUISE FL040")
   expect(await chips(page)).toEqual(['weather', 'crew', 'failure', 'controls']);
   const pop = page.locator('#bp-pop');
   await page.click('.bp-chip[data-kind="controls"]');
@@ -55,6 +55,16 @@ test('the airliner gets its charts; the Controls chip opens the key list and clo
   await expect(page.locator('#fb-apt button').last()).toHaveAttribute('aria-pressed', 'true');
   await page.click('.fb-tab[data-tab="route"]');
   await expect(page.locator('#fb-apt')).toBeHidden();
+});
+
+test('the flight\'s cruise: Singapore–London its own FL300, the aircraft\'s Mach; a light aircraft none', async ({ page }) => {
+  await openBriefing(page, 'singapore-london');
+  const p = page.locator('#fb-params');
+  await expect(p).toContainText('Cruise');
+  await expect(p).toContainText('FL300');   // the mission's (FlightAware, SQ318) — not the 777's FL350
+  await expect(p).toContainText('M.84');    // the aircraft's (Boeing's ACAP)
+  await openBriefing(page, 'lszf-pattern');
+  await expect(page.locator('#fb-params')).not.toContainText('Cruise');   // a C172's cruiseAlt is no flight level
 });
 
 test('the picks are the setup the mission flies with', async ({ page }) => {

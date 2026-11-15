@@ -134,3 +134,34 @@ test('airborne mission start: the plan begins at the leg being flown', () => {
   load(DEP, ARR, { wow: false, lat, lon, hdg });
   assert.equal(S.flightPlan.activeIdx, k);
 });
+
+/* ── The flight's cruise (cruiseFor / flightCruise) — the mission's, else the aircraft's ── */
+import { cruiseFor, flightCruise } from '../core/flightplan.js';
+import { managedSpeedTarget } from '../core/managed-speed.js';
+import { descentProfile } from '../core/vnav.js';
+import { iasOfMach } from '../core/airdata.js';
+import { readFileSync } from 'node:fs';
+
+const B777 = JSON.parse(readFileSync(new URL('../aircraft/b777-300er.json', import.meta.url), 'utf8'));
+
+test('cruiseFor: the mission\'s level and Mach where given, else the aircraft\'s — and says which', () => {
+  assert.deepEqual(cruiseFor({}, B777), { fl: 350, levelFt: 35000, mach: 0.84, levelFrom: 'aircraft', machFrom: 'aircraft' });
+  assert.deepEqual(cruiseFor({ cruise: { level: 300 } }, B777), { fl: 300, levelFt: 30000, mach: 0.84, levelFrom: 'mission', machFrom: 'aircraft' });
+  assert.deepEqual(cruiseFor({ cruise: { level: 360, mach: 0.85 } }, B777), { fl: 360, levelFt: 36000, mach: 0.85, levelFrom: 'mission', machFrom: 'mission' });
+  assert.deepEqual(cruiseFor({}, { envelope: {} }), { fl: null, levelFt: null, mach: null, levelFrom: 'aircraft', machFrom: 'aircraft' });
+});
+
+test('managed speed flies the flight\'s cruise Mach, not the aircraft\'s', () => {
+  setState({ aircraft: B777, mission: { cruise: { level: 300, mach: 0.80 } }, alt: 37000, spdManaged: true });
+  const t = managedSpeedTarget();
+  assert.equal(t.mach, 0.80);
+  assert.equal(t.kt, Math.round(iasOfMach(0.80, 37000)));
+  assert.equal(flightCruise().mach, 0.80);
+});
+
+test('VNAV descends from the flight\'s cruise level when it is the highest', () => {
+  setState({ aircraft: B777, mission: { departure: DEP, arrival: ARR, cruise: { level: 300 } }, alt: 5000, altT: 5000, wow: false, lat: 47.46, lon: 8.55, hdg: 280 });
+  resetFlightPlan();
+  const p = descentProfile();
+  if (p) assert.equal(p.cruiseAlt, 30000);   // no procedures bundled → no profile; with them, the flight's FL300
+});
