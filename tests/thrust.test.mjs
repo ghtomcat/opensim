@@ -93,3 +93,38 @@ test('a new mission: the A/THR integrator starts from the engines\' N1, not a le
   const cmd = Array.isArray(S.n1Cmd) ? S.n1Cmd[0] : S.n1Cmd;
   assert.ok(Math.abs(cmd - 80) < 1, `command ${cmd}`);
 });
+
+/* SPD/MACH (core/fcu.js): the selected target in knots or in Mach — converted at the present altitude; the A/THR holds
+   the Mach's IAS and says MACH; the knob turns 0.01 a step. Only the pilot switches (no changeover by itself). */
+import { fcuSpeed, fcuSpeedMach, selectedSpeedKt } from '../core/fcu.js';
+import { iasOfMach, machOf } from '../core/airdata.js';
+
+test('SPD/MACH: 250 kt at FL350 becomes .78, the knob turns it by .01, back to knots at the present altitude', () => {
+  setState({ alt: 35000, spdT: 250, spdMach: false, machT: null, spdManaged: false });
+  fcuSpeedMach();
+  assert.equal(S.spdMach, true);
+  assert.equal(S.machT, Math.round(machOf(250, 35000) * 100) / 100);   // 0.78
+  fcuSpeed({ step: 2 });
+  assert.equal(S.machT, 0.80);
+  assert.ok(Math.abs(selectedSpeedKt() - iasOfMach(0.80, 35000)) < 1e-9);
+  fcuSpeedMach();
+  assert.equal(S.spdMach, false);
+  assert.equal(S.spdT, Math.round(iasOfMach(0.80, 35000)));            // 257
+  fcuSpeed({ step: 3 });
+  assert.equal(S.spdT, Math.round(iasOfMach(0.80, 35000)) + 3);       // knots again: 1 kt a step
+});
+
+test('a selected Mach: the A/THR holds its IAS and its mode is MACH; the Mach doesn\'t change by itself with the altitude', () => {
+  const a220 = JSON.parse(readFileSync(join(here, '..', 'aircraft', 'a220.json'), 'utf8'));
+  const run = (alt) => {
+    setState({ aircraft: a220, engineState: 'running', athr: true, wow: false, lever: 0.493, alt, spd: iasOfMach(0.78, alt),
+               spdManaged: false, spdMach: true, machT: 0.78, n1: 70, paused: false, crashed: false, gsCaptured: false });
+    runMissionResets();
+    tickThrust(0.1);
+    return S.athrMode;
+  };
+  assert.equal(run(35000), 'MACH');
+  assert.equal(run(25000), 'MACH');   // below the crossover too (314 kt) — the pilot's Mach stays a Mach (only SPD/MACH switches)
+  assert.equal(S.spdMach, true);
+  assert.equal(run(20000), 'SPEED');  // M .78 at FL200 is 350 kt — above the VMO (here maxSpd 335): the cap binds, a speed
+});

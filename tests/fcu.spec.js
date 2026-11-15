@@ -79,3 +79,22 @@ for (const layout of ['top', 'middle']) {
     expect(errors).toEqual([]);
   });
 }
+
+/* SPD/MACH (core/fcu.js): its pushbutton beside the SPD knob — a click switches the selected target between knots and
+   Mach, converted at the present altitude; the SPD knob's area around it doesn't take the click. */
+test('the SPD/MACH pushbutton switches the selected speed to a Mach and back — evra at FL350: 250 kt ↔ .78', async ({ page }) => {
+  await page.goto('/?mission=evra-approach&test=1');
+  await page.waitForFunction(() => window.simReady === true);
+  const sm = () => page.evaluate(async () => (await import('/display/pfd_instruments.js')).fcuSpdMachRegion());
+  await expect.poll(async () => !!(await sm())).toBe(true);
+  const click = async () => {
+    const fcu = await rect(page, 'fcu'), dpr = await page.evaluate(() => devicePixelRatio || 1), r = await sm();
+    await page.mouse.click(fcu.left + (r.x + r.w / 2) / dpr, fcu.top + (r.y + r.h / 2) / dpr);
+  };
+  const st = () => page.evaluate(() => { const s = window.simGetState(); return { spdMach: s.spdMach, machT: s.machT, spdT: s.spdT, spdManaged: s.spdManaged }; });
+  expect(await st()).toMatchObject({ spdMach: false, spdT: 250 });
+  await click();
+  expect(await st()).toMatchObject({ spdMach: true, machT: 0.78, spdManaged: false });   // not a push of the SPD knob
+  await click();
+  expect(await st()).toMatchObject({ spdMach: false, spdT: 250 });
+});
