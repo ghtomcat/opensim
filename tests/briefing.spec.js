@@ -57,14 +57,16 @@ test('the airliner gets its charts; the Controls chip opens the key list and clo
   await expect(page.locator('#fb-apt')).toBeHidden();
 });
 
-test('the flight\'s cruise: Singapore–London its own FL300, the aircraft\'s Mach; a light aircraft none', async ({ page }) => {
+test('the flight\'s cruise: Singapore–London its own FL300, the aircraft\'s Mach', async ({ page }) => {
   await openBriefing(page, 'singapore-london');
   const p = page.locator('#fb-params');
   await expect(p).toContainText('Cruise');
   await expect(p).toContainText('FL300');   // the mission's (FlightAware, SQ318) — not the 777's FL350
   await expect(p).toContainText('M.84');    // the aircraft's (Boeing's ACAP)
+  /* a light aircraft gets no flight-briefing panel (not the charts layout) — so no cruise to show; its panel stays
+     hidden (and still holds the last airliner's text — checking its content would test that stale text) */
   await openBriefing(page, 'lszf-pattern');
-  await expect(page.locator('#fb-params')).not.toContainText('Cruise');   // a C172's cruiseAlt is no flight level
+  await expect(p).toBeHidden();
 });
 
 test('the picks are the setup the mission flies with', async ({ page }) => {
