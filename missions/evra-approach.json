@@ -25,7 +25,6 @@
     "alt": 35000,
     "spd": "cruise",
     "hdg": 45,
-    "pitch": 2,
     "roll": 0,
     "ap": true,
     "athr": true
