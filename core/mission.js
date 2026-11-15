@@ -13,6 +13,7 @@ import { runMissionResets } from './lifecycle.js';
 import { setCrewLang }    from './crew.js';
 import { resolveStart }   from './mission-start.js';
 import { iasOfMach }      from './airdata.js';
+import { maxFlapStage }   from './flaps.js';
 import { resolveAircraftConfig } from './aircraft-config.js';
 import { check }          from './schema/check.js';
 import { mission as missionSchema }   from './schema/mission.js';
@@ -69,6 +70,17 @@ export async function loadMission(missionPath, aircraftPath, setup = null) {
   const _engine = initialEngine(aircraft, { onGround: startOnGround, spd, onRunway: !!mission.start?.runway, oilTemp: startOilTempC,
                                             conditionKey: `${mission.id}|${aircraft.id}` });   // each engine's character (core/engine.js)
 
+  /* The start's configuration — the mission's overrides (initialState.gear, .flaps) where given; the named
+     configuration per mission will give the default for the phase (issues.md). On the ground and with fixed gear
+     the gear is down; the flap stage must be one of the aircraft's own. */
+  const _startGear  = aircraft.fixedGear || startOnGround ? true : (mission.initialState.gear ?? false);
+  const _flapsMax   = maxFlapStage(aircraft);
+  let   _startFlaps = mission.initialState.flaps ?? 0;
+  if (!Number.isInteger(_startFlaps) || _startFlaps < 0 || _startFlaps > _flapsMax) {
+    console.warn(`[data] missions/${mission.id}.json: initialState.flaps ${_startFlaps} is not a flap stage of ${aircraft.id} (0 … ${_flapsMax}) — 0`);
+    _startFlaps = 0;
+  }
+
   /* Barometric altimeter init — set the subscale to the field QNH (live METAR or mission
      weather), and start on STD above the transition altitude. altT is held in INDICATED
      terms so the AP doesn't jump on engage (see core/baro.js). */
@@ -93,10 +105,9 @@ export async function loadMission(missionPath, aircraftPath, setup = null) {
     vs:    0,
     lat:   lat ?? 48.13,
     lon:   lon ?? 8.55,
-    flaps: 0, prevFlaps: 0,
-    gear:     aircraft.fixedGear ? true : startOnGround,
-    prevGear: aircraft.fixedGear ? true : startOnGround,
-    gearAnim: aircraft.fixedGear ? 1 : (startOnGround ? 1 : 0),
+    flaps: _startFlaps, prevFlaps: _startFlaps,
+    gear:     _startGear, prevGear: _startGear,
+    gearAnim: _startGear ? 1 : 0,
     ap:    mission.initialState.ap   ?? !aircraft.manualControl,   // airborne missions may start on the AP
     athr:  mission.initialState.athr ?? !aircraft.manualControl,
     navManaged: mission.initialState.navManaged ?? false,         // managed lateral/vertical/speed (else selected/held)
