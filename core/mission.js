@@ -218,7 +218,7 @@ export async function loadMission(missionPath, aircraftPath, setup = null) {
     });
   }
 
-  runMissionResets();      // failures, fuel, battery, electrical, hydraulics, display lag — each module registers its own
+  runMissionResets();      // failures, fuel, battery, electrical, hydraulics, display lag, the A/THR speed loop — each module registers its own
 
   /* Electrical switches set at the start (initialState.elec, e.g. ground power at the stand) — through
      the owner's command; then the systems settle once (dt 0), so the first frame is already powered.

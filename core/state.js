@@ -53,7 +53,7 @@ export const S = {
   vsT:        0,                  // selected vertical-speed target (fpm) — used in V/S mode
   vsSelected: false,              // V/S mode: AP flies vsT until it captures the FCU altitude (ALT*)
   spdManaged: false,              // managed speed — A/THR flies the phase speed schedule vs hold the FCU speed
-  athrN1:     55,                 // A/THR speed-loop integrator (N1 %); null while the A/THR is off — core/thrust.js
+  athrN1:     null,               // A/THR speed-loop integrator (N1 %); null while the A/THR is off → starts from N1 — core/thrust.js
   n1Cmd:      0,                  // N1 % asked of each running turbofan, one per engine (A/THR, or each engine's own lever) — core/thrust.js; the engine spools to it
   athrMode:   null,               // active A/THR thrust mode: 'SPEED' | 'MACH' | 'THR' (null when A/THR off) — FMA column 0
   athrDetent: null,               // thrust-lever detent the A/THR is rated to: IDLE/CLB/MCT/TOGA

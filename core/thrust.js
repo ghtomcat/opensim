@@ -20,6 +20,7 @@
 import { S, setState } from './state.js';
 import { managedSpeedTarget } from './managed-speed.js';
 import { throttle } from './engine.js';
+import { onMissionReset } from './lifecycle.js';
 
 /* Flat-rated N1 ceiling per detent label (sea-level ISA, % N1). */
 const DETENT_N1 = { CLB: 84, MCT: 93, FLX: 93, TOGA: 100 };
@@ -45,6 +46,10 @@ export function activeDetent(ac = S.aircraft, lever = S.lever ?? 0) {
 }
 
 let _athrSpdPrev = null;   // previous airspeed for the A/THR damping (speed-rate) term
+
+/* A new mission starts the speed loop afresh: the integrator from the engines' N1 (null → tickThrust takes S.n1 on
+   its first active step) and no previous airspeed — not the last flight's values or state.js's default. */
+onMissionReset(() => { _athrSpdPrev = null; setState({ athrN1: null }); });
 
 /**
  * tickThrust(dt) — the thrust command for a turbofan, once per sim step before the engine.
