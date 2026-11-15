@@ -1321,7 +1321,11 @@ nothing sends `CREW_EVENT`. `S.role` is local (the R key cycles it; displays sho
 `core/liveflight.js`: nearby flights from the OpenSky Network, lookup by registration
 or callsign from adsb.fi (through corsproxy.io), and polling for tracking. The picker
 starts a mission built from a live position (§2.2), and `pickAircraft(icaoType)` maps
-the type to a sim aircraft (overridden by bug, see `issues.md`).
+the type to a sim aircraft (overridden by bug, see `issues.md`). A flight's speeds: `gs`
+(its ground speed, as ADS-B reports it — shown on the radar and the kneeboard as GS) and `ias`
+(what the sim flies: the ground speed taken as the true airspeed — no wind is known — at its
+altitude, `iasOfTas`, `core/airdata.js`), at the load and each tracking update. At the load the
+pitch is the trim's angle of attack plus the flight path from the vertical speed.
 
 ### 12.5 Observations
 
