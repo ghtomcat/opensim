@@ -5,7 +5,10 @@
    autopilot has one of its own (issues.md, "tickPhysics() is one 680-line function" — then
    these fold into it). The rules moved here unchanged from index.html (2026-11-12):
 
-     turn SPD   ±1 kt (100 … 350), selected speed     push SPD   managed ↔ selected
+     turn SPD   ±1 kt (100 … 350) — or ±0.01 when     push SPD   managed ↔ selected
+                the window shows a Mach (.10 … .99)
+     SPD/MACH   the selected target's unit, kt ↔ Mach: converted at the present altitude (250 kt at FL350 ↔ .78) —
+                only the pilot switches it (no changeover by itself at the crossover — Markus, 2026-11-15)
      turn HDG   ±1° (1 … 360), HDG mode                push HDG   managed NAV ↔ HDG
      turn ALT   ±100 ft a step (0 … 43 000), ALT       push ALT   managed VNAV ↔ ALT
      turn V/S   ±100 fpm a step (±6 000), V/S mode     push V/S   level off (V/S 0)
@@ -17,10 +20,24 @@
 import { S, setState } from './state.js';
 import { registerCommand } from './commands.js';
 import { indicatedAlt } from './baro.js';
+import { machOf, iasOfMach } from './airdata.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-export function fcuSpeed({ step = 0 } = {})    { setState({ spdT: clamp((S.spdT ?? 0) + step, 100, 350), spdManaged: false }); return true; }
+export function fcuSpeed({ step = 0 } = {}) {
+  if (S.spdMach) setState({ machT: clamp(Math.round(((S.machT ?? 0.78) + step * 0.01) * 100) / 100, 0.10, 0.99), spdManaged: false });
+  else           setState({ spdT: clamp((S.spdT ?? 0) + step, 100, 350), spdManaged: false });
+  return true;
+}
+/** SPD/MACH — the selected target in knots or in Mach: the present one converted at the present altitude */
+export function fcuSpeedMach() {
+  const alt = S.alt ?? 0;
+  if (S.spdMach) setState({ spdMach: false, spdT: clamp(Math.round(iasOfMach(S.machT ?? 0.78, alt)), 100, 350) });
+  else           setState({ spdMach: true,  machT: clamp(Math.round(machOf(S.spdT ?? 250, alt) * 100) / 100, 0.10, 0.99) });
+  return true;
+}
+/** The selected speed target, kt IAS — the selected Mach's IAS at the present altitude when the FCU shows a Mach */
+export const selectedSpeedKt = () => S.spdMach ? iasOfMach(S.machT ?? 0.78, S.alt ?? 0) : S.spdT;
 export function fcuHeading({ step = 0 } = {})  { setState({ hdgT: (((Math.round(S.hdgT ?? 360) + step - 1) % 360) + 360) % 360 + 1, navManaged: false }); return true; }
 export function fcuAltitude({ step = 0 } = {}) {
   setState({ altT: clamp(Math.round((S.altT ?? 0) / 100) * 100 + step * 100, 0, 43000), altManaged: false });
@@ -47,6 +64,7 @@ export function autothrust(on = 'toggle') {
 
 registerCommand('fcuSpeed',        (a) => fcuSpeed(a));
 registerCommand('fcuSpeedPush',    () => { setState({ spdManaged: !S.spdManaged }); return true; });
+registerCommand('fcuSpeedMach',    () => fcuSpeedMach());
 registerCommand('fcuHeading',      (a) => fcuHeading(a));
 registerCommand('fcuHeadingPush',  () => { setState({ navManaged: !S.navManaged }); return true; });
 registerCommand('fcuAltitude',     (a) => fcuAltitude(a));

@@ -109,7 +109,7 @@ export async function loadMission(missionPath, aircraftPath, setup = null) {
     alt,   altT:  _altInd,        // alt = true MSL; altT = indicated FCU target
     baroSet: _baroSet, baroStd: _baroStd,
     vsT: 0, vsSelected: false,    // V/S mode off at start
-    spd,   spdT:  spd,
+    spd,   spdT:  Math.round(spd ?? 0),   // the FCU's target is whole knots (a "cruise" start's exact IAS of its Mach → 250)
 
     hdg,   hdgT:  hdg,
     pitch, pitchT: pitch,
@@ -126,6 +126,7 @@ export async function loadMission(missionPath, aircraftPath, setup = null) {
     navManaged: mission.initialState.navManaged ?? false,         // managed lateral/vertical/speed (else selected/held)
     altManaged: mission.initialState.altManaged ?? false,
     spdManaged: mission.initialState.spdManaged ?? false,
+    spdMach: false, machT: null,                                  // the FCU shows knots at the start (SPD/MACH — core/fcu.js)
     autobrake:  mission.initialState.autobrake  ?? 'OFF',          // armed AUTO BRK level (jets); approach missions arm it
     speedBrake: mission.initialState.speedBrake ?? 0,              // 0=RET 1=ARM 2=FULL; approach missions arm the ground spoilers
     autobrakeActive: false,

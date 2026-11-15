@@ -19,6 +19,7 @@
 
 import { S, setState } from './state.js';
 import { managedSpeedTarget } from './managed-speed.js';
+import { selectedSpeedKt } from './fcu.js';
 import { throttle } from './engine.js';
 import { onMissionReset } from './lifecycle.js';
 
@@ -81,8 +82,9 @@ export function tickThrust(dt) {
     const mg      = S.spdManaged ? managedSpeedTarget() : null;                // managed → phase speed schedule / cruise Mach
     const mgSpd   = mg?.kt ?? null;
     const spdTgt  = (mgSpd != null) ? Math.min(mgSpd, vmo)                      // (already capped 250<FL100 inside)
-                                    : Math.min(S.spdT ?? vmo, S.alt < 10000 ? 250 : 1e4, vmo);  // selected FCU speed
-    const holdsMach = mg?.mach != null && mgSpd <= vmo;                         // the cruise Mach is the binding target
+                                    : Math.min(selectedSpeedKt() ?? vmo, S.alt < 10000 ? 250 : 1e4, vmo);  // selected FCU speed (a Mach's IAS — SPD/MACH)
+    const holdsMach = mgSpd != null ? (mg.mach != null && mgSpd <= vmo)          // managed: the cruise Mach binds
+                                    : (!!S.spdMach && spdTgt === selectedSpeedKt());   // selected: a Mach the pilot set, not capped
     const spdErr  = spdTgt - (S.spd ?? 0);
     const spdRate = _athrSpdPrev != null ? ((S.spd ?? 0) - _athrSpdPrev) / dt : 0;    // kt/s — damps overshoot
     /* Anti-windup (conditional integration): the integral — the N1 the speed needs once on target — holds while the

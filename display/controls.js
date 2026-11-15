@@ -96,6 +96,7 @@ Object.assign(CONTROLS, {
   fcuAlt: fcuKnob('fcuAltitude', 'fcuAltitudePush'), fcuVs: fcuKnob('fcuVs', 'fcuVsPush'),
   ap1:  { kind: 'toggle', read: () => !!S.ap,   command: 'autopilot',  arg: () => 'toggle' },
   athr: { kind: 'toggle', read: () => !!S.athr, command: 'autothrust', arg: () => 'toggle' },
+  fcuSpdMach: { kind: 'toggle', read: () => !!S.spdMach, command: 'fcuSpeedMach', arg: () => undefined },   // SPD/MACH: the selected target's unit
 });
 
 /** A knob pushed (a click on it) — its push command, where it has one */

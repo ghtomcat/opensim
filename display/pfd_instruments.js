@@ -11,6 +11,8 @@ import { S } from '../core/state.js';
 import { engineAvailable, engineReading } from '../core/engine.js';
 import { electricalLayout, solveElectrical, elecCharge } from '../core/electrical.js';
 import { managedSpeed } from '../core/managed-speed.js';
+import { selectedSpeedKt } from '../core/fcu.js';
+import { machOf } from '../core/airdata.js';
 import { hydView } from '../core/hydraulics.js';
 import { fuelView } from '../core/fuel-system.js';
 import { activeAlerts } from '../core/alerts.js';
@@ -32,6 +34,9 @@ export function fcuButtonRegions() { return _fcuBtnHits; }
 /* The FCU's five knob sections (device px: x, width), refreshed by drawFCU — its own layout, so no one keeps a copy */
 let _fcuZones = null;
 export function fcuKnobZones() { return _fcuZones; }
+/* The FCU's SPD/MACH pushbutton (device px: x, y, w, h), refreshed by drawFCU — beside the SPD knob */
+let _fcuSpdMachHit = null;
+export function fcuSpdMachRegion() { return _fcuSpdMachHit; }
 
 /* ── ND terrain grid (brick 4) — sample the Mapbox DEM in a NORTH-up disc around the aircraft.
    Heading-independent + altitude-independent (we cache the elevation, colour at paint time), so
@@ -493,7 +498,7 @@ export function drawSpeedTape(ctx, box, style) {
   const cy   = y + h / 2;
   const spd  = smooth('pfd.spd', S.spd, 0.35);   // gliding airspeed, AP bug stays snappy
   const _mgT = (S.spdManaged && S.athr) ? managedSpeed() : null;   // managed → speed schedule (VAPP near the ground)
-  const spdT = (_mgT != null) ? _mgT : (S.spdT ?? spd);
+  const spdT = (_mgT != null) ? _mgT : (selectedSpeedKt() ?? spd);   // selected: a Mach's IAS when the FCU shows a Mach (SPD/MACH)
   const f    = _f(style);
 
   ctx.fillStyle = _c(style, 'tape');
@@ -588,6 +593,18 @@ export function drawSpeedTape(ctx, box, style) {
   ctx.fillStyle = _c(style, 'white');
   ctx.textAlign = 'center';
   ctx.fillText(Math.round(spd), x + w / 2, ry + rhB * 0.75);
+
+  /* the Mach number — green, at the tape's foot, above M .50 (core/airdata.js machOf); three digits, ".784" */
+  const mach = machOf(S.spd ?? 0, S.alt ?? 0);
+  if (mach > 0.5) {
+    const mh = h * 0.06 * _fk;
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.fillRect(x, y + h - mh, w, mh);
+    ctx.font      = `bold ${h * 0.045}px ${f}`;
+    ctx.fillStyle = _c(style, 'engaged');                                  // the FMA's green
+    ctx.textAlign = 'center';
+    ctx.fillText('.' + String(Math.round(mach * 1000)).padStart(3, '0'), x + w / 2, y + h - mh * 0.22);
+  }
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -1367,8 +1384,26 @@ export function drawFCU(ctx, W, H, style) {
   // ── QNH / baro ── (scroll to set hPa, click for STD — see the FCU handlers)
   _sec('QNH', S.baroStd ? 'Std' : String(Math.round(baroSubscale())), qnhX, qnhW, false);
 
-  // ── Speed ──   ('---' with the managed dot when the A/THR flies the schedule)
-  _sec('SPD', _spdM ? '---' : Math.round(S.spdT).toString(), spdX, spdW, _spdM);
+  // ── Speed ──   ('---' with the managed dot when the A/THR flies the schedule; a selected Mach as ".78" under MACH)
+  const _spdLbl = S.spdMach ? 'MACH' : 'SPD';
+  _sec(_spdLbl, _spdM ? '---' : S.spdMach ? '.' + String(Math.round((S.machT ?? 0) * 100)).padStart(2, '0') : Math.round(S.spdT).toString(), spdX, spdW, _spdM);
+  /* the SPD/MACH pushbutton — beside the knob, at its left: a round black button in a white ring, the label on two
+     lines below it (the A320's — Markus) */
+  {
+    const r  = Math.min(spdW * 0.075, H * 0.055);                 // the button
+    const bx = spdX + spdW * 0.16, by = H * 0.68;                 // its centre
+    _fcuSpdMachHit = { x: bx - r * 1.8, y: by - r * 1.8, w: r * 3.6, h: r * 3.6 };   // the button, a little generous
+    ctx.fillStyle = '#05070a';
+    ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(232,237,242,0.85)';                   // the white ring around it
+    ctx.lineWidth   = Math.max(1, r * 0.28);
+    ctx.beginPath(); ctx.arc(bx, by, r * 1.35, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = 'rgba(214,222,232,0.80)';
+    ctx.font = `${H * 0.072}px ${f}`;
+    ctx.textAlign = 'center';
+    ctx.fillText('SPD',  bx, by + r * 1.35 + H * 0.085);
+    ctx.fillText('MACH', bx, by + r * 1.35 + H * 0.160);
+  }
 
   // ── Heading ──   ('---' with the managed dot when LNAV flies the lateral channel)
   const hdgDisp = String(Math.round(S.hdgT) % 360 || 360).padStart(3, '0');

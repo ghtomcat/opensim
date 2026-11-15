@@ -81,7 +81,7 @@ export const CONTROL = namesFrom([
   'fuelPump', 'fuelShutoff', 'carbHeat', 'parkBrake', 'magnetos', 'fuelSelector', 'gear', 'engMode', 'speedBrake',
   'flaps', 'autobrake', 'coolFlap', 'throttle', 'propPitch', 'mixture', 'trim', 'throttleKnob', 'mixtureKnob',
   'apuMaster', 'apuBleed', 'apuFire', ...Array.from({ length: 8 }, (_, i) => `engFire.${i + 1}`),
-  'baroKnob', 'courseKnob', 'dgKnob', 'fcuQnh', 'fcuSpd', 'fcuHdg', 'fcuAlt', 'fcuVs', 'ap1', 'athr',
+  'baroKnob', 'courseKnob', 'dgKnob', 'fcuQnh', 'fcuSpd', 'fcuSpdMach', 'fcuHdg', 'fcuAlt', 'fcuVs', 'ap1', 'athr',
 ]);
 
 /** The slide-in zones' tokens (aircraft.pedestal / left / right) — each a block of the zone, and the controls it holds

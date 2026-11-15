@@ -10,7 +10,7 @@
 import { S, setState } from '../core/state.js';
 import {
   drawFMA, drawAI, drawSpeedTape, drawAltTape,
-  drawVSI, drawHdgTape, drawNDMap, drawFCU, drawECAM, drawEICAS, fcuKnobZones, fcuButtonRegions, qnhHitRegion } from './pfd_instruments.js';
+  drawVSI, drawHdgTape, drawNDMap, drawFCU, drawECAM, drawEICAS, fcuKnobZones, fcuButtonRegions, fcuSpdMachRegion, qnhHitRegion } from './pfd_instruments.js';
 import { drawG1000PFD, drawG1000MFD, drawG1000Bezel } from './g1000.js';
 import { drawToggle, drawRocker, drawMagneto, drawSelector } from './controls-canvas.js';
 import { hideG1000Map } from './map.js';
@@ -386,6 +386,8 @@ export function renderFCU(canvas) {
     addHit(canvas, { name: id, x, y: 0, w, h: z.h, action: () => push(id),
       turn: (steps, { record }) => turn(id, steps, { record }), turned: () => turned(id) });
   }
+  const sm = fcuSpdMachRegion();                                              // SPD/MACH — added after the knobs: it wins over the SPD knob's area
+  if (sm) addHit(canvas, { name: 'fcuSpdMach', ...sm, action: () => operate('fcuSpdMach') });
   for (const b of fcuButtonRegions()) {
     const id = b.idx === 0 ? 'ap1' : b.idx === 3 ? 'athr' : null;   // AP2 and APPR: drawn, no function yet
     if (id) addHit(canvas, { name: id, x: b.x, y: b.y, w: b.w, h: b.h, action: () => operate(id) });
