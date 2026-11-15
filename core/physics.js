@@ -77,6 +77,7 @@ export function tickPhysics(dt) {
   const spdTarget = Math.min(S.spdT, spdLimit);
 
   let newAlt, newSpd, newHdg, newPitch, newRoll, vs;
+  let newRollRateVal = S.rollRate ?? 0, newPitchRateVal = S.pitchRate ?? 0;   // deg/s — the attitude's angular rates (the full model sets them; stored below)
   let newBeta = 0, newYawDev = 0, newLatAccel = 0, newTacRudder = 0;   // the yaw axis (core/yaw.js) — 0 without a measured tail; β 0 on the wheels
   let newWow = S.wow ?? false;
   let newTouchdownVS = S.touchdownVS ?? 0;
@@ -308,8 +309,8 @@ export function tickPhysics(dt) {
 
     const tauRoll  = onGround ? 0.05 : 0.18;
     const tauPitch = onGround ? 0.05 : 0.30;
-    const newRollRateVal  = curRollRate  + ((desiredRollRate  - curRollRate)  / tauRoll)  * dt;
-    const newPitchRateVal = curPitchRate + ((desiredPitchRate - curPitchRate) / tauPitch) * dt;
+    newRollRateVal  = curRollRate  + ((desiredRollRate  - curRollRate)  / tauRoll)  * dt;
+    newPitchRateVal = curPitchRate + ((desiredPitchRate - curPitchRate) / tauPitch) * dt;
 
     newRoll  = Math.max(-maxBank,  Math.min(maxBank,  S.roll  + newRollRateVal  * dt));
     newPitch = Math.max(-maxPitch, Math.min(maxPitch, S.pitch + newPitchRateVal * dt));
@@ -578,8 +579,10 @@ export function tickPhysics(dt) {
   const newLat  = S.lat + gndN_ms / 1852 / 60 * dt;
   const newLon  = S.lon + gndE_ms / 1852 / 60 / cosLat * dt;
 
-  const newRollRate  = ac?.manualControl ? (typeof newRollRateVal  !== 'undefined' ? newRollRateVal  : S.rollRate)  : 0;
-  const newPitchRate = ac?.manualControl ? (typeof newPitchRateVal !== 'undefined' ? newPitchRateVal : S.pitchRate) : 0;
+  /* The rates carry to the next frame — the attitude's momentum (until 2026-11-15 they were declared inside the
+     manualControl block and fell back to S.pitchRate here, 0 forever: pitch moved ~0.28°/s, roll ~2.8°/s) */
+  const newRollRate  = ac?.manualControl ? newRollRateVal  : 0;
+  const newPitchRate = ac?.manualControl ? newPitchRateVal : 0;
 
   /* ── Bounds checker — crash detection ── */
   if (ac.manualControl) {
