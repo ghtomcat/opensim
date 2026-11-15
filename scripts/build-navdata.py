@@ -33,7 +33,9 @@ def mission_icaos():
 
 def airport_centres():
     src = open(os.path.join(ROOT, "data", "runways-data.js")).read()
-    runways = json.loads(src[src.index("{"): src.rindex("}") + 1])
+    # the RUNWAYS export only — the file also exports AIRPORTS (first "{" … last "}" took both)
+    start = src.index("{", src.index("export const RUNWAYS"))
+    runways, _ = json.JSONDecoder().raw_decode(src[start:])
     out = {}
     for ic, rws in runways.items():
         pts = [p for r in rws for p in (r["a"], r["b"])]
