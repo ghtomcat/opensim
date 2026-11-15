@@ -13,6 +13,7 @@ import { electricalLayout, solveElectrical, elecCharge } from '../core/electrica
 import { managedSpeed } from '../core/managed-speed.js';
 import { selectedSpeedKt } from '../core/fcu.js';
 import { machOf } from '../core/airdata.js';
+import { maxOperatingSpeed } from '../core/limits.js';
 import { hydView } from '../core/hydraulics.js';
 import { fuelView } from '../core/fuel-system.js';
 import { activeAlerts } from '../core/alerts.js';
@@ -349,7 +350,7 @@ function _vSpeeds() {
   const vsMs  = Math.sqrt(2 * (perf.mass ?? 60000) * 9.81 / (1.225 * (perf.wingArea ?? 120) * clMax));
   const vs    = ov.vs  ?? (vsMs / 0.5144);     // kt IAS (ρ₀ → IAS directly)
   const vls   = ov.vls ?? (1.23 * vs);         // Airbus lowest selectable speed
-  const vmo   = ov.vmo ?? ac.envelope?.maxSpd ?? null;
+  const vmo   = ov.vmo ?? maxOperatingSpeed(ac, S.alt ?? 0)?.kt ?? ac.envelope?.maxSpd ?? null;   // VMO / MMO at the altitude — the barber pole comes down with MMO up high
   return { vs, vls, vmo };
 }
 

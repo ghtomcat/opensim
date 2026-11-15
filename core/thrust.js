@@ -20,6 +20,7 @@
 import { S, setState } from './state.js';
 import { managedSpeedTarget } from './managed-speed.js';
 import { selectedSpeedKt } from './fcu.js';
+import { maxOperatingSpeed } from './limits.js';
 import { throttle } from './engine.js';
 import { onMissionReset } from './lifecycle.js';
 
@@ -68,7 +69,8 @@ export function tickThrust(dt) {
   if (ac?.engine?.type !== 'turbofan' || S.paused || S.crashed || !ac.envelope) return;   // same guards as tickPhysics
   const IDLE_N1 = ac.engine.idleN1 ?? 22;
   const n1Now   = S.n1 ?? 0;
-  const vmo     = ac.envelope.vmo ?? ac.envelope.maxSpd ?? 340;   // the sourced VMO; until then maxSpd
+  const lim     = maxOperatingSpeed(ac, S.alt ?? 0);                  // the sourced VMO / MMO at the altitude (core/limits.js)
+  const vmo     = lim?.kt ?? ac.envelope.maxSpd ?? 340;              // without one: maxSpd
 
   const athrActive = S.engineState === 'running' && S.athr && !S.wow;   // A/THR is independent of the AP — holds speed while you hand-fly
   let n1Cmd, athrI = S.athrN1 ?? n1Now;
@@ -83,8 +85,10 @@ export function tickThrust(dt) {
     const mgSpd   = mg?.kt ?? null;
     const spdTgt  = (mgSpd != null) ? Math.min(mgSpd, vmo)                      // (already capped 250<FL100 inside)
                                     : Math.min(selectedSpeedKt() ?? vmo, S.alt < 10000 ? 250 : 1e4, vmo);  // selected FCU speed (a Mach's IAS — SPD/MACH)
-    const holdsMach = mgSpd != null ? (mg.mach != null && mgSpd <= vmo)          // managed: the cruise Mach binds
-                                    : (!!S.spdMach && spdTgt === selectedSpeedKt());   // selected: a Mach the pilot set, not capped
+    const capped    = spdTgt >= vmo - 1e-9;                                    // the limit is the target
+    const holdsMach = capped ? lim?.by === 'MMO'                                // capped: at MMO a Mach, at VMO a speed
+                    : mgSpd != null ? mg.mach != null                           // managed: the cruise Mach binds
+                    : (!!S.spdMach && spdTgt === selectedSpeedKt());            // selected: a Mach the pilot set
     const spdErr  = spdTgt - (S.spd ?? 0);
     const spdRate = _athrSpdPrev != null ? ((S.spd ?? 0) - _athrSpdPrev) / dt : 0;    // kt/s — damps overshoot
     /* Anti-windup (conditional integration): the integral — the N1 the speed needs once on target — holds while the

@@ -15,6 +15,7 @@ import { runwayThreshold } from './mission-start.js';
 import { indicatedAlt } from './baro.js';
 import { machOf } from './airdata.js';
 import { trimAoADeg } from './trim.js';
+import { vmoAt } from './limits.js';
 import { random } from './random.js';
 import { yawModel, yawStep, windmillDrag, groundYawStep, pedalYawRate, tacRudder } from './yaw.js';
 
@@ -596,7 +597,7 @@ export function tickPhysics(dt) {
     }
     // Overspeed: structural failure above the sourced limit — VNE or VMO × 1.15, MMO + 0.07. No sourced limit: none
     // (envelope.maxSpd is no limit — issues.md, "envelope.maxSpd is three values at once").
-    const env = ac.envelope, lim = env.vne ?? env.vmo, limName = env.vne != null ? 'VNE' : 'VMO';
+    const env = ac.envelope, lim = env.vne ?? vmoAt(env, newAlt), limName = env.vne != null ? 'VNE' : 'VMO';   // VMO at the altitude (core/limits.js)
     const mach = env.mmo != null ? machOf(newSpd, newAlt) : 0;
     const overSpd = lim != null && newSpd > lim * CRASH_OVERSPD, overMach = env.mmo != null && mach > env.mmo + CRASH_OVERMACH;
     if (overSpd || overMach) {

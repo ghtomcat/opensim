@@ -81,10 +81,11 @@ const fuelSystem = object({ tanks: arrayOf(fuelTank), pumps: arrayOf(fuelPumpE),
                           { required: ['tanks', 'pumps', 'engines'], doc: { sources_doc: arrayOf(str) } });
 
 /* The aircraft's real limits (Markus, 2026-11-09): vne (kt IAS) — a propeller aircraft's never-exceed speed; vmo (kt IAS)
-   and mmo (Mach) — a jet's maximum operating speed and Mach; limitsSource names the document (and section) they come
-   from. The overspeed crash reads them; maxSpd is the throttle scale's and the speed ceiling's, not a limit. */
+   and mmo (Mach) — a jet's maximum operating speed and Mach; vmo one value or by altitude ({ "0": 300, "8000": 300,
+   "10000": 330 } — linear between, core/limits.js); limitsSource names the document (and section) they come from. The
+   overspeed crash, the A/THR's cap and the PFD read them; maxSpd is the throttle scale's, not a limit. */
 const envelope = object(
-  { cruiseAlt: num, cruiseSpd: num, maxSpd: num, spdProfile: mapOf(num), vne: num, vmo: num, mmo: num, limitsSource: str,
+  { cruiseAlt: num, cruiseSpd: num, maxSpd: num, spdProfile: mapOf(num), vne: num, vmo: anyOf(num, mapOf(num)), mmo: num, limitsSource: str,
     /* a jet's cruise Mach — the manufacturer's typical cruise where published; cruiseMachSource names the document (or
        says it is a stand-in, carried over or derived). Managed speed's crossover reads it (core/managed-speed.js). */
     cruiseMach: num, cruiseMachSource: str },
@@ -231,7 +232,10 @@ export const aircraft = object(
       /* a limit names its source — no invented numbers */
       const _lim = ['vne', 'vmo', 'mmo'].filter(k => a.envelope?.[k] !== undefined);
       if (_lim.length && !a.envelope.limitsSource) errs.push(`envelope.${_lim.join(', ')}: a limit needs envelope.limitsSource`);
-      for (const k of _lim) if (!(a.envelope[k] > 0)) errs.push(`envelope.${k} must be > 0`);
+      for (const k of _lim) {
+        const v = a.envelope[k], vals = typeof v === 'object' ? Object.values(v) : [v];   // vmo may be a schedule by altitude
+        if (!vals.length || !vals.every(x => x > 0)) errs.push(`envelope.${k} must be > 0`);
+      }
       if (a.envelope?.vne !== undefined && a.envelope?.vmo !== undefined) errs.push('envelope: vne (a propeller aircraft) or vmo / mmo (a jet), not both');
       const turbofan = a.engine?.type === 'turbofan';
       /* every winged aircraft declares its engines (rockets and robots have their own models) */
