@@ -409,6 +409,18 @@ The missions also have a `phase` (ground / departure / circuit / cruise / approa
 
 The mission starts on runway 15 (`start: { runway: "15" }`, `departure.runway: "15"`) — UKKM's only runway in the data is 15/33 (`data/runways-data.js`, OurAirports). But the takeoff clearance at t = 70 says eighteen ("Мрія, виліт дозволено. Злітна смуга вісімнадцять."), and the briefing's orders "Piste 18 · 2 520 m". Whether the recorded `audio/hostomel/atc_olena.mp3` names a runway is not checked. **Fix:** the clearance and the briefing say 15 (and the briefing's runway length checked against the data). **Done when:** the start, the clearance and the briefing name the same runway.
 
+### The An-225's kneeboard and quick-start situations — unsourced, partly against the data
+*Found 2026-11-15 (Markus, with the cruise Mach) · `aircraft/an225.json` `kneeboard`, `situations`*
+
+None of the kneeboard's figures names a source, and some contradict the data or each other:
+- **The runway.** DEPARTURE BRIEFING: "Runway 18, concrete, 2 520 m". The data has UKKM 15/33 only, 3,498 m long, 155° true (from `data/runways-data.js`'s ends); the situations GROUND and TAKEOFF head 183°, APPROACH too. Same mismatch as the mission's (the entry above).
+- **The cruise.** SPEEDS: "Cruise M0.76 / 440 kt" — the data's cruise Mach is 0.73 (derived from Antonov's 800 km/h); 440 kt is the old true airspeed. The situations TAKEOFF, CLIMB, CRUISE still target 440 kt (`spdT`) and CRUISE starts at 440 kt at FL390 — flown as indicated, far beyond M1 (*The jets' cruise speeds are true airspeeds*).
+- **The limits.** SPEEDS: "Max operating (Vmo) 460 kt" — that is `maxSpd`, which is no limit (no sourced VMO / MMO yet); "Gear extension (Vlo) 220 kt", "Flap F1 max 220 kt", "Flap F2 max 195 kt" — from no source; the data has flaps 15° and 30°, the kneeboard names F1 (15°) and F2 without degrees.
+- **The V-speeds at 500 000 kg.** V1 168, Vr 175, V2 185, best angle 195, best rate 220 kt — unsourced (Vr 175 matches `performance.Vr`, a stand-in itself); the takeoff callout says "positive climb" at 195 kt.
+- **The procedures.** Western airliner wording on a Soviet-built aircraft ("TOGA", "Noise abatement", "Mayday on 121.5", "squawk 7700"), "rotate 2° per second", "add 30 % for five-engine approach", "V2+10 if below 400 ft" — generic, not from an An-225 flight manual; and the cruise-level choices with it (FL390, *The An-225 cruises at FL390*).
+
+**Fix:** each figure from a source (an An-225 or An-124 flight manual, Antonov), or marked as a stand-in; the runway, heading and length from the data; the cruise from `cruiseMach`; the limits with the jets' limits (piece 6 of the cruise plan). **Done when:** every number on the An-225's kneeboard and in its situations names its source or says it is a stand-in, and none contradicts the data.
+
 ---
 
 ## Navigation
