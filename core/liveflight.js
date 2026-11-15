@@ -4,7 +4,13 @@
 
    - Nearby flights: OpenSky Network (CORS-enabled, free, bounding box)
    - Specific lookup: adsb.fi via corsproxy.io (registration & callsign)
+
+   A flight's speeds: gs — its ground speed, as ADS-B reports it; ias — the indicated airspeed
+   the sim flies: the ground speed taken as the true airspeed (no wind is known), converted at
+   its altitude (core/airdata.js iasOfTas) — 480 kt over the ground at FL350 is ~267 kt IAS.
    ═══════════════════════════════════════════════════════════════ */
+
+import { iasOfTas } from './airdata.js';
 
 const ADSB_FI  = 'https://api.adsb.fi/v1';
 const OPENSKY  = 'https://opensky-network.org/api';
@@ -115,7 +121,7 @@ export async function lookupFlight(query) {
   throw new Error('not found — aircraft may be outside ADS-B coverage');
 }
 
-function normaliseAdsbFi(ac) {
+export function normaliseAdsbFi(ac) {
   const alt = typeof ac.alt_baro === 'number' ? ac.alt_baro
             : typeof ac.alt_geom === 'number' ? ac.alt_geom : 0;
   return {
@@ -123,7 +129,7 @@ function normaliseAdsbFi(ac) {
     callsign: (ac.flight ?? ac.callsign ?? '—').trim(),
     icaoType: (ac.t ?? ac.type ?? '—').trim(),
     lat: ac.lat ?? 0, lon: ac.lon ?? 0,
-    alt, spd: ac.gs ?? 0,
+    alt, gs: ac.gs ?? 0, ias: iasOfTas(ac.gs ?? 0, alt),
     hdg: ac.track ?? ac.true_heading ?? 0,
     vs:  ac.baro_rate ?? 0,
   };
@@ -188,7 +194,7 @@ export async function nearbyFlights(lat, lon, distNm = 100, limit = 20) {
    s[9]  velocity m/s (null = unknown)
    s[10] true_track degrees (null = unknown)
    s[11] vertical_rate m/s (null = unknown)              */
-function normaliseOpenSky(s) {
+export function normaliseOpenSky(s) {
   const callsign = (s[1] ?? '').trim();
   return {
     reg:      s[0] ?? '—',                           // icao24 hex as identifier
@@ -197,7 +203,8 @@ function normaliseOpenSky(s) {
     lat:  s[6],
     lon:  s[5],
     alt:  s[7]  != null ? s[7]  * 3.28084  : 0,     // metres → feet
-    spd:  s[9]  != null ? s[9]  * 1.94384  : 0,     // m/s → kt
+    gs:   s[9]  != null ? s[9]  * 1.94384  : 0,     // m/s → kt — the speed over the ground
+    ias:  iasOfTas(s[9] != null ? s[9] * 1.94384 : 0, s[7] != null ? s[7] * 3.28084 : 0),   // as the true airspeed, no wind
     hdg:  s[10] != null ? s[10]            : 0,
     vs:   s[11] != null ? s[11] * 196.85   : 0,     // m/s → fpm
   };

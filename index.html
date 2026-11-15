@@ -2024,7 +2024,7 @@
     const liveMission = {
       id: 'live-flight', title: missionTitle, aircraft: 'a350',
       weather: { source: 'manual', manual: { wdir: 0, wspd: 0, turbulence: 0.1, altim: 1013 } },
-      initialState: { lat: flight.lat, lon: flight.lon, alt: flight.alt, spd: flight.spd, hdg: flight.hdg, pitch: 0, roll: 0 },
+      initialState: { lat: flight.lat, lon: flight.lon, alt: flight.alt, spd: flight.ias, hdg: flight.hdg, roll: 0 },   // the IAS of its ground speed (no wind); trimmed (core/trim.js)
     };
 
     const aircraftId = pickAircraft(flight.icaoType);
@@ -2037,7 +2037,7 @@
       regLabel  ? `REG        ${regLabel}` : null,
       typeLabel ? `TYPE       ${typeLabel}` : null,
       `ALTITUDE   ${flStr}  (${Math.round(flight.alt).toLocaleString()} ft)`,
-      `SPEED      ${Math.round(flight.spd)} kt`,
+      `GS         ${Math.round(flight.gs)} kt  (IAS ≈ ${Math.round(flight.ias)}, no wind)`,
       `HEADING    ${hdgStr}`,
       `V/S        ${vsStr}`,
     ].filter(Boolean);
@@ -2050,17 +2050,18 @@
       }];
     }
 
-    // Derive realistic pitch from VS — cruise ~2°, climb ~5°, descent ~-2°
+    /* The pitch: the trim's angle of attack for its speed plus its flight path from the vertical speed (α = θ − γ) */
     const vs    = flight.vs ?? 0;
-    const pitch = Math.max(-8, Math.min(10, vs / 150));
+    const _gam  = Math.asin(Math.max(-0.3, Math.min(0.3, (vs / 196.85) / Math.max(10, flight.gs * 0.5144)))) * 180 / Math.PI;
+    const pitch = Math.max(-8, Math.min(12, levelTrim(S.aircraft, { iasKt: flight.ias, altFt: flight.alt }).aoaDeg + _gam));
 
     setState({
       lat:    flight.lat,
       lon:    flight.lon,
       alt:    Math.max(flight.alt, 200),
       altT:   flight.alt,
-      spd:    flight.spd,
-      spdT:   flight.spd,
+      spd:    flight.ias,
+      spdT:   Math.round(flight.ias),
       hdg:    flight.hdg,
       hdgT:   flight.hdg,
       vs,
@@ -2069,7 +2070,7 @@
       wow:    false,
     });
     if (S.aircraft?.engine?.type !== 'turbofan')   // a propeller: the lever that holds the speed in level flight (core/trim.js)
-      throttle(levelTrim(S.aircraft, { iasKt: flight.spd, altFt: flight.alt, flaps: S.flaps ?? 0, gear: !!S.gear }).lever);
+      throttle(levelTrim(S.aircraft, { iasKt: flight.ias, altFt: flight.alt, flaps: S.flaps ?? 0, gear: !!S.gear }).lever);
 
     // Auto-switch to combined view — instruments + outside, immediate sense of motion
     if (_setViewMode) _setViewMode(1);
@@ -2158,12 +2159,12 @@
         lat: f.lat,   lon:  f.lon,
         alt: Math.max(f.alt, 200),
         altT: predictedAlt,
-        spd: f.spd,   spdT: f.spd,
+        spd: f.ias,   spdT: Math.round(f.ias),   // the IAS of its ground speed (no wind — core/liveflight.js)
         hdg: f.hdg,   hdgT: f.hdg,
         vs,
       });
       if (S.aircraft?.engine?.type !== 'turbofan')
-        throttle(levelTrim(S.aircraft, { iasKt: f.spd, altFt: f.alt, flaps: S.flaps ?? 0, gear: !!S.gear }).lever);
+        throttle(levelTrim(S.aircraft, { iasKt: f.ias, altFt: f.alt, flaps: S.flaps ?? 0, gear: !!S.gear }).lever);
       _trackingLastF  = f;
       _trackingLastAt = Date.now();
       _renderTrackingBadge();
@@ -2429,7 +2430,7 @@
         if (isHov) {
           const route = (h.org && h.dest) ? `${h.org} → ${h.dest}` : (h.dest ? `→ ${h.dest}` : null);
           const pad = 8, lh = 14;
-          const lines = [h.cs, `${h.fl} · ${Math.round(h.f.spd)}kt · ${Math.round(h.f.hdg)}°`];
+          const lines = [h.cs, `${h.fl} · GS ${Math.round(h.f.gs)}kt · ${Math.round(h.f.hdg)}°`];
           if (route) lines.push(route);
           ctx.font = '11px "IBM Plex Mono", monospace';
           const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + pad*2;
@@ -2483,7 +2484,7 @@
     try {
       const flight = await lookupFlight(q);
       const fl = `FL${String(Math.round(flight.alt / 100)).padStart(3,'0')}`;
-      liveStatus(`${flight.reg} · ${flight.callsign} · ${flight.icaoType} · ${fl} · ${Math.round(flight.spd)}kt`);
+      liveStatus(`${flight.reg} · ${flight.callsign} · ${flight.icaoType} · ${fl} · GS ${Math.round(flight.gs)}kt`);
       await flyWithFlight(flight);
     } catch (e) {
       liveStatus(`not found — ${e.message}`, true);
