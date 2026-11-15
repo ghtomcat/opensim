@@ -126,5 +126,5 @@ test('a selected Mach: the A/THR holds its IAS and its mode is MACH; the Mach do
   assert.equal(run(35000), 'MACH');
   assert.equal(run(25000), 'MACH');   // below the crossover too (314 kt) — the pilot's Mach stays a Mach (only SPD/MACH switches)
   assert.equal(S.spdMach, true);
-  assert.equal(run(20000), 'SPEED');  // M .78 at FL200 is 350 kt — above the VMO (here maxSpd 335): the cap binds, a speed
+  assert.equal(run(20000), 'SPEED');  // M .78 at FL200 is 350 kt — above the A220's VMO (330, EASA IM.A.570): the cap binds, a speed
 });
