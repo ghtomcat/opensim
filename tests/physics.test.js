@@ -36,10 +36,10 @@ test('cruise — autopilot holds altitude over 15 s', async ({ page }) => {
 test('cruise — A/THR drives speed toward the target', async ({ page }) => {
   await loadSim(page, 'evra-approach');
   const before = await get(page);
-  await set(page, { spdT: 250, ap: true, athr: true, paused: false });   // FL350 → no 250 cap; ~40 kt reduction
+  await set(page, { spdT: 225, ap: true, athr: true, paused: false });   // FL350 → no 250 cap; from the cruise Mach (~250) a 25 kt reduction
   await step(page, 45);
   const after = await get(page);
-  expect(after.spd).toBeLessThan(before.spd - 15);           // A/THR pulled the speed down toward 250
+  expect(after.spd).toBeLessThan(before.spd - 15);           // A/THR pulled the speed down toward 225
 });
 
 test('cruise — A/THR is capped by the thrust-lever detent (THR CLB)', async ({ page }) => {
@@ -58,7 +58,8 @@ test('cruise — managed speed flies the schedule, not the FCU speed', async ({ 
   await set(page, { spdT: 200, spdManaged: true, ap: true, athr: true, paused: false });  // FCU 200 must be ignored
   await step(page, 40);
   const after = await get(page);
-  expect(after.spd).toBeGreaterThan(260);                   // held near the spdProfile target (~283 at FL350), not 200
+  expect(after.spd).toBeGreaterThan(240);                   // toward the cruise Mach's IAS (M .78 ≈ 250 kt at FL350), not 200
+  expect(after.athrMode).toBe('MACH');                       // above the crossover the cruise Mach binds
 });
 
 test('cruise — managed speed ignores a distant approach constraint', async ({ page }) => {
@@ -66,7 +67,8 @@ test('cruise — managed speed ignores a distant approach constraint', async ({ 
   await set(page, { spdManaged: true, navManaged: true, ap: true, athr: true, paused: false });
   await step(page, 100);                                     // LNAV builds the route → constraints become visible
   const after = await get(page);
-  expect(after.spd).toBeGreaterThan(255);                   // holds the FL350 schedule (~283), not the ≤210 limit far ahead
+  expect(after.spd).toBeGreaterThan(240);                   // holds the FL350 cruise Mach (≈ 250 kt), not the ≤210 limit far ahead
+  expect(after.athrMode).toBe('MACH');
 });
 
 test('cruise — engine failure bleeds speed (AP holding altitude)', async ({ page }) => {

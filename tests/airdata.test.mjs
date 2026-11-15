@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { S, setState } from '../core/state.js';
-import { tasKt, machOf, soundSpeedKt, heightAboveGroundFt } from '../core/airdata.js';
+import { tasKt, machOf, iasOfMach, soundSpeedKt, heightAboveGroundFt } from '../core/airdata.js';
 import { INSTRUMENTS } from '../display/analog_panel.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -27,6 +27,15 @@ test('Mach: 0.45 at 300 kt at sea level; higher for the same IAS up high (the Mi
   assert.ok(Math.abs(machOf(300, 0) - 0.4535) < 0.002);
   const m = machOf(350 / 1.852, 32800);
   assert.ok(m > 0.5 && m < 0.6, `${m}`);
+});
+
+test('iasOfMach is machOf\'s inverse — M .78 is ~250 kt at FL350, ~230 kt at FL390; M .45 is ~300 kt at sea level', () => {
+  for (const alt of [0, 10000, 25000, 35000, 39000, 43000]) {
+    assert.ok(Math.abs(machOf(iasOfMach(0.78, alt), alt) - 0.78) < 1e-9, `${alt}`);
+  }
+  assert.ok(Math.abs(iasOfMach(0.78, 35000) - 250.3) < 0.5);
+  assert.ok(Math.abs(iasOfMach(0.78, 39000) - 230.3) < 0.5);
+  assert.ok(Math.abs(iasOfMach(0.4535, 0) - 300) < 0.5);
 });
 
 test('the height above the ground: over the terrain, else over the departure field', () => {

@@ -10,7 +10,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { activeDetent } from '../core/thrust.js';
+import { activeDetent, tickThrust } from '../core/thrust.js';
+import { S, setState } from '../core/state.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -59,4 +60,18 @@ test('real a220.json profiles resolve to IDLE…TOGA', () => {
   assert.equal(activeDetent(a220, 0).label, 'IDLE');
   assert.equal(activeDetent(a220, 1).label, 'TOGA');
   assert.equal(activeDetent(a220, 1).n1Limit, 100);
+});
+
+/* The A/THR's FMA mode: MACH while the managed cruise Mach binds the target, else SPEED — not by altitude. */
+test('A/THR mode: MACH where the cruise Mach binds (managed, FL350), SPEED below the crossover and when selected', () => {
+  const a220 = JSON.parse(readFileSync(join(here, '..', 'aircraft', 'a220.json'), 'utf8'));
+  const mode = (alt, spdManaged) => {
+    setState({ aircraft: a220, engineState: 'running', athr: true, wow: false, lever: 0.86, alt, spd: 260, spdT: 260,
+               spdManaged, n1: 80, athrN1: 80, paused: false, crashed: false, gsCaptured: false });
+    tickThrust(0.1);
+    return S.athrMode;
+  };
+  assert.equal(mode(35000, true), 'MACH');    // M .78 ≈ 250 kt < the profile's ~283
+  assert.equal(mode(25000, true), 'SPEED');   // below the crossover — the profile binds
+  assert.equal(mode(35000, false), 'SPEED');  // a selected speed (the FCU's Mach comes later)
 });
