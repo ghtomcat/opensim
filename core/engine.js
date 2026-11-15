@@ -46,6 +46,7 @@ import { S, setState } from './state.js';
 import { registerCommand } from './commands.js';
 import { publishAlerts, clearAlerts } from './alerts.js';
 import { onMissionReset } from './lifecycle.js';
+import { levelTrim } from './trim.js';
 
 /* The causes that limit power, each 0–1, owned by its module (failures.js, battery.js, physics.js) */
 const FACTORS_NONE = Object.freeze({ failure: 1, ice: 1, seizure: 1, battery: 1, crash: 1 });
@@ -332,20 +333,22 @@ export function hasStartSequence(engine = _eng()) {
  * lined up on the runway has its engines running (onRunway — mission.start.runway); at a stand
  * it is cold. Light aircraft start cold on the runway too: their missions teach the start.
  */
-export function initialEngine(aircraft, { onGround, spd, onRunway = false, oilTemp = 15, conditionKey = null }) {
+export function initialEngine(aircraft, { onGround, spd, alt = 0, flaps = 0, gear = false, trim = null,
+                                          onRunway = false, oilTemp = 15, conditionKey = null }) {
   const eng  = aircraft.engine ?? {};
   const cold = onGround && (hasStartSequence(eng) || eng.type === 'electric')
             && !(eng.type === 'turbofan' && onRunway);
   const idle = eng.idleN1 ?? 22;
-  /* Turbofan N1 matches the cruise throttle when airborne, 0 when off */
+  /* In the air: the thrust that holds the speed in level flight (core/trim.js) — a turbofan's N1 and its lever, a
+     propeller's lever. On the ground: a turbofan running on the runway at idle, its lever closed; off: 0. */
+  const air = !onGround ? (trim ?? levelTrim(aircraft, { iasKt: spd ?? 0, altFt: alt, flaps, gear })) : null;
   const n1 = (eng.type !== 'turbofan' || cold) ? 0
-           : idle + (100 - idle) * Math.min(1, Math.max(0, spd / (aircraft.envelope?.maxSpd ?? 340)));
+           : air ? air.n1 : idle;
   const count   = _count(eng);
   const core    = eng.type === 'turbofan' && !cold ? coreAtN1(n1, eng) : 0;
   const state   = cold ? 'off' : 'running';
   const gauges  = eng.type === 'turbofan' ? _gaugesAtLoad(state, n1, core, eng, aircraft) : undefined;
-  const lever   = eng.type === 'turbofan' ? Math.min(1, Math.max(0, spd / (aircraft.envelope?.maxSpd ?? 340)))   // ≈ cruise thrust, as its N1
-                                          : leverForSpeed(aircraft, spd);
+  const lever   = air ? air.lever : 0;
   const engines = Array.from({ length: count }, (_, k) => _newEngine(state, n1, core, gauges, lever, oilTemp,
                                                                      conditionKey ? engineCondition(conditionKey, k) : CONDITION_NEUTRAL));
   return { ..._aggregate(engines),
@@ -354,13 +357,6 @@ export function initialEngine(aircraft, { onGround, spd, onRunway = false, oilTe
            engFireArmed: Array(count).fill(false), engAgents: [], apuAgent: false };   // no fire handle pulled, no agent fired
 }
 
-/**
- * The power lever that holds a speed — for a start in the air (the mission load, a situation, a tracked flight).
- * A stand-in until the trim is computed: spd / envelope.cruiseSpd — the thrust the old spdT = spd gave (spdT / cruiseSpd).
- */
-export function leverForSpeed(aircraft, spd) {
-  return Math.max(0, Math.min(1, (spd ?? 0) / (aircraft?.envelope?.cruiseSpd ?? 122)));
-}
 
 /* ── APU ─────────────────────────────────────────────────────── */
 

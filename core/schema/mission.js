@@ -39,7 +39,7 @@ const initialState = object(
     gear: bool,      // an airborne start's gear (true = down); on the ground and with fixed gear it is always down
     flaps: num,      // the start's flap stage — an index into the aircraft's `flaps` (0 … length − 1); absent → 0
     elec: mapOf(bool) },   // electrical sources switched on at the start, by element id — e.g. ground power at the stand
-  { required: ['alt', 'spd', 'pitch', 'roll'] },
+  { required: ['alt', 'spd', 'roll'] },   // pitch: absent → 0 on the ground, the trim in the air (core/mission.js)
 );
 
 /* ── Radio ── */

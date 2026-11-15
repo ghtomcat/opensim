@@ -6,7 +6,8 @@
 
 import { S, setState } from './state.js';
 import { command, commandContinuous } from './commands.js';
-import { throttle, leverForSpeed } from './engine.js';
+import { throttle } from './engine.js';
+import { levelTrim } from './trim.js';
 import './gear.js';                         // registers the gear command
 import './flaps.js';                        // registers the flaps command
 import { initKeys, registerActions, isKeyHeld } from './keymap.js';
@@ -255,12 +256,13 @@ const _keyActions = {
     command('throttle', Math.max(0, Math.min(1, lever)), { source: 'key' });
   },
   /* A situation (the aircraft's data) puts the aircraft somewhere: its spdT is the speed; a propeller's lever is set to
-     hold it (leverForSpeed — core/engine.js), as at the mission load. */
+     hold it in level flight there (the trim — core/trim.js), as at the mission load. */
   situation: (e) => {
     const sit = S.aircraft?.situations?.[parseInt(e.key) - 1];
     if (!sit) return;
     setState({ alt: sit.alt, spd: sit.spd, hdg: sit.hdg, altT: sit.altT, spdT: sit.spdT });
-    if (S.aircraft?.engine?.type !== 'turbofan') throttle(leverForSpeed(S.aircraft, sit.spdT));
+    if (S.aircraft?.engine?.type !== 'turbofan')
+      throttle(levelTrim(S.aircraft, { iasKt: sit.spdT, altFt: sit.alt, flaps: S.flaps ?? 0, gear: !!S.gear }).lever);
   },
   /* The kinematic model's targets; manual aircraft hold the keys (tickControls) */
   'alt-target': (e) => setState({ altT: e.key === 'ArrowUp' ? Math.min(43000, S.altT + 500) : Math.max(0, S.altT - 500) }),

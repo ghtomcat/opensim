@@ -14,6 +14,7 @@ import { setCrewLang }    from './crew.js';
 import { resolveStart }   from './mission-start.js';
 import { iasOfMach }      from './airdata.js';
 import { maxFlapStage }   from './flaps.js';
+import { levelTrim }      from './trim.js';
 import { resolveAircraftConfig } from './aircraft-config.js';
 import { check }          from './schema/check.js';
 import { mission as missionSchema }   from './schema/mission.js';
@@ -65,11 +66,6 @@ export async function loadMission(missionPath, aircraftPath, setup = null) {
   const startCoolantTemp = startAirborne ? (aircraft.cooling?.normal?.[0] ?? 85)
                                          : (aircraft.cooling?.ambient ?? 15);
 
-  /* Engine: cold on the ground for engines with a start sequence, running otherwise
-     (the rules live with the engine owner, core/engine.js) */
-  const _engine = initialEngine(aircraft, { onGround: startOnGround, spd, onRunway: !!mission.start?.runway, oilTemp: startOilTempC,
-                                            conditionKey: `${mission.id}|${aircraft.id}` });   // each engine's character (core/engine.js)
-
   /* The start's configuration — the mission's overrides (initialState.gear, .flaps) where given; the named
      configuration per mission will give the default for the phase (issues.md). On the ground and with fixed gear
      the gear is down; the flap stage must be one of the aircraft's own. */
@@ -80,6 +76,22 @@ export async function loadMission(missionPath, aircraftPath, setup = null) {
     console.warn(`[data] missions/${mission.id}.json: initialState.flaps ${_startFlaps} is not a flap stage of ${aircraft.id} (0 … ${_flapsMax}) — 0`);
     _startFlaps = 0;
   }
+
+  /* An airborne start is trimmed — the pitch (the angle of attack) and the thrust that hold its speed in level flight
+     in its configuration (core/trim.js); initialState.pitch, where given, overrides the pitch (a start not in balance). */
+  const _trim = startAirborne ? levelTrim(aircraft, { iasKt: spd, altFt: alt, flaps: _startFlaps, gear: _startGear }) : null;
+  pitch = mission.initialState.pitch ?? (_trim ? _trim.pitchDeg : 0);
+  /* A turbofan with the A/THR on: its levers in the CLB detent — the A/THR's ceiling is the detent the lever sits in
+     (core/thrust.js), so the trim's manual-thrust lever (e.g. 0.24, nearest IDLE) would pin it at idle; N1 starts at
+     the trim's. With the A/THR off the lever is the trim's — the manual thrust for the speed. */
+  const _athrOn  = mission.initialState.athr ?? !aircraft.manualControl;
+  const _clb     = aircraft.thrustProfiles?.find(p => p.label === 'CLB');
+  const _thrTrim = _trim && _athrOn && aircraft.engine?.type === 'turbofan' && _clb ? { ..._trim, lever: _clb.lever } : _trim;
+
+  /* Engine: cold on the ground for engines with a start sequence, running otherwise
+     (the rules live with the engine owner, core/engine.js); in the air at the trim's thrust */
+  const _engine = initialEngine(aircraft, { onGround: startOnGround, spd, trim: _thrTrim, onRunway: !!mission.start?.runway, oilTemp: startOilTempC,
+                                            conditionKey: `${mission.id}|${aircraft.id}` });   // each engine's character (core/engine.js)
 
   /* Barometric altimeter init — set the subscale to the field QNH (live METAR or mission
      weather), and start on STD above the transition altitude. altT is held in INDICATED
@@ -109,7 +121,7 @@ export async function loadMission(missionPath, aircraftPath, setup = null) {
     gear:     _startGear, prevGear: _startGear,
     gearAnim: _startGear ? 1 : 0,
     ap:    mission.initialState.ap   ?? !aircraft.manualControl,   // airborne missions may start on the AP
-    athr:  mission.initialState.athr ?? !aircraft.manualControl,
+    athr:  _athrOn,
     navManaged: mission.initialState.navManaged ?? false,         // managed lateral/vertical/speed (else selected/held)
     altManaged: mission.initialState.altManaged ?? false,
     spdManaged: mission.initialState.spdManaged ?? false,
