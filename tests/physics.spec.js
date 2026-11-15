@@ -8,6 +8,7 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { glideTrim } from '../core/trim.js';
 
 /* ── Helper ───────────────────────────────────────────────────── */
 
@@ -63,19 +64,24 @@ async function calmAir(page) {
    hold `pitch` on the way down, raise the nose to `flarePitch` below `flareAGL`. The flight
    model uses pitch attitude as angle of attack, so the glide attitude must be nose-up.
    Steps inside one evaluate (a round trip per frame is too slow). Returns touchdown data. */
-async function glideAndFlare(page, { alt, spd, pitch, flareAGL = 50, flarePitch = 15, maxS = 90 }) {
-  await setState(page, { alt, altT: 100, spd, lever: 0, pitch, pitchT: pitch, vs: -300,
+/* A dead-stick glide and flare: the best glide with the engine dead (core/trim.js glideTrim — its speed, path and
+   attitude), then at flareAGL the nose up by flareDeg — a pilot's flare. Until 2026-11-15 it glided at a held 7° and
+   flared to 15°, which only worked while lift read the pitch and the pitch moved ~0.28°/s (issues.md). */
+async function glideAndFlare(page, { alt, field = 100, flareAGL = 50, flareDeg = 7, maxS = 90 }) {
+  const ac = await page.evaluate(() => window.simGetState().aircraft);
+  const g  = glideTrim(ac, { altFt: alt, gear: true });
+  await setState(page, { alt, altT: field, spd: g.iasKt, lever: 0, pitch: g.pitchDeg, pitchT: g.pitchDeg, vs: g.vsFpm,
                          gear: true, wow: false, enginePower: 0 });
-  return page.evaluate(([flareAGL, flarePitch, maxS]) => {
+  return page.evaluate(([flareAGL, flarePitch, field, maxS]) => {
     let flared = false;
     for (let i = 0; i < maxS * 60; i++) {
-      if (!flared && window.simGetState().alt - 100 < flareAGL) { window.simSetState({ pitchT: flarePitch }); flared = true; }
+      if (!flared && window.simGetState().alt - field < flareAGL) { window.simSetState({ pitchT: flarePitch }); flared = true; }
       window.simStep(1);
       const s = window.simGetState();
       if (s.crashed || s.wow) return { landed: s.wow, crashed: s.crashed, reason: s.crashReason, touchdownVS: s.touchdownVS, minAlt: s.alt };
     }
     return { landed: false, crashed: false };
-  }, [flareAGL, flarePitch, maxS]);
+  }, [flareAGL, g.pitchDeg + flareDeg, field, maxS]);
 }
 
 /* ── Cessna 172 ───────────────────────────────────────────────── */
@@ -198,7 +204,7 @@ test.describe('Bf 109 — Wolfskopf', () => {
     await calmAir(page);
 
     // 400 ft above the 100 ft field, gear down, dead engine
-    const r = await glideAndFlare(page, { alt: 500, spd: 115, pitch: 7 });
+    const r = await glideAndFlare(page, { alt: 500 });
 
     expect(r.crashed, `dead-stick landing should not crash (${r.reason})`).toBe(false);
     expect(r.landed, 'Bf 109 should touch down (wow=true)').toBe(true);
@@ -482,7 +488,7 @@ test.describe('Crash bounds checker', () => {
     await calmAir(page);
 
     // Gentle approach: 500 ft above the field, glide, flare at 50 ft
-    const r = await glideAndFlare(page, { alt: 600, spd: 115, pitch: 7 });
+    const r = await glideAndFlare(page, { alt: 600 });
 
     expect(r.crashed, `gentle landing should not crash (${r.reason})`).toBe(false);
     expect(r.landed, 'aircraft should touch down').toBe(true);

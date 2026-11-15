@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { levelTrim, trimAoADeg } from '../core/trim.js';
+import { levelTrim, trimAoADeg, glideTrim } from '../core/trim.js';
 import { densityRatio, tasKt } from '../core/airdata.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -70,4 +70,23 @@ test('the limits: the angle 0 … 14° (the AP\'s clamp), the thrust share 0 …
   assert.equal(trimAoADeg(a, 1e9), 0);              // very fast — no negative angle
   assert.equal(trimAoADeg(a, 100), 14);             // far too slow — clamped
   assert.ok(levelTrim(load('avro504'), { iasKt: 300, altFt: 0, gear: true }).lever <= 1);
+});
+
+test('the best glide: lift = W·cos γ and drag = W·sin|γ| at CL* = √(CD₀/k) — engine dead, propeller windmilling', () => {
+  for (const [id, gear] of [['bf109', true], ['c172', false]]) {
+    const ac = load(id), p = ac.performance, g = glideTrim(ac, { altFt: 2000, gear });
+    const sigma = densityRatio(2000), v = tasKt(g.iasKt, 2000) * 0.5144, q = 0.5 * 1.225 * sigma * v * v;
+    const CL = p.CL_0 + p.CL_alpha * g.aoaDeg * Math.PI / 180;
+    const CD = p.CD_0 + (gear && !ac.fixedGear ? (p.gearDrag ?? 0) : 0) + 0.022 + (p.coolFlapDrag ?? 0) + p.inducedK * CL * CL;
+    const W = p.mass * 9.81, gam = g.gammaDeg * Math.PI / 180;
+    assert.ok(Math.abs(q * p.wingArea * CL / (W * Math.cos(gam)) - 1) < 1e-6, `${id} lift`);
+    assert.ok(Math.abs(q * p.wingArea * CD / (W * Math.sin(-gam)) - 1) < 1e-6, `${id} drag`);
+    assert.ok(Math.abs(g.pitchDeg - (g.aoaDeg + g.gammaDeg)) < 1e-9);   // pitch = α + γ
+  }
+});
+
+test('the C172\'s best glide is the real one — ~67 kt at ~740 ft/min (the POH: 68 kt, about 9:1)', () => {
+  const g = glideTrim(load('c172'), { altFt: 3000 });
+  assert.ok(Math.abs(g.iasKt - 67) < 2, `${g.iasKt}`);
+  assert.ok(g.vsFpm < -650 && g.vsFpm > -850, `${g.vsFpm}`);
 });
