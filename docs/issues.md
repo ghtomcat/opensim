@@ -70,7 +70,7 @@ An airborne start takes the mission's `pitch` as given (evra-approach 2°) and t
 ### The approach missions dive 600–900 ft in their first 10 s — they start clean, slow and untrimmed
 *Found 2026-11-15 (the A/THR investigation; investigated the same day) · `core/mission.js` (the start state), the energy stall in `tickPhysics()` (`core/physics.js`); `missions/lszh-approach.json`, `egll-approach.json`, `anchorage-bozeman.json`*
 
-**Symptom (`node tools/probe.mjs`).** lszh-approach (A350, 150 kt, 3,980 ft): −7,590 ft/min after 2 s, −9,270 after 4 s, 3,980 → 3,063 ft and 150 → 207 kt in 10 s, the glideslope pegged 2.5 dots low — the AP's pitch *rising* meanwhile. anchorage-bozeman (737 MAX 9, 180 kt): +42 kt in 10 s, then at idle on the glideslope clean it can't slow (233 kt at 60 s) and passes 1,000 ft AAL at 179 kt (VAPP ~140 by 150 ft). egll-approach: the two baseline failures of `tests/physics.test.js` ("holds altitude over 15 s": −726 ft).
+**Symptom (`node tools/probe.mjs`).** lszh-approach (A350, 150 kt, 3,980 ft): −7,590 ft/min after 2 s, −9,270 after 4 s, 3,980 → 3,063 ft and 150 → 207 kt in 10 s, the glideslope pegged 2.5 dots low — the AP's pitch *rising* meanwhile. anchorage-bozeman (737 MAX 9, 180 kt): +42 kt in 10 s, then at idle on the glideslope clean it can't slow (233 kt at 60 s) and passes 1,000 ft AAL at 179 kt (VAPP ~140 by 150 ft). egll-approach (then the 737 MAX 9 into Madrid, 160 kt): the two baseline failures of `tests/physics.test.js` ("holds altitude over 15 s": −726 ft) — gone with the London start restored (A).
 
 **Cause — verified (numbers and a run).** The start is not on the glideslope's wrong side (lszh: 8.0 nm from the RWY 28 threshold at 2,564 ft AAL — the 3° slope is ~2,590 ft there). Each start loads clean — flaps 0 (lszh: the PM calls flaps 1 at 2,400 ft AAL, ~2 s in, the dive having carried it there — so it looks like a flaps-1 start), and the gear up although the mission says `"gear": true` (*`initialState.gear` is never read*) — at a speed where, at the given pitch, the wing lifts far less than the weight (lift = `CL_0 + CL_alpha · pitch`, *Angle of attack = pitch attitude*):
 
@@ -83,11 +83,11 @@ An airborne start takes the mission's `pitch` as given (evra-approach 2°) and t
 The energy stall then subtracts `liftDeficit × 7,200` ft/min every second on top of the flight-path equation (*Energy stall double-counts the lift deficit*) — −4,500 ft/min per second at lszh. The same run with the landing configuration set at t = 0 (flaps 3, gear down) holds its altitude for the first 8 s — no dive. (A real A350 doesn't fly 150 kt clean at all — its clean minimum speed is above 200 kt, from memory, not checked against a source.)
 
 **The plan (Markus, 2026-11-15) — in this order, each measured before and after, code / test / docs commits apart:**
-- **A — the start configuration as `initialState` overrides:** the load reads `gear` (*`initialState.gear` is never read*) and a new `flaps`. They stay overrides when the named configuration lands (*The aircraft's starting configuration … a named configuration per mission* — its default for the phase; that step stays separate, it is much bigger). Per mission: **lszh-approach** keeps 150 kt and starts at flaps 1 (as the PM would have them there) with the gear down; **anchorage-bozeman** keeps its configuration and flies a speed the 737 can fly in it there; **egll-approach** — first restored to London (*`egll-approach` is temporarily the 737 MAX 9 into Madrid*; the London version before `37ea9d0`: the 737-800 at 7,000 ft, 250 kt, heading 127°, inbound EGLL 27L — a different start, faster and not yet on the localizer), then its approach measured, then its start decided.
+- **A — the start configuration as `initialState` overrides:** the load reads `gear` (*`initialState.gear` is never read*) and a new `flaps`. They stay overrides when the named configuration lands (*The aircraft's starting configuration … a named configuration per mission* — its default for the phase; that step stays separate, it is much bigger). Per mission: **lszh-approach** keeps 150 kt and starts at flaps 1 (as the PM would have them there) with the gear down; **anchorage-bozeman** keeps its configuration and flies a speed the 737 can fly in it there; **egll-approach** — restored to London (2026-11-15: the 737-800 at 7,000 ft, 250 kt, heading 127°, inbound EGLL 27L, the file as before `37ea9d0`; it was temporarily the 737 MAX 9 into Madrid): its start holds its altitude (±17 ft over 30 s) but gains 16 kt (untrimmed — B), and `tests/physics.test.js`'s two egll tests pass again.
 - **B — the trim at an airborne start** (*An airborne start is not trimmed*): the pitch for lift = weight at the start speed, mass, altitude and flaps (an angle of attack, so C changes one line: pitch = α + γ), and the lever / N1 for thrust = drag, replacing `leverForSpeed()`.
 - **C — the energy stall's double count together with *Angle of attack = pitch attitude*:** last, the biggest (every aircraft, the AP pitch law, the landing tests re-tuned); alone it wouldn't remove the dive (the force balance with 37 % lift still dives, ~−2,400 ft/min after 2 s — estimated), and on configured, trimmed starts it no longer fires there, so it is measured on real slow flight.
 
-**Done when:** each approach mission holds its start altitude ±50 ft and speed ±5 kt over the first 10 s, and the two egll tests in `tests/physics.test.js` pass.
+**Done when:** each approach mission (lszh-approach, anchorage-bozeman, egll-approach) holds its start altitude ±50 ft and speed ±5 kt over the first 10 s.
 
 ### Energy stall double-counts the lift deficit
 *Found 2026-10-11 · `tickPhysics()` in `core/physics.js`, comment "Energy stall: L < W"*
@@ -370,9 +370,6 @@ for (let t = dt; t <= 900; t += dt) { window.simStep(1, dt); const s = window.si
 
 ### DB 601 engine-off tests use an airborne mission
 *`tests/db601-sound.spec.js`* — "starts in off state" and "lader gain is zero at engine off" load Wolfskopf, which starts at 2 000 ft with the engine running. Use a ground start (`hahnweide-1944`).
-
-### `egll-approach` is temporarily the 737 MAX 9 into Madrid
-*`missions/egll-approach.json`, `tests/physics.test.js`* — two tests expect the EGLL 737-800 ("loads a stable airborne state", "autopilot holds altitude": 726.5 ft off vs < 300, the same every run since 2026-10-12). Restore the mission, then re-check the altitude hold.
 
 ---
 
