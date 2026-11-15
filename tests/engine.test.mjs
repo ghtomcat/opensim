@@ -14,7 +14,7 @@ import { dirname, join } from 'node:path';
 import { S, setState } from '../core/state.js';
 import { startEngine, stopEngine, engineQuit, tickEngine, initialEngine, hasStartSequence, setEngineFactor,
          apuMaster, apuStart, apuFire, engineMaster, adoptEngineFields, engineAvailable, coreAtN1, engineOilLow,
-         engineRpm, throttle, leverForSpeed, throttleFrac, resetOilAlerts } from '../core/engine.js';
+         engineRpm, throttle, leverForSpeed, throttleFrac, resetOilAlerts, engineCondition, engineReading } from '../core/engine.js';
 import { alertText } from '../core/alerts.js';
 import { command } from '../core/commands.js';
 import { startRecording, apuStartRecording } from '../core/sound.js';
@@ -671,6 +671,50 @@ test('oil pressure: none on a total-loss system (the Avro\'s rotary) or the elec
     step(0.1);
     assert.equal(S.engines[0].oil, 0, id);
   }
+});
+
+/* ── Each engine's character (piece 6, step 5) ── */
+
+test('engine character: reproducible per mission and aircraft, different per engine; a new engine is neutral', () => {
+  const a = engineCondition('nordmeer-1956|tu95', 0), b = engineCondition('nordmeer-1956|tu95', 0);
+  assert.deepEqual(a, b, 'the same mission, the same engine — every time');
+  const four = [0, 1, 2, 3].map(k => engineCondition('nordmeer-1956|tu95', k));
+  assert.equal(new Set(four.map(c => c.wear.toFixed(6))).size, 4, 'four engines, four characters');
+  for (const c of four) {
+    assert.ok(c.wear >= 0 && c.wear < 1);
+    assert.ok(Math.abs(c.tol.n1) <= 0.35 && Math.abs(c.tol.egt) <= 6 && Math.abs(c.tol.oil) <= 0.02);
+  }
+  assert.notDeepEqual(engineCondition('lszf-pattern|c172', 0), engineCondition('grenchen-neuchatel|robin-dr400', 0));
+  const ac = load('tu95');
+  assert.equal(initialEngine(ac, { onGround: false, spd: 200 }).engines[0].condition.wear, 0, 'no key: neutral');
+  assert.equal(initialEngine(ac, { onGround: false, spd: 200, conditionKey: 'nordmeer-1956|tu95' }).engines[2].condition.wear, four[2].wear);
+});
+
+test('engine character: wear — a hotter EGT, more fuel, warmer oil, a little less oil pressure (the true values)', () => {
+  const ac = load('a350');
+  const run = (wear) => {
+    const step = cold(ac, { engineState: 'running', enginePower: 1, n1: 80, lever: 0.7, athr: false, wow: true, paused: false, crashed: false, oilTempC: 60 });
+    setState({ engines: S.engines.map(e => ({ ...e, core: coreAtN1(80, ac.engine), condition: { wear, tol: { n1: 0, core: 0, egt: 0, ff: 0, oilTemp: 0, oil: 0 } } })) });
+    for (let t = 0; t < 600; t += 0.5) { tickThrust(0.5); step(0.5); }
+    return S.engines[0];
+  };
+  const fresh = run(0), tired = run(1);
+  assert.ok(Math.abs((tired.egt - fresh.egt) - 20) < 2, `EGT +20 °C: ${fresh.egt.toFixed(0)} → ${tired.egt.toFixed(0)}`);
+  assert.ok(Math.abs(tired.ff / fresh.ff - 1.03) < 0.005, `fuel flow +3 %: ${fresh.ff.toFixed(0)} → ${tired.ff.toFixed(0)}`);
+  assert.ok(tired.oilTemp > fresh.oilTemp + 3, `oil warmer: ${fresh.oilTemp.toFixed(1)} → ${tired.oilTemp.toFixed(1)}`);
+  assert.ok(Math.abs(tired.oil / fresh.oil - 0.94) < 0.005, `oil pressure −6 %: ${fresh.oil.toFixed(1)} → ${tired.oil.toFixed(1)}`);
+});
+
+test('engine character: the gauges read the true values a little off — the tolerance, in the reading only', () => {
+  cold(load('a340'), { engineState: 'running', enginePower: 1, n1: 80, paused: true });
+  setState({ engines: S.engines.map((e, k) => ({ ...e, egt: 600, ff: 2000, oil: 40, oilTemp: 90,
+                                                 condition: { wear: 0, tol: { n1: 0.3, core: 0, egt: -5, ff: 0.01, oilTemp: 1, oil: -0.02 } } })) });
+  assert.equal(S.engines[0].n1, 80, 'the true N1 unchanged — the thrust sees it');
+  assert.ok(Math.abs(engineReading(0, 'n1') - 80.3) < 1e-9);
+  assert.equal(engineReading(0, 'egt'), 595);
+  assert.ok(Math.abs(engineReading(0, 'ff') - 2020) < 1e-9);
+  assert.ok(Math.abs(engineReading(0, 'oil') - 39.2) < 1e-9);
+  assert.equal(engineReading(0, 'oilTemp'), 91);
 });
 
 test('rpm starting: the DB 601\'s start curve — the flywheel (0 rpm, 26 s), motoring, the run-up to idle at the end', () => {

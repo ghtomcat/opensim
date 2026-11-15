@@ -20,16 +20,18 @@ test('the C172S\'s oil bands are its POH\'s: pressure red 0–20, green 50–90,
   expect(b.temp).toEqual([[100, 245], [245, 260]]);
 });
 
-test('the oil gauges read the engine — 50 psi at idle, 90 at full rpm', async ({ page }) => {
+test('the oil gauges read the engine — the POH\'s 50 psi at idle, 90 at full rpm, less this engine\'s wear', async ({ page }) => {
   await load(page);
-  const psi = await page.evaluate(() => {
+  const r = await page.evaluate(() => {
     const out = [];
     for (const lever of [0, 1]) {
       window.simSetState({ engineState: 'running', enginePower: 1, lever, parkBrake: true, paused: false });
       window.simStep(20, 0.1);
-      out.push(Math.round(window.simGetState().engines[0].oil));
+      out.push(window.simGetState().engines[0].oil);
     }
-    return out;
+    return { psi: out, wear: window.simGetState().engines[0].condition.wear };
   });
-  expect(psi).toEqual([50, 90]);
+  const f = 1 - 0.06 * r.wear;                       // a worn engine: a little less (core/engine.js, its character)
+  expect(r.psi[0]).toBeCloseTo(50 * f, 1);
+  expect(r.psi[1]).toBeCloseTo(90 * f, 1);
 });
