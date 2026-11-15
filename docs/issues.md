@@ -404,6 +404,11 @@ The missions also have a `phase` (ground / departure / circuit / cruise / approa
 
 `flyWithFlight()` picks an aircraft for the tracked flight with `pickAircraft(flight.icaoType)` (C172 → `c172`, DR40 → `robin-dr400`, PA28 → `c172`, else `a350`) and passes it to `init()`. But the inline mission it builds also sets `aircraft: 'a350'`, and `loadMission()` gives the mission's `aircraft` precedence over the caller's path. So the A350 always loads. **Cause — verified (code), not yet seen in the browser.** The hard-coded `'a350'` dates from `8f2d067` (25 Mar) and was harmless until `37ea9d0` (13 Jun) made the mission JSON the aircraft source of truth. **Fix:** set the inline mission's `aircraft` to the `pickAircraft()` result (or drop the field). **Done when:** tracking a C172 or DR400 loads that aircraft.
 
+### Hostomel: the An-225 lines up on runway 15, the clearance and the briefing say 18
+*Found 2026-11-15 (the An-225's cruise level) · `missions/hostomel-2022.json` `start`, `atcClearances`; `missions/catalog.json` the briefing*
+
+The mission starts on runway 15 (`start: { runway: "15" }`, `departure.runway: "15"`) — UKKM's only runway in the data is 15/33 (`data/runways-data.js`, OurAirports). But the takeoff clearance at t = 70 says eighteen ("Мрія, виліт дозволено. Злітна смуга вісімнадцять."), and the briefing's orders "Piste 18 · 2 520 m". Whether the recorded `audio/hostomel/atc_olena.mp3` names a runway is not checked. **Fix:** the clearance and the briefing say 15 (and the briefing's runway length checked against the data). **Done when:** the start, the clearance and the briefing name the same runway.
+
 ---
 
 ## Navigation
