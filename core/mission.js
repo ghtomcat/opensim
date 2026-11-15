@@ -64,7 +64,8 @@ export async function loadMission(missionPath, aircraftPath, setup = null) {
 
   /* Engine: cold on the ground for engines with a start sequence, running otherwise
      (the rules live with the engine owner, core/engine.js) */
-  const _engine = initialEngine(aircraft, { onGround: startOnGround, spd, onRunway: !!mission.start?.runway, oilTemp: startOilTempC });
+  const _engine = initialEngine(aircraft, { onGround: startOnGround, spd, onRunway: !!mission.start?.runway, oilTemp: startOilTempC,
+                                            conditionKey: `${mission.id}|${aircraft.id}` });   // each engine's character (core/engine.js)
 
   /* Barometric altimeter init — set the subscale to the field QNH (live METAR or mission
      weather), and start on STD above the transition altitude. altT is held in INDICATED

@@ -1892,7 +1892,7 @@
     if (eng.type === 'turbojet') return rpm / eng.maxRpm < 0.005 ? '---' : `N1 ${Math.round(rpm / eng.maxRpm * 100)}%`;
     return rpm < 5 ? '--- RPM' : `${Math.round(rpm)} RPM`;
   }
-  import { startEngine, stopEngine, adoptEngineFields, engineRpm, throttle, leverForSpeed, throttleFrac } from './core/engine.js';
+  import { startEngine, stopEngine, adoptEngineFields, engineRpm, throttle, leverForSpeed, throttleFrac, engineReading } from './core/engine.js';
   import { audioContext, audioOutput, audioMuted, setAudioMuted } from './core/audio.js';
   import { initOutside, tickOutside, outsideInvalidate, setOutsideCamMode } from './display/outside.js?v=6';
   import { initKneeboard, toggleKneeboard, closeKneeboard, tickKneeboard } from './display/kneeboard.js';
@@ -3804,9 +3804,9 @@
     const _engs    = S.engines ?? [];
     const _engN1s  = S.aircraft?.engine?.type === 'turbofan' && _engs.length > 1;
     document.getElementById('pl-engine').textContent = _engN1s ? 'N1' : _isV12 ? 'Motor' : 'Engine';
-    const _engText = _engN1s ? _engs.map(e => {
+    const _engText = _engN1s ? _engs.map((e, k) => {
                          const ok = e.state === 'running' && (e.power ?? 1) >= 1;
-                         return `<span class="panel-value${ok ? ' green' : ''}">${e.state === 'off' ? '--' : Math.round(e.n1 ?? 0)}</span>`;
+                         return `<span class="panel-value${ok ? ' green' : ''}">${e.state === 'off' ? '--' : Math.round(engineReading(k, 'n1') ?? e.n1 ?? 0)}</span>`;
                        }).join(' ')
                        : _engSt === 'off'      ? (_isV12 ? 'AUS' : 'OFF')
                        : _engSt === 'starting' ? (_hasRead ? _engRead : (_isV12 ? 'ANLASSER…' : 'STARTING…'))

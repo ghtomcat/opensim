@@ -20,7 +20,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from '../core/state.js';
-import { engineRpm, throttleFrac } from '../core/engine.js';
+import { engineRpm, throttleFrac, engineReading } from '../core/engine.js';
 import { oilPressure, manifoldPressure, fuelPressure, fuelPressureHigh, generatorAmps, oilFlowing, propPitchHours, tankAirPressure,
          fuelLitres, gasTemp, STAND_INS } from '../core/engine-gauges.js';
 import { drawAnalogClock, clockHours } from './clock.js';
@@ -177,7 +177,7 @@ const _frac = v => ((v % 1) + 1) % 1;
 const _rpm = (i = 0) => engineRpm(i) ?? 0;
 
 /** N1 % — a turbofan's own fan speed (S.engines[i].n1); a turbojet's rpm as a share of the maximum (the VK-1: 11 560 rpm = 100 %) */
-const _n1Pct = (i = 0) => S.aircraft?.engine?.type === 'turbofan' ? (S.engines?.[i]?.n1 ?? 0)
+const _n1Pct = (i = 0) => S.aircraft?.engine?.type === 'turbofan' ? (engineReading(i, 'n1') ?? 0)
                                                                  : _rpm(i) / (S.aircraft?.engine?.maxRpm ?? 1) * 100;
 
 /* ════════════════════════════════════════════════════════════
@@ -189,7 +189,7 @@ const _n1Pct = (i = 0) => S.aircraft?.engine?.type === 'turbofan' ? (S.engines?.
 function _both(fn) { return { metric: fn, imperial: fn }; }
 
 /* Engine i's oil temperature, °C (core/engine.js — each engine its own) */
-const _oilT = (i = 0) => S.engines?.[i]?.oilTemp ?? S.oilTempC ?? 15;
+const _oilT = (i = 0) => engineReading(i, 'oilTemp') ?? S.oilTempC ?? 15;   // as its gauge reads it
 
 export const INSTRUMENTS = {
   asi:     { value: 'S.spd (kt); the КУС-1200 also the true airspeed (core/airdata.js)', variants: ['kus', 'twoTurn'],

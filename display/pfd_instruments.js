@@ -8,7 +8,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from '../core/state.js';
-import { engineAvailable } from '../core/engine.js';
+import { engineAvailable, engineReading } from '../core/engine.js';
 import { electricalLayout, solveElectrical, elecCharge } from '../core/electrical.js';
 import { managedSpeed } from '../core/managed-speed.js';
 import { hydView } from '../core/hydraulics.js';
@@ -1430,18 +1430,8 @@ export function drawFCU(ctx, W, H, style) {
 /* ════════════════════════════════════════════════════════════
    ECAM EWD — Engine / Warning Display
    ════════════════════════════════════════════════════════════ */
-/* Per-engine signature so the displays never read identical (the biggest "fake" tell):
-   a persistent seeded offset + a slow two-sine wander. Cosmetic — the commanded N1 stays
-   single; each gauge just reads slightly off it. */
-function _ewdOffset(eng, amp) {
-  const hh = Math.sin(eng * 12.9898) * 43758.5453;
-  return ((hh - Math.floor(hh)) - 0.5) * 2 * amp;        // ∈ [-amp, +amp]
-}
-function _ewdScatter(eng, t, amp) {
-  const ph = eng * 1.7;
-  const wander = (Math.sin(t * 0.00023 + ph) * 0.55 + Math.sin(t * 0.00009 + ph * 2.3) * 0.45) * amp * 0.7;
-  return _ewdOffset(eng, amp) + wander;
-}
+/* No two engines read alike: each engine's character is the model's now (core/engine.js — its wear and its gauges'
+   tolerances, engineReading); the display shows what each engine's gauge reads. */
 
 /* Airbus EWD round engine gauge: a 270° scale arc with graduation ticks, amber/red
    radial limit ticks, a red band past the redline, a green needle, and the digital value
@@ -1581,15 +1571,14 @@ function _ecamMemoZone(ctx, x, w, h, memoY, f, col) {
 }
 
 /* Per-engine running values (shared scatter), given the single commanded N1. */
-function _ewdEngineVals(eng, cmd, tNow) {
+function _ewdEngineVals(eng, cmd) {
   const live  = cmd > 1;
-  const n1raw = live ? Math.max(0, cmd + _ewdScatter(eng, tNow, 0.35)) : cmd;
-  const core  = S.engines?.[eng - 1]?.core;                                               // the engine's core (core/engine.js)
-  const n2raw = core != null ? Math.max(0, core + (core > 1 ? _ewdScatter(eng, tNow, 0.5) : 0))
-              : live ? Math.max(0, 48 + 0.55 * n1raw + _ewdScatter(eng, tNow, 0.5)) : 0;
-  const e     = S.engines?.[eng - 1];                                                     // the engine's own EGT and FF (core/engine.js)
-  const egtR  = e?.egt != null ? e.egt + _ewdOffset(eng, 6) : 350 + Math.pow(Math.max(0, n1raw) / 100, 1.5) * 500 + _ewdOffset(eng, 6);
-  const ffR   = e?.ff  != null ? e.ff                       : 200 + Math.pow(Math.max(0, n1raw) / 100, 2) * 3000;
+  const i     = eng - 1, e = S.engines?.[i];                                              // the engine's own values (core/engine.js),
+  const n1raw = live ? Math.max(0, engineReading(i, 'n1') ?? cmd) : cmd;                  //   as its gauges read them
+  const core  = engineReading(i, 'core');
+  const n2raw = core != null ? Math.max(0, core) : live ? Math.max(0, 48 + 0.55 * n1raw) : 0;
+  const egtR  = e?.egt != null ? engineReading(i, 'egt') : 350 + Math.pow(Math.max(0, n1raw) / 100, 1.5) * 500;
+  const ffR   = e?.ff  != null ? engineReading(i, 'ff')  : 200 + Math.pow(Math.max(0, n1raw) / 100, 2) * 3000;
   /* Per-quantity display lag — each parameter has its own inertia: FF responds first,
      then N2, N1 trails it, EGT (thermal mass) lags most. */
   return {
@@ -1611,13 +1600,12 @@ function _engineZoneAirbus(ctx, x, w, h, engY, engH, col, f) {
   const { grn, amb, red, dim } = col;
   const n    = S.aircraft?.engine?.count ?? 2;
   const engW = w / n;
-  const tNow = (typeof performance !== 'undefined' ? performance.now() : Date.now());
   const r1   = Math.min(0.42 * engW, 0.17 * engH);
   const r2   = r1 * 0.64;
 
   for (let i = 0; i < n; i++) {
     const ex = x + engW * i, cx = ex + engW / 2, eng = i + 1;
-    const { n1, n2, egt, ff } = _ewdEngineVals(eng, _engN1(i), tNow);
+    const { n1, n2, egt, ff } = _ewdEngineVals(eng, _engN1(i));
     const failed = _engFailed(i);
 
     ctx.font = `${h * 0.034}px ${f}`; ctx.fillStyle = failed ? amb : dim; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
@@ -1649,14 +1637,13 @@ function _engineZoneBoeing(ctx, x, w, h, engY, engH, col, f) {
   const { wht, grn, amb, red, dim } = col;
   const n    = S.aircraft?.engine?.count ?? 2;
   const engW = w / n;
-  const tNow = (typeof performance !== 'undefined' ? performance.now() : Date.now());
   const r1   = Math.min(0.44 * engW, 0.19 * engH);
   const r2   = r1 * 0.62;
 
   for (let i = 0; i < n; i++) {
     const ex = x + engW * i, cx = ex + engW / 2, eng = i + 1;
     const cmd = _engN1(i);
-    const { live, n1, n2, egt, ff } = _ewdEngineVals(eng, cmd, tNow);
+    const { live, n1, n2, egt, ff } = _ewdEngineVals(eng, cmd);
 
     _eicasGauge(ctx, cx, engY + engH * 0.30, r1, n1, live ? cmd : null,
                 { max: 110,  amber: 100, red: 104, ticks: [0, 20, 40, 60, 80, 100], dec: 1, lbl: 'N1' },  wht, grn, amb, red, f);

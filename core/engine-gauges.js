@@ -21,7 +21,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from './state.js';
-import { engineRpm, rpmRange, throttleFrac } from './engine.js';
+import { engineRpm, rpmRange, throttleFrac, engineReading } from './engine.js';
 
 /** The marks: what each stand-in is and what replaces it — the panel's registry shows them (`simple`) */
 export const STAND_INS = {
@@ -47,7 +47,7 @@ const _fuelFlows = () => !S.fuelShutoff && fuelLitres() > 0;
 /** Oil pressure, kg/cm² — the engine's own (S.engines[i].oil, psi — core/engine.js computes it for every engine type) */
 const PSI_PER_KGCM2 = 14.223;
 export function oilPressure(i = 0) {
-  return (S.engines?.[i]?.oil ?? 0) / PSI_PER_KGCM2;
+  return (engineReading(i, 'oil') ?? 0) / PSI_PER_KGCM2;   // as its gauge reads it
 }
 
 /** Manifold pressure, in.Hg — idle ~12, full throttle ~52 → "The supercharger".
@@ -86,7 +86,7 @@ export function tankAirPressure() { return _fuelFlows() ? 3.0 : 0; }
     2ТВГ-366 scale and limits not found, sources/tu95-panel-notes.md) → a gas temperature from the fuel flow */
 export function gasTemp(i = 0) {
   const e = S.engines?.[i], eng = S.aircraft?.engine ?? {};
-  if (eng.type === 'turbofan') return e?.egt ?? 15;
+  if (eng.type === 'turbofan') return engineReading(i, 'egt') ?? 15;
   const cold = 15, idle = eng.egtIdle ?? 400, top = eng.egtTakeoff ?? 650, st = _state(i), r = rpmRange();
   const toward = (t) => cold + (t - cold) * Math.max(0, Math.min(1, _rpm(i) / r.idle));
   return st === 'running'  ? idle + (top - idle) * throttleFrac()

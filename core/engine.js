@@ -68,14 +68,53 @@ const _count     = (eng = _eng()) => Math.max(1, eng.count ?? 1);
 /* ── The engines ─────────────────────────────────────────────────
    S.engines[i] = { state, startT, stopT, n1, core, egt, ff, oil, oilTemp, factors, power, rpm, lever } — one per engine
    (rpm: not a turbofan). lever: the engine's power (thrust) lever 0 idle … 1 full (a turbofan's TOGA), set by the
-   throttle command. oilTemp: its oil temperature, °C (below, "Oil temperature").
+   throttle command. oilTemp: its oil temperature, °C (below, "Oil temperature"). condition: its character — wear and
+   its gauges' tolerances (below, "Each engine's character").
    The single fields the rest of the sim still reads (engineState, enginePower, n1, lever, oilTempC (the warmest),
    engineStartT, engineStopT, engineFactors) are derived from the array on every change;
    what must tell the engines apart (thrust, generators, pumps, the engine displays) reads
    the array. */
 
-function _newEngine(state, n1 = 0, core = 0, gauges = { egt: 15, ff: 0, oil: 0 }, lever = 0, oilTemp = 15) {
-  return { state, startT: null, stopT: null, n1, core, ...gauges, factors: FACTORS_NONE, power: _power(state, FACTORS_NONE), lever, oilTemp };
+function _newEngine(state, n1 = 0, core = 0, gauges = { egt: 15, ff: 0, oil: 0 }, lever = 0, oilTemp = 15, condition = CONDITION_NEUTRAL) {
+  return { state, startT: null, stopT: null, n1, core, ...gauges, factors: FACTORS_NONE, power: _power(state, FACTORS_NONE), lever, oilTemp, condition };
+}
+
+/* ── Each engine's character (piece 6, step 5) ──────────────────────────────────────────
+   No two engines read alike — and a single one not quite as the book (Markus). Two causes, not one offset per gauge:
+     wear       0 new … 1 tired: a hotter EGT, more fuel, warmer oil and a little less oil pressure for the same power
+                (the true values — the warnings see them too); not yet the power itself (that touches the flight model)
+     tolerance  each gauge reads its true value a little off — the indication only (engineReading)
+   The sizes are stand-ins (the gauge tolerances from the E/WD's old display offsets: N1 0.35 %, core 0.5 %, EGT 6 °C):
+   the engine catalogue will hold each type's wear sensitivities and spread, an aircraft's or a mission's data an
+   engine's own condition ("ENG 2 tired"). Until then each engine draws its condition at the mission load from a
+   generator seeded with the mission and the aircraft — the same mission, the same engines, every time; the shared
+   random() (core/random.js — the turbulence's) is not touched. A new engine (a test's) is neutral. */
+const WEAR_EFFECT = { egt: 20, ff: 0.03, oilTemp: 4, oil: 0.06 };          // at full wear: +°C, ×(1+), +°C, ×(1−)
+const GAUGE_TOL   = { n1: 0.35, core: 0.5, egt: 6, ff: 0.01, oilTemp: 1.5, oil: 0.02 };   // ± — %, %, °C, ×, °C, ×
+const CONDITION_NEUTRAL = Object.freeze({ wear: 0, tol: Object.freeze({ n1: 0, core: 0, egt: 0, ff: 0, oilTemp: 0, oil: 0 }) });
+function _seeded(key) {                       // FNV-1a hash → mulberry32
+  let h = 2166136261;
+  for (const ch of key) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+  let a = h >>> 0;
+  return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1);
+                 t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+/** An engine's condition for `key` (the mission and the aircraft) and its index k — reproducible */
+export function engineCondition(key, k) {
+  const rnd = _seeded(`${key}|${k}`), pm = (amp) => (rnd() * 2 - 1) * amp;
+  return { wear: rnd(), tol: { n1: pm(GAUGE_TOL.n1), core: pm(GAUGE_TOL.core), egt: pm(GAUGE_TOL.egt),
+                               ff: pm(GAUGE_TOL.ff), oilTemp: pm(GAUGE_TOL.oilTemp), oil: pm(GAUGE_TOL.oil) } };
+}
+const _wear = (e) => e?.condition?.wear ?? 0;
+/** What engine i's gauge shows for quantity q (n1, core, egt, ff, oilTemp, oil): its true value as its gauge reads it */
+export function engineReading(i, q) {
+  const e = _engines()[i];
+  if (!e) return null;
+  const v = e[q], t = e.condition?.tol?.[q] ?? 0;
+  if (v == null) return null;
+  if (q === 'ff' || q === 'oil') return v > 0 ? v * (1 + t) : v;           // relative; 0 stays 0
+  if (q === 'n1' || q === 'core') return v > 1 ? v + t : v;               // a stopped spool reads 0
+  return v + t;
 }
 
 /* ── The core (turbofan) ───────────────────────────────────────────
@@ -136,10 +175,11 @@ function _oilPumpPsi(e, eng) {
 }
 const _oilColdFactor   = (e, eng) => 1;   // cold oil → higher pressure (the oil system)
 const _oilStarveFactor = (e, eng) => 1;   // a low oil quantity → the pump starves (the oil system)
+const _oilWearFactor   = (e) => 1 - WEAR_EFFECT.oil * _wear(e);   // a worn engine: a little less (its character)
 /** Engine e's oil pressure, psi — null where the engine has no pressure system */
 function _oilPsi(e, eng = _eng()) {
   if (eng.type === 'electric' || eng.oil?.system === 'total-loss') return null;
-  return _oilPumpPsi(e, eng) * _oilColdFactor(e, eng) * _oilStarveFactor(e, eng);
+  return _oilPumpPsi(e, eng) * _oilColdFactor(e, eng) * _oilStarveFactor(e, eng) * _oilWearFactor(e);
 }
 
 /** An engine's gauge values for its state now — the EGT target, fuel flow, oil pressure. */
@@ -149,10 +189,10 @@ function _gauges(e, eng, startT = e.startT) {
   const burning  = (e.state === 'running' && engineAvailable(e) > 0) || lightOff;
   const x   = Math.max(0, (e.n1 - idle) / (100 - idle));
   const egt = e.state === 'running' && burning
-              ? (eng.egtIdle ?? 400) + ((eng.egtTakeoff ?? 850) - (eng.egtIdle ?? 400)) * Math.pow(x, 1.2) + 0.5 * (oat - 15)
+              ? (eng.egtIdle ?? 400) + ((eng.egtTakeoff ?? 850) - (eng.egtIdle ?? 400)) * Math.pow(x, 1.2) + 0.5 * (oat - 15) + WEAR_EFFECT.egt * _wear(e)
             : lightOff ? ((startT ?? 0) < 0.6 * (eng.startTime ?? 0) ? (eng.egtStart ?? 650) : (eng.egtIdle ?? 400))
             : oat;
-  const ff  = e.state === 'running' && burning ? _ffMax(eng) * Math.pow(e.n1 / 100, 2.2) * (0.4 + 0.6 * _rhoRatio())
+  const ff  = e.state === 'running' && burning ? _ffMax(eng) * Math.pow(e.n1 / 100, 2.2) * (0.4 + 0.6 * _rhoRatio()) * (1 + WEAR_EFFECT.ff * _wear(e))
             : lightOff ? 0.02 * _ffMax(eng)
             : 0;
   const oil = _oilPsi(e, eng) ?? 0;
@@ -292,7 +332,7 @@ export function hasStartSequence(engine = _eng()) {
  * lined up on the runway has its engines running (onRunway — mission.start.runway); at a stand
  * it is cold. Light aircraft start cold on the runway too: their missions teach the start.
  */
-export function initialEngine(aircraft, { onGround, spd, onRunway = false, oilTemp = 15 }) {
+export function initialEngine(aircraft, { onGround, spd, onRunway = false, oilTemp = 15, conditionKey = null }) {
   const eng  = aircraft.engine ?? {};
   const cold = onGround && (hasStartSequence(eng) || eng.type === 'electric')
             && !(eng.type === 'turbofan' && onRunway);
@@ -306,7 +346,8 @@ export function initialEngine(aircraft, { onGround, spd, onRunway = false, oilTe
   const gauges  = eng.type === 'turbofan' ? _gaugesAtLoad(state, n1, core, eng, aircraft) : undefined;
   const lever   = eng.type === 'turbofan' ? Math.min(1, Math.max(0, spd / (aircraft.envelope?.maxSpd ?? 340)))   // ≈ cruise thrust, as its N1
                                           : leverForSpeed(aircraft, spd);
-  const engines = Array.from({ length: count }, () => _newEngine(state, n1, core, gauges, lever, oilTemp));
+  const engines = Array.from({ length: count }, (_, k) => _newEngine(state, n1, core, gauges, lever, oilTemp,
+                                                                     conditionKey ? engineCondition(conditionKey, k) : CONDITION_NEUTRAL));
   return { ..._aggregate(engines),
            engMasters: Array(count).fill(!cold),                   // ENG MASTER switches: on when the engines run
            apuMasterOn: false, ...APU_OFF, apuFireArmed: false,      // the APU is off at every mission start
@@ -630,7 +671,7 @@ function _rpmFf(e, rpm, eng) {
   const ffMax = _ffMaxOf(eng);
   if (e.state !== 'running' || !(e.power > 0) || !ffMax) return 0;
   const thin = eng.type === 'turbojet' ? 0.4 + 0.6 * _rhoRatio() : 1;
-  return ffMax * Math.pow(Math.max(0, rpm) / (eng.maxRpm ?? 1), 2.2) * thin;
+  return ffMax * Math.pow(Math.max(0, rpm) / (eng.maxRpm ?? 1), 2.2) * thin * (1 + WEAR_EFFECT.ff * _wear(e));
 }
 
 /** The fuel flow of all engines now, kg/h — null where the engine model has none (electric; a piston without fuelBurn) */
@@ -651,7 +692,7 @@ function _stepOil(e, dt, eng) {
   const idle    = eng.idleN1 ?? 22;
   const heat    = eng.type === 'turbofan' ? Math.max(0, Math.min(1, ((e.n1 ?? 0) - idle) / (100 - idle)))
                                           : Math.max(0, Math.min(1, e.lever ?? 0));
-  const target  = running ? 40 + heat * 75 : _oat();
+  const target  = running ? 40 + heat * 75 + WEAR_EFFECT.oilTemp * _wear(e) : _oat();
   const tau     = running ? 180 : 600;
   const now     = e.oilTemp ?? 15;
   return { ...e, oilTemp: now + (target - now) * (dt / tau) };

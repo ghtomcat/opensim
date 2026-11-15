@@ -9,7 +9,7 @@ import { S }                    from '../core/state.js';
 import { updateG1000MapOverlay } from './map.js';
 import { getCOMState }           from './com.js';
 import { flapLabel }             from '../core/airframe.js';
-import { engineRpm, throttleFrac } from '../core/engine.js';
+import { engineRpm, throttleFrac, engineReading } from '../core/engine.js';
 
 const G = {
   bg:      'rgba(18,20,26,0.65)',
@@ -524,8 +524,8 @@ function _engineStrip(ctx, x, y, w, h) {
   ]);
 
   /* ── 6 bar gauges (middle ~44%) ── */
-  const oil_t    = _cToF(S.engines?.[0]?.oilTemp ?? S.oilTempC ?? 15);   // the engine's own (core/engine.js)
-  const oil_p    = S.engines?.[0]?.oil ?? 0;
+  const oil_t    = _cToF(engineReading(0, 'oilTemp') ?? S.oilTempC ?? 15);   // the engine's own, as its gauge reads it (core/engine.js)
+  const oil_p    = engineReading(0, 'oil') ?? 0;
   const oilB     = oilBands();
   const tanks    = S.aircraft?.tanks;
   const maxGal   = (tanks?.left ?? 95) / 3.785;
