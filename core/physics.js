@@ -452,10 +452,11 @@ export function tickPhysics(dt) {
       newSpd = newTas_ms * Math.sqrt(Math.max(0.05, rho / 1.225)) / 0.5144;   // TAS → IAS for the gauge
       vs     = newTas_ms * Math.sin(newGamma) * 196.85;
 
-      /* High-alpha stall: CL hits CL_max — sudden snap, nose drops */
+      /* High-alpha stall: CL hits CL_max — the nose drops and the sink builds, up to 800 ft/min per second (a stand-in
+         until the stall is modelled — issues.md, *Stall handling*; until 2026-11-15 800 per frame: −48,000 ft/min per s) */
       if (CL > CL_max_e * 0.95) {
         const sf = Math.min(1, (CL / CL_max_e - 0.95) / 0.05);
-        vs      -= sf * 800;
+        vs      -= sf * 800 * dt;
         newPitch = Math.max(newPitch - 3 * sf * dt, -15);
       }
 
