@@ -45,6 +45,9 @@ export function activeDetent(ac = S.aircraft, lever = S.lever ?? 0) {
   return { label: p.label, n1Limit, idx: best };
 }
 
+/* The A/THR speed loop's gains: N1 % per kt of speed error (P), per kt·s (I), per kt/s of speed trend (D) */
+const ATHR_KP = 6, ATHR_KI = 0.12, ATHR_KD = 3.5;
+
 let _athrSpdPrev = null;   // previous airspeed for the A/THR damping (speed-rate) term
 
 /* A new mission starts the speed loop afresh: the integrator from the engines' N1 (null → tickThrust takes S.n1 on
@@ -82,8 +85,13 @@ export function tickThrust(dt) {
     const holdsMach = mg?.mach != null && mgSpd <= vmo;                         // the cruise Mach is the binding target
     const spdErr  = spdTgt - (S.spd ?? 0);
     const spdRate = _athrSpdPrev != null ? ((S.spd ?? 0) - _athrSpdPrev) / dt : 0;    // kt/s — damps overshoot
-    athrI    = Math.max(IDLE_N1, Math.min(ceiling, athrI + spdErr * 0.10 * dt));      // integral (anti-windup at ceiling)
-    const speedN1 = Math.max(IDLE_N1, Math.min(100, athrI + spdErr * 1.0 - spdRate * 3.5)); // + proportional − derivative
+    /* Anti-windup (conditional integration): the integral — the N1 the speed needs once on target — holds while the
+       command is pinned at idle or at the ceiling in the error's direction; otherwise a big speed change runs it down
+       to idle (or up to the ceiling), far from that N1, and the speed overshoots the target once the error turns. */
+    const uRaw    = athrI + spdErr * ATHR_KP - spdRate * ATHR_KD;
+    const pinned  = (uRaw <= IDLE_N1 && spdErr < 0) || (uRaw >= ceiling && spdErr > 0);
+    if (!pinned) athrI = Math.max(IDLE_N1, Math.min(ceiling, athrI + spdErr * ATHR_KI * dt));   // integral
+    const speedN1 = Math.max(IDLE_N1, Math.min(100, athrI + spdErr * ATHR_KP - spdRate * ATHR_KD)); // + proportional − derivative
     n1Cmd    = Math.min(speedN1, ceiling);                                            // detent caps the command
     athrMode = (speedN1 >= ceiling - 0.5) ? 'THR'                                     // demand pinned at the limit
              : (holdsMach ? 'MACH' : 'SPEED');                                        // modulating to hold the Mach / the speed
