@@ -13,6 +13,7 @@ import { dirname, join } from 'node:path';
 import { activeDetent, tickThrust } from '../core/thrust.js';
 import { S, setState } from '../core/state.js';
 import { runMissionResets } from '../core/lifecycle.js';
+import { managedSpeed } from '../core/managed-speed.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -67,8 +68,11 @@ test('real a220.json profiles resolve to IDLE…TOGA', () => {
 test('A/THR mode: MACH where the cruise Mach binds (managed, FL350), SPEED below the crossover and when selected', () => {
   const a220 = JSON.parse(readFileSync(join(here, '..', 'aircraft', 'a220.json'), 'utf8'));
   const mode = (alt, spdManaged) => {
-    setState({ aircraft: a220, engineState: 'running', athr: true, wow: false, lever: 0.86, alt, spd: 260, spdT: 260,
-               spdManaged, n1: 80, athrN1: 80, paused: false, crashed: false, gsCaptured: false });
+    setState({ aircraft: a220, alt, spdManaged, spdT: 260 });
+    const tgt = spdManaged ? managedSpeed() : 260;   // on target — the loop modulates (a big error pins it: THR)
+    setState({ aircraft: a220, engineState: 'running', athr: true, wow: false, lever: 0.86, alt, spd: tgt, spdT: 260,
+               spdManaged, n1: 70, paused: false, crashed: false, gsCaptured: false });
+    runMissionResets();                              // a fresh loop each case — no speed trend from the previous one
     tickThrust(0.1);
     return S.athrMode;
   };
