@@ -8,11 +8,18 @@
    encodes the climb/cruise speeds and the approach decel (e.g. a220:
    39000→288, 10000→250, 3000→165, 0→128). Interpolated for a smooth target,
    symmetric for climb and descent. Turbofans only (props keep spdT).
+
+   The crossover: the target is the lower of the profile's IAS and the IAS of the
+   aircraft's cruise Mach (envelope.cruiseMach) at the altitude — the IAS of a Mach
+   falls as the aircraft climbs, so the climb is 250 below FL100, the profile's IAS
+   above it, then the Mach from where the two meet (~FL300); the descent the same in
+   reverse. managedSpeedTarget() says which term binds (the FMA's SPEED / MACH).
    ═══════════════════════════════════════════════════════════════ */
 
 import { S } from './state.js';
 import { lnavActive } from './lnav.js';
 import { spdParse }   from './route.js';
+import { iasOfMach }  from './airdata.js';
 
 /* Great-circle distance, nm. */
 function gcNm(aLat, aLon, bLat, bLon) {
@@ -37,12 +44,13 @@ function scheduleSpeed(profile, alt) {
 }
 
 /**
- * managedSpeed() → target IAS (kt), or null when no managed target applies.
- * The A/THR speed loop uses it when S.spdManaged is set. The phase schedule is then bounded
- * by published flight-plan speed constraints — but only once within a deceleration window of
- * the constrained fix, so a ≤210 approach restriction doesn't slow the aircraft at cruise.
+ * managedSpeedTarget() → { kt, mach } — the target IAS (kt) and, when the cruise Mach binds it, that
+ * Mach (else null) — or null when no managed target applies. The phase schedule (the lower of the
+ * profile's IAS and the cruise Mach's) is then bounded by published flight-plan speed constraints —
+ * but only once within a deceleration window of the constrained fix, so a ≤210 approach restriction
+ * doesn't slow the aircraft at cruise.
  */
-export function managedSpeed() {
+export function managedSpeedTarget() {
   const ac = S.aircraft;
   if (ac?.engine?.type !== 'turbofan') return null;
   const profile = ac.envelope?.spdProfile;
@@ -52,6 +60,14 @@ export function managedSpeed() {
      height above the destination field — otherwise a high airport (LSZH 1416 ft) lands ~Vapp+15. */
   const fieldElev = S.mission?.arrival?.elevation ?? 0;
   let tgt = scheduleSpeed(profile, Math.max(0, (S.alt ?? 0) - fieldElev));
+
+  /* The crossover — the cruise Mach's IAS at the (pressure) altitude, where it is the lower. */
+  const cruiseMach = ac.envelope.cruiseMach;
+  let mach = null;
+  if (cruiseMach != null) {
+    const machKt = iasOfMach(cruiseMach, S.alt ?? 0);
+    if (machKt < tgt) { tgt = machKt; mach = cruiseMach; }
+  }
 
   /* Honour each upcoming speed constraint only when close enough to act on it (≈0.5 nm per kt
      to bleed off, min 12 nm). Far constraints — including the whole approach seen from cruise —
@@ -63,8 +79,15 @@ export function managedSpeed() {
       if (!c) continue;
       const dist = gcNm(S.lat, S.lon, legs[j].lat, legs[j].lon);
       const lookahead = Math.max(12, ((S.spd ?? tgt) - c.kt) * 0.5);
-      if (dist <= lookahead) tgt = (c.kind === 'above') ? Math.max(tgt, c.kt) : Math.min(tgt, c.kt);
+      if (dist > lookahead) continue;
+      const bound = (c.kind === 'above') ? Math.max(tgt, c.kt) : Math.min(tgt, c.kt);
+      if (bound !== tgt) { tgt = bound; mach = null; }   // a constraint binds → a speed, not the Mach
     }
   }
-  return Math.round(tgt);
+  return { kt: Math.round(tgt), mach };
+}
+
+/** managedSpeed() → the managed target IAS (kt), or null — the A/THR speed loop's target when S.spdManaged is set. */
+export function managedSpeed() {
+  return managedSpeedTarget()?.kt ?? null;
 }

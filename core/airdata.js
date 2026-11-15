@@ -7,6 +7,8 @@
      tasKt(iasKt, altFt)   the true airspeed
      machOf(iasKt, altFt)  Mach — TAS ÷ the speed of sound at that altitude (ISA: 15 °C at sea level,
                            −6.5 °C per km, −56.5 °C from 11 km)
+     iasOfMach(mach, altFt) the inverse — the indicated airspeed of a Mach at that altitude (a cruise Mach as the
+                           A/THR's speed target, core/managed-speed.js)
      heightAboveGroundFt() S.alt over the terrain under the aircraft (S.terrainElevFt), or over the mission's field
                            where the terrain is not known — what a radar altimeter measures
    ═══════════════════════════════════════════════════════════════ */
@@ -29,6 +31,9 @@ export function soundSpeedKt(altFt) {
 
 /** Mach from the indicated airspeed at altFt */
 export const machOf = (iasKt, altFt) => tasKt(iasKt, altFt) / soundSpeedKt(altFt);
+
+/** The indicated airspeed, kt, of a Mach at altFt — machOf's inverse */
+export const iasOfMach = (mach, altFt) => mach * soundSpeedKt(altFt) * Math.sqrt(Math.max(0.05, densityRatio(altFt)));
 
 /** The height above the ground, ft — over the terrain (S.terrainElevFt), else over the mission's departure field */
 export function heightAboveGroundFt() {

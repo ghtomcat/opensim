@@ -18,7 +18,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from './state.js';
-import { managedSpeed } from './managed-speed.js';
+import { managedSpeedTarget } from './managed-speed.js';
 import { throttle } from './engine.js';
 
 /* Flat-rated N1 ceiling per detent label (sea-level ISA, % N1). */
@@ -70,16 +70,18 @@ export function tickThrust(dt) {
     const det     = activeDetent(ac, S.lever ?? 0);
     const ceiling = det ? det.n1Limit : 100;
     athrDetent    = det?.label ?? null;
-    const mgSpd   = S.spdManaged ? managedSpeed() : null;                      // managed → phase speed schedule
+    const mg      = S.spdManaged ? managedSpeedTarget() : null;                // managed → phase speed schedule / cruise Mach
+    const mgSpd   = mg?.kt ?? null;
     const spdTgt  = (mgSpd != null) ? Math.min(mgSpd, vmo)                      // (already capped 250<FL100 inside)
                                     : Math.min(S.spdT ?? vmo, S.alt < 10000 ? 250 : 1e4, vmo);  // selected FCU speed
+    const holdsMach = mg?.mach != null && mgSpd <= vmo;                         // the cruise Mach is the binding target
     const spdErr  = spdTgt - (S.spd ?? 0);
     const spdRate = _athrSpdPrev != null ? ((S.spd ?? 0) - _athrSpdPrev) / dt : 0;    // kt/s — damps overshoot
     athrI    = Math.max(IDLE_N1, Math.min(ceiling, athrI + spdErr * 0.10 * dt));      // integral (anti-windup at ceiling)
     const speedN1 = Math.max(IDLE_N1, Math.min(100, athrI + spdErr * 1.0 - spdRate * 3.5)); // + proportional − derivative
     n1Cmd    = Math.min(speedN1, ceiling);                                            // detent caps the command
     athrMode = (speedN1 >= ceiling - 0.5) ? 'THR'                                     // demand pinned at the limit
-             : (S.alt > 28000 ? 'MACH' : 'SPEED');                                    // modulating to hold speed
+             : (holdsMach ? 'MACH' : 'SPEED');                                        // modulating to hold the Mach / the speed
     /* RETARD — in the flare (low on the captured glideslope) close the thrust to idle so the
        speed bleeds and the jet settles, instead of the A/THR holding speed and floating it. */
     if (S.gsCaptured && (S.alt - (S.mission?.arrival?.elevation ?? 0)) < 30) {
