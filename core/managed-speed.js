@@ -10,7 +10,7 @@
    symmetric for climb and descent. Turbofans only (props keep spdT).
 
    The crossover: the target is the lower of the profile's IAS and the IAS of the
-   aircraft's cruise Mach (envelope.cruiseMach) at the altitude — the IAS of a Mach
+   flight's cruise Mach (the mission's, else the aircraft's — flightCruise()) at the altitude — the IAS of a Mach
    falls as the aircraft climbs, so the climb is 250 below FL100, the profile's IAS
    above it, then the Mach from where the two meet (~FL300); the descent the same in
    reverse. managedSpeedTarget() says which term binds (the FMA's SPEED / MACH).
@@ -20,6 +20,7 @@ import { S } from './state.js';
 import { lnavActive } from './lnav.js';
 import { spdParse }   from './route.js';
 import { iasOfMach }  from './airdata.js';
+import { flightCruise } from './flightplan.js';
 
 /* Great-circle distance, nm. */
 function gcNm(aLat, aLon, bLat, bLon) {
@@ -61,8 +62,8 @@ export function managedSpeedTarget() {
   const fieldElev = S.mission?.arrival?.elevation ?? 0;
   let tgt = scheduleSpeed(profile, Math.max(0, (S.alt ?? 0) - fieldElev));
 
-  /* The crossover — the cruise Mach's IAS at the (pressure) altitude, where it is the lower. */
-  const cruiseMach = ac.envelope.cruiseMach;
+  /* The crossover — the flight's cruise Mach's IAS at the (pressure) altitude, where it is the lower. */
+  const cruiseMach = flightCruise().mach;
   let mach = null;
   if (cruiseMach != null) {
     const machKt = iasOfMach(cruiseMach, S.alt ?? 0);

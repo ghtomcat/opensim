@@ -7,6 +7,7 @@
 import { S }                              from '../core/state.js';
 import { loadDSKYProgram, setApolloRole } from './rocket_display.js';
 import { approachLegs, getProcedures, missedApproachText } from '../core/route.js';
+import { flightCruise } from '../core/flightplan.js';
 
 let _el       = null;
 let _visible  = false;
@@ -130,7 +131,12 @@ function _render() {
       inner = `<div class="kb-scratch-head">TAXI · ${dest}</div>` +
         (via ? `<div class="kb-scratch-seq">${via}</div>` : `<div class="kb-scratch-empty">— awaiting taxi clearance —</div>`);
     }
-    html += `<div class="kb-scratch">${inner}</div>`;
+    /* the flight's cruise, as the crew notes it from the FMS — a jet's (it has a cruise Mach) or a mission's own */
+    const c = (S.aircraft?.envelope?.cruiseMach != null || S.mission?.cruise) ? flightCruise() : null;
+    const crz = c && (c.fl != null || c.mach != null)
+      ? `<div class="kb-scratch-head">CRZ ${c.fl != null ? 'FL' + String(c.fl).padStart(3, '0') : ''}${c.fl != null && c.mach != null ? ' · ' : ''}${c.mach != null ? 'M' + String(c.mach).replace(/^0/, '') : ''}</div>`
+      : '';
+    html += `<div class="kb-scratch">${crz}${inner}</div>`;
     _el.innerHTML = html;
     _el.querySelector('#kb-prev')?.addEventListener('click', () => { _page--; _render(); });
     _el.querySelector('#kb-next')?.addEventListener('click', () => { _page++; _render(); });

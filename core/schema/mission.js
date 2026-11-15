@@ -89,6 +89,9 @@ export const mission = object(
     id: str, title: str, phase: oneOf('ground', 'departure', 'cruise', 'approach', 'circuit', 'launch'),
     aircraft: str,
     initialState, start: object({ runway: str, at: str, stand: str }),
+    /* the flight's own cruise — the FMS's INIT / PERF entry (core/flightplan.js cruiseFor): a flight level (350 =
+       FL350) and a Mach, each absent → the aircraft's envelope.cruiseAlt / cruiseMach; source names their basis */
+    cruise: object({ level: num, mach: num, source: str }),
     course: num,   // the course to fly (°) — the F4U's remote compass course setter; absent → the start heading
     departure: nullable(departure), arrival: nullable(arrival),
     weather, timeOfDay: num, water: bool,

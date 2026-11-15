@@ -15,6 +15,7 @@ import { resolveStart }   from './mission-start.js';
 import { iasOfMach }      from './airdata.js';
 import { maxFlapStage }   from './flaps.js';
 import { levelTrim }      from './trim.js';
+import { cruiseFor }      from './flightplan.js';
 import { resolveAircraftConfig } from './aircraft-config.js';
 import { check }          from './schema/check.js';
 import { mission as missionSchema }   from './schema/mission.js';
@@ -50,7 +51,7 @@ export async function loadMission(missionPath, aircraftPath, setup = null) {
   /* Apply initial state from mission. A named start ("start":{runway,at}) derives the
      exact lat/lon/hdg from bundled OurAirports data — overriding the hand-typed coords. */
   let { alt, spd, hdg, pitch, roll, lat, lon } = mission.initialState;
-  spd = startSpeed(spd, alt, aircraft, mission.id);
+  spd = startSpeed(spd, alt, aircraft, mission);
   const _start = resolveStart(mission, aircraft);
   if (_start) { lat = _start.lat; lon = _start.lon; hdg = _start.hdg; }
 
@@ -308,12 +309,12 @@ export async function fetchMetar(icao) {
 }
 
 /* The start speed, kt IAS: the mission's number, or "cruise" — the IAS of the cruise Mach at the start altitude, so an
-   airborne start in cruise flies its Mach, below its MMO (envelope.cruiseMach; the flight's own from the cruise plan's
-   piece 3). An aircraft without a cruise Mach: its cruiseSpd, with a warning. */
-function startSpeed(spd, alt, aircraft, missionId) {
+   airborne start in cruise flies its Mach, below its MMO (the flight's cruise Mach — the mission's `cruise.mach`, else
+   the aircraft's envelope.cruiseMach). Without one: its cruiseSpd, with a warning. */
+function startSpeed(spd, alt, aircraft, mission) {
   if (spd !== 'cruise') return spd;
-  const mach = aircraft.envelope?.cruiseMach;
+  const mach = cruiseFor(mission, aircraft).mach;   // the flight's cruise Mach (core/flightplan.js)
   if (mach != null) return iasOfMach(mach, alt ?? 0);
-  console.warn(`[data] missions/${missionId}.json: initialState.spd "cruise" — ${aircraft.id} has no envelope.cruiseMach; its cruiseSpd instead`);
+  console.warn(`[data] missions/${mission.id}.json: initialState.spd "cruise" — no cruise Mach (the mission's or ${aircraft.id}'s); its cruiseSpd instead`);
   return aircraft.envelope?.cruiseSpd ?? 250;
 }

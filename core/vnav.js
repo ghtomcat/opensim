@@ -16,6 +16,7 @@
 import { S } from './state.js';
 import { lnavActive } from './lnav.js';
 import { altParse }   from './route.js';
+import { flightCruise } from './flightplan.js';
 
 const FT_PER_NM = 318;   // ~3° descent gradient (tan 3° × 6076)
 
@@ -76,7 +77,7 @@ export function descentProfile() {
   const { legs } = lnavActive() ?? {};
   if (!legs || legs.length < 2) return null;
   const fieldElev = S.mission?.arrival?.elevation ?? 0;                 // mission elevations are in feet
-  const cruiseAlt = Math.max(S.alt ?? 0, S.altT ?? 0, S.aircraft?.envelope?.cruiseAlt ?? 0);
+  const cruiseAlt = Math.max(S.alt ?? 0, S.altT ?? 0, flightCruise().levelFt ?? 0);   // the flight's cruise level (core/flightplan.js)
   const path = buildDescentPath(legs, cruiseAlt, fieldElev);
   return path && { legs, cruiseAlt, fieldElev, ...path };
 }

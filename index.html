@@ -1844,7 +1844,7 @@
            approachLegs as _approachLegs, missedApproachText as _missedApproachText, airportCentre as _airportCentre,
            spdParse as _spdParse, spdLabel as _spdLabel,
            SEG_COL as _SEG_COL } from './core/route.js';
-  import { planFor as _planFor } from './core/flightplan.js';
+  import { planFor as _planFor, cruiseFor } from './core/flightplan.js';
   import { fuelSelectorPositions } from './core/fuel.js';
   import { sweep, operate } from './display/controls.js';
   import { initCrew, resetCrew } from './core/crew.js';
@@ -3089,6 +3089,8 @@
     try { const _ss = _PROCEDURES[dep.icao]?.sids || [];
           _sid = _ss.find(s => s.trans === dep.runway) || _ss.find(s => s.trans === 'ALL') || null; } catch {}
 
+    /* the flight's cruise — a jet's (it has a cruise Mach) or a mission's own; a light aircraft's cruiseAlt is no flight level */
+    const _crz  = acd.vehicleType !== 'rocket' && (acd.envelope?.cruiseMach != null || md.cruise) ? cruiseFor(md, acd) : {};
     const ini   = md.initialState ?? {};
     const start = ini.spd === 0 ? 'On the ground' : ini.alt != null ? `${Math.round(ini.alt).toLocaleString('en-US')} ft` : null;
 
@@ -3101,6 +3103,9 @@
         row('From', dep.icao ? `${dep.icao}${dep.name ? ' · ' + dep.name : ''}` : null),
         row('To',   arr.icao ? `${arr.icao}${arr.name ? ' · ' + arr.name : ''}` : null)) +
       (dep.icao ? block('Departure', row('Runway', dep.runway), row('SID', _sid?.name)) : '') +
+      (_crz.fl != null || _crz.mach != null ? block('Cruise',   // the flight's cruise (the mission's, else the aircraft's — core/flightplan.js)
+        row('Level', _crz.fl != null ? `FL${String(_crz.fl).padStart(3, '0')}` : null),
+        row('Mach', _crz.mach != null ? `M${String(_crz.mach).replace(/^0/, '')}` : null)) : '') +
       (arr.icao ? block('Approach',
         row('Runway', arr.runway ? `${arr.ils ? 'ILS ' : ''}${arr.runway}` : null),
         arr.ils ? row('ILS', `${arr.ils.freq} · CRS ${String(arr.ils.course ?? '').padStart(3, '0')}`) : '',

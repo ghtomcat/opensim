@@ -20,11 +20,29 @@
    planFor(dep, arr) is the same route for a mission that isn't loaded
    (the pre-flight briefing). This module is the only caller of
    buildFullRoute().
+
+   The flight's cruise — the FMS's INIT / PERF entry: cruiseFor(mission,
+   aircraft) → { fl, levelFt, mach, levelFrom, machFrom } — the mission's
+   `cruise { level (a flight level), mach }` where given, else the
+   aircraft's envelope.cruiseAlt / cruiseMach ('mission' / 'aircraft').
+   flightCruise() is the loaded flight's. VNAV, managed speed and the
+   "cruise" start speed read it; the briefing and the kneeboard show it.
    ═══════════════════════════════════════════════════════════════ */
 
 import { S, setState } from './state.js';
 import { buildFullRoute, getProcedures } from './route.js';
 import { onMissionReset } from './lifecycle.js';
+
+/** The flight's cruise level and Mach: the mission's `cruise` where given, else the aircraft's */
+export function cruiseFor(mission, aircraft) {
+  const env = aircraft?.envelope ?? {}, c = mission?.cruise ?? {};
+  const fl   = c.level ?? (env.cruiseAlt != null ? Math.round(env.cruiseAlt / 100) : null);
+  const mach = c.mach ?? env.cruiseMach ?? null;
+  return { fl, levelFt: fl != null ? fl * 100 : null, mach,
+           levelFrom: c.level != null ? 'mission' : 'aircraft', machFrom: c.mach != null ? 'mission' : 'aircraft' };
+}
+/** The loaded flight's cruise */
+export const flightCruise = () => cruiseFor(S.mission, S.aircraft);
 
 let _dep = null, _arr = null;   // plan inputs (the mission's, possibly amended)
 let _procs = null;              // procedure bundle the plan was built with
