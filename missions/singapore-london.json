@@ -12,6 +12,10 @@
     "runway": "02C",
     "elevation": 22
   },
+  "cruise": {
+    "level": 300,
+    "source": "FlightAware track logs, SQ318 (Singapore Airlines 777-300ER, WSSS–EGLL), the four flights of 11–14 Nov 2026: each cruised first at FL300 (Malaysia, the Bay of Bengal), then stepped to FL320 (India), FL340 (the Arabian Sea, the Middle East), FL360 (Turkey–London) — the sim has one level: the initial. The Mach is the aircraft's (0.84 — Boeing's ACAP; the track logs carry ground speed, not Mach)."
+  },
   "arrival": {
     "icao": "EGLL",
     "name": "London Heathrow",

@@ -9,6 +9,10 @@
     "icao": "EPWA",
     "name": "Warsaw"
   },
+  "cruise": {
+    "level": 350,
+    "source": "The mission itself: cruising at FL350 (its start, description and briefing). A level flown on this route — FlightAware track logs of LOT781 Warsaw–Riga (E190 / E175), 9–15 Nov 2026: FL330, FL330, FL340, FL350, FL390. The Mach is the A220's (0.78)."
+  },
   "arrival": {
     "icao": "EVRA",
     "name": "Rīga",
