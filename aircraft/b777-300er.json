@@ -673,6 +673,8 @@
     "cruiseAlt": 35000,
     "maxAlt": 43000,
     "cruiseSpd": 312,
+    "cruiseMach": 0.84,
+    "cruiseMachSource": "Boeing, 777-200LR / -300ER / -Freighter Airplane Characteristics for Airport Planning, D6-58329-2 Rev G (Dec 2024), §3.2.2 'Payload/Range for 0.84 Mach Cruise: Model 777-300ER (GE90-115BL Engines)' — sources/boeing-acap-777-200lr-300er-f-rev-g.pdf",
     "maxSpd": 350,
     "spdProfile": {
       "35000": 312,

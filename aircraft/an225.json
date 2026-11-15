@@ -36,12 +36,13 @@
   "envelope": {
     "cruiseAlt":  39000,
     "maxAlt":     45000,
-    "cruiseSpd":  440,
+    "cruiseSpd":  290,
+    "cruiseMach": 0.73,
+    "cruiseMachSource": "Derived: Antonov gives 'Cruise speed (km/h) 800' and 'Operational ceiling (m) 9 000' (antonov.com/en/history/an-225-mriya), no Mach — 800 km/h TAS at 9,000 m ISA (a = 303.8 m/s) = M0.73.",
     "maxSpd":     460,
+    "_spdProfile": "Above FL100 a flat 290 kt IAS — a stand-in climb / descent speed (the old 350–440 kt entries were true airspeeds); the cruise Mach bounds it up high once managed speed has the crossover.",
     "spdProfile": {
-      "39000": 440,
-      "25000": 420,
-      "15000": 350,
+      "39000": 290,
       "10000": 290,
       "3000":  210,
       "1000":  185,
@@ -166,7 +167,7 @@
         "Flaps — retract schedule: F0 above 210 kt",
         "Thrust — climb power above 1 500 ft AGL",
         "Speed — 250 kt below 10 000 ft",
-        "Above 10 000 ft — accelerate to 290 kt, climb Mach .78"
+        "Above 10 000 ft — accelerate to 290 kt, climb Mach .73"
       ]
     },
     {

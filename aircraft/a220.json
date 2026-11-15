@@ -164,6 +164,8 @@
     "cruiseAlt": 39000,
     "maxAlt": 41000,
     "cruiseSpd": 288,
+    "cruiseMach": 0.78,
+    "cruiseMachSource": "0.78 — Bombardier CSeries spec sheet: 'Normal Cruise Speed 0.78 Mach 447 kts' (FL370, ISA; a secondary copy — slideshare.net/juan_carlos_hernandez/bombardier-commercialaircraftcseriesbrochure, not on Bombardier's site). Airbus's own figure is 'Max Cruise speed M0.82' (A220 Facts and Figures, April 2026 — sources/airbus-a220-facts-and-figures-april-2026.pdf) = the MMO above 27,500 ft (EASA TCDS IM.A.570 Issue 25), not a cruise.",
     "maxSpd": 335,
     "spdProfile": {
       "39000": 288,

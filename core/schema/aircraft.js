@@ -85,7 +85,10 @@ const fuelSystem = object({ tanks: arrayOf(fuelTank), pumps: arrayOf(fuelPumpE),
    from. The overspeed crash reads them; maxSpd is the throttle scale's and the speed ceiling's, not a limit. */
 const envelope = object(
   { cruiseAlt: num, cruiseSpd: num, maxSpd: num, spdProfile: mapOf(num), vne: num, vmo: num, mmo: num, limitsSource: str },
-  { doc: { maxAlt: num } },   // the service ceiling — a fact, nothing enforces it
+  { doc: { maxAlt: num },     // the service ceiling — a fact, nothing enforces it
+    /* a jet's cruise Mach — the manufacturer's typical cruise where published; cruiseMachSource names the document (or
+       says it is a stand-in, carried over or derived). Managed speed's crossover and the flight's own cruise will read it. */
+    planned: { cruiseMach: num, cruiseMachSource: str } },
 );
 const flapSetting = object({ label: str, deg: num, dCL_0: num, dCD_0: num, dCL_max: num });
 const thrustProfile = object({ label: str, lever: num }, { required: ['label', 'lever'] });   // a detent: the lever's position 0 … 1

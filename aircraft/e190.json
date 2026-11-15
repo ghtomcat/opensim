@@ -119,6 +119,8 @@
     "cruiseAlt": 39000,
     "maxAlt": 41000,
     "cruiseSpd": 278,
+    "cruiseMach": 0.78,
+    "cruiseMachSource": "Stand-in: Embraer publishes only 'Max Cruise Speed M 0.82' (E190-E2 spec sheet, 2025 — embraer.com/media/e5whgknk/e190-e2_spec.pdf; sources/embraer-e190-e2-spec-2025.pdf) and its range at long-range cruise without the Mach. 0.78 is the A220-300's normal cruise (the same class), not an Embraer figure.",
     "maxSpd": 340,
     "spdProfile": {
       "39000": 278,

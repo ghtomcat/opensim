@@ -429,6 +429,8 @@
     "cruiseAlt": 37000,
     "maxAlt": 41000,
     "cruiseSpd": 248,
+    "cruiseMach": 0.82,
+    "cruiseMachSource": "Airbus, A340-200/-300 Aircraft Characteristics — Airport and Maintenance Planning (Rev. Aug 01/22), 3-2-1 'Payload / Range - ISA Conditions', CFM56-5C4: cruise conditions 'ISA 39000 ft M = 0.82' — sources/airbus-ac-a340-200-300-aug2022.pdf",
     "maxSpd": 330,
     "spdProfile": {
       "37000": 248,

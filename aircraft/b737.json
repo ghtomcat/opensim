@@ -362,6 +362,8 @@
     "cruiseAlt": 41000,
     "maxAlt": 41000,
     "cruiseSpd": 285,
+    "cruiseMach": 0.785,
+    "cruiseMachSource": "Boeing, 737-800 Technical Characteristics (boeing.com/commercial/737family/pf/pf_800tech.html, Wayback Machine 2011-06-12): 'Typical Cruise Speed (at 35,000 feet) 0.785 Mach' — sources/boeing-737-800-technical-characteristics-wayback-20110612.html",
     "maxSpd": 340,
     "spdProfile": {
       "41000": 285,
