@@ -20,6 +20,7 @@ import { catalog } from '../core/schema/catalog.js';
 import { aircraft } from '../core/schema/aircraft.js';
 import { KNOWN, unknownErrors } from '../core/schema/known.js';
 import { electricalLayout } from '../core/electrical.js';
+import { maxFlapStage } from '../core/flaps.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const load = (rel) => JSON.parse(readFileSync(join(root, rel), 'utf8'));
@@ -43,7 +44,6 @@ const NOT_IN_PICKER = {
   'live-flight': 'built at runtime from an ADS-B position (flyWithFlight() in index.html)',
 };
 const KNOWN_AIRCRAFT_MISMATCH = {
-  'egll-approach': 'egll-approach is temporarily the 737 MAX 9 into Madrid',
 };
 const acId = (s) => String(s).replace(/^aircraft\//, '').replace(/\.json$/, '');
 const missionIds = jsonIn('missions').map(f => f.replace(/\.json$/, ''));
@@ -65,6 +65,32 @@ test("a mission's start switches (initialState.elec) are sources of its aircraft
     if (!elec) return [];
     const ids = electricalLayout(load(`aircraft/${acId(m.aircraft)}.json`)).sources.map(s => s.id);
     return Object.keys(elec).filter(k => !ids.includes(k)).map(k => `${id}: ${k}`);
+  });
+  assert.deepEqual(bad, []);
+});
+test("a mission's start flaps (initialState.flaps) is a flap stage of its aircraft", () => {
+  const bad = missionIds.flatMap(id => {
+    const m = load(`missions/${id}.json`), f = m.initialState?.flaps;
+    if (f == null) return [];
+    return Number.isInteger(f) && f >= 0 && f <= maxFlapStage(load(`aircraft/${acId(m.aircraft)}.json`)) ? [] : [`${id}: ${f}`];
+  });
+  assert.deepEqual(bad, []);
+});
+/* The PM's flap and gear calls (core/crew.js, the aircraft's `checklist`) fire only when the aircraft descends through
+   their heights — an airborne start below a call height, and behind it, never gets that call. Ahead is fine (the calls
+   only extend; the gear call needs the gear up). */
+test("an airborne start is not behind its aircraft's flap and gear calls at its height", () => {
+  const bad = missionIds.flatMap(id => {
+    const m = load(`missions/${id}.json`), ini = m.initialState ?? {};
+    if (ini.spd === 0) return [];                                       // a ground start
+    const ac = load(`aircraft/${acId(m.aircraft)}.json`), cl = ac.checklist;
+    if (!cl) return [];
+    const field = m.arrival?.elevation ?? m.departure?.elevation ?? 0, h = (ini.alt ?? 0) - field;
+    const flapsDue = Math.max(0, ...(cl.flaps ?? []).filter(f => h < f.alt).map(f => f.config));
+    const out = [];
+    if ((ini.flaps ?? 0) < flapsDue) out.push(`${id}: flaps ${ini.flaps ?? 0} at ${Math.round(h)} ft AAL — the calls have ${flapsDue}`);
+    if (cl.gear && h < cl.gear.alt && !ac.fixedGear && !ini.gear) out.push(`${id}: gear up at ${Math.round(h)} ft AAL — called at ${cl.gear.alt}`);
+    return out;
   });
   assert.deepEqual(bad, []);
 });
