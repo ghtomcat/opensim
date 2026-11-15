@@ -45,6 +45,8 @@ window.simSetState({ mission: { ...m, weather: { ...m.weather, manual: { ...m.we
 
 **Progress (2026-11-15) — the plan, piece 1 (the data).** The plan (one commit each): 1 the cruise Mach in the data, 2 managed speed with the crossover (min of the profile's IAS and the IAS of the cruise Mach), 3 the flight's own cruise level and Mach, 4 FCU SPD/MACH and the PFD's Mach, 5 the airborne starts, 6 the jets' limits. **Piece 1 done:** `envelope.cruiseMach` + `cruiseMachSource` (schema: planned until piece 2 reads it). From the manufacturers: the A340-300 0.82 (Airbus AC, 3-2-1 payload/range cruise conditions), the A350-900 0.85 (Airbus Facts and Figures), the 777-300ER 0.84 (Boeing ACAP D6-58329-2 §3.2.2), the 737-800 0.785 (Boeing's 737-800 technical characteristics). Decided by Markus where the manufacturer publishes none: the A220-300 0.78 (Bombardier's CSeries "normal cruise", a secondary copy — Airbus gives only "max cruise M0.82", which is its MMO), the E190-E2 0.78 (a stand-in — Embraer gives only "max cruise M 0.82"), the 737 MAX 9 0.785 (carried over from the -800), the An-225 0.73 (derived — Antonov's 800 km/h at its 9,000 m ceiling). The An-225's 350–440 kt profile entries are a flat 290 kt above FL100 now (a stand-in, like the other jets' climb IAS). Left out: the MiG-15bis and the Tu-95 (no autothrottle; with their limits, later).
 
+**Piece 2 done (2026-11-15).** Managed speed's crossover (`b8a9875`); the evra start at its cruise Mach (`initialState.spd: "cruise"`, part of piece 5 pulled forward); the A/THR investigation that followed (its integrator at load, the loop retuned — *The A/THR's speed loop swings*) and the start dive (*The approach missions dive …*). **Piece 3 done (2026-11-15).** The flight's own cruise: mission `cruise { level, mach, source }` (a flight level, a Mach; each absent → the aircraft's `cruiseAlt` / `cruiseMach`), `cruiseFor()` / `flightCruise()` in `core/flightplan.js`; VNAV, managed speed and the `"cruise"` start speed read it; the briefing shows a *Cruise* block and the kneeboard's scratchpad "CRZ FL300 · M.84" — a jet's, or a mission's own (a light aircraft's `cruiseAlt` is no flight level); the data test checks the level against the aircraft's `maxAlt`, the Mach against its MMO, and asks for a source. **singapore-london: FL300** — FlightAware's track logs of SQ318 (Singapore Airlines' 777-300ER, WSSS–EGLL), 11–14 Nov 2026: each flight cruised first at FL300, then stepped to FL320, FL340, FL360 (*Step climbs*); the Mach the 777's 0.84 (the logs carry ground speed, not Mach). **evra-approach: FL350** — the mission's own (it cruises there), a level flown on the route (LOT781 Warsaw–Riga, 9–15 Nov 2026: FL330–FL390); the A220's FL390 before. Cost index: later.
+
 ### The An-225 cruises at FL390 — Antonov gives a 9,000 m operational ceiling
 *Found 2026-11-15 (the cruise Mach) · `aircraft/an225.json` `envelope.cruiseAlt`, `maxAlt`*
 
@@ -487,6 +489,11 @@ The three approach missions (lszh-approach, egll-approach, anchorage-bozeman) st
 
 `flyWithFlight()` picks an aircraft for the tracked flight with `pickAircraft(flight.icaoType)` (C172 → `c172`, DR40 → `robin-dr400`, PA28 → `c172`, else `a350`) and passes it to `init()`. But the inline mission it builds also sets `aircraft: 'a350'`, and `loadMission()` gives the mission's `aircraft` precedence over the caller's path. So the A350 always loads. **Cause — verified (code), not yet seen in the browser.** The hard-coded `'a350'` dates from `8f2d067` (25 Mar) and was harmless until `37ea9d0` (13 Jun) made the mission JSON the aircraft source of truth. **Fix:** set the inline mission's `aircraft` to the `pickAircraft()` result (or drop the field). **Done when:** tracking a C172 or DR400 loads that aircraft.
 
+### Singapore–London: the briefing says "Dep RWY 20C", the mission departs 02C
+*Found 2026-11-15 (the cruise plan's piece 3) · `missions/catalog.json` (`singapore-london` `briefing.date`), `missions/singapore-london.json` (`departure.runway`)*
+
+The catalog's briefing line reads "WSSS · Tarmac · Dep RWY 20C"; the mission's departure is runway 02C — the same runway's other end. **Fix:** the briefing names the mission's runway (or reads it from the mission). **Done when:** the two agree.
+
 ### Hostomel: the An-225 lines up on runway 15, the clearance and the briefing say 18
 *Found 2026-11-15 (the An-225's cruise level) · `missions/hostomel-2022.json` `start`, `atcClearances`; `missions/catalog.json` the briefing*
 
@@ -507,6 +514,11 @@ None of the kneeboard's figures names a source, and some contradict the data or 
 ---
 
 ## Navigation
+
+### Step climbs — the flight has one cruise level — not implemented yet
+*Noted 2026-11-15 (Markus, with the cruise plan's piece 3) · `cruise` in the missions, `core/flightplan.js` (`cruiseFor`), `core/vnav.js`*
+
+A long flight climbs in steps as it burns fuel and gets lighter: SQ318 Singapore–London (777-300ER, FlightAware's track logs, 11–14 Nov 2026) cruises at FL300 over Malaysia and the Bay of Bengal, FL320 over India, FL340 over the Arabian Sea and the Middle East, FL360 from Turkey to London — even levels, westbound. The sim's flight has one level (`cruise.level`, the initial). **Real world (general knowledge, not from a source):** the filed flight plan and the FMS carry the planned steps (Airbus: STEP ALTs on the F-PLN); at the step point the crew requests the next level and ATC clears it — or not, with traffic — so the crew cruises at the initial level and gets each further one from ATC on request (Markus). **Idea:** `cruise.steps` — `[{ level, at }]` (a fix or a distance), shown on the flight plan and the kneeboard; the FMS's optimum level from the weight (with *Weight and balance*) as the prompt; the climb itself on a request and ATC's clearance (the virtual ATC — training). **Done when:** a long flight's plan shows its steps, and the crew climbs to the next level after ATC clears it.
 
 ### Geneva → Munich routes 470 nm, with no STAR
 *Found 2026-10-16 · `buildFullRoute()` in `core/route.js`, `routeAirway()` in `core/airway-graph.js`, `missions/lsgg-takeoff.json`*
