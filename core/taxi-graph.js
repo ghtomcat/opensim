@@ -127,8 +127,8 @@ function _snap(graph, lat, lon, maxM = 300) {
   return bd <= maxM ? best : null;
 }
 
-/* Dijkstra from node s to node t. Returns { pts:[[lat,lon]…], seq:[ref…], distM }. */
-function _route(graph, s, t) {
+/* Dijkstra from node s — to node t, or (t null) to every node it reaches. */
+function _dijkstra(graph, s, t = null) {
   const dist = new Map([[s, 0]]), prev = new Map(), pq = [[0, s]];
   while (pq.length) {
     pq.sort((a, b) => a[0] - b[0]);
@@ -140,6 +140,11 @@ function _route(graph, s, t) {
       if (nd < (dist.get(e.to) ?? 1e18)) { dist.set(e.to, nd); prev.set(e.to, [k, e.ref]); pq.push([nd, e.to]); }
     }
   }
+  return { dist, prev };
+}
+
+/* The path s → t from a Dijkstra run. Returns { pts:[[lat,lon]…], seq:[ref…], distM }, or null. */
+function _path(graph, s, t, { dist, prev }) {
   if (s !== t && !prev.has(t)) return null;
   const pts = [], refs = []; let k = t;
   while (k !== s) { const n = graph.nodes.get(k); pts.unshift([n.lat, n.lon]);
@@ -149,6 +154,8 @@ function _route(graph, s, t) {
   for (const r of refs) if (r && seq[seq.length - 1] !== r) seq.push(r);   // collapse to taxiway names
   return { pts, seq, distM: dist.get(t) };
 }
+
+const _route = (graph, s, t) => _path(graph, s, t, _dijkstra(graph, s, t));
 
 /* Get the taxiway graph for an airport (triggers a one-time OSM fetch; null until ready). */
 export function getTaxiGraph(icao, lat, lon) {
@@ -179,4 +186,32 @@ export function routeTaxi(graph, from, to) {
   const s = _snap(graph, from.lat, from.lon), t = _snap(graph, to.lat, to.lon);
   if (!s || !t) return null;
   return _route(graph, s, t);
+}
+
+/* Route to a departure runway: to its threshold `thr` where the taxiways reach it; where
+   they don't (FIMP 14 — the threshold's taxiways are a piece apart from the main network),
+   to the lineup point nearest the threshold — an intersection departure. A lineup point is
+   a node the route reaches on the centreline (within LINEUP_M), arriving heading towards
+   the far end `end` (a fillet that turns towards the threshold would be a backtrack). */
+const LINEUP_M = 5;
+export function routeTaxiToRunway(graph, from, thr, end) {
+  const direct = routeTaxi(graph, from, thr);
+  if (direct || !graph || !end) return direct;
+  const s = _snap(graph, from.lat, from.lon);
+  if (!s) return null;
+  const run = _dijkstra(graph, s);
+  const cl = Math.cos(thr.lat * Math.PI / 180);
+  const xy = p => [(p.lat - thr.lat) * 111320, (p.lon - thr.lon) * 111320 * cl];
+  const [rN, rE] = xy(end), L = Math.hypot(rN, rE);
+  if (!(L > 0)) return null;
+  let best = null, bestAlong = 1e18;
+  for (const [k, [pk]] of run.prev) {
+    const [nN, nE] = xy(graph.nodes.get(k)), [qN, qE] = xy(graph.nodes.get(pk));
+    const along = (nN * rN + nE * rE) / L, off = (nN * rE - nE * rN) / L;
+    if (Math.abs(off) > LINEUP_M || along < 0 || along > L) continue;
+    if ((nN - qN) * rN + (nE - qE) * rE <= 0) continue;     // arriving against the takeoff direction
+    if (along < bestAlong) { bestAlong = along; best = k; }
+  }
+  const rt = best && _path(graph, s, best, run);
+  return rt ? { ...rt, intersection: rt.seq[rt.seq.length - 1] ?? null, remainingM: L - bestAlong } : null;
 }

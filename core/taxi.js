@@ -16,7 +16,7 @@
 
 import { S, setState } from './state.js';
 import { RUNWAYS } from '../data/runways-data.js';
-import { getTaxiGraph, routeTaxi, nearestStand } from './taxi-graph.js';
+import { getTaxiGraph, routeTaxi, routeTaxiToRunway, nearestStand } from './taxi-graph.js';
 import { onMissionReset } from './lifecycle.js';
 
 let _from = null, _key = null, _route = null;   // last route: start point, 'ICAO|goal' key
@@ -45,16 +45,18 @@ function _airportHere(lat, lon) {
   return icao && bd <= 6 ? { icao, ctr } : null;
 }
 
-/* Departure goal: the mission's runway threshold, else the nearest one. */
+/* Departure goal: the mission's runway threshold, else the nearest one — with the
+   runway's far end (`end`), the direction of the takeoff run. */
 function _departureGoal(icao, lat, lon) {
+  const goal = (e, f, id) => ({ lat: e[0], lon: e[1], rwy: id, end: { lat: f[0], lon: f[1] } });
   const want = String(S.mission?.departure?.runway || '').toUpperCase();
   if (want) for (const r of RUNWAYS[icao]) {
-    if ((r.leId || '').toUpperCase() === want) return { lat: r.a[0], lon: r.a[1], rwy: r.leId };
-    if ((r.heId || '').toUpperCase() === want) return { lat: r.b[0], lon: r.b[1], rwy: r.heId };
+    if ((r.leId || '').toUpperCase() === want) return goal(r.a, r.b, r.leId);
+    if ((r.heId || '').toUpperCase() === want) return goal(r.b, r.a, r.heId);
   }
   let best = null, bdd = 1e9;
-  for (const r of RUNWAYS[icao]) for (const [e, id] of [[r.a, r.leId], [r.b, r.heId]]) {
-    const d = _nmd(lat, lon, e[0], e[1]); if (d < bdd) { bdd = d; best = { lat: e[0], lon: e[1], rwy: id }; }
+  for (const r of RUNWAYS[icao]) for (const [e, f, id] of [[r.a, r.b, r.leId], [r.b, r.a, r.heId]]) {
+    const d = _nmd(lat, lon, e[0], e[1]); if (d < bdd) { bdd = d; best = goal(e, f, id); }
   }
   return best;
 }
@@ -64,7 +66,8 @@ function _routeTo(icao, graph, lat, lon, goal) {
   const key = `${icao}|${goal.lat},${goal.lon}`;
   const moved = !_from || _nmd(lat, lon, _from[0], _from[1]) * 1852 > 80;
   if (moved || key !== _key) {
-    _route = routeTaxi(graph, { lat, lon }, goal);
+    _route = goal.end ? routeTaxiToRunway(graph, { lat, lon }, goal, goal.end)   // departure: threshold, else an intersection
+                      : routeTaxi(graph, { lat, lon }, goal);
     _from = [lat, lon]; _key = key;
     return true;
   }
@@ -102,7 +105,7 @@ export function tickTaxi() {
 
   if (_routeTo(icao, graph, S.lat, S.lon, goal) && _route?.seq?.length) {
     setState({ taxiClearance: { icao, via: _route.seq, distM: _route.distM, arr: isArr,
-                                rwy: isArr ? null : goal.rwy, gate: isArr ? (S.arrivalGate?.ref ?? null) : null } });
+                                rwy: isArr ? null : goal.rwy, at: _route.intersection ?? null, gate: isArr ? (S.arrivalGate?.ref ?? null) : null } });
   }
   if (S.taxiRoute !== _route) setState({ taxiRoute: _route });
 }

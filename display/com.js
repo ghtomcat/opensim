@@ -296,7 +296,7 @@ const _REQUESTS = [
     when: () => S.wow && (S.spd ?? 0) < 5 && !!S.pushbackStart && !!S.taxiClearance && !S.taxiClearance.arr,
     pm:   cs => `${cs}, ready to taxi`,
     atc:  cs => { const t = S.taxiClearance || {};
-                  const rwy = t.rwy ? ` runway ${t.rwy}` : '';
+                  const rwy = t.rwy ? ` runway ${t.rwy}${t.at ? ` at ${t.at}` : ''}` : '';   // at = intersection departure
                   const via = t.via?.length ? `, via ${t.via.join(' ')}` : '';
                   return `${cs}, taxi to holding point${rwy}${via}`; },
     run:  () => {} },

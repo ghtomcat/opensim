@@ -63,3 +63,21 @@ test('arrival: no route until Ground clears the taxi-in, then the cleared route 
   assert.ok(S.taxiRoute?.pts?.length > 1);
   assert.deepEqual(S.taxiClearance.via, S.taxiRoute.seq, 'spoken via = drawn route');
 });
+
+test('FIMP 14: the threshold is off the network → an intersection departure at A / B', () => {
+  const s10 = STANDS.FIMP.find(s => s.ref === '10');
+  setState({ mission: { departure: { icao: 'FIMP', runway: '14' }, arrival: { icao: 'LSZH' } },
+             lat: s10.lat, lon: s10.lon, wow: true, taxiCleared: false, arrivalGate: null });
+  resetTaxi();
+  tickTaxi();
+  assert.ok(S.taxiRoute?.pts?.length > 1, 'route has points');
+  assert.equal(S.taxiClearance.rwy, '14');
+  assert.ok(['A', 'B'].includes(S.taxiClearance.at), `lines up at A or B, got ${S.taxiClearance.at}`);
+  assert.deepEqual(S.taxiClearance.via, S.taxiRoute.seq);
+});
+
+test('a runway whose threshold the taxiways reach routes to the threshold, not an intersection', () => {
+  atStand({ departure: { icao: 'LSZH', runway: '28' }, arrival: { icao: 'LSGG' } });
+  tickTaxi();
+  assert.equal(S.taxiClearance.at, null);
+});
