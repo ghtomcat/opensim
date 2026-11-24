@@ -705,8 +705,7 @@
         "Runway 14 · Heading 143° · Elevation 186 ft",
         "Edelweiss Air EDW → LSZH Zürich",
         "Routing: FIMP → VANAR → LAKLU → Kenya → Egypt → Alps → LSZH",
-        "Est. flight time: 10h 40min · FL370 M0.82",
-        "MTOW departure — heavy — Vr 165 kt V2 181 kt"
+        "Est. flight time: 10h 40min · FL370 M0.82"
       ]
     },
     {
@@ -774,7 +773,7 @@
       "items": [
         "Thrust: TOGA (F4 key) at runway entry",
         "Monitor N1 — all 4 engines ≥ 90%",
-        "V1: 162 kt  Vr: 165 kt  V2: 181 kt",
+        "Speeds: TAKEOFF DATA page",
         "Rotate at Vr — 12-15° pitch attitude",
         "Gear up at positive climb (G key)",
         "Flaps retract on schedule",

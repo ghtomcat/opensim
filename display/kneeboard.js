@@ -8,6 +8,7 @@ import { S }                              from '../core/state.js';
 import { loadDSKYProgram, setApolloRole } from './rocket_display.js';
 import { approachLegs, getProcedures, missedApproachText } from '../core/route.js';
 import { flightCruise } from '../core/flightplan.js';
+import { takeoffPlan } from '../core/takeoff-plan.js';
 
 let _el       = null;
 let _visible  = false;
@@ -80,14 +81,39 @@ function _approachPage() {
   return _apprPage.page;
 }
 
-/* ── Pages: mission first, then aircraft, generated approach, then a scratchpad (not rockets) ── */
+/* ── Generated TAKEOFF page — the calculated plan (core/takeoff-plan.js, the same the briefing page shows)
+   and the flight plan's SID. A takeoff mission of an aircraft with computed speeds only. Cached on the
+   mission, aircraft and SID (the lineup routes the taxi graph). ── */
+let _toPage = { key: null, page: null };
+const _n = n => Math.round(n).toLocaleString('en-US');
+function _takeoffPage() {
+  const m = S.mission, ac = S.aircraft, sid = S.flightPlan?.sid?.name ?? null;
+  const key = `${m?.id}/${ac?.id}/${sid}`;
+  if (_toPage.key === key) return _toPage.page;
+  let p = null;
+  try { p = takeoffPlan(m, ac); } catch (e) { console.warn('[kneeboard] takeoff plan', e); }
+  let page = null;
+  if (p) {
+    const items = [`RWY ${p.rwy ?? '—'}${p.aheadM == null ? '' : p.at ? ` · INT ${p.at}` : ' · FULL LENGTH'}`];
+    if (p.aheadM != null) items.push(`AHEAD ${_n(p.aheadM)} m${p.at ? ` of ${_n(p.lengthM)}` : ''}`);
+    items.push(`FLAPS ${p.flaps} · THRUST ${p.thrust}`);
+    if (p.massT != null) items.push(`WEIGHT ${_n(p.massT)} t`);
+    items.push(`V1 ${p.v1} · VR ${p.vr} · V2 ${p.v2}`);
+    if (sid) items.push(`SID ${sid}`);
+    page = { type: 'briefing', title: 'TAKEOFF DATA', items };
+  }
+  _toPage = { key, page };
+  return page;
+}
+
+/* ── Pages: mission first, then aircraft, generated takeoff and approach, then a scratchpad (not rockets) ── */
 function _pages() {
   const mp = S.mission?.kneeboard  ?? [];
   const ap = S.aircraft?.kneeboard ?? [];
   const base = [...mp, ...ap];
   if (S.aircraft?.vehicleType === 'rocket') return base;
-  const appr = _approachPage();
-  return [...base, ...(appr ? [appr] : []), { type: 'scratch', title: 'SCRATCHPAD', clearance: S.taxiClearance }];
+  const to = _takeoffPage(), appr = _approachPage();
+  return [...base, ...(to ? [to] : []), ...(appr ? [appr] : []), { type: 'scratch', title: 'SCRATCHPAD', clearance: S.taxiClearance }];
 }
 
 /* ── Render ── */
