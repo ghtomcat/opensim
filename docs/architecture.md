@@ -770,8 +770,12 @@ write         one setState() — includes S.time += dt
 All flyable aircraft use this. It's a **point-mass model in wind axes**: forces act on
 the centre of mass; attitude isn't produced by moments.
 
-- **Atmosphere:** ISA density from altitude. Dynamic pressure uses IAS at sea-level
-  density; TAS is derived for groundspeed and turn rate.
+- **Atmosphere:** the day's air, from `core/airdata.js` (the one atmosphere the physics,
+  the engines, the cooling and the instruments read): the weather's surface temperature
+  at its station's elevation as a deviation from ISA held at every altitude, the pressure
+  from the QNH; ISA exactly without weather. Dynamic pressure uses IAS at sea-level
+  density, so the lift at an IAS doesn't change; the density sets TAS (groundspeed, turn
+  rate — a hot day runs a longer takeoff for the same VR), the thrust and the Mach.
 - **Attitude:** pitch and roll follow a target (the stick `pitchT`/`rollT`, or the
   autopilot) through a PD controller with first-order rate lag, capped by
   `handling.rollRate/pitchRate/maxBank/maxPitch` (defaults 30 / 5 °/s — the jets have none yet, see issues);
