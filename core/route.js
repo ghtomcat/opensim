@@ -22,6 +22,7 @@ import('../data/procedures-data-xp.js').then(m => { PROCEDURES = m.PROCEDURES ||
 export function getProcedures() { return PROCEDURES; }
 
 const DEG = Math.PI / 180;
+const SNAP_WARN_NM = 300;   // an airway part that starts / ends further from the SID / STAR is a bundle without this city pair
 function gcNm(aLat, aLon, bLat, bLon) {                    // great-circle distance, nm
   const p1 = aLat*DEG, p2 = bLat*DEG, dp = (bLat-aLat)*DEG, dl = (bLon-aLon)*DEG;
   const h = Math.sin(dp/2)**2 + Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
@@ -176,6 +177,16 @@ export function buildFullRoute(dep, arr) {
 
   let awy = null;
   try { awy = routeAirway(sidExit.lat, sidExit.lon, starEntry.lat, starEntry.lon); } catch {}
+  /* Say so when the airway part fails or starts / ends far from the procedures: the airway bundle is sliced
+     per mission city pair (scripts/build-airways.py) — a new pair needs a rebuild, or the route flies direct
+     (FIMP → LSZH did, then detoured via Sumatra). */
+  const gapNm = gcNm(sidExit.lat, sidExit.lon, starEntry.lat, starEntry.lon);
+  if (!awy && gapNm > SNAP_WARN_NM) console.warn(`[route] ${depIc}→${arrIc}: no airway path — ${Math.round(gapNm)} nm flown direct; rebuild data/airways-data.js (scripts/build-airways.py)`);
+  else if (awy?.wpts?.length) {
+    const a = awy.wpts[0], b = awy.wpts.at(-1);
+    const jump = Math.max(gcNm(sidExit.lat, sidExit.lon, a.lat, a.lon), gcNm(b.lat, b.lon, starEntry.lat, starEntry.lon));
+    if (jump > SNAP_WARN_NM) console.warn(`[route] ${depIc}→${arrIc}: the airways start or end ${Math.round(jump)} nm from the SID / STAR — rebuild data/airways-data.js (scripts/build-airways.py)`);
+  }
 
   const legs = [];
   const push = (lat, lon, id, seg, alt, spd) => {
