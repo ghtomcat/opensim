@@ -557,13 +557,17 @@ A long flight climbs in steps as it burns fuel and gets lighter: SQ318 Singapore
 
 **Done when.** The `lsgg-takeoff` route uses an EDDM STAR and is close to the real-world Geneva → Munich distance (roughly 280–330 nm); a test in `tests/` holds the distance.
 
+**Airway part fixed (2026-11-24, with *Mauritius → Zürich*).** The cause was the airway bundle: built before this pair's corridor connected, KONIL snapped to KARLU. Rebuilt, the route runs KONIL → the Swiss plateau → BODAN → KPT → MUN: 306 nm in 24 legs (was 470 in 17), inside the 280–330 nm. `tests/airways.test.mjs` holds every mission pair's airway path. **Left:** no EDDM STAR — the airways end at MUN, east of the field, and the route turns back to NELBI and the approach.
+
 ---
 
-### Mauritius → Zürich routes 9,217 nm via Sumatra and India
+### Mauritius → Zürich routes 9,217 nm via Sumatra and India (fixed)
 *Found 2026-11-24 (the briefing's Route tab for fimp-takeoff, 1600 × 900) · `buildFullRoute()` in `core/route.js`, `routeAirway()` in `core/airway-graph.js`, `missions/fimp-takeoff.json`*
 
 **Symptom.** The route for `fimp-takeoff` (FIMP 14, SID DUPN1A → LSZH, STAR KELI3G) shows 9,217 nm in 115 legs. From the SID it runs one long leg north-east to near Sumatra, then up the Malay peninsula, across India, the Gulf, Turkey and the Balkans to Zürich. The great circle is about 5,100 nm; the mission's story says "up the length of Africa". **Cause — not verified.** Probably the airway part: the nearest graph node to the SID's end lies in the Indian Ocean's sparse network, and the shortest connected path goes around via Southeast Asia — the same family as *Geneva → Munich routes 470 nm*. **Done when.** The route runs over Africa (or the real flight's track — FlightAware) and is within ~10 % of the real distance; a test holds the distance.
 
+
+**Fixed (2026-11-24).** **Cause (verified):** the airway bundle (`data/airways-data.js`) holds only the airways within 110 nm of each mission's great circle (`scripts/build-airways.py`), and was last built in June, before `fimp-takeoff` flew to Zürich: no airway south of the Singapore–London corridor, the fix nearest Mauritius ANSAX off Sumatra (6.0 N, 95.5 E). Rebuilt, the 110 nm corridor still broke over Sudan (the Mauritius side ending at ULONI, Eritrea; the Zürich side at Merowe). The build script now widens a pair's corridor in 50 nm steps until the airways connect the two airports (FIMP–LSZH ±160 nm; KSFO–LSZH ±210 — it had flown direct across the Atlantic, now via Hudson Bay, Greenland, Iceland: 5,232 nm, 1.03 ×). **The route:** DUPN1A, then north over the Seychelles' airways, the Horn, Asmara, Port Sudan, Luxor, Crete, Greece, the Adriatic, KELI3G: 5,053 nm in 68 legs (great circle 4,860, 1.04 ×). Not compared with a real flight's track yet (FlightAware). **Guards:** `core/route.js` warns when the airway part is missing or starts / ends more than 300 nm from the SID / STAR (a pair missing from the bundle); `tests/airways.test.mjs` checks every mission pair (a path, near both airports, ≤ 1.3 × the great circle) and the FIMP plan (≤ 1.1 ×, no leg over 300 nm). Against the old bundle it fails on FIMP and on LEMD–EGLL (its airways started 362 nm from Madrid). Side effects: the bundle 356 → 845 KB; egll-approach 726 → 715 nm, evra-approach 382 → 373 (via Lithuania now, not along the Belarus border — `tests/flightplan.spec.js`' mid-route start flies east to VAKAL first, its heading limit 90 → 135°).
 ### The altimeter knows QNH and standard only — no QFE for the Warsaw Pact aircraft
 *Logged 2026-11-09 (Markus, from the MiG-15bis's ВД-15 in the USAF Museum photo) · `core/baro.js` (`baroSubscale`, `qnhField`, `S.baroSet` / `S.baroStd`), the analog altimeters*
 
