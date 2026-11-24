@@ -154,3 +154,18 @@ test('an approach offers no V1; a single-engine aircraft no engine choice', asyn
   await expect(page.locator('.bp-seg button[data-t="v1"]')).toHaveCount(1);   // the C172 takes off there
   await expect(page.locator('.bp-seg button[data-e]')).toHaveCount(0);
 });
+
+test('a takeoff briefs the calculated plan — FIMP: intersection A, the runway ahead, CONF 2, V1 · VR · V2, the plan\'s SID', async ({ page }) => {
+  await openBriefing(page, 'fimp-takeoff');
+  const p = page.locator('#fb-params');
+  await expect(p).toContainText('Intersection A');
+  await expect(p).toContainText('2,675 m of 3,367');
+  await expect(p).toContainText(/Flaps\s*2/);
+  await expect(p).toContainText(/V1 · VR · V2\s*135 · 135 · 150/);
+  await expect(p).toContainText(/SID\s*DUPN1A/);
+});
+
+test('an approach briefs no takeoff', async ({ page }) => {
+  await openBriefing(page, 'lszh-approach');
+  await expect(page.locator('#fb-params')).not.toContainText('V1 · VR · V2');
+});

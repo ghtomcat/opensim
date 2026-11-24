@@ -99,3 +99,49 @@ test('the roll: passing the computed V1 says "V one, rotate" once', () => {
   assert.deepEqual(takeoffCalloutsCrossed(r, 143.9, 144.5, true, 144.2, new Set(['v1'])), []);
 });
 
+/* ── The lineup for the briefing (core/taxi.js, departureLineup) ── */
+import { departureLineup } from '../core/taxi.js';
+const mission = id => JSON.parse(fs.readFileSync(new URL(`../missions/${id}.json`, import.meta.url)));
+
+test('FIMP from stand 10: an intersection departure at A, 2,675 m of 3,367 ahead', () => {
+  const l = departureLineup(mission('fimp-takeoff'), ac('a340'));
+  assert.equal(l.rwy, '14');
+  assert.equal(l.at, 'A');
+  assert.ok(Math.abs(l.aheadM - 2675) < 15, `ahead ${l.aheadM}`);
+  assert.ok(Math.abs(l.lengthM - 3367) < 15, `length ${l.lengthM}`);
+});
+
+test('LSGG from a stand reaches the threshold: the full length; a runway start lines up where it stands', () => {
+  const g = departureLineup(mission('lsgg-takeoff'), ac('e190'));
+  assert.equal(g.at, null);
+  assert.equal(g.aheadM, g.lengthM);
+  const h = departureLineup(mission('hostomel-2022'), ac('an225'));
+  assert.equal(h.rwy, '15');
+  assert.equal(h.at, null);
+});
+
+/* ── The takeoff plan (core/takeoff-plan.js) — the briefing's Departure block and the kneeboard's TAKEOFF DATA ── */
+import { takeoffPlan } from '../core/takeoff-plan.js';
+
+test('the plan: FIMP — runway 14 at A, 200 t, flaps 2, TOGA, V1 = VR, V2 above', () => {
+  const p = takeoffPlan(mission('fimp-takeoff'), ac('a340'));
+  assert.equal(p.rwy, '14');
+  assert.equal(p.at, 'A');
+  assert.equal(p.massT, 200);
+  assert.equal(p.flaps, '2');
+  assert.equal(p.thrust, 'TOGA');
+  assert.equal(p.v1, p.vr);
+  assert.ok(p.v2 > p.vr);
+});
+
+test('the plan without runway data: the speeds, the mission\'s runway, no lineup (Olenya, the Tu-95)', () => {
+  const p = takeoffPlan(mission('nordmeer-1956'), ac('tu95'));
+  assert.equal(p.rwy, '01');
+  assert.equal(p.aheadM, null);
+  assert.ok(p.vr > 150);
+});
+
+test('no plan for an approach, or for an aircraft with the handbook\'s Vr', () => {
+  assert.equal(takeoffPlan(mission('lszh-approach'), ac('a350')), null);
+  assert.equal(takeoffPlan({ initialState: { spd: 0 }, departure: { icao: 'LSZF', runway: '08' } }, ac('c172')), null);
+});

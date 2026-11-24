@@ -1845,6 +1845,7 @@
            spdParse as _spdParse, spdLabel as _spdLabel,
            SEG_COL as _SEG_COL } from './core/route.js';
   import { planFor as _planFor, cruiseFor } from './core/flightplan.js';
+  import { takeoffPlan } from './core/takeoff-plan.js';
   import { fuelSelectorPositions } from './core/fuel.js';
   import { sweep, operate } from './display/controls.js';
   import { initCrew, resetCrew } from './core/crew.js';
@@ -3084,15 +3085,19 @@
     let _missedLines = [];
     try { _missedLines = _missedApproachText(_approachLegs(_PROCEDURES[arr.icao], arr.runway).missed); } catch {}
 
-    /* Departure — runway + the planned SID (the full SID legs are in the Departure tab).
-       No engine-out/EOSID here: that's not in the standard nav data (operator-specific). */
+    /* Departure — runway + the planned SID: the flight plan's (core/flightplan.js — the route's pick, the
+       same the Route tab and LNAV fly; the full SID legs are in the Departure tab). No engine-out/EOSID
+       here: that's not in the standard nav data (operator-specific). */
     let _sid = null;
-    try { const _ss = _PROCEDURES[dep.icao]?.sids || [];
-          _sid = _ss.find(s => s.trans === dep.runway) || _ss.find(s => s.trans === 'ALL') || null; } catch {}
+    try { _sid = _planFor(dep, arr)?.sid ?? null; } catch {}
 
     /* the flight's cruise — a jet's (it has a cruise Mach) or a mission's own; a light aircraft's cruiseAlt is no flight level */
     const _crz  = acd.vehicleType !== 'rocket' && (acd.envelope?.cruiseMach != null || md.cruise) ? cruiseFor(md, acd) : {};
     const ini   = md.initialState ?? {};
+    /* The takeoff — the calculated plan (core/takeoff-plan.js — the kneeboard's TAKEOFF DATA page reads the same) */
+    const _m  = n => Math.round(n).toLocaleString('en-US');
+    let _to = null;
+    try { _to = takeoffPlan(md, acd); } catch (e) { console.warn('[briefing] takeoff data', e); }
     const start = ini.spd === 0 ? 'On the ground' : ini.alt != null ? `${Math.round(ini.alt).toLocaleString('en-US')} ft` : null;
 
     document.getElementById('fb-params').innerHTML =
@@ -3103,7 +3108,15 @@
       block('Route',
         row('From', dep.icao ? `${dep.icao}${dep.name ? ' · ' + dep.name : ''}` : null),
         row('To',   arr.icao ? `${arr.icao}${arr.name ? ' · ' + arr.name : ''}` : null)) +
-      (dep.icao ? block('Departure', row('Runway', dep.runway), row('SID', _sid?.name)) : '') +
+      (dep.icao ? block('Departure', ...(_to ? [
+        row('Runway', _to.rwy),
+        row('Lineup', _to.aheadM == null ? null : _to.at ? `Intersection ${_esc(_to.at)}` : 'Full length'),
+        row('Runway ahead', _to.aheadM == null ? null : `${_m(_to.aheadM)} m${_to.at ? ` of ${_m(_to.lengthM)}` : ''}`),
+        row('Weight', _to.massT != null ? `${_m(_to.massT)} t` : null),
+        row('Flaps', _to.flaps),
+        row('Thrust', _to.thrust),
+        row('V1 · VR · V2', `${_to.v1} · ${_to.vr} · ${_to.v2}`)] : [row('Runway', dep.runway)]),
+        row('SID', _sid?.name)) : '') +
       (_crz.fl != null || _crz.mach != null ? block('Cruise',   // the flight's cruise (the mission's, else the aircraft's — core/flightplan.js)
         row('Level', _crz.fl != null ? `FL${String(_crz.fl).padStart(3, '0')}` : null),
         row('Mach', _crz.mach != null ? `M${String(_crz.mach).replace(/^0/, '')}` : null)) : '') +

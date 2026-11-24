@@ -18,6 +18,7 @@ import { S, setState } from './state.js';
 import { RUNWAYS } from '../data/runways-data.js';
 import { getTaxiGraph, routeTaxi, routeTaxiToRunway, nearestStand } from './taxi-graph.js';
 import { onMissionReset } from './lifecycle.js';
+import { resolveStart } from './mission-start.js';
 
 let _from = null, _key = null, _route = null;   // last route: start point, 'ICAO|goal' key
 
@@ -47,9 +48,9 @@ function _airportHere(lat, lon) {
 
 /* Departure goal: the mission's runway threshold, else the nearest one — with the
    runway's far end (`end`), the direction of the takeoff run. */
-function _departureGoal(icao, lat, lon) {
+function _departureGoal(icao, lat, lon, mission = S.mission) {
   const goal = (e, f, id) => ({ lat: e[0], lon: e[1], rwy: id, end: { lat: f[0], lon: f[1] } });
-  const want = String(S.mission?.departure?.runway || '').toUpperCase();
+  const want = String(mission?.departure?.runway || '').toUpperCase();
   if (want) for (const r of RUNWAYS[icao]) {
     if ((r.leId || '').toUpperCase() === want) return goal(r.a, r.b, r.leId);
     if ((r.heId || '').toUpperCase() === want) return goal(r.b, r.a, r.heId);
@@ -59,6 +60,29 @@ function _departureGoal(icao, lat, lon) {
     const d = _nmd(lat, lon, e[0], e[1]); if (d < bdd) { bdd = d; best = goal(e, f, id); }
   }
   return best;
+}
+
+/**
+ * The takeoff's lineup before the flight — for the briefing (no S): the runway, its length, where the aircraft
+ * lines up and the runway ahead of it. From a stand: the departure route's end — the threshold, or an
+ * intersection where the taxiways don't reach it (`at`: the taxiway, FIMP 14 at A). A mission that starts on
+ * its runway (`start.runway`) lines up there, the full length ahead. null without the runway in the data.
+ *   → { icao, rwy, lengthM, aheadM, at }
+ */
+export function departureLineup(mission, aircraft) {
+  const icao = mission?.start?.icao || mission?.departure?.icao;
+  if (!icao || !RUNWAYS[icao]) return null;
+  const pos = resolveStart(mission, aircraft)
+           ?? (mission.initialState?.lat != null ? { lat: mission.initialState.lat, lon: mission.initialState.lon } : null);
+  if (!pos) return null;
+  const onRwy = mission.start?.runway != null;                           // lined up already — on that runway
+  const g = _departureGoal(icao, pos.lat, pos.lon, onRwy ? { departure: { runway: mission.start.runway } } : mission);
+  if (!g) return null;
+  const lengthM = _nmd(g.lat, g.lon, g.end.lat, g.end.lon) * 1852;
+  if (onRwy) return { icao, rwy: g.rwy, lengthM, aheadM: lengthM, at: null };
+  const graph = getTaxiGraph(icao, pos.lat, pos.lon);
+  const rt = graph ? routeTaxiToRunway(graph, pos, g, g.end) : null;
+  return { icao, rwy: g.rwy, lengthM, aheadM: rt?.remainingM ?? lengthM, at: rt?.remainingM != null ? rt.intersection : null };
 }
 
 /* Route from the aircraft to goal, reusing the last one unless it's stale. */
