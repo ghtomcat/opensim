@@ -12,7 +12,8 @@ import { playThroughChain, createRadioChain } from './radio.js';
 import { getEngineBleedNode } from './sound.js';
 import { audioContext, audioOutput, audioElement, speak, cancelSpeech } from './audio.js';
 import { TRIGGER, ROCKET_EVENT, assertCovers, warnUnknown } from './vocab.js';
-import { elevM as terrainElevM } from './elevation.js';   // EGPWS look-ahead (3b) — same tile cache as the ND and the outside view
+import { elevM as terrainElevM } from './elevation.js';
+import { takeoffSpeeds } from './takeoff-perf.js';   // EGPWS look-ahead (3b) — same tile cache as the ND and the outside view
 
 /* ── Voice handles ── */
 let _pfVoice        = null;
@@ -232,12 +233,33 @@ export function sndCrew(pfText, pmText, delayMs = 750) {
 /* ═══ Private ════════════════════════════════════════════════ */
 
 /**
+ * The takeoff callouts with their speeds: a fixed `spd` (kt IAS), or `at` a takeoff speed ('v1' | 'vr' | 'v2')
+ * from core/takeoff-perf.js — computed per aircraft, so the call comes where the PFD shows it. Each gets a
+ * `key` (its `at`, or its speed) for the fired set. V1 and VR within 1 kt of each other become one call,
+ * "V one, rotate" — as crews say it when the two speeds are equal (stage 1: always).
+ */
+export function resolveTakeoffCallouts(callouts, speeds) {
+  const out = [];
+  for (const c of callouts ?? []) {
+    const spd = c.at ? speeds?.[c.at] : c.spd;
+    if (spd == null || !Number.isFinite(spd)) continue;   // a takeoff speed this aircraft doesn't have
+    out.push({ ...c, spd, key: c.at ?? c.spd });
+  }
+  const v1 = out.find(c => c.at === 'v1'), vr = out.find(c => c.at === 'vr');
+  if (v1 && vr && Math.abs(vr.spd - v1.spd) < 1) {
+    v1.speech = `${v1.speech}, ${vr.speech}`;
+    out.splice(out.indexOf(vr), 1);
+  }
+  return out;
+}
+
+/**
  * The takeoff callouts whose speed the indicated airspeed has just passed (upward, not yet fired): each with
  * `speak` — false for a callout at or below Vr ("rotate") passed with the wheels off the ground. Such a callout
  * belongs to the takeoff roll: an aircraft that lifted off below it would hear "rotate" in the air.
  */
 export function takeoffCalloutsCrossed(callouts, prevSpd, spd, wow, vr, fired = new Set()) {
-  return (callouts ?? []).filter(c => prevSpd < c.spd && spd >= c.spd && !fired.has(c.spd))
+  return (callouts ?? []).filter(c => prevSpd < c.spd && spd >= c.spd && !fired.has(c.key ?? c.spd))
                          .map(c => ({ ...c, speak: wow || vr == null || c.spd > vr }));
 }
 
@@ -252,8 +274,9 @@ function _checkTakeoffCallouts(ac) {
   }
 
   /* Speed-based callouts (ascending) */
-  for (const c of takeoffCalloutsCrossed(ac.takeoffCallouts, _prevSpd, currSpd, currWow, ac.performance?.Vr, _takeoffFired)) {
-    _takeoffFired.add(c.spd);
+  const speeds = takeoffSpeeds(ac);
+  for (const c of takeoffCalloutsCrossed(resolveTakeoffCallouts(ac.takeoffCallouts, speeds), _prevSpd, currSpd, currWow, speeds?.vr, _takeoffFired)) {
+    _takeoffFired.add(c.key);
     if (!c.speak) continue;                              // passed in the air — a "rotate" after lift-off says nothing
     const speak = c.voice === 'pf' ? speakPF : speakPM;
     setTimeout(() => speak(c.speech), 200);

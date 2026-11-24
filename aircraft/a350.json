@@ -238,12 +238,17 @@
     "CL_max": 2.0,
     "CD_0": 0.018,
     "inducedK": 0.034,
-    "Vr": 165,
+    "takeoffFlaps": 1,
     "muRoll": 0.02,
     "muBrake": 0.4,
     "gearDrag": 0.012
   },
   "spoilers": { "drag": 0.08 },
+  "takeoffCallouts": [
+    { "spd": 100, "speech": "one hundred knots", "voice": "pm" },
+    { "at": "v1", "speech": "V one", "voice": "pm" },
+    { "at": "vr", "speech": "rotate", "voice": "pm" }
+  ],
   "flaps": [
     {
       "label": "0",

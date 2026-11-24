@@ -16,6 +16,7 @@ import { indicatedAlt } from './baro.js';
 import { machOf } from './airdata.js';
 import { trimAoADeg } from './trim.js';
 import { vmoAt } from './limits.js';
+import { vr as takeoffVr } from './takeoff-perf.js';
 import { random } from './random.js';
 import { yawModel, yawStep, windmillDrag, groundYawStep, pedalYawRate, tacRudder } from './yaw.js';
 
@@ -190,7 +191,7 @@ export function tickPhysics(dt) {
     const CL_max   = perf.CL_max   ?? 1.9;
     const CD_0     = perf.CD_0     ?? 0.028;
     const k_ind    = perf.inducedK ?? 0.055;
-    const Vr       = perf.Vr ?? 55;
+    const Vr       = takeoffVr(ac) ?? 55;       // the rotation gate: VR from core/takeoff-perf.js (the aircraft's own lift)
 
     /* TAC (core/yaw.js tacRudder): the rudder that cancels a thrust asymmetry, lagged — added to
        the pedals and the trim wherever the rudder acts below. */

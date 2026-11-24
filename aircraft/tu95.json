@@ -62,7 +62,7 @@
     "CD_0":        0.022,
     "gearDrag":    0.016,
     "inducedK":    0.038,
-    "Vr":          185,
+    "takeoffFlaps":          1,
     "muRoll":      0.018,
     "muBrake":     0.28
   },

@@ -14,6 +14,7 @@ import { managedSpeed } from '../core/managed-speed.js';
 import { selectedSpeedKt } from '../core/fcu.js';
 import { machOf } from '../core/airdata.js';
 import { maxOperatingSpeed } from '../core/limits.js';
+import { takeoffMarks } from '../core/takeoff-perf.js';
 import { hydView } from '../core/hydraulics.js';
 import { fuelView } from '../core/fuel-system.js';
 import { activeAlerts } from '../core/alerts.js';
@@ -558,6 +559,28 @@ export function drawSpeedTape(ctx, box, style) {
       if (lim.vs != null && yOf(lim.vs) < y + h) {
         _barberPole(ctx, sx, sw, clampY(yOf(lim.vs)), y + h, '#d00000', '#101010');
       }
+    }
+  }
+
+  /* ── Takeoff speeds — V1, VR, V2 (core/takeoff-perf.js), on the takeoff roll: a cyan tick and its
+     label on the right edge. Equal speeds share a tick ("1R" — stage 1, V1 = VR). ── */
+  const tos = takeoffMarks();
+  if (tos) {
+    const marks = [];
+    for (const [k, v] of [['1', tos.v1], ['R', tos.vr], ['2', tos.v2]]) {
+      if (v == null) continue;
+      const same = marks.find(m => Math.abs(m.v - v) < 1);
+      if (same) same.label += k; else marks.push({ v, label: k });
+    }
+    ctx.fillStyle   = ctx.strokeStyle = _c(style, 'selected');
+    ctx.lineWidth   = 2;
+    ctx.font        = `bold ${h * 0.022}px ${f}`;
+    ctx.textAlign   = 'left';
+    for (const m of marks) {
+      const vy = cy + (spd - m.v) * pxPerKt;
+      if (vy < y || vy > y + h) continue;
+      ctx.beginPath(); ctx.moveTo(x + w - w * 0.16, vy); ctx.lineTo(x + w, vy); ctx.stroke();
+      ctx.fillText(m.label, x + w - w * 0.15, vy - h * 0.006);
     }
   }
 

@@ -249,7 +249,7 @@ test.describe('Bf 109 — Wolfskopf', () => {
 test.describe('An-225 Mriya — Hostomel 2022', () => {
   /* A turbofan since 2026-11-09: the thrust lever sets the thrust (spdT is the autothrust's speed, not a throttle) */
 
-  test('rotates between 165–215 kt (flaps 15°)', async ({ page }) => {
+  test('lifts off within 25 kt above its computed VR (flaps 15°, core/takeoff-perf.js)', async ({ page }) => {
     await loadSim(page, 'hostomel-2022');
     await readyForTakeoff(page);
 
@@ -260,8 +260,10 @@ test.describe('An-225 Mriya — Hostomel 2022', () => {
     const liftoffSpd = await stepUntilAirborne(page, 395, 150);
 
     expect(liftoffSpd, 'An-225 should lift off').not.toBeNull();
-    expect(liftoffSpd).toBeGreaterThan(165);
-    expect(liftoffSpd).toBeLessThan(215);
+    const vr = await page.evaluate(async () => (await import('/core/takeoff-perf.js')).vr());
+    expect(vr).toBeGreaterThan(130);                      // 137 kt at 500 t (2026-11-24) — before, a fixed 175
+    expect(liftoffSpd).toBeGreaterThan(vr);               // the nose stays down below VR
+    expect(liftoffSpd).toBeLessThan(vr + 25);
   });
 
   test('climbs at >500 fpm after liftoff', async ({ page }) => {

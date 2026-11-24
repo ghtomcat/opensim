@@ -75,7 +75,7 @@
     "CD_0":          0.018,
     "gearDrag":      0.018,
     "inducedK":      0.038,
-    "Vr":              175,
+    "takeoffFlaps":              1,
     "muRoll":         0.018,
     "muBrake":         0.30
   },
@@ -100,8 +100,7 @@
   },
 
   "takeoffCallouts": [
-    { "spd": 175, "speech": "rotate",         "voice": "pm" },
-    { "spd": 195, "speech": "positive climb", "voice": "pm" }
+    { "at": "vr", "speech": "rotate", "voice": "pm" }
   ],
 
   "gpws": [

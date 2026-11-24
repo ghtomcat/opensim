@@ -108,6 +108,7 @@ const recovery = object({
 const performance = object({
   /* fixed-wing force model */
   mass: num, wingArea: num, wingSpan: num, thrustMax: num, Vr: num,
+  takeoffFlaps: num,   // transport category: the takeoff flap stage (index into flaps) — VR, V2 computed by core/takeoff-perf.js instead of a fixed Vr
   CL_0: num, CL_alpha: num, CL_max: num, CD_0: num, inducedK: num,
   gearDrag: num, coolFlapDrag: num, muRoll: num, muBrake: num, muSide: num,
   /* rockets */
@@ -185,7 +186,8 @@ export const aircraft = object(
     cooling, coolingSystem: oneOf('liquid', 'air'),
     /* crew and callouts */
     crewLang: str, gpws: arrayOf(gpwsCallout), pmCallouts: arrayOf(altCallout),
-    takeoffCallouts: arrayOf(object({ spd: num, speech: str, voice: str })),
+    takeoffCallouts: arrayOf(object({ spd: num, at: oneOf('v1', 'vr', 'v2'), speech: str, voice: str },   // at: a takeoff speed from core/takeoff-perf.js
+      { required: ['speech'], check: c => (c.spd == null) === (c.at == null) ? ['a takeoff callout needs spd or at, not both'] : [] })),
     checklist, kneeboard: arrayOf(kneeboardPage),
     situations: arrayOf(object({ label: str, alt: num, altT: num, spd: num, spdT: num, hdg: num })),
     keyLabels: mapOf(str),   // a key's text in the key map, by action id (core/keymap.js) — e.g. in the crew's language
