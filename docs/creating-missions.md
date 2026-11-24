@@ -2,8 +2,8 @@
 
 A mission is a scenario: an aircraft, a place, a phase of flight, and the crew/ATC
 script around it. This guide covers the mission file, how the route/briefing are
-derived from the departure + arrival airports, and how to add a **new airport** so
-its SIDs/STARs/approaches and runways are available.
+derived from the departure + arrival airports, and how to add a **new airport or city
+pair** so its runways, procedures, airways and ground layout are bundled (§4).
 
 ---
 
@@ -91,41 +91,85 @@ procedures). If they are not, add them — §4.
 
 ---
 
-## 4. Adding a new airport
+## 4. Adding a new airport or city pair
 
-The bundled data is sliced to exactly the airports referenced by `missions/*.json`. To
-use a new airport, name it in a mission's `departure`/`arrival`, then regenerate:
+The bundled data is sliced to the airports and city pairs that `missions/*.json` name in
+`departure` / `arrival`. A mission with a new airport, or two known airports in a new
+pairing, needs the builders re-run. Write the mission file first (with both ICAO codes),
+then run them **in this order**: most read `data/runways-data.js` for the airport
+centres, so the runways come first.
 
 ```bash
-# 1. Runways + airport tiers (public domain, OurAirports — committable)
-python3 scripts/build-runways.py        # → data/runways-data.js
+# 1. Runways + airport tiers — everything below reads this
+python3 scripts/build-runways.py      # → data/runways-data.js      OurAirports, public domain
 
-# 2. SID/STAR/approach procedures (X-Plane CIFP — PROPRIETARY, gitignored)
-python3 scripts/build-cifp.py           # → data/procedures-data-xp.js
+# 2. Procedures and airways — the route (§3)
+python3 scripts/build-cifp.py         # → data/procedures-data-xp.js  X-Plane CIFP, PROPRIETARY, gitignored
+python3 scripts/build-airways.py      # → data/airways-data.js        X-Plane nav 2012.08, GPL v3
+
+# 3. Radio: navaids, frequencies, the ND's VORs
+python3 scripts/build-navdata.py      # → data/navdata.js             OurAirports
+python3 scripts/build-navaids.py      # → data/navaids-data.js        OurAirports
+
+# 4. The airport on the ground — OpenStreetMap via Overpass (ODbL)
+python3 scripts/build-taxi.py         # → data/taxi-data.js           taxiways, stand lead-in lines
+python3 scripts/build-stands.py       # → data/stands-data.js         named stands ("start": {"stand": "B7"})
+python3 scripts/build-terminals.py    # → data/terminals-data.js      terminal footprints, aprons
+python3 scripts/build-satellites.py   # → data/satellites-data.js     round satellite terminals
+python3 scripts/build-towers.py       # → data/towers-data.js         control tower
 ```
 
-Both scripts read `missions/*.json` and auto-include any new departure/arrival ICAO.
-`build-runways.py` downloads OurAirports CSVs; `build-cifp.py` slices a local X-Plane 12
-install (`--xplane <path>` to override).
+| Builder | Needed when | Source on disk / network |
+|---|---|---|
+| `build-runways.py` | a new airport | downloads OurAirports CSVs (cached in `scripts/ourairports/`) |
+| `build-cifp.py` | a new airport | a local X-Plane 11/12 install (`--xplane <path>`) |
+| `build-airways.py` | a new **city pair** — also two known airports paired anew | `scripts/xplane-nav/earth_awy.dat` (in the repo) |
+| `build-navdata.py`, `build-navaids.py` | a new airport | OurAirports |
+| `build-taxi.py`, `build-stands.py`, `build-terminals.py`, `build-satellites.py`, `build-towers.py` | a new airport the aircraft is on the ground at | Overpass (flaky — re-run on a timeout; taxi, stands and terminals take ICAO arguments to fetch only the new airport, e.g. `build-taxi.py FIMP`) |
 
-**Licensing:** `data/runways-data.js` and the navaids are public-domain (OurAirports,
-CC0) — committable. `data/procedures-data-xp.js` is Navigraph/Jeppesen via X-Plane —
+**The airways are per city pair.** `build-airways.py` keeps only the airways near each
+pair's great circle (±110 nm), widened in 50 nm steps until they connect the two airports;
+it prints each widened pair, and `NOT connected` if even ±600 nm doesn't (the route then
+flies direct). Forgetting it doesn't fail loudly in the sim: the route snaps to whatever
+airway is nearest and detours — `fimp-takeoff` once flew Mauritius → Zürich via Sumatra
+(9,217 nm). `tests/airways.test.mjs` catches it, and `core/route.js` warns in the console
+(`[route] … rebuild data/airways-data.js`).
+
+**By hand, where the open data has gaps:**
+- **Tower:** OSM sometimes tags none, or the wrong one — add an entry with `"manual": true`
+  to `data/towers-data.js` (FIMP, KBZN); the builder keeps it.
+- **Windsock:** where OSM has none, `data/windsocks-data.js` (hand-maintained).
+- **Stands:** a `start.stand` must exist in `data/stands-data.js` — check the ref there
+  after `build-stands.py`; OSM's naming varies by airport.
+
+**Licensing:** OurAirports (public domain), OSM (ODbL) and the X-Plane nav airways (GPL v3)
+are committable. `data/procedures-data-xp.js` is Navigraph/Jeppesen via X-Plane —
 **proprietary, gitignored, never redistributed.** The scripts contain no data and are
 fine to commit.
 
-Verify the route builds:
+**Check it:**
+
+```bash
+node --test tests/airways.test.mjs tests/data-schema.test.mjs   # every pair has an airway path; the schema
+```
+
+and the route, with the procedures loaded:
 
 ```bash
 node --input-type=module -e "
-  import { buildFullRoute } from './core/route.js';
-  await new Promise(r => setTimeout(r, 300));   // let the procedures bundle load
-  const r = buildFullRoute({icao:'EPWA'}, {icao:'EVRA', runway:'36'});
-  console.log(r.legs.length, 'legs', 'SID', r.sid?.name, 'STAR', r.star?.name, 'APPR', r.appr);
+  const { getProcedures } = await import('./core/route.js');
+  const t0 = Date.now(); while (!getProcedures().FIMP && Date.now() - t0 < 8000) await new Promise(r => setTimeout(r, 25));
+  const { planFor } = await import('./core/flightplan.js');
+  const r = planFor({ icao: 'FIMP', runway: '14' }, { icao: 'LSZH', runway: '28' });
+  console.log(r.legs.length, 'legs', Math.round(r.distNm), 'nm', 'SID', r.sid?.name, 'STAR', r.star?.name, 'APPR', r.appr);
 "
 ```
 
-A long-haul pair (e.g. KSFO → LSZH) builds a sparse en-route segment — the airway graph
-only spans the bundled navaids — but the SID, STAR, approach, and constraints are intact.
+The distance should be near the great circle (a few per cent over for a long-haul, more
+for a short hop with procedures at both ends). Then open `?briefing=<id>`: the Route tab
+draws the line on the map, and the Departure block shows the takeoff plan (lineup, runway
+ahead, speeds) — a lineup that reads "Full length" where the aircraft starts at a stand far
+from the threshold means the taxi data is missing.
 
 ---
 

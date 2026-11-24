@@ -443,7 +443,11 @@ night glow, `display/night-lights.js`).
 **Scope.** Builders slice their source down to the **airports referenced in
 `missions/*.json`** (departure and arrival ICAO), and the airways to the mission
 city-pairs. Adding a mission at a new airport therefore means re-running the builders.
-The steps are in [creating-missions.md → Adding a new airport](creating-missions.md).
+The airways: each pair's corridor (±110 nm around the great circle) is widened in 50 nm
+steps until its airways connect the two airports (`build-airways.py` prints the widened
+pairs); `tests/airways.test.mjs` fails for a pair without a path, and `core/route.js`
+warns in the console when a route's airway part is missing or far from its SID / STAR.
+The steps, in order, are in [creating-missions.md → Adding a new airport or city pair](creating-missions.md#4-adding-a-new-airport-or-city-pair).
 Generated modules carry their source and builder in a header comment and are never
 edited by hand.
 
