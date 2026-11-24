@@ -83,9 +83,9 @@
   "spoilers": { "drag": 0.06 },
 
   "flaps": [
-    { "deg":  0, "dCL_max": 0.00, "dCD_0": 0.000 },
-    { "deg": 15, "dCL_max": 0.40, "dCD_0": 0.015 },
-    { "deg": 30, "dCL_max": 0.70, "dCD_0": 0.035 }
+    { "deg":  0, "dCL_0": 0.00, "dCL_max": 0.00, "dCD_0": 0.000 },
+    { "deg": 15, "source": "dCL_0 derived, not sourced: the jets' ratio to dCL_max (0.67 first stage, 0.8 second); takeoff and landing 'up to 280 km/h' (Rossiyskaya Gazeta, 2014-02-07)", "dCL_0": 0.27, "dCL_max": 0.40, "dCD_0": 0.015 },
+    { "deg": 30, "dCL_0": 0.56, "dCL_max": 0.70, "dCD_0": 0.035 }
   ],
 
   "handling": {

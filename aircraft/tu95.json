@@ -75,8 +75,8 @@
   },
 
   "flaps": [
-    { "deg":  0, "dCL_max": 0.00, "dCD_0": 0.000 },
-    { "deg": 20, "dCL_max": 0.28, "dCD_0": 0.012 }
+    { "deg":  0, "dCL_0": 0.00, "dCL_max": 0.00, "dCD_0": 0.000 },
+    { "deg": 20, "source": "dCL_0 derived, not sourced: the jets' ratio to dCL_max (0.67 first stage)", "dCL_0": 0.19, "dCL_max": 0.28, "dCD_0": 0.012 }
   ],
 
   "situations": [

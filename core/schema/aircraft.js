@@ -91,7 +91,7 @@ const envelope = object(
     cruiseMach: num, cruiseMachSource: str },
   { doc: { maxAlt: num } },   // the service ceiling — a fact, nothing enforces it
 );
-const flapSetting = object({ label: str, deg: num, dCL_0: num, dCD_0: num, dCL_max: num });
+const flapSetting = object({ label: str, deg: num, dCL_0: num, dCD_0: num, dCL_max: num }, { doc: { source: str } });
 const thrustProfile = object({ label: str, lever: num }, { required: ['label', 'lever'] });   // a detent: the lever's position 0 … 1
 
 /* ── Rockets ── */
