@@ -46,6 +46,8 @@ test('mid-route start: managed NAV flies on toward the destination', async ({ pa
   for (let k = 0; k < 4; k++) {
     await page.evaluate(() => window.simStep(60 * 30));   // 30 s
     const hdg = await page.evaluate(() => window.simGetState().hdg);
-    expect(hdg, 'still heading for Riga (north-east), not back to Warsaw').toBeLessThan(90);
+    /* on toward Riga: north to east — the route runs via VAKAL (Lithuania) ~75 nm east of the start, so LNAV
+       first flies east to it (~94°), then turns north-east; Warsaw lies south-west (2026-11-24, the airways rebuilt) */
+    expect(hdg, 'still heading for Riga (north to east), not back to Warsaw').toBeLessThan(135);
   }
 });

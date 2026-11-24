@@ -17,7 +17,9 @@ import json, math, os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NAVDIR = os.path.join(ROOT, "scripts", "xplane-nav")
-BUFFER_NM = 110.0           # corridor half-width around the great circle
+BUFFER_NM = 110.0           # corridor half-width around the great circle — widened per pair until it connects
+BUFFER_STEP_NM = 50.0
+BUFFER_MAX_NM = 600.0
 R_NM = 3440.065
 
 
@@ -72,13 +74,41 @@ def _bear(a, b):
                       math.cos(φ1)*math.sin(φ2) - math.sin(φ1)*math.cos(φ2)*math.cos(dλ))
 
 
-def in_corridor(p, a, b, d_ab):
-    """True if point p is within BUFFER_NM of the great-circle capsule between a and b."""
+def in_corridor(p, a, b, d_ab, buf=BUFFER_NM):
+    """True if point p is within `buf` nm of the great-circle capsule between a and b."""
     d_ap, d_bp = _gc(a, p), _gc(b, p)
-    if d_ap*R_NM > d_ab*R_NM + BUFFER_NM or d_bp*R_NM > d_ab*R_NM + BUFFER_NM:
+    if d_ap*R_NM > d_ab*R_NM + buf or d_bp*R_NM > d_ab*R_NM + buf:
         return False                              # past either end (with margin)
     xt = math.asin(max(-1, min(1, math.sin(d_ap)*math.sin(_bear(a, p) - _bear(a, b)))))
-    return abs(xt)*R_NM < BUFFER_NM               # cross-track inside the corridor
+    return abs(xt)*R_NM < buf                     # cross-track inside the corridor
+
+
+def _node_key(ll): return (round(ll[0], 4), round(ll[1], 4))
+
+
+def connected_buffer(edges, c0, c1):
+    """The narrowest corridor (BUFFER_NM, + BUFFER_STEP_NM …, ≤ BUFFER_MAX_NM) whose airways connect the fix
+    nearest each airport — as core/airway-graph.js snaps them. A narrow corridor can cut the network in two
+    where the airways swing around an airspace (FIMP->LSZH over Sudan); the route then had no airway part."""
+    d_ab = _gc(c0, c1)
+    buf = BUFFER_NM
+    while buf <= BUFFER_MAX_NM:
+        adj = {}
+        for (_, aLL, bLL, _, _, _, _) in edges:
+            if in_corridor(aLL, c0, c1, d_ab, buf) or in_corridor(bLL, c0, c1, d_ab, buf):
+                ka, kb = _node_key(aLL), _node_key(bLL)
+                adj.setdefault(ka, []).append(kb); adj.setdefault(kb, []).append(ka)
+        if adj:
+            near = lambda c: min(adj, key=lambda k: (k[0] - c[0])**2 + (k[1] - c[1])**2)
+            s, goal = near(c0), near(c1)
+            seen, stack = {s}, [s]
+            while stack:
+                for n in adj[stack.pop()]:
+                    if n not in seen: seen.add(n); stack.append(n)
+            if goal in seen:
+                return buf
+        buf += BUFFER_STEP_NM
+    return None
 
 
 def parse_airways(path):
@@ -111,11 +141,20 @@ def main():
     edges = parse_airways(awy)
     print(f"{len(edges)} airway edges in nav data; slicing corridors (±{BUFFER_NM:.0f} nm) ...")
 
-    corridors = [(centres[d], centres[a], _gc(centres[d], centres[a])) for d, a in pairs]
+    corridors = []
+    for d, a in pairs:
+        c0, c1 = centres[d], centres[a]
+        buf = connected_buffer(edges, c0, c1)
+        if buf is None:
+            print(f"  {d}->{a}: NOT connected even at ±{BUFFER_MAX_NM:.0f} nm — the route will fly direct")
+            buf = BUFFER_MAX_NM
+        elif buf > BUFFER_NM:
+            print(f"  {d}->{a}: widened to ±{buf:.0f} nm to connect")
+        corridors.append((c0, c1, _gc(c0, c1), buf))
     kept, seen = [], set()
     for (aId, aLL, bLL, bId, base, top, name) in edges:
-        if not any(in_corridor(aLL, c0, c1, dab) or in_corridor(bLL, c0, c1, dab)
-                   for (c0, c1, dab) in corridors):
+        if not any(in_corridor(aLL, c0, c1, dab, buf) or in_corridor(bLL, c0, c1, dab, buf)
+                   for (c0, c1, dab, buf) in corridors):
             continue
         key = tuple(sorted([(round(aLL[0], 4), round(aLL[1], 4)),
                             (round(bLL[0], 4), round(bLL[1], 4))]))
