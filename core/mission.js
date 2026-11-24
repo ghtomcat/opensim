@@ -12,7 +12,7 @@ import { tickFuelSystem } from './fuel-system.js';
 import { runMissionResets } from './lifecycle.js';
 import { setCrewLang }    from './crew.js';
 import { resolveStart }   from './mission-start.js';
-import { iasOfMach }      from './airdata.js';
+import { iasOfMach, oatC }  from './airdata.js';
 import { maxFlapStage }   from './flaps.js';
 import { levelTrim }      from './trim.js';
 import { cruiseFor }      from './flightplan.js';
@@ -61,8 +61,9 @@ export async function loadMission(missionPath, aircraftPath, setup = null) {
   const startAirborne = !startOnGround && spd > 0;
 
   /* Oil temperature: warm if already airborne (engine running since before mission start); on the ground the outside air
-     — the mission's surface temperature (the METAR is not fetched yet: 15 °C), lapsed to the start's altitude (core/engine.js) */
-  const startOilTempC = startAirborne ? 75 : (mission.weather?.manual?.temp ?? 15) - 1.98 * (alt / 1000);
+     — the mission's surface temperature (manual, else its recorded METAR; the live one is not fetched yet), at the
+     start's altitude (core/airdata.js, as core/engine.js) */
+  const startOilTempC = startAirborne ? 75 : oatC(alt, { mission });
   /* Coolant/CHT: ambient on ground, mid-normal if airborne (engine already warm) */
   const startCoolantTemp = startAirborne ? (aircraft.cooling?.normal?.[0] ?? 85)
                                          : (aircraft.cooling?.ambient ?? 15);

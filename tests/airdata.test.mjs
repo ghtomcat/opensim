@@ -66,3 +66,35 @@ test('the КУС-1200 reads the true airspeed too; the plain airspeed dial just 
   assert.ok(v.tas > 480, `${v.tas}`);
   assert.equal(INSTRUMENTS.asi.read(0, {}), 300);
 });
+
+/* ── The day's atmosphere: the weather's temperature and QNH (ISA without weather) ── */
+import { oatC, isaDevC, densityRatio } from '../core/airdata.js';
+
+const day = (temp, altim, elevation = 0) => ({ metar: { temp, altim }, mission: { weather: { icao: 'XXXX' }, departure: { icao: 'XXXX', elevation } } });
+
+test('no weather: ISA exactly — 15 °C, the density ratio as before', () => {
+  assert.equal(isaDevC({}), 0);
+  assert.equal(oatC(0, {}), 15);
+  assert.ok(Math.abs(densityRatio(10000, {}) - Math.pow(1 - 2.2558e-5 * 3048, 4.2559)) < 1e-12);
+});
+
+test('a hot day: 30 °C at sea level is ISA + 15, ρ/ρ₀ ≈ 0.95, the deviation held aloft', () => {
+  const s = day(30, 1013.25);
+  assert.equal(isaDevC(s), 15);
+  assert.ok(Math.abs(densityRatio(0, s) - 288.15 / 303.15) < 1e-9);
+  assert.ok(Math.abs(oatC(10000, s) - (15 - 0.0065 * 3048 + 15)) < 1e-9);
+  assert.ok(soundSpeedKt(35000, s) > soundSpeedKt(35000, {}), 'warmer air, faster sound');
+});
+
+test('the METAR\'s temperature is at its station: 15 °C at Bozeman (4,473 ft) is ISA + 8.9', () => {
+  assert.ok(Math.abs(isaDevC(day(15, 1013.25, 4473)) - 0.0065 * 4473 * 0.3048) < 1e-9);
+});
+
+test('a low QNH thins the air: 993 hPa → 2 % less dense', () => {
+  assert.ok(Math.abs(densityRatio(0, day(15, 993)) - 993 / 1013.25) < 1e-9);
+});
+
+test('the manual weather wins over the METAR; the recorded fallback when the METAR has none', () => {
+  assert.equal(oatC(0, { mission: { weather: { manual: { temp: -20 } } }, metar: { temp: 30 } }), -20);
+  assert.equal(oatC(0, { mission: { weather: { fallback: { temp: 28 } } }, metar: null }), 28);
+});

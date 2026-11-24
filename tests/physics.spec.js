@@ -498,3 +498,33 @@ test.describe('Crash bounds checker', () => {
   });
 
 });
+
+/* The day's air (core/airdata.js): a hot day thins it — the same indicated liftoff speed is a higher true
+   airspeed, and the engines make less thrust, so the run is longer. Measured 2026-11-24 (777, flaps 5, calm):
+   15 °C 1,154 m, 30 °C 1,237, 45 °C 1,321 — liftoff 155–156 kt IAS each. */
+test('a hot day: the 777 runs ~7 % further at 40 °C than at 15 °C, lifting off at the same IAS', async ({ page }) => {
+  const roll = async (temp) => {
+    await loadSim(page, 'singapore-london');
+    return page.evaluate((temp) => {
+      const m = window.simGetState().metar ?? {};
+      window.simSetState({ metar: { ...m, temp, wspd: 0, wdir: 0, altim: 1013 }, paused: false, engineState: 'running', enginePower: 1,
+                           lever: 1, parkBrake: false, braking: false, athr: false, pitchT: 10, flaps: 1, prevFlaps: 1 });
+      const s0 = window.simGetState(), R = Math.PI / 180;
+      for (let i = 0; i < 90 * 60; i++) {
+        window.simStep(1);
+        const s = window.simGetState();
+        if (!s.wow) {
+          const h = Math.sin((s.lat - s0.lat) * R / 2) ** 2 + Math.cos(s0.lat * R) * Math.cos(s.lat * R) * Math.sin((s.lon - s0.lon) * R / 2) ** 2;
+          return { m: 2 * 6371000 * Math.asin(Math.sqrt(h)), kt: s.spd };
+        }
+      }
+      return null;
+    }, temp);
+  };
+  const std = await roll(15), hot = await roll(40);
+  expect(std).not.toBeNull();
+  expect(hot).not.toBeNull();
+  expect(hot.m / std.m).toBeGreaterThan(1.05);
+  expect(hot.m / std.m).toBeLessThan(1.20);
+  expect(Math.abs(hot.kt - std.kt)).toBeLessThan(3);
+});

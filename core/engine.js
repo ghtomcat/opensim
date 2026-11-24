@@ -47,6 +47,7 @@ import { registerCommand } from './commands.js';
 import { publishAlerts, clearAlerts } from './alerts.js';
 import { onMissionReset } from './lifecycle.js';
 import { levelTrim } from './trim.js';
+import { oatC, densityRatio } from './airdata.js';
 
 /* The causes that limit power, each 0–1, owned by its module (failures.js, battery.js, physics.js) */
 const FACTORS_NONE = Object.freeze({ failure: 1, ice: 1, seizure: 1, battery: 1, crash: 1 });
@@ -147,8 +148,8 @@ function _coreStarting(t, eng) {
    (≈ 0.3 lb/lbf/h); a trickle from light-off in the start. Oil pressure (psi): _oilPsi below — the
    pump is on the gearbox, 80 · (core/100)^1.5 (≈ 37 at idle, ≈ 3 windmilling). */
 const OIL_MIN_PSI = 13;                       // a turbofan's low-oil-pressure limit without its own (the CFM56's)
-const _oat = () => (S.mission?.weather?.manual?.temp ?? S.metar?.temp ?? 15) - 1.98 * ((S.alt ?? 0) / 1000);   // as the cooling model
-const _rhoRatio = () => Math.pow(Math.max(0, 1 - 2.2558e-5 * (S.alt ?? 0) * 0.3048), 4.2559);
+const _oat = () => oatC(S.alt ?? 0);                 // the outside air (core/airdata.js — as the cooling model)
+const _rhoRatio = () => densityRatio(S.alt ?? 0);    // the day's ρ/ρ₀
 function _ffMax(eng = _eng()) {
   const perf = S.aircraft?.performance ?? {};
   return eng.ffMax ?? 0.0306 * (perf.thrustMax ?? 0) / _count(eng);   // 0.3 lb/(lbf·h) = 0.0306 kg/(N·h)

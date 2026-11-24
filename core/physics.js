@@ -13,7 +13,7 @@ import { lnavTargetHeading } from './lnav.js';
 import { vnavTargetAlt } from './vnav.js';
 import { runwayThreshold } from './mission-start.js';
 import { indicatedAlt } from './baro.js';
-import { machOf } from './airdata.js';
+import { machOf, densityRatio, oatC } from './airdata.js';
 import { trimAoADeg } from './trim.js';
 import { vmoAt } from './limits.js';
 import { vr as takeoffVr } from './takeoff-perf.js';
@@ -146,9 +146,10 @@ export function tickPhysics(dt) {
     const groundFt = _grdElev;
     const onGround = S.alt <= groundFt + 0.5;
 
-    /* ISA density */
+    /* The day's density (core/airdata.js: the weather's temperature and QNH; ISA without weather) — the IAS → TAS
+       conversion (a hot day runs a longer takeoff for the same IAS) and the engines' thrust */
     const alt_m  = S.alt * 0.3048;
-    const rho    = 1.225 * Math.pow(Math.max(0, 1 - 2.2558e-5 * alt_m), 4.2559);
+    const rho    = 1.225 * densityRatio(S.alt);
 
     /* Airspeed and dynamic pressure */
     const spd_ms = Math.max(1, S.spd) * 0.5144;                          // IAS (m/s) — what the wing & gauge feel
@@ -570,7 +571,7 @@ export function tickPhysics(dt) {
      aircraft doesn't get blown across the apron). ── */
   const hdgRad = (newHdg + newBeta) * DEG;           // the flight path: the nose + sideslip
   const cosLat = Math.cos(S.lat * DEG);
-  const _rhoRatio = Math.pow(Math.max(0, 1 - 2.2558e-5 * newAlt * 0.3048), 4.2559);   // ρ/ρ₀ at the new altitude
+  const _rhoRatio = densityRatio(newAlt);                                              // ρ/ρ₀ at the new altitude (the day's)
   const _tasMs    = newSpd * 0.5144 / Math.sqrt(Math.max(0.05, _rhoRatio));            // groundspeed ≈ TAS (IAS→TAS)
   const acN_ms = _tasMs * Math.cos(hdgRad);
   const acE_ms = _tasMs * Math.sin(hdgRad);
@@ -638,10 +639,10 @@ export function tickPhysics(dt) {
   let _coolPatch = {};
   const _cool = ac.cooling;
   if (_cool) {
-    /* Ambient = real outside-air temp: mission/METAR surface temp, lapsed ~2°C per 1000 ft.
-       Cold air (Arctic -22°C) cools far better; hot air (desert) overheats faster. */
-    const _surfT = S.mission?.weather?.manual?.temp ?? S.metar?.temp ?? _cool.ambient ?? 15;
-    const _amb   = _surfT - 1.98 * (newAlt / 1000);
+    /* Ambient = the outside air temperature (core/airdata.js: the weather's, at its station, ISA + dev aloft;
+       the aircraft's cooling.ambient where the weather gives none). Cold air (Arctic -22°C) cools far better;
+       hot air (desert) overheats faster. */
+    const _amb   = oatC(newAlt, S, _cool.ambient ?? null);
     const _heatI = _running ? (S.enginePower ?? 1) * (0.35 + 0.65 * _throttle) * (_cool.heat ?? 50) : 0;
     const _air   = (_cool.coolBase ?? 0.30) + (1 - (_cool.coolBase ?? 0.30)) * Math.min(1, newSpd / (_cool.vRef ?? 260));
     const _flapM = (_cool.flapMin ?? 0.5) + (S.coolFlap ?? 1) * (1 - (_cool.flapMin ?? 0.5));
