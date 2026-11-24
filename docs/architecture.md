@@ -97,7 +97,7 @@ not draw. Grouped by role:
 | World | `elevation.js` (Mapbox Terrain-RGB DEM: one tile cache, `elevM(lat, lon)`, and `tickElevation()` → `S.terrainElevFt`) |
 | Data contract | `vocab.js` (the names data and code share — vehicle types, panels, engine sounds, triggers, rocket events, failures, comm profiles; a misspelled name throws), `schema/` (`check.js` validator; `mission.js`, `catalog.js`, `aircraft.js` schemas; `known.js`: logged violations) |
 | Engine | `engine.js` (start and shutdown lifecycle — the owner of `engineState`) |
-| Physics | `physics.js` (fixed-wing), `airframe.js` (the geometry the physics reads from `dimensions`: nominal CG, engine positions, vertical tail and rudder), `yaw.js` (the yaw axis: sideslip `beta` and the yaw away from the coordinated turn `yawDev`, from thrust asymmetry, windmilling drag, fin, rudder and fuselage — only for a measured tail), `trim.js` (the trim — the angle of attack and the thrust for level flight at a speed, solved from physics.js's force model: an airborne start, a situation, the AP's trim angle), `takeoff-perf.js` (takeoff speeds — V1 = VR for now), `rocket.js` (launch, staging, orbit, booster recovery), `thrust.js`, `pushback.js` |
+| Physics | `physics.js` (fixed-wing), `airframe.js` (the geometry the physics reads from `dimensions`: nominal CG, engine positions, vertical tail and rudder), `yaw.js` (the yaw axis: sideslip `beta` and the yaw away from the coordinated turn `yawDev`, from thrust asymmetry, windmilling drag, fin, rudder and fuselage — only for a measured tail), `trim.js` (the trim — the angle of attack and the thrust for level flight at a speed, solved from physics.js's force model: an airborne start, a situation, the AP's trim angle), `takeoff-perf.js` (takeoff speeds: VR and V2 from the aircraft's own lift for the transport category — `performance.takeoffFlaps`; the handbook's `Vr` for the rest; V1 = VR for now; read by the physics' rotation gate, the callouts, the "at V1" failure and the PFD), `rocket.js` (launch, staging, orbit, booster recovery), `thrust.js`, `pushback.js` |
 | Aircraft systems | `fuel.js`, `fuel-system.js` (airliners), `electrical.js`, `battery.js`, `hydraulics.js`, `alerts.js` (the warning/caution levels in `S.warnings`, published per owner), `baro.js`, `failures.js`, `aircraft-config.js` |
 | Navigation & automation | `route.js` (full route: SID/airways/STAR/approach), `lnav.js`, `vnav.js`, `managed-speed.js`, `fma.js`, `airway-graph.js`, `taxi-graph.js`, `taxi.js` (the active taxi route + clearance), `flightplan.js` (the active flight plan) |
 | Crew, radio, sound | `crew.js` (PF/PM/ATC/GPWS voice dispatch), `radio.js` (comm-chain filtering), `audio.js` (the one AudioContext + worklet loading), `sound.js` (Web Audio engine synthesis), `*-processor.js` (AudioWorklet engine/crackle synthesizers: DB 605, Le Rhône 9J, Lycoming, R-2800) |
@@ -237,7 +237,7 @@ entry `commProfile` → `characters[speaker].commProfile` → mission `commProfi
 ### 2.5 Failures
 
 `failures` entries carry a `trigger` (`{type: "time", t}`, `{type: "alt", alt}`, or `{type: "v1"}` —
-once on the takeoff roll at V1, from `core/takeoff-perf.js`, for now VR)
+once on the takeoff roll at V1, from `core/takeoff-perf.js`, for now = VR)
 and a `type`, handled by `core/failures.js`: `engine_power` (ramp to `value` over
 `rampTime`; on ENG `engine` only — `engine: 1` is ENG 1 — or on all engines), `engine_bang`, `engine_gunfire`, `carb_ice` (needs `hasCarbHeat` on the
 aircraft), `coolant_leak` (needs a liquid cooling system). Entries **without** a
@@ -794,6 +794,8 @@ the centre of mass; attitude isn't produced by moments.
 - **On the ground:** a separate branch with thrust, drag, rolling/static friction,
   brakes (park brake, manual, autobrake levels with spool-in), and reverse thrust. Nose-wheel
   steering turns in proportion to speed. Weight on wheels latches on landing.
+  The nose stays down below VR (`core/takeoff-perf.js`): computed from the lift for the transport
+  category, so the aircraft lifts off where the lift at ~10° pitch carries the weight (VLOF = VR + 10).
 - **Autopilot:** it lives in this branch and only produces targets.
   - **Lateral:** a bank command toward the localizer, LNAV (`core/lnav.js`) or the
     heading bug.
@@ -1094,7 +1096,7 @@ waypoint LNAV flies to). The module is the only caller of `buildFullRoute()`.
 | VNAV, managed speed | `lnavActive()` → the plan's legs and `activeIdx` |
 | ND map (`display/pfd_instruments.js`) | `S.flightPlan`, every frame |
 | MCDU F-PLN page (`display/pedestal.js`) | `S.flightPlan`; re-renders when the legs change (rebuild or amendment), not on sequencing |
-| Briefing charts and nav log (`index.html`) | `planFor(dep, arr)`: the same route for a mission that isn't loaded yet (one-entry cache) |
+| Briefing charts, nav log and the Departure block's SID (`index.html`) | `planFor(dep, arr)`: the same route for a mission that isn't loaded yet (one-entry cache) |
 
 The kneeboard's approach page reads the procedures directly (`approachLegs()`) for the
 missed-approach text.
@@ -1161,7 +1163,7 @@ been checked against the code during this rewrite.
 | Flap/gear checklist calls | `aircraft.checklist` | PF/PM exchange |
 | **The mission script** | `mission.atcClearances` (§2.4) | ATC, crew, narration, ambient audio |
 | Approach briefing | `mission.approachBrief` | PF/PM briefing sequence |
-| Takeoff callouts | `aircraft.takeoffCallouts` | "rotate", "positive climb", … |
+| Takeoff callouts | `aircraft.takeoffCallouts` — a fixed `spd`, or `at` a takeoff speed (`v1`, `vr`, `v2` from `core/takeoff-perf.js`); V1 = VR → one call | "one hundred knots", "V one, rotate" |
 
 For rockets it also tracks the vehicle's state transitions (max-Q, staging, SECO,
 booster phases, Dragon events) for the `event:` triggers.
@@ -1438,7 +1440,9 @@ the EGPWS read (§7.4).
   route, taxi route); world map with the ground track for rockets. Also embedded maps
   in the G1000 and Velis panels.
 - **Kneeboard** (`display/kneeboard.js`): checklists and briefings from the aircraft
-  and mission, plus a generated approach page.
+  and mission, plus generated pages: TAKEOFF DATA on a takeoff (the calculated plan,
+  `takeoffPlan()` in `core/takeoff-plan.js` — the same the briefing's Departure block shows —
+  and the flight plan's SID) and APPROACH. No V-speed is typed into a kneeboard.
 
 ### 13.6 Observations
 
@@ -1524,7 +1528,7 @@ Beyond wiring, the module script holds application features (see `issues.md` →
 | Feature | Functions |
 |---|---|
 | Mission picker, briefing page (story, setup strip, Fly) | `showSelect`, `showBriefing`, `_bpStrip`, `_bpOpenPop`, `_bpFly` (the screen; layout, choices and the setup they build are in `app/briefing.js`) |
-| Briefing charts on the airliners (route, airport, SID/STAR, nav log, weather) | `_fillChartBriefing`, `_briefingTab`, `_renderRouteChart`, `_renderProcChart`, … |
+| Briefing charts on the airliners (route, airport, SID/STAR, nav log, weather); the takeoff plan in the Departure block (`takeoffPlan()` in `core/takeoff-plan.js`: lineup from `departureLineup()` in `core/taxi.js`, speeds from `core/takeoff-perf.js`; the kneeboard's TAKEOFF DATA reads the same) | `_fillChartBriefing`, `_briefingTab`, `_renderRouteChart`, `_renderProcChart`, … |
 | Live flight: radar picker, ADS-B tracking that drives the sim | `flyWithFlight`, `renderRadarMap`, `_startTracking`, `_pollTracking` |
 | Panel text updates, mission clock, METAR display | `updatePanel` (~130 lines), `renderMissionClock`, `updateMetar` |
 | Approach tracking and **scoring**, debrief, crash overlay | `_trackApproach`, `_computeApproachScore`, `_computeEmergScore`, `showDebrief`, `checkCrash` |
